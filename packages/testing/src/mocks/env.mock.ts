@@ -16,6 +16,11 @@ export const defaultMockEnv = {
   FROM_EMAIL_ADDRESS: 'Sim <noreply@test.sim.ai>',
   EMAIL_DOMAIN: 'test.sim.ai',
   PERSONAL_EMAIL_FROM: 'Test <test@test.sim.ai>',
+  SMTP_HOST: 'smtp.test.sim.ai',
+  SMTP_PORT: '587',
+  SMTP_SECURE: 'TLS',
+  SMTP_USERNAME: 'smtp-user',
+  SMTP_PASSWORD: 'smtp-password',
 
   // URLs
   NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',

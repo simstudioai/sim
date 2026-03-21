@@ -18,6 +18,7 @@ const mockSend = vi.fn()
 const mockBatchSend = vi.fn()
 const mockAzureBeginSend = vi.fn()
 const mockAzurePollUntilDone = vi.fn()
+const mockSmtpSend = vi.fn()
 
 // Mock the Resend module - returns an object with emails.send
 vi.mock('resend', () => {
@@ -42,6 +43,16 @@ vi.mock('@azure/communication-email', () => {
   }
 })
 
+vi.mock('nodemailer', () => {
+  return {
+    default: {
+      createTransport: vi.fn().mockImplementation(() => ({
+        sendMail: (...args: any[]) => mockSmtpSend(...args),
+      })),
+    },
+  }
+})
+
 // Mock unsubscribe module
 vi.mock('@/lib/messaging/email/unsubscribe', () => ({
   isUnsubscribed: vi.fn(),
@@ -56,6 +67,11 @@ vi.mock('@/lib/core/config/env', () =>
     AZURE_COMMUNICATION_EMAIL_DOMAIN: 'test.azurecomm.net',
     NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
     FROM_EMAIL_ADDRESS: 'Sim <noreply@sim.ai>',
+    SMTP_HOST: 'smtp.test.sim.ai',
+    SMTP_PORT: '587',
+    SMTP_SECURE: 'TLS',
+    SMTP_USERNAME: 'smtp-user',
+    SMTP_PASSWORD: 'smtp-password',
   })
 )
 
@@ -82,6 +98,38 @@ import {
 } from '@/lib/messaging/email/mailer'
 import { generateUnsubscribeToken, isUnsubscribed } from '@/lib/messaging/email/unsubscribe'
 
+async function loadMailerWithEnv(overrides: Record<string, string | undefined> = {}) {
+  vi.resetModules()
+
+  const dynamicLogger = createMockLogger()
+
+  vi.doMock('@/lib/core/config/env', () =>
+    createEnvMock({
+      RESEND_API_KEY: 'test-api-key',
+      AZURE_ACS_CONNECTION_STRING: 'test-azure-connection-string',
+      NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
+      FROM_EMAIL_ADDRESS: 'Sim <noreply@sim.ai>',
+      SMTP_HOST: 'smtp.test.sim.ai',
+      SMTP_PORT: '587',
+      SMTP_SECURE: 'TLS',
+      SMTP_USERNAME: 'smtp-user',
+      SMTP_PASSWORD: 'smtp-password',
+      ...overrides,
+    })
+  )
+
+  vi.doMock('@sim/logger', () => ({
+    createLogger: () => dynamicLogger,
+  }))
+
+  const mailerModule = await import('@/lib/messaging/email/mailer')
+
+  return {
+    dynamicLogger,
+    ...mailerModule,
+  }
+}
+
 describe('mailer', () => {
   const testEmailOptions = {
     to: 'test@example.com',
@@ -103,6 +151,10 @@ describe('mailer', () => {
     mockBatchSend.mockResolvedValue({
       data: [{ id: 'batch-email-1' }, { id: 'batch-email-2' }],
       error: null,
+    })
+
+    mockSmtpSend.mockResolvedValue({
+      messageId: 'smtp-message-id',
     })
 
     // Mock successful Azure response
@@ -204,6 +256,29 @@ describe('mailer', () => {
       expect(result.success).toBe(false)
       expect(result.message).toBe('Failed to send email')
     })
+
+    it('should fall back to SMTP when Resend and Azure fail', async () => {
+      mockSend.mockRejectedValue(new Error('Resend unavailable'))
+      mockAzureBeginSend.mockImplementation(() => {
+        throw new Error('Azure unavailable')
+      })
+
+      const result = await sendEmail({
+        ...testEmailOptions,
+        emailType: 'transactional',
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.message).toBe('Email sent successfully via SMTP')
+      expect(mockSmtpSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          from: 'Sim <noreply@sim.ai>',
+          to: 'test@example.com',
+          subject: 'Test Subject',
+          html: '<p>Test email content</p>',
+        })
+      )
+    })
   })
 
   describe('sendBatchEmails', () => {
@@ -236,6 +311,73 @@ describe('mailer', () => {
 
       // Should not check unsubscribe for transactional emails
       expect(isUnsubscribed).not.toHaveBeenCalled()
+    })
+
+    it('should fall back to SMTP during batch sends when Resend batch and Azure fail', async () => {
+      mockBatchSend.mockRejectedValue(new Error('Resend batch unavailable'))
+      mockSend.mockRejectedValue(new Error('Resend unavailable'))
+      mockAzureBeginSend.mockImplementation(() => {
+        throw new Error('Azure unavailable')
+      })
+
+      const result = await sendBatchEmails({ emails: testBatchEmails })
+
+      expect(result.success).toBe(true)
+      expect(mockSmtpSend).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('provider configuration', () => {
+    it('should send with SMTP when SMTP is the only configured provider', async () => {
+      const { sendEmail: sendEmailWithSmtpOnly } = await loadMailerWithEnv({
+        RESEND_API_KEY: undefined,
+        AZURE_ACS_CONNECTION_STRING: undefined,
+      })
+
+      const result = await sendEmailWithSmtpOnly({
+        ...testEmailOptions,
+        emailType: 'transactional',
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.message).toBe('Email sent successfully via SMTP')
+      expect(mockSend).not.toHaveBeenCalled()
+      expect(mockAzureBeginSend).not.toHaveBeenCalled()
+      expect(mockSmtpSend).toHaveBeenCalledTimes(1)
+    })
+
+    it('should ignore invalid SMTP ports', async () => {
+      const { dynamicLogger, hasEmailService: hasEmailServiceWithInvalidSmtp } = await loadMailerWithEnv(
+        {
+          RESEND_API_KEY: undefined,
+          AZURE_ACS_CONNECTION_STRING: undefined,
+          SMTP_PORT: '587tls',
+        }
+      )
+
+      expect(hasEmailServiceWithInvalidSmtp()).toBe(false)
+      expect(dynamicLogger.warn).toHaveBeenCalledWith(
+        'SMTP configuration ignored because port is invalid',
+        { port: '587tls' }
+      )
+    })
+
+    it('should warn when multiple providers are configured and prefer Resend first', async () => {
+      const { dynamicLogger, sendEmail: sendEmailWithMultipleProviders } = await loadMailerWithEnv()
+
+      const result = await sendEmailWithMultipleProviders({
+        ...testEmailOptions,
+        emailType: 'transactional',
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.message).toBe('Email sent successfully via Resend')
+      expect(dynamicLogger.warn).toHaveBeenCalledWith(
+        'Multiple email providers configured; earlier providers take precedence',
+        { providerOrder: ['Resend', 'Azure Communication Services', 'SMTP'] }
+      )
+      expect(mockSend).toHaveBeenCalledTimes(1)
+      expect(mockSmtpSend).not.toHaveBeenCalled()
     })
   })
 })

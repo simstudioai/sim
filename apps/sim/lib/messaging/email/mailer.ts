@@ -1,5 +1,6 @@
 import { EmailClient, type EmailMessage } from '@azure/communication-email'
 import { createLogger } from '@sim/logger'
+import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -57,6 +58,21 @@ interface ProcessedEmailData {
   replyTo?: string
 }
 
+type SmtpSecureMode = 'TLS' | 'SSL' | 'None'
+
+interface SmtpConfig {
+  host: string
+  port: number
+  secureMode: SmtpSecureMode
+  username?: string
+  password?: string
+}
+
+interface EmailProvider {
+  name: string
+  send: (data: ProcessedEmailData) => Promise<SendEmailResult>
+}
+
 const resendApiKey = env.RESEND_API_KEY
 const azureConnectionString = env.AZURE_ACS_CONNECTION_STRING
 
@@ -70,11 +86,19 @@ const azureEmailClient =
     ? new EmailClient(azureConnectionString)
     : null
 
+const smtpConfig = getSmtpConfig()
+
+const smtpTransporter = smtpConfig ? createSmtpTransporter(smtpConfig) : null
+
+const emailProviders = getEmailProviders()
+
+warnOnMultipleProviders(emailProviders)
+
 /**
  * Check if any email service is configured and available
  */
 export function hasEmailService(): boolean {
-  return !!(resend || azureEmailClient)
+  return emailProviders.length > 0
 }
 
 export async function sendEmail(options: EmailOptions): Promise<SendEmailResult> {
@@ -99,35 +123,34 @@ export async function sendEmail(options: EmailOptions): Promise<SendEmailResult>
 
     const processedData = await processEmailData(options)
 
-    if (resend) {
-      try {
-        return await sendWithResend(processedData)
-      } catch (error) {
-        logger.warn('Resend failed, attempting Azure Communication Services fallback:', error)
+    if (emailProviders.length === 0) {
+      logger.info('Email not sent (no email service configured):', {
+        to: options.to,
+        subject: options.subject,
+        from: processedData.senderEmail,
+      })
+      return {
+        success: true,
+        message: 'Email logging successful (no email service configured)',
+        data: { id: 'mock-email-id' },
       }
     }
 
-    if (azureEmailClient) {
+    const failedProviders: string[] = []
+
+    for (const provider of emailProviders) {
       try {
-        return await sendWithAzure(processedData)
+        return await provider.send(processedData)
       } catch (error) {
-        logger.error('Azure Communication Services also failed:', error)
-        return {
-          success: false,
-          message: 'Both Resend and Azure Communication Services failed',
-        }
+        failedProviders.push(provider.name)
+        logger.warn(`${provider.name} failed, attempting next email provider:`, error)
       }
     }
 
-    logger.info('Email not sent (no email service configured):', {
-      to: options.to,
-      subject: options.subject,
-      from: processedData.senderEmail,
-    })
+    logger.error('All configured email providers failed:', { failedProviders })
     return {
-      success: true,
-      message: 'Email logging successful (no email service configured)',
-      data: { id: 'mock-email-id' },
+      success: false,
+      message: `${failedProviders.join(', ')} failed`,
     }
   } catch (error) {
     logger.error('Error sending email:', error)
@@ -136,6 +159,133 @@ export async function sendEmail(options: EmailOptions): Promise<SendEmailResult>
       message: 'Failed to send email',
     }
   }
+}
+
+function getEmailProviders(): EmailProvider[] {
+  const providers: EmailProvider[] = []
+
+  if (resend) {
+    providers.push({
+      name: 'Resend',
+      send: sendWithResend,
+    })
+  }
+
+  if (azureEmailClient) {
+    providers.push({
+      name: 'Azure Communication Services',
+      send: sendWithAzure,
+    })
+  }
+
+  if (smtpTransporter) {
+    providers.push({
+      name: 'SMTP',
+      send: sendWithSmtp,
+    })
+  }
+
+  return providers
+}
+
+function warnOnMultipleProviders(providers: EmailProvider[]): void {
+  if (providers.length <= 1) {
+    return
+  }
+
+  logger.warn('Multiple email providers configured; earlier providers take precedence', {
+    providerOrder: providers.map((provider) => provider.name),
+  })
+}
+
+function getSmtpConfig(): SmtpConfig | null {
+  const host = env.SMTP_HOST?.trim()
+  const portValue = env.SMTP_PORT?.trim()
+  const username = env.SMTP_USERNAME?.trim()
+  const password = env.SMTP_PASSWORD?.trim()
+
+  if (!host && !portValue && !username && !password) {
+    return null
+  }
+
+  if (!host || !portValue) {
+    logger.warn('SMTP configuration ignored because host or port is missing')
+    return null
+  }
+
+  if (!/^\d+$/.test(portValue)) {
+    logger.warn('SMTP configuration ignored because port is invalid', { port: portValue })
+    return null
+  }
+
+  const port = Number(portValue)
+  if (port < 1 || port > 65535) {
+    logger.warn('SMTP configuration ignored because port is invalid', { port: portValue })
+    return null
+  }
+
+  if ((username && !password) || (!username && password)) {
+    logger.warn('SMTP configuration ignored because username/password are incomplete')
+    return null
+  }
+
+  return {
+    host,
+    port,
+    secureMode: normalizeSmtpSecureMode(env.SMTP_SECURE, port),
+    username,
+    password,
+  }
+}
+
+function normalizeSmtpSecureMode(
+  secureMode: string | undefined,
+  port: number
+): SmtpSecureMode {
+  const normalized = secureMode?.trim().toUpperCase()
+
+  if (normalized === 'TLS' || normalized === 'SSL') {
+    return normalized
+  }
+
+  if (normalized === 'NONE') {
+    return 'None'
+  }
+
+  if (port === 465) {
+    return 'SSL'
+  }
+
+  if (port === 587) {
+    return 'TLS'
+  }
+
+  return 'None'
+}
+
+function createSmtpTransporter(config: SmtpConfig) {
+  const baseTransport = {
+    host: config.host,
+    port: config.port,
+    secure: config.secureMode === 'SSL',
+    requireTLS: config.secureMode === 'TLS',
+    ignoreTLS: config.secureMode === 'None',
+    tls: {
+      rejectUnauthorized: config.secureMode !== 'None',
+    },
+  }
+
+  if (config.username && config.password) {
+    return nodemailer.createTransport({
+      ...baseTransport,
+      auth: {
+        user: config.username,
+        pass: config.password,
+      },
+    })
+  }
+
+  return nodemailer.createTransport(baseTransport)
 }
 
 interface UnsubscribeData {
@@ -286,6 +436,37 @@ async function sendWithAzure(data: ProcessedEmailData): Promise<SendEmailResult>
     }
   }
   throw new Error(`Azure Communication Services failed with status: ${result.status}`)
+}
+
+async function sendWithSmtp(data: ProcessedEmailData): Promise<SendEmailResult> {
+  if (!smtpTransporter) throw new Error('SMTP not configured')
+
+  const mailOptions: nodemailer.SendMailOptions = {
+    from: data.senderEmail,
+    to: data.to,
+    subject: data.subject,
+    headers: Object.keys(data.headers).length > 0 ? data.headers : undefined,
+    replyTo: data.replyTo,
+  }
+
+  if (data.html) mailOptions.html = data.html
+  if (data.text) mailOptions.text = data.text
+  if (data.attachments) {
+    mailOptions.attachments = data.attachments.map((attachment) => ({
+      filename: attachment.filename,
+      content: attachment.content,
+      contentType: attachment.contentType,
+      contentDisposition: attachment.disposition || 'attachment',
+    }))
+  }
+
+  const result = await smtpTransporter.sendMail(mailOptions)
+
+  return {
+    success: true,
+    message: 'Email sent successfully via SMTP',
+    data: { id: result.messageId },
+  }
 }
 
 export async function sendBatchEmails(options: BatchEmailOptions): Promise<BatchSendEmailResult> {
