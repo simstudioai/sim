@@ -1,6 +1,6 @@
 import { WhatsAppIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { WhatsAppResponse } from '@/tools/whatsapp/types'
 import { getTrigger } from '@/triggers'
 
@@ -12,6 +12,8 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
   longDescription: 'Integrate WhatsApp into the workflow. Can send messages.',
   docsLink: 'https://docs.sim.ai/tools/whatsapp',
   category: 'tools',
+  integrationType: IntegrationType.Communication,
+  tags: ['messaging', 'automation'],
   bgColor: '#25D366',
   icon: WhatsAppIcon,
   triggerAllowed: true,

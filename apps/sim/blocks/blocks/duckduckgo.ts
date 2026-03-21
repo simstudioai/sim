@@ -1,5 +1,6 @@
 import { DuckDuckGoIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import type { DuckDuckGoResponse } from '@/tools/duckduckgo/types'
 
 export const DuckDuckGoBlock: BlockConfig<DuckDuckGoResponse> = {
@@ -10,6 +11,8 @@ export const DuckDuckGoBlock: BlockConfig<DuckDuckGoResponse> = {
     'Search the web using DuckDuckGo Instant Answers API. Returns instant answers, abstracts, related topics, and more. Free to use without an API key.',
   docsLink: 'https://docs.sim.ai/tools/duckduckgo',
   category: 'tools',
+  integrationType: IntegrationType.Search,
+  tags: ['web-scraping', 'seo'],
   bgColor: '#FFFFFF',
   icon: DuckDuckGoIcon,
   subBlocks: [

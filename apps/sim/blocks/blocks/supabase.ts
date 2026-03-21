@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { SupabaseIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SupabaseResponse } from '@/tools/supabase/types'
 
@@ -15,6 +15,8 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
     'Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).',
   docsLink: 'https://docs.sim.ai/tools/supabase',
   category: 'tools',
+  integrationType: IntegrationType.Databases,
+  tags: ['cloud', 'data-warehouse', 'vector-search'],
   bgColor: '#1C1C1C',
   icon: SupabaseIcon,
   subBlocks: [

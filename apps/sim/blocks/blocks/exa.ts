@@ -1,6 +1,6 @@
 import { ExaAIIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ExaResponse } from '@/tools/exa/types'
 
 export const ExaBlock: BlockConfig<ExaResponse> = {
@@ -12,6 +12,8 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     'Integrate Exa into the workflow. Can search, get contents, find similar links, answer a question, and perform research.',
   docsLink: 'https://docs.sim.ai/tools/exa',
   category: 'tools',
+  integrationType: IntegrationType.Search,
+  tags: ['web-scraping', 'enrichment'],
   bgColor: '#1F40ED',
   icon: ExaAIIcon,
   subBlocks: [

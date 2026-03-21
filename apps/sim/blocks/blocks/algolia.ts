@@ -1,6 +1,6 @@
 import { AlgoliaIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const AlgoliaBlock: BlockConfig = {
   type: 'algolia',
@@ -10,6 +10,8 @@ export const AlgoliaBlock: BlockConfig = {
     'Integrate Algolia into your workflow. Search indices, manage records (add, update, delete, browse), configure index settings, and perform batch operations.',
   docsLink: 'https://docs.sim.ai/tools/algolia',
   category: 'tools',
+  integrationType: IntegrationType.Search,
+  tags: ['vector-search', 'knowledge-base'],
   bgColor: '#003DFF',
   icon: AlgoliaIcon,
   authMode: AuthMode.ApiKey,

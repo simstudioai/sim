@@ -1,7 +1,7 @@
 import { BoxCompanyIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 
 export const BoxBlock: BlockConfig = {
@@ -12,6 +12,8 @@ export const BoxBlock: BlockConfig = {
     'Integrate Box into your workflow to manage files, folders, and e-signatures. Upload and download files, search content, create folders, send documents for e-signature, track signing status, and more.',
   docsLink: 'https://docs.sim.ai/tools/box',
   category: 'tools',
+  integrationType: IntegrationType.FileStorage,
+  tags: ['cloud', 'content-management', 'e-signatures'],
   bgColor: '#FFFFFF',
   icon: BoxCompanyIcon,
   authMode: AuthMode.OAuth,

@@ -1,5 +1,6 @@
 import { WikipediaIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import type { WikipediaResponse } from '@/tools/wikipedia/types'
 
 export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
@@ -10,6 +11,8 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
     'Integrate Wikipedia into the workflow. Can get page summary, search pages, get page content, and get random page.',
   docsLink: 'https://docs.sim.ai/tools/wikipedia',
   category: 'tools',
+  integrationType: IntegrationType.Search,
+  tags: ['knowledge-base', 'web-scraping'],
   bgColor: '#000000',
   icon: WikipediaIcon,
   subBlocks: [

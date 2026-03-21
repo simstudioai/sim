@@ -1,7 +1,7 @@
 import { FirefliesIcon } from '@/components/icons'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { FirefliesResponse } from '@/tools/fireflies/types'
 import { getTrigger } from '@/triggers'
@@ -17,6 +17,8 @@ export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
     'Integrate Fireflies.ai into the workflow. Manage meeting transcripts, add bot to live meetings, create soundbites, and more. Can also trigger workflows when transcriptions complete.',
   docsLink: 'https://docs.sim.ai/tools/fireflies',
   category: 'tools',
+  integrationType: IntegrationType.Media,
+  tags: ['meeting', 'speech-to-text', 'note-taking'],
   icon: FirefliesIcon,
   bgColor: '#100730',
   subBlocks: [
@@ -613,6 +615,8 @@ export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
   name: 'Fireflies',
   description: 'Interact with Fireflies.ai meeting transcripts and recordings',
   hideFromToolbar: false,
+  integrationType: IntegrationType.Media,
+  tags: ['meeting', 'speech-to-text', 'note-taking'],
   subBlocks: firefliesV2SubBlocks,
   tools: {
     ...FirefliesBlock.tools,

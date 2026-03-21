@@ -1,6 +1,6 @@
 import { DatadogIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { DatadogResponse } from '@/tools/datadog/types'
 
 export const DatadogBlock: BlockConfig<DatadogResponse> = {
@@ -12,6 +12,8 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
     'Integrate Datadog monitoring into workflows. Submit metrics, manage monitors, query logs, create events, handle downtimes, and more.',
   docsLink: 'https://docs.sim.ai/tools/datadog',
   category: 'tools',
+  integrationType: IntegrationType.Analytics,
+  tags: ['monitoring', 'incident-management', 'error-tracking'],
   bgColor: '#632CA6',
   icon: DatadogIcon,
   subBlocks: [
