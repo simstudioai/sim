@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, Link2, Linkedin, Twitter } from 'lucide-react'
+import { Button } from '@/components/emcn'
 
 interface ShareButtonsProps {
   url: string
@@ -32,32 +33,34 @@ export function ShareButtons({ url, title }: ShareButtonsProps) {
     window.open(linkedInUrl, '_blank', 'noopener,noreferrer')
   }
 
-  const btnClass =
-    'flex h-10 w-10 items-center justify-center rounded-[5px] border border-[#2A2A2A] bg-[#232323] text-[#999] transition-[color,border-color] duration-150 ease [@media(hover:hover)]:hover:border-[#2ABBF8] [@media(hover:hover)]:hover:text-[#2ABBF8] active:scale-[0.95]'
+  const iconButtonClassName = 'h-10 w-10 shrink-0 p-0 active:scale-[0.95]'
 
   return (
     <div className='flex gap-2'>
-      <button
+      <Button
         type='button'
         onClick={handleShareTwitter}
-        className={btnClass}
+        className={iconButtonClassName}
         aria-label='Share on X'
+        variant='primary'
       >
         <Twitter className='h-4 w-4' aria-hidden='true' />
-      </button>
-      <button
+      </Button>
+      <Button
         type='button'
         onClick={handleShareLinkedIn}
-        className={btnClass}
+        className={iconButtonClassName}
         aria-label='Share on LinkedIn'
+        variant='primary'
       >
         <Linkedin className='h-4 w-4' aria-hidden='true' />
-      </button>
-      <button
+      </Button>
+      <Button
         type='button'
         onClick={handleCopyLink}
-        className={btnClass}
+        className={iconButtonClassName}
         aria-label={copied ? 'Link copied' : 'Copy link'}
+        variant='primary'
       >
         <AnimatePresence mode='wait'>
           {copied ? (
@@ -84,7 +87,7 @@ export function ShareButtons({ url, title }: ShareButtonsProps) {
             </motion.span>
           )}
         </AnimatePresence>
-      </button>
+      </Button>
     </div>
   )
 }

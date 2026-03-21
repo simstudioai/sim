@@ -1,12 +1,14 @@
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ChevronLeft } from 'lucide-react'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
+import { buttonVariants } from '@/components/emcn'
 import { FAQ } from '@/lib/blog/faq'
 import '@/app/(landing)/blog/[slug]/prose-studio.css'
 import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/blog/registry'
 import type { Author, BlogMeta } from '@/lib/blog/schema'
 import { buildArticleJsonLd, buildBreadcrumbJsonLd, buildPostMetadata } from '@/lib/blog/seo'
+import { cn } from '@/lib/core/utils/cn'
 import { formatDate } from '@/lib/core/utils/formatting'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { ArticleHeaderItem, ArticleHeaderMotion } from '@/app/(landing)/blog/[slug]/article-header'
@@ -38,8 +40,6 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const jsonLd = buildArticleJsonLd(post)
   const breadcrumbLd = buildBreadcrumbJsonLd(post)
 
-  const category = getPrimaryCategory(post.tags)
-  const categoryColor = category.color
   const displayAuthors = post.authors && post.authors.length > 0 ? post.authors : [post.author]
   const shareUrl = `${getBaseUrl()}/blog/${slug}`
 
@@ -59,34 +59,35 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         <div data-blog-main-content className='w-full min-w-0 max-w-5xl xl:col-start-2 xl:mx-auto'>
           <Link
             href='/blog'
-            className='group mb-8 inline-flex items-center gap-2 border border-[#2A2A2A] bg-[#232323] px-4 py-2 font-season text-[#999] text-[11px] uppercase tracking-widest transition-colors hover:text-[#ECECEC]'
-            style={{ borderRadius: '5px' }}
+            className={cn(
+              buttonVariants({ variant: 'ghost', size: 'sm' }),
+              'group mb-8 gap-1 font-season text-[#999] text-sm hover:text-[#ECECEC] !px-0'
+            )}
           >
-            <ArrowLeft
-              className='group-hover:-translate-x-1 h-3 w-3 transition-transform'
-              aria-hidden='true'
-            />
-            All Posts
+            <span className='relative inline-flex h-4 w-4 shrink-0 group-hover:-translate-x-0.5 transition-transform duration-200'>
+              <ChevronLeft
+                className='absolute inset-0 h-4 w-4 opacity-100 transition-opacity duration-200 group-hover:pointer-events-none group-hover:opacity-0'
+                aria-hidden
+              />
+              <ArrowLeft
+                className='absolute inset-0 h-4 w-4 opacity-0 transition-opacity duration-200 group-hover:opacity-100'
+                aria-hidden
+              />
+            </span>
+            Back to Blog
           </Link>
           <header className='mb-12 border-[#2A2A2A] border-b pb-8'>
             <ArticleHeaderMotion>
-              <ArticleHeaderItem className='mb-6 flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+              <ArticleHeaderItem className='mb-4 flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
                 <div className='flex items-center gap-3'>
-                  <span
-                    className='inline-block h-3 w-3'
-                    style={{ backgroundColor: categoryColor }}
-                    aria-hidden='true'
-                  />
-                  <div className='font-season text-[#999] text-[11px] uppercase tracking-widest'>
-                    <time dateTime={post.date} itemProp='datePublished'>
+                  <div className='font-season text-[#999] tracking-widest'>
+                    <time dateTime={post.date} itemProp='datePublished' className='text-[12px] uppercase'>
                       {new Date(post.date).toLocaleDateString('en-US', {
                         month: 'short',
                         day: '2-digit',
                         year: 'numeric',
                       })}
                     </time>
-                    {' // '}
-                    <span style={{ color: categoryColor }}>{category.label}</span>
                   </div>
                 </div>
 
@@ -96,7 +97,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
               </ArticleHeaderItem>
               <ArticleHeaderItem>
                 <h1
-                  className='mb-6 font-[500] text-[#ECECEC] text-[36px] leading-[1.15] tracking-tight sm:text-[40px] md:text-[48px]'
+                  className='mb-4 font-[500] text-[#ECECEC] text-[36px] leading-[1.15] tracking-tight sm:text-[40px] md:text-[48px]'
                   itemProp='headline'
                 >
                   {post.title}

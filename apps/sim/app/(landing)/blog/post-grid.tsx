@@ -137,7 +137,7 @@ function FeaturedLeadCard({ post }: { post: Post }) {
     <motion.div variants={leadVariants} className='col-span-full'>
       <Link
         href={`/blog/${post.slug}`}
-        className='group [@media(hover:hover)]:hover:-translate-y-0.5 relative flex min-h-[400px] flex-col justify-end overflow-hidden border border-[#2A2A2A] bg-[#232323] transition-[border-color,transform] duration-200 ease-out [@media(hover:hover)]:hover:border-[#00F701]'
+        className='group [@media(hover:hover)]:hover:-translate-y-0.5 relative flex min-h-[400px] flex-col justify-end overflow-hidden border border-[#2A2A2A] bg-[#232323] transition-[border-color,background-color,transform] duration-200 ease-out active:scale-[0.99] [@media(hover:hover)]:hover:border-[#3d3d3d] [@media(hover:hover)]:hover:bg-[#282828]'
       >
         <div className='absolute inset-0'>
           <Image
@@ -166,7 +166,7 @@ function FeaturedLeadCard({ post }: { post: Post }) {
             )}
           </div>
           <div className='mt-auto'>
-            <h3 className='mb-4 max-w-2xl font-[500] text-[#ECECEC] text-[32px] leading-tight tracking-[-0.02em] transition-colors duration-150 [@media(hover:hover)]:group-hover:text-[#00F701]'>
+            <h3 className='mb-4 max-w-2xl font-[500] text-[#ECECEC] text-[32px] leading-tight tracking-[-0.02em]'>
               {post.title}
             </h3>
             <p className='mb-6 max-w-2xl text-[#999] text-[15px]'>{post.description}</p>

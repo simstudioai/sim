@@ -174,8 +174,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
 
             {featured.length > 0 && (
               <section className='mb-10'>
-                <h2 className='mb-8 flex items-center gap-2 font-season text-[#666] text-[11px] uppercase tracking-widest'>
-                  <span className='inline-block h-2 w-2 bg-[#FA4EDF]' aria-hidden='true' />
+                <h2 className='mb-8 flex items-center gap-2 font-season text-[#666] text-md tracking-widest'>
                   Featured Content
                 </h2>
                 <FeaturedGrid posts={featured} />
@@ -184,8 +183,7 @@ export function StudioContent({ posts, initialTag, initialQuery }: StudioContent
 
             {feed.length > 0 && (
               <section>
-                <h2 className='mb-8 flex items-center gap-2 font-season text-[#666] text-[11px] uppercase tracking-widest'>
-                  <span className='inline-block h-2 w-2 bg-[#00F701]' aria-hidden='true' />
+                <h2 className='mb-8 flex items-center gap-2 font-season text-[#666] text-md tracking-widest'>
                   {lowerQ ? 'Search Results' : activeCategory ? activeCategory.label : 'All Posts'}
                 </h2>
                 <PostGrid posts={feed} />
