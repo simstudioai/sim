@@ -65,6 +65,7 @@ import {
   isHosted,
   isOrganizationsEnabled,
   isRegistrationDisabled,
+  isSignupEmailValidationEnabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -664,7 +665,7 @@ export const auth = betterAuth({
   },
   plugins: [
     nextCookies(),
-    emailHarmony(),
+    ...(isSignupEmailValidationEnabled ? [emailHarmony()] : []),
     ...(env.TURNSTILE_SECRET_KEY
       ? [
           captcha({

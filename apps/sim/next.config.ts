@@ -120,6 +120,7 @@ const nextConfig: NextConfig = {
     '@t3-oss/env-nextjs',
     '@t3-oss/env-core',
     '@sim/db',
+    'better-auth-harmony',
   ],
   async headers() {
     return [

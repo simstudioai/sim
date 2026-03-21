@@ -93,6 +93,8 @@ function SignupFormContent({
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
+  const captchaResolveRef = useRef<((token: string) => void) | null>(null)
+  const captchaRejectRef = useRef<((reason: unknown) => void) | null>(null)
   const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
   const buttonClass = useBrandedButtonClass()
 
@@ -249,6 +251,24 @@ function SignupFormContent({
 
       const sanitizedName = trimmedName
 
+      // Execute Turnstile challenge on submit and get a fresh token
+      let token = captchaToken
+      if (turnstileSiteKey && turnstileRef.current) {
+        try {
+          turnstileRef.current.reset()
+          token = await new Promise<string>((resolve, reject) => {
+            captchaResolveRef.current = resolve
+            captchaRejectRef.current = reject
+            turnstileRef.current?.execute()
+          })
+        } catch {
+          setPasswordErrors(['Captcha verification failed. Please try again.'])
+          setShowValidationError(true)
+          setIsLoading(false)
+          return
+        }
+      }
+
       const response = await client.signUp.email(
         {
           email: emailValue,
@@ -258,7 +278,7 @@ function SignupFormContent({
         {
           fetchOptions: {
             headers: {
-              ...(captchaToken ? { 'x-captcha-response': captchaToken } : {}),
+              ...(token ? { 'x-captcha-response': token } : {}),
             },
           },
           onError: (ctx) => {
@@ -468,10 +488,20 @@ function SignupFormContent({
             <Turnstile
               ref={turnstileRef}
               siteKey={turnstileSiteKey}
-              onSuccess={setCaptchaToken}
-              onError={() => setCaptchaToken(null)}
+              onSuccess={(token) => {
+                setCaptchaToken(token)
+                captchaResolveRef.current?.(token)
+                captchaResolveRef.current = null
+                captchaRejectRef.current = null
+              }}
+              onError={() => {
+                setCaptchaToken(null)
+                captchaRejectRef.current?.(new Error('Captcha failed'))
+                captchaResolveRef.current = null
+                captchaRejectRef.current = null
+              }}
               onExpire={() => setCaptchaToken(null)}
-              options={{ size: 'invisible' }}
+              options={{ size: 'invisible', execution: 'execute' }}
             />
           )}
 
