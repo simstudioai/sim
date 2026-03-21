@@ -251,7 +251,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       }, 15_000)
 
       try {
-        await orchestrateCopilotStream(requestPayload, {
+        const result = await orchestrateCopilotStream(requestPayload, {
           ...orchestrateOptions,
           executionId,
           runId,
@@ -261,6 +261,46 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           },
         })
 
+        if (abortController.signal.aborted) {
+          logger.info(`[${requestId}] Stream aborted by explicit stop`)
+          await eventWriter.close().catch(() => {})
+          await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
+          await updateRunStatus(runId, 'cancelled', { completedAt: new Date() }).catch(() => {})
+          return
+        }
+
+        if (!result.success) {
+          const errorMessage =
+            result.error ||
+            result.errors?.[0] ||
+            'An unexpected error occurred while processing the response.'
+
+          if (clientDisconnected) {
+            logger.info(`[${requestId}] Stream ended after client disconnect`)
+            await eventWriter.close().catch(() => {})
+            await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
+            await updateRunStatus(runId, 'cancelled', { completedAt: new Date() }).catch(() => {})
+            return
+          }
+
+          logger.error(`[${requestId}] Orchestration returned failure`, {
+            error: errorMessage,
+          })
+          await eventWriter.close()
+          await setStreamMeta(streamId, {
+            status: 'error',
+            userId,
+            executionId,
+            runId,
+            error: errorMessage,
+          })
+          await updateRunStatus(runId, 'error', {
+            completedAt: new Date(),
+            error: errorMessage,
+          }).catch(() => {})
+          return
+        }
+
         await eventWriter.close()
         await setStreamMeta(streamId, { status: 'complete', userId, executionId, runId })
         await updateRunStatus(runId, 'complete', { completedAt: new Date() }).catch(() => {})
@@ -268,14 +308,14 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         if (abortController.signal.aborted) {
           logger.info(`[${requestId}] Stream aborted by explicit stop`)
           await eventWriter.close().catch(() => {})
-          await setStreamMeta(streamId, { status: 'complete', userId, executionId, runId })
+          await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
           await updateRunStatus(runId, 'cancelled', { completedAt: new Date() }).catch(() => {})
           return
         }
         if (clientDisconnected) {
           logger.info(`[${requestId}] Stream ended after client disconnect`)
           await eventWriter.close().catch(() => {})
-          await setStreamMeta(streamId, { status: 'complete', userId, executionId, runId })
+          await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
           await updateRunStatus(runId, 'cancelled', { completedAt: new Date() }).catch(() => {})
           return
         }

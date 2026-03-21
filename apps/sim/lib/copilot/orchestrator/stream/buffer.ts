@@ -75,7 +75,7 @@ function getMetaKey(streamId: string) {
   return `${getStreamKeyPrefix(streamId)}:meta`
 }
 
-export type StreamStatus = 'active' | 'complete' | 'error'
+export type StreamStatus = 'active' | 'complete' | 'cancelled' | 'error'
 
 export type StreamMeta = {
   status: StreamStatus
