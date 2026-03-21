@@ -22,6 +22,8 @@ interface UseTourOptions {
   triggerEvent?: string
   /** Identifier for logging */
   tourName?: string
+  /** When true, suppresses auto-start (e.g. to avoid overlapping with another active tour) */
+  disabled?: boolean
 }
 
 interface UseTourReturn {
@@ -77,6 +79,7 @@ export function useTour({
   resettable = false,
   triggerEvent,
   tourName = 'tour',
+  disabled = false,
 }: UseTourOptions): UseTourReturn {
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
@@ -131,7 +134,7 @@ export function useTour({
 
   /** Auto-start on first visit */
   useEffect(() => {
-    if (hasAutoStarted.current) return
+    if (disabled || hasAutoStarted.current) return
     hasAutoStarted.current = true
 
     const timer = setTimeout(() => {
@@ -151,7 +154,7 @@ export function useTour({
     }, autoStartDelay)
 
     return () => clearTimeout(timer)
-  }, [storageKey, autoStartDelay, tourName])
+  }, [storageKey, autoStartDelay, tourName, disabled])
 
   /** Listen for manual trigger events */
   useEffect(() => {
