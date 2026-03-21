@@ -1275,7 +1275,6 @@ export const Sidebar = memo(function Sidebar() {
                               className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
                               onClick={handleCreateWorkflow}
                               disabled={isCreatingWorkflow || !canEdit}
-                              data-tour='new-workflow'
                             >
                               <Plus className='h-[16px] w-[16px]' />
                             </Button>
