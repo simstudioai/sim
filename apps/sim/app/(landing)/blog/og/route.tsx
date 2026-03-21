@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     return new Response('Font assets not found', { status: 500 })
   }
 
-  const COLORS = ['#2ABBF8', '#FA4EDF', '#FFCC02', '#00F701'] as const
+  const COLORS = ['#5fc5ff', '#F472B6', '#fcd34d', '#4BDE80', '#FF8533'] as const
 
   return new ImageResponse(
     <div

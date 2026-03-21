@@ -93,7 +93,7 @@ function PostCard({ post, priority = false }: { post: Post; priority?: boolean }
                 </span>
               )}
             </div>
-            <h3 className='mb-3 line-clamp-2 font-[500] text-[#ECECEC] text-[20px] leading-tight tracking-[-0.01em] transition-colors duration-150 [@media(hover:hover)]:group-hover:text-[#00F701]'>
+            <h3 className='mb-3 line-clamp-2 font-[500] text-[#ECECEC] text-[20px] leading-tight tracking-[-0.01em] transition-colors duration-150 [@media(hover:hover)]:group-hover:text-[#4BDE80]'>
               {post.title}
             </h3>
             <p className='mb-6 line-clamp-2 text-[#999] text-[15px] leading-relaxed'>

@@ -22,7 +22,7 @@ export default async function TagsIndex() {
   return (
     <div className='mx-auto max-w-5xl px-8 py-16 lg:px-12'>
       <div className='mb-8 flex items-center gap-2 font-season text-[#666] text-[11px] uppercase tracking-widest'>
-        <span className='inline-block h-2 w-2 bg-[#FA4EDF]' aria-hidden='true' />
+        <span className='inline-block h-2 w-2 bg-[#F472B6]' aria-hidden='true' />
         Browse by Category
       </div>
 

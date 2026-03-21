@@ -1,5 +1,5 @@
-import { getNavBlogPosts } from '@/lib/blog/registry'
 import type { Metadata } from 'next'
+import { getNavBlogPosts } from '@/lib/blog/registry'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import { season } from '@/app/_styles/fonts/season/season'
 import Footer from '@/app/(home)/components/footer/footer'

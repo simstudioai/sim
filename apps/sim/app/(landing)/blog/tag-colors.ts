@@ -5,11 +5,11 @@ export interface Category {
 }
 
 export const CATEGORIES: Category[] = [
-  { id: 'announcements', label: 'Announcements', color: '#FA4EDF' },
-  { id: 'product', label: 'Product', color: '#00F701' },
-  { id: 'engineering', label: 'Engineering', color: '#2ABBF8' },
-  { id: 'design', label: 'Design', color: '#8B5CF6' },
-  { id: 'insights', label: 'Insights', color: '#FFCC02' },
+  { id: 'announcements', label: 'Announcements', color: '#F472B6' },
+  { id: 'product', label: 'Product', color: '#4BDE80' },
+  { id: 'engineering', label: 'Engineering', color: '#5fc5ff' },
+  { id: 'design', label: 'Design', color: '#FF8533' },
+  { id: 'insights', label: 'Insights', color: '#fcd34d' },
 ] as const
 
 const TAG_TO_CATEGORY: Record<string, string> = {

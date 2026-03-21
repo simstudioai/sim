@@ -90,7 +90,7 @@ export default async function AuthorPage({
           </div>
         )}
         <div>
-          <div className='mb-1 font-season text-[#FA4EDF] text-[10px] uppercase tracking-widest'>
+          <div className='mb-1 font-season text-[#F472B6] text-[10px] uppercase tracking-widest'>
             Author
           </div>
           <h1 className='font-[500] text-[#ECECEC] text-[32px] leading-tight tracking-[-0.02em]'>

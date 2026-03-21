@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-const COLORS = ['#2ABBF8', '#FA4EDF', '#FFCC02', '#00F701'] as const
+const COLORS = ['#5fc5ff', '#F472B6', '#fcd34d', '#4BDE80', '#FF8533'] as const
 
 const ENTER_STAGGER_MS = 60
 const ENTER_DURATION_MS = 300
@@ -10,7 +10,7 @@ const HOLD_MS = 3000
 const EXIT_STAGGER_MS = 120
 const EXIT_DURATION_MS = 500
 
-const RE_ENTER_OPACITIES = [1, 0.8, 0.6, 0.9] as const
+const RE_ENTER_OPACITIES = [1, 0.8, 0.6, 0.9, 0.7] as const
 
 function setBlockOpacity(el: HTMLSpanElement | null, opacity: number, animate: boolean) {
   if (!el) return
