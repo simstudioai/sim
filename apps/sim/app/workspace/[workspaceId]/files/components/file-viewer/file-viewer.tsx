@@ -11,6 +11,7 @@ import {
   useWorkspaceFileContent,
 } from '@/hooks/queries/workspace-files'
 import { useAutosave } from '@/hooks/use-autosave'
+import { useStreamingText } from '@/hooks/use-streaming-text'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 
 const logger = createLogger('FileViewer')
@@ -261,6 +262,9 @@ function TextEditor({
     }
   }, [isResizing])
 
+  const isStreaming = streamingContent !== undefined
+  const revealedContent = useStreamingText(content, isStreaming)
+
   if (streamingContent === undefined) {
     if (isLoading) {
       return (
@@ -290,7 +294,7 @@ function TextEditor({
       {showEditor && (
         <textarea
           ref={textareaRef}
-          value={content}
+          value={isStreaming ? revealedContent : content}
           onChange={(e) => handleContentChange(e.target.value)}
           readOnly={!canEdit}
           spellCheck={false}
@@ -322,7 +326,7 @@ function TextEditor({
           <div
             className={cn('min-w-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}
           >
-            <PreviewPanel content={content} mimeType={file.type} filename={file.name} />
+            <PreviewPanel content={revealedContent} mimeType={file.type} filename={file.name} isStreaming={isStreaming} />
           </div>
         </>
       )}
