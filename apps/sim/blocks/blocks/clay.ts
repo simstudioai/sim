@@ -1,5 +1,5 @@
 import { ClayIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { ClayPopulateResponse } from '@/tools/clay/types'
 
 export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
@@ -10,6 +10,8 @@ export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
   longDescription: 'Integrate Clay into the workflow. Can populate a table with data.',
   docsLink: 'https://docs.sim.ai/tools/clay',
   category: 'tools',
+  integrationType: IntegrationType.SalesIntelligence,
+  tags: ['enrichment', 'sales-engagement', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: ClayIcon,
   subBlocks: [

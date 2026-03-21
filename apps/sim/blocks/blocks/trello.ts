@@ -1,7 +1,7 @@
 import { TrelloIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
 /**
@@ -21,6 +21,8 @@ export const TrelloBlock: BlockConfig<ToolResponse> = {
     'Integrate with Trello to manage boards and cards. List boards, list cards, create cards, update cards, get actions, and add comments.',
   docsLink: 'https://docs.sim.ai/tools/trello',
   category: 'tools',
+  integrationType: IntegrationType.Productivity,
+  tags: ['project-management', 'ticketing'],
   bgColor: '#0052CC',
   icon: TrelloIcon,
   subBlocks: [

@@ -1,5 +1,6 @@
 import { OktaIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import type { OktaResponse } from '@/tools/okta/types'
 
 export const OktaBlock: BlockConfig<OktaResponse> = {
@@ -10,6 +11,8 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
     'Integrate Okta identity management into your workflow. List, create, update, activate, suspend, and delete users. Reset passwords. Manage groups and group membership.',
   docsLink: 'https://docs.sim.ai/tools/okta',
   category: 'tools',
+  integrationType: IntegrationType.Security,
+  tags: ['identity', 'automation'],
   bgColor: '#191919',
   icon: OktaIcon,
 

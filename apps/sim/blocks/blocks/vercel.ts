@@ -1,6 +1,6 @@
 import { VercelIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const VercelBlock: BlockConfig = {
   type: 'vercel',
@@ -10,6 +10,8 @@ export const VercelBlock: BlockConfig = {
     'Integrate with Vercel to manage deployments, projects, domains, DNS records, environment variables, aliases, edge configs, teams, and more.',
   docsLink: 'https://docs.sim.ai/tools/vercel',
   category: 'tools',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['cloud', 'ci-cd'],
   bgColor: '#171717',
   icon: VercelIcon,
   authMode: AuthMode.ApiKey,

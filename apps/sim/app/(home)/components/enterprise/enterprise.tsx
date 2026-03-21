@@ -460,7 +460,7 @@ function TrustStrip() {
     <div className='mx-6 mt-4 grid grid-cols-1 overflow-hidden rounded-[8px] border border-[#2A2A2A] sm:grid-cols-3 md:mx-8'>
       {/* SOC 2 + HIPAA combined */}
       <Link
-        href='https://trust.delve.co/sim-studio'
+        href='https://app.vanta.com/sim.ai/trust/v35ia0jil4l7dteqjgaktn'
         target='_blank'
         rel='noopener noreferrer'
         className='group flex items-center gap-3 border-[#2A2A2A] border-b px-4 py-[14px] transition-colors hover:bg-[#212121] sm:border-r sm:border-b-0'

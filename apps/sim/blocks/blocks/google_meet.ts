@@ -1,7 +1,7 @@
 import { GoogleMeetIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GoogleMeetResponse } from '@/tools/google_meet/types'
 
 export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
@@ -12,6 +12,8 @@ export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
     'Integrate Google Meet into your workflow. Create meeting spaces, get space details, end conferences, list conference records, and view participants.',
   docsLink: 'https://docs.sim.ai/tools/google_meet',
   category: 'tools',
+  integrationType: IntegrationType.Communication,
+  tags: ['meeting', 'google-workspace', 'scheduling'],
   bgColor: '#E0E0E0',
   icon: GoogleMeetIcon,
   authMode: AuthMode.OAuth,

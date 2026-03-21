@@ -1,7 +1,7 @@
 import { xIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const XBlock: BlockConfig = {
   type: 'x',
@@ -12,6 +12,8 @@ export const XBlock: BlockConfig = {
     'Integrate X into the workflow. Search tweets, manage bookmarks, follow/block/mute users, like and retweet, view trends, and more.',
   docsLink: 'https://docs.sim.ai/tools/x',
   category: 'tools',
+  integrationType: IntegrationType.Social,
+  tags: ['marketing', 'messaging'],
   bgColor: '#000000',
   icon: xIcon,
   subBlocks: [

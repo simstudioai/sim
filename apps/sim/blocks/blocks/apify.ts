@@ -1,5 +1,6 @@
 import { ApifyIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import type { RunActorResult } from '@/tools/apify/types'
 
 export const ApifyBlock: BlockConfig<RunActorResult> = {
@@ -10,6 +11,8 @@ export const ApifyBlock: BlockConfig<RunActorResult> = {
     'Integrate Apify into your workflow. Run any Apify actor with custom input and retrieve results. Supports both synchronous and asynchronous execution with automatic dataset fetching.',
   docsLink: 'https://docs.sim.ai/tools/apify',
   category: 'tools',
+  integrationType: IntegrationType.Automation,
+  tags: ['web-scraping', 'automation', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: ApifyIcon,
 

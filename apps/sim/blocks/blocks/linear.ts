@@ -1,7 +1,7 @@
 import { LinearIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { LinearResponse } from '@/tools/linear/types'
 import { getTrigger } from '@/triggers'
@@ -16,6 +16,8 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
     'Integrate Linear into the workflow. Can manage issues, comments, projects, labels, workflow states, cycles, attachments, and more. Can also trigger workflows based on Linear webhook events.',
   docsLink: 'https://docs.sim.ai/tools/linear',
   category: 'tools',
+  integrationType: IntegrationType.Productivity,
+  tags: ['project-management', 'ticketing'],
   icon: LinearIcon,
   bgColor: '#5E6AD2',
   subBlocks: [

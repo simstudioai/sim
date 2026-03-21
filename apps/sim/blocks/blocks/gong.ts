@@ -1,5 +1,5 @@
 import { GongIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { GongResponse } from '@/tools/gong/types'
 
 export const GongBlock: BlockConfig<GongResponse> = {
@@ -11,6 +11,8 @@ export const GongBlock: BlockConfig<GongResponse> = {
     'Integrate Gong into your workflow. Access call recordings, transcripts, user data, activity stats, scorecards, trackers, library content, coaching metrics, and more via the Gong API.',
   docsLink: 'https://docs.sim.ai/tools/gong',
   category: 'tools',
+  integrationType: IntegrationType.SalesIntelligence,
+  tags: ['meeting', 'sales-engagement', 'speech-to-text'],
   bgColor: '#8039DF',
   icon: GongIcon,
   subBlocks: [

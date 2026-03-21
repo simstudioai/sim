@@ -1,6 +1,6 @@
 import { YouTubeIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { YouTubeResponse } from '@/tools/youtube/types'
 
 export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
@@ -12,6 +12,8 @@ export const YouTubeBlock: BlockConfig<YouTubeResponse> = {
     'Integrate YouTube into the workflow. Can search for videos, get trending videos, get video details, get video categories, get channel information, get all videos from a channel, get channel playlists, get playlist items, and get video comments.',
   docsLink: 'https://docs.sim.ai/tools/youtube',
   category: 'tools',
+  integrationType: IntegrationType.Media,
+  tags: ['google-workspace', 'marketing', 'content-management'],
   bgColor: '#FF0000',
   icon: YouTubeIcon,
   subBlocks: [

@@ -1,6 +1,6 @@
 import { ObsidianIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const ObsidianBlock: BlockConfig = {
   type: 'obsidian',
@@ -10,6 +10,8 @@ export const ObsidianBlock: BlockConfig = {
     'Read, create, update, search, and delete notes in your Obsidian vault. Manage periodic notes, execute commands, and patch content at specific locations. Requires the Obsidian Local REST API plugin.',
   docsLink: 'https://docs.sim.ai/tools/obsidian',
   category: 'tools',
+  integrationType: IntegrationType.Documents,
+  tags: ['note-taking', 'knowledge-base'],
   bgColor: '#0F0F0F',
   icon: ObsidianIcon,
   authMode: AuthMode.ApiKey,

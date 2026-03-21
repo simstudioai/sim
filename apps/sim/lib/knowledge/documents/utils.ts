@@ -52,8 +52,25 @@ export function isRetryableError(error: unknown): boolean {
     return true
   }
 
-  // Check for rate limiting in error messages
+  // Check for network-level errors (DNS, connection, timeout)
   const errorMessage = error instanceof Error ? error.message : String(error)
+  const lowerMessage = errorMessage.toLowerCase()
+
+  const networkKeywords = [
+    'fetch failed',
+    'econnreset',
+    'econnrefused',
+    'etimedout',
+    'enetunreach',
+    'socket hang up',
+    'network error',
+  ]
+
+  if (networkKeywords.some((keyword) => lowerMessage.includes(keyword))) {
+    return true
+  }
+
+  // Check for rate limiting in error messages
   const rateLimitKeywords = [
     'rate limit',
     'rate_limit',
@@ -65,7 +82,7 @@ export function isRetryableError(error: unknown): boolean {
     'service unavailable',
   ]
 
-  return rateLimitKeywords.some((keyword) => errorMessage.toLowerCase().includes(keyword))
+  return rateLimitKeywords.some((keyword) => lowerMessage.includes(keyword))
 }
 
 /**

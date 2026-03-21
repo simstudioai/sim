@@ -1,7 +1,7 @@
 import { HubspotIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { HubSpotResponse } from '@/tools/hubspot/types'
 import { getTrigger } from '@/triggers'
 import { hubspotAllTriggerOptions } from '@/triggers/hubspot/utils'
@@ -15,6 +15,8 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
     'Integrate HubSpot into your workflow. Manage contacts, companies, deals, tickets, and other CRM objects with powerful automation capabilities. Can be used in trigger mode to start workflows when contacts are created, deleted, or updated.',
   docsLink: 'https://docs.sim.ai/tools/hubspot',
   category: 'tools',
+  integrationType: IntegrationType.CRM,
+  tags: ['marketing', 'sales-engagement', 'customer-support'],
   bgColor: '#FF7A59',
   icon: HubspotIcon,
   subBlocks: [

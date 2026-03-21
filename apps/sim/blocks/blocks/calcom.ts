@@ -1,6 +1,6 @@
 import { CalComIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 import { getTrigger } from '@/triggers'
 
@@ -14,6 +14,8 @@ export const CalComBlock: BlockConfig<ToolResponse> = {
     'Integrate Cal.com into your workflow. Create and manage bookings, event types, schedules, and check availability slots. Supports creating, listing, rescheduling, and canceling bookings, as well as managing event types and schedules. Can also trigger workflows based on Cal.com webhook events (booking created, cancelled, rescheduled). Connect your Cal.com account via OAuth.',
   docsLink: 'https://docs.sim.ai/tools/calcom',
   category: 'tools',
+  integrationType: IntegrationType.Productivity,
+  tags: ['scheduling', 'calendar', 'meeting'],
   bgColor: '#FFFFFE',
   icon: CalComIcon,
   subBlocks: [

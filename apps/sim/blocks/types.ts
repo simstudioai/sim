@@ -16,6 +16,80 @@ export type PrimitiveValueType =
 
 export type BlockCategory = 'blocks' | 'tools' | 'triggers'
 
+export enum IntegrationType {
+  AI = 'ai',
+  Analytics = 'analytics',
+  Automation = 'automation',
+  Communication = 'communication',
+  CRM = 'crm',
+  CustomerSupport = 'customer-support',
+  Databases = 'databases',
+  Design = 'design',
+  DeveloperTools = 'developer-tools',
+  Documents = 'documents',
+  Ecommerce = 'ecommerce',
+  Email = 'email',
+  FileStorage = 'file-storage',
+  HR = 'hr',
+  Media = 'media',
+  Other = 'other',
+  Productivity = 'productivity',
+  SalesIntelligence = 'sales-intelligence',
+  Search = 'search',
+  Security = 'security',
+  Social = 'social',
+}
+
+export type IntegrationTag =
+  | 'marketing'
+  | 'automation'
+  | 'webhooks'
+  | 'vector-search'
+  | 'meeting'
+  | 'calendar'
+  | 'scheduling'
+  | 'incident-management'
+  | 'monitoring'
+  | 'error-tracking'
+  | 'prediction-markets'
+  | 'document-processing'
+  | 'ocr'
+  | 'text-to-speech'
+  | 'speech-to-text'
+  | 'image-generation'
+  | 'video-generation'
+  | 'cloud'
+  | 'google-workspace'
+  | 'microsoft-365'
+  | 'data-warehouse'
+  | 'data-analytics'
+  | 'customer-support'
+  | 'project-management'
+  | 'ticketing'
+  | 'payments'
+  | 'subscriptions'
+  | 'enrichment'
+  | 'web-scraping'
+  | 'llm'
+  | 'messaging'
+  | 'version-control'
+  | 'ci-cd'
+  | 'note-taking'
+  | 'spreadsheet'
+  | 'seo'
+  | 'email-marketing'
+  | 'e-signatures'
+  | 'identity'
+  | 'secrets-management'
+  | 'hiring'
+  | 'sales-engagement'
+  | 'agentic'
+  | 'knowledge-base'
+  | 'content-management'
+  | 'forms'
+  | 'link-management'
+  | 'events'
+
 // Authentication modes for sub-blocks and summaries
 export enum AuthMode {
   OAuth = 'oauth',
@@ -351,6 +425,8 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
   name: string
   description: string
   category: BlockCategory
+  integrationType?: IntegrationType
+  tags?: IntegrationTag[]
   longDescription?: string
   bestPractices?: string
   docsLink?: string

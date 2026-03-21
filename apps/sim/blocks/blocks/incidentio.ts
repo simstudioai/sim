@@ -1,6 +1,6 @@
 import { IncidentioIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { IncidentioResponse } from '@/tools/incidentio/types'
 
 export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
@@ -12,6 +12,8 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
     'Integrate incident.io into the workflow. Manage incidents, actions, follow-ups, workflows, schedules, escalations, custom fields, and more.',
   docsLink: 'https://docs.sim.ai/tools/incidentio',
   category: 'tools',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['incident-management', 'monitoring'],
   bgColor: '#E0E0E0',
   icon: IncidentioIcon,
   subBlocks: [

@@ -1,7 +1,7 @@
 import { JiraIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { JiraResponse } from '@/tools/jira/types'
 import { getTrigger } from '@/triggers'
@@ -16,6 +16,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     'Integrate Jira into the workflow. Can read, write, and update issues. Can also trigger workflows based on Jira webhook events.',
   docsLink: 'https://docs.sim.ai/tools/jira',
   category: 'tools',
+  integrationType: IntegrationType.Productivity,
+  tags: ['project-management', 'ticketing'],
   bgColor: '#E0E0E0',
   icon: JiraIcon,
   subBlocks: [

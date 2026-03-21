@@ -3,6 +3,7 @@ import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
@@ -53,6 +54,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     logger.info(`[${requestId}] Manual sync triggered for connector ${connectorId}`)
+
+    recordAudit({
+      workspaceId: writeCheck.knowledgeBase.workspaceId,
+      actorId: auth.userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.CONNECTOR_SYNCED,
+      resourceType: AuditResourceType.CONNECTOR,
+      resourceId: connectorId,
+      resourceName: connectorRows[0].connectorType,
+      description: `Triggered manual sync for connector on knowledge base "${writeCheck.knowledgeBase.name}"`,
+      metadata: { knowledgeBaseId },
+      request,
+    })
 
     dispatchSync(connectorId, { requestId }).catch((error) => {
       logger.error(
