@@ -130,7 +130,7 @@ export default function OAuthConsentPage() {
           <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
             Authorize Application
           </h1>
-          <p className='font-[430] font-season text-[var(--text-primary)]/60 text-lg leading-[125%] tracking-[0.02em]'>
+          <p className='font-[430] font-season text-[color-mix(in_srgb,var(--text-primary)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
             Loading application details...
           </p>
         </div>
@@ -145,7 +145,7 @@ export default function OAuthConsentPage() {
           <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
             Authorization Error
           </h1>
-          <p className='font-[430] font-season text-[var(--text-primary)]/60 text-lg leading-[125%] tracking-[0.02em]'>
+          <p className='font-[430] font-season text-[color-mix(in_srgb,var(--text-primary)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
             {error}
           </p>
         </div>
@@ -188,7 +188,7 @@ export default function OAuthConsentPage() {
         <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           Authorize Application
         </h1>
-        <p className='font-[430] font-season text-[var(--text-primary)]/60 text-lg leading-[125%] tracking-[0.02em]'>
+        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--text-primary)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
           <span className='font-medium text-[var(--landing-text)]'>{clientName}</span> is requesting
           access to your account
         </p>

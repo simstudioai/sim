@@ -32,7 +32,7 @@ function handleRootPathRedirects(
     if (hasActiveSession) {
       return NextResponse.redirect(new URL('/workspace', request.url))
     }
-    return null
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   // For root path, redirect authenticated users to workspace

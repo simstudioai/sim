@@ -66,7 +66,7 @@ export default function Hero() {
         >
           Build AI Agents
         </h1>
-        <p className='font-[430] font-season text-[var(--landing-text-subtle)]/60 text-base leading-[125%] tracking-[0.02em] lg:text-lg'>
+        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-base leading-[125%] tracking-[0.02em] lg:text-lg'>
           Sim is the AI Workspace for Agent Builders.
         </p>
 

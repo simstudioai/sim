@@ -114,7 +114,7 @@ export default function Footer({ hideCTA }: FooterProps) {
   return (
     <footer
       role='contentinfo'
-      className={`bg-[var(--landing-bg)] pb-10 font-[430] font-season text-sm${hideCTA ? ' pt-10' : ''}`}
+      className={`bg-[var(--landing-bg-section)] pb-10 font-[430] font-season text-sm${hideCTA ? ' pt-10' : ''}`}
     >
       {!hideCTA && <FooterCTA />}
       <div className='px-4 sm:px-8 md:px-[80px]'>

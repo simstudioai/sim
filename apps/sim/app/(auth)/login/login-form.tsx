@@ -345,7 +345,7 @@ export default function LoginPage({
         <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           Sign in
         </h1>
-        <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
+        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--text-primary)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
           Enter your details
         </p>
       </div>

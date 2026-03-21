@@ -140,7 +140,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
               const linkClass = cn(
                 icon ? `${LINK_CELL} gap-2` : LINK_CELL,
                 'transition-colors duration-200',
-                isDimmed && 'text-[var(--landing-text-subtle)]/60'
+                isDimmed && 'text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)]'
               )
               const chevron = icon === 'chevron' && <NavChevron open={isActive} />
 
