@@ -147,6 +147,7 @@ export async function runStreamLoop(
     for await (const event of parseSSEStream(reader, decoder, abortSignal)) {
       if (abortSignal?.aborted) {
         context.wasAborted = true
+        await reader.cancel().catch(() => {})
         break
       }
 
@@ -227,6 +228,10 @@ export async function runStreamLoop(
       if (context.streamComplete) break
     }
   } finally {
+    if (abortSignal?.aborted) {
+      context.wasAborted = true
+      await reader.cancel().catch(() => {})
+    }
     clearTimeout(timeoutId)
   }
 }

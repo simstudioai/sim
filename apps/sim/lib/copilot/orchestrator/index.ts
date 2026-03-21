@@ -112,6 +112,11 @@ export async function orchestrateCopilotStream(
         loopOptions
       )
 
+      if (options.abortSignal?.aborted || context.wasAborted) {
+        context.awaitingAsyncContinuation = undefined
+        break
+      }
+
       const continuation = context.awaitingAsyncContinuation
       if (!continuation) break
 
@@ -145,7 +150,7 @@ export async function orchestrateCopilotStream(
     }
 
     const result: OrchestratorResult = {
-      success: context.errors.length === 0,
+      success: context.errors.length === 0 && !context.wasAborted,
       content: context.accumulatedContent,
       contentBlocks: context.contentBlocks,
       toolCalls: buildToolCallSummaries(context),

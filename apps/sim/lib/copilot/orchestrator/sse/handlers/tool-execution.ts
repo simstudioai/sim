@@ -228,6 +228,20 @@ function cancelledCompletion(message: string): AsyncToolCompletion {
   }
 }
 
+function reportCancelledTool(
+  toolCall: { id: string; name: string },
+  message: string,
+  data: Record<string, unknown> = { cancelled: true }
+): void {
+  markToolComplete(toolCall.id, toolCall.name, 499, message, data).catch((err) => {
+    logger.error('markToolComplete failed (cancelled)', {
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  })
+}
+
 async function maybeWriteOutputToTable(
   toolName: string,
   params: Record<string, unknown> | undefined,
@@ -472,14 +486,7 @@ export async function executeToolAndReport(
       result: { cancelled: true },
       error: 'Request aborted before tool execution',
     }).catch(() => {})
-    markToolComplete(toolCall.id, toolCall.name, 499, 'Request aborted before tool execution', {
-      cancelled: true,
-    }).catch((err) => {
-      logger.error('markToolComplete failed (aborted before execute)', {
-        toolCallId: toolCall.id,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    })
+    reportCancelledTool(toolCall, 'Request aborted before tool execution')
     return cancelledCompletion('Request aborted before tool execution')
   }
 
@@ -504,6 +511,7 @@ export async function executeToolAndReport(
         result: { cancelled: true },
         error: 'Request aborted during tool execution',
       }).catch(() => {})
+      reportCancelledTool(toolCall, 'Request aborted during tool execution')
       return cancelledCompletion('Request aborted during tool execution')
     }
     result = await maybeWriteOutputToFile(toolCall.name, toolCall.params, result, execContext)
@@ -517,6 +525,7 @@ export async function executeToolAndReport(
         result: { cancelled: true },
         error: 'Request aborted during tool post-processing',
       }).catch(() => {})
+      reportCancelledTool(toolCall, 'Request aborted during tool post-processing')
       return cancelledCompletion('Request aborted during tool post-processing')
     }
     result = await maybeWriteOutputToTable(toolCall.name, toolCall.params, result, execContext)
@@ -530,6 +539,7 @@ export async function executeToolAndReport(
         result: { cancelled: true },
         error: 'Request aborted during tool post-processing',
       }).catch(() => {})
+      reportCancelledTool(toolCall, 'Request aborted during tool post-processing')
       return cancelledCompletion('Request aborted during tool post-processing')
     }
     result = await maybeWriteReadCsvToTable(toolCall.name, toolCall.params, result, execContext)
@@ -543,6 +553,7 @@ export async function executeToolAndReport(
         result: { cancelled: true },
         error: 'Request aborted during tool post-processing',
       }).catch(() => {})
+      reportCancelledTool(toolCall, 'Request aborted during tool post-processing')
       return cancelledCompletion('Request aborted during tool post-processing')
     }
     toolCall.status = result.success ? 'success' : 'error'
@@ -590,6 +601,7 @@ export async function executeToolAndReport(
 
     if (abortRequested(context, execContext, options)) {
       toolCall.status = 'cancelled'
+      reportCancelledTool(toolCall, 'Request aborted before tool result delivery')
       return cancelledCompletion('Request aborted before tool result delivery')
     }
 
@@ -701,6 +713,7 @@ export async function executeToolAndReport(
         result: { cancelled: true },
         error: 'Request aborted during tool execution',
       }).catch(() => {})
+      reportCancelledTool(toolCall, 'Request aborted during tool execution')
       return cancelledCompletion('Request aborted during tool execution')
     }
     toolCall.status = 'error'
