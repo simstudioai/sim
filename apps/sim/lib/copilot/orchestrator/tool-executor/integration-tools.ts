@@ -223,9 +223,7 @@ export async function executeIntegrationToolDirect(
           const csvLines = [typeComment, cols.join(',')]
           for (const row of rows) {
             csvLines.push(
-              cols
-                .map((c) => csvEscapeValue((row.data as Record<string, unknown>)[c]))
-                .join(',')
+              cols.map((c) => csvEscapeValue((row.data as Record<string, unknown>)[c])).join(',')
             )
           }
           const csvContent = csvLines.join('\n')

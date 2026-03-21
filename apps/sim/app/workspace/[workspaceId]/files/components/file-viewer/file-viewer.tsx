@@ -45,12 +45,7 @@ const TEXT_EDITABLE_EXTENSIONS = new Set([
 const IFRAME_PREVIEWABLE_MIME_TYPES = new Set(['application/pdf'])
 const IFRAME_PREVIEWABLE_EXTENSIONS = new Set(['pdf'])
 
-const IMAGE_PREVIEWABLE_MIME_TYPES = new Set([
-  'image/png',
-  'image/jpeg',
-  'image/gif',
-  'image/webp',
-])
+const IMAGE_PREVIEWABLE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
 const IMAGE_PREVIEWABLE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp'])
 
 type FileCategory = 'text-editable' | 'iframe-previewable' | 'image-previewable' | 'unsupported'
@@ -377,7 +372,12 @@ function TextEditor({
           <div
             className={cn('min-w-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}
           >
-            <PreviewPanel content={revealedContent} mimeType={file.type} filename={file.name} isStreaming={isStreaming} />
+            <PreviewPanel
+              content={revealedContent}
+              mimeType={file.type}
+              filename={file.name}
+              isStreaming={isStreaming}
+            />
           </div>
         </>
       )}

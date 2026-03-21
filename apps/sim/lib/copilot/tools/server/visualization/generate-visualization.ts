@@ -37,9 +37,7 @@ function csvEscapeValue(value: unknown): string {
   return str
 }
 
-const TEXT_EXTENSIONS = new Set([
-  'csv', 'json', 'txt', 'md', 'html', 'xml', 'tsv', 'yaml', 'yml',
-])
+const TEXT_EXTENSIONS = new Set(['csv', 'json', 'txt', 'md', 'html', 'xml', 'tsv', 'yaml', 'yml'])
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const MAX_TOTAL_SIZE = 50 * 1024 * 1024
 
@@ -93,9 +91,7 @@ async function collectSandboxFiles(
       const csvLines = [typeComment, cols.join(',')]
       for (const row of rows) {
         csvLines.push(
-          cols
-            .map((c) => csvEscapeValue((row.data as Record<string, unknown>)[c]))
-            .join(',')
+          cols.map((c) => csvEscapeValue((row.data as Record<string, unknown>)[c])).join(',')
         )
       }
       const csvContent = csvLines.join('\n')
@@ -111,7 +107,10 @@ async function collectSandboxFiles(
   return sandboxFiles
 }
 
-export const generateVisualizationServerTool: BaseServerTool<VisualizationArgs, VisualizationResult> = {
+export const generateVisualizationServerTool: BaseServerTool<
+  VisualizationArgs,
+  VisualizationResult
+> = {
   name: 'generate_visualization',
 
   async execute(
@@ -187,7 +186,11 @@ export const generateVisualizationServerTool: BaseServerTool<VisualizationArgs, 
         'image/png'
       )
 
-      logger.info('Chart image saved', { fileId: uploaded.id, fileName: uploaded.name, size: imageBuffer.length })
+      logger.info('Chart image saved', {
+        fileId: uploaded.id,
+        fileName: uploaded.name,
+        size: imageBuffer.length,
+      })
 
       return {
         success: true,

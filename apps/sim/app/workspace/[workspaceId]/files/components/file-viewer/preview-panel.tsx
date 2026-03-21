@@ -45,7 +45,8 @@ interface PreviewPanelProps {
 export function PreviewPanel({ content, mimeType, filename, isStreaming }: PreviewPanelProps) {
   const previewType = resolvePreviewType(mimeType, filename)
 
-  if (previewType === 'markdown') return <MarkdownPreview content={content} isStreaming={isStreaming} />
+  if (previewType === 'markdown')
+    return <MarkdownPreview content={content} isStreaming={isStreaming} />
   if (previewType === 'html') return <HtmlPreview content={content} />
   if (previewType === 'csv') return <CsvPreview content={content} />
   if (previewType === 'svg') return <SvgPreview content={content} />
@@ -127,9 +128,7 @@ const PREVIEW_MARKDOWN_COMPONENTS = {
     </a>
   ),
   strong: ({ children }: any) => (
-    <strong className='break-words font-semibold text-[var(--text-primary)]'>
-      {children}
-    </strong>
+    <strong className='break-words font-semibold text-[var(--text-primary)]'>{children}</strong>
   ),
   em: ({ children }: any) => (
     <em className='break-words text-[var(--text-tertiary)]'>{children}</em>
@@ -158,9 +157,7 @@ const PREVIEW_MARKDOWN_COMPONENTS = {
       {children}
     </th>
   ),
-  td: ({ children }: any) => (
-    <td className='px-3 py-2 text-[var(--text-secondary)]'>{children}</td>
-  ),
+  td: ({ children }: any) => <td className='px-3 py-2 text-[var(--text-secondary)]'>{children}</td>,
 }
 
 const MarkdownPreview = memo(function MarkdownPreview({
