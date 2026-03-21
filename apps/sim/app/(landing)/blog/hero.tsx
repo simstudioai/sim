@@ -27,7 +27,7 @@ export function StudioHero() {
   const shouldReduceMotion = useReducedMotion()
 
   return (
-    <section className='relative overflow-hidden border-[#2A2A2A] border-b pt-12 pb-8'>
+    <section className='relative overflow-hidden border-[#2A2A2A] border-b pt-12 pb-8 px-4 sm:px-6 lg:px-12'>
       <div
         className='pointer-events-none absolute inset-0 opacity-50'
         aria-hidden='true'
