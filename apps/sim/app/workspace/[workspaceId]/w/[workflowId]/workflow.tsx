@@ -3750,7 +3750,7 @@ const WorkflowContent = React.memo(
         const target = node.selected
           ? base + 10
           : node.id === lastInteractedNodeId
-            ? Math.max(base, 22)
+            ? Math.max(base + 1, 22)
             : base
         if (target === (node.zIndex ?? 21)) return node
         return { ...node, zIndex: target }
@@ -3773,7 +3773,11 @@ const WorkflowContent = React.memo(
           elevatedNodeIdSet.has(edge.source) || elevatedNodeIdSet.has(edge.target)
         // Derive elevated z-index from connected nodes so edges inside subflows
         // (child nodes at z-1000) stay above their sibling child blocks.
-        const elevatedZIndex = Math.max(22, sourceNode?.zIndex ?? 21, targetNode?.zIndex ?? 21)
+        const elevatedZIndex = Math.max(
+          22,
+          (sourceNode?.zIndex ?? 21) + 1,
+          (targetNode?.zIndex ?? 21) + 1
+        )
 
         return {
           ...edge,
