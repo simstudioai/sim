@@ -87,25 +87,13 @@ export function useTour({
   const hasAutoStarted = useRef(false)
   const retriggerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const prevOverflowRef = useRef('')
-
-  /** Lock page scroll to prevent scrollbar jitter from Joyride's overlay */
-  const lockScroll = useCallback(() => {
-    prevOverflowRef.current = document.documentElement.style.overflow
-    document.documentElement.style.overflow = 'hidden'
-  }, [])
-
-  const unlockScroll = useCallback(() => {
-    document.documentElement.style.overflow = prevOverflowRef.current
-  }, [])
 
   const stopTour = useCallback(() => {
     setRun(false)
     setIsTooltipVisible(true)
     setIsEntrance(true)
-    unlockScroll()
     markTourCompleted(storageKey)
-  }, [storageKey, unlockScroll])
+  }, [storageKey])
 
   /** Transition to a new step with a coordinated fade-out/fade-in */
   const transitionToStep = useCallback(
@@ -115,7 +103,7 @@ export function useTour({
         return
       }
 
-      /** Fade out the current tooltip */
+      /** Hide tooltip during transition */
       setIsTooltipVisible(false)
 
       if (transitionTimerRef.current) {
@@ -129,7 +117,7 @@ export function useTour({
 
         /**
          * Wait for the browser to process the Radix Popover repositioning
-         * before fading in the tooltip at the new position.
+         * before showing the tooltip at the new position.
          */
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
@@ -148,12 +136,17 @@ export function useTour({
 
     const timer = setTimeout(() => {
       if (!isTourCompleted(storageKey)) {
-        lockScroll()
         setStepIndex(0)
         setIsEntrance(true)
-        setIsTooltipVisible(true)
+        setIsTooltipVisible(false)
         setRun(true)
         logger.info(`Auto-starting ${tourName}`)
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setIsTooltipVisible(true)
+          })
+        })
       }
     }, autoStartDelay)
 
@@ -173,14 +166,24 @@ export function useTour({
         clearTimeout(retriggerTimerRef.current)
       }
 
+      /**
+       * Start with the tooltip hidden so Joyride can mount, find the
+       * target element, and position its overlay/spotlight before the
+       * tooltip card appears.
+       */
       retriggerTimerRef.current = setTimeout(() => {
         retriggerTimerRef.current = null
-        lockScroll()
         setStepIndex(0)
         setIsEntrance(true)
-        setIsTooltipVisible(true)
+        setIsTooltipVisible(false)
         setRun(true)
         logger.info(`${tourName} triggered via event`)
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setIsTooltipVisible(true)
+          })
+        })
       }, 50)
     }
 
@@ -198,9 +201,8 @@ export function useTour({
       if (transitionTimerRef.current) {
         clearTimeout(transitionTimerRef.current)
       }
-      unlockScroll()
     }
-  }, [unlockScroll])
+  }, [])
 
   const handleCallback = useCallback(
     (data: CallBackProps) => {

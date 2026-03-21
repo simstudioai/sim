@@ -1,14 +1,11 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import dynamic from 'next/dynamic'
 import type { TooltipRenderProps } from 'react-joyride'
 import { TourTooltip } from '@/components/emcn'
 import { useTour } from '@/app/workspace/[workspaceId]/components/product-tour/use-tour'
 import { workflowTourSteps } from '@/app/workspace/[workspaceId]/components/product-tour/workflow-tour-steps'
-
-const logger = createLogger('WorkflowTour')
 
 const Joyride = dynamic(() => import('react-joyride'), {
   ssr: false,
@@ -158,8 +155,9 @@ export function WorkflowTour() {
         callback={handleCallback}
         continuous
         disableScrolling
+        disableScrollParentFix
         disableOverlayClose
-        spotlightPadding={4}
+        spotlightPadding={1}
         tooltipComponent={WorkflowTooltipAdapter}
         floaterProps={{
           disableAnimation: true,
@@ -183,12 +181,16 @@ export function WorkflowTour() {
             border: '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: 6,
             boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.55)',
+            position: 'fixed' as React.CSSProperties['position'],
             transition:
               'top 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94), left 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94), width 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94), height 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94)',
           },
           overlay: {
             backgroundColor: 'transparent',
             mixBlendMode: 'unset' as React.CSSProperties['mixBlendMode'],
+            position: 'fixed' as React.CSSProperties['position'],
+            height: '100%',
+            overflow: 'visible',
           },
         }}
       />

@@ -10,12 +10,13 @@ export const workflowTourSteps: Step[] = [
     disableBeacon: true,
   },
   {
-    target: '[data-tour="command-list"]',
-    title: 'Quick Actions',
+    target: '[data-tab-button="copilot"]',
+    title: 'AI Copilot',
     content:
-      'Keyboard shortcuts to get started fast. Press Cmd+K to search blocks, or Cmd+Y to browse templates.',
-    placement: 'right',
+      'Build and debug workflows using natural language. Describe what you want and Copilot creates the blocks for you.',
+    placement: 'bottom',
     disableBeacon: true,
+    spotlightPadding: 0,
   },
   {
     target: '[data-tab-button="toolbar"]',
@@ -24,14 +25,7 @@ export const workflowTourSteps: Step[] = [
       'Browse all available blocks and triggers. Drag them onto the canvas to build your workflow step by step.',
     placement: 'bottom',
     disableBeacon: true,
-  },
-  {
-    target: '[data-tab-button="copilot"]',
-    title: 'AI Copilot',
-    content:
-      'Build and debug workflows using natural language. Describe what you want and Copilot creates the blocks for you.',
-    placement: 'bottom',
-    disableBeacon: true,
+    spotlightPadding: 0,
   },
   {
     target: '[data-tab-button="editor"]',
@@ -40,12 +34,13 @@ export const workflowTourSteps: Step[] = [
       'Click any block on the canvas to configure it here. Set inputs, credentials, and fine-tune behavior.',
     placement: 'bottom',
     disableBeacon: true,
+    spotlightPadding: 0,
   },
   {
     target: '[data-tour="deploy-run"]',
-    title: 'Run & Deploy',
+    title: 'Deploy & Run',
     content:
-      'Hit Run to test your workflow. When ready, Deploy it as an API, webhook, schedule, or chat widget.',
+      'Deploy your workflow as an API, webhook, schedule, or chat widget. Then hit Run to test it out.',
     placement: 'bottom',
     disableBeacon: true,
   },
@@ -55,6 +50,7 @@ export const workflowTourSteps: Step[] = [
     content:
       'Switch between pointer and hand mode, undo or redo changes, and fit the canvas to your view.',
     placement: 'top',
+    spotlightPadding: 0,
     disableBeacon: true,
   },
 ]
