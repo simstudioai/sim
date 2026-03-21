@@ -67,6 +67,11 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `COPILOT_API_KEY` | API key for copilot features |
 | `ADMIN_API_KEY` | Admin API key for GitOps operations |
 | `RESEND_API_KEY` | Email service for notifications |
+| `SMTP_HOST` | SMTP hostname for outgoing email |
+| `SMTP_PORT` | SMTP port, usually `587` or `465` |
+| `SMTP_SECURE` | SMTP security mode: `TLS`, `SSL`, or `None` |
+| `SMTP_USERNAME` | SMTP username for authenticated relays |
+| `SMTP_PASSWORD` | SMTP password for authenticated relays |
 | `ALLOWED_LOGIN_DOMAINS` | Restrict signups to domains (comma-separated) |
 | `ALLOWED_LOGIN_EMAILS` | Restrict signups to specific emails (comma-separated) |
 | `DISABLE_REGISTRATION` | Set to `true` to disable new user signups |
@@ -81,7 +86,14 @@ ENCRYPTION_KEY=<openssl rand -hex 32>
 INTERNAL_API_SECRET=<openssl rand -hex 32>
 NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
 NEXT_PUBLIC_SOCKET_URL=https://sim.yourdomain.com
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=TLS
+SMTP_USERNAME=mailer
+SMTP_PASSWORD=super-secret-password
 OPENAI_API_KEY=sk-...
 ```
 
 See `apps/sim/.env.example` for all options.
+
+If you configure multiple email providers, Sim uses `Resend -> Azure Communication Services -> SMTP` in that order.
