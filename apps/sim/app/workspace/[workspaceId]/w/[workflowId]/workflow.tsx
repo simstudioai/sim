@@ -3752,7 +3752,7 @@ const WorkflowContent = React.memo(
           : node.id === lastInteractedNodeId
             ? Math.max(base, 22)
             : base
-        if (target === node.zIndex) return node
+        if (target === (node.zIndex ?? 21)) return node
         return { ...node, zIndex: target }
       })
     }, [displayNodes, lastInteractedNodeId])
