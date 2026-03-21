@@ -87,10 +87,7 @@ export default function LoginPage({
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
-  const captchaResolveRef = useRef<((token: string) => void) | null>(null)
-  const captchaRejectRef = useRef<((reason: unknown) => void) | null>(null)
   const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
   const buttonClass = useBrandedButtonClass()
 
@@ -172,21 +169,12 @@ export default function LoginPage({
       let errorHandled = false
 
       // Execute Turnstile challenge on submit and get a fresh token
-      let token = captchaToken
+      let token: string | undefined
       if (turnstileSiteKey && turnstileRef.current) {
         try {
           turnstileRef.current.reset()
-          let timeoutId: ReturnType<typeof setTimeout> | undefined
-          token = await Promise.race([
-            new Promise<string>((resolve, reject) => {
-              captchaResolveRef.current = resolve
-              captchaRejectRef.current = reject
-              turnstileRef.current?.execute()
-            }),
-            new Promise<string>((_, reject) => {
-              timeoutId = setTimeout(() => reject(new Error('Captcha timed out')), 15_000)
-            }),
-          ]).finally(() => clearTimeout(timeoutId))
+          turnstileRef.current.execute()
+          token = await turnstileRef.current.getResponsePromise(15_000)
         } catch {
           setPasswordErrors(['Captcha verification failed. Please try again.'])
           setShowValidationError(true)
@@ -208,8 +196,6 @@ export default function LoginPage({
             },
           },
           onError: (ctx) => {
-            turnstileRef.current?.reset()
-            setCaptchaToken(null)
             logger.error('Login error:', ctx.error)
 
             if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
@@ -488,24 +474,6 @@ export default function LoginPage({
             <Turnstile
               ref={turnstileRef}
               siteKey={turnstileSiteKey}
-              onSuccess={(token) => {
-                setCaptchaToken(token)
-                captchaResolveRef.current?.(token)
-                captchaResolveRef.current = null
-                captchaRejectRef.current = null
-              }}
-              onError={() => {
-                setCaptchaToken(null)
-                captchaRejectRef.current?.(new Error('Captcha failed'))
-                captchaResolveRef.current = null
-                captchaRejectRef.current = null
-              }}
-              onExpire={() => {
-                setCaptchaToken(null)
-                captchaRejectRef.current?.(new Error('Captcha expired'))
-                captchaResolveRef.current = null
-                captchaRejectRef.current = null
-              }}
               options={{ size: 'invisible', execution: 'execute' }}
             />
           )}
