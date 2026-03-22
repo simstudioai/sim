@@ -7,7 +7,7 @@ import { parseBuffer, parseFile } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { StorageService } from '@/lib/uploads'
-import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { getExtensionFromMimeType, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { mistralParserTool } from '@/tools/mistral/parser'
 
@@ -759,26 +759,12 @@ async function parseDataURI(fileUrl: string, filename: string, mimeType: string)
       : decodeURIComponent(base64Data)
   }
 
-  const extension = filename.split('.').pop()?.toLowerCase() || 'txt'
+  const extension = filename.includes('.')
+    ? filename.split('.').pop()!.toLowerCase()
+    : getExtensionFromMimeType(mimeType) ?? 'txt'
   const buffer = Buffer.from(base64Data, 'base64')
   const result = await parseBuffer(buffer, extension)
   return result.content
-}
-
-const MIME_TO_EXTENSION: Record<string, string> = {
-  'text/plain': 'txt',
-  'text/markdown': 'md',
-  'text/csv': 'csv',
-  'text/html': 'html',
-  'application/pdf': 'pdf',
-  'application/json': 'json',
-  'application/yaml': 'yaml',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-  'application/msword': 'doc',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-  'application/vnd.ms-excel': 'xls',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
-  'application/vnd.ms-powerpoint': 'ppt',
 }
 
 async function parseHttpFile(
@@ -788,9 +774,11 @@ async function parseHttpFile(
 ): Promise<{ content: string; metadata?: FileParseMetadata }> {
   const buffer = await downloadFileWithTimeout(fileUrl)
 
-  let extension = filename.split('.').pop()?.toLowerCase()
-  if (!extension || extension === filename.toLowerCase()) {
-    extension = mimeType ? MIME_TO_EXTENSION[mimeType] : undefined
+  let extension = filename.includes('.')
+    ? filename.split('.').pop()?.toLowerCase()
+    : undefined
+  if (!extension && mimeType) {
+    extension = getExtensionFromMimeType(mimeType) ?? undefined
   }
   if (!extension) {
     throw new Error(`Could not determine file type for: ${filename}`)
