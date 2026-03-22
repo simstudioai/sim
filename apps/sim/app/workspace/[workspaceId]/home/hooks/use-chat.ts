@@ -420,7 +420,6 @@ export function useChat(
     chatIdRef.current = undefined
     setResolvedChatId(undefined)
     appliedChatIdRef.current = undefined
-    abortControllerRef.current?.abort()
     abortControllerRef.current = null
     sendingRef.current = false
     setMessages([])
@@ -1467,7 +1466,6 @@ export function useChat(
     return () => {
       streamReaderRef.current?.cancel().catch(() => {})
       streamReaderRef.current = null
-      abortControllerRef.current?.abort()
       abortControllerRef.current = null
       streamGenRef.current++
       sendingRef.current = false
