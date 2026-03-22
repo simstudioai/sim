@@ -9,7 +9,12 @@ import { getStorageMethod, isRedisStorage } from '@/lib/core/storage'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { DocumentProcessingQueue } from '@/lib/knowledge/documents/queue'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
-import { generateEmbeddings } from '@/lib/knowledge/embeddings'
+import {
+  deleteKBDocumentEmbeddings,
+  insertKBEmbeddings,
+  parseEmbeddingModel,
+} from '@/lib/knowledge/dynamic-tables'
+import { generateEmbeddings, getOllamaModelContextLength } from '@/lib/knowledge/embeddings'
 import {
   buildUndefinedTagsError,
   parseBooleanValue,
@@ -410,6 +415,8 @@ export async function processDocumentAsync(
         userId: knowledgeBase.userId,
         workspaceId: knowledgeBase.workspaceId,
         chunkingConfig: knowledgeBase.chunkingConfig,
+        embeddingModel: knowledgeBase.embeddingModel,
+        embeddingDimension: knowledgeBase.embeddingDimension,
       })
       .from(knowledgeBase)
       .where(eq(knowledgeBase.id, knowledgeBaseId))
@@ -430,7 +437,47 @@ export async function processDocumentAsync(
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
-    const kbConfig = kb[0].chunkingConfig as { maxSize: number; minSize: number; overlap: number }
+    const kbConfig = kb[0].chunkingConfig as {
+      maxSize: number
+      minSize: number
+      overlap: number
+      ollamaBaseUrl?: string
+    }
+    const { provider: embeddingProvider, modelName: embeddingModelName } = parseEmbeddingModel(
+      kb[0].embeddingModel
+    )
+
+    // For Ollama models, query the model's context length and cap chunk size accordingly.
+    // TextChunker uses ratio 3 for Ollama (1 estimated token = 3 chars), but the actual
+    // Ollama tokenizer may produce ~1 token per 1-2 chars (especially for PDF text with
+    // special characters). We use 30% of context length as the safe estimated-token limit
+    // so the resulting character count stays well within the model's actual token limit.
+    let effectiveChunkSize = processingOptions.chunkSize ?? kbConfig.maxSize
+    let effectiveOverlap = processingOptions.chunkOverlap ?? kbConfig.overlap
+    let ollamaContextLength: number | undefined
+    if (embeddingProvider === 'ollama') {
+      ollamaContextLength = await getOllamaModelContextLength(
+        embeddingModelName,
+        kbConfig.ollamaBaseUrl
+      )
+      const safeChunkSize = Math.floor(ollamaContextLength * 0.3)
+      if (effectiveChunkSize > safeChunkSize) {
+        logger.info(
+          `[${documentId}] Capping chunk size from ${effectiveChunkSize} to ${safeChunkSize} tokens ` +
+            `(Ollama model ${embeddingModelName} context length: ${ollamaContextLength})`
+        )
+        effectiveChunkSize = safeChunkSize
+      }
+      // Cap overlap to 20% of effective chunk size so overlap doesn't push chunks over context limit
+      const maxOverlap = Math.max(0, Math.floor(effectiveChunkSize * 0.2))
+      if (effectiveOverlap > maxOverlap) {
+        logger.info(
+          `[${documentId}] Capping chunk overlap from ${effectiveOverlap} to ${maxOverlap} tokens ` +
+            `(20% of effective chunk size ${effectiveChunkSize})`
+        )
+        effectiveOverlap = maxOverlap
+      }
+    }
 
     await withTimeout(
       (async () => {
@@ -438,11 +485,12 @@ export async function processDocumentAsync(
           docData.fileUrl,
           docData.filename,
           docData.mimeType,
-          processingOptions.chunkSize ?? kbConfig.maxSize,
-          processingOptions.chunkOverlap ?? kbConfig.overlap,
+          effectiveChunkSize,
+          effectiveOverlap,
           processingOptions.minCharactersPerChunk ?? kbConfig.minSize,
           kb[0].userId,
-          kb[0].workspaceId
+          kb[0].workspaceId,
+          kb[0].embeddingModel
         )
 
         if (processed.chunks.length > LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT) {
@@ -472,7 +520,13 @@ export async function processDocumentAsync(
             const batchNum = Math.floor(i / batchSize) + 1
 
             logger.info(`[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`)
-            const batchEmbeddings = await generateEmbeddings(batch, undefined, kb[0].workspaceId)
+            const batchEmbeddings = await generateEmbeddings(
+              batch,
+              kb[0].embeddingModel,
+              kb[0].workspaceId,
+              kbConfig.ollamaBaseUrl,
+              ollamaContextLength
+            )
             for (const emb of batchEmbeddings) {
               embeddings.push(emb)
             }
@@ -523,7 +577,7 @@ export async function processDocumentAsync(
           contentLength: chunk.text.length,
           tokenCount: Math.ceil(chunk.text.length / 4),
           embedding: embeddings[chunkIndex] || null,
-          embeddingModel: 'text-embedding-3-small',
+          embeddingModel: embeddingModelName,
           startOffset: chunk.metadata.startIndex,
           endOffset: chunk.metadata.endIndex,
           // Copy text tags from document (7 slots)
@@ -551,34 +605,37 @@ export async function processDocumentAsync(
           updatedAt: now,
         }))
 
-        await db.transaction(async (tx) => {
-          if (embeddingRecords.length > 0) {
-            await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+        if (embeddingRecords.length > 0) {
+          logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
 
-            const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
-            const batches: (typeof embeddingRecords)[] = []
-            for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
-              batches.push(embeddingRecords.slice(i, i + insertBatchSize))
-            }
+          if (embeddingProvider === 'ollama') {
+            // Per-KB table: delete old chunks then bulk-insert new ones
+            await deleteKBDocumentEmbeddings(knowledgeBaseId, documentId)
+            await insertKBEmbeddings(knowledgeBaseId, embeddingRecords, kb[0].embeddingDimension)
+          } else {
+            // Shared embedding table: delete + insert inside a transaction
+            await db.transaction(async (tx) => {
+              await tx.delete(embedding).where(eq(embedding.documentId, documentId))
 
-            logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
-            for (const batch of batches) {
-              await tx.insert(embedding).values(batch)
-            }
-          }
-
-          await tx
-            .update(document)
-            .set({
-              chunkCount: processed.metadata.chunkCount,
-              tokenCount: processed.metadata.tokenCount,
-              characterCount: processed.metadata.characterCount,
-              processingStatus: 'completed',
-              processingCompletedAt: now,
-              processingError: null,
+              const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
+              for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
+                await tx.insert(embedding).values(embeddingRecords.slice(i, i + insertBatchSize))
+              }
             })
-            .where(eq(document.id, documentId))
-        })
+          }
+        }
+
+        await db
+          .update(document)
+          .set({
+            chunkCount: processed.metadata.chunkCount,
+            tokenCount: processed.metadata.tokenCount,
+            characterCount: processed.metadata.characterCount,
+            processingStatus: 'completed',
+            processingCompletedAt: now,
+            processingError: null,
+          })
+          .where(eq(document.id, documentId))
       })(),
       TIMEOUTS.OVERALL_PROCESSING,
       'Document processing'
