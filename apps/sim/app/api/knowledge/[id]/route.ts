@@ -5,6 +5,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { dropKBEmbeddingTable } from '@/lib/knowledge/dynamic-tables'
 import {
   deleteKnowledgeBase,
   getKnowledgeBaseById,
@@ -200,6 +201,8 @@ export async function DELETE(
     }
 
     await deleteKnowledgeBase(id, requestId)
+    // Drop the per-KB embedding table if this was an Ollama KB (no-op for OpenAI KBs)
+    await dropKBEmbeddingTable(id)
 
     try {
       PlatformEvents.knowledgeBaseDeleted({
