@@ -6,6 +6,8 @@ import { getPostMetaBySlug } from '@/lib/blog/registry'
 import { formatDate } from '@/lib/core/utils/formatting'
 import { getPrimaryCategory } from '@/app/(landing)/blog/tag-colors'
 
+export const runtime = 'nodejs'
+
 function getTitleFontSize(title: string): number {
   if (title.length > 80) return 36
   if (title.length > 60) return 40
