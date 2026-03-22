@@ -5,6 +5,8 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { createKBEmbeddingTable, parseEmbeddingModel } from '@/lib/knowledge/dynamic-tables'
+import { getOllamaModelInfo } from '@/lib/knowledge/embeddings'
 import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
 
 const logger = createLogger('KnowledgeBaseAPI')
@@ -21,8 +23,15 @@ const CreateKnowledgeBaseSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  embeddingModel: z.literal('text-embedding-3-small').default('text-embedding-3-small'),
-  embeddingDimension: z.literal(1536).default(1536),
+  embeddingModel: z
+    .union([
+      z.literal('text-embedding-3-small'),
+      z.literal('text-embedding-3-large'),
+      z.string().regex(/^ollama\/.+/, 'Ollama models must be prefixed with "ollama/"'),
+    ])
+    .default('text-embedding-3-small'),
+  embeddingDimension: z.number().int().min(64).max(8192).default(1536),
+  ollamaBaseUrl: z.string().url('Ollama base URL must be a valid URL').optional(),
   chunkingConfig: z
     .object({
       /** Maximum chunk size in tokens (1 token ≈ 4 characters) */
@@ -89,12 +98,54 @@ export async function POST(req: NextRequest) {
     try {
       const validatedData = CreateKnowledgeBaseSchema.parse(body)
 
+      const { provider, modelName } = parseEmbeddingModel(validatedData.embeddingModel)
+
+      // For Ollama models, validate the model is available and auto-detect dimension
+      let effectiveDimension = validatedData.embeddingDimension
+      if (provider === 'ollama') {
+        const ollamaBaseUrl = validatedData.ollamaBaseUrl ?? 'http://localhost:11434'
+        try {
+          const modelInfo = await getOllamaModelInfo(modelName, ollamaBaseUrl)
+
+          // Auto-correct dimension if the model reports a different one
+          if (modelInfo.embeddingLength && modelInfo.embeddingLength !== effectiveDimension) {
+            logger.info(
+              `[${requestId}] Auto-correcting embedding dimension from ${effectiveDimension} ` +
+                `to ${modelInfo.embeddingLength} (reported by Ollama model ${modelName})`
+            )
+            effectiveDimension = modelInfo.embeddingLength
+          }
+        } catch {
+          return NextResponse.json(
+            {
+              error:
+                `Cannot reach Ollama at ${ollamaBaseUrl} or model "${modelName}" is not available. ` +
+                `Make sure Ollama is running and the model is pulled (ollama pull ${modelName}).`,
+            },
+            { status: 400 }
+          )
+        }
+      }
+
       const createData = {
         ...validatedData,
+        embeddingDimension: effectiveDimension,
         userId: session.user.id,
       }
 
       const newKnowledgeBase = await createKnowledgeBase(createData, requestId)
+
+      if (provider === 'ollama') {
+        try {
+          await createKBEmbeddingTable(newKnowledgeBase.id, effectiveDimension)
+        } catch (tableError) {
+          logger.error(
+            `[${requestId}] Failed to create embedding table for KB ${newKnowledgeBase.id}`,
+            tableError
+          )
+          throw tableError
+        }
+      }
 
       try {
         PlatformEvents.knowledgeBaseCreated({
