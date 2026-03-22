@@ -1,17 +1,25 @@
+import { db } from '@sim/db'
+import { knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
+import {
+  parseEmbeddingModel,
+  searchKBTable,
+  searchKBTableTagOnly,
+} from '@/lib/knowledge/dynamic-tables'
+import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
-import type { StructuredFilter } from '@/lib/knowledge/types'
+import type { ExtendedChunkingConfig, StructuredFilter } from '@/lib/knowledge/types'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import {
-  generateSearchEmbedding,
   getDocumentNamesByIds,
   getQueryStrategy,
   handleTagAndVectorSearch,
@@ -197,11 +205,6 @@ export async function POST(request: NextRequest) {
 
       const workspaceId = accessChecks.find((ac) => ac?.hasAccess)?.knowledgeBase?.workspaceId
 
-      const hasQuery = validatedData.query && validatedData.query.trim().length > 0
-      const queryEmbeddingPromise = hasQuery
-        ? generateSearchEmbedding(validatedData.query!, undefined, workspaceId)
-        : Promise.resolve(null)
-
       // Check if any requested knowledge bases were not accessible
       const inaccessibleKbIds = knowledgeBaseIds.filter((id) => !accessibleKbIds.includes(id))
 
@@ -212,46 +215,161 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      let results: SearchResult[]
+      // Fetch KB configs to determine provider routing
+      const kbConfigRows = await db
+        .select({
+          id: knowledgeBase.id,
+          embeddingModel: knowledgeBase.embeddingModel,
+          chunkingConfig: knowledgeBase.chunkingConfig,
+        })
+        .from(knowledgeBase)
+        .where(inArray(knowledgeBase.id, accessibleKbIds))
 
+      const kbConfigMap = new Map(kbConfigRows.map((kb) => [kb.id, kb]))
+
+      const openaiKbIds: string[] = []
+      const ollamaKbIds: string[] = []
+
+      for (const kbId of accessibleKbIds) {
+        const config = kbConfigMap.get(kbId)
+        if (!config) continue
+        const { provider } = parseEmbeddingModel(config.embeddingModel)
+        if (provider === 'ollama') {
+          ollamaKbIds.push(kbId)
+        } else {
+          openaiKbIds.push(kbId)
+        }
+      }
+
+      const hasQuery = validatedData.query && validatedData.query.trim().length > 0
       const hasFilters = structuredFilters && structuredFilters.length > 0
 
-      if (!hasQuery && hasFilters) {
-        // Tag-only search without vector similarity
-        results = await handleTagOnlySearch({
-          knowledgeBaseIds: accessibleKbIds,
-          topK: validatedData.topK,
-          structuredFilters,
-        })
-      } else if (hasQuery && hasFilters) {
-        // Tag + Vector search
-        logger.debug(
-          `[${requestId}] Executing tag + vector search with filters:`,
-          structuredFilters
+      // Generate OpenAI search embedding
+      let openaiQueryVector: string | null = null
+      if (hasQuery && openaiKbIds.length > 0) {
+        const emb = await generateSearchEmbedding(validatedData.query!, undefined, workspaceId)
+        openaiQueryVector = JSON.stringify(emb)
+      }
+
+      // Generate Ollama search embeddings — one per unique (model, url) pair
+      const ollamaQueryVectors = new Map<string, string>()
+      if (hasQuery && ollamaKbIds.length > 0) {
+        const uniquePairs = new Map<string, { modelName: string; ollamaBaseUrl: string }>()
+        for (const kbId of ollamaKbIds) {
+          const config = kbConfigMap.get(kbId)!
+          const cfg = config.chunkingConfig as ExtendedChunkingConfig
+          const { modelName } = parseEmbeddingModel(config.embeddingModel)
+          const baseUrl = cfg.ollamaBaseUrl ?? 'http://localhost:11434'
+          uniquePairs.set(`${modelName}:${baseUrl}`, { modelName, ollamaBaseUrl: baseUrl })
+        }
+        await Promise.all(
+          Array.from(uniquePairs.entries()).map(async ([pairKey, { modelName, ollamaBaseUrl }]) => {
+            const emb = await generateSearchEmbedding(
+              validatedData.query!,
+              `ollama/${modelName}`,
+              undefined,
+              ollamaBaseUrl
+            )
+            ollamaQueryVectors.set(pairKey, JSON.stringify(emb))
+          })
         )
-        const strategy = getQueryStrategy(accessibleKbIds.length, validatedData.topK)
-        const queryVector = JSON.stringify(await queryEmbeddingPromise)
+      }
 
-        results = await handleTagAndVectorSearch({
-          knowledgeBaseIds: accessibleKbIds,
-          topK: validatedData.topK,
-          structuredFilters,
-          queryVector,
-          distanceThreshold: strategy.distanceThreshold,
-        })
-      } else if (hasQuery && !hasFilters) {
-        // Vector-only search
-        const strategy = getQueryStrategy(accessibleKbIds.length, validatedData.topK)
-        const queryVector = JSON.stringify(await queryEmbeddingPromise)
+      const allResults: SearchResult[] = []
 
-        results = await handleVectorOnlySearch({
-          knowledgeBaseIds: accessibleKbIds,
-          topK: validatedData.topK,
-          queryVector,
-          distanceThreshold: strategy.distanceThreshold,
-        })
+      // OpenAI KBs — existing search handlers
+      if (openaiKbIds.length > 0) {
+        const strategy = getQueryStrategy(openaiKbIds.length, validatedData.topK)
+
+        if (!hasQuery && hasFilters) {
+          allResults.push(
+            ...(await handleTagOnlySearch({
+              knowledgeBaseIds: openaiKbIds,
+              topK: validatedData.topK,
+              structuredFilters,
+            }))
+          )
+        } else if (hasQuery && hasFilters && openaiQueryVector) {
+          logger.debug(
+            `[${requestId}] Executing tag + vector search with filters:`,
+            structuredFilters
+          )
+          allResults.push(
+            ...(await handleTagAndVectorSearch({
+              knowledgeBaseIds: openaiKbIds,
+              topK: validatedData.topK,
+              structuredFilters,
+              queryVector: openaiQueryVector,
+              distanceThreshold: strategy.distanceThreshold,
+            }))
+          )
+        } else if (hasQuery && openaiQueryVector) {
+          allResults.push(
+            ...(await handleVectorOnlySearch({
+              knowledgeBaseIds: openaiKbIds,
+              topK: validatedData.topK,
+              queryVector: openaiQueryVector,
+              distanceThreshold: strategy.distanceThreshold,
+            }))
+          )
+        }
+      }
+
+      // Ollama KBs — per-KB table search
+      for (const kbId of ollamaKbIds) {
+        const config = kbConfigMap.get(kbId)!
+        const cfg = config.chunkingConfig as ExtendedChunkingConfig
+        const { modelName } = parseEmbeddingModel(config.embeddingModel)
+        const baseUrl = cfg.ollamaBaseUrl ?? 'http://localhost:11434'
+        const pairKey = `${modelName}:${baseUrl}`
+        const strategy = getQueryStrategy(1, validatedData.topK)
+
+        if (!hasQuery && hasFilters) {
+          allResults.push(
+            ...(await searchKBTableTagOnly(kbId, validatedData.topK, structuredFilters))
+          )
+        } else if (hasQuery) {
+          const queryVector = ollamaQueryVectors.get(pairKey)
+          if (queryVector) {
+            allResults.push(
+              ...(await searchKBTable(
+                kbId,
+                queryVector,
+                validatedData.topK,
+                strategy.distanceThreshold,
+                hasFilters ? structuredFilters : undefined
+              ))
+            )
+          }
+        }
+      }
+
+      // Merge and re-rank when results come from multiple providers.
+      // Distance scores from different embedding spaces are not directly comparable,
+      // so normalize each provider's scores to 0-1 range before merging.
+      let results: SearchResult[]
+      if (openaiKbIds.length > 0 && ollamaKbIds.length > 0) {
+        const normalizeScores = (items: SearchResult[]): SearchResult[] => {
+          if (items.length === 0) return items
+          const min = Math.min(...items.map((r) => r.distance))
+          const max = Math.max(...items.map((r) => r.distance))
+          const range = max - min || 1
+          return items.map((r) => ({ ...r, distance: (r.distance - min) / range }))
+        }
+        const openaiResults = normalizeScores(
+          allResults.filter((r) => openaiKbIds.includes(r.knowledgeBaseId))
+        )
+        const ollamaResults = normalizeScores(
+          allResults.filter((r) => ollamaKbIds.includes(r.knowledgeBaseId))
+        )
+        results = [...openaiResults, ...ollamaResults]
+          .sort((a, b) => a.distance - b.distance)
+          .slice(0, validatedData.topK)
       } else {
-        // This should never happen due to schema validation, but just in case
+        results = allResults
+      }
+
+      if (!hasQuery && !hasFilters) {
         return NextResponse.json(
           {
             error:
@@ -261,10 +379,10 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Calculate cost for the embedding (with fallback if calculation fails)
+      // Calculate cost — only for OpenAI embedding calls
       let cost = null
       let tokenCount = null
-      if (hasQuery) {
+      if (hasQuery && openaiKbIds.length > 0) {
         try {
           tokenCount = estimateTokenCount(validatedData.query!, 'openai')
           cost = calculateCost('text-embedding-3-small', tokenCount.count, 0, false)
@@ -272,7 +390,6 @@ export async function POST(request: NextRequest) {
           logger.warn(`[${requestId}] Failed to calculate cost for search query`, {
             error: error instanceof Error ? error.message : 'Unknown error',
           })
-          // Continue without cost information rather than failing the search
         }
       }
 
