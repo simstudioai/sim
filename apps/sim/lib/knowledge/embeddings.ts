@@ -30,6 +30,7 @@ const ollamaModelInfoCache = new Map<string, { info: OllamaModelInfo; ts: number
 /**
  * Query an Ollama model's info via the /api/show endpoint.
  * Returns context_length and embedding_length with in-memory caching.
+ * Falls back to defaults on failure for runtime use (embedding generation).
  */
 export async function getOllamaModelInfo(
   modelName: string,
@@ -47,38 +48,7 @@ export async function getOllamaModelInfo(
   }
 
   try {
-    const url = `${baseUrl.replace(/\/$/, '')}/api/show`
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: modelName }),
-      signal: AbortSignal.timeout(5000),
-    })
-
-    if (!response.ok) {
-      logger.warn(`Failed to query Ollama model info for ${modelName}: ${response.status}`)
-      ollamaModelInfoCache.set(cacheKey, { info: defaults, ts: Date.now() })
-      return defaults
-    }
-
-    const data = await response.json()
-    const modelInfo = data?.model_info ?? {}
-
-    const info: OllamaModelInfo = { ...defaults }
-
-    for (const [key, value] of Object.entries(modelInfo)) {
-      const lowerKey = key.toLowerCase()
-      if (lowerKey.includes('context_length') && typeof value === 'number') {
-        info.contextLength = value
-      }
-      if (lowerKey.includes('embedding_length') && typeof value === 'number') {
-        info.embeddingLength = value
-      }
-    }
-
-    logger.info(
-      `Ollama model ${modelName}: context_length=${info.contextLength}, embedding_length=${info.embeddingLength}`
-    )
+    const info = await fetchOllamaModelInfo(modelName, baseUrl)
     ollamaModelInfoCache.set(cacheKey, { info, ts: Date.now() })
     return info
   } catch (error) {
@@ -88,6 +58,67 @@ export async function getOllamaModelInfo(
     ollamaModelInfoCache.set(cacheKey, { info: defaults, ts: Date.now() })
     return defaults
   }
+}
+
+/**
+ * Validate that an Ollama model is reachable and return its info.
+ * Unlike getOllamaModelInfo, this throws on failure — use during KB creation
+ * to prevent creating a KB with incorrect dimensions.
+ */
+export async function validateOllamaModel(
+  modelName: string,
+  baseUrl = 'http://localhost:11434'
+): Promise<OllamaModelInfo> {
+  const info = await fetchOllamaModelInfo(modelName, baseUrl)
+
+  // Cache the validated result
+  const cacheKey = `${modelName}@${baseUrl}`
+  ollamaModelInfoCache.set(cacheKey, { info, ts: Date.now() })
+
+  return info
+}
+
+/**
+ * Internal: fetch model info from Ollama's /api/show endpoint.
+ * Throws on network errors or non-OK responses.
+ */
+async function fetchOllamaModelInfo(modelName: string, baseUrl: string): Promise<OllamaModelInfo> {
+  const defaults: OllamaModelInfo = {
+    contextLength: OLLAMA_DEFAULT_CONTEXT_LENGTH,
+    embeddingLength: OLLAMA_DEFAULT_EMBEDDING_DIMENSION,
+  }
+
+  const url = `${baseUrl.replace(/\/$/, '')}/api/show`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: modelName }),
+    signal: AbortSignal.timeout(5000),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Ollama returned ${response.status} for model "${modelName}" at ${baseUrl}`)
+  }
+
+  const data = await response.json()
+  const modelInfo = data?.model_info ?? {}
+
+  const info: OllamaModelInfo = { ...defaults }
+
+  for (const [key, value] of Object.entries(modelInfo)) {
+    const lowerKey = key.toLowerCase()
+    if (lowerKey.includes('context_length') && typeof value === 'number') {
+      info.contextLength = value
+    }
+    if (lowerKey.includes('embedding_length') && typeof value === 'number') {
+      info.embeddingLength = value
+    }
+  }
+
+  logger.info(
+    `Ollama model ${modelName}: context_length=${info.contextLength}, embedding_length=${info.embeddingLength}`
+  )
+  return info
 }
 
 /**
