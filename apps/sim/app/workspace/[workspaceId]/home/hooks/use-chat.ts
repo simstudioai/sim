@@ -444,7 +444,26 @@ export function useChat(
 
     appliedChatIdRef.current = chatHistory.id
     const mappedMessages = chatHistory.messages.map(mapStoredMessage)
-    setMessages(mappedMessages)
+    const shouldPreserveActiveStreamingMessage =
+      sendingRef.current && Boolean(activeStreamId) && activeStreamId === streamIdRef.current
+
+    if (shouldPreserveActiveStreamingMessage) {
+      setMessages((prev) => {
+        const localStreamingAssistant = prev[prev.length - 1]
+        if (localStreamingAssistant?.role !== 'assistant') {
+          return mappedMessages
+        }
+
+        const nextMessages =
+          mappedMessages[mappedMessages.length - 1]?.role === 'assistant'
+            ? mappedMessages.slice(0, -1)
+            : mappedMessages
+
+        return [...nextMessages, localStreamingAssistant]
+      })
+    } else {
+      setMessages(mappedMessages)
+    }
 
     if (chatHistory.resources.some((r) => r.id === 'streaming-file')) {
       fetch('/api/copilot/chat/resources', {

@@ -505,12 +505,21 @@ export class WorkflowDiffEngine {
       try {
         const baselineBlockIds = new Set(Object.keys(mergedBaseline.blocks))
 
-        // Identify blocks that need positioning: genuinely new blocks AND
-        // blocks inserted into subflows (position reset to 0,0). Extracted
-        // blocks are excluded — the server computes valid absolute positions
-        // from the container offset, so they don't need repositioning.
+        // Identify blocks that need positioning: genuinely new blocks that
+        // don't have valid positions yet. Blocks already positioned by a
+        // previous server-side layout (non-origin position) are skipped to
+        // avoid redundant client-side re-layout that can shift blocks when
+        // block metrics change between edits (e.g. condition handle offsets).
         const blocksNeedingLayout = Object.keys(finalBlocks).filter((id) => {
-          if (!baselineBlockIds.has(id)) return true
+          if (!baselineBlockIds.has(id)) {
+            const pos = finalBlocks[id]?.position
+            const hasValidPosition =
+              pos &&
+              Number.isFinite(pos.x) &&
+              Number.isFinite(pos.y) &&
+              !(pos.x === 0 && pos.y === 0)
+            return !hasValidPosition
+          }
           const baselineParent = mergedBaseline.blocks[id]?.data?.parentId ?? null
           const proposedParent = finalBlocks[id]?.data?.parentId ?? null
           if (baselineParent === proposedParent) return false
