@@ -1,6 +1,7 @@
 import {
   type Message as BedrockMessage,
   BedrockRuntimeClient,
+  type BedrockRuntimeClientConfig,
   type ContentBlock,
   type ConversationRole,
   ConverseCommand,
@@ -68,10 +69,7 @@ export const bedrockProvider: ProviderConfig = {
       )
     }
 
-    const clientConfig: {
-      region: string
-      credentials?: { accessKeyId: string; secretAccessKey: string }
-    } = { region }
+    const clientConfig: BedrockRuntimeClientConfig = { region }
     if (request.bedrockAccessKeyId && request.bedrockSecretKey) {
       clientConfig.credentials = {
         accessKeyId: request.bedrockAccessKeyId,
