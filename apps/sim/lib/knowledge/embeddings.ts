@@ -10,6 +10,97 @@ const MAX_TOKENS_PER_REQUEST = 8000
 const MAX_CONCURRENT_BATCHES = env.KB_CONFIG_CONCURRENCY_LIMIT || 50
 const EMBEDDING_DIMENSIONS = 1536
 
+const OLLAMA_TIMEOUT_MS = 120_000
+
+/** Default context length for Ollama embedding models when it cannot be queried */
+const OLLAMA_DEFAULT_CONTEXT_LENGTH = 2048
+/** Default embedding dimension for Ollama models when it cannot be queried */
+const OLLAMA_DEFAULT_EMBEDDING_DIMENSION = 768
+/** Cache TTL for Ollama model info (5 minutes) */
+const OLLAMA_MODEL_CACHE_TTL_MS = 5 * 60 * 1000
+
+export interface OllamaModelInfo {
+  contextLength: number
+  embeddingLength: number
+}
+
+/** In-memory cache for Ollama model info to avoid repeated /api/show calls */
+const ollamaModelInfoCache = new Map<string, { info: OllamaModelInfo; ts: number }>()
+
+/**
+ * Query an Ollama model's info via the /api/show endpoint.
+ * Returns context_length and embedding_length with in-memory caching.
+ */
+export async function getOllamaModelInfo(
+  modelName: string,
+  baseUrl = 'http://localhost:11434'
+): Promise<OllamaModelInfo> {
+  const cacheKey = `${modelName}@${baseUrl}`
+  const cached = ollamaModelInfoCache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < OLLAMA_MODEL_CACHE_TTL_MS) {
+    return cached.info
+  }
+
+  const defaults: OllamaModelInfo = {
+    contextLength: OLLAMA_DEFAULT_CONTEXT_LENGTH,
+    embeddingLength: OLLAMA_DEFAULT_EMBEDDING_DIMENSION,
+  }
+
+  try {
+    const url = `${baseUrl.replace(/\/$/, '')}/api/show`
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: modelName }),
+      signal: AbortSignal.timeout(5000),
+    })
+
+    if (!response.ok) {
+      logger.warn(`Failed to query Ollama model info for ${modelName}: ${response.status}`)
+      ollamaModelInfoCache.set(cacheKey, { info: defaults, ts: Date.now() })
+      return defaults
+    }
+
+    const data = await response.json()
+    const modelInfo = data?.model_info ?? {}
+
+    const info: OllamaModelInfo = { ...defaults }
+
+    for (const [key, value] of Object.entries(modelInfo)) {
+      const lowerKey = key.toLowerCase()
+      if (lowerKey.includes('context_length') && typeof value === 'number') {
+        info.contextLength = value
+      }
+      if (lowerKey.includes('embedding_length') && typeof value === 'number') {
+        info.embeddingLength = value
+      }
+    }
+
+    logger.info(
+      `Ollama model ${modelName}: context_length=${info.contextLength}, embedding_length=${info.embeddingLength}`
+    )
+    ollamaModelInfoCache.set(cacheKey, { info, ts: Date.now() })
+    return info
+  } catch (error) {
+    logger.warn(
+      `Error querying Ollama model info: ${error instanceof Error ? error.message : String(error)}`
+    )
+    ollamaModelInfoCache.set(cacheKey, { info: defaults, ts: Date.now() })
+    return defaults
+  }
+}
+
+/**
+ * Query an Ollama model's context length (convenience wrapper).
+ */
+export async function getOllamaModelContextLength(
+  modelName: string,
+  baseUrl = 'http://localhost:11434'
+): Promise<number> {
+  const info = await getOllamaModelInfo(modelName, baseUrl)
+  return info.contextLength
+}
+
 /**
  * Check if the model supports custom dimensions.
  * text-embedding-3-* models support the dimensions parameter.
@@ -173,13 +264,116 @@ async function processWithConcurrency<T, R>(
 }
 
 /**
+ * Call Ollama's /api/embed endpoint for batch embedding generation.
+ * Requires Ollama 0.1.26+ for the /api/embed endpoint with array input.
+ */
+async function callOllamaEmbeddingAPI(
+  inputs: string[],
+  modelName: string,
+  baseUrl: string
+): Promise<number[][]> {
+  const url = `${baseUrl.replace(/\/$/, '')}/api/embed`
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: modelName, input: inputs }),
+    signal: AbortSignal.timeout(OLLAMA_TIMEOUT_MS),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new EmbeddingAPIError(
+      `Ollama embedding API failed: ${response.status} ${response.statusText} - ${errorText}`,
+      response.status
+    )
+  }
+
+  const data: { embeddings: number[][] } = await response.json()
+  return data.embeddings
+}
+
+/**
  * Generate embeddings for multiple texts with token-aware batching and parallel processing
  */
 export async function generateEmbeddings(
   texts: string[],
   embeddingModel = 'text-embedding-3-small',
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  ollamaBaseUrl?: string,
+  contextLengthHint?: number
 ): Promise<number[][]> {
+  if (embeddingModel.startsWith('ollama/')) {
+    const modelName = embeddingModel.slice(7)
+    const baseUrl = ollamaBaseUrl ?? 'http://localhost:11434'
+    logger.info(`Using Ollama (${baseUrl}) for embedding generation with model ${modelName}`)
+
+    // Use pre-queried context length if provided, otherwise query it
+    const contextLength =
+      contextLengthHint ?? (await getOllamaModelContextLength(modelName, baseUrl))
+    // Use contextLength as the max character count (assumes worst case ~1 char per token)
+    const maxChars = contextLength
+
+    // Truncate any chunks that exceed the context length, then batch by total character count
+    const prepared: string[] = texts.map((text, i) => {
+      if (text.length > maxChars) {
+        const lastSentenceEnd = text.lastIndexOf('. ', maxChars)
+        const truncatedLength = lastSentenceEnd > maxChars * 0.5 ? lastSentenceEnd + 1 : maxChars
+        logger.warn(
+          `Truncating chunk ${i} from ${text.length} to ${truncatedLength} chars ` +
+            `(Ollama model ${modelName} context length: ${contextLength})`
+        )
+        return text.slice(0, truncatedLength)
+      }
+      return text
+    })
+
+    // Smart batching: group chunks so total characters per batch stays within maxChars
+    const batches: string[][] = []
+    let currentBatch: string[] = []
+    let currentBatchChars = 0
+    for (const text of prepared) {
+      if (currentBatch.length > 0 && currentBatchChars + text.length > maxChars) {
+        batches.push(currentBatch)
+        currentBatch = []
+        currentBatchChars = 0
+      }
+      currentBatch.push(text)
+      currentBatchChars += text.length
+    }
+    if (currentBatch.length > 0) {
+      batches.push(currentBatch)
+    }
+
+    logger.info(
+      `[Ollama] Processing ${prepared.length} chunks in ${batches.length} batches (maxChars=${maxChars})`
+    )
+
+    // Process each batch with retry logic
+    const allEmbeddings: number[][] = []
+    for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+      const batch = batches[batchIdx]
+      const batchEmbeddings = await retryWithExponentialBackoff(
+        () => callOllamaEmbeddingAPI(batch, modelName, baseUrl),
+        {
+          maxRetries: 3,
+          initialDelayMs: 1000,
+          maxDelayMs: 10000,
+          retryCondition: (error: unknown) => {
+            if (error instanceof EmbeddingAPIError) {
+              return error.status === 429 || error.status >= 500
+            }
+            return isRetryableError(error)
+          },
+        }
+      )
+      for (const emb of batchEmbeddings) {
+        allEmbeddings.push(emb)
+      }
+    }
+    return allEmbeddings
+  }
+
   const config = await getEmbeddingConfig(embeddingModel, workspaceId)
 
   const batches = batchByTokenLimit(texts, MAX_TOKENS_PER_REQUEST, embeddingModel)
@@ -213,8 +407,17 @@ export async function generateEmbeddings(
 export async function generateSearchEmbedding(
   query: string,
   embeddingModel = 'text-embedding-3-small',
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  ollamaBaseUrl?: string
 ): Promise<number[]> {
+  if (embeddingModel.startsWith('ollama/')) {
+    const modelName = embeddingModel.slice(7)
+    const baseUrl = ollamaBaseUrl ?? 'http://localhost:11434'
+    logger.info(`Using Ollama (${baseUrl}) for search embedding with model ${modelName}`)
+    const embeddings = await callOllamaEmbeddingAPI([query], modelName, baseUrl)
+    return embeddings[0]
+  }
+
   const config = await getEmbeddingConfig(embeddingModel, workspaceId)
 
   logger.info(
