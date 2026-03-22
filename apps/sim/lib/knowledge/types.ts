@@ -33,8 +33,9 @@ export interface CreateKnowledgeBaseData {
   name: string
   description?: string
   workspaceId: string
-  embeddingModel: 'text-embedding-3-small'
-  embeddingDimension: 1536
+  embeddingModel: string
+  embeddingDimension: number
+  ollamaBaseUrl?: string
   chunkingConfig: ChunkingConfig
   userId: string
 }
@@ -109,6 +110,8 @@ export interface ExtendedChunkingConfig extends ChunkingConfig {
   recipe?: string
   lang?: string
   strategy?: 'recursive' | 'semantic' | 'sentence' | 'paragraph'
+  /** Ollama server base URL — stored here to avoid a schema migration */
+  ollamaBaseUrl?: string
   [key: string]: unknown
 }
 
