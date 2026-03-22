@@ -2,7 +2,9 @@
  * Options for configuring text chunkers
  *
  * Units:
- * - chunkSize: Maximum chunk size in TOKENS (1 token ≈ 4 characters)
+ * - chunkSize: Maximum chunk size in TOKENS
+ *   - For OpenAI: 1 token ≈ 4 characters
+ *   - For Ollama: 1 token ≈ 3 characters (conservative estimate)
  * - chunkOverlap: Overlap between chunks in TOKENS
  * - minCharactersPerChunk: Minimum chunk size in CHARACTERS (filters tiny fragments)
  */
@@ -13,6 +15,8 @@ export interface ChunkerOptions {
   chunkOverlap?: number
   /** Minimum chunk size in characters to avoid tiny fragments (default: 100) */
   minCharactersPerChunk?: number
+  /** Embedding model to use for accurate token estimation (optional) */
+  embeddingModel?: string
 }
 
 export interface Chunk {
