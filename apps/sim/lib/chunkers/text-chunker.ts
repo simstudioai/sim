@@ -2,17 +2,21 @@ import type { Chunk, ChunkerOptions } from '@/lib/chunkers/types'
 
 /**
  * Lightweight text chunker optimized for RAG applications
- * Uses hierarchical splitting with simple character-based token estimation
+ * Uses hierarchical splitting with character-based token estimation
  *
  * Parameters:
  * - chunkSize: Maximum chunk size in TOKENS (default: 1024)
  * - chunkOverlap: Overlap between chunks in TOKENS (default: 0)
  * - minCharactersPerChunk: Minimum characters to keep a chunk (default: 100)
+ * - embeddingModel: Embedding model to use for accurate token estimation (optional)
+ *   Ollama models use conservative estimates, OpenAI uses standard estimates
  */
 export class TextChunker {
   private readonly chunkSize: number // Max chunk size in tokens
   private readonly chunkOverlap: number // Overlap in tokens
   private readonly minCharactersPerChunk: number // Min characters per chunk
+  private readonly embeddingModel?: string // Embedding model for accurate estimation
+  private readonly tokenEstimationRatio: number // Characters per token (chars/token)
 
   // Hierarchical separators ordered from largest to smallest semantic units
   private readonly separators = [
@@ -42,22 +46,54 @@ export class TextChunker {
     const maxOverlap = Math.floor(this.chunkSize * 0.5)
     this.chunkOverlap = Math.min(options.chunkOverlap ?? 0, maxOverlap)
     this.minCharactersPerChunk = options.minCharactersPerChunk ?? 100
+    this.embeddingModel = options.embeddingModel
+
+    // Determine token estimation ratio based on embedding model
+    // Ollama models need conservative estimates since they may tokenize differently
+    // OpenAI models use standard 1 token ≈ 4 characters
+    this.tokenEstimationRatio = this.getTokenEstimationRatio()
   }
 
   /**
-   * Simple token estimation using character count
-   * 1 token ≈ 4 characters for English text
+   * Get token estimation ratio based on embedding model
+   * Ollama models: conservative 1 token ≈ 3 characters (fewer chars per token = more tokens estimated)
+   * OpenAI models: standard 1 token ≈ 4 characters
+   *
+   * Ollama models may tokenize differently, so we use a lower ratio to produce
+   * smaller chunks that stay safely within the model's context window.
+   */
+  private getTokenEstimationRatio(): number {
+    if (!this.embeddingModel) {
+      // Default to OpenAI ratio for backwards compatibility
+      return 4
+    }
+
+    if (this.embeddingModel.startsWith('ollama/')) {
+      // Conservative estimate for Ollama — lower ratio means more estimated tokens
+      // per chunk, so chunks are split smaller to fit within context limits
+      return 3
+    }
+
+    // Default to OpenAI ratio for other models
+    return 4
+  }
+
+  /**
+   * Token estimation using character count
+   * Ratio depends on embedding model:
+   * - OpenAI: 1 token ≈ 4 characters
+   * - Ollama: 1 token ≈ 3 characters (conservative)
    */
   private estimateTokens(text: string): number {
     if (!text?.trim()) return 0
-    return Math.ceil(text.length / 4)
+    return Math.ceil(text.length / this.tokenEstimationRatio)
   }
 
   /**
-   * Convert tokens to approximate character count
+   * Convert tokens to approximate character count using the estimation ratio
    */
   private tokensToChars(tokens: number): number {
-    return tokens * 4
+    return tokens * this.tokenEstimationRatio
   }
 
   /**
