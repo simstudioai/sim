@@ -353,7 +353,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     },
     cancel() {
       clientDisconnected = true
-      abortController.abort()
       if (eventWriter) {
         eventWriter.flush().catch(() => {})
       }
