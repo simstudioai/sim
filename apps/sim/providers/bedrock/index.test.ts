@@ -30,7 +30,11 @@ vi.mock('@/providers/models', () => ({
 vi.mock('@/providers/utils', () => ({
   calculateCost: vi.fn().mockReturnValue({ input: 0, output: 0, total: 0, pricing: null }),
   prepareToolExecution: vi.fn(),
-  prepareToolsWithUsageControl: vi.fn(),
+  prepareToolsWithUsageControl: vi.fn().mockReturnValue({
+    tools: [],
+    toolChoice: 'auto',
+    forcedTools: [],
+  }),
   sumToolCosts: vi.fn().mockReturnValue(0),
 }))
 
