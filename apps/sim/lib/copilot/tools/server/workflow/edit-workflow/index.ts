@@ -7,11 +7,6 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import {
-  computeWorkflowReadHashFromWorkflowState,
-  getWorkflowReadHash,
-  upsertWorkflowReadHashForWorkflowState,
-} from '@/lib/copilot/workflow-read-hashes'
 import { applyTargetedLayout } from '@/lib/workflows/autolayout'
 import {
   DEFAULT_HORIZONTAL_SPACING,
@@ -98,33 +93,19 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       chatId: context.chatId,
     })
 
-    if (!context.chatId) {
-      throw new Error(
-        'Workflow has changed or was not read in this chat. Re-read the workflow before editing.'
-      )
-    }
-
     assertServerToolNotAborted(context)
 
-    const fromDb = await getCurrentWorkflowStateFromDb(workflowId)
-    const workflowState = fromDb.workflowState
-    const storedReadHash = await getWorkflowReadHash(context.chatId, workflowId)
-    if (!storedReadHash) {
-      throw new Error(
-        'Workflow has changed or was not read in this chat. Re-read the workflow before editing.'
-      )
-    }
-
-    const currentReadState = computeWorkflowReadHashFromWorkflowState({
-      blocks: workflowState.blocks || {},
-      edges: workflowState.edges || [],
-      loops: workflowState.loops || {},
-      parallels: workflowState.parallels || {},
-    })
-    if (storedReadHash !== currentReadState.hash) {
-      throw new Error(
-        'Workflow changed since it was last read in this chat. Re-read the workflow before editing.'
-      )
+    let workflowState: any
+    if (currentUserWorkflow) {
+      try {
+        workflowState = JSON.parse(currentUserWorkflow)
+      } catch (error) {
+        logger.error('Failed to parse currentUserWorkflow', error)
+        throw new Error('Invalid currentUserWorkflow format')
+      }
+    } else {
+      const fromDb = await getCurrentWorkflowStateFromDb(workflowId)
+      workflowState = fromDb.workflowState
     }
 
     // Get permission config for the user
@@ -318,20 +299,12 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     logger.info('Workflow state persisted to database', { workflowId })
 
     const sanitizationWarnings = validation.warnings.length > 0 ? validation.warnings : undefined
-    assertServerToolNotAborted(context)
-    const updatedReadState = await upsertWorkflowReadHashForWorkflowState(
-      context.chatId,
-      workflowId,
-      workflowStateForDb
-    )
 
     return {
       success: true,
       workflowId,
       workflowName: workflowName ?? 'Workflow',
       workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
-      copilotSanitizedWorkflowState: updatedReadState.sanitizedState,
-      workflowReadHash: updatedReadState.hash,
       ...(inputErrors && {
         inputValidationErrors: inputErrors,
         inputValidationMessage: `${inputErrors.length} input(s) were rejected due to validation errors. The workflow was still updated with valid inputs only. Errors: ${inputErrors.join('; ')}`,

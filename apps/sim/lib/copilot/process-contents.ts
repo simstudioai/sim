@@ -7,7 +7,6 @@ import {
   serializeTableMeta,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
-import { upsertWorkflowReadHashForSanitizedState } from '@/lib/copilot/workflow-read-hashes'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { getTableById } from '@/lib/table/service'
 import { canAccessTemplate } from '@/lib/templates/permissions'
@@ -371,9 +370,6 @@ async function processWorkflowFromDb(
       parallels: normalized.parallels || {},
     }
     const sanitizedState = sanitizeForCopilot(workflowState)
-    if (chatId) {
-      await upsertWorkflowReadHashForSanitizedState(chatId, workflowId, sanitizedState)
-    }
     const content = JSON.stringify(
       {
         workflowId,
@@ -757,7 +753,7 @@ export async function resolveActiveResourceContext(
           resourceId,
           undefined,
           '@active_resource',
-          'workflow',
+          'current_workflow',
           undefined,
           chatId
         )
