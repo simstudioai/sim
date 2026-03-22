@@ -24,6 +24,17 @@ import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import { useCreateKnowledgeBase, useDeleteKnowledgeBase } from '@/hooks/queries/knowledge'
 
+type EmbeddingProvider = 'openai' | 'ollama'
+
+const OLLAMA_PRESET_MODELS: { label: string; value: string; dimension: number }[] = [
+  { label: 'nomic-embed-text (768d)', value: 'nomic-embed-text', dimension: 768 },
+  { label: 'mxbai-embed-large (1024d)', value: 'mxbai-embed-large', dimension: 1024 },
+  { label: 'all-minilm (384d)', value: 'all-minilm', dimension: 384 },
+  { label: 'snowflake-arctic-embed (1024d)', value: 'snowflake-arctic-embed', dimension: 1024 },
+  { label: 'bge-m3 (1024d)', value: 'bge-m3', dimension: 1024 },
+  { label: 'Custom…', value: 'custom', dimension: 0 },
+]
+
 const logger = createLogger('CreateBaseModal')
 
 interface FileWithPreview extends File {
@@ -93,6 +104,12 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
   const [dragCounter, setDragCounter] = useState(0)
   const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(new Set())
 
+  const [embeddingProvider, setEmbeddingProvider] = useState<EmbeddingProvider>('openai')
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState('http://localhost:11434')
+  const [ollamaPreset, setOllamaPreset] = useState(OLLAMA_PRESET_MODELS[0].value)
+  const [ollamaCustomModel, setOllamaCustomModel] = useState('')
+  const [ollamaDimension, setOllamaDimension] = useState(768)
+
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const { uploadFiles, isUploading, uploadProgress, uploadError, clearError } = useKnowledgeUpload({
@@ -144,6 +161,11 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
       setIsDragging(false)
       setDragCounter(0)
       setRetryingIndexes(new Set())
+      setEmbeddingProvider('openai')
+      setOllamaBaseUrl('http://localhost:11434')
+      setOllamaPreset(OLLAMA_PRESET_MODELS[0].value)
+      setOllamaCustomModel('')
+      setOllamaDimension(768)
       reset({
         name: '',
         description: '',
@@ -251,11 +273,29 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
   const onSubmit = async (data: FormValues) => {
     setSubmitStatus(null)
 
+    let embeddingModel = 'text-embedding-3-small'
+    let embeddingDimension = 1536
+    let ollamaBaseUrlValue: string | undefined
+
+    if (embeddingProvider === 'ollama') {
+      const modelName = ollamaPreset === 'custom' ? ollamaCustomModel.trim() : ollamaPreset
+      if (!modelName) {
+        setSubmitStatus({ type: 'error', message: 'Please enter an Ollama model name.' })
+        return
+      }
+      embeddingModel = `ollama/${modelName}`
+      embeddingDimension = ollamaDimension
+      ollamaBaseUrlValue = ollamaBaseUrl.trim() || 'http://localhost:11434'
+    }
+
     try {
       const newKnowledgeBase = await createKnowledgeBaseMutation.mutateAsync({
         name: data.name,
         description: data.description || undefined,
         workspaceId: workspaceId,
+        embeddingModel,
+        embeddingDimension,
+        ollamaBaseUrl: ollamaBaseUrlValue,
         chunkingConfig: {
           maxSize: data.maxChunkSize,
           minSize: data.minChunkSize,
@@ -393,6 +433,100 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                     1 token ≈ 4 characters. Max chunk size and overlap are in tokens.
                   </p>
                 </div>
+
+                <div className='flex flex-col gap-[8px]'>
+                  <Label>Embedding Provider</Label>
+                  <div className='flex gap-[8px]'>
+                    {(['openai', 'ollama'] as EmbeddingProvider[]).map((p) => (
+                      <button
+                        key={p}
+                        type='button'
+                        onClick={() => setEmbeddingProvider(p)}
+                        className={cn(
+                          'flex-1 rounded-[4px] border px-[12px] py-[6px] text-[12px] transition-colors',
+                          embeddingProvider === p
+                            ? 'border-[var(--surface-7)] bg-[var(--surface-4)] text-[var(--text-primary)]'
+                            : 'border-[var(--border-1)] bg-[var(--surface-1)] text-[var(--text-secondary)]'
+                        )}
+                      >
+                        {p === 'openai' ? 'OpenAI' : 'Ollama (local)'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {embeddingProvider === 'ollama' && (
+                  <>
+                    <div className='flex flex-col gap-[8px]'>
+                      <Label htmlFor='ollamaBaseUrl'>Ollama Base URL</Label>
+                      <Input
+                        id='ollamaBaseUrl'
+                        placeholder='http://localhost:11434'
+                        value={ollamaBaseUrl}
+                        onChange={(e) => setOllamaBaseUrl(e.target.value)}
+                        autoComplete='off'
+                        data-form-type='other'
+                      />
+                    </div>
+
+                    <div className='flex flex-col gap-[8px]'>
+                      <Label htmlFor='ollamaPreset'>Embedding Model</Label>
+                      <select
+                        id='ollamaPreset'
+                        value={ollamaPreset}
+                        onChange={(e) => {
+                          const preset = OLLAMA_PRESET_MODELS.find(
+                            (m) => m.value === e.target.value
+                          )
+                          setOllamaPreset(e.target.value)
+                          if (preset && preset.dimension > 0) {
+                            setOllamaDimension(preset.dimension)
+                          }
+                        }}
+                        className='rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)] px-[10px] py-[6px] text-[12px] text-[var(--text-primary)]'
+                      >
+                        {OLLAMA_PRESET_MODELS.map((m) => (
+                          <option key={m.value} value={m.value}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {ollamaPreset === 'custom' && (
+                      <div className='flex flex-col gap-[8px]'>
+                        <Label htmlFor='ollamaCustomModel'>Custom Model Name</Label>
+                        <Input
+                          id='ollamaCustomModel'
+                          placeholder='e.g. nomic-embed-text:v1.5'
+                          value={ollamaCustomModel}
+                          onChange={(e) => setOllamaCustomModel(e.target.value)}
+                          autoComplete='off'
+                          data-form-type='other'
+                        />
+                      </div>
+                    )}
+
+                    {ollamaPreset === 'custom' && (
+                      <div className='flex flex-col gap-[8px]'>
+                        <Label htmlFor='ollamaDimension'>Embedding Dimension</Label>
+                        <Input
+                          id='ollamaDimension'
+                          type='number'
+                          min={64}
+                          max={8192}
+                          value={ollamaDimension}
+                          onChange={(e) => setOllamaDimension(Number(e.target.value))}
+                          autoComplete='off'
+                          data-form-type='other'
+                        />
+                        <p className='text-[11px] text-[var(--text-muted)]'>
+                          Must match the model&apos;s output dimension exactly.
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
 
                 <div className='flex flex-col gap-[8px]'>
                   <Label>Upload Documents</Label>
