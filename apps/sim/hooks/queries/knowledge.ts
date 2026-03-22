@@ -649,6 +649,9 @@ export interface CreateKnowledgeBaseParams {
   name: string
   description?: string
   workspaceId: string
+  embeddingModel?: string
+  embeddingDimension?: number
+  ollamaBaseUrl?: string
   chunkingConfig: {
     maxSize: number
     minSize: number
