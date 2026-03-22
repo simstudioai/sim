@@ -1,5 +1,5 @@
 import { TextractIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type SubBlockType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType, type SubBlockType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { TextractParserOutput } from '@/tools/textract/types'
 
@@ -12,6 +12,8 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   longDescription: `Integrate AWS Textract into your workflow to extract text, tables, forms, and key-value pairs from documents. Single-page mode supports JPEG, PNG, and single-page PDF. Multi-page mode supports multi-page PDF and TIFF.`,
   docsLink: 'https://docs.sim.ai/tools/textract',
   category: 'tools',
+  integrationType: IntegrationType.AI,
+  tags: ['document-processing', 'ocr', 'cloud'],
   bgColor: 'linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)',
   icon: TextractIcon,
   subBlocks: [

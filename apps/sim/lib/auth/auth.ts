@@ -8,6 +8,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
 import {
   admin,
+  captcha,
   createAuthMiddleware,
   customSession,
   emailOTP,
@@ -17,6 +18,7 @@ import {
   oneTimeToken,
   organization,
 } from 'better-auth/plugins'
+import { emailHarmony } from 'better-auth-harmony'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
@@ -63,17 +65,14 @@ import {
   isHosted,
   isOrganizationsEnabled,
   isRegistrationDisabled,
+  isSignupEmailValidationEnabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
-import {
-  isDisposableEmailFull,
-  isDisposableMxBackend,
-  quickValidateEmail,
-} from '@/lib/messaging/email/validation'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
@@ -629,23 +628,12 @@ export const auth = betterAuth({
         }
       }
 
-      if (ctx.path.startsWith('/sign-up')) {
+      if (ctx.path.startsWith('/sign-up') && blockedSignupDomains) {
         const requestEmail = ctx.body?.email?.toLowerCase()
         if (requestEmail) {
-          // Check manually blocked domains
-          if (blockedSignupDomains) {
-            const emailDomain = requestEmail.split('@')[1]
-            if (emailDomain && blockedSignupDomains.has(emailDomain)) {
-              throw new Error('Sign-ups from this email domain are not allowed.')
-            }
-          }
-
-          // Check disposable email domains (full list + MX backend check)
-          if (isDisposableEmailFull(requestEmail)) {
-            throw new Error('Sign-ups from disposable email addresses are not allowed.')
-          }
-          if (await isDisposableMxBackend(requestEmail)) {
-            throw new Error('Sign-ups from disposable email addresses are not allowed.')
+          const emailDomain = requestEmail.split('@')[1]
+          if (emailDomain && blockedSignupDomains.has(emailDomain)) {
+            throw new Error('Sign-ups from this email domain are not allowed.')
           }
         }
       }
@@ -677,6 +665,16 @@ export const auth = betterAuth({
   },
   plugins: [
     nextCookies(),
+    ...(isSignupEmailValidationEnabled ? [emailHarmony()] : []),
+    ...(env.TURNSTILE_SECRET_KEY
+      ? [
+          captcha({
+            provider: 'cloudflare-turnstile',
+            secretKey: env.TURNSTILE_SECRET_KEY,
+            endpoints: ['/sign-up/email', '/sign-in/email'],
+          }),
+        ]
+      : []),
     admin(),
     jwt({
       jwks: {

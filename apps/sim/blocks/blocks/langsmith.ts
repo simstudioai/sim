@@ -1,5 +1,5 @@
 import { LangsmithIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { LangsmithResponse } from '@/tools/langsmith/types'
 
 export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
@@ -10,6 +10,8 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
     'Send run data to LangSmith to trace executions, attach metadata, and monitor workflow performance.',
   docsLink: 'https://docs.sim.ai/tools/langsmith',
   category: 'tools',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['monitoring', 'llm', 'data-analytics'],
   bgColor: '#181C1E',
   icon: LangsmithIcon,
   authMode: AuthMode.ApiKey,

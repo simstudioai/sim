@@ -1,6 +1,6 @@
 import { GitLabIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GitLabResponse } from '@/tools/gitlab/types'
 
 export const GitLabBlock: BlockConfig<GitLabResponse> = {
@@ -13,6 +13,8 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
     'Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments. Supports all core GitLab DevOps operations.',
   docsLink: 'https://docs.sim.ai/tools/gitlab',
   category: 'tools',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['version-control', 'ci-cd'],
   icon: GitLabIcon,
   bgColor: '#E0E0E0',
   subBlocks: [

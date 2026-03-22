@@ -1,6 +1,6 @@
 import { InfisicalIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { InfisicalResponse } from '@/tools/infisical/types'
 
 export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
@@ -11,6 +11,8 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
     'Integrate Infisical into your workflow. List, get, create, update, and delete secrets across project environments.',
   docsLink: 'https://docs.sim.ai/tools/infisical',
   category: 'tools',
+  integrationType: IntegrationType.Security,
+  tags: ['secrets-management'],
   bgColor: '#F7FE62',
   icon: InfisicalIcon,
   authMode: AuthMode.ApiKey,

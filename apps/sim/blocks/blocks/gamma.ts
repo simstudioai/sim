@@ -1,5 +1,5 @@
 import { GammaIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { GammaResponse } from '@/tools/gamma/types'
 
 export const GammaBlock: BlockConfig<GammaResponse> = {
@@ -10,6 +10,8 @@ export const GammaBlock: BlockConfig<GammaResponse> = {
     'Integrate Gamma into the workflow. Can generate presentations, documents, webpages, and social posts from text, create from templates, check generation status, and browse themes and folders.',
   docsLink: 'https://docs.sim.ai/tools/gamma',
   category: 'tools',
+  integrationType: IntegrationType.Design,
+  tags: ['document-processing', 'content-management'],
   bgColor: '#002253',
   icon: GammaIcon,
   authMode: AuthMode.ApiKey,

@@ -1,7 +1,7 @@
 import { ZoomIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ZoomResponse } from '@/tools/zoom/types'
 
 export const ZoomBlock: BlockConfig<ZoomResponse> = {
@@ -13,6 +13,8 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
     'Integrate Zoom into workflows. Create, list, update, and delete Zoom meetings. Get meeting details, invitations, recordings, and participants. Manage cloud recordings programmatically.',
   docsLink: 'https://docs.sim.ai/tools/zoom',
   category: 'tools',
+  integrationType: IntegrationType.Communication,
+  tags: ['meeting', 'calendar', 'scheduling'],
   bgColor: '#2D8CFF',
   icon: ZoomIcon,
   subBlocks: [

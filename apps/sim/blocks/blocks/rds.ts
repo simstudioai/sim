@@ -1,5 +1,6 @@
 import { RDSIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import type { RdsIntrospectResponse, RdsResponse } from '@/tools/rds/types'
 
 export const RDSBlock: BlockConfig<RdsResponse | RdsIntrospectResponse> = {
@@ -10,6 +11,8 @@ export const RDSBlock: BlockConfig<RdsResponse | RdsIntrospectResponse> = {
     'Integrate Amazon RDS Aurora Serverless into the workflow using the Data API. Can query, insert, update, delete, and execute raw SQL without managing database connections.',
   docsLink: 'https://docs.sim.ai/tools/rds',
   category: 'tools',
+  integrationType: IntegrationType.Databases,
+  tags: ['cloud', 'data-warehouse'],
   bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',
   icon: RDSIcon,
   subBlocks: [

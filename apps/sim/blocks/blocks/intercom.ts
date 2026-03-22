@@ -1,6 +1,6 @@
 import { IntercomIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 
 export const IntercomBlock: BlockConfig = {
@@ -13,6 +13,8 @@ export const IntercomBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/intercom',
   authMode: AuthMode.ApiKey,
   category: 'tools',
+  integrationType: IntegrationType.CustomerSupport,
+  tags: ['customer-support', 'messaging'],
   bgColor: '#E0E0E0',
   icon: IntercomIcon,
   subBlocks: [
@@ -1404,6 +1406,8 @@ export const IntercomV2Block: BlockConfig = {
   ...IntercomBlock,
   type: 'intercom_v2',
   name: 'Intercom',
+  integrationType: IntegrationType.CustomerSupport,
+  tags: ['customer-support', 'messaging'],
   hideFromToolbar: false,
   tools: {
     ...IntercomBlock.tools,

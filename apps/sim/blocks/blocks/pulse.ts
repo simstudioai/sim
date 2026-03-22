@@ -1,5 +1,5 @@
 import { PulseIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type SubBlockType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType, type SubBlockType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { PulseParserOutput } from '@/tools/pulse/types'
 
@@ -13,6 +13,8 @@ export const PulseBlock: BlockConfig<PulseParserOutput> = {
     'Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via URL or upload.',
   docsLink: 'https://docs.sim.ai/tools/pulse',
   category: 'tools',
+  integrationType: IntegrationType.AI,
+  tags: ['document-processing', 'ocr'],
   bgColor: '#E0E0E0',
   icon: PulseIcon,
   subBlocks: [

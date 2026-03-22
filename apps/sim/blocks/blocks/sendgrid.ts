@@ -1,5 +1,6 @@
 import { SendgridIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SendMailResult } from '@/tools/sendgrid/types'
 
@@ -11,6 +12,8 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
     'Integrate SendGrid into your workflow. Send transactional emails, manage marketing contacts and lists, and work with email templates. Supports dynamic templates, attachments, and comprehensive contact management.',
   docsLink: 'https://docs.sim.ai/tools/sendgrid',
   category: 'tools',
+  integrationType: IntegrationType.Email,
+  tags: ['email-marketing', 'messaging'],
   bgColor: '#1A82E2',
   icon: SendgridIcon,
 

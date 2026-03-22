@@ -1,6 +1,6 @@
 import { GoogleIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GoogleSearchResponse } from '@/tools/google/types'
 
 export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
@@ -11,6 +11,8 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
   longDescription: 'Integrate Google Search into the workflow. Can search the web.',
   docsLink: 'https://docs.sim.ai/tools/google_search',
   category: 'tools',
+  integrationType: IntegrationType.Search,
+  tags: ['google-workspace', 'web-scraping', 'seo'],
   bgColor: '#E0E0E0',
   icon: GoogleIcon,
 

@@ -1,6 +1,6 @@
 import { KalshiIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 
 export const KalshiBlock: BlockConfig = {
@@ -12,6 +12,8 @@ export const KalshiBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/kalshi',
   authMode: AuthMode.ApiKey,
   category: 'tools',
+  integrationType: IntegrationType.Analytics,
+  tags: ['prediction-markets', 'data-analytics'],
   hideFromToolbar: true,
   bgColor: '#09C285',
   icon: KalshiIcon,
@@ -707,6 +709,8 @@ export const KalshiV2Block: BlockConfig = {
   description: 'Access prediction markets and trade on Kalshi',
   longDescription:
     'Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, exchange status, and place/cancel/amend trades.',
+  integrationType: IntegrationType.Analytics,
+  tags: ['prediction-markets', 'data-analytics'],
   hideFromToolbar: false,
   tools: {
     ...KalshiBlock.tools,

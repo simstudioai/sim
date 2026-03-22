@@ -1,6 +1,6 @@
 import { ResendIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const ResendBlock: BlockConfig = {
   type: 'resend',
@@ -10,6 +10,8 @@ export const ResendBlock: BlockConfig = {
     'Integrate Resend into your workflow. Send emails, retrieve email status, manage contacts, and view domains. Requires API Key.',
   docsLink: 'https://docs.sim.ai/tools/resend',
   category: 'tools',
+  integrationType: IntegrationType.Email,
+  tags: ['email-marketing', 'messaging'],
   bgColor: '#181C1E',
   icon: ResendIcon,
   authMode: AuthMode.ApiKey,

@@ -1,5 +1,5 @@
 import { AshbyIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
 export const AshbyBlock: BlockConfig = {
@@ -10,6 +10,8 @@ export const AshbyBlock: BlockConfig = {
     'Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag), applications (list, get, create, change stage), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).',
   docsLink: 'https://docs.sim.ai/tools/ashby',
   category: 'tools',
+  integrationType: IntegrationType.HR,
+  tags: ['hiring'],
   bgColor: '#5D4ED6',
   icon: AshbyIcon,
   authMode: AuthMode.ApiKey,

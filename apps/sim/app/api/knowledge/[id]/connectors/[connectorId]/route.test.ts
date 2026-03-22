@@ -75,6 +75,11 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
 vi.mock('@/lib/knowledge/documents/service', () => ({
   deleteDocumentStorageFiles: vi.fn().mockResolvedValue(undefined),
 }))
+vi.mock('@/lib/audit/log', () => ({
+  recordAudit: vi.fn(),
+  AuditAction: {},
+  AuditResourceType: {},
+}))
 
 import { DELETE, GET, PATCH } from '@/app/api/knowledge/[id]/connectors/[connectorId]/route'
 
@@ -183,8 +188,16 @@ describe('Knowledge Connector By ID API Route', () => {
     })
 
     it('returns 200 and updates status', async () => {
-      mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
-      mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
+      mockCheckSession.mockResolvedValue({
+        success: true,
+        userId: 'user-1',
+        userName: 'Test',
+        userEmail: 'test@test.com',
+      })
+      mockCheckWriteAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
+      })
 
       const updatedConnector = { id: 'conn-456', status: 'paused', syncIntervalMinutes: 120 }
       mockDbChain.limit.mockResolvedValueOnce([updatedConnector])
@@ -210,8 +223,16 @@ describe('Knowledge Connector By ID API Route', () => {
     })
 
     it('returns 200 on successful hard-delete', async () => {
-      mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
-      mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
+      mockCheckSession.mockResolvedValue({
+        success: true,
+        userId: 'user-1',
+        userName: 'Test',
+        userEmail: 'test@test.com',
+      })
+      mockCheckWriteAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
+      })
       mockDbChain.where
         .mockReturnValueOnce(mockDbChain)
         .mockResolvedValueOnce([{ id: 'doc-1', fileUrl: '/api/uploads/test.txt' }])

@@ -1,5 +1,6 @@
 import { WorkdayIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 
 export const WorkdayBlock: BlockConfig = {
   type: 'workday',
@@ -9,6 +10,8 @@ export const WorkdayBlock: BlockConfig = {
     'Integrate Workday HRIS into your workflow. Create pre-hires, hire employees, manage worker profiles, assign onboarding plans, handle job changes, retrieve compensation data, and process terminations.',
   docsLink: 'https://docs.sim.ai/tools/workday',
   category: 'tools',
+  integrationType: IntegrationType.HR,
+  tags: ['hiring', 'project-management'],
   bgColor: '#F5F0EB',
   icon: WorkdayIcon,
   subBlocks: [

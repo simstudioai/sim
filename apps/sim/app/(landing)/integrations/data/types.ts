@@ -34,4 +34,6 @@ export interface Integration {
   triggerCount: number
   authType: AuthType
   category: string
+  integrationType?: string
+  tags?: string[]
 }

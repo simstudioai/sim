@@ -1,5 +1,5 @@
 import { Mem0Icon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { Mem0Response } from '@/tools/mem0/types'
 
 export const Mem0Block: BlockConfig<Mem0Response> = {
@@ -11,6 +11,8 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
   bgColor: '#181C1E',
   icon: Mem0Icon,
   category: 'tools',
+  integrationType: IntegrationType.AI,
+  tags: ['llm', 'knowledge-base', 'agentic'],
   docsLink: 'https://docs.sim.ai/tools/mem0',
   subBlocks: [
     {

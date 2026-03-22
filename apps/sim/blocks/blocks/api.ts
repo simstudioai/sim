@@ -1,5 +1,6 @@
 import { ApiIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import type { RequestResponse } from '@/tools/http/types'
 
 export const ApiBlock: BlockConfig<RequestResponse> = {
@@ -13,6 +14,8 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
   - Curl the endpoint yourself before filling out the API block to make sure it's working IF you have the necessary authentication headers. Clarify with the user if you need any additional headers.
   `,
   category: 'blocks',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['automation', 'webhooks'],
   bgColor: '#2F55FF',
   icon: ApiIcon,
   subBlocks: [

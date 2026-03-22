@@ -1,7 +1,7 @@
 import { GoogleVaultIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const GoogleVaultBlock: BlockConfig = {
   type: 'google_vault',
@@ -12,6 +12,8 @@ export const GoogleVaultBlock: BlockConfig = {
     'Connect Google Vault to create exports, list exports, and manage holds within matters.',
   docsLink: 'https://developers.google.com/vault',
   category: 'tools',
+  integrationType: IntegrationType.Security,
+  tags: ['google-workspace', 'secrets-management', 'document-processing'],
   bgColor: '#E8F0FE',
   icon: GoogleVaultIcon,
   subBlocks: [

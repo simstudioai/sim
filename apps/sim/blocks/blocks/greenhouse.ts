@@ -1,5 +1,5 @@
 import { GreenhouseIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { GreenhouseResponse } from '@/tools/greenhouse/types'
 
 export const GreenhouseBlock: BlockConfig<GreenhouseResponse> = {
@@ -10,6 +10,8 @@ export const GreenhouseBlock: BlockConfig<GreenhouseResponse> = {
     'Integrate Greenhouse into the workflow. List and retrieve candidates, jobs, applications, users, departments, offices, and job stages from your Greenhouse ATS account.',
   docsLink: 'https://docs.sim.ai/tools/greenhouse',
   category: 'tools',
+  integrationType: IntegrationType.HR,
+  tags: ['hiring'],
   bgColor: '#469776',
   icon: GreenhouseIcon,
   authMode: AuthMode.ApiKey,

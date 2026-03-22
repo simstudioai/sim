@@ -1,5 +1,5 @@
 import { LinkupIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { LinkupSearchToolResponse } from '@/tools/linkup/types'
 
 export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
@@ -10,6 +10,8 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
   longDescription: 'Integrate Linkup into the workflow. Can search the web.',
   docsLink: 'https://docs.sim.ai/tools/linkup',
   category: 'tools',
+  integrationType: IntegrationType.Search,
+  tags: ['web-scraping', 'enrichment'],
   bgColor: '#D6D3C7',
   icon: LinkupIcon,
 

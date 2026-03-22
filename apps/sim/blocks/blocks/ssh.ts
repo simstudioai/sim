@@ -1,6 +1,6 @@
 import { SshIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { SSHResponse } from '@/tools/ssh/types'
 
 export const SSHBlock: BlockConfig<SSHResponse> = {
@@ -12,6 +12,8 @@ export const SSHBlock: BlockConfig<SSHResponse> = {
     'Execute commands, transfer files, and manage remote servers via SSH. Supports password and private key authentication for secure server access.',
   docsLink: 'https://docs.sim.ai/tools/ssh',
   category: 'tools',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['cloud', 'automation'],
   bgColor: '#000000',
   icon: SshIcon,
   subBlocks: [
