@@ -1240,27 +1240,6 @@
       "when": 1773698715278,
       "tag": "0177_wise_puma",
       "breakpoints": true
-    },
-    {
-      "idx": 178,
-      "version": "7",
-      "when": 1773961894645,
-      "tag": "0178_exotic_vector",
-      "breakpoints": true
-    },
-    {
-      "idx": 179,
-      "version": "7",
-      "when": 1773965662016,
-      "tag": "0179_stiff_talon",
-      "breakpoints": true
-    },
-    {
-      "idx": 180,
-      "version": "7",
-      "when": 1774029018731,
-      "tag": "0180_worried_exodus",
-      "breakpoints": true
     }
   ]
 }
