@@ -727,7 +727,7 @@ async function parseWithFileParser(fileUrl: string, filename: string, mimeType: 
     if (fileUrl.startsWith('data:')) {
       content = await parseDataURI(fileUrl, filename, mimeType)
     } else if (fileUrl.startsWith('http')) {
-      const result = await parseHttpFile(fileUrl, filename)
+      const result = await parseHttpFile(fileUrl, filename, mimeType)
       content = result.content
       metadata = result.metadata || {}
     } else {
@@ -765,15 +765,35 @@ async function parseDataURI(fileUrl: string, filename: string, mimeType: string)
   return result.content
 }
 
+const MIME_TO_EXTENSION: Record<string, string> = {
+  'text/plain': 'txt',
+  'text/markdown': 'md',
+  'text/csv': 'csv',
+  'text/html': 'html',
+  'application/pdf': 'pdf',
+  'application/json': 'json',
+  'application/yaml': 'yaml',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+  'application/vnd.ms-powerpoint': 'ppt',
+}
+
 async function parseHttpFile(
   fileUrl: string,
-  filename: string
+  filename: string,
+  mimeType?: string
 ): Promise<{ content: string; metadata?: FileParseMetadata }> {
   const buffer = await downloadFileWithTimeout(fileUrl)
 
-  const extension = filename.split('.').pop()?.toLowerCase()
+  let extension = filename.split('.').pop()?.toLowerCase()
+  if (!extension || extension === filename.toLowerCase()) {
+    extension = mimeType ? MIME_TO_EXTENSION[mimeType] : undefined
+  }
   if (!extension) {
-    throw new Error(`Could not determine file extension: ${filename}`)
+    throw new Error(`Could not determine file type for: ${filename}`)
   }
 
   const result = await parseBuffer(buffer, extension)
