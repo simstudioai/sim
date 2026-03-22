@@ -6,8 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mockSend = vi.fn()
 
 vi.mock('@aws-sdk/client-bedrock-runtime', () => ({
-  BedrockRuntimeClient: vi.fn().mockImplementation((config: any) => {
-    mockSend._lastConfig = config
+  BedrockRuntimeClient: vi.fn().mockImplementation(() => {
     return { send: mockSend }
   }),
   ConverseCommand: vi.fn(),
@@ -15,7 +14,9 @@ vi.mock('@aws-sdk/client-bedrock-runtime', () => ({
 }))
 
 vi.mock('@/providers/bedrock/utils', () => ({
-  getBedrockInferenceProfileId: vi.fn().mockReturnValue('us.anthropic.claude-3-5-sonnet-20241022-v2:0'),
+  getBedrockInferenceProfileId: vi
+    .fn()
+    .mockReturnValue('us.anthropic.claude-3-5-sonnet-20241022-v2:0'),
   checkForForcedToolUsage: vi.fn(),
   createReadableStreamFromBedrockStream: vi.fn(),
   generateToolUseId: vi.fn().mockReturnValue('tool-1'),
