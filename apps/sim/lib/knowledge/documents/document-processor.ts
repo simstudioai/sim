@@ -759,9 +759,10 @@ async function parseDataURI(fileUrl: string, filename: string, mimeType: string)
       : decodeURIComponent(base64Data)
   }
 
-  const extension = filename.includes('.')
-    ? filename.split('.').pop()!.toLowerCase()
-    : (getExtensionFromMimeType(mimeType) ?? 'txt')
+  const extension =
+    (filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : undefined) ||
+    getExtensionFromMimeType(mimeType) ||
+    'txt'
   const buffer = Buffer.from(base64Data, 'base64')
   const result = await parseBuffer(buffer, extension)
   return result.content
