@@ -114,9 +114,13 @@ export async function dropKBEmbeddingTable(kbId: string): Promise<void> {
 }
 
 /** Delete all embeddings for a document from a per-KB table (used before re-insert) */
-export async function deleteKBDocumentEmbeddings(kbId: string, documentId: string): Promise<void> {
+export async function deleteKBDocumentEmbeddings(
+  kbId: string,
+  documentId: string,
+  txOrDb: Pick<typeof db, 'execute'> = db
+): Promise<void> {
   const table = kbTableName(kbId)
-  await db.execute(sql`DELETE FROM ${sql.raw(`"${table}"`)} WHERE document_id = ${documentId}`)
+  await txOrDb.execute(sql`DELETE FROM ${sql.raw(`"${table}"`)} WHERE document_id = ${documentId}`)
 }
 
 export interface KBEmbeddingRecord {
@@ -211,7 +215,8 @@ function createDynamicKBTable(tableName: string, dimensions: number) {
 export async function insertKBEmbeddings(
   kbId: string,
   records: KBEmbeddingRecord[],
-  dimension = 768
+  dimension = 768,
+  txOrDb: Pick<typeof db, 'insert'> = db
 ): Promise<void> {
   if (records.length === 0) return
 
@@ -236,7 +241,7 @@ export async function insertKBEmbeddings(
       }
 
       // Use drizzle's insert API with dynamic table schema
-      await db.insert(dynamicTable).values(batch)
+      await txOrDb.insert(dynamicTable).values(batch)
     } catch (err: unknown) {
       const pg = err as { code?: string; detail?: string; message?: string; cause?: unknown }
       logger.error(`insertKBEmbeddings failed for table ${table}`, {
@@ -264,12 +269,12 @@ export async function searchKBTable(
 
   const filterConditions = buildRawFilterConditions(structuredFilters ?? [])
 
-  const vecLiteral = sql.raw(`'${queryVector}'::vector`)
+  const vecParam = sql`${queryVector}::vector`
 
   const allConditions = [
     sql`knowledge_base_id = ${kbId}`,
     sql`enabled = TRUE`,
-    sql`embedding <=> ${vecLiteral} < ${distanceThreshold}`,
+    sql`embedding <=> ${vecParam} < ${distanceThreshold}`,
     ...filterConditions,
   ]
 
@@ -285,7 +290,7 @@ export async function searchKBTable(
       number1::float8, number2::float8, number3::float8, number4::float8, number5::float8,
       date1, date2,
       boolean1, boolean2, boolean3,
-      (embedding <=> ${vecLiteral})::float8 AS distance,
+      (embedding <=> ${vecParam})::float8 AS distance,
       knowledge_base_id AS "knowledgeBaseId"
     FROM ${sql.raw(`"${table}"`)}
     WHERE ${whereClause}
