@@ -5,9 +5,17 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createKBEmbeddingTable, parseEmbeddingModel } from '@/lib/knowledge/dynamic-tables'
-import { getOllamaModelInfo } from '@/lib/knowledge/embeddings'
-import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
+import {
+  createKBEmbeddingTable,
+  dropKBEmbeddingTable,
+  parseEmbeddingModel,
+} from '@/lib/knowledge/dynamic-tables'
+import { validateOllamaModel } from '@/lib/knowledge/embeddings'
+import {
+  createKnowledgeBase,
+  deleteKnowledgeBase,
+  getKnowledgeBases,
+} from '@/lib/knowledge/service'
 
 const logger = createLogger('KnowledgeBaseAPI')
 
@@ -105,7 +113,7 @@ export async function POST(req: NextRequest) {
       if (provider === 'ollama') {
         const ollamaBaseUrl = validatedData.ollamaBaseUrl ?? 'http://localhost:11434'
         try {
-          const modelInfo = await getOllamaModelInfo(modelName, ollamaBaseUrl)
+          const modelInfo = await validateOllamaModel(modelName, ollamaBaseUrl)
 
           // Auto-correct dimension if the model reports a different one
           if (modelInfo.embeddingLength && modelInfo.embeddingLength !== effectiveDimension) {
@@ -143,7 +151,23 @@ export async function POST(req: NextRequest) {
             `[${requestId}] Failed to create embedding table for KB ${newKnowledgeBase.id}`,
             tableError
           )
-          throw tableError
+          // Clean up the orphaned KB row and any partially-created table
+          try {
+            await dropKBEmbeddingTable(newKnowledgeBase.id)
+            await deleteKnowledgeBase(newKnowledgeBase.id, requestId)
+            logger.info(
+              `[${requestId}] Cleaned up orphaned KB ${newKnowledgeBase.id} after table creation failure`
+            )
+          } catch (cleanupError) {
+            logger.error(
+              `[${requestId}] Failed to clean up orphaned KB ${newKnowledgeBase.id}`,
+              cleanupError
+            )
+          }
+          return NextResponse.json(
+            { error: 'Failed to create embedding storage. Please try again.' },
+            { status: 500 }
+          )
         }
       }
 
