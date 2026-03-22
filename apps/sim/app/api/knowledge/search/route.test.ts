@@ -25,6 +25,9 @@ const {
   mockGetQueryStrategy,
   mockGenerateSearchEmbedding,
   mockGetDocumentNamesByIds,
+  mockParseEmbeddingModel,
+  mockSearchKBTable,
+  mockSearchKBTableTagOnly,
 } = vi.hoisted(() => ({
   mockDbChain: {
     select: vi.fn().mockReturnThis(),
@@ -47,6 +50,9 @@ const {
   mockGetQueryStrategy: vi.fn(),
   mockGenerateSearchEmbedding: vi.fn(),
   mockGetDocumentNamesByIds: vi.fn(),
+  mockParseEmbeddingModel: vi.fn(),
+  mockSearchKBTable: vi.fn(),
+  mockSearchKBTableTagOnly: vi.fn(),
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -126,6 +132,16 @@ vi.mock('./utils', () => ({
   },
 }))
 
+vi.mock('@/lib/knowledge/dynamic-tables', () => ({
+  parseEmbeddingModel: mockParseEmbeddingModel,
+  searchKBTable: mockSearchKBTable,
+  searchKBTableTagOnly: mockSearchKBTableTagOnly,
+}))
+
+vi.mock('@/lib/knowledge/embeddings', () => ({
+  generateSearchEmbedding: mockGenerateSearchEmbedding,
+}))
+
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { POST } from '@/app/api/knowledge/search/route'
 import { calculateCost } from '@/providers/utils'
@@ -162,6 +178,18 @@ describe('Knowledge Search API Route', () => {
         fn.mockClear().mockReturnThis()
       }
     })
+
+    // KB config fetch: db.select().from().where() resolves to default single-KB config
+    mockDbChain.where.mockResolvedValue([
+      { id: 'kb-123', embeddingModel: 'text-embedding-3-small', chunkingConfig: {} },
+    ])
+
+    mockParseEmbeddingModel.mockReturnValue({
+      provider: 'openai',
+      modelName: 'text-embedding-3-small',
+    })
+    mockSearchKBTable.mockResolvedValue([])
+    mockSearchKBTableTagOnly.mockResolvedValue([])
 
     mockHandleTagOnlySearch.mockClear()
     mockHandleVectorOnlySearch.mockClear()
@@ -274,6 +302,11 @@ describe('Knowledge Search API Route', () => {
       mockCheckKnowledgeBaseAccess
         .mockResolvedValueOnce({ hasAccess: true, knowledgeBase: multiKbs[0] })
         .mockResolvedValueOnce({ hasAccess: true, knowledgeBase: multiKbs[1] })
+
+      mockDbChain.where.mockResolvedValue([
+        { id: 'kb-123', embeddingModel: 'text-embedding-3-small', chunkingConfig: {} },
+        { id: 'kb-456', embeddingModel: 'text-embedding-3-small', chunkingConfig: {} },
+      ])
 
       mockDbChain.limit.mockResolvedValue([])
 
@@ -946,6 +979,11 @@ describe('Knowledge Search API Route', () => {
 
       mockHandleTagOnlySearch.mockResolvedValue(mockTaggedResults)
 
+      mockDbChain.where.mockResolvedValue([
+        { id: 'kb-123', embeddingModel: 'text-embedding-3-small', chunkingConfig: {} },
+        { id: 'kb-456', embeddingModel: 'text-embedding-3-small', chunkingConfig: {} },
+      ])
+
       mockDbChain.limit.mockResolvedValueOnce(mockTagDefinitions)
 
       const req = createMockRequest('POST', multiKbTagData)
@@ -1002,13 +1040,6 @@ describe('Knowledge Search API Route', () => {
       mockGetDocumentNamesByIds.mockResolvedValue({
         'doc-active': 'Active Document.pdf',
       })
-
-      const mockTagDefs = {
-        select: vi.fn().mockReturnThis(),
-        from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockResolvedValue([]),
-      }
-      mockDbChain.select.mockReturnValueOnce(mockTagDefs)
 
       const req = createMockRequest('POST', {
         knowledgeBaseIds: ['kb-123'],
@@ -1071,15 +1102,6 @@ describe('Knowledge Search API Route', () => {
       mockGetDocumentNamesByIds.mockResolvedValue({
         'doc-active-tagged': 'Active Tagged Document.pdf',
       })
-
-      const mockTagDefs = {
-        select: vi.fn().mockReturnThis(),
-        from: vi.fn().mockReturnThis(),
-        where: vi
-          .fn()
-          .mockResolvedValue([{ tagSlot: 'tag1', displayName: 'tag1', fieldType: 'text' }]),
-      }
-      mockDbChain.select.mockReturnValueOnce(mockTagDefs)
 
       const req = createMockRequest('POST', {
         knowledgeBaseIds: ['kb-123'],
@@ -1144,15 +1166,6 @@ describe('Knowledge Search API Route', () => {
       mockGetDocumentNamesByIds.mockResolvedValue({
         'doc-active-combined': 'Active Combined Search.pdf',
       })
-
-      const mockTagDefs = {
-        select: vi.fn().mockReturnThis(),
-        from: vi.fn().mockReturnThis(),
-        where: vi
-          .fn()
-          .mockResolvedValue([{ tagSlot: 'tag1', displayName: 'tag1', fieldType: 'text' }]),
-      }
-      mockDbChain.select.mockReturnValueOnce(mockTagDefs)
 
       const req = createMockRequest('POST', {
         knowledgeBaseIds: ['kb-123'],
