@@ -609,11 +609,29 @@ export async function processDocumentAsync(
           logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
 
           if (embeddingProvider === 'ollama') {
-            // Per-KB table: delete old chunks then bulk-insert new ones
-            await deleteKBDocumentEmbeddings(knowledgeBaseId, documentId)
-            await insertKBEmbeddings(knowledgeBaseId, embeddingRecords, kb[0].embeddingDimension)
+            // Per-KB table: delete + insert + status update inside a transaction
+            await db.transaction(async (tx) => {
+              await deleteKBDocumentEmbeddings(knowledgeBaseId, documentId, tx)
+              await insertKBEmbeddings(
+                knowledgeBaseId,
+                embeddingRecords,
+                kb[0].embeddingDimension,
+                tx
+              )
+              await tx
+                .update(document)
+                .set({
+                  chunkCount: processed.metadata.chunkCount,
+                  tokenCount: processed.metadata.tokenCount,
+                  characterCount: processed.metadata.characterCount,
+                  processingStatus: 'completed',
+                  processingCompletedAt: now,
+                  processingError: null,
+                })
+                .where(eq(document.id, documentId))
+            })
           } else {
-            // Shared embedding table: delete + insert inside a transaction
+            // Shared embedding table: delete + insert + status update inside a transaction
             await db.transaction(async (tx) => {
               await tx.delete(embedding).where(eq(embedding.documentId, documentId))
 
@@ -621,21 +639,34 @@ export async function processDocumentAsync(
               for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
                 await tx.insert(embedding).values(embeddingRecords.slice(i, i + insertBatchSize))
               }
+
+              await tx
+                .update(document)
+                .set({
+                  chunkCount: processed.metadata.chunkCount,
+                  tokenCount: processed.metadata.tokenCount,
+                  characterCount: processed.metadata.characterCount,
+                  processingStatus: 'completed',
+                  processingCompletedAt: now,
+                  processingError: null,
+                })
+                .where(eq(document.id, documentId))
             })
           }
+        } else {
+          // No embeddings to insert — still update status
+          await db
+            .update(document)
+            .set({
+              chunkCount: processed.metadata.chunkCount,
+              tokenCount: processed.metadata.tokenCount,
+              characterCount: processed.metadata.characterCount,
+              processingStatus: 'completed',
+              processingCompletedAt: now,
+              processingError: null,
+            })
+            .where(eq(document.id, documentId))
         }
-
-        await db
-          .update(document)
-          .set({
-            chunkCount: processed.metadata.chunkCount,
-            tokenCount: processed.metadata.tokenCount,
-            characterCount: processed.metadata.characterCount,
-            processingStatus: 'completed',
-            processingCompletedAt: now,
-            processingError: null,
-          })
-          .where(eq(document.id, documentId))
       })(),
       TIMEOUTS.OVERALL_PROCESSING,
       'Document processing'
