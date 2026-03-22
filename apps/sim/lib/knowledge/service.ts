@@ -100,7 +100,10 @@ export async function createKnowledgeBase(
     tokenCount: 0,
     embeddingModel: data.embeddingModel,
     embeddingDimension: data.embeddingDimension,
-    chunkingConfig: data.chunkingConfig,
+    // Store ollamaBaseUrl inside chunkingConfig JSONB to avoid a schema migration
+    chunkingConfig: data.ollamaBaseUrl
+      ? { ...data.chunkingConfig, ollamaBaseUrl: data.ollamaBaseUrl }
+      : data.chunkingConfig,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
