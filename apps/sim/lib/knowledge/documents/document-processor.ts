@@ -761,7 +761,7 @@ async function parseDataURI(fileUrl: string, filename: string, mimeType: string)
 
   const extension = filename.includes('.')
     ? filename.split('.').pop()!.toLowerCase()
-    : getExtensionFromMimeType(mimeType) ?? 'txt'
+    : (getExtensionFromMimeType(mimeType) ?? 'txt')
   const buffer = Buffer.from(base64Data, 'base64')
   const result = await parseBuffer(buffer, extension)
   return result.content
@@ -774,9 +774,7 @@ async function parseHttpFile(
 ): Promise<{ content: string; metadata?: FileParseMetadata }> {
   const buffer = await downloadFileWithTimeout(fileUrl)
 
-  let extension = filename.includes('.')
-    ? filename.split('.').pop()?.toLowerCase()
-    : undefined
+  let extension = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : undefined
   if (!extension && mimeType) {
     extension = getExtensionFromMimeType(mimeType) ?? undefined
   }

@@ -88,6 +88,21 @@ async function fetchConnectorDetail(
   return result.data
 }
 
+/** Stop polling for initial sync after 2 minutes */
+const PENDING_SYNC_WINDOW_MS = 2 * 60 * 1000
+
+/**
+ * Checks if a connector is syncing or awaiting its first sync within the allowed window
+ */
+export function isConnectorSyncingOrPending(connector: ConnectorData): boolean {
+  if (connector.status === 'syncing') return true
+  return (
+    connector.status === 'active' &&
+    !connector.lastSyncAt &&
+    Date.now() - new Date(connector.createdAt).getTime() < PENDING_SYNC_WINDOW_MS
+  )
+}
+
 export function useConnectorList(knowledgeBaseId?: string) {
   return useQuery({
     queryKey: connectorKeys.list(knowledgeBaseId),
@@ -97,8 +112,8 @@ export function useConnectorList(knowledgeBaseId?: string) {
     placeholderData: keepPreviousData,
     refetchInterval: (query) => {
       const connectors = query.state.data
-      const hasSyncing = connectors?.some((c) => c.status === 'syncing')
-      return hasSyncing ? 3000 : false
+      if (!connectors?.length) return false
+      return connectors.some(isConnectorSyncingOrPending) ? 3000 : false
     },
   })
 }
