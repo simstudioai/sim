@@ -14,38 +14,52 @@ export async function* parseSSEStream(
   let buffer = ''
 
   try {
-    while (true) {
-      if (abortSignal?.aborted) {
-        logger.info('SSE stream aborted by signal')
-        break
-      }
+    try {
+      while (true) {
+        if (abortSignal?.aborted) {
+          logger.info('SSE stream aborted by signal')
+          break
+        }
 
-      const { done, value } = await reader.read()
-      if (done) break
+        const { done, value } = await reader.read()
+        if (done) break
 
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
 
-      for (const line of lines) {
-        if (!line.trim()) continue
-        if (!line.startsWith('data: ')) continue
-
-        const jsonStr = line.slice(6)
-        if (jsonStr === '[DONE]') continue
-
-        try {
-          const event = JSON.parse(jsonStr) as SSEEvent
-          if (event?.type) {
-            yield event
+        for (const line of lines) {
+          if (abortSignal?.aborted) {
+            logger.info('SSE stream aborted mid-chunk (between events)')
+            return
           }
-        } catch (error) {
-          logger.warn('Failed to parse SSE event', {
-            preview: jsonStr.slice(0, 200),
-            error: error instanceof Error ? error.message : String(error),
-          })
+          if (!line.trim()) continue
+          if (!line.startsWith('data: ')) continue
+
+          const jsonStr = line.slice(6)
+          if (jsonStr === '[DONE]') continue
+
+          try {
+            const event = JSON.parse(jsonStr) as SSEEvent
+            if (event?.type) {
+              yield event
+            }
+          } catch (error) {
+            logger.warn('Failed to parse SSE event', {
+              preview: jsonStr.slice(0, 200),
+              error: error instanceof Error ? error.message : String(error),
+            })
+          }
         }
       }
+    } catch (error) {
+      const aborted =
+        abortSignal?.aborted || (error instanceof DOMException && error.name === 'AbortError')
+      if (aborted) {
+        logger.info('SSE stream read aborted')
+        return
+      }
+      throw error
     }
 
     if (buffer.trim() && buffer.startsWith('data: ')) {

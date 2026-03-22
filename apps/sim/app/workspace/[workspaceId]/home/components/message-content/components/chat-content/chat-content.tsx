@@ -16,7 +16,7 @@ import {
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { useStreamingReveal } from '@/app/workspace/[workspaceId]/home/hooks/use-streaming-reveal'
-import { useThrottledValue } from '@/hooks/use-throttled-value'
+import { useStreamingText } from '@/hooks/use-streaming-text'
 
 const REMARK_PLUGINS = [remarkGfm]
 
@@ -187,11 +187,8 @@ interface ChatContentProps {
   onOptionSelect?: (id: string) => void
 }
 
-const STREAMING_THROTTLE_MS = 50
-
 export function ChatContent({ content, isStreaming = false, onOptionSelect }: ChatContentProps) {
-  const throttled = useThrottledValue(content, isStreaming ? STREAMING_THROTTLE_MS : undefined)
-  const rendered = isStreaming ? throttled : content
+  const rendered = useStreamingText(content, isStreaming)
 
   const parsed = useMemo(() => parseSpecialTags(rendered, isStreaming), [rendered, isStreaming])
   const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')

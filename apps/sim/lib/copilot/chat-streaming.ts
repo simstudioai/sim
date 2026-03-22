@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import type { OrchestrateStreamOptions } from '@/lib/copilot/orchestrator'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
@@ -123,6 +124,8 @@ export interface StreamingOrchestrationParams {
   requestPayload: Record<string, unknown>
   userId: string
   streamId: string
+  executionId: string
+  runId: string
   chatId?: string
   currentChat: any
   isNewChat: boolean
@@ -139,6 +142,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     requestPayload,
     userId,
     streamId,
+    executionId,
+    runId,
     chatId,
     currentChat,
     isNewChat,
@@ -164,7 +169,25 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       const encoder = new TextEncoder()
 
       await resetStreamBuffer(streamId)
-      await setStreamMeta(streamId, { status: 'active', userId })
+      await setStreamMeta(streamId, { status: 'active', userId, executionId, runId })
+      if (chatId) {
+        await createRunSegment({
+          id: runId,
+          executionId,
+          chatId,
+          userId,
+          workflowId: (requestPayload.workflowId as string | undefined) || null,
+          workspaceId,
+          streamId,
+          model: (requestPayload.model as string | undefined) || null,
+          provider: (requestPayload.provider as string | undefined) || null,
+          requestContext: { requestId },
+        }).catch((error) => {
+          logger.warn(`[${requestId}] Failed to create copilot run segment`, {
+            error: error instanceof Error ? error.message : String(error),
+          })
+        })
+      }
       eventWriter = createStreamEventWriter(streamId)
 
       let localSeq = 0
@@ -218,28 +241,82 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           })
       }
 
+      const keepaliveInterval = setInterval(() => {
+        if (clientDisconnected) return
+        try {
+          controller.enqueue(encoder.encode(': keepalive\n\n'))
+        } catch {
+          clientDisconnected = true
+        }
+      }, 15_000)
+
       try {
-        await orchestrateCopilotStream(requestPayload, {
+        const result = await orchestrateCopilotStream(requestPayload, {
           ...orchestrateOptions,
+          executionId,
+          runId,
           abortSignal: abortController.signal,
           onEvent: async (event) => {
             await pushEvent(event)
           },
         })
 
+        if (abortController.signal.aborted) {
+          logger.info(`[${requestId}] Stream aborted by explicit stop`)
+          await eventWriter.close().catch(() => {})
+          await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
+          await updateRunStatus(runId, 'cancelled', { completedAt: new Date() }).catch(() => {})
+          return
+        }
+
+        if (!result.success) {
+          const errorMessage =
+            result.error ||
+            result.errors?.[0] ||
+            'An unexpected error occurred while processing the response.'
+
+          if (clientDisconnected) {
+            logger.info(`[${requestId}] Stream ended after client disconnect`)
+            await eventWriter.close().catch(() => {})
+            await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
+            await updateRunStatus(runId, 'cancelled', { completedAt: new Date() }).catch(() => {})
+            return
+          }
+
+          logger.error(`[${requestId}] Orchestration returned failure`, {
+            error: errorMessage,
+          })
+          await eventWriter.close()
+          await setStreamMeta(streamId, {
+            status: 'error',
+            userId,
+            executionId,
+            runId,
+            error: errorMessage,
+          })
+          await updateRunStatus(runId, 'error', {
+            completedAt: new Date(),
+            error: errorMessage,
+          }).catch(() => {})
+          return
+        }
+
         await eventWriter.close()
-        await setStreamMeta(streamId, { status: 'complete', userId })
+        await setStreamMeta(streamId, { status: 'complete', userId, executionId, runId })
+        await updateRunStatus(runId, 'complete', { completedAt: new Date() }).catch(() => {})
       } catch (error) {
         if (abortController.signal.aborted) {
           logger.info(`[${requestId}] Stream aborted by explicit stop`)
           await eventWriter.close().catch(() => {})
-          await setStreamMeta(streamId, { status: 'complete', userId })
+          await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
+          await updateRunStatus(runId, 'cancelled', { completedAt: new Date() }).catch(() => {})
           return
         }
         if (clientDisconnected) {
           logger.info(`[${requestId}] Stream ended after client disconnect`)
           await eventWriter.close().catch(() => {})
-          await setStreamMeta(streamId, { status: 'complete', userId })
+          await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
+          await updateRunStatus(runId, 'cancelled', { completedAt: new Date() }).catch(() => {})
           return
         }
         logger.error(`[${requestId}] Orchestration error:`, error)
@@ -247,8 +324,14 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         await setStreamMeta(streamId, {
           status: 'error',
           userId,
+          executionId,
+          runId,
           error: error instanceof Error ? error.message : 'Stream error',
         })
+        await updateRunStatus(runId, 'error', {
+          completedAt: new Date(),
+          error: error instanceof Error ? error.message : 'Stream error',
+        }).catch(() => {})
         await pushEvent({
           type: 'error',
           data: {
@@ -256,6 +339,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           },
         })
       } finally {
+        clearInterval(keepaliveInterval)
         activeStreams.delete(streamId)
         if (chatId) {
           resolvePendingChatStream(chatId, streamId)
@@ -269,6 +353,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     },
     cancel() {
       clientDisconnected = true
+      abortController.abort()
       if (eventWriter) {
         eventWriter.flush().catch(() => {})
       }

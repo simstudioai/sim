@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
+import { upsertWorkflowReadHashForSanitizedState } from '@/lib/copilot/workflow-read-hashes'
 import { listChatUploads, readChatUpload } from './upload-file-reader'
 
 const logger = createLogger('VfsTools')
+const WORKFLOW_STATE_PATH_REGEX = /^workflows\/[^/]+\/state\.json$/
 
 export async function executeVfsGrep(
   params: Record<string, unknown>,
@@ -143,6 +145,28 @@ export async function executeVfsRead(
       return { success: false, error: `File not found: ${path}.${hint}` }
     }
     logger.debug('vfs_read result', { path, totalLines: result.totalLines })
+    if (context.chatId && WORKFLOW_STATE_PATH_REGEX.test(path)) {
+      try {
+        const fullState = vfs.read(path)
+        const fullMeta = vfs.read(path.replace(/state\.json$/, 'meta.json'))
+        if (fullState?.content && fullMeta?.content) {
+          const workflowMeta = JSON.parse(fullMeta.content) as { id?: string }
+          const sanitizedState = JSON.parse(fullState.content)
+          if (workflowMeta.id) {
+            await upsertWorkflowReadHashForSanitizedState(
+              context.chatId,
+              workflowMeta.id,
+              sanitizedState
+            )
+          }
+        }
+      } catch (hashErr) {
+        logger.warn('Failed to persist workflow read hash from VFS read', {
+          path,
+          error: hashErr instanceof Error ? hashErr.message : String(hashErr),
+        })
+      }
+    }
     return {
       success: true,
       output: result,

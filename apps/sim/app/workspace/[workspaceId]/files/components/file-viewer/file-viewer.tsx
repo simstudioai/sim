@@ -11,6 +11,7 @@ import {
   useWorkspaceFileContent,
 } from '@/hooks/queries/workspace-files'
 import { useAutosave } from '@/hooks/use-autosave'
+import { useStreamingText } from '@/hooks/use-streaming-text'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 
 const logger = createLogger('FileViewer')
@@ -44,15 +45,20 @@ const TEXT_EDITABLE_EXTENSIONS = new Set([
 const IFRAME_PREVIEWABLE_MIME_TYPES = new Set(['application/pdf'])
 const IFRAME_PREVIEWABLE_EXTENSIONS = new Set(['pdf'])
 
-type FileCategory = 'text-editable' | 'iframe-previewable' | 'unsupported'
+const IMAGE_PREVIEWABLE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+const IMAGE_PREVIEWABLE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp'])
+
+type FileCategory = 'text-editable' | 'iframe-previewable' | 'image-previewable' | 'unsupported'
 
 function resolveFileCategory(mimeType: string | null, filename: string): FileCategory {
   if (mimeType && TEXT_EDITABLE_MIME_TYPES.has(mimeType)) return 'text-editable'
   if (mimeType && IFRAME_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'iframe-previewable'
+  if (mimeType && IMAGE_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'image-previewable'
 
   const ext = getFileExtension(filename)
   if (TEXT_EDITABLE_EXTENSIONS.has(ext)) return 'text-editable'
   if (IFRAME_PREVIEWABLE_EXTENSIONS.has(ext)) return 'iframe-previewable'
+  if (IMAGE_PREVIEWABLE_EXTENSIONS.has(ext)) return 'image-previewable'
 
   return 'unsupported'
 }
@@ -77,6 +83,7 @@ interface FileViewerProps {
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  streamingContent?: string
 }
 
 export function FileViewer({
@@ -89,6 +96,7 @@ export function FileViewer({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  streamingContent,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
 
@@ -97,18 +105,23 @@ export function FileViewer({
       <TextEditor
         file={file}
         workspaceId={workspaceId}
-        canEdit={canEdit}
+        canEdit={streamingContent !== undefined ? false : canEdit}
         previewMode={previewMode ?? (showPreview ? 'preview' : 'editor')}
         autoFocus={autoFocus}
         onDirtyChange={onDirtyChange}
         onSaveStatusChange={onSaveStatusChange}
         saveRef={saveRef}
+        streamingContent={streamingContent}
       />
     )
   }
 
   if (category === 'iframe-previewable') {
     return <IframePreview file={file} />
+  }
+
+  if (category === 'image-previewable') {
+    return <ImagePreview file={file} />
   }
 
   return <UnsupportedPreview file={file} />
@@ -123,6 +136,7 @@ interface TextEditorProps {
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  streamingContent?: string
 }
 
 function TextEditor({
@@ -134,6 +148,7 @@ function TextEditor({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  streamingContent,
 }: TextEditorProps) {
   const initializedRef = useRef(false)
   const contentRef = useRef('')
@@ -157,6 +172,13 @@ function TextEditor({
   const savedContentRef = useRef('')
 
   useEffect(() => {
+    if (streamingContent !== undefined) {
+      setContent(streamingContent)
+      contentRef.current = streamingContent
+      initializedRef.current = true
+      return
+    }
+
     if (fetchedContent === undefined) return
 
     if (!initializedRef.current) {
@@ -180,7 +202,7 @@ function TextEditor({
       savedContentRef.current = fetchedContent
       contentRef.current = fetchedContent
     }
-  }, [fetchedContent, dataUpdatedAt, autoFocus])
+  }, [streamingContent, fetchedContent, dataUpdatedAt, autoFocus])
 
   const handleContentChange = useCallback((value: string) => {
     setContent(value)
@@ -249,34 +271,76 @@ function TextEditor({
     }
   }, [isResizing])
 
-  if (isLoading) {
-    return (
-      <div className='flex flex-1 flex-col gap-[8px] p-[24px]'>
-        <Skeleton className='h-[16px] w-[60%]' />
-        <Skeleton className='h-[16px] w-[80%]' />
-        <Skeleton className='h-[16px] w-[40%]' />
-        <Skeleton className='h-[16px] w-[70%]' />
-      </div>
-    )
+  const isStreaming = streamingContent !== undefined
+  const revealedContent = useStreamingText(content, isStreaming)
+
+  const textareaStuckRef = useRef(true)
+
+  useEffect(() => {
+    if (!isStreaming) return
+    textareaStuckRef.current = true
+
+    const el = textareaRef.current
+    if (!el) return
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) textareaStuckRef.current = false
+    }
+
+    const onScroll = () => {
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight
+      if (dist <= 5) textareaStuckRef.current = true
+    }
+
+    el.addEventListener('wheel', onWheel, { passive: true })
+    el.addEventListener('scroll', onScroll, { passive: true })
+
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('scroll', onScroll)
+    }
+  }, [isStreaming])
+
+  useEffect(() => {
+    if (!isStreaming || !textareaStuckRef.current) return
+    const el = textareaRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [isStreaming, revealedContent])
+
+  if (streamingContent === undefined) {
+    if (isLoading) {
+      return (
+        <div className='flex flex-1 flex-col gap-[8px] p-[24px]'>
+          <Skeleton className='h-[16px] w-[60%]' />
+          <Skeleton className='h-[16px] w-[80%]' />
+          <Skeleton className='h-[16px] w-[40%]' />
+          <Skeleton className='h-[16px] w-[70%]' />
+        </div>
+      )
+    }
+
+    if (error) {
+      return (
+        <div className='flex flex-1 items-center justify-center'>
+          <p className='text-[13px] text-[var(--text-muted)]'>Failed to load file content</p>
+        </div>
+      )
+    }
   }
 
-  if (error) {
-    return (
-      <div className='flex flex-1 items-center justify-center'>
-        <p className='text-[13px] text-[var(--text-muted)]'>Failed to load file content</p>
-      </div>
-    )
-  }
-
-  const showEditor = previewMode !== 'preview'
-  const showPreviewPane = previewMode !== 'editor'
+  const previewType = resolvePreviewType(file.type, file.name)
+  const isIframeRendered = previewType === 'html' || previewType === 'svg'
+  const effectiveMode = isStreaming && isIframeRendered ? 'editor' : previewMode
+  const showEditor = effectiveMode !== 'preview'
+  const showPreviewPane = effectiveMode !== 'editor'
 
   return (
     <div ref={containerRef} className='relative flex flex-1 overflow-hidden'>
       {showEditor && (
         <textarea
           ref={textareaRef}
-          value={content}
+          value={isStreaming ? revealedContent : content}
           onChange={(e) => handleContentChange(e.target.value)}
           readOnly={!canEdit}
           spellCheck={false}
@@ -308,7 +372,12 @@ function TextEditor({
           <div
             className={cn('min-w-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}
           >
-            <PreviewPanel content={content} mimeType={file.type} filename={file.name} />
+            <PreviewPanel
+              content={revealedContent}
+              mimeType={file.type}
+              filename={file.name}
+              isStreaming={isStreaming}
+            />
           </div>
         </>
       )}
@@ -328,6 +397,21 @@ function IframePreview({ file }: { file: WorkspaceFileRecord }) {
         onError={() => {
           logger.error(`Failed to load file: ${file.name}`)
         }}
+      />
+    </div>
+  )
+}
+
+function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
+  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
+
+  return (
+    <div className='flex flex-1 items-center justify-center overflow-auto bg-[var(--surface-1)] p-6'>
+      <img
+        src={serveUrl}
+        alt={file.name}
+        className='max-h-full max-w-full rounded-md object-contain'
+        loading='eager'
       />
     </div>
   )

@@ -49,6 +49,8 @@ export type SSEEventType =
   | 'structured_result' // structured result from a tool call
   | 'subagent_result' // result from a subagent
   | 'done' // end of the chat
+  | 'context_compaction_start' // context compaction started
+  | 'context_compaction' // conversation context was compacted
   | 'error' // error in the chat
   | 'start' // start of the chat
 
@@ -94,6 +96,7 @@ export type MothershipToolName =
   | 'edit'
   | 'fast_edit'
   | 'open_resource'
+  | 'context_compaction'
 
 /**
  * Subagent identifiers dispatched via `subagent_start` SSE events.
@@ -119,6 +122,7 @@ export type SubagentName =
   | 'run'
   | 'agent'
   | 'job'
+  | 'file_write'
 
 export type ToolPhase =
   | 'workspace'
@@ -142,6 +146,7 @@ export interface ToolCallData {
   displayTitle: string
   status: ToolCallStatus
   result?: ToolCallResult
+  streamingArgs?: string
 }
 
 export interface ToolCallInfo {
@@ -152,6 +157,7 @@ export interface ToolCallInfo {
   phaseLabel?: string
   calledBy?: string
   result?: { success: boolean; output?: unknown; error?: string }
+  streamingArgs?: string
 }
 
 export interface OptionItem {
@@ -219,6 +225,7 @@ export const SUBAGENT_LABELS: Record<SubagentName, string> = {
   run: 'Run agent',
   agent: 'Agent manager',
   job: 'Job agent',
+  file_write: 'File Write',
 } as const
 
 export interface ToolUIMetadata {
@@ -348,6 +355,11 @@ export const TOOL_UI_METADATA: Partial<Record<MothershipToolName, ToolUIMetadata
     title: 'Opening resource',
     phaseLabel: 'Resource',
     phase: 'resource',
+  },
+  context_compaction: {
+    title: 'Compacted context',
+    phaseLabel: 'Context',
+    phase: 'management',
   },
 }
 

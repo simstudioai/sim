@@ -1,4 +1,8 @@
-export { MessageContent } from './message-content'
+export { ChatMessageAttachments } from './chat-message-attachments'
+export {
+  assistantMessageHasRenderableContent,
+  MessageContent,
+} from './message-content'
 export { MothershipView } from './mothership-view'
 export { QueuedMessages } from './queued-messages'
 export { TemplatePrompts } from './template-prompts'

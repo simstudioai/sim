@@ -28,13 +28,8 @@ import {
   type ClientToolDisplay,
   TOOL_DISPLAY_REGISTRY,
 } from '@/lib/copilot/tools/client/tool-display-registry'
-import type { CopilotStore } from '@/stores/panel/copilot/types'
 
 const logger = createLogger('CopilotStoreUtils')
-
-type StoreSet = (
-  partial: Partial<CopilotStore> | ((state: CopilotStore) => Partial<CopilotStore>)
-) => void
 
 /** Respond tools are internal to copilot subagents and should never be shown in the UI */
 const HIDDEN_TOOL_SUFFIX = '_respond'
@@ -176,112 +171,6 @@ export function isTerminalState(state: string): boolean {
     isReviewState(state) ||
     isBackgroundState(state)
   )
-}
-
-/**
- * Resolves the appropriate terminal state for a non-terminal tool call.
- * 'executing' → 'success': the server was running it, assume it completed.
- * Everything else → 'aborted': never reached execution.
- */
-function resolveAbortState(currentState: string): ClientToolCallState {
-  return currentState === ClientToolCallState.executing
-    ? ClientToolCallState.success
-    : ClientToolCallState.aborted
-}
-
-export function abortAllInProgressTools(set: StoreSet, get: () => CopilotStore) {
-  try {
-    const { toolCallsById, messages } = get()
-    const updatedMap = { ...toolCallsById }
-    const resolvedIds = new Map<string, ClientToolCallState>()
-    let hasUpdates = false
-    for (const [id, tc] of Object.entries(toolCallsById)) {
-      const st = tc.state
-      const isTerminal =
-        st === ClientToolCallState.success ||
-        st === ClientToolCallState.error ||
-        st === ClientToolCallState.rejected ||
-        st === ClientToolCallState.aborted
-      if (!isTerminal || isReviewState(st)) {
-        const resolved = resolveAbortState(st)
-        resolvedIds.set(id, resolved)
-        updatedMap[id] = {
-          ...tc,
-          state: resolved,
-          subAgentStreaming: false,
-          display: resolveToolDisplay(tc.name, resolved, id, tc.params, tc.serverUI),
-        }
-        hasUpdates = true
-      } else if (tc.subAgentStreaming) {
-        updatedMap[id] = {
-          ...tc,
-          subAgentStreaming: false,
-        }
-        hasUpdates = true
-      }
-    }
-    if (resolvedIds.size > 0 || hasUpdates) {
-      set({ toolCallsById: updatedMap })
-      set((s: CopilotStore) => {
-        const msgs = [...s.messages]
-        for (let mi = msgs.length - 1; mi >= 0; mi--) {
-          const m = msgs[mi]
-          if (m.role !== 'assistant' || !Array.isArray(m.contentBlocks)) continue
-          let changed = false
-          const blocks = m.contentBlocks.map((b: any) => {
-            if (b?.type === 'tool_call' && b.toolCall?.id && resolvedIds.has(b.toolCall.id)) {
-              changed = true
-              const prev = b.toolCall
-              const resolved = resolvedIds.get(b.toolCall.id)!
-              return {
-                ...b,
-                toolCall: {
-                  ...prev,
-                  state: resolved,
-                  display: resolveToolDisplay(
-                    prev?.name,
-                    resolved,
-                    prev?.id,
-                    prev?.params,
-                    prev?.serverUI
-                  ),
-                },
-              }
-            }
-            return b
-          })
-          if (changed) {
-            msgs[mi] = { ...m, contentBlocks: blocks }
-            break
-          }
-        }
-        return { messages: msgs }
-      })
-    }
-  } catch (error) {
-    logger.warn('Failed to abort in-progress tools', {
-      error: error instanceof Error ? error.message : String(error),
-    })
-  }
-}
-
-export function cleanupActiveState(
-  set: (partial: Record<string, unknown>) => void,
-  get: () => Record<string, unknown>
-): void {
-  abortAllInProgressTools(set as unknown as StoreSet, get as unknown as () => CopilotStore)
-  try {
-    const { useWorkflowDiffStore } = require('@/stores/workflow-diff/store') as {
-      useWorkflowDiffStore: {
-        getState: () => { clearDiff: (options?: { restoreBaseline?: boolean }) => void }
-      }
-    }
-    useWorkflowDiffStore.getState().clearDiff({ restoreBaseline: false })
-  } catch (error) {
-    logger.warn('Failed to clear diff during cleanup', {
-      error: error instanceof Error ? error.message : String(error),
-    })
-  }
 }
 
 export function stripTodoTags(text: string): string {

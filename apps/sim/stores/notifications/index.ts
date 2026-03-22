@@ -4,4 +4,4 @@ export type {
   Notification,
   NotificationAction,
 } from './types'
-export { openCopilotWithMessage, sendMothershipMessage } from './utils'
+export { sendMothershipMessage } from './utils'

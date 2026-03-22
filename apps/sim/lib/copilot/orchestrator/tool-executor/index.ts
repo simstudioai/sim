@@ -12,10 +12,12 @@ import { routeExecution } from '@/lib/copilot/tools/server/router'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { validateMcpDomain } from '@/lib/mcp/domain-check'
 import { mcpService } from '@/lib/mcp/service'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
+import { getTableById } from '@/lib/table/service'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   deleteCustomTool,
@@ -732,7 +734,6 @@ const SERVER_TOOLS = new Set<string>([
   'edit_workflow',
   'get_workflow_logs',
   'search_documentation',
-  'search_online',
   'set_environment_variables',
   'make_api_request',
   'knowledge_base',
@@ -740,6 +741,8 @@ const SERVER_TOOLS = new Set<string>([
   'workspace_file',
   'get_execution_summary',
   'get_job_logs',
+  'generate_visualization',
+  'generate_image',
 ])
 
 /**
@@ -1067,6 +1070,60 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
       title = record.name
     }
 
+    if (resourceType === 'workflow') {
+      const workflow = await getWorkflowById(params.id)
+      if (!workflow) {
+        return {
+          success: false,
+          error: `No workflow with id "${params.id}". Confirm the workflow ID before opening it.`,
+        }
+      }
+      if (c.workspaceId && workflow.workspaceId !== c.workspaceId) {
+        return {
+          success: false,
+          error: `Workflow "${params.id}" was not found in the current workspace.`,
+        }
+      }
+      resourceId = workflow.id
+      title = workflow.name
+    }
+
+    if (resourceType === 'table') {
+      const table = await getTableById(params.id)
+      if (!table) {
+        return {
+          success: false,
+          error: `No table with id "${params.id}". Confirm the table ID before opening it.`,
+        }
+      }
+      if (c.workspaceId && table.workspaceId !== c.workspaceId) {
+        return {
+          success: false,
+          error: `Table "${params.id}" was not found in the current workspace.`,
+        }
+      }
+      resourceId = table.id
+      title = table.name
+    }
+
+    if (resourceType === 'knowledgebase') {
+      const knowledgeBase = await getKnowledgeBaseById(params.id)
+      if (!knowledgeBase) {
+        return {
+          success: false,
+          error: `No knowledge base with id "${params.id}". Confirm the knowledge base ID before opening it.`,
+        }
+      }
+      if (c.workspaceId && knowledgeBase.workspaceId !== c.workspaceId) {
+        return {
+          success: false,
+          error: `Knowledge base "${params.id}" was not found in the current workspace.`,
+        }
+      }
+      resourceId = knowledgeBase.id
+      title = knowledgeBase.name
+    }
+
     return {
       success: true,
       output: { message: `Opened ${resourceType} ${resourceId} for the user` },
@@ -1084,8 +1141,8 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
 /**
  * Check whether a tool can be executed on the Sim (TypeScript) side.
  *
- * Tools that are only available on the Go backend (e.g. search_patterns,
- * search_errors, remember_debug) will return false.  The subagent tool_call
+ * Tools that are only available on the Go backend (e.g. search_patterns)
+ * will return false.  The subagent tool_call
  * handler uses this to decide whether to execute a tool locally or let the
  * Go backend's own tool_result SSE event handle it.
  */
@@ -1182,6 +1239,8 @@ async function executeServerToolDirect(
       userId: context.userId,
       workspaceId: context.workspaceId,
       userPermission: context.userPermission,
+      chatId: context.chatId,
+      abortSignal: context.abortSignal,
     })
     return { success: true, output: result }
   } catch (error) {
@@ -1288,7 +1347,8 @@ export async function markToolComplete(
  */
 export async function prepareExecutionContext(
   userId: string,
-  workflowId: string
+  workflowId: string,
+  chatId?: string
 ): Promise<ExecutionContext> {
   const wf = await getWorkflowById(workflowId)
   const workspaceId = wf?.workspaceId ?? undefined
@@ -1299,6 +1359,7 @@ export async function prepareExecutionContext(
     userId,
     workflowId,
     workspaceId,
+    chatId,
     decryptedEnvVars,
   }
 }

@@ -74,12 +74,23 @@ export function useStreamingReveal(content: string, isStreaming: boolean): Strea
     }
   }, [content, isStreaming])
 
+  if (!isStreaming) {
+    return { committed: content, incoming: '', generation }
+  }
+
   if (committedEnd > 0 && committedEnd < content.length) {
     return {
       committed: content.slice(0, committedEnd),
       incoming: content.slice(committedEnd),
       generation,
     }
+  }
+
+  // No paragraph split yet: keep the growing markdown in `incoming` only so ReactMarkdown
+  // re-parses one tail block (same as the paragraph-tail path). Putting everything in
+  // `committed` would re-render the full document every tick and makes tables jump.
+  if (committedEnd === 0 && content.length > 0) {
+    return { committed: '', incoming: content, generation }
   }
 
   return { committed: content, incoming: '', generation }

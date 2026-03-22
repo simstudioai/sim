@@ -736,7 +736,7 @@ export function extractWorkspaceIdFromExecutionKey(key: string): string | null {
 
 /**
  * Construct viewer URL for a file
- * Viewer URL format: /workspace/{workspaceId}/files/{fileKey}/view
+ * Viewer URL format: /workspace/{workspaceId}/files/{fileKey}
  * @param fileKey File storage key
  * @param workspaceId Optional workspace ID (will be extracted from key if not provided)
  * @returns Viewer URL string or null if workspaceId cannot be determined
@@ -748,7 +748,7 @@ export function getViewerUrl(fileKey: string, workspaceId?: string): string | nu
     return null
   }
 
-  return `/workspace/${resolvedWorkspaceId}/files/${fileKey}/view`
+  return `/workspace/${resolvedWorkspaceId}/files/${fileKey}`
 }
 
 /**

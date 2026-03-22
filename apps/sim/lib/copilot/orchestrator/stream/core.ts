@@ -40,10 +40,13 @@ export interface StreamLoopOptions extends OrchestratorOptions {
 export function createStreamingContext(overrides?: Partial<StreamingContext>): StreamingContext {
   return {
     chatId: undefined,
+    executionId: undefined,
+    runId: undefined,
     messageId: crypto.randomUUID(),
     accumulatedContent: '',
     contentBlocks: [],
     toolCalls: new Map(),
+    pendingToolPromises: new Map(),
     currentThinkingBlock: null,
     isInThinkingBlock: false,
     subAgentParentToolCallId: undefined,
@@ -144,6 +147,7 @@ export async function runStreamLoop(
     for await (const event of parseSSEStream(reader, decoder, abortSignal)) {
       if (abortSignal?.aborted) {
         context.wasAborted = true
+        await reader.cancel().catch(() => {})
         break
       }
 
@@ -224,6 +228,10 @@ export async function runStreamLoop(
       if (context.streamComplete) break
     }
   } finally {
+    if (abortSignal?.aborted) {
+      context.wasAborted = true
+      await reader.cancel().catch(() => {})
+    }
     clearTimeout(timeoutId)
   }
 }

@@ -20,7 +20,7 @@
   },
   "scripts": {
     "db:push": "bunx drizzle-kit push --config=./drizzle.config.ts",
-    "db:migrate": "bunx drizzle-kit migrate --config=./drizzle.config.ts",
+    "db:migrate": "bun --env-file=.env --bun x drizzle-kit migrate --config=./drizzle.config.ts",
     "db:studio": "bunx drizzle-kit studio --config=./drizzle.config.ts",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",

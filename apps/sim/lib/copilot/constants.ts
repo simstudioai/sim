@@ -24,11 +24,11 @@ export const REDIS_COPILOT_STREAM_PREFIX = 'copilot_stream:'
 // Timeouts
 // ---------------------------------------------------------------------------
 
-/** Default timeout for the copilot orchestration stream loop (5 min). */
-export const ORCHESTRATION_TIMEOUT_MS = 300_000
+/** Default timeout for the copilot orchestration stream loop (60 min). */
+export const ORCHESTRATION_TIMEOUT_MS = 3_600_000
 
-/** Timeout for the client-side streaming response handler (10 min). */
-export const STREAM_TIMEOUT_MS = 600_000
+/** Timeout for the client-side streaming response handler (60 min). */
+export const STREAM_TIMEOUT_MS = 3_600_000
 
 /** TTL for Redis tool call confirmation entries (24 h). */
 export const REDIS_TOOL_CALL_TTL_SECONDS = 86_400

@@ -1247,6 +1247,13 @@
       "when": 1774112405784,
       "tag": "0178_clumsy_living_mummy",
       "breakpoints": true
+    },
+    {
+      "idx": 179,
+      "version": "7",
+      "when": 1774139366798,
+      "tag": "0179_burly_luckman",
+      "breakpoints": true
     }
   ]
 }

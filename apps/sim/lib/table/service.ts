@@ -11,6 +11,8 @@ import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm'
+import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
+import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
@@ -49,6 +51,13 @@ import {
 } from './validation'
 
 const logger = createLogger('TableService')
+
+export class TableConflictError extends Error {
+  readonly code = 'TABLE_EXISTS' as const
+  constructor(name: string) {
+    super(`A table named "${name}" already exists in this workspace`)
+  }
+}
 
 export type TableScope = 'active' | 'archived' | 'all'
 
@@ -226,55 +235,67 @@ export async function createTable(
 
   // Wrap count check, duplicate check, and insert in a transaction with FOR UPDATE
   // to prevent TOCTOU race on the table count limit
-  await db.transaction(async (trx) => {
-    await trx.execute(sql`SELECT 1 FROM workspace WHERE id = ${data.workspaceId} FOR UPDATE`)
+  try {
+    await db.transaction(async (trx) => {
+      await trx.execute(sql`SELECT 1 FROM workspace WHERE id = ${data.workspaceId} FOR UPDATE`)
 
-    const [{ count: existingCount }] = await trx
-      .select({ count: count() })
-      .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.workspaceId, data.workspaceId),
-          isNull(userTableDefinitions.archivedAt)
+      const [{ count: existingCount }] = await trx
+        .select({ count: count() })
+        .from(userTableDefinitions)
+        .where(
+          and(
+            eq(userTableDefinitions.workspaceId, data.workspaceId),
+            isNull(userTableDefinitions.archivedAt)
+          )
         )
-      )
 
-    if (Number(existingCount) >= maxTables) {
-      throw new Error(`Workspace has reached maximum table limit (${maxTables})`)
-    }
+      if (Number(existingCount) >= maxTables) {
+        throw new Error(`Workspace has reached maximum table limit (${maxTables})`)
+      }
 
-    const duplicateName = await trx
-      .select({ id: userTableDefinitions.id })
-      .from(userTableDefinitions)
-      .where(
-        and(
-          eq(userTableDefinitions.workspaceId, data.workspaceId),
-          eq(userTableDefinitions.name, data.name),
-          isNull(userTableDefinitions.archivedAt)
+      const duplicateName = await trx
+        .select({ id: userTableDefinitions.id, archivedAt: userTableDefinitions.archivedAt })
+        .from(userTableDefinitions)
+        .where(
+          and(
+            eq(userTableDefinitions.workspaceId, data.workspaceId),
+            eq(userTableDefinitions.name, data.name)
+          )
         )
-      )
-      .limit(1)
+        .limit(1)
 
-    if (duplicateName.length > 0) {
-      throw new Error(`Table with name "${data.name}" already exists in this workspace`)
+      if (duplicateName.length > 0) {
+        if (duplicateName[0].archivedAt) {
+          throw new TableConflictError(data.name)
+        }
+        throw new TableConflictError(data.name)
+      }
+
+      await trx.insert(userTableDefinitions).values(newTable)
+
+      const initialRowCount = data.initialRowCount ?? 0
+      if (initialRowCount > 0) {
+        const rowsToInsert = Array.from({ length: initialRowCount }, (_, i) => ({
+          id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+          tableId,
+          data: {},
+          position: i,
+          workspaceId: data.workspaceId,
+          createdAt: now,
+          updatedAt: now,
+        }))
+        await trx.insert(userTableRows).values(rowsToInsert)
+      }
+    })
+  } catch (error: unknown) {
+    if (error instanceof TableConflictError) {
+      throw error
     }
-
-    await trx.insert(userTableDefinitions).values(newTable)
-
-    const initialRowCount = data.initialRowCount ?? 0
-    if (initialRowCount > 0) {
-      const rowsToInsert = Array.from({ length: initialRowCount }, (_, i) => ({
-        id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
-        tableId,
-        data: {},
-        position: i,
-        workspaceId: data.workspaceId,
-        createdAt: now,
-        updatedAt: now,
-      }))
-      await trx.insert(userTableRows).values(rowsToInsert)
+    if (getPostgresErrorCode(error) === '23505') {
+      throw new TableConflictError(data.name)
     }
-  })
+    throw error
+  }
 
   logger.info(`[${requestId}] Created table ${tableId} in workspace ${data.workspaceId}`)
 
@@ -394,18 +415,25 @@ export async function renameTable(
   }
 
   const now = new Date()
-  const result = await db
-    .update(userTableDefinitions)
-    .set({ name: newName, updatedAt: now })
-    .where(eq(userTableDefinitions.id, tableId))
-    .returning({ id: userTableDefinitions.id })
+  try {
+    const result = await db
+      .update(userTableDefinitions)
+      .set({ name: newName, updatedAt: now })
+      .where(eq(userTableDefinitions.id, tableId))
+      .returning({ id: userTableDefinitions.id })
 
-  if (result.length === 0) {
-    throw new Error(`Table ${tableId} not found`)
+    if (result.length === 0) {
+      throw new Error(`Table ${tableId} not found`)
+    }
+
+    logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
+    return { id: tableId, name: newName }
+  } catch (error: unknown) {
+    if (getPostgresErrorCode(error) === '23505') {
+      throw new TableConflictError(newName)
+    }
+    throw error
   }
-
-  logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
-  return { id: tableId, name: newName }
 }
 
 /**
@@ -468,12 +496,52 @@ export async function restoreTable(tableId: string, requestId: string): Promise<
     }
   }
 
-  await db
-    .update(userTableDefinitions)
-    .set({ archivedAt: null, updatedAt: new Date() })
-    .where(eq(userTableDefinitions.id, tableId))
+  /**
+   * A concurrent rename/create can claim the chosen name after `generateRestoreName`'s check (MVCC).
+   * Retries pick a new random suffix; 23505 maps to {@link TableConflictError} after exhaustion.
+   */
+  const maxUniqueViolationRetries = 8
+  let attemptedRestoreName = ''
 
-  logger.info(`[${requestId}] Restored table ${tableId}`)
+  for (let attempt = 0; attempt < maxUniqueViolationRetries; attempt++) {
+    attemptedRestoreName = ''
+    try {
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT 1 FROM user_table_definitions WHERE id = ${tableId} FOR UPDATE`)
+
+        attemptedRestoreName = await generateRestoreName(table.name, async (candidate) => {
+          const [match] = await tx
+            .select({ id: userTableDefinitions.id })
+            .from(userTableDefinitions)
+            .where(
+              and(
+                eq(userTableDefinitions.workspaceId, table.workspaceId),
+                eq(userTableDefinitions.name, candidate),
+                isNull(userTableDefinitions.archivedAt)
+              )
+            )
+            .limit(1)
+          return !!match
+        })
+
+        const now = new Date()
+        await tx
+          .update(userTableDefinitions)
+          .set({ archivedAt: null, updatedAt: now, name: attemptedRestoreName })
+          .where(eq(userTableDefinitions.id, tableId))
+      })
+      break
+    } catch (error: unknown) {
+      if (getPostgresErrorCode(error) !== '23505') {
+        throw error
+      }
+      if (attempt === maxUniqueViolationRetries - 1) {
+        throw new TableConflictError(attemptedRestoreName || table.name)
+      }
+    }
+  }
+
+  logger.info(`[${requestId}] Restored table ${tableId} as "${attemptedRestoreName}"`)
 }
 
 /**

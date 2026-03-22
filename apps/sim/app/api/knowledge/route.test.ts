@@ -15,6 +15,7 @@ const { mockGetSession, mockDbChain } = vi.hoisted(() => {
     where: vi.fn().mockReturnThis(),
     groupBy: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockResolvedValue([]),
+    limit: vi.fn().mockResolvedValue([]),
     insert: vi.fn().mockReturnThis(),
     values: vi.fn().mockResolvedValue(undefined),
   }
@@ -113,7 +114,7 @@ describe('Knowledge Base API Route', () => {
     Object.values(mockDbChain).forEach((fn) => {
       if (typeof fn === 'function') {
         fn.mockClear()
-        if (fn !== mockDbChain.orderBy && fn !== mockDbChain.values) {
+        if (fn !== mockDbChain.orderBy && fn !== mockDbChain.values && fn !== mockDbChain.limit) {
           fn.mockReturnThis()
         }
       }

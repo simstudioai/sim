@@ -11,7 +11,7 @@ function makeQueryClient() {
         retryOnMount: false,
       },
       mutations: {
-        retry: 1,
+        retry: false,
       },
       dehydrate: {
         shouldDehydrateQuery: (query) =>

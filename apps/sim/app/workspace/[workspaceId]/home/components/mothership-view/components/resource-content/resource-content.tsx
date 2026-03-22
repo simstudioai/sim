@@ -21,7 +21,10 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
-import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import {
+  useUserPermissionsContext,
+  useWorkspacePermissionsContext,
+} from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
@@ -44,6 +47,7 @@ interface ResourceContentProps {
   workspaceId: string
   resource: MothershipResource
   previewMode?: PreviewMode
+  streamingFile?: { fileName: string; content: string } | null
 }
 
 /**
@@ -51,11 +55,48 @@ interface ResourceContentProps {
  * Handles table, file, and workflow resource types with appropriate
  * embedded rendering for each.
  */
+const STREAMING_EPOCH = new Date(0)
+
 export const ResourceContent = memo(function ResourceContent({
   workspaceId,
   resource,
   previewMode,
+  streamingFile,
 }: ResourceContentProps) {
+  const streamFileName = streamingFile?.fileName || 'file.md'
+  const streamingExtractedContent = useMemo(
+    () => (streamingFile ? extractFileContent(streamingFile.content) : ''),
+    [streamingFile]
+  )
+  const syntheticFile = useMemo(
+    () => ({
+      id: 'streaming-file',
+      workspaceId,
+      name: streamFileName,
+      key: '',
+      path: '',
+      size: 0,
+      type: 'text/plain',
+      uploadedBy: '',
+      uploadedAt: STREAMING_EPOCH,
+    }),
+    [workspaceId, streamFileName]
+  )
+
+  if (streamingFile && resource.id === 'streaming-file') {
+    return (
+      <div className='flex h-full flex-col overflow-hidden'>
+        <FileViewer
+          file={syntheticFile}
+          workspaceId={workspaceId}
+          canEdit={false}
+          previewMode={previewMode ?? 'preview'}
+          streamingContent={streamingExtractedContent}
+        />
+      </div>
+    )
+  }
+
   switch (resource.type) {
     case 'table':
       return <Table key={resource.id} workspaceId={workspaceId} tableId={resource.id} embedded />
@@ -67,6 +108,7 @@ export const ResourceContent = memo(function ResourceContent({
           workspaceId={workspaceId}
           fileId={resource.id}
           previewMode={previewMode}
+          streamingContent={streamingFile ? extractFileContent(streamingFile.content) : undefined}
         />
       )
 
@@ -260,7 +302,7 @@ function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) 
   }, [file])
 
   const handleOpenInFiles = useCallback(() => {
-    router.push(`/workspace/${workspaceId}/files?fileId=${encodeURIComponent(fileId)}`)
+    router.push(`/workspace/${workspaceId}/files/${encodeURIComponent(fileId)}`)
   }, [router, workspaceId, fileId])
 
   return (
@@ -341,9 +383,11 @@ interface EmbeddedFileProps {
   workspaceId: string
   fileId: string
   previewMode?: PreviewMode
+  streamingContent?: string
 }
 
-function EmbeddedFile({ workspaceId, fileId, previewMode }: EmbeddedFileProps) {
+function EmbeddedFile({ workspaceId, fileId, previewMode, streamingContent }: EmbeddedFileProps) {
+  const { canEdit } = useUserPermissionsContext()
   const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
   const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
 
@@ -369,9 +413,23 @@ function EmbeddedFile({ workspaceId, fileId, previewMode }: EmbeddedFileProps) {
         key={file.id}
         file={file}
         workspaceId={workspaceId}
-        canEdit={true}
+        canEdit={canEdit}
         previewMode={previewMode}
+        streamingContent={streamingContent}
       />
     </div>
   )
+}
+
+function extractFileContent(raw: string): string {
+  const marker = '"content":'
+  const idx = raw.indexOf(marker)
+  if (idx === -1) return ''
+  let rest = raw.slice(idx + marker.length).trimStart()
+  if (rest.startsWith('"')) rest = rest.slice(1)
+  return rest
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\')
 }

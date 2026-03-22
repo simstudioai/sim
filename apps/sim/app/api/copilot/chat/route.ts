@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -15,6 +15,7 @@ import {
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { getStreamMeta, readStreamEvents } from '@/lib/copilot/orchestrator/stream/buffer'
+import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -30,6 +31,8 @@ import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
 } from '@/lib/workspaces/permissions/utils'
+
+export const maxDuration = 3600
 
 const logger = createLogger('CopilotChatAPI')
 
@@ -48,7 +51,7 @@ const ChatMessageSchema = z.object({
   workflowId: z.string().optional(),
   workspaceId: z.string().optional(),
   workflowName: z.string().optional(),
-  model: z.string().optional().default('claude-opus-4-5'),
+  model: z.string().optional().default('claude-opus-4-6'),
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
@@ -69,6 +72,8 @@ const ChatMessageSchema = z.object({
           'knowledge',
           'templates',
           'docs',
+          'table',
+          'file',
         ]),
         label: z.string(),
         chatId: z.string().optional(),
@@ -78,6 +83,8 @@ const ChatMessageSchema = z.object({
         blockIds: z.array(z.string()).optional(),
         templateId: z.string().optional(),
         executionId: z.string().optional(),
+        tableId: z.string().optional(),
+        fileId: z.string().optional(),
       })
     )
     .optional(),
@@ -180,6 +187,29 @@ export async function POST(req: NextRequest) {
       })
     } catch {}
 
+    let currentChat: any = null
+    let conversationHistory: any[] = []
+    let actualChatId = chatId
+    const selectedModel = model || 'claude-opus-4-6'
+
+    if (chatId || createNewChat) {
+      const chatResult = await resolveOrCreateChat({
+        chatId,
+        userId: authenticatedUserId,
+        workflowId,
+        model: selectedModel,
+      })
+      currentChat = chatResult.chat
+      actualChatId = chatResult.chatId || chatId
+      conversationHistory = Array.isArray(chatResult.conversationHistory)
+        ? chatResult.conversationHistory
+        : []
+
+      if (chatId && !currentChat) {
+        return createBadRequestResponse('Chat not found')
+      }
+    }
+
     let agentContexts: Array<{ type: string; content: string }> = []
     if (Array.isArray(normalizedContexts) && normalizedContexts.length > 0) {
       try {
@@ -188,7 +218,8 @@ export async function POST(req: NextRequest) {
           normalizedContexts as any,
           authenticatedUserId,
           message,
-          resolvedWorkspaceId
+          resolvedWorkspaceId,
+          actualChatId
         )
         agentContexts = processed
         logger.info(`[${tracker.requestId}] Contexts processed for request`, {
@@ -207,29 +238,6 @@ export async function POST(req: NextRequest) {
         }
       } catch (e) {
         logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
-      }
-    }
-
-    let currentChat: any = null
-    let conversationHistory: any[] = []
-    let actualChatId = chatId
-    const selectedModel = model || 'claude-opus-4-5'
-
-    if (chatId || createNewChat) {
-      const chatResult = await resolveOrCreateChat({
-        chatId,
-        userId: authenticatedUserId,
-        workflowId,
-        model: selectedModel,
-      })
-      currentChat = chatResult.chat
-      actualChatId = chatResult.chatId || chatId
-      conversationHistory = Array.isArray(chatResult.conversationHistory)
-        ? chatResult.conversationHistory
-        : []
-
-      if (chatId && !currentChat) {
-        return createBadRequestResponse('Chat not found')
       }
     }
 
@@ -283,11 +291,44 @@ export async function POST(req: NextRequest) {
       })
     } catch {}
 
+    if (actualChatId) {
+      const userMsg = {
+        id: userMessageIdToUse,
+        role: 'user' as const,
+        content: message,
+        timestamp: new Date().toISOString(),
+        ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
+        ...(Array.isArray(normalizedContexts) &&
+          normalizedContexts.length > 0 && {
+            contexts: normalizedContexts,
+          }),
+      }
+
+      const [updated] = await db
+        .update(copilotChats)
+        .set({
+          messages: sql`${copilotChats.messages} || ${JSON.stringify([userMsg])}::jsonb`,
+          conversationId: userMessageIdToUse,
+          updatedAt: new Date(),
+        })
+        .where(eq(copilotChats.id, actualChatId))
+        .returning({ messages: copilotChats.messages })
+
+      if (updated) {
+        const freshMessages: any[] = Array.isArray(updated.messages) ? updated.messages : []
+        conversationHistory = freshMessages.filter((m: any) => m.id !== userMessageIdToUse)
+      }
+    }
+
     if (stream) {
+      const executionId = crypto.randomUUID()
+      const runId = crypto.randomUUID()
       const sseStream = createSSEStream({
         requestPayload,
         userId: authenticatedUserId,
         streamId: userMessageIdToUse,
+        executionId,
+        runId,
         chatId: actualChatId,
         currentChat,
         isNewChat: conversationHistory.length === 0,
@@ -295,14 +336,83 @@ export async function POST(req: NextRequest) {
         titleModel: selectedModel,
         titleProvider: provider,
         requestId: tracker.requestId,
+        workspaceId: resolvedWorkspaceId,
         orchestrateOptions: {
           userId: authenticatedUserId,
           workflowId,
           chatId: actualChatId,
+          executionId,
+          runId,
           goRoute: '/api/copilot',
           autoExecuteTools: true,
           interactive: true,
-          promptForToolApproval: true,
+          promptForToolApproval: false,
+          onComplete: async (result: OrchestratorResult) => {
+            if (!actualChatId) return
+
+            const assistantMessage: Record<string, unknown> = {
+              id: crypto.randomUUID(),
+              role: 'assistant' as const,
+              content: result.content,
+              timestamp: new Date().toISOString(),
+              ...(result.requestId ? { requestId: result.requestId } : {}),
+            }
+            if (result.toolCalls.length > 0) {
+              assistantMessage.toolCalls = result.toolCalls
+            }
+            if (result.contentBlocks.length > 0) {
+              assistantMessage.contentBlocks = result.contentBlocks.map((block) => {
+                const stored: Record<string, unknown> = { type: block.type }
+                if (block.content) stored.content = block.content
+                if (block.type === 'tool_call' && block.toolCall) {
+                  stored.toolCall = {
+                    id: block.toolCall.id,
+                    name: block.toolCall.name,
+                    state:
+                      block.toolCall.result?.success !== undefined
+                        ? block.toolCall.result.success
+                          ? 'success'
+                          : 'error'
+                        : block.toolCall.status,
+                    result: block.toolCall.result,
+                    ...(block.calledBy ? { calledBy: block.calledBy } : {}),
+                  }
+                }
+                return stored
+              })
+            }
+
+            try {
+              const [row] = await db
+                .select({ messages: copilotChats.messages })
+                .from(copilotChats)
+                .where(eq(copilotChats.id, actualChatId))
+                .limit(1)
+
+              const msgs: any[] = Array.isArray(row?.messages) ? row.messages : []
+              const userIdx = msgs.findIndex((m: any) => m.id === userMessageIdToUse)
+              const alreadyHasResponse =
+                userIdx >= 0 &&
+                userIdx + 1 < msgs.length &&
+                (msgs[userIdx + 1] as any)?.role === 'assistant'
+
+              if (!alreadyHasResponse) {
+                await db
+                  .update(copilotChats)
+                  .set({
+                    messages: sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`,
+                    conversationId: sql`CASE WHEN ${copilotChats.conversationId} = ${userMessageIdToUse} THEN NULL ELSE ${copilotChats.conversationId} END`,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(copilotChats.id, actualChatId))
+              }
+            } catch (error) {
+              logger.error(`[${tracker.requestId}] Failed to persist chat messages`, {
+                chatId: actualChatId,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              })
+            }
+          },
         },
       })
 
@@ -316,7 +426,7 @@ export async function POST(req: NextRequest) {
       goRoute: '/api/copilot',
       autoExecuteTools: true,
       interactive: true,
-      promptForToolApproval: true,
+      promptForToolApproval: false,
     })
 
     const responseData = {

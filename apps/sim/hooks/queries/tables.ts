@@ -4,6 +4,7 @@
 
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from '@/components/emcn'
 import type { Filter, RowData, Sort, TableDefinition, TableMetadata, TableRow } from '@/lib/table'
 
 const logger = createLogger('TableQueries')
@@ -307,6 +308,9 @@ export function useRenameTable(workspaceId: string) {
       }
 
       return res.json()
+    },
+    onError: (error) => {
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.detail(variables.tableId) })

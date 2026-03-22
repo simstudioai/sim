@@ -1,9 +1,14 @@
 import { createLogger } from '@sim/logger'
-import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import {
+  assertServerToolNotAborted,
+  type BaseServerTool,
+  type ServerToolContext,
+} from '@/lib/copilot/tools/server/base-tool'
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
+import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
 import { getJobLogsServerTool } from '@/lib/copilot/tools/server/jobs/get-job-logs'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
 import { makeApiRequestServerTool } from '@/lib/copilot/tools/server/other/make-api-request'
@@ -11,6 +16,7 @@ import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-
 import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
+import { generateVisualizationServerTool } from '@/lib/copilot/tools/server/visualization/generate-visualization'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { getExecutionSummaryServerTool } from '@/lib/copilot/tools/server/workflow/get-execution-summary'
 import { getWorkflowLogsServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-logs'
@@ -58,6 +64,8 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   manage_skill: ['add', 'edit', 'delete'],
   manage_credential: ['rename', 'delete'],
   workspace_file: ['write', 'update', 'delete', 'rename'],
+  generate_visualization: ['generate'],
+  generate_image: ['generate'],
 }
 
 function isActionAllowed(toolName: string, action: string, userPermission: string): boolean {
@@ -82,6 +90,8 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [knowledgeBaseServerTool.name]: knowledgeBaseServerTool,
   [userTableServerTool.name]: userTableServerTool,
   [workspaceFileServerTool.name]: workspaceFileServerTool,
+  [generateVisualizationServerTool.name]: generateVisualizationServerTool,
+  [generateImageServerTool.name]: generateImageServerTool,
 }
 
 /**
@@ -111,8 +121,12 @@ export async function routeExecution(
     }
   }
 
+  assertServerToolNotAborted(context)
+
   // Validate input if tool declares a schema
   const args = tool.inputSchema ? tool.inputSchema.parse(payload ?? {}) : (payload ?? {})
+
+  assertServerToolNotAborted(context)
 
   // Execute
   const result = await tool.execute(args, context)

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
+  FileConflictError,
   getWorkspaceFile,
   listWorkspaceFiles,
   uploadWorkspaceFile,
@@ -182,7 +183,8 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to upload file'
-    const isDuplicate = errorMessage.includes('already exists')
+    const isDuplicate =
+      error instanceof FileConflictError || errorMessage.includes('already exists')
 
     if (isDuplicate) {
       return NextResponse.json({ error: errorMessage }, { status: 409 })

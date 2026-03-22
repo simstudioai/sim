@@ -37,7 +37,6 @@ import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
 import type { SubflowNodeData } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
-import { TrainingModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-modal/training-modal'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
@@ -76,14 +75,12 @@ import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-setti
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOAuthReturnForWorkflow } from '@/hooks/use-oauth-return'
-import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
-import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 import { defaultWorkflowExecutionState, useExecutionStore } from '@/stores/execution'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useNotificationStore } from '@/stores/notifications'
-import { useCopilotStore, usePanelEditorStore } from '@/stores/panel'
+import { usePanelEditorStore } from '@/stores/panel'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -324,10 +321,6 @@ const WorkflowContent = React.memo(
       }))
     )
 
-    const copilotCleanup = useCopilotStore((state) => state.cleanup)
-
-    const showTrainingModal = useCopilotTrainingStore((state) => state.showModal)
-
     const { handleRunFromBlock, handleRunUntilBlock, handleRunWorkflow, handleCancelExecution } =
       useWorkflowExecution()
 
@@ -346,8 +339,6 @@ const WorkflowContent = React.memo(
       () => [snapToGridSize, snapToGridSize],
       [snapToGridSize]
     )
-
-    useStreamCleanup(copilotCleanup)
 
     const { blocks, edges, lastSaved } = currentWorkflow
 
@@ -3936,8 +3927,6 @@ const WorkflowContent = React.memo(
 
             {isWorkflowReady && (
               <>
-                {showTrainingModal && <TrainingModal />}
-
                 <ReactFlow
                   nodes={nodesForRender}
                   edges={edgesWithSelection}

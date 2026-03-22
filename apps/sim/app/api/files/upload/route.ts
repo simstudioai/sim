@@ -5,7 +5,7 @@ import '@/lib/uploads/core/setup.server'
 import { getSession } from '@/lib/auth'
 import type { StorageContext } from '@/lib/uploads/config'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { isImageFileType, resolveFileType } from '@/lib/uploads/utils/file-utils'
+import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import {
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
@@ -280,19 +280,8 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // Handle copilot, chat, profile-pictures contexts
       if (context === 'copilot' || context === 'chat' || context === 'profile-pictures') {
-        if (context === 'copilot') {
-          const { isSupportedFileType: isCopilotSupported } = await import(
-            '@/lib/uploads/contexts/copilot/copilot-file-manager'
-          )
-          const resolvedType = resolveFileType(file)
-          if (!isImageFileType(resolvedType) && !isCopilotSupported(resolvedType)) {
-            throw new InvalidRequestError(
-              'Unsupported file type. Allowed: images, PDF, and text files (TXT, CSV, MD, HTML, JSON, XML).'
-            )
-          }
-        } else if (!isImageFileType(file.type)) {
+        if (context !== 'copilot' && !isImageFileType(file.type)) {
           throw new InvalidRequestError(
             `Only image files (JPEG, PNG, GIF, WebP, SVG) are allowed for ${context} uploads`
           )
