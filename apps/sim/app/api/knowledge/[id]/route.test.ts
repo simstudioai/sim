@@ -15,6 +15,7 @@ const { mockGetSession, mockDbChain } = vi.hoisted(() => {
     limit: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
+    execute: vi.fn().mockResolvedValue(undefined),
   }
   return { mockGetSession, mockDbChain }
 })
