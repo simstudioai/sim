@@ -120,7 +120,7 @@ export async function createKnowledgeBase(
     tokenCount: 0,
     embeddingModel: data.embeddingModel,
     embeddingDimension: data.embeddingDimension,
-    chunkingConfig: data.chunkingConfig,
+    chunkingConfig: newKnowledgeBase.chunkingConfig,
     createdAt: now,
     updatedAt: now,
     workspaceId: data.workspaceId,
@@ -167,8 +167,6 @@ export async function updateKnowledgeBase(
   if (updates.workspaceId !== undefined) updateData.workspaceId = updates.workspaceId
   if (updates.chunkingConfig !== undefined) {
     updateData.chunkingConfig = updates.chunkingConfig
-    updateData.embeddingModel = 'text-embedding-3-small'
-    updateData.embeddingDimension = 1536
   }
 
   await db.update(knowledgeBase).set(updateData).where(eq(knowledgeBase.id, knowledgeBaseId))
