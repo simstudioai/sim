@@ -30,6 +30,26 @@ const DownloadToWorkspaceFileResultSchema = z.object({
 type DownloadToWorkspaceFileArgs = z.infer<typeof DownloadToWorkspaceFileArgsSchema>
 type DownloadToWorkspaceFileResult = z.infer<typeof DownloadToWorkspaceFileResultSchema>
 
+function isPrivateUrl(url: string): boolean {
+  try {
+    const { hostname, protocol } = new URL(url)
+    if (protocol !== 'https:' && protocol !== 'http:') return true
+    if (hostname === 'localhost' || hostname === '::1') return true
+    const ipv4 = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/)
+    if (ipv4) {
+      const [a, b] = [Number(ipv4[1]), Number(ipv4[2])]
+      // Loopback, RFC 1918, link-local (including cloud metadata 169.254.169.254)
+      if (a === 127 || a === 10 || a === 0) return true
+      if (a === 172 && b >= 16 && b <= 31) return true
+      if (a === 192 && b === 168) return true
+      if (a === 169 && b === 254) return true
+    }
+    return false
+  } catch {
+    return true
+  }
+}
+
 function sanitizeFileName(fileName: string): string {
   return fileName.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '_').trim()
 }
@@ -133,6 +153,13 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
 
     try {
       assertServerToolNotAborted(context)
+
+      if (isPrivateUrl(params.url)) {
+        return {
+          success: false,
+          message: 'Downloading from private or internal URLs is not allowed',
+        }
+      }
 
       const response = await fetch(params.url, {
         redirect: 'follow',
