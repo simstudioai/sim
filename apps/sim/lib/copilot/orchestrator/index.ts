@@ -20,6 +20,40 @@ import { buildToolCallSummaries, createStreamingContext, runStreamLoop } from '.
 
 const logger = createLogger('CopilotOrchestrator')
 
+function didAsyncToolSucceed(input: {
+  durableStatus?: string | null
+  durableResult?: Record<string, unknown>
+  durableError?: string | null
+  completion?: { status: string } | undefined
+  toolStateSuccess?: boolean | undefined
+}) {
+  const { durableStatus, durableResult, durableError, completion, toolStateSuccess } = input
+
+  if (durableStatus === ASYNC_TOOL_STATUS.completed) {
+    return true
+  }
+  if (durableStatus === ASYNC_TOOL_STATUS.failed || durableStatus === ASYNC_TOOL_STATUS.cancelled) {
+    return false
+  }
+
+  if (
+    durableStatus === ASYNC_TOOL_STATUS.resumeEnqueued ||
+    durableStatus === ASYNC_TOOL_STATUS.resumed
+  ) {
+    if (durableError) {
+      return false
+    }
+    if (durableResult?.cancelled === true || typeof durableResult?.error === 'string') {
+      return false
+    }
+    if (durableResult) {
+      return true
+    }
+  }
+
+  return completion?.status === 'success' || toolStateSuccess === true
+}
+
 export interface OrchestrateStreamOptions extends OrchestratorOptions {
   userId: string
   workflowId?: string
@@ -119,6 +153,14 @@ export async function orchestrateCopilotStream(
         loopOptions
       )
 
+      if (claimedToolCallIds.length > 0) {
+        logger.info('Marking async tool calls as resumed', { toolCallIds: claimedToolCallIds })
+        await Promise.all(
+          claimedToolCallIds.map((toolCallId) => markAsyncToolResumed(toolCallId).catch(() => null))
+        )
+        claimedToolCallIds = []
+      }
+
       if (options.abortSignal?.aborted || context.wasAborted) {
         context.awaitingAsyncContinuation = undefined
         break
@@ -177,16 +219,17 @@ export async function orchestrateCopilotStream(
 
           const durable = durableByToolCallId.get(toolCallId)
           const durableStatus = durable?.status
-          const success =
-            durableStatus === ASYNC_TOOL_STATUS.completed ||
-            (durableStatus == null &&
-              (completion?.status === 'success' ||
-                (!completion && toolState?.result?.success === true)))
-
           const durableResult =
             durable?.result && typeof durable.result === 'object'
               ? (durable.result as Record<string, unknown>)
               : undefined
+          const success = didAsyncToolSucceed({
+            durableStatus,
+            durableResult,
+            durableError: durable?.error,
+            completion,
+            toolStateSuccess: toolState?.result?.success,
+          })
           const data =
             durableResult ||
             completion?.data ||
@@ -231,12 +274,6 @@ export async function orchestrateCopilotStream(
       errors: context.errors.length ? context.errors : undefined,
       usage: context.usage,
       cost: context.cost,
-    }
-    if (result.success && claimedToolCallIds.length > 0) {
-      logger.info('Marking async tool calls as resumed', { toolCallIds: claimedToolCallIds })
-      await Promise.all(
-        claimedToolCallIds.map((toolCallId) => markAsyncToolResumed(toolCallId).catch(() => null))
-      )
     }
     await options.onComplete?.(result)
     return result

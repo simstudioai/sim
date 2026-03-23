@@ -145,7 +145,11 @@ export async function GET(request: NextRequest) {
           if (controllerClosed) {
             break
           }
-          if (currentMeta.status === 'complete' || currentMeta.status === 'error') {
+          if (
+            currentMeta.status === 'complete' ||
+            currentMeta.status === 'error' ||
+            currentMeta.status === 'cancelled'
+          ) {
             break
           }
 

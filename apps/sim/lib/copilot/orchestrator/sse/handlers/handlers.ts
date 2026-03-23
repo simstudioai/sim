@@ -348,12 +348,20 @@ export const sseHandlers: Record<string, SSEHandler> = {
      */
     const fireToolExecution = () => {
       const pendingPromise = (async () => {
-        await upsertAsyncToolCall({
-          runId: context.runId || crypto.randomUUID(),
-          toolCallId,
-          toolName,
-          args,
-        })
+        try {
+          await upsertAsyncToolCall({
+            runId: context.runId || crypto.randomUUID(),
+            toolCallId,
+            toolName,
+            args,
+          })
+        } catch (err) {
+          logger.warn('Failed to persist async tool row before execution', {
+            toolCallId,
+            toolName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
         return executeToolAndReport(toolCallId, context, execContext, options)
       })().catch((err) => {
         logger.error('Parallel tool execution failed', {
@@ -566,12 +574,20 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
 
     const fireToolExecution = () => {
       const pendingPromise = (async () => {
-        await upsertAsyncToolCall({
-          runId: context.runId || crypto.randomUUID(),
-          toolCallId,
-          toolName,
-          args,
-        })
+        try {
+          await upsertAsyncToolCall({
+            runId: context.runId || crypto.randomUUID(),
+            toolCallId,
+            toolName,
+            args,
+          })
+        } catch (err) {
+          logger.warn('Failed to persist async subagent tool row before execution', {
+            toolCallId,
+            toolName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
         return executeToolAndReport(toolCallId, context, execContext, options)
       })().catch((err) => {
         logger.error('Parallel subagent tool execution failed', {

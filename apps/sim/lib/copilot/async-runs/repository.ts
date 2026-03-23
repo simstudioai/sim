@@ -86,6 +86,11 @@ export async function getLatestRunForExecution(executionId: string) {
   return run ?? null
 }
 
+export async function getRunSegment(runId: string) {
+  const [run] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId)).limit(1)
+  return run ?? null
+}
+
 export async function createRunCheckpoint(input: {
   runId: string
   pendingToolCallId: string
@@ -219,7 +224,11 @@ export async function completeAsyncToolCall(input: {
     return null
   }
 
-  if (isTerminalAsyncStatus(existing.status)) {
+  if (
+    isTerminalAsyncStatus(existing.status) ||
+    existing.status === 'resume_enqueued' ||
+    existing.status === 'resumed'
+  ) {
     return existing
   }
 
@@ -260,7 +269,6 @@ export async function claimCompletedAsyncToolCall(toolCallId: string, workerId: 
   const [row] = await db
     .update(copilotAsyncToolCalls)
     .set({
-      status: 'resume_enqueued',
       claimedBy: workerId,
       claimedAt: new Date(),
       updatedAt: new Date(),

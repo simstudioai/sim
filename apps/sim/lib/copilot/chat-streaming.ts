@@ -284,6 +284,13 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           logger.error(`[${requestId}] Orchestration returned failure`, {
             error: errorMessage,
           })
+          await pushEvent({
+            type: 'error',
+            error: errorMessage,
+            data: {
+              displayMessage: errorMessage,
+            },
+          })
           await eventWriter.close()
           await setStreamMeta(streamId, {
             status: 'error',
@@ -316,24 +323,26 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           })
         }
         logger.error(`[${requestId}] Orchestration error:`, error)
+        const errorMessage = error instanceof Error ? error.message : 'Stream error'
+        await pushEvent({
+          type: 'error',
+          error: errorMessage,
+          data: {
+            displayMessage: 'An unexpected error occurred while processing the response.',
+          },
+        })
         await eventWriter.close()
         await setStreamMeta(streamId, {
           status: 'error',
           userId,
           executionId,
           runId,
-          error: error instanceof Error ? error.message : 'Stream error',
+          error: errorMessage,
         })
         await updateRunStatus(runId, 'error', {
           completedAt: new Date(),
-          error: error instanceof Error ? error.message : 'Stream error',
+          error: errorMessage,
         }).catch(() => {})
-        await pushEvent({
-          type: 'error',
-          data: {
-            displayMessage: 'An unexpected error occurred while processing the response.',
-          },
-        })
       } finally {
         clearInterval(keepaliveInterval)
         activeStreams.delete(streamId)

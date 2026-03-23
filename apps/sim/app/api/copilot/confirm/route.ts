@@ -4,6 +4,7 @@ import { z } from 'zod'
 import {
   completeAsyncToolCall,
   getAsyncToolCall,
+  getRunSegment,
   upsertAsyncToolCall,
 } from '@/lib/copilot/async-runs/repository'
 import { REDIS_TOOL_CALL_PREFIX, REDIS_TOOL_CALL_TTL_SECONDS } from '@/lib/copilot/constants'
@@ -12,6 +13,7 @@ import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createInternalServerErrorResponse,
+  createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
   type NotificationStatus,
@@ -35,11 +37,12 @@ const ConfirmationSchema = z.object({
  * waitForToolDecision() polls Redis for this value.
  */
 async function updateToolCallStatus(
-  toolCallId: string,
+  existing: NonNullable<Awaited<ReturnType<typeof getAsyncToolCall>>>,
   status: NotificationStatus,
   message?: string,
   data?: Record<string, unknown>
 ): Promise<boolean> {
+  const toolCallId = existing.toolCallId
   const durableStatus =
     status === 'success'
       ? 'completed'
@@ -48,22 +51,6 @@ async function updateToolCallStatus(
         : status === 'error' || status === 'rejected'
           ? 'failed'
           : 'pending'
-  const existing = await getAsyncToolCall(toolCallId).catch(() => null)
-  if (existing?.runId) {
-    await upsertAsyncToolCall({
-      runId: existing.runId,
-      checkpointId: existing.checkpointId ?? null,
-      toolCallId,
-      toolName: existing.toolName || 'client_tool',
-      args: (existing.args as Record<string, unknown> | null) ?? {},
-      status: durableStatus,
-    }).catch(() => {})
-  } else {
-    logger.warn('Tool confirmation has no existing async tool row; durable state may be missing', {
-      toolCallId,
-      status,
-    })
-  }
   if (
     durableStatus === 'completed' ||
     durableStatus === 'failed' ||
@@ -74,6 +61,15 @@ async function updateToolCallStatus(
       status: durableStatus,
       result: data ?? null,
       error: status === 'success' ? null : message || status,
+    }).catch(() => {})
+  } else if (existing.runId) {
+    await upsertAsyncToolCall({
+      runId: existing.runId,
+      checkpointId: existing.checkpointId ?? null,
+      toolCallId,
+      toolName: existing.toolName || 'client_tool',
+      args: (existing.args as Record<string, unknown> | null) ?? {},
+      status: durableStatus,
     }).catch(() => {})
   }
 
@@ -137,9 +133,22 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const { toolCallId, status, message, data } = ConfirmationSchema.parse(body)
+    const existing = await getAsyncToolCall(toolCallId).catch(() => null)
+
+    if (!existing) {
+      return createNotFoundResponse('Tool call not found')
+    }
+
+    const run = await getRunSegment(existing.runId).catch(() => null)
+    if (!run) {
+      return createNotFoundResponse('Tool call run not found')
+    }
+    if (run.userId !== authenticatedUserId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     // Update the tool call status in Redis
-    const updated = await updateToolCallStatus(toolCallId, status, message, data)
+    const updated = await updateToolCallStatus(existing, status, message, data)
 
     if (!updated) {
       logger.error(`[${tracker.requestId}] Failed to update tool call status`, {
