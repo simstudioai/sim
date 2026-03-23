@@ -372,16 +372,6 @@ export async function POST(request: NextRequest) {
         results = allResults.sort((a, b) => a.distance - b.distance).slice(0, validatedData.topK)
       }
 
-      if (!hasQuery && !hasFilters) {
-        return NextResponse.json(
-          {
-            error:
-              'Please provide either a search query or tag filters to search your knowledge base',
-          },
-          { status: 400 }
-        )
-      }
-
       // Calculate cost — only for OpenAI embedding calls
       let cost = null
       let tokenCount = null
@@ -445,7 +435,7 @@ export async function POST(request: NextRequest) {
             )
 
             // Create tags object with display names
-            const tags: Record<string, any> = {}
+            const tags: Record<string, string | number | boolean | Date | null> = {}
 
             ALL_TAG_SLOTS.forEach((slot) => {
               const tagValue = (result as any)[slot]
