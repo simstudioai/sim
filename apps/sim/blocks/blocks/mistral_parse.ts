@@ -1,5 +1,5 @@
 import { MistralIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type SubBlockType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType, type SubBlockType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { MistralParserOutput } from '@/tools/mistral/types'
 
@@ -12,6 +12,8 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   longDescription: `Integrate Mistral Parse into the workflow. Can extract text from uploaded PDF documents, or from a URL.`,
   docsLink: 'https://docs.sim.ai/tools/mistral_parse',
   category: 'tools',
+  integrationType: IntegrationType.AI,
+  tags: ['document-processing', 'ocr'],
   bgColor: '#000000',
   icon: MistralIcon,
   subBlocks: [

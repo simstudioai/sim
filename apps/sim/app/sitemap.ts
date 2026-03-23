@@ -20,10 +20,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${baseUrl}/blog/tags`,
       lastModified: now,
     },
-    {
-      url: `${baseUrl}/templates`,
-      lastModified: now,
-    },
+    // {
+    //   url: `${baseUrl}/templates`,
+    //   lastModified: now,
+    // },
     {
       url: `${baseUrl}/changelog`,
       lastModified: now,

@@ -1,6 +1,6 @@
 import { SentryIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { SentryResponse } from '@/tools/sentry/types'
 
 export const SentryBlock: BlockConfig<SentryResponse> = {
@@ -12,6 +12,8 @@ export const SentryBlock: BlockConfig<SentryResponse> = {
     'Integrate Sentry into the workflow. Monitor issues, manage projects, track events, and coordinate releases across your applications.',
   docsLink: 'https://docs.sim.ai/tools/sentry',
   category: 'tools',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['error-tracking', 'monitoring'],
   bgColor: '#E0E0E0',
   icon: SentryIcon,
   subBlocks: [

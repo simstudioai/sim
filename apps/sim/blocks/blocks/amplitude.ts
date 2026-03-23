@@ -1,5 +1,5 @@
 import { AmplitudeIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 
 export const AmplitudeBlock: BlockConfig = {
   type: 'amplitude',
@@ -9,6 +9,8 @@ export const AmplitudeBlock: BlockConfig = {
     'Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, and retrieve revenue data.',
   docsLink: 'https://docs.sim.ai/tools/amplitude',
   category: 'tools',
+  integrationType: IntegrationType.Analytics,
+  tags: ['data-analytics', 'marketing'],
   bgColor: '#1B1F3B',
   icon: AmplitudeIcon,
   authMode: AuthMode.ApiKey,

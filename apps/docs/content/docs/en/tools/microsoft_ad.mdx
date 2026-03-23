@@ -1,0 +1,336 @@
+---
+title: Azure AD
+description: Manage users and groups in Azure AD (Microsoft Entra ID)
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="microsoft_ad"
+  color="#0078D4"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Azure Active Directory](https://entra.microsoft.com) (now Microsoft Entra ID) is Microsoft's cloud-based identity and access management service. It helps organizations manage users, groups, and access to applications and resources across cloud and on-premises environments.
+
+With the Azure AD integration in Sim, you can:
+
+- **Manage users**: List, create, update, and delete user accounts in your directory
+- **Manage groups**: Create and configure security groups and Microsoft 365 groups
+- **Control group membership**: Add and remove members from groups programmatically
+- **Query directory data**: Search and filter users and groups using OData expressions
+- **Automate onboarding/offboarding**: Create new user accounts with initial passwords and enable/disable accounts as part of HR workflows
+
+In Sim, the Azure AD integration enables your agents to programmatically manage your organization's identity infrastructure. This allows for automation scenarios such as provisioning new employees, updating user profiles in bulk, managing team group memberships, and auditing directory data. By connecting Sim with Azure AD, you can streamline identity lifecycle management and ensure your directory stays in sync with your organization's needs.
+
+## Need Help?
+
+If you encounter issues with the Azure AD integration, contact us at [help@sim.ai](mailto:help@sim.ai)
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Azure Active Directory into your workflows. List, create, update, and delete users and groups. Manage group memberships programmatically.
+
+
+
+## Tools
+
+### `microsoft_ad_list_users`
+
+List users in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Maximum number of users to return \(default 100, max 999\) |
+| `filter` | string | No | OData filter expression \(e.g., "department eq \'Sales\'"\) |
+| `search` | string | No | Search string to filter users by displayName or mail |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | List of users |
+| `userCount` | number | Number of users returned |
+
+### `microsoft_ad_get_user`
+
+Get a user by ID or user principal name from Azure AD
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or user principal name \(e.g., "user@example.com"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | User details |
+|   ↳ `id` | string | User ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `givenName` | string | First name |
+|   ↳ `surname` | string | Last name |
+|   ↳ `userPrincipalName` | string | User principal name \(email\) |
+|   ↳ `mail` | string | Email address |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `department` | string | Department |
+|   ↳ `officeLocation` | string | Office location |
+|   ↳ `mobilePhone` | string | Mobile phone number |
+|   ↳ `accountEnabled` | boolean | Whether the account is enabled |
+
+### `microsoft_ad_create_user`
+
+Create a new user in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `displayName` | string | Yes | Display name for the user |
+| `mailNickname` | string | Yes | Mail alias for the user |
+| `userPrincipalName` | string | Yes | User principal name \(e.g., "user@example.com"\) |
+| `password` | string | Yes | Initial password for the user |
+| `accountEnabled` | boolean | Yes | Whether the account is enabled |
+| `givenName` | string | No | First name |
+| `surname` | string | No | Last name |
+| `jobTitle` | string | No | Job title |
+| `department` | string | No | Department |
+| `officeLocation` | string | No | Office location |
+| `mobilePhone` | string | No | Mobile phone number |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | Created user details |
+|   ↳ `id` | string | User ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `givenName` | string | First name |
+|   ↳ `surname` | string | Last name |
+|   ↳ `userPrincipalName` | string | User principal name \(email\) |
+|   ↳ `mail` | string | Email address |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `department` | string | Department |
+|   ↳ `officeLocation` | string | Office location |
+|   ↳ `mobilePhone` | string | Mobile phone number |
+|   ↳ `accountEnabled` | boolean | Whether the account is enabled |
+
+### `microsoft_ad_update_user`
+
+Update user properties in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or user principal name |
+| `displayName` | string | No | Display name |
+| `givenName` | string | No | First name |
+| `surname` | string | No | Last name |
+| `jobTitle` | string | No | Job title |
+| `department` | string | No | Department |
+| `officeLocation` | string | No | Office location |
+| `mobilePhone` | string | No | Mobile phone number |
+| `accountEnabled` | boolean | No | Whether the account is enabled |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the update was successful |
+| `userId` | string | ID of the updated user |
+
+### `microsoft_ad_delete_user`
+
+Delete a user from Azure AD (Microsoft Entra ID). The user is moved to a temporary container and can be restored within 30 days.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | User ID or user principal name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the deletion was successful |
+| `userId` | string | ID of the deleted user |
+
+### `microsoft_ad_list_groups`
+
+List groups in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `top` | number | No | Maximum number of groups to return \(default 100, max 999\) |
+| `filter` | string | No | OData filter expression \(e.g., "securityEnabled eq true"\) |
+| `search` | string | No | Search string to filter groups by displayName or description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groups` | array | List of groups |
+| `groupCount` | number | Number of groups returned |
+
+### `microsoft_ad_get_group`
+
+Get a group by ID from Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Group ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `group` | object | Group details |
+|   ↳ `id` | string | Group ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `description` | string | Group description |
+|   ↳ `mail` | string | Email address |
+|   ↳ `mailEnabled` | boolean | Whether mail is enabled |
+|   ↳ `mailNickname` | string | Mail nickname |
+|   ↳ `securityEnabled` | boolean | Whether security is enabled |
+|   ↳ `groupTypes` | array | Group types |
+|   ↳ `visibility` | string | Group visibility |
+|   ↳ `createdDateTime` | string | Creation date |
+
+### `microsoft_ad_create_group`
+
+Create a new group in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `displayName` | string | Yes | Display name for the group |
+| `mailNickname` | string | Yes | Mail alias for the group \(ASCII only, max 64 characters\) |
+| `description` | string | No | Group description |
+| `mailEnabled` | boolean | Yes | Whether mail is enabled \(true for Microsoft 365 groups\) |
+| `securityEnabled` | boolean | Yes | Whether security is enabled \(true for security groups\) |
+| `groupTypes` | string | No | Group type: "Unified" for Microsoft 365 group, leave empty for security group |
+| `visibility` | string | No | Group visibility: "Private" or "Public" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `group` | object | Created group details |
+|   ↳ `id` | string | Group ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `description` | string | Group description |
+|   ↳ `mail` | string | Email address |
+|   ↳ `mailEnabled` | boolean | Whether mail is enabled |
+|   ↳ `mailNickname` | string | Mail nickname |
+|   ↳ `securityEnabled` | boolean | Whether security is enabled |
+|   ↳ `groupTypes` | array | Group types |
+|   ↳ `visibility` | string | Group visibility |
+|   ↳ `createdDateTime` | string | Creation date |
+
+### `microsoft_ad_update_group`
+
+Update group properties in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Group ID |
+| `displayName` | string | No | Display name |
+| `description` | string | No | Group description |
+| `mailNickname` | string | No | Mail alias |
+| `visibility` | string | No | Group visibility: "Private" or "Public" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updated` | boolean | Whether the update was successful |
+| `groupId` | string | ID of the updated group |
+
+### `microsoft_ad_delete_group`
+
+Delete a group from Azure AD (Microsoft Entra ID). Microsoft 365 and security groups can be restored within 30 days.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Group ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the deletion was successful |
+| `groupId` | string | ID of the deleted group |
+
+### `microsoft_ad_list_group_members`
+
+List members of a group in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Group ID |
+| `top` | number | No | Maximum number of members to return \(default 100, max 999\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | List of group members |
+| `memberCount` | number | Number of members returned |
+
+### `microsoft_ad_add_group_member`
+
+Add a member to a group in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Group ID |
+| `memberId` | string | Yes | User ID of the member to add |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `added` | boolean | Whether the member was added successfully |
+| `groupId` | string | Group ID |
+| `memberId` | string | Member ID that was added |
+
+### `microsoft_ad_remove_group_member`
+
+Remove a member from a group in Azure AD (Microsoft Entra ID)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupId` | string | Yes | Group ID |
+| `memberId` | string | Yes | User ID of the member to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `removed` | boolean | Whether the member was removed successfully |
+| `groupId` | string | Group ID |
+| `memberId` | string | Member ID that was removed |
+
+

@@ -11,6 +11,7 @@ import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { decryptApiKey } from '@/lib/api-key/crypto'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
@@ -233,6 +234,21 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .limit(1)
 
     const { encryptedApiKey: __, ...updatedData } = updated[0]
+
+    recordAudit({
+      workspaceId: writeCheck.knowledgeBase.workspaceId,
+      actorId: auth.userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.CONNECTOR_UPDATED,
+      resourceType: AuditResourceType.CONNECTOR,
+      resourceId: connectorId,
+      resourceName: updatedData.connectorType,
+      description: `Updated connector for knowledge base "${writeCheck.knowledgeBase.name}"`,
+      metadata: { knowledgeBaseId, updatedFields: Object.keys(parsed.data) },
+      request,
+    })
+
     return NextResponse.json({ success: true, data: updatedData })
   } catch (error) {
     logger.error(`[${requestId}] Error updating connector`, error)
@@ -260,7 +276,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     const existingConnector = await db
-      .select({ id: knowledgeConnector.id })
+      .select({ id: knowledgeConnector.id, connectorType: knowledgeConnector.connectorType })
       .from(knowledgeConnector)
       .where(
         and(
@@ -322,6 +338,20 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     })
 
     logger.info(`[${requestId}] Hard-deleted connector ${connectorId} and its documents`)
+
+    recordAudit({
+      workspaceId: writeCheck.knowledgeBase.workspaceId,
+      actorId: auth.userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.CONNECTOR_DELETED,
+      resourceType: AuditResourceType.CONNECTOR,
+      resourceId: connectorId,
+      resourceName: existingConnector[0].connectorType,
+      description: `Deleted connector from knowledge base "${writeCheck.knowledgeBase.name}"`,
+      metadata: { knowledgeBaseId, documentsDeleted: connectorDocuments.length },
+      request,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

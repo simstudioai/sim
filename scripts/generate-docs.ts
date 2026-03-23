@@ -21,6 +21,11 @@ const BLOCKS_PATH = path.join(rootDir, 'apps/sim/blocks/blocks')
 const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/tools')
 const ICONS_PATH = path.join(rootDir, 'apps/sim/components/icons.tsx')
 const DOCS_ICONS_PATH = path.join(rootDir, 'apps/docs/components/icons.tsx')
+const LANDING_INTEGRATIONS_DATA_PATH = path.join(
+  rootDir,
+  'apps/sim/app/(landing)/integrations/data'
+)
+const TRIGGERS_PATH = path.join(rootDir, 'apps/sim/triggers')
 
 if (!fs.existsSync(DOCS_OUTPUT_PATH)) {
   fs.mkdirSync(DOCS_OUTPUT_PATH, { recursive: true })
@@ -43,7 +48,39 @@ interface BlockConfig {
   tools?: {
     access?: string[]
   }
+  operations?: OperationInfo[]
+  docsLink?: string
   [key: string]: any
+}
+
+interface TriggerInfo {
+  id: string
+  name: string
+  description: string
+}
+
+interface OperationInfo {
+  name: string
+  description: string
+}
+
+interface IntegrationEntry {
+  type: string
+  slug: string
+  name: string
+  description: string
+  longDescription: string
+  bgColor: string
+  iconName: string
+  docsUrl: string
+  operations: OperationInfo[]
+  operationCount: number
+  triggers: TriggerInfo[]
+  triggerCount: number
+  authType: 'oauth' | 'api-key' | 'none'
+  category: string
+  integrationType?: string
+  tags?: string[]
 }
 
 /**
@@ -208,6 +245,373 @@ ${mappingEntries}
 }
 
 /**
+ * Extract operation options from the subBlock with id: 'operation' (if present).
+ * Returns { label, id } pairs — label is the display name, id is the option's id field
+ * (used to construct the tool ID as `{blockType}_{id}`).
+ * Parses the subBlocks array using brace/bracket counting to safely traverse
+ * the nested structure without eval or a full AST parser.
+ */
+function extractOperationsFromContent(blockContent: string): { label: string; id: string }[] {
+  const subBlocksMatch = /subBlocks\s*:\s*\[/.exec(blockContent)
+  if (!subBlocksMatch) return []
+
+  // Locate the opening '[' of the subBlocks array
+  const arrayStart = subBlocksMatch.index + subBlocksMatch[0].length - 1
+  let bracketCount = 1
+  let pos = arrayStart + 1
+  while (pos < blockContent.length && bracketCount > 0) {
+    if (blockContent[pos] === '[') bracketCount++
+    else if (blockContent[pos] === ']') bracketCount--
+    pos++
+  }
+  const subBlocksContent = blockContent.substring(arrayStart + 1, pos - 1)
+
+  // Iterate over top-level objects in the subBlocks array, looking for id: 'operation'
+  let i = 0
+  while (i < subBlocksContent.length) {
+    if (subBlocksContent[i] === '{') {
+      let braceCount = 1
+      let j = i + 1
+      while (j < subBlocksContent.length && braceCount > 0) {
+        if (subBlocksContent[j] === '{') braceCount++
+        else if (subBlocksContent[j] === '}') braceCount--
+        j++
+      }
+      const objContent = subBlocksContent.substring(i, j)
+
+      if (/\bid\s*:\s*['"]operation['"]/.test(objContent)) {
+        const optionsMatch = /options\s*:\s*\[/.exec(objContent)
+        if (!optionsMatch) return []
+
+        const optArrayStart = optionsMatch.index + optionsMatch[0].length - 1
+        let bc = 1
+        let op = optArrayStart + 1
+        while (op < objContent.length && bc > 0) {
+          if (objContent[op] === '[') bc++
+          else if (objContent[op] === ']') bc--
+          op++
+        }
+        const optionsContent = objContent.substring(optArrayStart + 1, op - 1)
+
+        // Extract { label, id } pairs from each option object
+        const pairs: { label: string; id: string }[] = []
+        const optionObjectRegex = /\{[^{}]*\}/g
+        let m
+        while ((m = optionObjectRegex.exec(optionsContent)) !== null) {
+          const optObj = m[0]
+          const labelMatch = /label\s*:\s*['"]([^'"]+)['"]/.exec(optObj)
+          const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(optObj)
+          if (labelMatch) {
+            pairs.push({ label: labelMatch[1], id: idMatch ? idMatch[1] : '' })
+          }
+        }
+        return pairs
+      }
+      i = j
+    } else {
+      i++
+    }
+  }
+  return []
+}
+
+/**
+ * Scan all tool files under apps/sim/tools/ and build a map from tool ID to description.
+ * Used to enrich operation entries with descriptions.
+ */
+interface ToolMaps {
+  desc: Map<string, string>
+  name: Map<string, string>
+}
+
+async function buildToolDescriptionMap(): Promise<ToolMaps> {
+  const toolsDir = path.join(rootDir, 'apps/sim/tools')
+  const desc = new Map<string, string>()
+  const name = new Map<string, string>()
+  try {
+    const toolFiles = await glob(`${toolsDir}/**/*.ts`)
+    for (const file of toolFiles) {
+      if (file.endsWith('index.ts') || file.endsWith('types.ts')) continue
+      const content = fs.readFileSync(file, 'utf-8')
+
+      // Find every `id: 'tool_id'` occurrence in the file. For each, search
+      // the next ~600 characters for `name:` and `description:` fields, cutting
+      // off at the first `params:` block within that window. This handles both
+      // the simple inline pattern (id → description → params in one object) and
+      // the two-step pattern (base object holds params, ToolConfig export holds
+      // id + description after the base object).
+      const idRegex = /\bid\s*:\s*['"]([^'"]+)['"]/g
+      let idMatch: RegExpExecArray | null
+      while ((idMatch = idRegex.exec(content)) !== null) {
+        const toolId = idMatch[1]
+        if (desc.has(toolId)) continue
+        const windowStart = idMatch.index
+        const windowEnd = Math.min(windowStart + 600, content.length)
+        const window = content.substring(windowStart, windowEnd)
+        // Stop before any params block so we don't pick up param-level values
+        const paramsOffset = window.search(/\bparams\s*:\s*\{/)
+        const searchWindow = paramsOffset > 0 ? window.substring(0, paramsOffset) : window
+        const descMatch = searchWindow.match(/\bdescription\s*:\s*['"]([^'"]{5,})['"]/)
+        const nameMatch = searchWindow.match(/\bname\s*:\s*['"]([^'"]+)['"]/)
+        if (descMatch) desc.set(toolId, descMatch[1])
+        if (nameMatch) name.set(toolId, nameMatch[1])
+      }
+    }
+  } catch {
+    // Non-fatal: descriptions will be empty strings
+  }
+  return { desc, name }
+}
+
+/**
+ * Detect the authentication type from block content.
+ * Returns 'oauth' if the block uses oauth-input credentials,
+ * 'api-key' if it uses a plain API key field, or 'none' otherwise.
+ */
+function extractAuthType(blockContent: string): 'oauth' | 'api-key' | 'none' {
+  if (/type\s*:\s*['"]oauth-input['"]/.test(blockContent)) return 'oauth'
+  if (/\bid\s*:\s*['"](?:apiKey|api_key|accessToken)['"]/.test(blockContent)) return 'api-key'
+  return 'none'
+}
+
+/**
+ * Extract the list of trigger IDs from the block's `triggers.available` array.
+ * Handles blocks that declare `triggers: { enabled: true, available: [...] }`.
+ */
+function extractTriggersAvailable(blockContent: string): string[] {
+  const triggersMatch = /\btriggers\s*:\s*\{/.exec(blockContent)
+  if (!triggersMatch) return []
+
+  const start = triggersMatch.index + triggersMatch[0].length - 1
+  let braceCount = 1
+  let pos = start + 1
+  while (pos < blockContent.length && braceCount > 0) {
+    if (blockContent[pos] === '{') braceCount++
+    else if (blockContent[pos] === '}') braceCount--
+    pos++
+  }
+  const triggersContent = blockContent.substring(start, pos)
+
+  if (!/enabled\s*:\s*true/.test(triggersContent)) return []
+
+  const availableMatch = /available\s*:\s*\[/.exec(triggersContent)
+  if (!availableMatch) return []
+
+  const arrayStart = availableMatch.index + availableMatch[0].length - 1
+  let bracketCount = 1
+  let ap = arrayStart + 1
+  while (ap < triggersContent.length && bracketCount > 0) {
+    if (triggersContent[ap] === '[') bracketCount++
+    else if (triggersContent[ap] === ']') bracketCount--
+    ap++
+  }
+  const arrayContent = triggersContent.substring(arrayStart + 1, ap - 1)
+
+  const ids: string[] = []
+  const idRegex = /['"]([^'"]+)['"]/g
+  let m
+  while ((m = idRegex.exec(arrayContent)) !== null) {
+    ids.push(m[1])
+  }
+  return ids
+}
+
+/**
+ * Scan all trigger definition files and build a registry mapping trigger IDs
+ * to their human-readable name and description.
+ */
+async function buildTriggerRegistry(): Promise<Map<string, TriggerInfo>> {
+  const registry = new Map<string, TriggerInfo>()
+  const SKIP = new Set(['index.ts', 'registry.ts', 'types.ts', 'constants.ts', 'utils.ts'])
+
+  const triggerFiles = (await glob(`${TRIGGERS_PATH}/**/*.ts`)).filter(
+    (f) => !SKIP.has(path.basename(f)) && !f.includes('.test.')
+  )
+
+  for (const file of triggerFiles) {
+    try {
+      const content = fs.readFileSync(file, 'utf-8')
+
+      // Each trigger file exports a single TriggerConfig with id, name, description
+      const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(content)
+      const nameMatch = /\bname\s*:\s*['"]([^'"]+)['"]/.exec(content)
+      const descMatch = /\bdescription\s*:\s*['"]([^'"]+)['"]/.exec(content)
+
+      if (idMatch && nameMatch) {
+        registry.set(idMatch[1], {
+          id: idMatch[1],
+          name: nameMatch[1],
+          description: descMatch?.[1] ?? '',
+        })
+      }
+    } catch {
+      // skip unreadable files silently
+    }
+  }
+
+  console.log(`✓ Loaded ${registry.size} trigger definitions`)
+  return registry
+}
+
+/**
+ * Write the icon mapping TypeScript file for the landing integrations page.
+ * Mirrors writeIconMapping but targets the sim app so it imports from @/components/icons.
+ */
+function writeIntegrationsIconMapping(iconMapping: Record<string, string>): void {
+  try {
+    if (!fs.existsSync(LANDING_INTEGRATIONS_DATA_PATH)) {
+      fs.mkdirSync(LANDING_INTEGRATIONS_DATA_PATH, { recursive: true })
+    }
+    const iconMappingPath = path.join(LANDING_INTEGRATIONS_DATA_PATH, 'icon-mapping.ts')
+
+    const iconNames = [...new Set(Object.values(iconMapping))].sort()
+    const imports = iconNames.map((icon) => `  ${icon},`).join('\n')
+    const mappingEntries = Object.entries(iconMapping)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([blockType, iconName]) => `  ${blockType}: ${iconName},`)
+      .join('\n')
+
+    const content = `// Auto-generated file - do not edit manually
+// Generated by scripts/generate-docs.ts
+// Maps block types to their icon component references for the integrations page
+
+import type { ComponentType, SVGProps } from 'react'
+import {
+${imports}
+} from '@/components/icons'
+
+type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
+
+export const blockTypeToIconMap: Record<string, IconComponent> = {
+${mappingEntries}
+}
+`
+    fs.writeFileSync(iconMappingPath, content)
+    console.log('✓ Integration icon mapping written to landing app')
+  } catch (error) {
+    console.error('Error writing integration icon mapping:', error)
+  }
+}
+
+/**
+ * Collect all integration entries from block definitions and write integrations.json
+ * to the landing integrations page data directory.
+ * Applies the same visibility filters as the docs generation pipeline.
+ */
+async function writeIntegrationsJson(iconMapping: Record<string, string>): Promise<void> {
+  try {
+    if (!fs.existsSync(LANDING_INTEGRATIONS_DATA_PATH)) {
+      fs.mkdirSync(LANDING_INTEGRATIONS_DATA_PATH, { recursive: true })
+    }
+
+    const triggerRegistry = await buildTriggerRegistry()
+    const { desc: toolDescMap, name: toolNameMap } = await buildToolDescriptionMap()
+    const integrations: IntegrationEntry[] = []
+    const seenBaseTypes = new Set<string>()
+    const blockFiles = (await glob(`${BLOCKS_PATH}/*.ts`)).sort()
+
+    for (const blockFile of blockFiles) {
+      const fileContent = fs.readFileSync(blockFile, 'utf-8')
+      const configs = extractAllBlockConfigs(fileContent)
+
+      for (const config of configs) {
+        const blockType = config.type
+
+        // Apply the same filters as docs/icon-mapping generation
+        if (
+          blockType.includes('_trigger') ||
+          blockType.includes('_webhook') ||
+          blockType.includes('rss') ||
+          (config.category === 'blocks' && blockType !== 'memory' && blockType !== 'knowledge') ||
+          blockType === 'evaluator' ||
+          blockType === 'number' ||
+          blockType === 'webhook' ||
+          blockType === 'schedule' ||
+          blockType === 'mcp' ||
+          blockType === 'generic_webhook'
+        ) {
+          continue
+        }
+
+        // Deduplicate by stripped base type
+        const baseType = stripVersionSuffix(blockType)
+        if (seenBaseTypes.has(baseType)) continue
+        seenBaseTypes.add(baseType)
+
+        const iconName = (config as any).iconName || iconMapping[blockType] || ''
+        const rawOps: { label: string; id: string }[] = (config as any).operations || []
+
+        // Enrich each operation with a description from the tool registry.
+        // Primary lookup: derive toolId as `{baseType}_{operationId}` and check
+        // the map directly. Fallback: some blocks use short op IDs that don't
+        // match tool IDs (e.g. Slack uses "send" while the tool ID is
+        // "slack_message"). In that case, find the tool in tools.access whose
+        // name exactly matches the operation label.
+        const toolsAccess: string[] = (config as any).tools?.access || []
+        const operations: OperationInfo[] = rawOps.map(({ label, id }) => {
+          const toolId = `${baseType}_${id}`
+          let opDesc = toolDescMap.get(toolId) || toolDescMap.get(id) || ''
+
+          if (!opDesc && toolsAccess.length > 0) {
+            for (const tId of toolsAccess) {
+              if (toolNameMap.get(tId)?.toLowerCase() === label.toLowerCase()) {
+                opDesc = toolDescMap.get(tId) || ''
+                if (opDesc) break
+              }
+            }
+          }
+
+          return { name: label, description: opDesc }
+        })
+
+        const triggerIds: string[] = (config as any).triggerIds || []
+        const triggers: TriggerInfo[] = triggerIds
+          .map((id) => triggerRegistry.get(id))
+          .filter((t): t is TriggerInfo => t !== undefined)
+        const docsUrl = (config as any).docsLink || `https://docs.sim.ai/tools/${baseType}`
+
+        const slug = config.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')
+
+        // Detect auth type from the original block file content
+        const blockFileContent = fs.readFileSync(blockFile, 'utf-8')
+        const authType = extractAuthType(blockFileContent)
+
+        integrations.push({
+          type: blockType,
+          slug,
+          name: config.name,
+          description: config.description,
+          longDescription: config.longDescription || '',
+          bgColor: config.bgColor || '#6B7280',
+          iconName,
+          docsUrl,
+          operations,
+          operationCount: operations.length,
+          triggers,
+          triggerCount: triggers.length,
+          authType,
+          category: config.category,
+          ...(config.integrationType ? { integrationType: config.integrationType } : {}),
+          ...(config.tags ? { tags: config.tags } : {}),
+        })
+      }
+    }
+
+    // Sort alphabetically by name for a predictable, crawl-friendly order
+    integrations.sort((a, b) => a.name.localeCompare(b.name))
+
+    const jsonPath = path.join(LANDING_INTEGRATIONS_DATA_PATH, 'integrations.json')
+    fs.writeFileSync(jsonPath, JSON.stringify(integrations, null, 2))
+    console.log(`✓ Integration data written: ${integrations.length} integrations → ${jsonPath}`)
+  } catch (error) {
+    console.error('Error writing integrations JSON:', error)
+  }
+}
+
+/**
  * Extract ALL block configs from a file, filtering out hidden blocks
  */
 function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
@@ -355,6 +759,22 @@ function extractBlockConfigFromContent(
       }
     }
 
+    const operations = extractOperationsFromContent(blockContent)
+    const triggerIds = extractTriggersAvailable(blockContent)
+    const docsLink =
+      extractStringPropertyFromContent(blockContent, 'docsLink', true) ||
+      baseConfig?.docsLink ||
+      `https://docs.sim.ai/tools/${stripVersionSuffix(blockType)}`
+
+    const integrationType =
+      extractEnumPropertyFromContent(blockContent, 'integrationType') ||
+      baseConfig?.integrationType ||
+      null
+    const tags =
+      extractArrayPropertyFromContent(blockContent, 'tags') ||
+      baseConfig?.tags ||
+      null
+
     return {
       type: blockType,
       name,
@@ -367,6 +787,11 @@ function extractBlockConfigFromContent(
       tools: {
         access: finalToolsAccess.length > 0 ? finalToolsAccess : baseConfig?.tools?.access || [],
       },
+      operations: operations.length > 0 ? operations : (baseConfig as any)?.operations || [],
+      triggerIds: triggerIds.length > 0 ? triggerIds : (baseConfig as any)?.triggerIds || [],
+      docsLink,
+      ...(integrationType ? { integrationType } : {}),
+      ...(tags ? { tags } : {}),
     }
   } catch (error) {
     console.error(`Error extracting block configuration for ${blockName}:`, error)
@@ -429,6 +854,54 @@ function extractStringPropertyFromContent(
   }
 
   return null
+}
+
+/**
+ * Extract an enum property value from block content.
+ * Matches patterns like `integrationType: IntegrationType.DeveloperTools`
+ * and returns the string value (e.g., 'developer-tools').
+ */
+function extractEnumPropertyFromContent(content: string, propName: string): string | null {
+  const match = content.match(new RegExp(`${propName}\\s*:\\s*IntegrationType\\.(\\w+)`))
+  if (!match) return null
+  const enumKey = match[1]
+  // Convert enum key to kebab-case value (e.g., DeveloperTools -> developer-tools)
+  const ENUM_MAP: Record<string, string> = {
+    AI: 'ai',
+    Analytics: 'analytics',
+    Automation: 'automation',
+    Communication: 'communication',
+    CRM: 'crm',
+    CustomerSupport: 'customer-support',
+    Databases: 'databases',
+    Design: 'design',
+    DeveloperTools: 'developer-tools',
+    Documents: 'documents',
+    Ecommerce: 'ecommerce',
+    Email: 'email',
+    FileStorage: 'file-storage',
+    HR: 'hr',
+    Media: 'media',
+    Other: 'other',
+    Productivity: 'productivity',
+    SalesIntelligence: 'sales-intelligence',
+    Search: 'search',
+    Security: 'security',
+    Social: 'social',
+  }
+  return ENUM_MAP[enumKey] || enumKey.toLowerCase()
+}
+
+/**
+ * Extract a string array property from block content.
+ * Matches patterns like `tags: ['api', 'oauth', 'webhooks']`
+ */
+function extractArrayPropertyFromContent(content: string, propName: string): string[] | null {
+  const match = content.match(new RegExp(`${propName}\\s*:\\s*\\[([^\\]]+)\\]`))
+  if (!match) return null
+  const items = match[1].match(/'([^']+)'|"([^"]+)"/g)
+  if (!items) return null
+  return items.map((item) => item.replace(/['"]/g, ''))
 }
 
 function extractIconNameFromContent(content: string): string | null {
@@ -2441,6 +2914,10 @@ async function generateAllBlockDocs() {
     // Generate icon mapping from block definitions
     const iconMapping = await generateIconMapping()
     writeIconMapping(iconMapping)
+
+    // Generate landing integrations page data (JSON + icon mapping)
+    await writeIntegrationsJson(iconMapping)
+    writeIntegrationsIconMapping(iconMapping)
 
     // Get hidden and visible block types before generating docs
     const { hiddenTypes, visibleDisplayNames } = await getHiddenAndVisibleBlockTypes()

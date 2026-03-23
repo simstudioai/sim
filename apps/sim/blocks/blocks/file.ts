@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { DocumentIcon } from '@/components/icons'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig, SubBlockType } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { FileParserOutput, FileParserV3Output } from '@/tools/file/types'
 
@@ -53,6 +54,8 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   `,
   docsLink: 'https://docs.sim.ai/tools/file',
   category: 'tools',
+  integrationType: IntegrationType.FileStorage,
+  tags: ['document-processing'],
   bgColor: '#40916C',
   icon: DocumentIcon,
   hideFromToolbar: true,
@@ -252,6 +255,8 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     'Read and parse files from uploads or URLs, or write workspace resource files. Writing by name creates the file if it does not exist, or overwrites it if it does. Use append mode to add content to existing files.',
   docsLink: 'https://docs.sim.ai/tools/file',
   category: 'tools',
+  integrationType: IntegrationType.FileStorage,
+  tags: ['document-processing'],
   bgColor: '#40916C',
   icon: DocumentIcon,
   subBlocks: [

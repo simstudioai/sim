@@ -8,6 +8,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import {
   createKnowledgeBase,
   getKnowledgeBases,
+  KnowledgeBaseConflictError,
   type KnowledgeBaseScope,
 } from '@/lib/knowledge/service'
 
@@ -149,6 +150,10 @@ export async function POST(req: NextRequest) {
       throw validationError
     }
   } catch (error) {
+    if (error instanceof KnowledgeBaseConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
+
     logger.error(`[${requestId}] Error creating knowledge base`, error)
     return NextResponse.json({ error: 'Failed to create knowledge base' }, { status: 500 })
   }

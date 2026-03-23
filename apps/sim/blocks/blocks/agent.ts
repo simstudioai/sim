@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { AgentIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { getApiKeyCondition, getModelOptions, RESPONSE_FORMAT_WAND_CONFIG } from '@/blocks/utils'
 import {
   getBaseModelProviders,
@@ -69,6 +69,8 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   `,
   docsLink: 'https://docs.sim.ai/blocks/agent',
   category: 'blocks',
+  integrationType: IntegrationType.AI,
+  tags: ['llm', 'agentic', 'automation'],
   bgColor: 'var(--brand-primary-hex)',
   icon: AgentIcon,
   subBlocks: [

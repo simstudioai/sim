@@ -1,5 +1,6 @@
 import { SQSIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import type { SqsResponse } from '@/tools/sqs/types'
 
 export const SQSBlock: BlockConfig<SqsResponse> = {
@@ -9,6 +10,8 @@ export const SQSBlock: BlockConfig<SqsResponse> = {
   longDescription: 'Integrate Amazon SQS into the workflow. Can send messages to SQS queues.',
   docsLink: 'https://docs.sim.ai/tools/sqs',
   category: 'tools',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['cloud', 'messaging', 'automation'],
   bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',
   icon: SQSIcon,
   subBlocks: [

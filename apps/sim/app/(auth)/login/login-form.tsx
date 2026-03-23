@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
@@ -16,6 +17,7 @@ import {
 } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
+import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -53,24 +55,6 @@ const PASSWORD_VALIDATIONS = {
   },
 }
 
-const validateCallbackUrl = (url: string): boolean => {
-  try {
-    if (url.startsWith('/')) {
-      return true
-    }
-
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
-    if (url.startsWith(currentOrigin)) {
-      return true
-    }
-
-    return false
-  } catch (error) {
-    logger.error('Error validating callback URL:', { error, url })
-    return false
-  }
-}
-
 const validatePassword = (passwordValue: string): string[] => {
   const errors: string[] = []
 
@@ -99,15 +83,24 @@ export default function LoginPage({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
-  const [_mounted, setMounted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileInstance>(null)
+  const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
   const buttonClass = useBrandedButtonClass()
 
-  const [callbackUrl, setCallbackUrl] = useState('/workspace')
-  const [isInviteFlow, setIsInviteFlow] = useState(false)
+  const callbackUrlParam = searchParams?.get('callbackUrl')
+  const isValidCallbackUrl = callbackUrlParam ? validateCallbackUrl(callbackUrlParam) : false
+  const invalidCallbackRef = useRef(false)
+  if (callbackUrlParam && !isValidCallbackUrl && !invalidCallbackRef.current) {
+    invalidCallbackRef.current = true
+    logger.warn('Invalid callback URL detected and blocked:', { url: callbackUrlParam })
+  }
+  const callbackUrl = isValidCallbackUrl ? callbackUrlParam! : '/workspace'
+  const isInviteFlow = searchParams?.get('invite_flow') === 'true'
 
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
@@ -120,43 +113,11 @@ export default function LoginPage({
   const [email, setEmail] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
-  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null)
-
-  useEffect(() => {
-    setMounted(true)
-
-    if (searchParams) {
-      const callback = searchParams.get('callbackUrl')
-      if (callback) {
-        if (validateCallbackUrl(callback)) {
-          setCallbackUrl(callback)
-        } else {
-          logger.warn('Invalid callback URL detected and blocked:', { url: callback })
-        }
-      }
-
-      const inviteFlow = searchParams.get('invite_flow') === 'true'
-      setIsInviteFlow(inviteFlow)
-
-      const resetSuccess = searchParams.get('resetSuccess') === 'true'
-      if (resetSuccess) {
-        setResetSuccessMessage('Password reset successful. Please sign in with your new password.')
-      }
-    }
-  }, [searchParams])
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Enter' && forgotPasswordOpen) {
-        handleForgotPassword()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [forgotPasswordEmail, forgotPasswordOpen])
+  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(() =>
+    searchParams?.get('resetSuccess') === 'true'
+      ? 'Password reset successful. Please sign in with your new password.'
+      : null
+  )
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value
@@ -205,9 +166,24 @@ export default function LoginPage({
     }
 
     try {
-      const safeCallbackUrl = validateCallbackUrl(callbackUrl) ? callbackUrl : '/workspace'
+      const safeCallbackUrl = callbackUrl
       let errorHandled = false
 
+      // Execute Turnstile challenge on submit and get a fresh token
+      let token: string | undefined
+      if (turnstileSiteKey && turnstileRef.current) {
+        try {
+          turnstileRef.current.reset()
+          turnstileRef.current.execute()
+          token = await turnstileRef.current.getResponsePromise(15_000)
+        } catch {
+          setFormError('Captcha verification failed. Please try again.')
+          setIsLoading(false)
+          return
+        }
+      }
+
+      setFormError(null)
       const result = await client.signIn.email(
         {
           email,
@@ -215,6 +191,11 @@ export default function LoginPage({
           callbackURL: safeCallbackUrl,
         },
         {
+          fetchOptions: {
+            headers: {
+              ...(token ? { 'x-captcha-response': token } : {}),
+            },
+          },
           onError: (ctx) => {
             logger.error('Login error:', ctx.error)
 
@@ -402,13 +383,6 @@ export default function LoginPage({
         </div>
       )}
 
-      {/* Password reset success message */}
-      {resetSuccessMessage && (
-        <div className='mt-1 space-y-1 text-[#4CAF50] text-xs'>
-          <p>{resetSuccessMessage}</p>
-        </div>
-      )}
-
       {/* Email/Password Form - show unless explicitly disabled */}
       {!isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && (
         <form onSubmit={onSubmit} className='mt-8 space-y-8'>
@@ -490,6 +464,28 @@ export default function LoginPage({
             </div>
           </div>
 
+          {turnstileSiteKey && (
+            <div className='absolute'>
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={turnstileSiteKey}
+                options={{ size: 'invisible', execution: 'execute' }}
+              />
+            </div>
+          )}
+
+          {resetSuccessMessage && (
+            <div className='text-[#4CAF50] text-xs'>
+              <p>{resetSuccessMessage}</p>
+            </div>
+          )}
+
+          {formError && (
+            <div className='text-red-400 text-xs'>
+              <p>{formError}</p>
+            </div>
+          )}
+
           <BrandedButton
             type='submit'
             disabled={isLoading}
@@ -570,45 +566,51 @@ export default function LoginPage({
         <ModalContent className='dark' size='sm'>
           <ModalHeader>Reset Password</ModalHeader>
           <ModalBody>
-            <ModalDescription className='mb-4 text-[var(--text-muted)] text-sm'>
-              Enter your email address and we'll send you a link to reset your password if your
-              account exists.
-            </ModalDescription>
-            <div className='space-y-4'>
-              <div className='space-y-2'>
-                <Label htmlFor='reset-email'>Email</Label>
-                <Input
-                  id='reset-email'
-                  value={forgotPasswordEmail}
-                  onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                  placeholder='Enter your email'
-                  required
-                  type='email'
-                  className={cn(
-                    resetStatus.type === 'error' && 'border-red-500 focus:border-red-500'
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                handleForgotPassword()
+              }}
+            >
+              <ModalDescription className='mb-4 text-[var(--text-muted)] text-sm'>
+                Enter your email address and we'll send you a link to reset your password if your
+                account exists.
+              </ModalDescription>
+              <div className='space-y-4'>
+                <div className='space-y-2'>
+                  <Label htmlFor='reset-email'>Email</Label>
+                  <Input
+                    id='reset-email'
+                    value={forgotPasswordEmail}
+                    onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                    placeholder='Enter your email'
+                    required
+                    type='email'
+                    className={cn(
+                      resetStatus.type === 'error' && 'border-red-500 focus:border-red-500'
+                    )}
+                  />
+                  {resetStatus.type === 'error' && (
+                    <div className='mt-1 text-red-400 text-xs'>
+                      <p>{resetStatus.message}</p>
+                    </div>
                   )}
-                />
-                {resetStatus.type === 'error' && (
-                  <div className='mt-1 text-red-400 text-xs'>
+                </div>
+                {resetStatus.type === 'success' && (
+                  <div className='mt-1 text-[#4CAF50] text-xs'>
                     <p>{resetStatus.message}</p>
                   </div>
                 )}
+                <BrandedButton
+                  type='submit'
+                  disabled={isSubmittingReset}
+                  loading={isSubmittingReset}
+                  loadingText='Sending'
+                >
+                  Send Reset Link
+                </BrandedButton>
               </div>
-              {resetStatus.type === 'success' && (
-                <div className='mt-1 text-[#4CAF50] text-xs'>
-                  <p>{resetStatus.message}</p>
-                </div>
-              )}
-              <BrandedButton
-                type='button'
-                onClick={handleForgotPassword}
-                disabled={isSubmittingReset}
-                loading={isSubmittingReset}
-                loadingText='Sending'
-              >
-                Send Reset Link
-              </BrandedButton>
-            </div>
+            </form>
           </ModalBody>
         </ModalContent>
       </Modal>

@@ -1,5 +1,5 @@
 import { AshbyIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
 export const AshbyBlock: BlockConfig = {
@@ -7,9 +7,11 @@ export const AshbyBlock: BlockConfig = {
   name: 'Ashby',
   description: 'Manage candidates, jobs, and applications in Ashby',
   longDescription:
-    'Integrate Ashby into the workflow. Can list, search, create, and update candidates, list and get job details, create notes, list notes, list and get applications, create applications, and list offers.',
+    'Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag), applications (list, get, create, change stage), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).',
   docsLink: 'https://docs.sim.ai/tools/ashby',
   category: 'tools',
+  integrationType: IntegrationType.HR,
+  tags: ['hiring'],
   bgColor: '#5D4ED6',
   icon: AshbyIcon,
   authMode: AuthMode.ApiKey,
@@ -45,6 +47,21 @@ export const AshbyBlock: BlockConfig = {
         { label: 'Get Application', id: 'get_application' },
         { label: 'Create Application', id: 'create_application' },
         { label: 'List Offers', id: 'list_offers' },
+        { label: 'Change Application Stage', id: 'change_application_stage' },
+        { label: 'Add Candidate Tag', id: 'add_candidate_tag' },
+        { label: 'Remove Candidate Tag', id: 'remove_candidate_tag' },
+        { label: 'Get Offer', id: 'get_offer' },
+        { label: 'List Sources', id: 'list_sources' },
+        { label: 'List Candidate Tags', id: 'list_candidate_tags' },
+        { label: 'List Archive Reasons', id: 'list_archive_reasons' },
+        { label: 'List Custom Fields', id: 'list_custom_fields' },
+        { label: 'List Departments', id: 'list_departments' },
+        { label: 'List Locations', id: 'list_locations' },
+        { label: 'List Job Postings', id: 'list_job_postings' },
+        { label: 'Get Job Posting', id: 'get_job_posting' },
+        { label: 'List Openings', id: 'list_openings' },
+        { label: 'List Users', id: 'list_users' },
+        { label: 'List Interviews', id: 'list_interviews' },
       ],
       value: () => 'list_candidates',
     },
@@ -56,24 +73,34 @@ export const AshbyBlock: BlockConfig = {
       placeholder: 'Enter your Ashby API key',
       password: true,
     },
-
-    // Get Candidate / Create Note / List Notes / Update Candidate - candidateId
     {
       id: 'candidateId',
       title: 'Candidate ID',
       type: 'short-input',
       required: {
         field: 'operation',
-        value: ['get_candidate', 'create_note', 'list_notes', 'update_candidate'],
+        value: [
+          'get_candidate',
+          'create_note',
+          'list_notes',
+          'update_candidate',
+          'add_candidate_tag',
+          'remove_candidate_tag',
+        ],
       },
       placeholder: 'Enter candidate UUID',
       condition: {
         field: 'operation',
-        value: ['get_candidate', 'create_note', 'list_notes', 'update_candidate'],
+        value: [
+          'get_candidate',
+          'create_note',
+          'list_notes',
+          'update_candidate',
+          'add_candidate_tag',
+          'remove_candidate_tag',
+        ],
       },
     },
-
-    // Create Candidate fields
     {
       id: 'name',
       title: 'Name',
@@ -86,40 +113,15 @@ export const AshbyBlock: BlockConfig = {
       id: 'email',
       title: 'Email',
       type: 'short-input',
+      required: { field: 'operation', value: 'create_candidate' },
       placeholder: 'Email address',
       condition: { field: 'operation', value: ['create_candidate', 'update_candidate'] },
-    },
-    {
-      id: 'emailType',
-      title: 'Email Type',
-      type: 'dropdown',
-      options: [
-        { label: 'Work', id: 'Work' },
-        { label: 'Personal', id: 'Personal' },
-        { label: 'Other', id: 'Other' },
-      ],
-      value: () => 'Work',
-      condition: { field: 'operation', value: ['create_candidate', 'update_candidate'] },
-      mode: 'advanced',
     },
     {
       id: 'phoneNumber',
       title: 'Phone Number',
       type: 'short-input',
       placeholder: 'Phone number',
-      condition: { field: 'operation', value: ['create_candidate', 'update_candidate'] },
-      mode: 'advanced',
-    },
-    {
-      id: 'phoneType',
-      title: 'Phone Type',
-      type: 'dropdown',
-      options: [
-        { label: 'Work', id: 'Work' },
-        { label: 'Personal', id: 'Personal' },
-        { label: 'Other', id: 'Other' },
-      ],
-      value: () => 'Work',
       condition: { field: 'operation', value: ['create_candidate', 'update_candidate'] },
       mode: 'advanced',
     },
@@ -150,8 +152,6 @@ export const AshbyBlock: BlockConfig = {
       },
       mode: 'advanced',
     },
-
-    // Update Candidate fields
     {
       id: 'updateName',
       title: 'Name',
@@ -168,8 +168,6 @@ export const AshbyBlock: BlockConfig = {
       condition: { field: 'operation', value: 'update_candidate' },
       mode: 'advanced',
     },
-
-    // Search Candidates fields
     {
       id: 'searchName',
       title: 'Name',
@@ -184,8 +182,6 @@ export const AshbyBlock: BlockConfig = {
       placeholder: 'Search by candidate email',
       condition: { field: 'operation', value: 'search_candidates' },
     },
-
-    // Get Job fields
     {
       id: 'jobId',
       title: 'Job ID',
@@ -194,18 +190,20 @@ export const AshbyBlock: BlockConfig = {
       placeholder: 'Enter job UUID',
       condition: { field: 'operation', value: ['get_job', 'create_application'] },
     },
-
-    // Get Application fields
     {
       id: 'applicationId',
       title: 'Application ID',
       type: 'short-input',
-      required: { field: 'operation', value: 'get_application' },
+      required: {
+        field: 'operation',
+        value: ['get_application', 'change_application_stage'],
+      },
       placeholder: 'Enter application UUID',
-      condition: { field: 'operation', value: 'get_application' },
+      condition: {
+        field: 'operation',
+        value: ['get_application', 'change_application_stage', 'list_interviews'],
+      },
     },
-
-    // Create Application fields
     {
       id: 'appCandidateId',
       title: 'Candidate ID',
@@ -226,9 +224,12 @@ export const AshbyBlock: BlockConfig = {
       id: 'interviewStageId',
       title: 'Interview Stage ID',
       type: 'short-input',
-      placeholder: 'Interview stage UUID (defaults to first Lead stage)',
-      condition: { field: 'operation', value: 'create_application' },
-      mode: 'advanced',
+      required: { field: 'operation', value: 'change_application_stage' },
+      placeholder: 'Interview stage UUID',
+      condition: {
+        field: 'operation',
+        value: ['create_application', 'change_application_stage', 'list_interviews'],
+      },
     },
     {
       id: 'creditedToUserId',
@@ -257,8 +258,6 @@ Output only the ISO 8601 timestamp string, nothing else.`,
         generationType: 'timestamp',
       },
     },
-
-    // Create Note fields
     {
       id: 'note',
       title: 'Note',
@@ -286,8 +285,6 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       condition: { field: 'operation', value: 'create_note' },
       mode: 'advanced',
     },
-
-    // List Applications filter fields
     {
       id: 'filterStatus',
       title: 'Status Filter',
@@ -338,8 +335,6 @@ Output only the ISO 8601 timestamp string, nothing else.`,
         generationType: 'timestamp',
       },
     },
-
-    // List Jobs status filter
     {
       id: 'jobStatus',
       title: 'Status Filter',
@@ -355,8 +350,6 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       condition: { field: 'operation', value: 'list_jobs' },
       mode: 'advanced',
     },
-
-    // Pagination fields for list operations
     {
       id: 'cursor',
       title: 'Cursor',
@@ -364,7 +357,16 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       placeholder: 'Pagination cursor from previous response',
       condition: {
         field: 'operation',
-        value: ['list_candidates', 'list_jobs', 'list_applications', 'list_notes', 'list_offers'],
+        value: [
+          'list_candidates',
+          'list_jobs',
+          'list_applications',
+          'list_notes',
+          'list_offers',
+          'list_openings',
+          'list_users',
+          'list_interviews',
+        ],
       },
       mode: 'advanced',
     },
@@ -375,12 +377,57 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       placeholder: 'Results per page (default 100)',
       condition: {
         field: 'operation',
-        value: ['list_candidates', 'list_jobs', 'list_applications', 'list_notes', 'list_offers'],
+        value: [
+          'list_candidates',
+          'list_jobs',
+          'list_applications',
+          'list_notes',
+          'list_offers',
+          'list_openings',
+          'list_users',
+          'list_interviews',
+        ],
       },
       mode: 'advanced',
     },
-
-    // Trigger subBlocks
+    {
+      id: 'tagId',
+      title: 'Tag ID',
+      type: 'short-input',
+      required: {
+        field: 'operation',
+        value: ['add_candidate_tag', 'remove_candidate_tag'],
+      },
+      placeholder: 'Enter tag UUID',
+      condition: {
+        field: 'operation',
+        value: ['add_candidate_tag', 'remove_candidate_tag'],
+      },
+    },
+    {
+      id: 'archiveReasonId',
+      title: 'Archive Reason ID',
+      type: 'short-input',
+      placeholder: 'Archive reason UUID (required for Archived stages)',
+      condition: { field: 'operation', value: 'change_application_stage' },
+      mode: 'advanced',
+    },
+    {
+      id: 'offerId',
+      title: 'Offer ID',
+      type: 'short-input',
+      required: { field: 'operation', value: 'get_offer' },
+      placeholder: 'Enter offer UUID',
+      condition: { field: 'operation', value: 'get_offer' },
+    },
+    {
+      id: 'jobPostingId',
+      title: 'Job Posting ID',
+      type: 'short-input',
+      required: { field: 'operation', value: 'get_job_posting' },
+      placeholder: 'Enter job posting UUID',
+      condition: { field: 'operation', value: 'get_job_posting' },
+    },
     ...getTrigger('ashby_application_submit').subBlocks,
     ...getTrigger('ashby_candidate_stage_change').subBlocks,
     ...getTrigger('ashby_candidate_hire').subBlocks,
@@ -391,17 +438,32 @@ Output only the ISO 8601 timestamp string, nothing else.`,
 
   tools: {
     access: [
+      'ashby_add_candidate_tag',
+      'ashby_change_application_stage',
       'ashby_create_application',
       'ashby_create_candidate',
       'ashby_create_note',
       'ashby_get_application',
       'ashby_get_candidate',
       'ashby_get_job',
+      'ashby_get_job_posting',
+      'ashby_get_offer',
       'ashby_list_applications',
+      'ashby_list_archive_reasons',
+      'ashby_list_candidate_tags',
       'ashby_list_candidates',
+      'ashby_list_custom_fields',
+      'ashby_list_departments',
+      'ashby_list_interviews',
+      'ashby_list_job_postings',
       'ashby_list_jobs',
+      'ashby_list_locations',
       'ashby_list_notes',
       'ashby_list_offers',
+      'ashby_list_openings',
+      'ashby_list_sources',
+      'ashby_list_users',
+      'ashby_remove_candidate_tag',
       'ashby_search_candidates',
       'ashby_update_candidate',
     ],
@@ -419,10 +481,8 @@ Output only the ISO 8601 timestamp string, nothing else.`,
         if (params.sendNotifications === 'true' || params.sendNotifications === true) {
           result.sendNotifications = true
         }
-        // Create Application params
         if (params.appCandidateId) result.candidateId = params.appCandidateId
         if (params.appCreatedAt) result.createdAt = params.appCreatedAt
-        // Update Candidate params
         if (params.updateName) result.name = params.updateName
         return result
       },
@@ -435,9 +495,7 @@ Output only the ISO 8601 timestamp string, nothing else.`,
     candidateId: { type: 'string', description: 'Candidate UUID' },
     name: { type: 'string', description: 'Candidate full name' },
     email: { type: 'string', description: 'Email address' },
-    emailType: { type: 'string', description: 'Email type (Personal, Work, Other)' },
     phoneNumber: { type: 'string', description: 'Phone number' },
-    phoneType: { type: 'string', description: 'Phone type (Personal, Work, Other)' },
     linkedInUrl: { type: 'string', description: 'LinkedIn profile URL' },
     githubUrl: { type: 'string', description: 'GitHub profile URL' },
     websiteUrl: { type: 'string', description: 'Personal website URL' },
@@ -462,6 +520,10 @@ Output only the ISO 8601 timestamp string, nothing else.`,
     jobStatus: { type: 'string', description: 'Job status filter' },
     cursor: { type: 'string', description: 'Pagination cursor' },
     perPage: { type: 'number', description: 'Results per page' },
+    tagId: { type: 'string', description: 'Tag UUID' },
+    offerId: { type: 'string', description: 'Offer UUID' },
+    jobPostingId: { type: 'string', description: 'Job posting UUID' },
+    archiveReasonId: { type: 'string', description: 'Archive reason UUID' },
   },
 
   outputs: {
@@ -486,12 +548,73 @@ Output only the ISO 8601 timestamp string, nothing else.`,
     },
     offers: {
       type: 'json',
-      description: 'List of offers (id, status, candidate, job, createdAt, updatedAt)',
+      description:
+        'List of offers (id, offerStatus, acceptanceStatus, applicationId, startDate, salary, openingId)',
     },
+    archiveReasons: {
+      type: 'json',
+      description: 'List of archive reasons (id, text, reasonType, isArchived)',
+    },
+    sources: {
+      type: 'json',
+      description: 'List of sources (id, title, isArchived)',
+    },
+    customFields: {
+      type: 'json',
+      description: 'List of custom fields (id, title, fieldType, objectType, isArchived)',
+    },
+    departments: {
+      type: 'json',
+      description: 'List of departments (id, name, isArchived, parentId)',
+    },
+    locations: {
+      type: 'json',
+      description: 'List of locations (id, name, isArchived, isRemote, address)',
+    },
+    jobPostings: {
+      type: 'json',
+      description:
+        'List of job postings (id, title, jobId, locationName, departmentName, employmentType, isListed, publishedDate)',
+    },
+    openings: {
+      type: 'json',
+      description: 'List of openings (id, openingState, isArchived, openedAt, closedAt)',
+    },
+    users: {
+      type: 'json',
+      description: 'List of users (id, firstName, lastName, email, isEnabled, globalRole)',
+    },
+    interviewSchedules: {
+      type: 'json',
+      description:
+        'List of interview schedules (id, applicationId, interviewStageId, status, createdAt)',
+    },
+    tags: {
+      type: 'json',
+      description: 'List of candidate tags (id, title, isArchived)',
+    },
+    stageId: { type: 'string', description: 'Interview stage UUID after stage change' },
+    success: { type: 'boolean', description: 'Whether the operation succeeded' },
+    offerStatus: {
+      type: 'string',
+      description: 'Offer status (e.g. WaitingOnCandidateResponse, CandidateAccepted)',
+    },
+    acceptanceStatus: {
+      type: 'string',
+      description: 'Acceptance status (e.g. Accepted, Declined, Pending)',
+    },
+    applicationId: { type: 'string', description: 'Associated application UUID' },
+    openingId: { type: 'string', description: 'Opening UUID associated with the offer' },
+    salary: {
+      type: 'json',
+      description: 'Salary details from latest version (currencyCode, value)',
+    },
+    startDate: { type: 'string', description: 'Offer start date from latest version' },
     id: { type: 'string', description: 'Resource UUID' },
     name: { type: 'string', description: 'Resource name' },
     title: { type: 'string', description: 'Job title' },
     status: { type: 'string', description: 'Status' },
+    noteId: { type: 'string', description: 'Created note UUID' },
     content: { type: 'string', description: 'Note content' },
     moreDataAvailable: { type: 'boolean', description: 'Whether more pages exist' },
     nextCursor: { type: 'string', description: 'Pagination cursor for next page' },

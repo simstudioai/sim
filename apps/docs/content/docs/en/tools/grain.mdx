@@ -138,6 +138,26 @@ Get the full transcript of a recording
 |   ↳ `end` | number | End timestamp in ms |
 |   ↳ `text` | string | Transcript text |
 
+### `grain_list_views`
+
+List available Grain views for webhook subscriptions
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
+| `typeFilter` | string | No | Optional view type filter: recordings, highlights, or stories |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `views` | array | Array of Grain views |
+|   ↳ `id` | string | View UUID |
+|   ↳ `name` | string | View name |
+|   ↳ `type` | string | View type: recordings, highlights, or stories |
+
 ### `grain_list_teams`
 
 List all teams in the workspace
@@ -185,15 +205,9 @@ Create a webhook to receive recording events
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Grain API key \(Personal Access Token\) |
 | `hookUrl` | string | Yes | Webhook endpoint URL \(e.g., "https://example.com/webhooks/grain"\) |
-| `hookType` | string | Yes | Type of webhook: "recording_added" or "upload_status" |
-| `filterBeforeDatetime` | string | No | Filter: recordings before this ISO8601 date \(e.g., "2024-01-15T00:00:00Z"\) |
-| `filterAfterDatetime` | string | No | Filter: recordings after this ISO8601 date \(e.g., "2024-01-01T00:00:00Z"\) |
-| `filterParticipantScope` | string | No | Filter: "internal" or "external" |
-| `filterTeamId` | string | No | Filter: specific team UUID \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
-| `filterMeetingTypeId` | string | No | Filter: specific meeting type UUID \(e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890"\) |
-| `includeHighlights` | boolean | No | Include highlights in webhook payload |
-| `includeParticipants` | boolean | No | Include participants in webhook payload |
-| `includeAiSummary` | boolean | No | Include AI summary in webhook payload |
+| `viewId` | string | Yes | Grain view ID from GET /_/public-api/views |
+| `actions` | array | No | Optional list of actions to subscribe to: added, updated, removed |
+| `items` | string | No | No description |
 
 #### Output
 
@@ -202,9 +216,8 @@ Create a webhook to receive recording events
 | `id` | string | Hook UUID |
 | `enabled` | boolean | Whether hook is active |
 | `hook_url` | string | The webhook URL |
-| `hook_type` | string | Type of hook: recording_added or upload_status |
-| `filter` | object | Applied filters |
-| `include` | object | Included fields |
+| `view_id` | string | Grain view ID for the webhook |
+| `actions` | array | Configured actions for the webhook |
 | `inserted_at` | string | ISO8601 creation timestamp |
 
 ### `grain_list_hooks`
@@ -225,9 +238,8 @@ List all webhooks for the account
 |   ↳ `id` | string | Hook UUID |
 |   ↳ `enabled` | boolean | Whether hook is active |
 |   ↳ `hook_url` | string | Webhook URL |
-|   ↳ `hook_type` | string | Type: recording_added or upload_status |
-|   ↳ `filter` | object | Applied filters |
-|   ↳ `include` | object | Included fields |
+|   ↳ `view_id` | string | Grain view ID |
+|   ↳ `actions` | array | Configured actions |
 |   ↳ `inserted_at` | string | Creation timestamp |
 
 ### `grain_delete_hook`

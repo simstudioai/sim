@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -22,14 +22,9 @@ function ResetPasswordContent() {
     text: '',
   })
 
-  useEffect(() => {
-    if (!token) {
-      setStatusMessage({
-        type: 'error',
-        text: 'Invalid or missing reset token. Please request a new password reset link.',
-      })
-    }
-  }, [token])
+  const tokenError = !token
+    ? 'Invalid or missing reset token. Please request a new password reset link.'
+    : null
 
   const handleResetPassword = async (password: string) => {
     try {
@@ -87,8 +82,8 @@ function ResetPasswordContent() {
           token={token}
           onSubmit={handleResetPassword}
           isSubmitting={isSubmitting}
-          statusType={statusMessage.type}
-          statusMessage={statusMessage.text}
+          statusType={tokenError ? 'error' : statusMessage.type}
+          statusMessage={tokenError ?? statusMessage.text}
         />
       </div>
 

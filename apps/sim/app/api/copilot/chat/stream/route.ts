@@ -8,9 +8,11 @@ import {
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 
+export const maxDuration = 3600
+
 const logger = createLogger('CopilotChatStreamAPI')
 const POLL_INTERVAL_MS = 250
-const MAX_STREAM_MS = 10 * 60 * 1000
+const MAX_STREAM_MS = 60 * 60 * 1000
 
 function encodeEvent(event: Record<string, any>): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`)
@@ -67,6 +69,8 @@ export async function GET(request: NextRequest) {
       success: true,
       events: filteredEvents,
       status: meta.status,
+      executionId: meta.executionId,
+      runId: meta.runId,
     })
   }
 
@@ -75,6 +79,7 @@ export async function GET(request: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       let lastEventId = Number.isFinite(fromEventId) ? fromEventId : 0
+      let latestMeta = meta
 
       const flushEvents = async () => {
         const events = await readStreamEvents(streamId, lastEventId)
@@ -91,6 +96,8 @@ export async function GET(request: NextRequest) {
             ...entry.event,
             eventId: entry.eventId,
             streamId: entry.streamId,
+            executionId: latestMeta?.executionId,
+            runId: latestMeta?.runId,
           }
           controller.enqueue(encodeEvent(payload))
         }
@@ -102,6 +109,7 @@ export async function GET(request: NextRequest) {
         while (Date.now() - startTime < MAX_STREAM_MS) {
           const currentMeta = await getStreamMeta(streamId)
           if (!currentMeta) break
+          latestMeta = currentMeta
 
           await flushEvents()
 

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
 import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
   asRecord,
@@ -21,6 +22,33 @@ import type {
 import { executeToolAndReport, waitForToolCompletion, waitForToolDecision } from './tool-execution'
 
 const logger = createLogger('CopilotSseHandlers')
+
+/**
+ * When the Sim→Go stream is aborted, avoid starting server-side tool work and
+ * unblock the Go async waiter with a terminal 499 completion.
+ */
+function abortPendingToolIfStreamDead(
+  toolCall: ToolCallState,
+  toolCallId: string,
+  options: OrchestratorOptions,
+  context: StreamingContext
+): boolean {
+  if (!options.abortSignal?.aborted && !context.wasAborted) {
+    return false
+  }
+  toolCall.status = 'cancelled'
+  toolCall.endTime = Date.now()
+  markToolResultSeen(toolCallId)
+  markToolComplete(toolCall.id, toolCall.name, 499, 'Request aborted before tool execution', {
+    cancelled: true,
+  }).catch((err) => {
+    logger.error('markToolComplete fire-and-forget failed (stream aborted)', {
+      toolCallId: toolCall.id,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  })
+  return true
+}
 
 /**
  * Extract the `ui` object from a Go SSE event. The Go backend enriches
@@ -310,7 +338,31 @@ export const sseHandlers: Record<string, SSEHandler> = {
     // same LLM turn execute concurrently. executeToolAndReport is self-contained:
     // it updates tool state, calls markToolComplete, and emits result events.
     const fireToolExecution = () => {
-      executeToolAndReport(toolCallId, context, execContext, options).catch((err) => {
+      void upsertAsyncToolCall({
+        runId: context.runId || crypto.randomUUID(),
+        toolCallId,
+        toolName,
+        args,
+      }).catch(() => {})
+      const pendingPromise = executeToolAndReport(toolCallId, context, execContext, options).catch(
+        (err) => {
+          logger.error('Parallel tool execution failed', {
+            toolCallId,
+            toolName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+          return {
+            status: 'error',
+            message: err instanceof Error ? err.message : String(err),
+            data: { error: err instanceof Error ? err.message : String(err) },
+          }
+        }
+      )
+      context.pendingToolPromises.set(toolCallId, pendingPromise)
+      pendingPromise.finally(() => {
+        context.pendingToolPromises.delete(toolCallId)
+      })
+      pendingPromise.catch((err) => {
         logger.error('Parallel tool execution failed', {
           toolCallId,
           toolName,
@@ -321,7 +373,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     if (options.interactive === false) {
       if (options.autoExecuteTools !== false) {
-        fireToolExecution()
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
+        }
       }
       return
     }
@@ -345,7 +399,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
           await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
           return
         }
-        fireToolExecution()
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
+        }
         return
       }
 
@@ -406,7 +462,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
     // delegate to the client (React UI) and wait for completion.
     if (clientExecutable) {
       if (isToolAvailableOnSimSide(toolName)) {
-        fireToolExecution()
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
+        }
       } else {
         toolCall.status = 'executing'
         const completion = await waitForToolCompletion(
@@ -421,7 +479,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
 
     if (options.autoExecuteTools !== false) {
-      fireToolExecution()
+      if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+        fireToolExecution()
+      }
     }
   },
   reasoning: (event, context) => {
@@ -463,6 +523,19 @@ export const sseHandlers: Record<string, SSEHandler> = {
   },
   done: (event, context) => {
     const d = asRecord(event.data)
+    const response = asRecord(d.response)
+    const asyncPause = asRecord(response.async_pause)
+    if (asyncPause.checkpointId) {
+      context.awaitingAsyncContinuation = {
+        checkpointId: String(asyncPause.checkpointId),
+        executionId:
+          typeof asyncPause.executionId === 'string' ? asyncPause.executionId : context.executionId,
+        runId: typeof asyncPause.runId === 'string' ? asyncPause.runId : context.runId,
+        pendingToolCallIds: Array.isArray(asyncPause.pendingToolCallIds)
+          ? asyncPause.pendingToolCallIds.map((id) => String(id))
+          : [],
+      }
+    }
     if (d.usage) {
       const u = asRecord(d.usage)
       context.usage = {
@@ -564,7 +637,31 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     }
 
     const fireToolExecution = () => {
-      executeToolAndReport(toolCallId, context, execContext, options).catch((err) => {
+      void upsertAsyncToolCall({
+        runId: context.runId || crypto.randomUUID(),
+        toolCallId,
+        toolName,
+        args,
+      }).catch(() => {})
+      const pendingPromise = executeToolAndReport(toolCallId, context, execContext, options).catch(
+        (err) => {
+          logger.error('Parallel subagent tool execution failed', {
+            toolCallId,
+            toolName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+          return {
+            status: 'error',
+            message: err instanceof Error ? err.message : String(err),
+            data: { error: err instanceof Error ? err.message : String(err) },
+          }
+        }
+      )
+      context.pendingToolPromises.set(toolCallId, pendingPromise)
+      pendingPromise.finally(() => {
+        context.pendingToolPromises.delete(toolCallId)
+      })
+      pendingPromise.catch((err) => {
         logger.error('Parallel subagent tool execution failed', {
           toolCallId,
           toolName,
@@ -575,7 +672,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
 
     if (options.interactive === false) {
       if (options.autoExecuteTools !== false) {
-        fireToolExecution()
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
+        }
       }
       return
     }
@@ -598,7 +697,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
           await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
           return
         }
-        fireToolExecution()
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
+        }
         return
       }
       if (decision?.status === 'rejected' || decision?.status === 'error') {
@@ -655,7 +756,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
 
     if (clientExecutable) {
       if (isToolAvailableOnSimSide(toolName)) {
-        fireToolExecution()
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
+        }
       } else {
         toolCall.status = 'executing'
         const completion = await waitForToolCompletion(
@@ -670,7 +773,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     }
 
     if (options.autoExecuteTools !== false) {
-      fireToolExecution()
+      if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+        fireToolExecution()
+      }
     }
   },
   tool_result: (event, context) => {

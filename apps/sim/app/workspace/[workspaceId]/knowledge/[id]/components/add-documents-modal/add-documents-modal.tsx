@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Loader2, RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -75,15 +75,25 @@ export function AddDocumentsModal({
     }
   }, [open, clearError])
 
+  /** Handles close with upload guard */
+  const handleOpenChange = useCallback(
+    (newOpen: boolean) => {
+      if (!newOpen) {
+        if (isUploading) return
+        setFiles([])
+        setFileError(null)
+        clearError()
+        setIsDragging(false)
+        setDragCounter(0)
+        setRetryingIndexes(new Set())
+      }
+      onOpenChange(newOpen)
+    },
+    [isUploading, clearError, onOpenChange]
+  )
+
   const handleClose = () => {
-    if (isUploading) return
-    setFiles([])
-    setFileError(null)
-    clearError()
-    setIsDragging(false)
-    setDragCounter(0)
-    setRetryingIndexes(new Set())
-    onOpenChange(false)
+    handleOpenChange(false)
   }
 
   const processFiles = async (fileList: FileList | File[]) => {
@@ -220,7 +230,7 @@ export function AddDocumentsModal({
   }
 
   return (
-    <Modal open={open} onOpenChange={handleClose}>
+    <Modal open={open} onOpenChange={handleOpenChange}>
       <ModalContent size='md'>
         <ModalHeader>New Documents</ModalHeader>
 

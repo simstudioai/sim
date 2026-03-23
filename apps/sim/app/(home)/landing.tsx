@@ -1,3 +1,4 @@
+import { getNavBlogPosts } from '@/lib/blog/registry'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import { season } from '@/app/_styles/fonts/season/season'
 import {
@@ -32,11 +33,13 @@ import {
  *   enterprise (Enterprise) -> pricing (Pricing) -> testimonials (Testimonials).
  */
 export default async function Landing() {
+  const blogPosts = await getNavBlogPosts()
+
   return (
     <div className={`${season.variable} ${martianMono.variable} min-h-screen bg-[#1C1C1C]`}>
       <StructuredData />
       <header>
-        <Navbar />
+        <Navbar blogPosts={blogPosts} />
       </header>
       <main>
         <Hero />

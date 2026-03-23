@@ -208,6 +208,9 @@ export function Table({
   })
 
   const userPermissions = useUserPermissionsContext()
+  const canEditRef = useRef(userPermissions.canEdit)
+  canEditRef.current = userPermissions.canEdit
+
   const {
     contextMenu,
     handleRowContextMenu: baseHandleRowContextMenu,
@@ -633,6 +636,7 @@ export function Table({
   const handleCellClick = useCallback((rowId: string, columnName: string) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
     if (column?.type === 'boolean') {
+      if (!canEditRef.current) return
       const row = rowsRef.current.find((r) => r.id === rowId)
       if (row) {
         toggleBooleanCell(rowId, columnName, row.data[columnName])
@@ -647,6 +651,7 @@ export function Table({
   }, [])
 
   const handleCellDoubleClick = useCallback((rowId: string, columnName: string) => {
+    if (!canEditRef.current) return
     const column = columnsRef.current.find((c) => c.name === columnName)
     if (!column || column.type === 'boolean') return
 
@@ -739,6 +744,7 @@ export function Table({
 
       if ((e.key === 'Delete' || e.key === 'Backspace') && checkedRowsRef.current.size > 0) {
         if (editingCellRef.current) return
+        if (!canEditRef.current) return
         e.preventDefault()
         const checked = checkedRowsRef.current
         const pMap = positionMapRef.current
@@ -770,6 +776,7 @@ export function Table({
       const totalRows = mp + 1
 
       if (e.shiftKey && e.key === 'Enter') {
+        if (!canEditRef.current) return
         const row = positionMapRef.current.get(anchor.rowIndex)
         if (!row) return
         e.preventDefault()
@@ -792,6 +799,7 @@ export function Table({
       }
 
       if (e.key === 'Enter' || e.key === 'F2') {
+        if (!canEditRef.current) return
         e.preventDefault()
         const col = cols[anchor.colIndex]
         if (!col) return
@@ -809,6 +817,7 @@ export function Table({
       }
 
       if (e.key === ' ' && !e.shiftKey) {
+        if (!canEditRef.current) return
         e.preventDefault()
         const row = positionMapRef.current.get(anchor.rowIndex)
         if (row) {
@@ -861,6 +870,7 @@ export function Table({
       }
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (!canEditRef.current) return
         e.preventDefault()
         const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
         if (!sel) return
@@ -888,6 +898,7 @@ export function Table({
       }
 
       if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (!canEditRef.current) return
         const col = cols[anchor.colIndex]
         if (!col || col.type === 'boolean') return
         if (col.type === 'number' && !/[\d.-]/.test(e.key)) return
@@ -957,6 +968,7 @@ export function Table({
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
       if (editingCellRef.current) return
+      if (!canEditRef.current) return
 
       const checked = checkedRowsRef.current
       const cols = columnsRef.current
@@ -1029,6 +1041,7 @@ export function Table({
     const handlePaste = (e: ClipboardEvent) => {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (!canEditRef.current) return
 
       const currentAnchor = selectionAnchorRef.current
       if (!currentAnchor || editingCellRef.current) return
@@ -1523,6 +1536,7 @@ export function Table({
                     <ColumnHeaderMenu
                       key={column.name}
                       column={column}
+                      readOnly={!userPermissions.canEdit}
                       isRenaming={columnRename.editingId === column.name}
                       renameValue={
                         columnRename.editingId === column.name ? columnRename.editValue : ''
@@ -1541,10 +1555,12 @@ export function Table({
                       onResizeEnd={handleColumnResizeEnd}
                     />
                   ))}
-                  <AddColumnButton
-                    onClick={handleAddColumn}
-                    disabled={addColumnMutation.isPending}
-                  />
+                  {userPermissions.canEdit && (
+                    <AddColumnButton
+                      onClick={handleAddColumn}
+                      disabled={addColumnMutation.isPending}
+                    />
+                  )}
                 </tr>
               )}
             </thead>
@@ -2414,6 +2430,7 @@ const COLUMN_TYPE_OPTIONS: { type: string; label: string; icon: React.ElementTyp
 
 const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   column,
+  readOnly,
   isRenaming,
   renameValue,
   onRenameValueChange,
@@ -2430,6 +2447,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResizeEnd,
 }: {
   column: ColumnDefinition
+  readOnly?: boolean
   isRenaming: boolean
   renameValue: string
   onRenameValueChange: (value: string) => void
@@ -2503,6 +2521,13 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             className='ml-[6px] min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-[13px] text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0'
           />
         </div>
+      ) : readOnly ? (
+        <div className='flex h-full w-full min-w-0 items-center px-[8px] py-[7px]'>
+          <ColumnTypeIcon type={column.type} />
+          <span className='ml-[6px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
+            {column.name}
+          </span>
+        </div>
       ) : (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -2511,7 +2536,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               className='flex h-full w-full min-w-0 cursor-pointer items-center px-[8px] py-[7px] outline-none'
             >
               <ColumnTypeIcon type={column.type} />
-              <span className='ml-[6px] min-w-0 truncate font-medium text-[13px] text-[var(--text-primary)]'>
+              <span className='ml-[6px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
                 {column.name}
               </span>
               <ChevronDown className='ml-[8px] h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />

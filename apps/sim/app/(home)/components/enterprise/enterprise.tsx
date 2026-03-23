@@ -12,145 +12,14 @@
  * - `<ul>` checklist of features (SSO, RBAC, audit logs, SLA, on-premise deployment)
  *   as an atomic answer block for "What enterprise features does Sim offer?".
  */
-'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Badge, ChevronDown } from '@/components/emcn'
 import { Lock } from '@/components/emcn/icons'
 import { GithubIcon } from '@/components/icons'
-
-/** Consistent color per actor — same pattern as Collaboration section cursors. */
-const ACTOR_COLORS: Record<string, string> = {
-  'Sarah K.': '#2ABBF8',
-  'Sid G.': '#33C482',
-  'Theo L.': '#FA4EDF',
-  'Abhay K.': '#FFCC02',
-  'Danny S.': '#FF6B35',
-}
-
-/** Left accent bar opacity by recency — newest is brightest. */
-const ACCENT_OPACITIES = [0.75, 0.45, 0.28, 0.15, 0.07] as const
-
-/** Human-readable label per resource type. */
-const RESOURCE_TYPE_LABEL: Record<string, string> = {
-  workflow: 'Workflow',
-  member: 'Member',
-  byok_key: 'BYOK Key',
-  api_key: 'API Key',
-  permission_group: 'Permission Group',
-  credential_set: 'Credential Set',
-  knowledge_base: 'Knowledge Base',
-  environment: 'Environment',
-  mcp_server: 'MCP Server',
-  file: 'File',
-  webhook: 'Webhook',
-  chat: 'Chat',
-  table: 'Table',
-  folder: 'Folder',
-  document: 'Document',
-}
-
-interface LogEntry {
-  id: number
-  actor: string
-  /** Matches the `description` field stored by recordAudit() */
-  description: string
-  resourceType: string
-  /** Unix ms timestamp of when this entry was "received" */
-  insertedAt: number
-}
-
-function formatTimeAgo(insertedAt: number): string {
-  const elapsed = Date.now() - insertedAt
-  if (elapsed < 8_000) return 'just now'
-  if (elapsed < 60_000) return `${Math.floor(elapsed / 1000)}s ago`
-  return `${Math.floor(elapsed / 60_000)}m ago`
-}
-
-/**
- * Entry templates using real description strings from the actual recordAudit()
- * calls across the codebase (e.g. `Added BYOK key for openai`,
- * `Invited alex@acme.com to workspace as member`).
- */
-const ENTRY_TEMPLATES: Omit<LogEntry, 'id' | 'insertedAt'>[] = [
-  { actor: 'Sarah K.', description: 'Deployed workflow "Email Triage"', resourceType: 'workflow' },
-  {
-    actor: 'Sid G.',
-    description: 'Invited alex@acme.com to workspace as member',
-    resourceType: 'member',
-  },
-  { actor: 'Theo L.', description: 'Added BYOK key for openai', resourceType: 'byok_key' },
-  { actor: 'Sarah K.', description: 'Created workflow "Invoice Parser"', resourceType: 'workflow' },
-  {
-    actor: 'Abhay K.',
-    description: 'Created permission group "Engineering"',
-    resourceType: 'permission_group',
-  },
-  { actor: 'Danny S.', description: 'Created API key "Production Key"', resourceType: 'api_key' },
-  {
-    actor: 'Theo L.',
-    description: 'Changed permissions for sam@acme.com to editor',
-    resourceType: 'member',
-  },
-  { actor: 'Sarah K.', description: 'Uploaded file "Q3_Report.pdf"', resourceType: 'file' },
-  {
-    actor: 'Sid G.',
-    description: 'Created credential set "Prod Keys"',
-    resourceType: 'credential_set',
-  },
-  {
-    actor: 'Abhay K.',
-    description: 'Created knowledge base "Internal Docs"',
-    resourceType: 'knowledge_base',
-  },
-  { actor: 'Danny S.', description: 'Updated environment variables', resourceType: 'environment' },
-  {
-    actor: 'Sarah K.',
-    description: 'Added tool "search_web" to MCP server',
-    resourceType: 'mcp_server',
-  },
-  { actor: 'Sid G.', description: 'Created webhook "Stripe Payment"', resourceType: 'webhook' },
-  { actor: 'Theo L.', description: 'Deployed chat "Support Assistant"', resourceType: 'chat' },
-  { actor: 'Abhay K.', description: 'Created table "Lead Tracker"', resourceType: 'table' },
-  { actor: 'Danny S.', description: 'Revoked API key "Staging Key"', resourceType: 'api_key' },
-  {
-    actor: 'Sarah K.',
-    description: 'Duplicated workflow "Data Enrichment"',
-    resourceType: 'workflow',
-  },
-  {
-    actor: 'Sid G.',
-    description: 'Removed member theo@acme.com from workspace',
-    resourceType: 'member',
-  },
-  {
-    actor: 'Theo L.',
-    description: 'Updated knowledge base "Product Docs"',
-    resourceType: 'knowledge_base',
-  },
-  { actor: 'Abhay K.', description: 'Created folder "Finance Workflows"', resourceType: 'folder' },
-  {
-    actor: 'Danny S.',
-    description: 'Uploaded document "onboarding-guide.pdf"',
-    resourceType: 'document',
-  },
-  {
-    actor: 'Sarah K.',
-    description: 'Updated credential set "Prod Keys"',
-    resourceType: 'credential_set',
-  },
-  {
-    actor: 'Sid G.',
-    description: 'Added member abhay@acme.com to permission group "Engineering"',
-    resourceType: 'permission_group',
-  },
-  { actor: 'Theo L.', description: 'Locked workflow "Customer Sync"', resourceType: 'workflow' },
-]
-
-const INITIAL_OFFSETS_MS = [0, 20_000, 75_000, 240_000, 540_000]
+import { AccessControlPanel } from '@/app/(home)/components/enterprise/components/access-control-panel'
+import { AuditLogPreview } from '@/app/(home)/components/enterprise/components/audit-log-preview'
 
 const MARQUEE_KEYFRAMES = `
   @keyframes marquee {
@@ -179,163 +48,12 @@ const FEATURE_TAGS = [
   'Audit Logs',
 ] as const
 
-interface AuditRowProps {
-  entry: LogEntry
-  index: number
-}
-
-function AuditRow({ entry, index }: AuditRowProps) {
-  const color = ACTOR_COLORS[entry.actor] ?? '#F6F6F6'
-  const accentOpacity = ACCENT_OPACITIES[index] ?? 0.04
-  const timeAgo = formatTimeAgo(entry.insertedAt)
-  const resourceLabel = RESOURCE_TYPE_LABEL[entry.resourceType]
-
-  return (
-    <div className='group relative overflow-hidden border-[#2A2A2A] border-b bg-[#191919] transition-colors duration-150 last:border-b-0 hover:bg-[#212121]'>
-      {/* Left accent bar — brightness encodes recency */}
-      <div
-        aria-hidden='true'
-        className='absolute top-0 bottom-0 left-0 w-[2px] transition-opacity duration-150 group-hover:opacity-100'
-        style={{ backgroundColor: color, opacity: accentOpacity }}
-      />
-
-      {/* Row content */}
-      <div className='flex min-w-0 items-center gap-3 py-[10px] pr-4 pl-5'>
-        {/* Actor avatar */}
-        <div
-          className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full'
-          style={{ backgroundColor: `${color}20` }}
-        >
-          <span className='font-[500] font-season text-[9px] leading-none' style={{ color }}>
-            {entry.actor[0]}
-          </span>
-        </div>
-
-        {/* Time */}
-        <span className='w-[56px] shrink-0 font-[430] font-season text-[#F6F6F6]/30 text-[11px] leading-none tracking-[0.02em]'>
-          {timeAgo}
-        </span>
-
-        {/* Description — description hidden on mobile to avoid truncation */}
-        <span className='min-w-0 truncate font-[430] font-season text-[12px] leading-none tracking-[0.02em]'>
-          <span className='text-[#F6F6F6]/80'>{entry.actor}</span>
-          <span className='hidden sm:inline'>
-            <span className='text-[#F6F6F6]/40'> · </span>
-            <span className='text-[#F6F6F6]/55'>{entry.description}</span>
-          </span>
-        </span>
-
-        {/* Resource type label — formatted name, neutral so it doesn't compete with actor colors */}
-        {resourceLabel && (
-          <span className='ml-auto shrink-0 rounded border border-[#2A2A2A] px-[7px] py-[3px] font-[430] font-season text-[#F6F6F6]/25 text-[10px] leading-none tracking-[0.04em]'>
-            {resourceLabel}
-          </span>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function AuditLogPreview() {
-  const counterRef = useRef(ENTRY_TEMPLATES.length)
-  const templateIndexRef = useRef(5 % ENTRY_TEMPLATES.length)
-
-  const now = Date.now()
-  const [entries, setEntries] = useState<LogEntry[]>(() =>
-    ENTRY_TEMPLATES.slice(0, 5).map((t, i) => ({
-      ...t,
-      id: i,
-      insertedAt: now - INITIAL_OFFSETS_MS[i],
-    }))
-  )
-  const [, tick] = useState(0)
-
-  useEffect(() => {
-    const addInterval = setInterval(() => {
-      const template = ENTRY_TEMPLATES[templateIndexRef.current]
-      templateIndexRef.current = (templateIndexRef.current + 1) % ENTRY_TEMPLATES.length
-
-      setEntries((prev) => [
-        { ...template, id: counterRef.current++, insertedAt: Date.now() },
-        ...prev.slice(0, 4),
-      ])
-    }, 2600)
-
-    // Refresh time labels every 5s so "just now" ages to "Xs ago"
-    const tickInterval = setInterval(() => tick((n) => n + 1), 5_000)
-
-    return () => {
-      clearInterval(addInterval)
-      clearInterval(tickInterval)
-    }
-  }, [])
-
-  return (
-    <div className='mx-6 mt-6 overflow-hidden rounded-[8px] border border-[#2A2A2A] md:mx-8 md:mt-8'>
-      {/* Header */}
-      <div className='flex items-center justify-between border-[#2A2A2A] border-b bg-[#161616] px-4 py-[10px]'>
-        <div className='flex items-center gap-2'>
-          {/* Pulsing live indicator */}
-          <span className='relative flex h-[8px] w-[8px]'>
-            <span
-              className='absolute inline-flex h-full w-full animate-ping rounded-full opacity-50'
-              style={{ backgroundColor: '#33C482' }}
-            />
-            <span
-              className='relative inline-flex h-[8px] w-[8px] rounded-full'
-              style={{ backgroundColor: '#33C482' }}
-            />
-          </span>
-          <span className='font-[430] font-season text-[#F6F6F6]/40 text-[11px] uppercase tracking-[0.08em]'>
-            Audit Log
-          </span>
-        </div>
-        <div className='flex items-center gap-2'>
-          <span className='rounded border border-[#2A2A2A] px-[8px] py-[3px] font-[430] font-season text-[#F6F6F6]/20 text-[11px] tracking-[0.02em]'>
-            Export
-          </span>
-          <span className='rounded border border-[#2A2A2A] px-[8px] py-[3px] font-[430] font-season text-[#F6F6F6]/20 text-[11px] tracking-[0.02em]'>
-            Filter
-          </span>
-        </div>
-      </div>
-
-      {/* Log entries — new items push existing ones down */}
-      <div className='overflow-hidden'>
-        <AnimatePresence mode='popLayout' initial={false}>
-          {entries.map((entry, index) => (
-            <motion.div
-              key={entry.id}
-              layout
-              initial={{ y: -48, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{
-                layout: {
-                  type: 'spring',
-                  stiffness: 380,
-                  damping: 38,
-                  mass: 0.8,
-                },
-                y: { duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] },
-                opacity: { duration: 0.25 },
-              }}
-            >
-              <AuditRow entry={entry} index={index} />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-    </div>
-  )
-}
-
 function TrustStrip() {
   return (
     <div className='mx-6 mt-4 grid grid-cols-1 overflow-hidden rounded-[8px] border border-[#2A2A2A] sm:grid-cols-3 md:mx-8'>
       {/* SOC 2 + HIPAA combined */}
       <Link
-        href='https://trust.delve.co/sim-studio'
+        href='https://app.vanta.com/sim.ai/trust/v35ia0jil4l7dteqjgaktn'
         target='_blank'
         rel='noopener noreferrer'
         className='group flex items-center gap-3 border-[#2A2A2A] border-b px-4 py-[14px] transition-colors hover:bg-[#212121] sm:border-r sm:border-b-0'
@@ -357,7 +75,7 @@ function TrustStrip() {
         </div>
       </Link>
 
-      {/* Open Source — center */}
+      {/* Open Source -- center */}
       <Link
         href='https://github.com/simstudioai/sim'
         target='_blank'
@@ -420,7 +138,37 @@ export default function Enterprise() {
         </div>
 
         <div className='mt-8 overflow-hidden rounded-[12px] bg-[#1C1C1C] sm:mt-10 md:mt-12'>
-          <AuditLogPreview />
+          <div className='grid grid-cols-1 border-[#2A2A2A] border-b lg:grid-cols-[1fr_420px]'>
+            {/* Audit Trail */}
+            <div className='border-[#2A2A2A] lg:border-r'>
+              <div className='px-6 pt-6 md:px-8 md:pt-8'>
+                <h3 className='font-[430] font-season text-[16px] text-white leading-[120%] tracking-[-0.01em]'>
+                  Audit Trail
+                </h3>
+                <p className='mt-2 max-w-[480px] font-[430] font-season text-[#F6F6F6]/50 text-[14px] leading-[150%] tracking-[0.02em]'>
+                  Every action is captured with full actor attribution.
+                </p>
+              </div>
+              <AuditLogPreview />
+              <div className='h-6 md:h-8' />
+            </div>
+
+            {/* Access Control */}
+            <div className='border-[#2A2A2A] border-t lg:border-t-0'>
+              <div className='px-6 pt-6 md:px-8 md:pt-8'>
+                <h3 className='font-[430] font-season text-[16px] text-white leading-[120%] tracking-[-0.01em]'>
+                  Access Control
+                </h3>
+                <p className='mt-[6px] font-[430] font-season text-[#F6F6F6]/50 text-[14px] leading-[150%] tracking-[0.02em]'>
+                  Restrict providers, surfaces, and tools per group.
+                </p>
+              </div>
+              <div className='mt-5 px-6 pb-6 md:mt-6 md:px-8 md:pb-8'>
+                <AccessControlPanel />
+              </div>
+            </div>
+          </div>
+
           <TrustStrip />
 
           {/* Scrolling feature ticker */}
@@ -457,7 +205,9 @@ export default function Enterprise() {
               Ready for growth?
             </p>
             <Link
-              href='/contact'
+              href='https://form.typeform.com/to/jqCO12pF'
+              target='_blank'
+              rel='noopener noreferrer'
               className='group/cta inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-white bg-white px-[10px] font-[430] font-season text-[14px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
             >
               Book a demo

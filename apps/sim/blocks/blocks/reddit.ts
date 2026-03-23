@@ -1,7 +1,7 @@
 import { RedditIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { RedditResponse } from '@/tools/reddit/types'
 
 export const RedditBlock: BlockConfig<RedditResponse> = {
@@ -13,6 +13,8 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
     'Integrate Reddit into workflows. Read posts, comments, and search content. Submit posts, vote, reply, edit, manage messages, and access user and subreddit info.',
   docsLink: 'https://docs.sim.ai/tools/reddit',
   category: 'tools',
+  integrationType: IntegrationType.Social,
+  tags: ['content-management', 'web-scraping'],
   bgColor: '#FF5700',
   icon: RedditIcon,
   subBlocks: [

@@ -1,5 +1,3 @@
-'use client'
-
 import { CredentialsManager } from '@/app/workspace/[workspaceId]/settings/components/credentials/credentials-manager'
 
 export function Credentials() {

@@ -6,6 +6,7 @@ import {
   CONTAINER_PADDING_Y,
   ESTIMATED_BLOCK_BOTTOM_PADDING,
   ESTIMATED_SUBBLOCK_HEIGHT,
+  MAX_ESTIMATED_BLOCK_HEIGHT,
   ROOT_PADDING_X,
   ROOT_PADDING_Y,
 } from '@/lib/workflows/autolayout/constants'
@@ -134,19 +135,23 @@ function getContainerMetrics(block: BlockState): BlockMetrics {
 
 /**
  * Estimates block height from subblock count when no measurement is available.
- * Provides a reasonable approximation to prevent overlaps in layout before
- * the block has been rendered and measured by the browser.
+ * Only counts subblocks with non-null values to avoid over-counting conditional
+ * fields (e.g. agent blocks define ~20 subblocks but only ~5 are typically visible).
+ * The result is capped at MAX_ESTIMATED_BLOCK_HEIGHT to prevent massive layout gaps.
  */
 function estimateBlockHeight(block: BlockState): number {
-  const subBlockCount = Object.keys(block.subBlocks || {}).length
-  if (subBlockCount === 0) return BLOCK_DIMENSIONS.MIN_HEIGHT
+  const subBlocks = block.subBlocks || {}
+  const visibleCount = Object.values(subBlocks).filter(
+    (sb) => sb && sb.value !== null && sb.value !== undefined
+  ).length
+  if (visibleCount === 0) return BLOCK_DIMENSIONS.MIN_HEIGHT
 
-  return Math.max(
+  const estimated =
     BLOCK_DIMENSIONS.HEADER_HEIGHT +
-      subBlockCount * ESTIMATED_SUBBLOCK_HEIGHT +
-      ESTIMATED_BLOCK_BOTTOM_PADDING,
-    BLOCK_DIMENSIONS.MIN_HEIGHT
-  )
+    visibleCount * ESTIMATED_SUBBLOCK_HEIGHT +
+    ESTIMATED_BLOCK_BOTTOM_PADDING
+
+  return Math.min(Math.max(estimated, BLOCK_DIMENSIONS.MIN_HEIGHT), MAX_ESTIMATED_BLOCK_HEIGHT)
 }
 
 /**

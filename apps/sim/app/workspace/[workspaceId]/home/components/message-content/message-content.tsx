@@ -1,5 +1,7 @@
 'use client'
 
+import { resolveToolDisplay } from '@/lib/copilot/store-utils'
+import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import type { ContentBlock, OptionItem, SubagentName, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '../../types'
 import type { AgentGroupItem } from './components'
@@ -31,6 +33,16 @@ type MessageSegment = TextSegment | AgentGroupSegment | OptionsSegment | Stopped
 
 const SUBAGENT_KEYS = new Set(Object.keys(SUBAGENT_LABELS))
 
+/**
+ * Maps subagent names to the Mothership tool that dispatches them when the
+ * tool name differs from the subagent name (e.g. `workspace_file` → `file_write`).
+ * When a `subagent` block arrives, any trailing dispatch tool in the previous
+ * group is absorbed so it doesn't render as a separate Mothership entry.
+ */
+const SUBAGENT_DISPATCH_TOOLS: Record<string, string> = {
+  file_write: 'workspace_file',
+}
+
 function formatToolName(name: string): string {
   return name
     .replace(/_v\d+$/, '')
@@ -43,16 +55,45 @@ function resolveAgentLabel(key: string): string {
   return SUBAGENT_LABELS[key as SubagentName] ?? formatToolName(key)
 }
 
+function mapToolStatusToClientState(
+  status: ContentBlock['toolCall'] extends { status: infer T } ? T : string
+) {
+  switch (status) {
+    case 'success':
+      return ClientToolCallState.success
+    case 'error':
+      return ClientToolCallState.error
+    case 'cancelled':
+      return ClientToolCallState.cancelled
+    default:
+      return ClientToolCallState.executing
+  }
+}
+
+function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): string | undefined {
+  if (tc.name === 'read' || tc.name.endsWith('_respond')) {
+    return resolveToolDisplay(tc.name, mapToolStatusToClientState(tc.status), tc.id, tc.params)
+      ?.text
+  }
+  return undefined
+}
+
 function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
+  const overrideDisplayTitle = getOverrideDisplayTitle(tc)
+  const displayTitle =
+    overrideDisplayTitle ||
+    tc.displayTitle ||
+    TOOL_UI_METADATA[tc.name as keyof typeof TOOL_UI_METADATA]?.title ||
+    formatToolName(tc.name)
+
   return {
     id: tc.id,
     toolName: tc.name,
-    displayTitle:
-      tc.displayTitle ||
-      TOOL_UI_METADATA[tc.name as keyof typeof TOOL_UI_METADATA]?.title ||
-      formatToolName(tc.name),
+    displayTitle,
     status: tc.status,
+    params: tc.params,
     result: tc.result,
+    streamingArgs: tc.streamingArgs,
   }
 }
 
@@ -82,14 +123,16 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
 
     if (block.type === 'text') {
       if (!block.content?.trim()) continue
-      if (block.subagent && group && group.agentName === block.subagent) {
-        const lastItem = group.items[group.items.length - 1]
-        if (lastItem?.type === 'text') {
-          lastItem.content += block.content
-        } else {
-          group.items.push({ type: 'text', content: block.content })
+      if (block.subagent) {
+        if (group && group.agentName === block.subagent) {
+          const lastItem = group.items[group.items.length - 1]
+          if (lastItem?.type === 'text') {
+            lastItem.content += block.content
+          } else {
+            group.items.push({ type: 'text', content: block.content })
+          }
+          continue
         }
-        continue
       }
       if (group) {
         segments.push(group)
@@ -108,10 +151,22 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       if (!block.content) continue
       const key = block.content
       if (group && group.agentName === key) continue
-      if (group) {
+
+      const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[key]
+      if (group && dispatchToolName) {
+        const last = group.items[group.items.length - 1]
+        if (last?.type === 'tool' && last.data.toolName === dispatchToolName) {
+          group.items.pop()
+        }
+        if (group.items.length > 0) {
+          segments.push(group)
+        }
+        group = null
+      } else if (group) {
         segments.push(group)
         group = null
       }
+
       group = {
         type: 'agent_group',
         id: `agent-${key}-${i}`,
@@ -125,6 +180,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     if (block.type === 'tool_call') {
       if (!block.toolCall) continue
       const tc = block.toolCall
+      if (tc.name === 'tool_search_tool_regex') continue
       const isDispatch = SUBAGENT_KEYS.has(tc.name) && !tc.calledBy
 
       if (isDispatch) {
@@ -211,6 +267,26 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
   return segments
 }
 
+/**
+ * Mirrors the segment resolution inside {@link MessageContent} so list renderers
+ * can tell whether an assistant message has anything visible yet. Avoids treating
+ * `contentBlocks: [{ type: 'text', content: '' }]` as "has content" — that briefly
+ * made MessageContent return null while streaming and caused a double Thinking flash.
+ */
+export function assistantMessageHasRenderableContent(
+  blocks: ContentBlock[],
+  fallbackContent: string
+): boolean {
+  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
+  const segments: MessageSegment[] =
+    parsed.length > 0
+      ? parsed
+      : fallbackContent.trim()
+        ? [{ type: 'text' as const, content: fallbackContent }]
+        : []
+  return segments.length > 0
+}
+
 interface MessageContentProps {
   blocks: ContentBlock[]
   fallbackContent: string
@@ -233,7 +309,16 @@ export function MessageContent({
         ? [{ type: 'text' as const, content: fallbackContent }]
         : []
 
-  if (segments.length === 0) return null
+  if (segments.length === 0) {
+    if (isStreaming) {
+      return (
+        <div className='space-y-[10px]'>
+          <PendingTagIndicator />
+        </div>
+      )
+    }
+    return null
+  }
 
   const lastSegment = segments[segments.length - 1]
   const hasTrailingContent = lastSegment.type === 'text' || lastSegment.type === 'stopped'

@@ -1,6 +1,6 @@
 import { PosthogIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { PostHogResponse } from '@/tools/posthog/types'
 
 export const PostHogBlock: BlockConfig<PostHogResponse> = {
@@ -12,6 +12,8 @@ export const PostHogBlock: BlockConfig<PostHogResponse> = {
     'Integrate PostHog into your workflow. Track events, manage feature flags, analyze user behavior, run experiments, create surveys, and access session recordings.',
   docsLink: 'https://docs.sim.ai/tools/posthog',
   category: 'tools',
+  integrationType: IntegrationType.Analytics,
+  tags: ['data-analytics', 'monitoring'],
   bgColor: '#E0E0E0',
   icon: PosthogIcon,
   subBlocks: [

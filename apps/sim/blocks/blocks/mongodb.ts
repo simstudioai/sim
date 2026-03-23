@@ -1,5 +1,6 @@
 import { MongoDBIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import type { MongoDBIntrospectResponse, MongoDBResponse } from '@/tools/mongodb/types'
 
 export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectResponse> = {
@@ -10,6 +11,8 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectRespon
     'Integrate MongoDB into the workflow. Can find, insert, update, delete, and aggregate data.',
   docsLink: 'https://docs.sim.ai/tools/mongodb',
   category: 'tools',
+  integrationType: IntegrationType.Databases,
+  tags: ['data-warehouse', 'cloud'],
   bgColor: '#E0E0E0',
   icon: MongoDBIcon,
   subBlocks: [

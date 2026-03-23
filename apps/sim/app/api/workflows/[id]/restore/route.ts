@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { restoreWorkflow } from '@/lib/workflows/lifecycle'
@@ -43,6 +44,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     logger.info(`[${requestId}] Restored workflow ${workflowId}`)
+
+    recordAudit({
+      workspaceId: workflowData.workspaceId,
+      actorId: auth.userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.WORKFLOW_RESTORED,
+      resourceType: AuditResourceType.WORKFLOW,
+      resourceId: workflowId,
+      resourceName: workflowData.name,
+      description: `Restored workflow "${workflowData.name}"`,
+      request,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

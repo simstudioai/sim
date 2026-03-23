@@ -1,6 +1,6 @@
 import { ZendeskIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const ZendeskBlock: BlockConfig = {
   type: 'zendesk',
@@ -11,6 +11,8 @@ export const ZendeskBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/zendesk',
   authMode: AuthMode.ApiKey,
   category: 'tools',
+  integrationType: IntegrationType.CustomerSupport,
+  tags: ['customer-support', 'ticketing'],
   bgColor: '#E0E0E0',
   icon: ZendeskIcon,
   subBlocks: [

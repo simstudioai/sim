@@ -436,6 +436,23 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
   const workflowId = crypto.randomUUID()
   const now = new Date()
 
+  const duplicateConditions = [
+    eq(workflowTable.workspaceId, workspaceId),
+    isNull(workflowTable.archivedAt),
+    eq(workflowTable.name, name),
+    ...(folderId ? [eq(workflowTable.folderId, folderId)] : [isNull(workflowTable.folderId)]),
+  ]
+  const [duplicateWorkflow] = await db
+    .select({ id: workflowTable.id })
+    .from(workflowTable)
+    .where(and(...duplicateConditions))
+    .limit(1)
+  if (duplicateWorkflow) {
+    throw new Error(
+      `A workflow named "${name}" already exists in this folder. Use a different name.`
+    )
+  }
+
   const workflowParentCondition = folderId
     ? eq(workflowTable.folderId, folderId)
     : isNull(workflowTable.folderId)

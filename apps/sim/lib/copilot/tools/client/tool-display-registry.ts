@@ -4,7 +4,6 @@ import {
   Bug,
   Check,
   CheckCircle,
-  CheckCircle2,
   ClipboardList,
   Database,
   Eye,
@@ -1318,64 +1317,6 @@ const META_redeploy: ToolMetadata = {
   interrupt: undefined,
 }
 
-const META_remember_debug: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Validating fix', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Validating fix', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Validating fix', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Validated fix', icon: CheckCircle2 },
-    [ClientToolCallState.error]: { text: 'Failed to validate', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted validation', icon: MinusCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped validation', icon: MinusCircle },
-  },
-  interrupt: undefined,
-  getDynamicText: (params, state) => {
-    const operation = params?.operation
-
-    if (operation === 'add' || operation === 'edit') {
-      // For add/edit, show from problem or solution
-      const text = params?.problem || params?.solution
-      if (text && typeof text === 'string') {
-        switch (state) {
-          case ClientToolCallState.success:
-            return `Validated fix ${text}`
-          case ClientToolCallState.executing:
-          case ClientToolCallState.generating:
-          case ClientToolCallState.pending:
-            return `Validating fix ${text}`
-          case ClientToolCallState.error:
-            return `Failed to validate fix ${text}`
-          case ClientToolCallState.aborted:
-            return `Aborted validating fix ${text}`
-          case ClientToolCallState.rejected:
-            return `Skipped validating fix ${text}`
-        }
-      }
-    } else if (operation === 'delete') {
-      // For delete, show from problem or solution (or id as fallback)
-      const text = params?.problem || params?.solution || params?.id
-      if (text && typeof text === 'string') {
-        switch (state) {
-          case ClientToolCallState.success:
-            return `Adjusted fix ${text}`
-          case ClientToolCallState.executing:
-          case ClientToolCallState.generating:
-          case ClientToolCallState.pending:
-            return `Adjusting fix ${text}`
-          case ClientToolCallState.error:
-            return `Failed to adjust fix ${text}`
-          case ClientToolCallState.aborted:
-            return `Aborted adjusting fix ${text}`
-          case ClientToolCallState.rejected:
-            return `Skipped adjusting fix ${text}`
-        }
-      }
-    }
-
-    return undefined
-  },
-}
-
 const META_research: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Researching', icon: Loader2 },
@@ -1778,40 +1719,6 @@ const META_search_documentation: ToolMetadata = {
           return `Aborted searching docs for ${query}`
         case ClientToolCallState.rejected:
           return `Skipped searching docs for ${query}`
-      }
-    }
-    return undefined
-  },
-}
-
-const META_search_errors: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Debugged', icon: Bug },
-    [ClientToolCallState.error]: { text: 'Failed to debug', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted debugging', icon: MinusCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped debugging', icon: MinusCircle },
-  },
-  interrupt: undefined,
-  getDynamicText: (params, state) => {
-    if (params?.query && typeof params.query === 'string') {
-      const query = params.query
-
-      switch (state) {
-        case ClientToolCallState.success:
-          return `Debugged ${query}`
-        case ClientToolCallState.executing:
-        case ClientToolCallState.generating:
-        case ClientToolCallState.pending:
-          return `Debugging ${query}`
-        case ClientToolCallState.error:
-          return `Failed to debug ${query}`
-        case ClientToolCallState.aborted:
-          return `Aborted debugging ${query}`
-        case ClientToolCallState.rejected:
-          return `Skipped debugging ${query}`
       }
     }
     return undefined
@@ -2414,8 +2321,19 @@ const META_read: ToolMetadata = {
   },
 }
 
+const META_context_compaction: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Compacting context', icon: Sparkles },
+    [ClientToolCallState.pending]: { text: 'Compacting context', icon: Sparkles },
+    [ClientToolCallState.executing]: { text: 'Compacting context', icon: Sparkles },
+    [ClientToolCallState.success]: { text: 'Compacted context', icon: Sparkles },
+    [ClientToolCallState.error]: { text: 'Failed to compact context', icon: XCircle },
+  },
+}
+
 const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   auth: META_auth,
+  context_compaction: META_context_compaction,
   check_deployment_status: META_check_deployment_status,
   checkoff_todo: META_checkoff_todo,
   crawl_website: META_crawl_website,
@@ -2466,7 +2384,6 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   read: META_read,
   redeploy: META_redeploy,
   rename_workflow: META_rename_workflow,
-  remember_debug: META_remember_debug,
   research: META_research,
   run: META_run,
   run_block: META_run_block,
@@ -2475,7 +2392,6 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   run_workflow_until_block: META_run_workflow_until_block,
   scrape_page: META_scrape_page,
   search_documentation: META_search_documentation,
-  search_errors: META_search_errors,
   search_library_docs: META_search_library_docs,
   search_online: META_search_online,
   search_patterns: META_search_patterns,

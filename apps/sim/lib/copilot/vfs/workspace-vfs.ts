@@ -18,6 +18,7 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull, ne } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
+import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import type { DirEntry, GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
 import * as ops from '@/lib/copilot/vfs/operations'
 import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
@@ -56,7 +57,10 @@ import {
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { listTables } from '@/lib/table/service'
-import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  findWorkspaceFileRecord,
+  listWorkspaceFiles,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -397,9 +401,7 @@ export class WorkspaceVFS {
 
     try {
       const files = await listWorkspaceFiles(this._workspaceId)
-      const record = files.find(
-        (f) => f.name === fileName || f.name.normalize('NFC') === fileName.normalize('NFC')
-      )
+      const record = findWorkspaceFileRecord(files, fileName)
       if (!record) return null
       return readFileRecord(record)
     } catch (err) {
@@ -1176,14 +1178,8 @@ export type { FileReadResult } from '@/lib/copilot/vfs/file-reader'
 
 /**
  * Sanitize a name for use as a VFS path segment.
- * Normalizes Unicode to NFC, collapses whitespace, strips control
- * characters, and replaces forward slashes (path separators).
+ * Delegates to {@link normalizeVfsSegment} so workspace file paths match DB lookups.
  */
 export function sanitizeName(name: string): string {
-  return name
-    .normalize('NFC')
-    .trim()
-    .replace(/[\x00-\x1f\x7f]/g, '')
-    .replace(/\//g, '-')
-    .replace(/\s+/g, ' ')
+  return normalizeVfsSegment(name)
 }

@@ -1,5 +1,5 @@
 import { ZepIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { ZepResponse } from '@/tools/zep/types'
 
 export const ZepBlock: BlockConfig<ZepResponse> = {
@@ -12,6 +12,8 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
   bgColor: '#E8E8E8',
   icon: ZepIcon,
   category: 'tools',
+  integrationType: IntegrationType.AI,
+  tags: ['llm', 'knowledge-base', 'agentic'],
   docsLink: 'https://docs.sim.ai/tools/zep',
   subBlocks: [
     {

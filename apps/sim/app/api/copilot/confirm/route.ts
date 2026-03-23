@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { completeAsyncToolCall, upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
 import { REDIS_TOOL_CALL_PREFIX, REDIS_TOOL_CALL_TTL_SECONDS } from '@/lib/copilot/constants'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -34,10 +35,38 @@ async function updateToolCallStatus(
   message?: string,
   data?: Record<string, unknown>
 ): Promise<boolean> {
+  const durableStatus =
+    status === 'success'
+      ? 'completed'
+      : status === 'cancelled'
+        ? 'cancelled'
+        : status === 'error' || status === 'rejected'
+          ? 'failed'
+          : 'pending'
+  await upsertAsyncToolCall({
+    runId: crypto.randomUUID(),
+    toolCallId,
+    toolName: 'client_tool',
+    args: {},
+    status: durableStatus,
+  }).catch(() => {})
+  if (
+    durableStatus === 'completed' ||
+    durableStatus === 'failed' ||
+    durableStatus === 'cancelled'
+  ) {
+    await completeAsyncToolCall({
+      toolCallId,
+      status: durableStatus,
+      result: data ?? null,
+      error: status === 'success' ? null : message || status,
+    }).catch(() => {})
+  }
+
   const redis = getRedisClient()
   if (!redis) {
-    logger.warn('Redis client not available for tool confirmation')
-    return false
+    logger.warn('Redis client not available for tool confirmation; durable DB mirror only')
+    return true
   }
 
   try {

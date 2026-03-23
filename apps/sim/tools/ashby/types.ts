@@ -21,10 +21,8 @@ export interface AshbyGetCandidateParams extends AshbyBaseParams {
 
 export interface AshbyCreateCandidateParams extends AshbyBaseParams {
   name: string
-  email?: string
-  emailType?: string
+  email: string
   phoneNumber?: string
-  phoneType?: string
   linkedInUrl?: string
   githubUrl?: string
   sourceId?: string
@@ -111,6 +109,8 @@ export interface AshbySearchCandidatesResponse extends ToolResponse {
       name: string
       primaryEmailAddress: AshbyContactInfo | null
       primaryPhoneNumber: AshbyContactInfo | null
+      createdAt: string
+      updatedAt: string
     }>
   }
 }
@@ -149,15 +149,7 @@ export interface AshbyGetJobResponse extends ToolResponse {
 
 export interface AshbyCreateNoteResponse extends ToolResponse {
   output: {
-    id: string
-    content: string
-    author: {
-      id: string
-      firstName: string
-      lastName: string
-      email: string
-    } | null
-    createdAt: string
+    noteId: string
   }
 }
 

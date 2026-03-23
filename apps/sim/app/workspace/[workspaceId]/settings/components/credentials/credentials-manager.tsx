@@ -494,13 +494,12 @@ export function CredentialsManager() {
   }, [variables])
 
   useEffect(() => {
-    if (workspaceEnvData) {
-      if (hasSavedRef.current) {
-        hasSavedRef.current = false
-      } else {
-        setWorkspaceVars(workspaceEnvData?.workspace || {})
-        initialWorkspaceVarsRef.current = workspaceEnvData?.workspace || {}
-      }
+    if (!workspaceEnvData) return
+    if (hasSavedRef.current) {
+      hasSavedRef.current = false
+    } else {
+      setWorkspaceVars(workspaceEnvData.workspace || {})
+      initialWorkspaceVarsRef.current = workspaceEnvData.workspace || {}
     }
   }, [workspaceEnvData])
 
@@ -1275,6 +1274,8 @@ export function CredentialsManager() {
                           selectedValue={memberUserId}
                           onChange={setMemberUserId}
                           placeholder='Add member...'
+                          searchable
+                          searchPlaceholder='Search members...'
                           size='sm'
                         />
                         <Combobox

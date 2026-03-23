@@ -1,0 +1,230 @@
+---
+title: DocuSign
+description: Send documents for e-signature via DocuSign
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="docusign"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[DocuSign](https://www.docusign.com) is the world's leading e-signature platform, enabling businesses to send, sign, and manage agreements digitally. With its powerful eSignature REST API, DocuSign supports the full document lifecycle from creation through completion.
+
+With the DocuSign integration in Sim, you can:
+
+- **Send envelopes**: Create and send documents for e-signature with custom recipients and signing tabs
+- **Use templates**: Send envelopes from pre-configured DocuSign templates with role assignments
+- **Track status**: Get envelope details including signing progress, timestamps, and recipient status
+- **List envelopes**: Search and filter envelopes by date range, status, and text
+- **Download documents**: Retrieve signed documents as base64-encoded files
+- **Manage recipients**: View signer and CC recipient details and signing status
+- **Void envelopes**: Cancel in-progress envelopes with a reason
+
+In Sim, the DocuSign integration enables your agents to automate document workflows end-to-end. Agents can generate agreements, send them for signature, monitor completion, and retrieve signed copies—powering contract management, HR onboarding, sales closings, and compliance processes.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Create and send envelopes for e-signature, use templates, check signing status, download signed documents, and manage recipients with DocuSign.
+
+
+
+## Tools
+
+### `docusign_send_envelope`
+
+Create and send a DocuSign envelope with a document for e-signature
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `emailSubject` | string | Yes | Email subject for the envelope |
+| `emailBody` | string | No | Email body message |
+| `signerEmail` | string | Yes | Email address of the signer |
+| `signerName` | string | Yes | Full name of the signer |
+| `ccEmail` | string | No | Email address of carbon copy recipient |
+| `ccName` | string | No | Full name of carbon copy recipient |
+| `file` | file | No | Document file to send for signature |
+| `status` | string | No | Envelope status: "sent" to send immediately, "created" for draft \(default: "sent"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envelopeId` | string | Created envelope ID |
+| `status` | string | Envelope status |
+| `statusDateTime` | string | Status change datetime |
+| `uri` | string | Envelope URI |
+
+### `docusign_create_from_template`
+
+Create and send a DocuSign envelope using a pre-built template
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `templateId` | string | Yes | DocuSign template ID to use |
+| `emailSubject` | string | No | Override email subject \(uses template default if not set\) |
+| `emailBody` | string | No | Override email body message |
+| `templateRoles` | string | Yes | JSON array of template roles, e.g. \[\{"roleName":"Signer","name":"John","email":"john@example.com"\}\] |
+| `status` | string | No | Envelope status: "sent" to send immediately, "created" for draft \(default: "sent"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envelopeId` | string | Created envelope ID |
+| `status` | string | Envelope status |
+| `statusDateTime` | string | Status change datetime |
+| `uri` | string | Envelope URI |
+
+### `docusign_get_envelope`
+
+Get the details and status of a DocuSign envelope
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `envelopeId` | string | Yes | The envelope ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envelopeId` | string | Envelope ID |
+| `status` | string | Envelope status \(created, sent, delivered, completed, declined, voided\) |
+| `emailSubject` | string | Email subject line |
+| `sentDateTime` | string | When the envelope was sent |
+| `completedDateTime` | string | When all recipients completed signing |
+| `createdDateTime` | string | When the envelope was created |
+| `statusChangedDateTime` | string | When the status last changed |
+| `voidedReason` | string | Reason the envelope was voided |
+| `signerCount` | number | Number of signers |
+| `documentCount` | number | Number of documents |
+
+### `docusign_list_envelopes`
+
+List envelopes from your DocuSign account with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fromDate` | string | No | Start date filter \(ISO 8601\). Defaults to 30 days ago |
+| `toDate` | string | No | End date filter \(ISO 8601\) |
+| `envelopeStatus` | string | No | Filter by status: created, sent, delivered, completed, declined, voided |
+| `searchText` | string | No | Search text to filter envelopes |
+| `count` | string | No | Maximum number of envelopes to return \(default: 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envelopes` | array | Array of DocuSign envelopes |
+|   ↳ `envelopeId` | string | Unique envelope identifier |
+|   ↳ `status` | string | Envelope status \(created, sent, delivered, completed, declined, voided\) |
+|   ↳ `emailSubject` | string | Email subject line |
+|   ↳ `sentDateTime` | string | ISO 8601 datetime when envelope was sent |
+|   ↳ `completedDateTime` | string | ISO 8601 datetime when envelope was completed |
+|   ↳ `createdDateTime` | string | ISO 8601 datetime when envelope was created |
+|   ↳ `statusChangedDateTime` | string | ISO 8601 datetime of last status change |
+| `totalSetSize` | number | Total number of matching envelopes |
+| `resultSetSize` | number | Number of envelopes returned in this response |
+
+### `docusign_void_envelope`
+
+Void (cancel) a sent DocuSign envelope that has not yet been completed
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `envelopeId` | string | Yes | The envelope ID to void |
+| `voidedReason` | string | Yes | Reason for voiding the envelope |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `envelopeId` | string | Voided envelope ID |
+| `status` | string | Envelope status \(voided\) |
+
+### `docusign_download_document`
+
+Download a signed document from a completed DocuSign envelope
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `envelopeId` | string | Yes | The envelope ID containing the document |
+| `documentId` | string | No | Specific document ID to download, or "combined" for all documents merged \(default: "combined"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `base64Content` | string | Base64-encoded document content |
+| `mimeType` | string | MIME type of the document |
+| `fileName` | string | Original file name |
+
+### `docusign_list_templates`
+
+List available templates in your DocuSign account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `searchText` | string | No | Search text to filter templates by name |
+| `count` | string | No | Maximum number of templates to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `templates` | array | Array of DocuSign templates |
+|   ↳ `templateId` | string | Template identifier |
+|   ↳ `name` | string | Template name |
+|   ↳ `description` | string | Template description |
+|   ↳ `shared` | boolean | Whether template is shared |
+|   ↳ `created` | string | ISO 8601 creation date |
+|   ↳ `lastModified` | string | ISO 8601 last modified date |
+| `totalSetSize` | number | Total number of matching templates |
+| `resultSetSize` | number | Number of templates returned in this response |
+
+### `docusign_list_recipients`
+
+Get the recipient status details for a DocuSign envelope
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `envelopeId` | string | Yes | The envelope ID to get recipients for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `signers` | array | Array of DocuSign recipients |
+|   ↳ `recipientId` | string | Recipient identifier |
+|   ↳ `name` | string | Recipient name |
+|   ↳ `email` | string | Recipient email address |
+|   ↳ `status` | string | Recipient signing status \(sent, delivered, completed, declined\) |
+|   ↳ `signedDateTime` | string | ISO 8601 datetime when recipient signed |
+|   ↳ `deliveredDateTime` | string | ISO 8601 datetime when delivered to recipient |
+| `carbonCopies` | array | Array of carbon copy recipients |
+|   ↳ `recipientId` | string | Recipient ID |
+|   ↳ `name` | string | Recipient name |
+|   ↳ `email` | string | Recipient email |
+|   ↳ `status` | string | Recipient status |
+
+

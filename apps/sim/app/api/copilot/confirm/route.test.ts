@@ -240,7 +240,7 @@ describe('Copilot Confirm API Route', () => {
       })
     })
 
-    it('should return 400 when Redis client is not available', async () => {
+    it('should succeed when Redis client is not available', async () => {
       setAuthenticated()
 
       mockGetRedisClient.mockReturnValue(null)
@@ -252,9 +252,15 @@ describe('Copilot Confirm API Route', () => {
 
       const response = await POST(req)
 
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(200)
       const responseData = await response.json()
-      expect(responseData.error).toBe('Failed to update tool call status or tool call not found')
+      expect(responseData).toEqual({
+        success: true,
+        message: 'Tool call tool-call-123 has been success',
+        toolCallId: 'tool-call-123',
+        status: 'success',
+      })
+      expect(mockRedisSet).not.toHaveBeenCalled()
     })
 
     it('should return 400 when Redis set fails', async () => {

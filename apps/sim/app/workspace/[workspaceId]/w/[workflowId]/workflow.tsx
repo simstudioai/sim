@@ -37,7 +37,6 @@ import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
 import type { SubflowNodeData } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
-import { TrainingModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/training-modal/training-modal'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
@@ -76,14 +75,12 @@ import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-setti
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOAuthReturnForWorkflow } from '@/hooks/use-oauth-return'
-import { useStreamCleanup } from '@/hooks/use-stream-cleanup'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
-import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
 import { defaultWorkflowExecutionState, useExecutionStore } from '@/stores/execution'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useNotificationStore } from '@/stores/notifications'
-import { useCopilotStore, usePanelEditorStore } from '@/stores/panel'
+import { usePanelEditorStore } from '@/stores/panel'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -201,8 +198,6 @@ const edgeTypes: EdgeTypes = {
 const defaultEdgeOptions = { type: 'custom' }
 
 const reactFlowStyles = [
-  '[&_.react-flow__edges]:!z-0',
-  '[&_.react-flow__node]:z-[21]',
   '[&_.react-flow__handle]:!z-[30]',
   '[&_.react-flow__edge-labels]:!z-[1001]',
   '[&_.react-flow__pane]:select-none',
@@ -326,10 +321,6 @@ const WorkflowContent = React.memo(
       }))
     )
 
-    const copilotCleanup = useCopilotStore((state) => state.cleanup)
-
-    const showTrainingModal = useCopilotTrainingStore((state) => state.showModal)
-
     const { handleRunFromBlock, handleRunUntilBlock, handleRunWorkflow, handleCancelExecution } =
       useWorkflowExecution()
 
@@ -348,8 +339,6 @@ const WorkflowContent = React.memo(
       () => [snapToGridSize, snapToGridSize],
       [snapToGridSize]
     )
-
-    useStreamCleanup(copilotCleanup)
 
     const { blocks, edges, lastSaved } = currentWorkflow
 
@@ -2478,6 +2467,7 @@ const WorkflowContent = React.memo(
 
     // Local state for nodes - allows smooth drag without store updates on every frame
     const [displayNodes, setDisplayNodes] = useState<Node[]>([])
+    const [lastInteractedNodeId, setLastInteractedNodeId] = useState<string | null>(null)
 
     const selectedNodeIds = useMemo(
       () => displayNodes.filter((node) => node.selected).map((node) => node.id),
@@ -2487,6 +2477,14 @@ const WorkflowContent = React.memo(
 
     useEffect(() => {
       syncPanelWithSelection(selectedNodeIds)
+    }, [selectedNodeIdsKey])
+
+    // Keep the most recently selected block on top even after deselection, so a
+    // dragged block doesn't suddenly drop behind other overlapping blocks.
+    useEffect(() => {
+      if (selectedNodeIds.length > 0) {
+        setLastInteractedNodeId(selectedNodeIds[selectedNodeIds.length - 1])
+      }
     }, [selectedNodeIdsKey])
 
     useEffect(() => {
@@ -3723,18 +3721,58 @@ const WorkflowContent = React.memo(
       [removeEdge, edges, blocks, addNotification, activeWorkflowId]
     )
 
+    // Elevate nodes using React Flow's native zIndex so selected/recent blocks
+    // always sit above edges and other blocks.
+    //
+    // Z-index layers (regular blocks):
+    //   21 — default
+    //   22 — last interacted (dragged/selected, now deselected) so it stays on
+    //        top of siblings until another block is touched
+    //   31 — currently selected (above connected edges at z-22 and handles at z-30)
+    //
+    // Subflow container nodes are skipped — they use depth-based zIndex for
+    // correct parent/child layering and must not be bumped.
+    // Child blocks inside containers already carry zIndex 1000 and are bumped by
+    // +10 when selected so they stay above their sibling child blocks.
+    const nodesForRender = useMemo(() => {
+      return displayNodes.map((node) => {
+        if (node.type === 'subflowNode') return node
+        const base = node.zIndex ?? 21
+        const target = node.selected
+          ? base + 10
+          : node.id === lastInteractedNodeId
+            ? Math.max(base + 1, 22)
+            : base
+        if (target === (node.zIndex ?? 21)) return node
+        return { ...node, zIndex: target }
+      })
+    }, [displayNodes, lastInteractedNodeId])
+
     /** Transforms edges to include selection state and delete handlers. Memoized to prevent re-renders. */
     const edgesWithSelection = useMemo(() => {
       const nodeMap = new Map(displayNodes.map((n) => [n.id, n]))
+      const elevatedNodeIdSet = new Set(
+        lastInteractedNodeId ? [...selectedNodeIds, lastInteractedNodeId] : selectedNodeIds
+      )
 
       return edgesForDisplay.map((edge) => {
         const sourceNode = nodeMap.get(edge.source)
         const targetNode = nodeMap.get(edge.target)
         const parentLoopId = sourceNode?.parentId || targetNode?.parentId
         const edgeContextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`
+        const connectedToElevated =
+          elevatedNodeIdSet.has(edge.source) || elevatedNodeIdSet.has(edge.target)
+        // Derive elevated z-index from connected nodes so edges inside subflows
+        // (child nodes at z-1000) stay above their sibling child blocks.
+        const elevatedZIndex = Math.max(
+          22,
+          (sourceNode?.zIndex ?? 21) + 1,
+          (targetNode?.zIndex ?? 21) + 1
+        )
 
         return {
           ...edge,
+          zIndex: connectedToElevated ? elevatedZIndex : 0,
           data: {
             ...edge.data,
             isSelected: selectedEdges.has(edgeContextId),
@@ -3745,7 +3783,14 @@ const WorkflowContent = React.memo(
           },
         }
       })
-    }, [edgesForDisplay, displayNodes, selectedEdges, handleEdgeDelete])
+    }, [
+      edgesForDisplay,
+      displayNodes,
+      selectedNodeIds,
+      selectedEdges,
+      handleEdgeDelete,
+      lastInteractedNodeId,
+    ])
 
     /** Handles Delete/Backspace to remove selected edges or blocks. */
     useEffect(() => {
@@ -3882,10 +3927,8 @@ const WorkflowContent = React.memo(
 
             {isWorkflowReady && (
               <>
-                {showTrainingModal && <TrainingModal />}
-
                 <ReactFlow
-                  nodes={displayNodes}
+                  nodes={nodesForRender}
                   edges={edgesWithSelection}
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
@@ -3952,7 +3995,7 @@ const WorkflowContent = React.memo(
                   onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}
                   snapToGrid={snapToGrid}
                   snapGrid={snapGrid}
-                  elevateEdgesOnSelect={true}
+                  elevateEdgesOnSelect={false}
                   onlyRenderVisibleElements={false}
                   deleteKeyCode={null}
                   elevateNodesOnSelect={false}

@@ -30,11 +30,49 @@ In Sim, the Ashby integration enables your agents to programmatically manage you
 
 ## Usage Instructions
 
-Integrate Ashby into the workflow. Can list, search, create, and update candidates, list and get job details, create notes, list notes, list and get applications, create applications, and list offers.
+Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag), applications (list, get, create, change stage), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).
 
 
 
 ## Tools
+
+### `ashby_add_candidate_tag`
+
+Adds a tag to a candidate in Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+| `candidateId` | string | Yes | The UUID of the candidate to add the tag to |
+| `tagId` | string | Yes | The UUID of the tag to add |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the tag was successfully added |
+
+### `ashby_change_application_stage`
+
+Moves an application to a different interview stage. Requires an archive reason when moving to an Archived stage.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+| `applicationId` | string | Yes | The UUID of the application to update the stage of |
+| `interviewStageId` | string | Yes | The UUID of the interview stage to move the application to |
+| `archiveReasonId` | string | No | Archive reason UUID. Required when moving to an Archived stage, ignored otherwise |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applicationId` | string | Application UUID |
+| `stageId` | string | New interview stage UUID |
 
 ### `ashby_create_application`
 
@@ -57,23 +95,7 @@ Creates a new application for a candidate on a job. Optionally specify interview
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Created application UUID |
-| `status` | string | Application status \(Active, Hired, Archived, Lead\) |
-| `candidate` | object | Associated candidate |
-|   ↳ `id` | string | Candidate UUID |
-|   ↳ `name` | string | Candidate name |
-| `job` | object | Associated job |
-|   ↳ `id` | string | Job UUID |
-|   ↳ `title` | string | Job title |
-| `currentInterviewStage` | object | Current interview stage |
-|   ↳ `id` | string | Stage UUID |
-|   ↳ `title` | string | Stage title |
-|   ↳ `type` | string | Stage type |
-| `source` | object | Application source |
-|   ↳ `id` | string | Source UUID |
-|   ↳ `title` | string | Source title |
-| `createdAt` | string | ISO 8601 creation timestamp |
-| `updatedAt` | string | ISO 8601 last update timestamp |
+| `applicationId` | string | Created application UUID |
 
 ### `ashby_create_candidate`
 
@@ -85,10 +107,8 @@ Creates a new candidate record in Ashby.
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Ashby API Key |
 | `name` | string | Yes | The candidate full name |
-| `email` | string | No | Primary email address for the candidate |
-| `emailType` | string | No | Email address type: Personal, Work, or Other \(default Work\) |
+| `email` | string | Yes | Primary email address for the candidate |
 | `phoneNumber` | string | No | Primary phone number for the candidate |
-| `phoneType` | string | No | Phone number type: Personal, Work, or Other \(default Work\) |
 | `linkedInUrl` | string | No | LinkedIn profile URL |
 | `githubUrl` | string | No | GitHub profile URL |
 | `sourceId` | string | No | UUID of the source to attribute the candidate to |
@@ -127,14 +147,7 @@ Creates a note on a candidate in Ashby. Supports plain text and HTML content (bo
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | string | Created note UUID |
-| `content` | string | Note content as stored |
-| `author` | object | Note author |
-|   ↳ `id` | string | Author user UUID |
-|   ↳ `firstName` | string | First name |
-|   ↳ `lastName` | string | Last name |
-|   ↳ `email` | string | Email address |
-| `createdAt` | string | ISO 8601 creation timestamp |
+| `noteId` | string | Created note UUID |
 
 ### `ashby_get_application`
 
@@ -228,7 +241,7 @@ Retrieves full details about a single job by its ID.
 | --------- | ---- | ----------- |
 | `id` | string | Job UUID |
 | `title` | string | Job title |
-| `status` | string | Job status \(Open, Closed, Draft, Archived, On Hold\) |
+| `status` | string | Job status \(Open, Closed, Draft, Archived\) |
 | `employmentType` | string | Employment type \(FullTime, PartTime, Intern, Contract, Temporary\) |
 | `departmentId` | string | Department UUID |
 | `locationId` | string | Location UUID |
@@ -236,6 +249,58 @@ Retrieves full details about a single job by its ID.
 | `isArchived` | boolean | Whether the job is archived |
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `updatedAt` | string | ISO 8601 last update timestamp |
+
+### `ashby_get_job_posting`
+
+Retrieves full details about a single job posting by its ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+| `jobPostingId` | string | Yes | The UUID of the job posting to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Job posting UUID |
+| `title` | string | Job posting title |
+| `jobId` | string | Associated job UUID |
+| `locationName` | string | Location name |
+| `departmentName` | string | Department name |
+| `employmentType` | string | Employment type \(e.g. FullTime, PartTime, Contract\) |
+| `descriptionPlain` | string | Job posting description in plain text |
+| `isListed` | boolean | Whether the posting is publicly listed |
+| `publishedDate` | string | ISO 8601 published date |
+| `externalLink` | string | External link to the job posting |
+
+### `ashby_get_offer`
+
+Retrieves full details about a single offer by its ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+| `offerId` | string | Yes | The UUID of the offer to fetch |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Offer UUID |
+| `offerStatus` | string | Offer status \(e.g. WaitingOnCandidateResponse, CandidateAccepted\) |
+| `acceptanceStatus` | string | Acceptance status \(e.g. Accepted, Declined, Pending\) |
+| `applicationId` | string | Associated application UUID |
+| `startDate` | string | Offer start date |
+| `salary` | object | Salary details |
+|   ↳ `currencyCode` | string | ISO 4217 currency code |
+|   ↳ `value` | number | Salary amount |
+| `openingId` | string | Associated opening UUID |
+| `createdAt` | string | ISO 8601 creation timestamp \(from latest version\) |
 
 ### `ashby_list_applications`
 
@@ -278,6 +343,45 @@ Lists all applications in an Ashby organization with pagination and optional fil
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
+### `ashby_list_archive_reasons`
+
+Lists all archive reasons configured in Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `archiveReasons` | array | List of archive reasons |
+|   ↳ `id` | string | Archive reason UUID |
+|   ↳ `text` | string | Archive reason text |
+|   ↳ `reasonType` | string | Reason type |
+|   ↳ `isArchived` | boolean | Whether the reason is archived |
+
+### `ashby_list_candidate_tags`
+
+Lists all candidate tags configured in Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | List of candidate tags |
+|   ↳ `id` | string | Tag UUID |
+|   ↳ `title` | string | Tag title |
+|   ↳ `isArchived` | boolean | Whether the tag is archived |
+
 ### `ashby_list_candidates`
 
 Lists all candidates in an Ashby organization with cursor-based pagination.
@@ -310,6 +414,98 @@ Lists all candidates in an Ashby organization with cursor-based pagination.
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
+### `ashby_list_custom_fields`
+
+Lists all custom field definitions configured in Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customFields` | array | List of custom field definitions |
+|   ↳ `id` | string | Custom field UUID |
+|   ↳ `title` | string | Custom field title |
+|   ↳ `fieldType` | string | Field type \(e.g. String, Number, Boolean\) |
+|   ↳ `objectType` | string | Object type the field applies to \(e.g. Candidate, Application, Job\) |
+|   ↳ `isArchived` | boolean | Whether the custom field is archived |
+
+### `ashby_list_departments`
+
+Lists all departments in Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `departments` | array | List of departments |
+|   ↳ `id` | string | Department UUID |
+|   ↳ `name` | string | Department name |
+|   ↳ `isArchived` | boolean | Whether the department is archived |
+|   ↳ `parentId` | string | Parent department UUID |
+
+### `ashby_list_interviews`
+
+Lists interview schedules in Ashby, optionally filtered by application or interview stage.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+| `applicationId` | string | No | The UUID of the application to list interview schedules for |
+| `interviewStageId` | string | No | The UUID of the interview stage to list interview schedules for |
+| `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
+| `perPage` | number | No | Number of results per page \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `interviewSchedules` | array | List of interview schedules |
+|   ↳ `id` | string | Interview schedule UUID |
+|   ↳ `applicationId` | string | Associated application UUID |
+|   ↳ `interviewStageId` | string | Interview stage UUID |
+|   ↳ `status` | string | Schedule status |
+|   ↳ `createdAt` | string | ISO 8601 creation timestamp |
+| `moreDataAvailable` | boolean | Whether more pages of results exist |
+| `nextCursor` | string | Opaque cursor for fetching the next page |
+
+### `ashby_list_job_postings`
+
+Lists all job postings in Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobPostings` | array | List of job postings |
+|   ↳ `id` | string | Job posting UUID |
+|   ↳ `title` | string | Job posting title |
+|   ↳ `jobId` | string | Associated job UUID |
+|   ↳ `locationName` | string | Location name |
+|   ↳ `departmentName` | string | Department name |
+|   ↳ `employmentType` | string | Employment type \(e.g. FullTime, PartTime, Contract\) |
+|   ↳ `isListed` | boolean | Whether the posting is publicly listed |
+|   ↳ `publishedDate` | string | ISO 8601 published date |
+
 ### `ashby_list_jobs`
 
 Lists all jobs in an Ashby organization. By default returns Open, Closed, and Archived jobs. Specify status to filter.
@@ -338,6 +534,30 @@ Lists all jobs in an Ashby organization. By default returns Open, Closed, and Ar
 |   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
+
+### `ashby_list_locations`
+
+Lists all locations configured in Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `locations` | array | List of locations |
+|   ↳ `id` | string | Location UUID |
+|   ↳ `name` | string | Location name |
+|   ↳ `isArchived` | boolean | Whether the location is archived |
+|   ↳ `isRemote` | boolean | Whether this is a remote location |
+|   ↳ `address` | object | Location address |
+|     ↳ `city` | string | City |
+|     ↳ `region` | string | State or region |
+|     ↳ `country` | string | Country |
 
 ### `ashby_list_notes`
 
@@ -386,17 +606,105 @@ Lists all offers with their latest version in an Ashby organization.
 | --------- | ---- | ----------- |
 | `offers` | array | List of offers |
 |   ↳ `id` | string | Offer UUID |
-|   ↳ `status` | string | Offer status |
-|   ↳ `candidate` | object | Associated candidate |
-|     ↳ `id` | string | Candidate UUID |
-|     ↳ `name` | string | Candidate name |
-|   ↳ `job` | object | Associated job |
-|     ↳ `id` | string | Job UUID |
-|     ↳ `title` | string | Job title |
+|   ↳ `offerStatus` | string | Offer status |
+|   ↳ `acceptanceStatus` | string | Acceptance status |
+|   ↳ `applicationId` | string | Associated application UUID |
+|   ↳ `startDate` | string | Offer start date |
+|   ↳ `salary` | object | Salary details |
+|     ↳ `currencyCode` | string | ISO 4217 currency code |
+|     ↳ `value` | number | Salary amount |
+|   ↳ `openingId` | string | Associated opening UUID |
 |   ↳ `createdAt` | string | ISO 8601 creation timestamp |
-|   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
+
+### `ashby_list_openings`
+
+Lists all openings in Ashby with pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+| `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
+| `perPage` | number | No | Number of results per page \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `openings` | array | List of openings |
+|   ↳ `id` | string | Opening UUID |
+|   ↳ `openingState` | string | Opening state \(Approved, Closed, Draft, Filled, Open\) |
+|   ↳ `isArchived` | boolean | Whether the opening is archived |
+|   ↳ `openedAt` | string | ISO 8601 opened timestamp |
+|   ↳ `closedAt` | string | ISO 8601 closed timestamp |
+| `moreDataAvailable` | boolean | Whether more pages of results exist |
+| `nextCursor` | string | Opaque cursor for fetching the next page |
+
+### `ashby_list_sources`
+
+Lists all candidate sources configured in Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sources` | array | List of sources |
+|   ↳ `id` | string | Source UUID |
+|   ↳ `title` | string | Source title |
+|   ↳ `isArchived` | boolean | Whether the source is archived |
+
+### `ashby_list_users`
+
+Lists all users in Ashby with pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+| `cursor` | string | No | Opaque pagination cursor from a previous response nextCursor value |
+| `perPage` | number | No | Number of results per page \(default 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | List of users |
+|   ↳ `id` | string | User UUID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Email address |
+|   ↳ `isEnabled` | boolean | Whether the user account is enabled |
+|   ↳ `globalRole` | string | User role \(Organization Admin, Elevated Access, Limited Access, External Recruiter\) |
+| `moreDataAvailable` | boolean | Whether more pages of results exist |
+| `nextCursor` | string | Opaque cursor for fetching the next page |
+
+### `ashby_remove_candidate_tag`
+
+Removes a tag from a candidate in Ashby.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Ashby API Key |
+| `candidateId` | string | Yes | The UUID of the candidate to remove the tag from |
+| `tagId` | string | Yes | The UUID of the tag to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the tag was successfully removed |
 
 ### `ashby_search_candidates`
 
@@ -425,6 +733,8 @@ Searches for candidates by name and/or email with AND logic. Results are limited
 |     ↳ `value` | string | Phone number |
 |     ↳ `type` | string | Contact type \(Personal, Work, Other\) |
 |     ↳ `isPrimary` | boolean | Whether this is the primary phone |
+|   ↳ `createdAt` | string | ISO 8601 creation timestamp |
+|   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
 
 ### `ashby_update_candidate`
 
@@ -438,9 +748,7 @@ Updates an existing candidate record in Ashby. Only provided fields are changed.
 | `candidateId` | string | Yes | The UUID of the candidate to update |
 | `name` | string | No | Updated full name |
 | `email` | string | No | Updated primary email address |
-| `emailType` | string | No | Email address type: Personal, Work, or Other \(default Work\) |
 | `phoneNumber` | string | No | Updated primary phone number |
-| `phoneType` | string | No | Phone number type: Personal, Work, or Other \(default Work\) |
 | `linkedInUrl` | string | No | LinkedIn profile URL |
 | `githubUrl` | string | No | GitHub profile URL |
 | `websiteUrl` | string | No | Personal website URL |

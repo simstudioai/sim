@@ -34,6 +34,7 @@ import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { START_BLOCK_RESERVED_FIELDS } from '@/lib/workflows/types'
+import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/types'
 import {
   ChatMessage,
   OutputSelect,
@@ -84,17 +85,6 @@ interface ChatFile {
   file: File
 }
 
-/**
- * Represents a processed file attachment with data URL for display
- */
-interface ProcessedAttachment {
-  id: string
-  name: string
-  type: string
-  size: number
-  dataUrl: string
-}
-
 /** Timeout for FileReader operations in milliseconds */
 const FILE_READ_TIMEOUT_MS = 60000
 
@@ -103,13 +93,13 @@ const FILE_READ_TIMEOUT_MS = 60000
  * @param chatFiles - Array of chat files to process
  * @returns Promise resolving to array of files with data URLs for images
  */
-const processFileAttachments = async (chatFiles: ChatFile[]): Promise<ProcessedAttachment[]> => {
+const processFileAttachments = async (chatFiles: ChatFile[]): Promise<ChatMessageAttachment[]> => {
   return Promise.all(
     chatFiles.map(async (file) => {
-      let dataUrl = ''
+      let previewUrl: string | undefined
       if (file.type.startsWith('image/')) {
         try {
-          dataUrl = await new Promise<string>((resolve, reject) => {
+          previewUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader()
             let settled = false
 
@@ -150,10 +140,10 @@ const processFileAttachments = async (chatFiles: ChatFile[]): Promise<ProcessedA
       }
       return {
         id: file.id,
-        name: file.name,
-        type: file.type,
+        filename: file.name,
+        media_type: file.type,
         size: file.size,
-        dataUrl,
+        previewUrl,
       }
     })
   )

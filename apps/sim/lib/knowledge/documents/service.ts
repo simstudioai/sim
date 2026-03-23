@@ -47,7 +47,6 @@ const logger = createLogger('DocumentService')
 
 const TIMEOUTS = {
   OVERALL_PROCESSING: (env.KB_CONFIG_MAX_DURATION || 600) * 1000, // Default 10 minutes for KB document processing
-  EMBEDDINGS_API: (env.KB_CONFIG_MAX_TIMEOUT || 10000) * 18,
 } as const
 
 // Configuration for handling large documents

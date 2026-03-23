@@ -35,6 +35,7 @@ import {
 } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
+import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -198,27 +199,41 @@ const SidebarNavItem = memo(function SidebarNavItem({
     'group flex h-[30px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
   const activeClasses = active ? 'bg-[var(--surface-active)]' : ''
 
-  const element = item.onClick ? (
+  const content = (
+    <>
+      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+      <span className='truncate font-base text-[var(--text-body)]'>{item.label}</span>
+    </>
+  )
+
+  const element = item.href ? (
+    <Link
+      href={item.href}
+      data-item-id={item.id}
+      className={`${baseClasses} ${activeClasses}`}
+      onClick={
+        item.onClick
+          ? (e) => {
+              if (e.ctrlKey || e.metaKey || e.shiftKey) return
+              e.preventDefault()
+              item.onClick!()
+            }
+          : undefined
+      }
+      onContextMenu={onContextMenu ? (e) => onContextMenu(e, item.href!) : undefined}
+    >
+      {content}
+    </Link>
+  ) : item.onClick ? (
     <button
       type='button'
       data-item-id={item.id}
       className={`${baseClasses} ${activeClasses}`}
       onClick={item.onClick}
     >
-      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate font-base text-[var(--text-body)]'>{item.label}</span>
+      {content}
     </button>
-  ) : (
-    <Link
-      href={item.href!}
-      data-item-id={item.id}
-      className={`${baseClasses} ${activeClasses}`}
-      onContextMenu={onContextMenu ? (e) => onContextMenu(e, item.href!) : undefined}
-    >
-      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate font-base text-[var(--text-body)]'>{item.label}</span>
-    </Link>
-  )
+  ) : null
 
   return (
     <Tooltip.Root>
@@ -262,7 +277,7 @@ export const Sidebar = memo(function Sidebar() {
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const { canEdit } = useUserPermissionsContext()
   const { config: permissionConfig, filterBlocks } = usePermissionConfig()
-  const { navigateToSettings } = useSettingsNavigation()
+  const { navigateToSettings, getSettingsHref } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
 
   useEffect(() => {
@@ -591,10 +606,16 @@ export const Sidebar = memo(function Sidebar() {
         id: 'settings',
         label: 'Settings',
         icon: Settings,
-        onClick: () => navigateToSettings(),
+        href: getSettingsHref(),
+        onClick: () => {
+          if (!isCollapsed) {
+            setSidebarWidth(SIDEBAR_WIDTH.MIN)
+          }
+          navigateToSettings()
+        },
       },
     ],
-    [workspaceId, navigateToSettings]
+    [workspaceId, navigateToSettings, getSettingsHref, isCollapsed, setSidebarWidth]
   )
 
   const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)
@@ -636,6 +657,16 @@ export const Sidebar = memo(function Sidebar() {
     setIsTaskDeleteModalOpen(true)
   }, [tasks])
 
+  const navigateToPage = useCallback(
+    (path: string) => {
+      if (!isCollapsed) {
+        setSidebarWidth(SIDEBAR_WIDTH.MIN)
+      }
+      router.push(path)
+    },
+    [isCollapsed, setSidebarWidth, router]
+  )
+
   const handleConfirmDeleteTasks = useCallback(() => {
     const { taskIds: taskIdsToDelete } = contextMenuSelectionRef.current
     if (taskIdsToDelete.length === 0) return
@@ -648,7 +679,7 @@ export const Sidebar = memo(function Sidebar() {
     const onDeleteSuccess = () => {
       useFolderStore.getState().clearTaskSelection()
       if (isViewingDeletedTask) {
-        router.push(`/workspace/${workspaceId}/home`)
+        navigateToPage(`/workspace/${workspaceId}/home`)
       }
     }
 
@@ -658,7 +689,7 @@ export const Sidebar = memo(function Sidebar() {
       deleteTasksMutation.mutate(taskIdsToDelete, { onSuccess: onDeleteSuccess })
     }
     setIsTaskDeleteModalOpen(false)
-  }, [pathname, workspaceId, deleteTaskMutation, deleteTasksMutation, router])
+  }, [pathname, workspaceId, deleteTaskMutation, deleteTasksMutation, navigateToPage])
 
   const [visibleTaskCount, setVisibleTaskCount] = useState(5)
   const [renamingTaskId, setRenamingTaskId] = useState<string | null>(null)
@@ -904,29 +935,29 @@ export const Sidebar = memo(function Sidebar() {
           }
         },
       },
-      {
-        id: 'goto-templates',
-        handler: () => {
-          try {
-            const pathWorkspaceId = resolveWorkspaceIdFromPath()
-            if (pathWorkspaceId) {
-              router.push(`/workspace/${pathWorkspaceId}/templates`)
-              logger.info('Navigated to templates', { workspaceId: pathWorkspaceId })
-            } else {
-              logger.warn('No workspace ID found, cannot navigate to templates')
-            }
-          } catch (err) {
-            logger.error('Failed to navigate to templates', { err })
-          }
-        },
-      },
+      // {
+      //   id: 'goto-templates',
+      //   handler: () => {
+      //     try {
+      //       const pathWorkspaceId = resolveWorkspaceIdFromPath()
+      //       if (pathWorkspaceId) {
+      //         navigateToPage(`/workspace/${pathWorkspaceId}/templates`)
+      //         logger.info('Navigated to templates', { workspaceId: pathWorkspaceId })
+      //       } else {
+      //         logger.warn('No workspace ID found, cannot navigate to templates')
+      //       }
+      //     } catch (err) {
+      //       logger.error('Failed to navigate to templates', { err })
+      //     }
+      //   },
+      // },
       {
         id: 'goto-logs',
         handler: () => {
           try {
             const pathWorkspaceId = resolveWorkspaceIdFromPath()
             if (pathWorkspaceId) {
-              router.push(`/workspace/${pathWorkspaceId}/logs`)
+              navigateToPage(`/workspace/${pathWorkspaceId}/logs`)
               logger.info('Navigated to logs', { workspaceId: pathWorkspaceId })
             } else {
               logger.warn('No workspace ID found, cannot navigate to logs')
@@ -1113,7 +1144,7 @@ export const Sidebar = memo(function Sidebar() {
                             <Button
                               variant='ghost'
                               className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
-                              onClick={() => router.push(`/workspace/${workspaceId}/home`)}
+                              onClick={() => navigateToPage(`/workspace/${workspaceId}/home`)}
                             >
                               <Plus className='h-[16px] w-[16px]' />
                             </Button>
@@ -1131,7 +1162,7 @@ export const Sidebar = memo(function Sidebar() {
                         <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                       }
                       hover={tasksHover}
-                      onClick={() => router.push(`/workspace/${workspaceId}/home`)}
+                      onClick={() => navigateToPage(`/workspace/${workspaceId}/home`)}
                       ariaLabel='Tasks'
                       className='mt-[6px]'
                     >
@@ -1144,16 +1175,11 @@ export const Sidebar = memo(function Sidebar() {
                         tasks.map((task) => (
                           <DropdownMenuItem key={task.id} asChild>
                             <Link href={task.href}>
-                              <span className='relative flex-shrink-0'>
-                                <Blimp className='h-[16px] w-[16px]' />
-                                {task.isActive && (
-                                  <span className='-bottom-[1px] -right-[1px] absolute h-[6px] w-[6px] rounded-full border border-[var(--surface-1)] bg-amber-400' />
-                                )}
-                                {!task.isActive && task.isUnread && (
-                                  <span className='-bottom-[1px] -right-[1px] absolute h-[6px] w-[6px] rounded-full border border-[var(--surface-1)] bg-[#33C482]' />
-                                )}
-                              </span>
-                              <span>{task.name}</span>
+                              <ConversationListItem
+                                title={task.name}
+                                isActive={task.isActive}
+                                isUnread={task.isUnread}
+                              />
                             </Link>
                           </DropdownMenuItem>
                         ))
@@ -1370,6 +1396,7 @@ export const Sidebar = memo(function Sidebar() {
                     item={item}
                     active={false}
                     showCollapsedContent={showCollapsedContent}
+                    onContextMenu={item.href ? handleNavItemContextMenu : undefined}
                   />
                 ))}
               </div>

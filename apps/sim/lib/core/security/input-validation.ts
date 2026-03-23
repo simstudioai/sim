@@ -1169,3 +1169,56 @@ export function validatePaginationCursor(
 
   return { isValid: true, sanitized: value }
 }
+
+/**
+ * Validates a callback URL to prevent open redirect attacks.
+ * Accepts relative paths and absolute URLs matching the current origin.
+ *
+ * @param url - The callback URL to validate
+ * @returns true if the URL is safe to redirect to
+ */
+export function validateCallbackUrl(url: string): boolean {
+  try {
+    if (url.startsWith('/')) return true
+
+    if (typeof window === 'undefined') return false
+
+    const currentOrigin = window.location.origin
+    if (url.startsWith(currentOrigin)) return true
+
+    return false
+  } catch (error) {
+    logger.error('Error validating callback URL:', { error, url })
+    return false
+  }
+}
+
+const OKTA_DOMAIN_PATTERN =
+  /^[a-zA-Z0-9][a-zA-Z0-9-]*\.(okta|okta-gov|okta-emea|oktapreview|trexcloud)\.com$/
+
+/**
+ * Validates and sanitizes an Okta domain to prevent SSRF.
+ * Ensures the domain matches a known Okta domain suffix.
+ *
+ * @param rawDomain - The raw domain string (may include protocol, trailing slash, or whitespace)
+ * @returns The cleaned, validated domain string
+ * @throws Error if the domain does not match a known Okta domain suffix
+ *
+ * @example
+ * ```typescript
+ * const domain = validateOktaDomain(params.domain)
+ * // Returns: "dev-123456.okta.com"
+ * ```
+ */
+export function validateOktaDomain(rawDomain: string): string {
+  const domain = rawDomain
+    .trim()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/$/, '')
+  if (!OKTA_DOMAIN_PATTERN.test(domain)) {
+    throw new Error(
+      `Invalid Okta domain: "${domain}". Must be a valid Okta domain (e.g., dev-123456.okta.com)`
+    )
+  }
+  return domain
+}

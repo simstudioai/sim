@@ -8,6 +8,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
 import {
   admin,
+  captcha,
   createAuthMiddleware,
   customSession,
   emailOTP,
@@ -17,6 +18,7 @@ import {
   oneTimeToken,
   organization,
 } from 'better-auth/plugins'
+import { emailHarmony } from 'better-auth-harmony'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
@@ -63,6 +65,7 @@ import {
   isHosted,
   isOrganizationsEnabled,
   isRegistrationDisabled,
+  isSignupEmailValidationEnabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -209,6 +212,16 @@ export const auth = betterAuth({
 
           if (isMicrosoftProvider(account.providerId)) {
             modifiedAccount.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
+          }
+
+          // Box token response does not include a scope field, so Better Auth
+          // stores nothing. Populate it from the requested scopes so the
+          // credential-selector can verify permissions.
+          if (account.providerId === 'box' && !account.scope) {
+            const requestedScopes = getCanonicalScopesForProvider('box')
+            if (requestedScopes.length > 0) {
+              modifiedAccount.scope = requestedScopes.join(' ')
+            }
           }
 
           return { data: modifiedAccount }
@@ -469,6 +482,7 @@ export const auth = betterAuth({
         'google-tasks',
         'vertex-ai',
 
+        'microsoft-ad',
         'microsoft-dataverse',
         'microsoft-teams',
         'microsoft-excel',
@@ -478,6 +492,7 @@ export const auth = betterAuth({
         'sharepoint',
         'jira',
         'airtable',
+        'box',
         'dropbox',
         'salesforce',
         'wealthbox',
@@ -488,6 +503,7 @@ export const auth = betterAuth({
         'shopify',
         'trello',
         'calcom',
+        'docusign',
         ...SSO_TRUSTED_PROVIDERS,
       ],
     },
@@ -649,6 +665,16 @@ export const auth = betterAuth({
   },
   plugins: [
     nextCookies(),
+    ...(isSignupEmailValidationEnabled ? [emailHarmony()] : []),
+    ...(env.TURNSTILE_SECRET_KEY
+      ? [
+          captcha({
+            provider: 'cloudflare-turnstile',
+            secretKey: env.TURNSTILE_SECRET_KEY,
+            endpoints: ['/sign-up/email', '/sign-in/email'],
+          }),
+        ]
+      : []),
     admin(),
     jwt({
       jwks: {
@@ -1246,6 +1272,46 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in Google getUserInfo', { error })
+              throw error
+            }
+          },
+        },
+
+        {
+          providerId: 'microsoft-ad',
+          clientId: env.MICROSOFT_CLIENT_ID as string,
+          clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+          authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+          tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+          userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
+          scopes: getCanonicalScopesForProvider('microsoft-ad'),
+          responseType: 'code',
+          accessType: 'offline',
+          authentication: 'basic',
+          pkce: true,
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-ad`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://graph.microsoft.com/v1.0/me', {
+                headers: { Authorization: `Bearer ${tokens.accessToken}` },
+              })
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Failed to fetch Microsoft user info', { status: response.status })
+                throw new Error(`Failed to fetch Microsoft user info: ${response.statusText}`)
+              }
+              const profile = await response.json()
+              const now = new Date()
+              return {
+                id: `${profile.id}-${crypto.randomUUID()}`,
+                name: profile.displayName || 'Microsoft User',
+                email: profile.mail || profile.userPrincipalName,
+                emailVerified: true,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Microsoft getUserInfo', { error })
               throw error
             }
           },
@@ -2177,6 +2243,51 @@ export const auth = betterAuth({
         },
 
         {
+          providerId: 'box',
+          clientId: env.BOX_CLIENT_ID as string,
+          clientSecret: env.BOX_CLIENT_SECRET as string,
+          authorizationUrl: 'https://account.box.com/api/oauth2/authorize',
+          tokenUrl: 'https://api.box.com/oauth2/token',
+          scopes: getCanonicalScopesForProvider('box'),
+          responseType: 'code',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/box`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.box.com/2.0/users/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                const errorText = await response.text()
+                logger.error('Box API error:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                  body: errorText,
+                })
+                throw new Error(`Box API error: ${response.status} ${response.statusText}`)
+              }
+
+              const data = await response.json()
+
+              return {
+                id: `${data.id}-${crypto.randomUUID()}`,
+                email: data.login,
+                name: data.name || data.login,
+                emailVerified: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                image: data.avatar_url || undefined,
+              }
+            } catch (error) {
+              logger.error('Error in Box getUserInfo:', error)
+              throw error
+            }
+          },
+        },
+
+        {
           providerId: 'dropbox',
           clientId: env.DROPBOX_CLIENT_ID as string,
           clientSecret: env.DROPBOX_CLIENT_SECRET as string,
@@ -2588,6 +2699,64 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in WordPress.com getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
+        // DocuSign provider
+        {
+          providerId: 'docusign',
+          clientId: env.DOCUSIGN_CLIENT_ID as string,
+          clientSecret: env.DOCUSIGN_CLIENT_SECRET as string,
+          authorizationUrl: 'https://account-d.docusign.com/oauth/auth',
+          tokenUrl: 'https://account-d.docusign.com/oauth/token',
+          userInfoUrl: 'https://account-d.docusign.com/oauth/userinfo',
+          scopes: getCanonicalScopesForProvider('docusign'),
+          responseType: 'code',
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/docusign`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching DocuSign user profile')
+
+              const response = await fetch('https://account-d.docusign.com/oauth/userinfo', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Failed to fetch DocuSign user info', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const data = await response.json()
+              const accounts = data.accounts ?? []
+              const defaultAccount =
+                accounts.find((a: { is_default: boolean }) => a.is_default) ?? accounts[0]
+              const accountName = defaultAccount?.account_name || 'DocuSign Account'
+
+              if (data.scope) {
+                tokens.scopes = data.scope.split(/\s+/).filter(Boolean)
+              }
+
+              return {
+                id: `${data.sub}-${crypto.randomUUID()}`,
+                name: data.name || accountName,
+                email: data.email || `${data.sub}@docusign.com`,
+                emailVerified: true,
+                image: undefined,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in DocuSign getUserInfo:', { error })
               return null
             }
           },

@@ -27,6 +27,34 @@ export async function GET(request: NextRequest) {
   try {
     const now = new Date()
 
+    const STALE_SYNC_TTL_MS = 120 * 60 * 1000
+    const staleCutoff = new Date(now.getTime() - STALE_SYNC_TTL_MS)
+
+    const recoveredConnectors = await db
+      .update(knowledgeConnector)
+      .set({
+        status: 'error',
+        lastSyncError: 'Sync timed out (stale lock recovered)',
+        nextSyncAt: new Date(now.getTime() + 10 * 60 * 1000),
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(knowledgeConnector.status, 'syncing'),
+          lte(knowledgeConnector.updatedAt, staleCutoff),
+          isNull(knowledgeConnector.archivedAt),
+          isNull(knowledgeConnector.deletedAt)
+        )
+      )
+      .returning({ id: knowledgeConnector.id })
+
+    if (recoveredConnectors.length > 0) {
+      logger.warn(
+        `[${requestId}] Recovered ${recoveredConnectors.length} stale syncing connectors`,
+        { ids: recoveredConnectors.map((c) => c.id) }
+      )
+    }
+
     const dueConnectors = await db
       .select({
         id: knowledgeConnector.id,

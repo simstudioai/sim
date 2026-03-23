@@ -2,7 +2,9 @@ import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, count, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
+import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -11,6 +13,13 @@ import type {
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('KnowledgeBaseService')
+
+export class KnowledgeBaseConflictError extends Error {
+  readonly code = 'KNOWLEDGE_BASE_EXISTS' as const
+  constructor(name: string) {
+    super(`A knowledge base named "${name}" already exists in this workspace`)
+  }
+}
 
 export type KnowledgeBaseScope = 'active' | 'archived' | 'all'
 
@@ -157,7 +166,30 @@ export async function createKnowledgeBase(
     deletedAt: null,
   }
 
-  await db.insert(knowledgeBase).values(newKnowledgeBase)
+  const duplicate = await db
+    .select({ id: knowledgeBase.id })
+    .from(knowledgeBase)
+    .where(
+      and(
+        eq(knowledgeBase.workspaceId, data.workspaceId),
+        eq(knowledgeBase.name, data.name),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+    .limit(1)
+
+  if (duplicate.length > 0) {
+    throw new KnowledgeBaseConflictError(data.name)
+  }
+
+  try {
+    await db.insert(knowledgeBase).values(newKnowledgeBase)
+  } catch (error: unknown) {
+    if (getPostgresErrorCode(error) === '23505') {
+      throw new KnowledgeBaseConflictError(data.name)
+    }
+    throw error
+  }
 
   logger.info(`[${requestId}] Created knowledge base: ${data.name} (${kbId})`)
 
@@ -222,10 +254,44 @@ export async function updateKnowledgeBase(
     updateData.embeddingDimension = 1536
   }
 
-  await db
-    .update(knowledgeBase)
-    .set(updateData)
-    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+  if (updates.name !== undefined) {
+    const existing = await db
+      .select({ id: knowledgeBase.id, workspaceId: knowledgeBase.workspaceId })
+      .from(knowledgeBase)
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .limit(1)
+
+    if (existing.length > 0 && existing[0].workspaceId) {
+      const duplicate = await db
+        .select({ id: knowledgeBase.id })
+        .from(knowledgeBase)
+        .where(
+          and(
+            eq(knowledgeBase.workspaceId, existing[0].workspaceId),
+            eq(knowledgeBase.name, updates.name),
+            isNull(knowledgeBase.deletedAt),
+            ne(knowledgeBase.id, knowledgeBaseId)
+          )
+        )
+        .limit(1)
+
+      if (duplicate.length > 0) {
+        throw new KnowledgeBaseConflictError(updates.name)
+      }
+    }
+  }
+
+  try {
+    await db
+      .update(knowledgeBase)
+      .set(updateData)
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+  } catch (error: unknown) {
+    if (getPostgresErrorCode(error) === '23505' && updates.name !== undefined) {
+      throw new KnowledgeBaseConflictError(updates.name)
+    }
+    throw error
+  }
 
   const updatedKb = await db
     .select({
@@ -383,6 +449,7 @@ export async function restoreKnowledgeBase(
   const [kb] = await db
     .select({
       id: knowledgeBase.id,
+      name: knowledgeBase.name,
       deletedAt: knowledgeBase.deletedAt,
       workspaceId: knowledgeBase.workspaceId,
     })
@@ -406,38 +473,77 @@ export async function restoreKnowledgeBase(
     }
   }
 
-  const now = new Date()
+  /**
+   * A concurrent create/rename can commit the same active name after `generateRestoreName`'s check
+   * (MVCC) and before this transaction commits. Retries pick a new random suffix; 23505 is still
+   * mapped to {@link KnowledgeBaseConflictError} if exhaustion occurs.
+   */
+  const maxUniqueViolationRetries = 8
+  let attemptedRestoreName = ''
 
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+  for (let attempt = 0; attempt < maxUniqueViolationRetries; attempt++) {
+    attemptedRestoreName = ''
+    try {
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
-    await tx
-      .update(knowledgeBase)
-      .set({ deletedAt: null, updatedAt: now })
-      .where(eq(knowledgeBase.id, knowledgeBaseId))
+        attemptedRestoreName = await generateRestoreName(kb.name, async (candidate) => {
+          if (!kb.workspaceId) return false
+          const [match] = await tx
+            .select({ id: knowledgeBase.id })
+            .from(knowledgeBase)
+            .where(
+              and(
+                eq(knowledgeBase.workspaceId, kb.workspaceId),
+                eq(knowledgeBase.name, candidate),
+                isNull(knowledgeBase.deletedAt)
+              )
+            )
+            .limit(1)
+          return !!match
+        })
 
-    await tx
-      .update(document)
-      .set({ archivedAt: null })
-      .where(
-        and(
-          eq(document.knowledgeBaseId, knowledgeBaseId),
-          isNotNull(document.archivedAt),
-          isNull(document.deletedAt)
-        )
-      )
+        const now = new Date()
 
-    await tx
-      .update(knowledgeConnector)
-      .set({ archivedAt: null, status: 'active', updatedAt: now })
-      .where(
-        and(
-          eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
-          isNotNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
-        )
-      )
-  })
+        await tx
+          .update(knowledgeBase)
+          .set({ deletedAt: null, updatedAt: now, name: attemptedRestoreName })
+          .where(eq(knowledgeBase.id, knowledgeBaseId))
 
-  logger.info(`[${requestId}] Restored knowledge base: ${knowledgeBaseId}`)
+        await tx
+          .update(document)
+          .set({ archivedAt: null })
+          .where(
+            and(
+              eq(document.knowledgeBaseId, knowledgeBaseId),
+              isNotNull(document.archivedAt),
+              isNull(document.deletedAt)
+            )
+          )
+
+        await tx
+          .update(knowledgeConnector)
+          .set({ archivedAt: null, status: 'active', updatedAt: now })
+          .where(
+            and(
+              eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+              isNotNull(knowledgeConnector.archivedAt),
+              isNull(knowledgeConnector.deletedAt)
+            )
+          )
+      })
+      break
+    } catch (error: unknown) {
+      if (getPostgresErrorCode(error) !== '23505') {
+        throw error
+      }
+      if (attempt === maxUniqueViolationRetries - 1) {
+        throw new KnowledgeBaseConflictError(attemptedRestoreName || kb.name)
+      }
+    }
+  }
+
+  logger.info(
+    `[${requestId}] Restored knowledge base: ${knowledgeBaseId} as "${attemptedRestoreName}"`
+  )
 }

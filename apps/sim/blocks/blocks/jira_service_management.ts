@@ -1,7 +1,7 @@
 import { JiraServiceManagementIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { JsmResponse } from '@/tools/jsm/types'
 
 export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
@@ -13,6 +13,8 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
     'Integrate with Jira Service Management for IT service management. Create and manage service requests, handle customers and organizations, track SLAs, and manage queues.',
   docsLink: 'https://docs.sim.ai/tools/jira-service-management',
   category: 'tools',
+  integrationType: IntegrationType.CustomerSupport,
+  tags: ['customer-support', 'ticketing', 'incident-management'],
   bgColor: '#E0E0E0',
   icon: JiraServiceManagementIcon,
   subBlocks: [

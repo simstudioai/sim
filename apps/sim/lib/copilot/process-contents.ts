@@ -2,8 +2,11 @@ import { db } from '@sim/db'
 import { document, knowledgeBase, templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
-import { readFileRecord } from '@/lib/copilot/vfs/file-reader'
-import { serializeTableMeta } from '@/lib/copilot/vfs/serializers'
+import {
+  serializeFileMeta,
+  serializeTableMeta,
+  serializeWorkflowMeta,
+} from '@/lib/copilot/vfs/serializers'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { getTableById } from '@/lib/table/service'
 import { canAccessTemplate } from '@/lib/templates/permissions'
@@ -101,7 +104,8 @@ export async function processContextsServer(
   contexts: ChatContext[] | undefined,
   userId: string,
   userMessage?: string,
-  currentWorkspaceId?: string
+  currentWorkspaceId?: string,
+  chatId?: string
 ): Promise<AgentContext[]> {
   if (!Array.isArray(contexts) || contexts.length === 0) return []
   const tasks = contexts.map(async (ctx) => {
@@ -120,7 +124,8 @@ export async function processContextsServer(
           userId,
           ctx.label ? `@${ctx.label}` : '@',
           ctx.kind,
-          currentWorkspaceId
+          currentWorkspaceId,
+          chatId
         )
       }
       if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
@@ -311,10 +316,11 @@ async function processWorkflowFromDb(
   userId: string | undefined,
   tag: string,
   kind: 'workflow' | 'current_workflow' = 'workflow',
-  currentWorkspaceId?: string
+  currentWorkspaceId?: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
   try {
-    let workflowName: string | undefined
+    let workflowRecord: Awaited<ReturnType<typeof getActiveWorkflowRecord>> = null
 
     if (userId) {
       const authorization = await authorizeWorkflowByWorkspacePermission({
@@ -328,18 +334,33 @@ async function processWorkflowFromDb(
       if (currentWorkspaceId && authorization.workflow?.workspaceId !== currentWorkspaceId) {
         return null
       }
-      workflowName = authorization.workflow?.name ?? undefined
+      workflowRecord = authorization.workflow ?? null
+    }
+
+    if (!workflowRecord) {
+      workflowRecord = await getActiveWorkflowRecord(workflowId)
+    }
+
+    if (kind === 'workflow') {
+      if (!workflowRecord) return null
+      const content = serializeWorkflowMeta({
+        id: workflowRecord.id,
+        name: workflowRecord.name,
+        description: workflowRecord.description,
+        isDeployed: workflowRecord.isDeployed,
+        deployedAt: workflowRecord.deployedAt,
+        runCount: workflowRecord.runCount,
+        lastRunAt: workflowRecord.lastRunAt,
+        createdAt: workflowRecord.createdAt,
+        updatedAt: workflowRecord.updatedAt,
+      })
+      return { type: kind, tag, content }
     }
 
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
     if (!normalized) {
       logger.warn('No normalized workflow data found', { workflowId })
       return null
-    }
-
-    if (!workflowName) {
-      const record = await getActiveWorkflowRecord(workflowId)
-      workflowName = record?.name ?? undefined
     }
 
     const workflowState = {
@@ -352,7 +373,7 @@ async function processWorkflowFromDb(
     const content = JSON.stringify(
       {
         workflowId,
-        workflowName: workflowName || undefined,
+        workflowName: workflowRecord?.name || undefined,
         state: sanitizedState,
       },
       null,
@@ -722,12 +743,20 @@ export async function resolveActiveResourceContext(
   resourceType: string,
   resourceId: string,
   workspaceId: string,
-  _userId: string
+  _userId: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
   try {
     switch (resourceType) {
       case 'workflow': {
-        const ctx = await processWorkflowFromDb(resourceId, undefined, '@active_resource')
+        const ctx = await processWorkflowFromDb(
+          resourceId,
+          undefined,
+          '@active_resource',
+          'current_workflow',
+          undefined,
+          chatId
+        )
         if (!ctx) return null
         return { type: 'active_resource', tag: '@active_resource', content: ctx.content }
       }
@@ -771,18 +800,15 @@ async function resolveFileResource(
 ): Promise<AgentContext | null> {
   const record = await getWorkspaceFile(workspaceId, fileId)
   if (!record) return null
-  const fileResult = await readFileRecord(record)
-  const meta = {
-    id: record.id,
-    name: record.name,
-    contentType: record.type,
-    size: record.size,
-    uploadedAt: record.uploadedAt.toISOString(),
-    content: fileResult?.content || `[Could not read ${record.name}]`,
-  }
   return {
     type: 'active_resource',
     tag: '@active_resource',
-    content: JSON.stringify(meta, null, 2),
+    content: serializeFileMeta({
+      id: record.id,
+      name: record.name,
+      contentType: record.type,
+      size: record.size,
+      uploadedAt: record.uploadedAt,
+    }),
   }
 }

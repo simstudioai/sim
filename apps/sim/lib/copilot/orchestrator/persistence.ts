@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getAsyncToolCalls } from '@/lib/copilot/async-runs/repository'
 import { REDIS_TOOL_CALL_PREFIX } from '@/lib/copilot/constants'
 import { getRedisClient } from '@/lib/core/config/redis'
 
@@ -14,7 +15,16 @@ export async function getToolConfirmation(toolCallId: string): Promise<{
   data?: Record<string, unknown>
 } | null> {
   const redis = getRedisClient()
-  if (!redis) return null
+  if (!redis) {
+    const [row] = await getAsyncToolCalls([toolCallId]).catch(() => [])
+    if (!row) return null
+    return {
+      status:
+        row.status === 'completed' ? 'success' : row.status === 'failed' ? 'error' : row.status,
+      message: row.error || undefined,
+      data: (row.result as Record<string, unknown> | null) || undefined,
+    }
+  }
 
   try {
     const raw = await redis.get(`${REDIS_TOOL_CALL_PREFIX}${toolCallId}`)

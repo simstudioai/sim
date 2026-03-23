@@ -71,6 +71,11 @@ export const isRegistrationDisabled = isTruthy(env.DISABLE_REGISTRATION)
 export const isEmailPasswordEnabled = !isFalsy(env.EMAIL_PASSWORD_SIGNUP_ENABLED)
 
 /**
+ * Is signup email validation enabled (disposable email blocking via better-auth-harmony)
+ */
+export const isSignupEmailValidationEnabled = isTruthy(env.SIGNUP_EMAIL_VALIDATION_ENABLED)
+
+/**
  * Is Trigger.dev enabled for async job processing
  */
 export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)

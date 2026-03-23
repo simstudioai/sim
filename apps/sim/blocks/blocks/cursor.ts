@@ -1,6 +1,6 @@
 import { CursorIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 import type { CursorResponse } from '@/tools/cursor/types'
 
@@ -12,6 +12,8 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
     'Interact with Cursor Cloud Agents API to launch AI agents that can work on your GitHub repositories. Supports launching agents, adding follow-up instructions, checking status, viewing conversations, and managing agent lifecycle.',
   docsLink: 'https://cursor.com/docs/cloud-agent/api/endpoints',
   category: 'tools',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['agentic', 'automation'],
   bgColor: '#1E1E1E',
   icon: CursorIcon,
   authMode: AuthMode.ApiKey,

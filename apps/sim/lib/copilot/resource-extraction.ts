@@ -6,11 +6,14 @@ type ResourceType = MothershipResourceType
 const RESOURCE_TOOL_NAMES = new Set([
   'user_table',
   'workspace_file',
+  'download_to_workspace_file',
   'create_workflow',
   'edit_workflow',
   'function_execute',
   'knowledge_base',
   'knowledge',
+  'generate_visualization',
+  'generate_image',
 ])
 
 export function isResourceToolName(toolName: string): boolean {
@@ -111,6 +114,21 @@ export function extractResourcesFromToolResult(
             type: 'file',
             id: result.fileId as string,
             title: (result.fileName as string) || 'File',
+          },
+        ]
+      }
+      return []
+    }
+
+    case 'download_to_workspace_file':
+    case 'generate_visualization':
+    case 'generate_image': {
+      if (result.fileId) {
+        return [
+          {
+            type: 'file',
+            id: result.fileId as string,
+            title: (result.fileName as string) || 'Generated File',
           },
         ]
       }

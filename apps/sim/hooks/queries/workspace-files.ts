@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from '@/components/emcn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 
 const logger = createLogger('WorkspaceFilesQuery')
@@ -15,8 +16,10 @@ export const workspaceFilesKeys = {
   list: (workspaceId: string, scope: WorkspaceFileQueryScope = 'active') =>
     [...workspaceFilesKeys.lists(), workspaceId, scope] as const,
   contents: () => [...workspaceFilesKeys.all, 'content'] as const,
-  content: (workspaceId: string, fileId: string) =>
+  contentFile: (workspaceId: string, fileId: string) =>
     [...workspaceFilesKeys.contents(), workspaceId, fileId] as const,
+  content: (workspaceId: string, fileId: string, mode: 'text' | 'raw' | 'binary' = 'text') =>
+    [...workspaceFilesKeys.contentFile(workspaceId, fileId), mode] as const,
   storageInfo: () => [...workspaceFilesKeys.all, 'storageInfo'] as const,
 }
 
@@ -65,8 +68,12 @@ export function useWorkspaceFiles(workspaceId: string, scope: WorkspaceFileQuery
 /**
  * Fetch file content as text via the serve URL
  */
-async function fetchWorkspaceFileContent(key: string, signal?: AbortSignal): Promise<string> {
-  const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&t=${Date.now()}`
+async function fetchWorkspaceFileContent(
+  key: string,
+  signal?: AbortSignal,
+  raw?: boolean
+): Promise<string> {
+  const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&t=${Date.now()}${raw ? '&raw=1' : ''}`
   const response = await fetch(serveUrl, { signal, cache: 'no-store' })
 
   if (!response.ok) {
@@ -79,10 +86,37 @@ async function fetchWorkspaceFileContent(key: string, signal?: AbortSignal): Pro
 /**
  * Hook to fetch workspace file content as text
  */
-export function useWorkspaceFileContent(workspaceId: string, fileId: string, key: string) {
+export function useWorkspaceFileContent(
+  workspaceId: string,
+  fileId: string,
+  key: string,
+  raw?: boolean
+) {
   return useQuery({
-    queryKey: workspaceFilesKeys.content(workspaceId, fileId),
-    queryFn: ({ signal }) => fetchWorkspaceFileContent(key, signal),
+    queryKey: workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text'),
+    queryFn: ({ signal }) => fetchWorkspaceFileContent(key, signal, raw),
+    enabled: !!workspaceId && !!fileId && !!key,
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: 'always',
+  })
+}
+
+async function fetchWorkspaceFileBinary(key: string, signal?: AbortSignal): Promise<ArrayBuffer> {
+  const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&t=${Date.now()}`
+  const response = await fetch(serveUrl, { signal, cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch file content')
+  return response.arrayBuffer()
+}
+
+/**
+ * Hook to fetch workspace file content as binary (ArrayBuffer).
+ * Shares the same query key as useWorkspaceFileContent so cache
+ * invalidation from file updates triggers a refetch automatically.
+ */
+export function useWorkspaceFileBinary(workspaceId: string, fileId: string, key: string) {
+  return useQuery({
+    queryKey: workspaceFilesKeys.content(workspaceId, fileId, 'binary'),
+    queryFn: ({ signal }) => fetchWorkspaceFileBinary(key, signal),
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: 30 * 1000,
     refetchOnWindowFocus: 'always',
@@ -201,7 +235,7 @@ export function useUpdateWorkspaceFileContent() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
-        queryKey: workspaceFilesKeys.content(variables.workspaceId, variables.fileId),
+        queryKey: workspaceFilesKeys.contentFile(variables.workspaceId, variables.fileId),
       })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
@@ -244,6 +278,9 @@ export function useRenameWorkspaceFile() {
       }
 
       return data
+    },
+    onError: (error) => {
+      toast.error(error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
@@ -304,7 +341,7 @@ export function useDeleteWorkspaceFile() {
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
       queryClient.removeQueries({
-        queryKey: workspaceFilesKeys.content(variables.workspaceId, variables.fileId),
+        queryKey: workspaceFilesKeys.contentFile(variables.workspaceId, variables.fileId),
       })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },

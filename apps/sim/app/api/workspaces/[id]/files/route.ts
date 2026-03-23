@@ -4,6 +4,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
+  FileConflictError,
   listWorkspaceFiles,
   uploadWorkspaceFile,
   type WorkspaceFileScope,
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    const fileName = rawFile.name || 'untitled'
+    const fileName = rawFile.name || 'untitled.md'
 
     const maxSize = 100 * 1024 * 1024
     if (rawFile.size > maxSize) {
@@ -135,9 +136,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } catch (error) {
     logger.error(`[${requestId}] Error uploading workspace file:`, error)
 
-    // Check if it's a duplicate file error
     const errorMessage = error instanceof Error ? error.message : 'Failed to upload file'
-    const isDuplicate = errorMessage.includes('already exists')
+    const isDuplicate =
+      error instanceof FileConflictError || errorMessage.includes('already exists')
 
     return NextResponse.json(
       {

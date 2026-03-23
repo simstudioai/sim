@@ -1,7 +1,7 @@
 import { AirtableIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { AirtableResponse } from '@/tools/airtable/types'
 import { getTrigger } from '@/triggers'
 
@@ -14,6 +14,8 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
     'Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, or update records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.',
   docsLink: 'https://docs.sim.ai/tools/airtable',
   category: 'tools',
+  integrationType: IntegrationType.Databases,
+  tags: ['spreadsheet', 'automation'],
   bgColor: '#E0E0E0',
   icon: AirtableIcon,
   subBlocks: [

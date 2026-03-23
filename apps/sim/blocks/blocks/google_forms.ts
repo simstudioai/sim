@@ -1,6 +1,7 @@
 import { GoogleFormsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
 export const GoogleFormsBlock: BlockConfig = {
@@ -11,6 +12,8 @@ export const GoogleFormsBlock: BlockConfig = {
     'Integrate Google Forms into your workflow. Read form structure, get responses, create forms, update content, and manage notification watches.',
   docsLink: 'https://docs.sim.ai/tools/google_forms',
   category: 'tools',
+  integrationType: IntegrationType.Documents,
+  tags: ['google-workspace', 'forms', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: GoogleFormsIcon,
   subBlocks: [

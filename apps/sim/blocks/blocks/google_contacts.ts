@@ -1,7 +1,7 @@
 import { GoogleContactsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GoogleContactsResponse } from '@/tools/google_contacts/types'
 
 export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
@@ -13,6 +13,8 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
     'Integrate Google Contacts into the workflow. Can create, read, update, delete, list, and search contacts.',
   docsLink: 'https://docs.sim.ai/tools/google_contacts',
   category: 'tools',
+  integrationType: IntegrationType.Productivity,
+  tags: ['google-workspace', 'customer-support', 'enrichment'],
   bgColor: '#E0E0E0',
   icon: GoogleContactsIcon,
   subBlocks: [

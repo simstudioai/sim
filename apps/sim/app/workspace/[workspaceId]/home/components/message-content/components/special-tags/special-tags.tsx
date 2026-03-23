@@ -8,21 +8,51 @@ import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 
 export interface OptionsItemData {
   title: string
-  description?: string
+  description: string
 }
 
-export type OptionsTagData = Record<string, OptionsItemData | string>
+export type OptionsTagData = Record<string, OptionsItemData>
 
+export const USAGE_UPGRADE_ACTIONS = ['upgrade_plan', 'increase_limit'] as const
+
+export type UsageUpgradeAction = (typeof USAGE_UPGRADE_ACTIONS)[number]
+
+/**
+ * Synthetic inline tag payload derived from request-layer HTTP upgrade/quota
+ * failures and rendered through the same special-tag abstraction as streamed tags.
+ */
 export interface UsageUpgradeTagData {
   reason: string
-  action: 'upgrade_plan' | 'increase_limit'
+  action: UsageUpgradeAction
   message: string
 }
 
+export const CREDENTIAL_TAG_TYPES = [
+  'env_key',
+  'oauth_key',
+  'sim_key',
+  'credential_id',
+  'link',
+] as const
+
+export type CredentialTagType = (typeof CREDENTIAL_TAG_TYPES)[number]
+
 export interface CredentialTagData {
   value: string
-  type: 'env_key' | 'oauth_key' | 'sim_key' | 'credential_id' | 'link'
+  type: CredentialTagType
   provider?: string
+}
+
+export interface MothershipErrorTagData {
+  message: string
+  code?: string
+  provider?: string
+}
+
+export interface FileTagData {
+  name: string
+  type: string
+  content: string
 }
 
 export type ContentSegment =
@@ -31,13 +61,154 @@ export type ContentSegment =
   | { type: 'options'; data: OptionsTagData }
   | { type: 'usage_upgrade'; data: UsageUpgradeTagData }
   | { type: 'credential'; data: CredentialTagData }
+  | { type: 'mothership-error'; data: MothershipErrorTagData }
+
+export type RuntimeSpecialTagName =
+  | 'thinking'
+  | 'options'
+  | 'credential'
+  | 'mothership-error'
+  | 'file'
 
 export interface ParsedSpecialContent {
   segments: ContentSegment[]
   hasPendingTag: boolean
 }
 
-const SPECIAL_TAG_NAMES = ['thinking', 'options', 'usage_upgrade', 'credential'] as const
+const RUNTIME_SPECIAL_TAG_NAMES = [
+  'thinking',
+  'options',
+  'credential',
+  'mothership-error',
+  'file',
+] as const
+
+const SPECIAL_TAG_NAMES = [
+  'thinking',
+  'options',
+  'usage_upgrade',
+  'credential',
+  'mothership-error',
+] as const
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isOptionsItemData(value: unknown): value is OptionsItemData {
+  if (!isRecord(value)) return false
+  return typeof value.title === 'string' && typeof value.description === 'string'
+}
+
+function isOptionsTagData(value: unknown): value is OptionsTagData {
+  if (!isRecord(value)) return false
+  return Object.values(value).every(isOptionsItemData)
+}
+
+function isUsageUpgradeTagData(value: unknown): value is UsageUpgradeTagData {
+  if (!isRecord(value)) return false
+  return (
+    typeof value.reason === 'string' &&
+    typeof value.message === 'string' &&
+    typeof value.action === 'string' &&
+    (USAGE_UPGRADE_ACTIONS as readonly string[]).includes(value.action)
+  )
+}
+
+function isCredentialTagData(value: unknown): value is CredentialTagData {
+  if (!isRecord(value)) return false
+  return (
+    typeof value.value === 'string' &&
+    typeof value.type === 'string' &&
+    (CREDENTIAL_TAG_TYPES as readonly string[]).includes(value.type) &&
+    (value.provider === undefined || typeof value.provider === 'string')
+  )
+}
+
+function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagData {
+  if (!isRecord(value)) return false
+  return (
+    typeof value.message === 'string' &&
+    (value.code === undefined || typeof value.code === 'string') &&
+    (value.provider === undefined || typeof value.provider === 'string')
+  )
+}
+
+export function parseJsonTagBody<T>(
+  body: string,
+  isExpectedShape: (value: unknown) => value is T
+): T | null {
+  try {
+    const parsed = JSON.parse(body) as unknown
+    return isExpectedShape(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+export function parseTextTagBody(body: string): string | null {
+  return body.trim() ? body : null
+}
+
+export function parseTagAttributes(openTag: string): Record<string, string> {
+  const attributes: Record<string, string> = {}
+  const attributePattern = /([A-Za-z_:][A-Za-z0-9_:-]*)="([^"]*)"/g
+
+  let match: RegExpExecArray | null = null
+  while ((match = attributePattern.exec(openTag)) !== null) {
+    attributes[match[1]] = match[2]
+  }
+
+  return attributes
+}
+
+export function parseFileTag(openTag: string, body: string): FileTagData | null {
+  const attributes = parseTagAttributes(openTag)
+  if (!attributes.name || !attributes.type) return null
+  return {
+    name: attributes.name,
+    type: attributes.type,
+    content: body,
+  }
+}
+
+function parseSpecialTagData(
+  tagName: (typeof SPECIAL_TAG_NAMES)[number],
+  body: string
+):
+  | { type: 'thinking'; content: string }
+  | { type: 'options'; data: OptionsTagData }
+  | { type: 'usage_upgrade'; data: UsageUpgradeTagData }
+  | { type: 'credential'; data: CredentialTagData }
+  | { type: 'mothership-error'; data: MothershipErrorTagData }
+  | null {
+  if (tagName === 'thinking') {
+    const content = parseTextTagBody(body)
+    return content ? { type: 'thinking', content } : null
+  }
+
+  if (tagName === 'options') {
+    const data = parseJsonTagBody(body, isOptionsTagData)
+    return data ? { type: 'options', data } : null
+  }
+
+  if (tagName === 'usage_upgrade') {
+    const data = parseJsonTagBody(body, isUsageUpgradeTagData)
+    return data ? { type: 'usage_upgrade', data } : null
+  }
+
+  if (tagName === 'credential') {
+    const data = parseJsonTagBody(body, isCredentialTagData)
+    return data ? { type: 'credential', data } : null
+  }
+
+  if (tagName === 'mothership-error') {
+    const data = parseJsonTagBody(body, isMothershipErrorTagData)
+    return data ? { type: 'mothership-error', data } : null
+  }
+
+  return null
+}
 
 /**
  * Parses inline special tags (`<options>`, `<usage_upgrade>`) from streamed
@@ -55,7 +226,7 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
 
   while (cursor < content.length) {
     let nearestStart = -1
-    let nearestTagName = ''
+    let nearestTagName: (typeof SPECIAL_TAG_NAMES)[number] | '' = ''
 
     for (const name of SPECIAL_TAG_NAMES) {
       const idx = content.indexOf(`<${name}>`, cursor)
@@ -69,10 +240,13 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
       let remaining = content.slice(cursor)
 
       if (isStreaming) {
-        const partial = remaining.match(/<[a-z_]*$/i)
+        const partial = remaining.match(/<[a-z_-]*$/i)
         if (partial) {
           const fragment = partial[0].slice(1)
-          if (fragment.length > 0 && SPECIAL_TAG_NAMES.some((t) => t.startsWith(fragment))) {
+          if (
+            fragment.length > 0 &&
+            [...SPECIAL_TAG_NAMES, ...RUNTIME_SPECIAL_TAG_NAMES].some((t) => t.startsWith(fragment))
+          ) {
             remaining = remaining.slice(0, -partial[0].length)
             hasPendingTag = true
           }
@@ -104,17 +278,13 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
     }
 
     const body = content.slice(bodyStart, closeIdx)
-    if (nearestTagName === 'thinking') {
-      if (body.trim()) {
-        segments.push({ type: 'thinking', content: body })
-      }
-    } else {
-      try {
-        const data = JSON.parse(body)
-        segments.push({ type: nearestTagName as 'options' | 'usage_upgrade' | 'credential', data })
-      } catch {
-        /* malformed JSON — drop the tag silently */
-      }
+    if (!nearestTagName) {
+      cursor = closeIdx + closeTag.length
+      continue
+    }
+    const parsedTag = parseSpecialTagData(nearestTagName, body)
+    if (parsedTag) {
+      segments.push(parsedTag)
     }
 
     cursor = closeIdx + closeTag.length
@@ -152,6 +322,8 @@ export function SpecialTags({ segment, onOptionSelect }: SpecialTagsProps) {
       return <UsageUpgradeDisplay data={segment.data} />
     case 'credential':
       return <CredentialDisplay data={segment.data} />
+    case 'mothership-error':
+      return <MothershipErrorDisplay data={segment.data} />
     default:
       return null
   }
@@ -193,7 +365,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
       <span className='font-base text-[14px] text-[var(--text-body)]'>Suggested follow-ups</span>
       <div className='mt-1.5 flex flex-col'>
         {entries.map(([key, value], i) => {
-          const title = typeof value === 'string' ? value : value.title
+          const title = value.title
 
           return (
             <button
@@ -273,6 +445,16 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
       </span>
       <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
     </a>
+  )
+}
+
+function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
+  const detail = data.code ? `${data.message} (${data.code})` : data.message
+
+  return (
+    <span className='animate-stream-fade-in font-base text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>
+      {detail}
+    </span>
   )
 }
 
