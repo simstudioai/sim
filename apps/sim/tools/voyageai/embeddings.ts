@@ -19,7 +19,7 @@ export const embeddingsTool: ToolConfig<VoyageAIEmbeddingsParams, VoyageAIEmbedd
       required: false,
       visibility: 'user-only',
       description: 'Embedding model to use',
-      default: 'voyage-3',
+      default: 'voyage-3.5',
     },
     inputType: {
       type: 'string',
@@ -45,7 +45,7 @@ export const embeddingsTool: ToolConfig<VoyageAIEmbeddingsParams, VoyageAIEmbedd
     body: (params) => {
       const body: Record<string, unknown> = {
         input: Array.isArray(params.input) ? params.input : [params.input],
-        model: params.model || 'voyage-3',
+        model: params.model || 'voyage-3.5',
       }
       if (params.inputType) {
         body.input_type = params.inputType

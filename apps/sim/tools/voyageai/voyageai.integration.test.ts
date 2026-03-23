@@ -55,7 +55,7 @@ describeIntegration('VoyageAI Integration Tests (live API)', () => {
       expect(result.success).toBe(true)
       expect(result.output.embeddings).toHaveLength(1)
       expect(result.output.embeddings[0].length).toBeGreaterThan(100)
-      expect(result.output.model).toBe('voyage-3')
+      expect(result.output.model).toBe('voyage-3.5')
       expect(result.output.usage.total_tokens).toBeGreaterThan(0)
     }, 15000)
 
@@ -246,7 +246,7 @@ describeIntegration('VoyageAI Integration Tests (live API)', () => {
 
       expect(result.success).toBe(true)
       expect(result.output.results).toHaveLength(3)
-      expect(result.output.model).toBe('rerank-2')
+      expect(result.output.model).toBe('rerank-2.5')
       expect(result.output.usage.total_tokens).toBeGreaterThan(0)
 
       for (const r of result.output.results) {

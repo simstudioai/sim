@@ -25,7 +25,7 @@ export const rerankTool: ToolConfig<VoyageAIRerankParams, VoyageAIRerankResponse
       required: false,
       visibility: 'user-only',
       description: 'Reranking model to use',
-      default: 'rerank-2',
+      default: 'rerank-2.5',
     },
     topK: {
       type: 'number',
@@ -55,7 +55,7 @@ export const rerankTool: ToolConfig<VoyageAIRerankParams, VoyageAIRerankResponse
       const body: Record<string, unknown> = {
         query: params.query,
         documents,
-        model: params.model || 'rerank-2',
+        model: params.model || 'rerank-2.5',
       }
       if (params.topK) {
         body.top_k = params.topK

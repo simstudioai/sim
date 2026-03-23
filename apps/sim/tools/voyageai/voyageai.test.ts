@@ -32,7 +32,7 @@ describe('Voyage AI Embeddings Tool', () => {
       expect(embeddingsTool.params.apiKey.required).toBe(true)
       expect(embeddingsTool.params.model).toBeDefined()
       expect(embeddingsTool.params.model.required).toBe(false)
-      expect(embeddingsTool.params.model.default).toBe('voyage-3')
+      expect(embeddingsTool.params.model.default).toBe('voyage-3.5')
       expect(embeddingsTool.params.inputType).toBeDefined()
       expect(embeddingsTool.params.inputType.required).toBe(false)
     })
@@ -115,7 +115,7 @@ describe('Voyage AI Embeddings Tool', () => {
 
     it('should use default model voyage-3 when not specified', () => {
       const body = tester.getRequestBody({ apiKey: 'key', input: 'hello' })
-      expect(body.model).toBe('voyage-3')
+      expect(body.model).toBe('voyage-3.5')
     })
 
     it('should use specified model voyage-3-large', () => {
@@ -298,7 +298,7 @@ describe('Voyage AI Rerank Tool', () => {
       expect(rerankTool.params.apiKey.required).toBe(true)
       expect(rerankTool.params.model).toBeDefined()
       expect(rerankTool.params.model.required).toBe(false)
-      expect(rerankTool.params.model.default).toBe('rerank-2')
+      expect(rerankTool.params.model.default).toBe('rerank-2.5')
       expect(rerankTool.params.topK).toBeDefined()
       expect(rerankTool.params.topK.required).toBe(false)
     })
@@ -340,7 +340,7 @@ describe('Voyage AI Rerank Tool', () => {
       })
       expect(body.query).toBe('what is AI?')
       expect(body.documents).toEqual(['AI is...', 'Machine learning is...'])
-      expect(body.model).toBe('rerank-2')
+      expect(body.model).toBe('rerank-2.5')
     })
 
     it('should parse JSON string documents into array', () => {

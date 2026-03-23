@@ -73,7 +73,7 @@ describe('VoyageAIBlock', () => {
 
     it('should default to embeddings operation', () => {
       const opBlock = VoyageAIBlock.subBlocks[0] as any
-      expect(opBlock.value()).toBe('embeddings')
+      expect(opBlock.value!()).toBe('embeddings')
     })
 
     it('should have embeddings-specific subBlocks with correct conditions', () => {
@@ -144,22 +144,27 @@ describe('VoyageAIBlock', () => {
       expect(topKBlock!.mode).toBe('advanced')
     })
 
-    it('should have all 6 embedding models in the dropdown', () => {
+    it('should have all embedding models in the dropdown', () => {
       const modelBlock = VoyageAIBlock.subBlocks.find((sb) => sb.id === 'embeddingModel') as any
       expect(modelBlock).toBeDefined()
       const modelIds = modelBlock.options.map((o: any) => o.id)
+      expect(modelIds).toContain('voyage-4-large')
+      expect(modelIds).toContain('voyage-4')
+      expect(modelIds).toContain('voyage-4-lite')
+      expect(modelIds).toContain('voyage-3.5')
+      expect(modelIds).toContain('voyage-3.5-lite')
       expect(modelIds).toContain('voyage-3-large')
-      expect(modelIds).toContain('voyage-3')
-      expect(modelIds).toContain('voyage-3-lite')
       expect(modelIds).toContain('voyage-code-3')
       expect(modelIds).toContain('voyage-finance-2')
       expect(modelIds).toContain('voyage-law-2')
     })
 
-    it('should have both rerank models in the dropdown', () => {
+    it('should have all rerank models in the dropdown', () => {
       const modelBlock = VoyageAIBlock.subBlocks.find((sb) => sb.id === 'rerankModel') as any
       expect(modelBlock).toBeDefined()
       const modelIds = modelBlock.options.map((o: any) => o.id)
+      expect(modelIds).toContain('rerank-2.5')
+      expect(modelIds).toContain('rerank-2.5-lite')
       expect(modelIds).toContain('rerank-2')
       expect(modelIds).toContain('rerank-2-lite')
     })
