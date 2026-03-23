@@ -1,23 +1,9 @@
-import type { SlackInviteToConversationParams } from '@/tools/slack/types'
+import type {
+  SlackInviteToConversationParams,
+  SlackInviteToConversationResponse,
+} from '@/tools/slack/types'
 import { CHANNEL_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
-
-interface SlackInviteToConversationResponse {
-  success: boolean
-  output: {
-    channel: {
-      id: string
-      name: string
-      is_private: boolean
-      is_archived: boolean
-      is_member: boolean
-      topic: string
-      purpose: string
-      created: number
-      creator: string
-    }
-  }
-}
 
 export const slackInviteToConversationTool: ToolConfig<
   SlackInviteToConversationParams,
@@ -149,9 +135,10 @@ export const slackInviteToConversationTool: ToolConfig<
           is_member: ch.is_member || false,
           topic: ch.topic?.value || '',
           purpose: ch.purpose?.value || '',
-          created: ch.created ?? null,
-          creator: ch.creator ?? null,
+          created: ch.created,
+          creator: ch.creator,
         },
+        ...(data.errors?.length ? { errors: data.errors } : {}),
       },
     }
   },
@@ -161,6 +148,19 @@ export const slackInviteToConversationTool: ToolConfig<
       type: 'object',
       description: 'The channel object after inviting users',
       properties: CHANNEL_OUTPUT_PROPERTIES,
+    },
+    errors: {
+      type: 'array',
+      description: 'Per-user errors when force is true and some invitations failed',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          user: { type: 'string', description: 'User ID that failed' },
+          ok: { type: 'boolean', description: 'Always false for error entries' },
+          error: { type: 'string', description: 'Error code for this user' },
+        },
+      },
     },
   },
 }

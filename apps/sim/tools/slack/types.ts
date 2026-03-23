@@ -1051,6 +1051,7 @@ export interface SlackCreateConversationResponse extends ToolResponse {
 export interface SlackInviteToConversationResponse extends ToolResponse {
   output: {
     channel: SlackChannel
+    errors?: Array<{ user: string; ok: boolean; error: string }>
   }
 }
 

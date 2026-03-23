@@ -1,23 +1,9 @@
-import type { SlackCreateConversationParams } from '@/tools/slack/types'
+import type {
+  SlackCreateConversationParams,
+  SlackCreateConversationResponse,
+} from '@/tools/slack/types'
 import { CHANNEL_OUTPUT_PROPERTIES } from '@/tools/slack/types'
 import type { ToolConfig } from '@/tools/types'
-
-interface SlackCreateConversationResponse {
-  success: boolean
-  output: {
-    channel: {
-      id: string
-      name: string
-      is_private: boolean
-      is_archived: boolean
-      is_member: boolean
-      topic: string
-      purpose: string
-      created: number
-      creator: string
-    }
-  }
-}
 
 export const slackCreateConversationTool: ToolConfig<
   SlackCreateConversationParams,
@@ -137,8 +123,8 @@ export const slackCreateConversationTool: ToolConfig<
           is_member: ch.is_member || false,
           topic: ch.topic?.value || '',
           purpose: ch.purpose?.value || '',
-          created: ch.created ?? null,
-          creator: ch.creator ?? null,
+          created: ch.created,
+          creator: ch.creator,
         },
       },
     }
