@@ -536,6 +536,7 @@ function PptxPreview({
     data: fileData,
     isLoading: isFetching,
     error: fetchError,
+    dataUpdatedAt,
   } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
 
   const cacheKey = pptxCacheKey(file.id, fileData?.byteLength ?? 0)
