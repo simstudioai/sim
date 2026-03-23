@@ -408,4 +408,42 @@ describe('handleEditOperation nestedNodes merge', () => {
     const helperBlock = Object.values(state.blocks).find((block: any) => block.name === 'Helper')
     expect(helperBlock).toBeDefined()
   })
+
+  it('removes an unmatched nested container with all descendants and edges', () => {
+    const workflow = makeNestedLoopWorkflow()
+
+    const { state } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'outer-loop',
+        params: {
+          nestedNodes: {
+            replacement: {
+              type: 'function',
+              name: 'Replacement',
+              inputs: { code: 'return 2' },
+            },
+          },
+        },
+      },
+    ])
+
+    expect(state.blocks['inner-loop']).toBeUndefined()
+    expect(state.blocks['inner-agent']).toBeUndefined()
+    expect(
+      state.edges.some(
+        (edge: any) =>
+          edge.source === 'inner-loop' ||
+          edge.target === 'inner-loop' ||
+          edge.source === 'inner-agent' ||
+          edge.target === 'inner-agent'
+      )
+    ).toBe(false)
+
+    const replacementBlock = Object.values(state.blocks).find(
+      (block: any) => block.name === 'Replacement'
+    ) as any
+    expect(replacementBlock).toBeDefined()
+    expect(replacementBlock.data?.parentId).toBe('outer-loop')
+  })
 })

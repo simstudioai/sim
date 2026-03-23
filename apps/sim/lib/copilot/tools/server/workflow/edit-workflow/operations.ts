@@ -297,11 +297,27 @@ function mergeNestedNodesForParent(
     }
   })
 
+  const collectBlockAndDescendants = (
+    rootId: string,
+    collected = new Set<string>()
+  ): Set<string> => {
+    collected.add(rootId)
+    Object.entries(modifiedState.blocks).forEach(([childId, block]: [string, any]) => {
+      if (block.data?.parentId === rootId && !collected.has(childId)) {
+        collectBlockAndDescendants(childId, collected)
+      }
+    })
+    return collected
+  }
+
   const removedIds = new Set<string>()
   for (const [existingId] of existingChildren) {
     if (!matchedExistingIds.has(existingId)) {
-      delete modifiedState.blocks[existingId]
-      removedIds.add(existingId)
+      const subtreeIds = collectBlockAndDescendants(existingId)
+      subtreeIds.forEach((id) => {
+        delete modifiedState.blocks[id]
+        removedIds.add(id)
+      })
     }
   }
 
