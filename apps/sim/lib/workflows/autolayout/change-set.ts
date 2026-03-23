@@ -181,5 +181,10 @@ function isLayoutScopedEdge(edge: Edge, afterBlocks: WorkflowState['blocks']): b
  * record IDs.
  */
 function getEdgeSignature(edge: Edge): string {
-  return `${edge.source}-${edge.sourceHandle || 'source'}-${edge.target}-${edge.targetHandle || 'target'}`
+  return JSON.stringify([
+    edge.source,
+    edge.sourceHandle || 'source',
+    edge.target,
+    edge.targetHandle || 'target',
+  ])
 }

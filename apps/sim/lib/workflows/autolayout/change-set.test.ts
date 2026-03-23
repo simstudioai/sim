@@ -218,6 +218,54 @@ describe('getTargetedLayoutChangeSet', () => {
     })
   })
 
+  it('distinguishes added edges when ids and handles contain hyphens', () => {
+    const before = createWorkflowState({
+      blocks: {
+        a: createBlock('a', { position: { x: 100, y: 100 } }),
+        'a-b': createBlock('a-b', { position: { x: 100, y: 300 } }),
+        target: createBlock('target', { position: { x: 400, y: 100 } }),
+      },
+      edges: [
+        {
+          id: 'edge-1',
+          source: 'a',
+          sourceHandle: 'b-c',
+          target: 'target',
+          targetHandle: 'target',
+        },
+      ],
+    })
+
+    const after = createWorkflowState({
+      blocks: {
+        a: createBlock('a', { position: { x: 100, y: 100 } }),
+        'a-b': createBlock('a-b', { position: { x: 100, y: 300 } }),
+        target: createBlock('target', { position: { x: 400, y: 100 } }),
+      },
+      edges: [
+        {
+          id: 'edge-1',
+          source: 'a',
+          sourceHandle: 'b-c',
+          target: 'target',
+          targetHandle: 'target',
+        },
+        {
+          id: 'edge-2',
+          source: 'a-b',
+          sourceHandle: 'c',
+          target: 'target',
+          targetHandle: 'target',
+        },
+      ],
+    })
+
+    expect(getTargetedLayoutImpact({ before, after })).toEqual({
+      layoutBlockIds: [],
+      shiftSourceBlockIds: ['a-b'],
+    })
+  })
+
   it('keeps the upstream source anchored when inserting between existing blocks', () => {
     const before = createWorkflowState({
       blocks: {
