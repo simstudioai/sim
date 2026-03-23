@@ -2524,7 +2524,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       ) : readOnly ? (
         <div className='flex h-full w-full min-w-0 items-center px-[8px] py-[7px]'>
           <ColumnTypeIcon type={column.type} />
-          <span className='ml-[6px] min-w-0 truncate font-medium text-[13px] text-[var(--text-primary)]'>
+          <span className='ml-[6px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
             {column.name}
           </span>
         </div>
@@ -2536,7 +2536,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               className='flex h-full w-full min-w-0 cursor-pointer items-center px-[8px] py-[7px] outline-none'
             >
               <ColumnTypeIcon type={column.type} />
-              <span className='ml-[6px] min-w-0 truncate font-medium text-[13px] text-[var(--text-primary)]'>
+              <span className='ml-[6px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
                 {column.name}
               </span>
               <ChevronDown className='ml-[8px] h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
