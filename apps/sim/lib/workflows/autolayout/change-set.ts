@@ -41,7 +41,7 @@ export function getTargetedLayoutImpact({
     }
   }
 
-  for (const blockId of getBlocksWithInvalidPositions(after)) {
+  for (const blockId of getBlocksWithInvalidPositions(after, beforeBlockIds)) {
     layoutBlockIds.add(blockId)
   }
 
@@ -96,15 +96,21 @@ export function getTargetedLayoutChangeSet(options: TargetedLayoutChangeSetOptio
 
 /**
  * Returns block IDs that cannot be treated as stable layout anchors.
+ * Existing blocks are only considered invalid for missing or non-finite
+ * coordinates; `(0,0)` is reserved as a layout sentinel only for newly added
+ * blocks and parent-change handling above.
  */
-function getBlocksWithInvalidPositions(after: Pick<WorkflowState, 'blocks'>): string[] {
+function getBlocksWithInvalidPositions(
+  after: Pick<WorkflowState, 'blocks'>,
+  beforeBlockIds: Set<string>
+): string[] {
   return Object.keys(after.blocks || {}).filter((blockId) => {
     const position = after.blocks[blockId]?.position
     return (
       !position ||
       !Number.isFinite(position.x) ||
       !Number.isFinite(position.y) ||
-      (position.x === 0 && position.y === 0)
+      (!beforeBlockIds.has(blockId) && position.x === 0 && position.y === 0)
     )
   })
 }

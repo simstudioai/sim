@@ -81,6 +81,31 @@ describe('getTargetedLayoutChangeSet', () => {
     expect(getTargetedLayoutChangeSet({ before, after })).toEqual([])
   })
 
+  it('does not relayout a pre-existing block legitimately placed at the origin', () => {
+    const before = createWorkflowState({
+      blocks: {
+        start: createBlock('start', { position: { x: 0, y: 0 } }),
+      },
+    })
+
+    const after = createWorkflowState({
+      blocks: {
+        start: createBlock('start', {
+          position: { x: 0, y: 0 },
+          subBlocks: {
+            prompt: {
+              id: 'prompt',
+              type: 'long-input',
+              value: 'updated',
+            },
+          },
+        }),
+      },
+    })
+
+    expect(getTargetedLayoutChangeSet({ before, after })).toEqual([])
+  })
+
   it('reopens only the downstream path when an edge is added later', () => {
     const before = createWorkflowState({
       blocks: {
@@ -126,6 +151,70 @@ describe('getTargetedLayoutChangeSet', () => {
     expect(getTargetedLayoutImpact({ before, after })).toEqual({
       layoutBlockIds: ['function1'],
       shiftSourceBlockIds: [],
+    })
+  })
+
+  it('returns a pure shift source when a stable block gains an edge to an already-connected target', () => {
+    const before = createWorkflowState({
+      blocks: {
+        source: createBlock('source', { position: { x: 100, y: 100 } }),
+        upstream: createBlock('upstream', { position: { x: 100, y: 300 } }),
+        target: createBlock('target', { position: { x: 400, y: 100 } }),
+        end: createBlock('end', { position: { x: 700, y: 100 } }),
+      },
+      edges: [
+        {
+          id: 'edge-1',
+          source: 'upstream',
+          target: 'target',
+          sourceHandle: 'source',
+          targetHandle: 'target',
+        },
+        {
+          id: 'edge-2',
+          source: 'target',
+          target: 'end',
+          sourceHandle: 'source',
+          targetHandle: 'target',
+        },
+      ],
+    })
+
+    const after = createWorkflowState({
+      blocks: {
+        source: createBlock('source', { position: { x: 100, y: 100 } }),
+        upstream: createBlock('upstream', { position: { x: 100, y: 300 } }),
+        target: createBlock('target', { position: { x: 400, y: 100 } }),
+        end: createBlock('end', { position: { x: 700, y: 100 } }),
+      },
+      edges: [
+        {
+          id: 'edge-1',
+          source: 'upstream',
+          target: 'target',
+          sourceHandle: 'source',
+          targetHandle: 'target',
+        },
+        {
+          id: 'edge-2',
+          source: 'target',
+          target: 'end',
+          sourceHandle: 'source',
+          targetHandle: 'target',
+        },
+        {
+          id: 'edge-3',
+          source: 'source',
+          target: 'target',
+          sourceHandle: 'source',
+          targetHandle: 'target',
+        },
+      ],
+    })
+
+    expect(getTargetedLayoutImpact({ before, after })).toEqual({
+      layoutBlockIds: [],
+      shiftSourceBlockIds: ['source'],
     })
   })
 
