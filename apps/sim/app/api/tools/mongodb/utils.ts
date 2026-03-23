@@ -3,6 +3,16 @@ import { validateDatabaseHost } from '@/lib/core/security/input-validation.serve
 import type { MongoDBCollectionInfo, MongoDBConnectionConfig } from '@/tools/mongodb/types'
 
 export async function createMongoDBConnection(config: MongoDBConnectionConfig) {
+  if (config.connectionString) {
+    const client = new MongoClient(config.connectionString, {
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 10000,
+      maxPoolSize: 1,
+    })
+    await client.connect()
+    return client
+  }
+
   const hostValidation = await validateDatabaseHost(config.host, 'host')
   if (!hostValidation.isValid) {
     throw new Error(hostValidation.error)

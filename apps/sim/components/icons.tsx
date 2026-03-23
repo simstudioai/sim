@@ -4017,6 +4017,24 @@ export function VariableIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function VoyageAIIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns='http://www.w3.org/2000/svg'
+      width='24'
+      height='24'
+      viewBox='0 0 24 24'
+      fill='none'
+    >
+      <path
+        d='M12 2L3 7v10l9 5 9-5V7l-9-5zm0 2.18L18.36 7.5 12 10.82 5.64 7.5 12 4.18zM5 8.82l6 3.32v7.04l-6-3.32V8.82zm8 10.36V15.8l6-3.32v3.7l-6 3z'
+        fill='currentColor'
+      />
+    </svg>
+  )
+}
+
 export function HumanInTheLoopIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

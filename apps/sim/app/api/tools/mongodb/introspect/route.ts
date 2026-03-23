@@ -1,16 +1,25 @@
+import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { mongodbIntrospectContract } from '@/lib/api/contracts/tools/databases/mongodb'
-import { parseToolRequest } from '@/lib/api/server'
+import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createMongoDBConnection, executeIntrospect } from '@/app/api/tools/mongodb/utils'
+import { createMongoDBConnection, executeIntrospect } from '../utils'
 
 const logger = createLogger('MongoDBIntrospectAPI')
 
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
+const IntrospectSchema = z.object({
+  connectionString: z.string().optional(),
+  host: z.string().default(''),
+  port: z.coerce.number().int().nonnegative().default(27017),
+  database: z.string().optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
+  authSource: z.string().optional(),
+  ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
+})
+
+export async function POST(request: NextRequest) {
+  const requestId = randomUUID().slice(0, 8)
   let client = null
 
   const auth = await checkInternalAuth(request)
@@ -20,15 +29,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseToolRequest(mongodbIntrospectContract, request, { logger })
-    if (!parsed.success) return parsed.response
-    const params = parsed.data.body
+    const body = await request.json()
+    const params = IntrospectSchema.parse(body)
 
     logger.info(
       `[${requestId}] Introspecting MongoDB at ${params.host}:${params.port}${params.database ? `/${params.database}` : ''}`
     )
 
     client = await createMongoDBConnection({
+      connectionString: params.connectionString,
       host: params.host,
       port: params.port,
       database: params.database || 'admin',
@@ -50,6 +59,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       collections: result.collections,
     })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] MongoDB introspect failed:`, error)
 
@@ -62,4 +79,4 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       await client.close()
     }
   }
-})
+}

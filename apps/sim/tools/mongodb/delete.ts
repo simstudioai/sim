@@ -8,6 +8,12 @@ export const deleteTool: ToolConfig<MongoDBDeleteParams, MongoDBResponse> = {
   version: '1.0',
 
   params: {
+    connectionString: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Full MongoDB connection string (e.g., mongodb+srv://user:pass@cluster.mongodb.net/db)',
+    },
     host: {
       type: 'string',
       required: true,

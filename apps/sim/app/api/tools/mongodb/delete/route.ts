@@ -1,20 +1,45 @@
+import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { mongodbDeleteContract } from '@/lib/api/contracts/tools/databases/mongodb'
-import { parseToolRequest } from '@/lib/api/server'
+import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import {
-  createMongoDBConnection,
-  sanitizeCollectionName,
-  validateFilter,
-} from '@/app/api/tools/mongodb/utils'
+import { createMongoDBConnection, sanitizeCollectionName, validateFilter } from '../utils'
 
 const logger = createLogger('MongoDBDeleteAPI')
 
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
+const DeleteSchema = z.object({
+  connectionString: z.string().optional(),
+  host: z.string().default(''),
+  port: z.coerce.number().int().nonnegative().default(27017),
+  database: z.string().min(1, 'Database name is required'),
+  username: z.string().default(''),
+  password: z.string().default(''),
+  authSource: z.string().optional(),
+  ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
+  collection: z.string().min(1, 'Collection name is required'),
+  filter: z
+    .union([z.string(), z.object({}).passthrough()])
+    .transform((val) => {
+      if (typeof val === 'object' && val !== null) {
+        return JSON.stringify(val)
+      }
+      return val
+    })
+    .refine((val) => val && val.trim() !== '' && val !== '{}', {
+      message: 'Filter is required for MongoDB Delete',
+    }),
+  multi: z
+    .union([z.boolean(), z.string(), z.undefined()])
+    .optional()
+    .transform((val) => {
+      if (val === 'true' || val === true) return true
+      if (val === 'false' || val === false) return false
+      return false // Default to false
+    }),
+})
+
+export async function POST(request: NextRequest) {
+  const requestId = randomUUID().slice(0, 8)
   let client = null
 
   const auth = await checkInternalAuth(request)
@@ -24,9 +49,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseToolRequest(mongodbDeleteContract, request, { logger })
-    if (!parsed.success) return parsed.response
-    const params = parsed.data.body
+    const body = await request.json()
+    const params = DeleteSchema.parse(body)
 
     logger.info(
       `[${requestId}] Deleting document(s) from ${params.host}:${params.port}/${params.database}.${params.collection} (multi: ${params.multi})`
@@ -52,6 +76,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     client = await createMongoDBConnection({
+      connectionString: params.connectionString,
       host: params.host,
       port: params.port,
       database: params.database,
@@ -78,6 +103,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       deletedCount: result.deletedCount,
     })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] MongoDB delete failed:`, error)
 
@@ -87,4 +120,4 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       await client.close()
     }
   }
-})
+}

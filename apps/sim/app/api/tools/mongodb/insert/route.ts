@@ -1,16 +1,42 @@
+import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { mongodbInsertContract } from '@/lib/api/contracts/tools/databases/mongodb'
-import { parseToolRequest } from '@/lib/api/server'
+import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createMongoDBConnection, sanitizeCollectionName } from '@/app/api/tools/mongodb/utils'
+import { createMongoDBConnection, sanitizeCollectionName } from '../utils'
 
 const logger = createLogger('MongoDBInsertAPI')
 
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
+const InsertSchema = z.object({
+  connectionString: z.string().optional(),
+  host: z.string().default(''),
+  port: z.coerce.number().int().nonnegative().default(27017),
+  database: z.string().min(1, 'Database name is required'),
+  username: z.string().default(''),
+  password: z.string().default(''),
+  authSource: z.string().optional(),
+  ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
+  collection: z.string().min(1, 'Collection name is required'),
+  documents: z
+    .union([z.array(z.record(z.unknown())), z.string()])
+    .transform((val) => {
+      if (typeof val === 'string') {
+        try {
+          const parsed = JSON.parse(val)
+          return Array.isArray(parsed) ? parsed : [parsed]
+        } catch {
+          throw new Error('Invalid JSON in documents field')
+        }
+      }
+      return val
+    })
+    .refine((val) => Array.isArray(val) && val.length > 0, {
+      message: 'At least one document is required',
+    }),
+})
+
+export async function POST(request: NextRequest) {
+  const requestId = randomUUID().slice(0, 8)
   let client = null
 
   const auth = await checkInternalAuth(request)
@@ -20,9 +46,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   try {
-    const parsed = await parseToolRequest(mongodbInsertContract, request, { logger })
-    if (!parsed.success) return parsed.response
-    const params = parsed.data.body
+    const body = await request.json()
+    const params = InsertSchema.parse(body)
 
     logger.info(
       `[${requestId}] Inserting ${params.documents.length} document(s) into ${params.host}:${params.port}/${params.database}.${params.collection}`
@@ -30,6 +55,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const sanitizedCollection = sanitizeCollectionName(params.collection)
     client = await createMongoDBConnection({
+      connectionString: params.connectionString,
       host: params.host,
       port: params.port,
       database: params.database,
@@ -61,6 +87,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       documentCount: insertedCount,
     })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] MongoDB insert failed:`, error)
 
@@ -70,4 +104,4 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       await client.close()
     }
   }
-})
+}

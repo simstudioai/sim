@@ -31,11 +31,31 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectRespon
       value: () => 'query',
     },
     {
+      id: 'connectionMode',
+      title: 'Connection Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'Host & Port', id: 'host_port' },
+        { label: 'Connection String (Atlas)', id: 'connection_string' },
+      ],
+      value: () => 'host_port',
+    },
+    {
+      id: 'connectionString',
+      title: 'Connection String',
+      type: 'short-input',
+      placeholder: 'mongodb+srv://user:password@cluster.mongodb.net/mydb',
+      password: true,
+      condition: { field: 'connectionMode', value: 'connection_string' },
+      required: { field: 'connectionMode', value: 'connection_string' },
+    },
+    {
       id: 'host',
       title: 'Host',
       type: 'short-input',
       placeholder: 'localhost or your.mongodb.host',
-      required: true,
+      condition: { field: 'connectionMode', value: 'connection_string', not: true },
+      required: { field: 'connectionMode', value: 'connection_string', not: true },
     },
     {
       id: 'port',
@@ -43,7 +63,8 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectRespon
       type: 'short-input',
       placeholder: '27017',
       value: () => '27017',
-      required: true,
+      condition: { field: 'connectionMode', value: 'connection_string', not: true },
+      required: { field: 'connectionMode', value: 'connection_string', not: true },
     },
     {
       id: 'database',
@@ -57,7 +78,8 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectRespon
       title: 'Username',
       type: 'short-input',
       placeholder: 'mongodb_user',
-      required: true,
+      condition: { field: 'connectionMode', value: 'connection_string', not: true },
+      required: { field: 'connectionMode', value: 'connection_string', not: true },
     },
     {
       id: 'password',
@@ -65,7 +87,8 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectRespon
       type: 'short-input',
       password: true,
       placeholder: 'Your database password',
-      required: true,
+      condition: { field: 'connectionMode', value: 'connection_string', not: true },
+      required: { field: 'connectionMode', value: 'connection_string', not: true },
     },
     {
       id: 'authSource',
@@ -837,7 +860,7 @@ Return ONLY the MongoDB query filter as valid JSON - no explanations, no markdow
         }
       },
       params: (params) => {
-        const { operation, documents, ...rest } = params
+        const { operation, documents, connectionMode, ...rest } = params
 
         let parsedDocuments
         if (documents && typeof documents === 'string' && documents.trim()) {
@@ -853,7 +876,7 @@ Return ONLY the MongoDB query filter as valid JSON - no explanations, no markdow
           parsedDocuments = documents
         }
 
-        const connectionConfig = {
+        const connectionConfig: Record<string, unknown> = {
           host: rest.host,
           port: typeof rest.port === 'string' ? Number.parseInt(rest.port, 10) : rest.port || 27017,
           database: rest.database,
@@ -861,6 +884,10 @@ Return ONLY the MongoDB query filter as valid JSON - no explanations, no markdow
           password: rest.password,
           authSource: rest.authSource,
           ssl: rest.ssl || 'preferred',
+        }
+
+        if (rest.connectionString) {
+          connectionConfig.connectionString = rest.connectionString
         }
 
         const result: any = { ...connectionConfig }
@@ -900,6 +927,8 @@ Return ONLY the MongoDB query filter as valid JSON - no explanations, no markdow
   },
   inputs: {
     operation: { type: 'string', description: 'Database operation to perform' },
+    connectionMode: { type: 'string', description: 'Connection mode (host_port or connection_string)' },
+    connectionString: { type: 'string', description: 'Full MongoDB connection string' },
     host: { type: 'string', description: 'MongoDB host' },
     port: { type: 'string', description: 'MongoDB port' },
     database: { type: 'string', description: 'Database name' },
