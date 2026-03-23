@@ -27,6 +27,8 @@ const SUPPORTED_FILE_TYPES = [
   'application/json',
   'application/xml',
   'text/xml',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/x-pptxgenjs',
 ]
 
 /**

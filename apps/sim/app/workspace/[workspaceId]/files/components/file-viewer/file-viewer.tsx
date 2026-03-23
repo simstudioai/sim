@@ -8,6 +8,7 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import {
   useUpdateWorkspaceFileContent,
+  useWorkspaceFileBinary,
   useWorkspaceFileContent,
 } from '@/hooks/queries/workspace-files'
 import { useAutosave } from '@/hooks/use-autosave'
@@ -48,17 +49,29 @@ const IFRAME_PREVIEWABLE_EXTENSIONS = new Set(['pdf'])
 const IMAGE_PREVIEWABLE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
 const IMAGE_PREVIEWABLE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp'])
 
-type FileCategory = 'text-editable' | 'iframe-previewable' | 'image-previewable' | 'unsupported'
+const PPTX_PREVIEWABLE_MIME_TYPES = new Set([
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+])
+const PPTX_PREVIEWABLE_EXTENSIONS = new Set(['pptx'])
+
+type FileCategory =
+  | 'text-editable'
+  | 'iframe-previewable'
+  | 'image-previewable'
+  | 'pptx-previewable'
+  | 'unsupported'
 
 function resolveFileCategory(mimeType: string | null, filename: string): FileCategory {
   if (mimeType && TEXT_EDITABLE_MIME_TYPES.has(mimeType)) return 'text-editable'
   if (mimeType && IFRAME_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'iframe-previewable'
   if (mimeType && IMAGE_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'image-previewable'
+  if (mimeType && PPTX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'pptx-previewable'
 
   const ext = getFileExtension(filename)
   if (TEXT_EDITABLE_EXTENSIONS.has(ext)) return 'text-editable'
   if (IFRAME_PREVIEWABLE_EXTENSIONS.has(ext)) return 'iframe-previewable'
   if (IMAGE_PREVIEWABLE_EXTENSIONS.has(ext)) return 'image-previewable'
+  if (PPTX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'pptx-previewable'
 
   return 'unsupported'
 }
@@ -124,6 +137,10 @@ export function FileViewer({
     return <ImagePreview file={file} />
   }
 
+  if (category === 'pptx-previewable') {
+    return <PptxPreview file={file} workspaceId={workspaceId} streamingContent={streamingContent} />
+  }
+
   return <UnsupportedPreview file={file} />
 }
 
@@ -163,7 +180,7 @@ function TextEditor({
     isLoading,
     error,
     dataUpdatedAt,
-  } = useWorkspaceFileContent(workspaceId, file.id, file.key)
+  } = useWorkspaceFileContent(workspaceId, file.id, file.key, file.type === 'text/x-pptxgenjs')
 
   const updateContent = useUpdateWorkspaceFileContent()
 
@@ -413,6 +430,250 @@ function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
         className='max-h-full max-w-full rounded-md object-contain'
         loading='eager'
       />
+    </div>
+  )
+}
+
+const pptxSlideCache = new Map<string, string[]>()
+
+function pptxCacheKey(fileId: string, byteLength: number): string {
+  return `${fileId}:${byteLength}`
+}
+
+function pptxCacheSet(key: string, slides: string[]): void {
+  pptxSlideCache.set(key, slides)
+  if (pptxSlideCache.size > 5) {
+    const oldest = pptxSlideCache.keys().next().value
+    if (oldest !== undefined) pptxSlideCache.delete(oldest)
+  }
+}
+
+async function renderPptxSlides(
+  data: Uint8Array,
+  onSlide: (src: string, index: number) => void,
+  cancelled: () => boolean
+): Promise<void> {
+  const { PPTXViewer } = await import('pptxviewjs')
+  if (cancelled()) return
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  const { width, height } = await getPptxRenderSize(data, dpr)
+  const W = width
+  const H = height
+
+  const canvas = document.createElement('canvas')
+  canvas.width = W
+  canvas.height = H
+  const viewer = new PPTXViewer({ canvas })
+  await viewer.loadFile(data)
+  const count = viewer.getSlideCount()
+  if (cancelled() || count === 0) return
+
+  for (let i = 0; i < count; i++) {
+    if (cancelled()) break
+    if (i === 0) await viewer.render()
+    else await viewer.goToSlide(i)
+    onSlide(canvas.toDataURL('image/jpeg', 0.85), i)
+  }
+}
+
+async function getPptxRenderSize(
+  data: Uint8Array,
+  dpr: number
+): Promise<{ width: number; height: number }> {
+  const fallback = {
+    width: Math.round(1920 * dpr),
+    height: Math.round(1080 * dpr),
+  }
+
+  try {
+    const JSZip = (await import('jszip')).default
+    const zip = await JSZip.loadAsync(data)
+    const presentationXml = await zip.file('ppt/presentation.xml')?.async('text')
+    if (!presentationXml) return fallback
+
+    const tagMatch = presentationXml.match(/<p:sldSz\s[^>]+>/)
+    if (!tagMatch) return fallback
+    const tag = tagMatch[0]
+    const cxMatch = tag.match(/\bcx="(\d+)"/)
+    const cyMatch = tag.match(/\bcy="(\d+)"/)
+    if (!cxMatch || !cyMatch) return fallback
+
+    const cx = Number(cxMatch[1])
+    const cy = Number(cyMatch[1])
+    if (!Number.isFinite(cx) || !Number.isFinite(cy) || cx <= 0 || cy <= 0) return fallback
+
+    const aspectRatio = cx / cy
+    if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) return fallback
+
+    const baseLongEdge = 1920 * dpr
+    if (aspectRatio >= 1) {
+      return {
+        width: Math.round(baseLongEdge),
+        height: Math.round(baseLongEdge / aspectRatio),
+      }
+    }
+
+    return {
+      width: Math.round(baseLongEdge * aspectRatio),
+      height: Math.round(baseLongEdge),
+    }
+  } catch {
+    return fallback
+  }
+}
+
+function PptxPreview({
+  file,
+  workspaceId,
+  streamingContent,
+}: {
+  file: WorkspaceFileRecord
+  workspaceId: string
+  streamingContent?: string
+}) {
+  const {
+    data: fileData,
+    isLoading: isFetching,
+    error: fetchError,
+  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+
+  const cacheKey = pptxCacheKey(file.id, fileData?.byteLength ?? 0)
+  const cached = pptxSlideCache.get(cacheKey)
+
+  const [slides, setSlides] = useState<string[]>(cached ?? [])
+  const [rendering, setRendering] = useState(false)
+  const [renderError, setRenderError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const controller = new AbortController()
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    async function render() {
+      if (cancelled) return
+      try {
+        setRendering(true)
+        setRenderError(null)
+
+        if (streamingContent !== undefined) {
+          const response = await fetch(`/api/workspaces/${workspaceId}/pptx/preview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: streamingContent }),
+            signal: controller.signal,
+          })
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({ error: 'Preview failed' }))
+            throw new Error(err.error || 'Preview failed')
+          }
+          if (cancelled) return
+          const arrayBuffer = await response.arrayBuffer()
+          if (cancelled) return
+          const data = new Uint8Array(arrayBuffer)
+          const images: string[] = []
+          await renderPptxSlides(
+            data,
+            (src) => {
+              images.push(src)
+              if (!cancelled) setSlides([...images])
+            },
+            () => cancelled
+          )
+          return
+        }
+
+        if (cached) {
+          setSlides(cached)
+          return
+        }
+
+        if (!fileData) return
+        setSlides([])
+        const data = new Uint8Array(fileData)
+        const images: string[] = []
+        await renderPptxSlides(
+          data,
+          (src) => {
+            images.push(src)
+            if (!cancelled) setSlides([...images])
+          },
+          () => cancelled
+        )
+        if (!cancelled && images.length > 0) {
+          pptxCacheSet(cacheKey, images)
+        }
+      } catch (err) {
+        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
+          const msg = err instanceof Error ? err.message : 'Failed to render presentation'
+          logger.error('PPTX render failed', { error: msg })
+          setRenderError(msg)
+        }
+      } finally {
+        if (!cancelled) setRendering(false)
+      }
+    }
+
+    // Debounce streaming renders so rapid SSE updates don't spawn a subprocess
+    // per event. Non-streaming renders (file load / cache) run immediately.
+    if (streamingContent !== undefined) {
+      debounceTimer = setTimeout(render, 500)
+    } else {
+      render()
+    }
+
+    return () => {
+      cancelled = true
+      if (debounceTimer) clearTimeout(debounceTimer)
+      controller.abort()
+    }
+  }, [fileData, dataUpdatedAt, streamingContent, cacheKey, workspaceId])
+
+  const error = fetchError
+    ? fetchError instanceof Error
+      ? fetchError.message
+      : 'Failed to load file'
+    : renderError
+  const loading = isFetching || rendering
+
+  if (error) {
+    return (
+      <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
+        <p className='font-medium text-[14px] text-[var(--text-body)]'>
+          Failed to preview presentation
+        </p>
+        <p className='text-[13px] text-[var(--text-muted)]'>{error}</p>
+      </div>
+    )
+  }
+
+  if (loading && slides.length === 0) {
+    return (
+      <div className='flex flex-1 items-center justify-center bg-[var(--surface-1)]'>
+        <div className='flex flex-col items-center gap-[8px]'>
+          <div
+            className='h-[18px] w-[18px] animate-spin rounded-full'
+            style={{
+              background:
+                'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
+              mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+              WebkitMask:
+                'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+            }}
+          />
+          <p className='text-[13px] text-[var(--text-muted)]'>Loading presentation...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className='flex-1 overflow-y-auto bg-[var(--surface-1)] p-[24px]'>
+      <div className='mx-auto flex max-w-[960px] flex-col gap-[16px]'>
+        {slides.map((src, i) => (
+          <img key={i} src={src} alt={`Slide ${i + 1}`} className='w-full rounded-md shadow-lg' />
+        ))}
+      </div>
     </div>
   )
 }

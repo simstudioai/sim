@@ -6,6 +6,7 @@ type ResourceType = MothershipResourceType
 const RESOURCE_TOOL_NAMES = new Set([
   'user_table',
   'workspace_file',
+  'download_to_workspace_file',
   'create_workflow',
   'edit_workflow',
   'function_execute',
@@ -119,6 +120,7 @@ export function extractResourcesFromToolResult(
       return []
     }
 
+    case 'download_to_workspace_file':
     case 'generate_visualization':
     case 'generate_image': {
       if (result.fileId) {

@@ -449,33 +449,12 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
 }
 
 function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
+  const detail = data.code ? `${data.message} (${data.code})` : data.message
+
   return (
-    <div className='animate-stream-fade-in rounded-xl border border-red-300/40 bg-red-50/50 px-4 py-3 dark:border-red-500/20 dark:bg-red-950/20'>
-      <div className='flex items-center gap-2'>
-        <svg
-          className='h-4 w-4 shrink-0 text-red-600 dark:text-red-400'
-          viewBox='0 0 16 16'
-          fill='none'
-          xmlns='http://www.w3.org/2000/svg'
-        >
-          <circle cx='8' cy='8' r='6.5' stroke='currentColor' strokeWidth='1.3' />
-          <path d='M8 4.5v4' stroke='currentColor' strokeWidth='1.3' strokeLinecap='round' />
-          <circle cx='8' cy='11' r='0.75' fill='currentColor' />
-        </svg>
-        <span className='font-[500] text-[14px] text-red-800 leading-5 dark:text-red-300'>
-          Something went wrong
-        </span>
-      </div>
-      <p className='mt-1.5 text-[13px] text-red-700/90 leading-[20px] dark:text-red-400/80'>
-        {data.message}
-      </p>
-      {data.code && (
-        <span className='mt-1 inline-block text-[11px] text-red-500/70 dark:text-red-500/50'>
-          {data.provider ? `${data.provider}:` : ''}
-          {data.code}
-        </span>
-      )}
-    </div>
+    <span className='animate-stream-fade-in font-base text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>
+      {detail}
+    </span>
   )
 }
 

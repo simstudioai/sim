@@ -23,6 +23,7 @@ import {
   Wrench,
   Zap,
 } from 'lucide-react'
+import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import {
   ClientToolCallState,
   type ClientToolDisplay,
@@ -31,8 +32,9 @@ import {
 
 const logger = createLogger('CopilotStoreUtils')
 
-/** Respond tools are internal to copilot subagents and should never be shown in the UI */
+/** Respond tools are internal handoff tools shown with a friendly generic label. */
 const HIDDEN_TOOL_SUFFIX = '_respond'
+const HIDDEN_TOOL_NAMES = new Set(['tool_search_tool_regex'])
 
 /** UI metadata sent by the copilot on SSE tool_call events. */
 export interface ServerToolUI {
@@ -81,7 +83,11 @@ export function resolveToolDisplay(
   serverUI?: ServerToolUI
 ): ClientToolDisplay | undefined {
   if (!toolName) return undefined
-  if (toolName.endsWith(HIDDEN_TOOL_SUFFIX)) return undefined
+  if (HIDDEN_TOOL_NAMES.has(toolName)) return undefined
+
+  const specialDisplay = specialToolDisplay(toolName, state, params)
+  if (specialDisplay) return specialDisplay
+
   const entry = TOOL_DISPLAY_REGISTRY[toolName]
   if (!entry) {
     // Use copilot-provided UI as a better fallback than humanized name
@@ -113,6 +119,93 @@ export function resolveToolDisplay(
   }
 
   return humanizedFallback(toolName, state)
+}
+
+function specialToolDisplay(
+  toolName: string,
+  state: ClientToolCallState,
+  params?: Record<string, unknown>
+): ClientToolDisplay | undefined {
+  if (toolName.endsWith(HIDDEN_TOOL_SUFFIX)) {
+    return {
+      text: formatRespondLabel(state),
+      icon: Loader2,
+    }
+  }
+
+  if (toolName === 'read') {
+    const target = describeReadTarget(readStringParam(params, 'path'))
+    return {
+      text: formatReadingLabel(target, state),
+      icon: FileText,
+    }
+  }
+
+  return undefined
+}
+
+function formatRespondLabel(state: ClientToolCallState): string {
+  switch (state) {
+    case ClientToolCallState.success:
+      return 'Returned results'
+    case ClientToolCallState.error:
+      return 'Failed returning results'
+    case ClientToolCallState.rejected:
+    case ClientToolCallState.aborted:
+      return 'Skipped returning results'
+    default:
+      return 'Returning results'
+  }
+}
+
+function readStringParam(
+  params: Record<string, unknown> | undefined,
+  key: string
+): string | undefined {
+  const value = params?.[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function formatReadingLabel(target: string | undefined, state: ClientToolCallState): string {
+  const suffix = target ? ` ${target}` : ''
+  switch (state) {
+    case ClientToolCallState.success:
+      return `Read${suffix}`
+    case ClientToolCallState.error:
+      return `Failed reading${suffix}`
+    case ClientToolCallState.rejected:
+    case ClientToolCallState.aborted:
+      return `Skipped reading${suffix}`
+    default:
+      return `Reading${suffix}`
+  }
+}
+
+function describeReadTarget(path: string | undefined): string | undefined {
+  if (!path) return undefined
+
+  const segments = path
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+
+  if (segments.length === 0) return undefined
+
+  const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
+  if (!resourceType) {
+    return stripExtension(segments[segments.length - 1])
+  }
+
+  if (resourceType === 'file') {
+    return segments.slice(1).join('/') || segments[segments.length - 1]
+  }
+
+  const resourceName = segments[1] || segments[segments.length - 1]
+  return stripExtension(resourceName)
+}
+
+function stripExtension(value: string): string {
+  return value.replace(/\.[^/.]+$/, '')
 }
 
 /** Generates display from copilot-provided UI metadata. */

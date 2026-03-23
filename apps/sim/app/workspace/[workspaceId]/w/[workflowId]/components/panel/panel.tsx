@@ -75,6 +75,7 @@ import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('Panel')
 /**
@@ -290,18 +291,29 @@ export const Panel = memo(function Panel() {
     [copilotChatId, loadCopilotChats]
   )
 
-  const onToolResult = useCallback(
-    (toolName: string, success: boolean, _result: unknown) => {
-      if (toolName === 'edit_workflow' && success && activeWorkflowId) {
-        fetch(`/api/workflows/${activeWorkflowId}/state`)
-          .then((res) => (res.ok ? res.json() : null))
-          .then((freshState) => {
-            if (freshState) {
-              useWorkflowDiffStore.getState().setProposedChanges(freshState)
-            }
+  const handleCopilotToolResult = useCallback(
+    (toolName: string, success: boolean, _output: unknown) => {
+      if (toolName !== 'edit_workflow' || !success) return
+      const workflowId = activeWorkflowId || useWorkflowRegistry.getState().activeWorkflowId
+      if (!workflowId) return
+
+      fetch(`/api/workflows/${workflowId}/state`)
+        .then((res) => {
+          if (!res.ok) throw new Error(`State fetch failed: ${res.status}`)
+          return res.json()
+        })
+        .then((freshState) => {
+          const diffStore = useWorkflowDiffStore.getState()
+          return diffStore.setProposedChanges(freshState as WorkflowState, undefined, {
+            skipPersist: true,
           })
-          .catch(() => {})
-      }
+        })
+        .catch((err) => {
+          logger.error('Failed to fetch/apply edit_workflow state', {
+            error: err instanceof Error ? err.message : String(err),
+            workflowId,
+          })
+        })
     },
     [activeWorkflowId]
   )
@@ -320,8 +332,8 @@ export const Panel = memo(function Panel() {
     apiPath: '/api/copilot/chat',
     stopPath: '/api/mothership/chat/stop',
     workflowId: activeWorkflowId || undefined,
-    onToolResult,
     onTitleUpdate: loadCopilotChats,
+    onToolResult: handleCopilotToolResult,
   })
 
   const handleCopilotNewChat = useCallback(() => {

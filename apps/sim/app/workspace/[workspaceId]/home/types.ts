@@ -145,6 +145,7 @@ export interface ToolCallData {
   toolName: string
   displayTitle: string
   status: ToolCallStatus
+  params?: Record<string, unknown>
   result?: ToolCallResult
   streamingArgs?: string
 }
@@ -155,6 +156,7 @@ export interface ToolCallInfo {
   status: ToolCallStatus
   displayTitle?: string
   phaseLabel?: string
+  params?: Record<string, unknown>
   calledBy?: string
   result?: { success: boolean; output?: unknown; error?: string }
   streamingArgs?: string

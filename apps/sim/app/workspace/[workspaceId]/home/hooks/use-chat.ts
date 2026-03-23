@@ -97,6 +97,7 @@ function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
       status: resolvedStatus,
       displayTitle:
         resolvedStatus === 'cancelled' ? 'Stopped by user' : block.toolCall.display?.text,
+      params: block.toolCall.params,
       calledBy: block.toolCall.calledBy,
       result: block.toolCall.result,
     }
@@ -114,6 +115,7 @@ function mapStoredToolCall(tc: TaskStoredToolCall): ContentBlock {
       name: tc.name,
       status: resolvedStatus,
       displayTitle: resolvedStatus === 'cancelled' ? 'Stopped by user' : undefined,
+      params: tc.params,
       result:
         tc.result != null
           ? {
@@ -736,11 +738,14 @@ export function useChat(
                 const isPartial = data?.partial === true
                 if (!id) break
 
-                if (name.endsWith('_respond')) break
+                if (name === 'tool_search_tool_regex') {
+                  break
+                }
                 const ui = parsed.ui || data?.ui
                 if (ui?.hidden) break
                 const displayTitle = ui?.title || ui?.phaseLabel
                 const phaseLabel = ui?.phaseLabel
+                const args = (data?.arguments ?? data?.input) as Record<string, unknown> | undefined
                 if (!toolMap.has(id)) {
                   toolMap.set(id, blocks.length)
                   blocks.push({
@@ -751,13 +756,11 @@ export function useChat(
                       status: 'executing',
                       displayTitle,
                       phaseLabel,
+                      params: args,
                       calledBy: activeSubagent,
                     },
                   })
                   if (name === 'read' || isResourceToolName(name)) {
-                    const args = (data?.arguments ?? data?.input) as
-                      | Record<string, unknown>
-                      | undefined
                     if (args) toolArgsMap.set(id, args)
                   }
                 } else {
@@ -767,6 +770,7 @@ export function useChat(
                     tc.name = name
                     if (displayTitle) tc.displayTitle = displayTitle
                     if (phaseLabel) tc.phaseLabel = phaseLabel
+                    if (args) tc.params = args
                   }
                 }
                 flush()
@@ -1136,6 +1140,7 @@ export function useChat(
             id: block.toolCall.id,
             name: block.toolCall.name,
             state: isCancelled ? 'cancelled' : block.toolCall.status,
+            params: block.toolCall.params,
             result: block.toolCall.result,
             display: {
               text: isCancelled ? 'Stopped by user' : block.toolCall.displayTitle,

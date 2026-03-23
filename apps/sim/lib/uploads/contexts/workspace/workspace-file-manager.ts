@@ -520,7 +520,8 @@ export async function updateWorkspaceFileContent(
   workspaceId: string,
   fileId: string,
   userId: string,
-  content: Buffer
+  content: Buffer,
+  contentType?: string
 ): Promise<WorkspaceFileRecord> {
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
 
@@ -537,6 +538,8 @@ export async function updateWorkspaceFileContent(
     }
   }
 
+  const nextContentType = contentType || fileRecord.type
+
   try {
     const metadata: Record<string, string> = {
       originalName: fileRecord.name,
@@ -549,7 +552,7 @@ export async function updateWorkspaceFileContent(
     await uploadFile({
       file: content,
       fileName: fileRecord.key,
-      contentType: fileRecord.type,
+      contentType: nextContentType,
       context: 'workspace',
       preserveKey: true,
       customKey: fileRecord.key,
@@ -558,7 +561,7 @@ export async function updateWorkspaceFileContent(
 
     await db
       .update(workspaceFiles)
-      .set({ size: content.length })
+      .set({ size: content.length, contentType: nextContentType })
       .where(
         and(
           eq(workspaceFiles.id, fileId),
@@ -584,6 +587,7 @@ export async function updateWorkspaceFileContent(
     return {
       ...fileRecord,
       size: content.length,
+      type: nextContentType,
     }
   } catch (error) {
     logger.error(`Failed to update workspace file content ${fileId}:`, error)

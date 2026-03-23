@@ -173,7 +173,7 @@ export type UserTableResult = z.infer<typeof UserTableResultSchema>
 
 // workspace_file - shared schema used by server tool and Go catalog
 export const WorkspaceFileArgsSchema = z.object({
-  operation: z.enum(['write', 'update', 'delete', 'rename']),
+  operation: z.enum(['write', 'update', 'delete', 'rename', 'patch']),
   args: z
     .object({
       fileId: z.string().optional(),
@@ -181,8 +181,13 @@ export const WorkspaceFileArgsSchema = z.object({
       content: z.string().optional(),
       contentType: z.string().optional(),
       workspaceId: z.string().optional(),
-      /** New name for the file (required for rename operation) */
       newName: z.string().optional(),
+      edits: z
+        .array(z.object({ search: z.string(), replace: z.string() }))
+        .describe(
+          'List of search/replace pairs applied sequentially — each edit operates on the result of the previous one. Search strings must be unique within the file.'
+        )
+        .optional(),
     })
     .optional(),
 })

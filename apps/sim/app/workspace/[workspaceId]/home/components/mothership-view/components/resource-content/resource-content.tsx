@@ -10,7 +10,11 @@ import {
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/client-sse/run-tool-execution'
-import { downloadWorkspaceFile } from '@/lib/uploads/utils/file-utils'
+import {
+  downloadWorkspaceFile,
+  getFileExtension,
+  getMimeTypeFromExtension,
+} from '@/lib/uploads/utils/file-utils'
 import {
   FileViewer,
   type PreviewMode,
@@ -64,35 +68,43 @@ export const ResourceContent = memo(function ResourceContent({
   streamingFile,
 }: ResourceContentProps) {
   const streamFileName = streamingFile?.fileName || 'file.md'
-  const streamingExtractedContent = useMemo(
-    () => (streamingFile ? extractFileContent(streamingFile.content) : ''),
-    [streamingFile]
-  )
-  const syntheticFile = useMemo(
-    () => ({
+  const streamingExtractedContent = useMemo(() => {
+    if (!streamingFile) return undefined
+    const extracted = extractFileContent(streamingFile.content)
+    return extracted.length > 0 ? extracted : undefined
+  }, [streamingFile])
+  const syntheticFile = useMemo(() => {
+    const ext = getFileExtension(streamFileName)
+    const type = ext === 'pptx' ? 'text/x-pptxgenjs' : getMimeTypeFromExtension(ext)
+    return {
       id: 'streaming-file',
       workspaceId,
       name: streamFileName,
       key: '',
       path: '',
       size: 0,
-      type: 'text/plain',
+      type,
       uploadedBy: '',
       uploadedAt: STREAMING_EPOCH,
-    }),
-    [workspaceId, streamFileName]
-  )
+    }
+  }, [workspaceId, streamFileName])
 
   if (streamingFile && resource.id === 'streaming-file') {
     return (
       <div className='flex h-full flex-col overflow-hidden'>
-        <FileViewer
-          file={syntheticFile}
-          workspaceId={workspaceId}
-          canEdit={false}
-          previewMode={previewMode ?? 'preview'}
-          streamingContent={streamingExtractedContent}
-        />
+        {streamingExtractedContent !== undefined ? (
+          <FileViewer
+            file={syntheticFile}
+            workspaceId={workspaceId}
+            canEdit={false}
+            previewMode={previewMode ?? 'preview'}
+            streamingContent={streamingExtractedContent}
+          />
+        ) : (
+          <div className='flex h-full items-center justify-center'>
+            <p className='text-[13px] text-[var(--text-muted)]'>Processing file...</p>
+          </div>
+        )}
       </div>
     )
   }
@@ -108,7 +120,7 @@ export const ResourceContent = memo(function ResourceContent({
           workspaceId={workspaceId}
           fileId={resource.id}
           previewMode={previewMode}
-          streamingContent={streamingFile ? extractFileContent(streamingFile.content) : undefined}
+          streamingContent={streamingExtractedContent}
         />
       )
 
