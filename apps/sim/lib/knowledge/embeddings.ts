@@ -12,6 +12,11 @@ const EMBEDDING_DIMENSIONS = 1536
 
 const OLLAMA_TIMEOUT_MS = 120_000
 
+/** Resolve the Ollama base URL: explicit value > OLLAMA_URL env var > localhost default */
+export function getOllamaBaseUrl(explicit?: string | null): string {
+  return explicit || env.OLLAMA_URL || 'http://localhost:11434'
+}
+
 /** Default context length for Ollama embedding models when it cannot be queried */
 const OLLAMA_DEFAULT_CONTEXT_LENGTH = 2048
 /** Default embedding dimension for Ollama models when it cannot be queried */
@@ -34,8 +39,9 @@ const ollamaModelInfoCache = new Map<string, { info: OllamaModelInfo; ts: number
  */
 export async function getOllamaModelInfo(
   modelName: string,
-  baseUrl = 'http://localhost:11434'
+  baseUrl?: string
 ): Promise<OllamaModelInfo> {
+  baseUrl = getOllamaBaseUrl(baseUrl)
   const cacheKey = `${modelName}@${baseUrl}`
   const cached = ollamaModelInfoCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < OLLAMA_MODEL_CACHE_TTL_MS) {
@@ -67,8 +73,9 @@ export async function getOllamaModelInfo(
  */
 export async function validateOllamaModel(
   modelName: string,
-  baseUrl = 'http://localhost:11434'
+  baseUrl?: string
 ): Promise<OllamaModelInfo> {
+  baseUrl = getOllamaBaseUrl(baseUrl)
   const info = await fetchOllamaModelInfo(modelName, baseUrl)
 
   // Cache the validated result
@@ -126,7 +133,7 @@ async function fetchOllamaModelInfo(modelName: string, baseUrl: string): Promise
  */
 export async function getOllamaModelContextLength(
   modelName: string,
-  baseUrl = 'http://localhost:11434'
+  baseUrl?: string
 ): Promise<number> {
   const info = await getOllamaModelInfo(modelName, baseUrl)
   return info.contextLength
@@ -336,7 +343,7 @@ export async function generateEmbeddings(
 ): Promise<number[][]> {
   if (embeddingModel.startsWith('ollama/')) {
     const modelName = embeddingModel.slice(7)
-    const baseUrl = ollamaBaseUrl ?? 'http://localhost:11434'
+    const baseUrl = getOllamaBaseUrl(ollamaBaseUrl)
     logger.info(`Using Ollama (${baseUrl}) for embedding generation with model ${modelName}`)
 
     // Use pre-queried context length if provided, otherwise query it
@@ -443,7 +450,7 @@ export async function generateSearchEmbedding(
 ): Promise<number[]> {
   if (embeddingModel.startsWith('ollama/')) {
     const modelName = embeddingModel.slice(7)
-    const baseUrl = ollamaBaseUrl ?? 'http://localhost:11434'
+    const baseUrl = getOllamaBaseUrl(ollamaBaseUrl)
     logger.info(`Using Ollama (${baseUrl}) for search embedding with model ${modelName}`)
     const embeddings = await callOllamaEmbeddingAPI([query], modelName, baseUrl)
     return embeddings[0]

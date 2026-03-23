@@ -13,7 +13,7 @@ import {
   searchKBTable,
   searchKBTableTagOnly,
 } from '@/lib/knowledge/dynamic-tables'
-import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
+import { generateSearchEmbedding, getOllamaBaseUrl } from '@/lib/knowledge/embeddings'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { ExtendedChunkingConfig, StructuredFilter } from '@/lib/knowledge/types'
@@ -259,7 +259,7 @@ export async function POST(request: NextRequest) {
           const config = kbConfigMap.get(kbId)!
           const cfg = config.chunkingConfig as ExtendedChunkingConfig
           const { modelName } = parseEmbeddingModel(config.embeddingModel)
-          const baseUrl = cfg.ollamaBaseUrl ?? 'http://localhost:11434'
+          const baseUrl = getOllamaBaseUrl(cfg.ollamaBaseUrl)
           uniquePairs.set(`${modelName}:${baseUrl}`, { modelName, ollamaBaseUrl: baseUrl })
         }
         await Promise.all(
@@ -320,7 +320,7 @@ export async function POST(request: NextRequest) {
         const config = kbConfigMap.get(kbId)!
         const cfg = config.chunkingConfig as ExtendedChunkingConfig
         const { modelName } = parseEmbeddingModel(config.embeddingModel)
-        const baseUrl = cfg.ollamaBaseUrl ?? 'http://localhost:11434'
+        const baseUrl = getOllamaBaseUrl(cfg.ollamaBaseUrl)
         const pairKey = `${modelName}:${baseUrl}`
         const strategy = getQueryStrategy(1, validatedData.topK)
 

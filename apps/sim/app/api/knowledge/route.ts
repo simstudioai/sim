@@ -10,7 +10,7 @@ import {
   dropKBEmbeddingTable,
   parseEmbeddingModel,
 } from '@/lib/knowledge/dynamic-tables'
-import { validateOllamaModel } from '@/lib/knowledge/embeddings'
+import { getOllamaBaseUrl, validateOllamaModel } from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
   deleteKnowledgeBase,
@@ -47,7 +47,7 @@ const CreateKnowledgeBaseSchema = z.object({
         try {
           const parsed = new URL(url)
           const hostname = parsed.hostname.toLowerCase()
-          // Allow localhost, 127.x.x.x, ::1, and private network ranges
+          // Allow localhost, loopback, and private network ranges
           if (
             hostname === 'localhost' ||
             hostname === '::1' ||
@@ -60,7 +60,12 @@ const CreateKnowledgeBaseSchema = z.object({
           // Allow 172.16.0.0 – 172.31.255.255
           if (hostname.startsWith('172.')) {
             const second = Number.parseInt(hostname.split('.')[1], 10)
-            return second >= 16 && second <= 31
+            if (second >= 16 && second <= 31) return true
+          }
+          // Allow Docker service hostnames (no dots = not a public domain)
+          // e.g. "ollama", "host.docker.internal"
+          if (!hostname.includes('.') || hostname.endsWith('.internal')) {
+            return true
           }
           return false
         } catch {
@@ -68,7 +73,8 @@ const CreateKnowledgeBaseSchema = z.object({
         }
       },
       {
-        message: 'Ollama base URL must point to localhost or a private network address',
+        message:
+          'Ollama base URL must point to localhost, a private network address, or a Docker service hostname',
       }
     )
     .optional(),
@@ -143,7 +149,7 @@ export async function POST(req: NextRequest) {
       // For Ollama models, validate the model is available and auto-detect dimension
       let effectiveDimension = validatedData.embeddingDimension
       if (provider === 'ollama') {
-        const ollamaBaseUrl = validatedData.ollamaBaseUrl ?? 'http://localhost:11434'
+        const ollamaBaseUrl = getOllamaBaseUrl(validatedData.ollamaBaseUrl)
         try {
           const modelInfo = await validateOllamaModel(modelName, ollamaBaseUrl)
 
