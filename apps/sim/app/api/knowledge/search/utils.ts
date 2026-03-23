@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { document, embedding } from '@sim/db/schema'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { ALL_TAG_SLOTS, type AllTagSlot } from '@/lib/knowledge/constants'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
 export async function getDocumentNamesByIds(
@@ -68,35 +69,8 @@ export interface SearchParams {
 // Use shared embedding utility
 export { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
-/** All valid tag slot keys */
-const TAG_SLOT_KEYS = [
-  // Text tags (7 slots)
-  'tag1',
-  'tag2',
-  'tag3',
-  'tag4',
-  'tag5',
-  'tag6',
-  'tag7',
-  // Number tags (5 slots)
-  'number1',
-  'number2',
-  'number3',
-  'number4',
-  'number5',
-  // Date tags (2 slots)
-  'date1',
-  'date2',
-  // Boolean tags (3 slots)
-  'boolean1',
-  'boolean2',
-  'boolean3',
-] as const
-
-type TagSlotKey = (typeof TAG_SLOT_KEYS)[number]
-
-function isTagSlotKey(key: string): key is TagSlotKey {
-  return TAG_SLOT_KEYS.includes(key as TagSlotKey)
+function isTagSlotKey(key: string): key is AllTagSlot {
+  return (ALL_TAG_SLOTS as readonly string[]).includes(key)
 }
 
 /** Common fields selected for search results */

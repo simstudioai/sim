@@ -10,35 +10,14 @@ import {
   timestamp,
   vector,
 } from 'drizzle-orm/pg-core'
+import { ALL_TAG_SLOTS, type AllTagSlot } from '@/lib/knowledge/constants'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 import type { SearchResult } from '@/app/api/knowledge/search/utils'
 
 const logger = createLogger('DynamicKBTables')
 
-const TAG_SLOT_KEYS = [
-  'tag1',
-  'tag2',
-  'tag3',
-  'tag4',
-  'tag5',
-  'tag6',
-  'tag7',
-  'number1',
-  'number2',
-  'number3',
-  'number4',
-  'number5',
-  'date1',
-  'date2',
-  'boolean1',
-  'boolean2',
-  'boolean3',
-] as const
-
-type TagSlotKey = (typeof TAG_SLOT_KEYS)[number]
-
-function isTagSlotKey(key: string): key is TagSlotKey {
-  return TAG_SLOT_KEYS.includes(key as TagSlotKey)
+function isTagSlotKey(key: string): key is AllTagSlot {
+  return (ALL_TAG_SLOTS as readonly string[]).includes(key)
 }
 
 /** Convert a KB UUID to a valid Postgres table name */
@@ -266,15 +245,17 @@ export async function searchKBTable(
   structuredFilters?: StructuredFilter[]
 ): Promise<SearchResult[]> {
   const table = kbTableName(kbId)
+  const tableRef = sql.raw(`"${table}"`)
 
   const filterConditions = buildRawFilterConditions(structuredFilters ?? [])
 
   const vecParam = sql`${queryVector}::vector`
 
   const allConditions = [
-    sql`knowledge_base_id = ${kbId}`,
-    sql`enabled = TRUE`,
-    sql`embedding <=> ${vecParam} < ${distanceThreshold}`,
+    sql`e.knowledge_base_id = ${kbId}`,
+    sql`e.enabled = TRUE`,
+    sql`e.embedding <=> ${vecParam} < ${distanceThreshold}`,
+    sql`d.deleted_at IS NULL`,
     ...filterConditions,
   ]
 
@@ -282,17 +263,18 @@ export async function searchKBTable(
 
   const result = await db.execute(sql`
     SELECT
-      id::text,
-      content,
-      document_id AS "documentId",
-      chunk_index AS "chunkIndex",
-      tag1, tag2, tag3, tag4, tag5, tag6, tag7,
-      number1::float8, number2::float8, number3::float8, number4::float8, number5::float8,
-      date1, date2,
-      boolean1, boolean2, boolean3,
-      (embedding <=> ${vecParam})::float8 AS distance,
-      knowledge_base_id AS "knowledgeBaseId"
-    FROM ${sql.raw(`"${table}"`)}
+      e.id::text,
+      e.content,
+      e.document_id AS "documentId",
+      e.chunk_index AS "chunkIndex",
+      e.tag1, e.tag2, e.tag3, e.tag4, e.tag5, e.tag6, e.tag7,
+      e.number1::float8, e.number2::float8, e.number3::float8, e.number4::float8, e.number5::float8,
+      e.date1, e.date2,
+      e.boolean1, e.boolean2, e.boolean3,
+      (e.embedding <=> ${vecParam})::float8 AS distance,
+      e.knowledge_base_id AS "knowledgeBaseId"
+    FROM ${tableRef} e
+    INNER JOIN document d ON d.id = e.document_id
     WHERE ${whereClause}
     ORDER BY distance
     LIMIT ${topK}
@@ -308,26 +290,33 @@ export async function searchKBTableTagOnly(
   structuredFilters: StructuredFilter[]
 ): Promise<SearchResult[]> {
   const table = kbTableName(kbId)
+  const tableRef = sql.raw(`"${table}"`)
 
   const filterConditions = buildRawFilterConditions(structuredFilters)
 
-  const allConditions = [sql`knowledge_base_id = ${kbId}`, sql`enabled = TRUE`, ...filterConditions]
+  const allConditions = [
+    sql`e.knowledge_base_id = ${kbId}`,
+    sql`e.enabled = TRUE`,
+    sql`d.deleted_at IS NULL`,
+    ...filterConditions,
+  ]
 
   const whereClause = sql.join(allConditions, sql` AND `)
 
   const result = await db.execute(sql`
     SELECT
-      id::text,
-      content,
-      document_id AS "documentId",
-      chunk_index AS "chunkIndex",
-      tag1, tag2, tag3, tag4, tag5, tag6, tag7,
-      number1::float8, number2::float8, number3::float8, number4::float8, number5::float8,
-      date1, date2,
-      boolean1, boolean2, boolean3,
+      e.id::text,
+      e.content,
+      e.document_id AS "documentId",
+      e.chunk_index AS "chunkIndex",
+      e.tag1, e.tag2, e.tag3, e.tag4, e.tag5, e.tag6, e.tag7,
+      e.number1::float8, e.number2::float8, e.number3::float8, e.number4::float8, e.number5::float8,
+      e.date1, e.date2,
+      e.boolean1, e.boolean2, e.boolean3,
       0::float8 AS distance,
-      knowledge_base_id AS "knowledgeBaseId"
-    FROM ${sql.raw(`"${table}"`)}
+      e.knowledge_base_id AS "knowledgeBaseId"
+    FROM ${tableRef} e
+    INNER JOIN document d ON d.id = e.document_id
     WHERE ${whereClause}
     LIMIT ${topK}
   `)
@@ -372,7 +361,8 @@ function buildRawFilterCondition(filter: StructuredFilter): ReturnType<typeof sq
   if (!isTagSlotKey(tagSlot)) return null
 
   // tagSlot is validated against TAG_SLOT_KEYS (all simple alphanumeric) — safe for sql.raw
-  const col = sql.raw(tagSlot)
+  // Prefixed with e. to match the table alias used in search queries
+  const col = sql.raw(`e.${tagSlot}`)
 
   if (fieldType === 'text') {
     const stringValue = String(value)
