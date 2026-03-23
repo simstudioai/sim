@@ -46,7 +46,15 @@ const CreateKnowledgeBaseSchema = z.object({
       (url) => {
         try {
           const parsed = new URL(url)
+          // Only allow http/https schemes
+          if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+            return false
+          }
           const hostname = parsed.hostname.toLowerCase()
+          // Block known cloud metadata endpoints
+          if (hostname === '169.254.169.254' || hostname === 'metadata.google.internal') {
+            return false
+          }
           // Allow localhost, loopback, and private network ranges
           if (
             hostname === 'localhost' ||
