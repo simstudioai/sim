@@ -168,6 +168,14 @@ export async function POST(req: NextRequest) {
 
           // Auto-correct dimension if the model reports a different one
           if (modelInfo.embeddingLength && modelInfo.embeddingLength !== effectiveDimension) {
+            if (modelInfo.embeddingLength < 64 || modelInfo.embeddingLength > 8192) {
+              return NextResponse.json(
+                {
+                  error: `Ollama model "${modelName}" reported an unsupported embedding dimension (${modelInfo.embeddingLength}). Supported range: 64–8192.`,
+                },
+                { status: 400 }
+              )
+            }
             logger.info(
               `[${requestId}] Auto-correcting embedding dimension from ${effectiveDimension} ` +
                 `to ${modelInfo.embeddingLength} (reported by Ollama model ${modelName})`
