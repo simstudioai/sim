@@ -1786,7 +1786,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           <PopoverScrollArea ref={scrollAreaRef}>
             <TagDropdownBackButton setSelectedIndex={setSelectedIndex} />
             {flatTagList.length === 0 ? (
-              <div className='px-1.5 py-2 text-[var(--white)]/60 text-caption'>
+              <div className='px-1.5 py-2 text-[color-mix(in_srgb,var(--white)_60%,transparent)] text-caption'>
                 No matching tags found
               </div>
             ) : (

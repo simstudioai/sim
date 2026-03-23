@@ -1101,7 +1101,7 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
                 className={cn(
                   'flex-1 rounded-md border px-3 py-2.5 text-left transition-colors',
                   selectedTier === PRO_TIER.credits
-                    ? 'border-[var(--accent)] bg-[var(--accent)]/5'
+                    ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_5%,transparent)]'
                     : 'border-[var(--border-1)] hover-hover:border-[var(--border-2)]'
                 )}
                 onClick={() => setSelectedTier(PRO_TIER.credits)}
@@ -1117,7 +1117,7 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
                 className={cn(
                   'flex-1 rounded-md border px-3 py-2.5 text-left transition-colors',
                   selectedTier === MAX_TIER.credits
-                    ? 'border-[var(--accent)] bg-[var(--accent)]/5'
+                    ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_5%,transparent)]'
                     : 'border-[var(--border-1)] hover-hover:border-[var(--border-2)]'
                 )}
                 onClick={() => setSelectedTier(MAX_TIER.credits)}

@@ -235,7 +235,7 @@ export default function Collaboration() {
               variant='blue'
               size='md'
               dot
-              className='bg-[var(--brand-accent)]/10 font-season text-[var(--brand-accent)] uppercase tracking-[0.02em]'
+              className='bg-[color-mix(in_srgb,var(--brand-accent)_10%,transparent)] font-season text-[var(--brand-accent)] uppercase tracking-[0.02em]'
             >
               Teams
             </Badge>

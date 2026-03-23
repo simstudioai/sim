@@ -42,7 +42,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
               className='flex items-center gap-2 px-3.5 py-1.5 transition-colors hover-hover:bg-[var(--surface-active)]'
             >
               <div className='flex h-[16px] w-[16px] shrink-0 items-center justify-center'>
-                <div className='h-[10px] w-[10px] rounded-full border-[1.5px] border-[var(--text-tertiary)]/40' />
+                <div className='h-[10px] w-[10px] rounded-full border-[1.5px] border-[color-mix(in_srgb,var(--text-tertiary)_40%,transparent)]' />
               </div>
 
               <div className='min-w-0 flex-1'>

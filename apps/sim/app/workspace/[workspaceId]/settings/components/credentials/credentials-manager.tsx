@@ -1183,7 +1183,7 @@ export function CredentialsManager() {
               </div>
 
               {detailsError && (
-                <div className='rounded-lg border border-[var(--status-red)]/40 bg-[var(--status-red)]/10 px-2.5 py-2 text-[var(--status-red)] text-small'>
+                <div className='rounded-lg border border-[color-mix(in_srgb,var(--status-red)_40%,transparent)] bg-[color-mix(in_srgb,var(--status-red)_10%,transparent)] px-2.5 py-2 text-[var(--status-red)] text-small'>
                   {detailsError}
                 </div>
               )}

@@ -857,7 +857,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
             {/* Last updated overlay */}
             {template.updatedAt && (
-              <div className='pointer-events-none absolute right-[12px] bottom-3 rounded-sm bg-[var(--bg)]/80 px-2 py-1 backdrop-blur-sm'>
+              <div className='pointer-events-none absolute right-[12px] bottom-3 rounded-sm bg-[color-mix(in_srgb,var(--bg)_80%,transparent)] px-2 py-1 backdrop-blur-sm'>
                 <span className='font-medium text-[var(--text-muted)] text-caption'>
                   Last updated{' '}
                   {formatDistanceToNow(new Date(template.updatedAt), {

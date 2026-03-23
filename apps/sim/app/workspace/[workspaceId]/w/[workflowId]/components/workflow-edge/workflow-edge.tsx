@@ -145,7 +145,7 @@ const WorkflowEdgeComponent = ({
               }
             }}
           >
-            <X className='h-4 w-4 text-[var(--text-error)] transition-colors group-hover:text-[var(--text-error)]/80' />
+            <X className='h-4 w-4 text-[var(--text-error)] transition-colors group-hover:text-[color-mix(in_srgb,var(--text-error)_80%,transparent)]' />
           </div>
         </EdgeLabelRenderer>
       )}

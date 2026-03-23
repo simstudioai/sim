@@ -401,7 +401,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           />
         )}
         {isDragging && (
-          <div className='absolute inset-0 flex items-center justify-center rounded-sm bg-[var(--surface-5)]/90'>
+          <div className='absolute inset-0 flex items-center justify-center rounded-sm bg-[color-mix(in_srgb,var(--surface-5)_90%,transparent)]'>
             <span className='text-[var(--text-tertiary)] text-small'>Drop file here</span>
           </div>
         )}

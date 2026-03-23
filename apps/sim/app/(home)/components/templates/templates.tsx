@@ -521,7 +521,7 @@ export default function Templates() {
                           isActive
                             ? 'z-10'
                             : cn(
-                                'flex items-center px-3 py-2.5 hover:bg-[var(--landing-bg-card)]/50',
+                                'flex items-center px-3 py-2.5 hover:bg-[color-mix(in_srgb,var(--landing-bg-card)_50%,transparent)]',
                                 index < TEMPLATE_WORKFLOWS.length - 1 &&
                                   'shadow-[inset_0_-1px_0_0_#2A2A2A]'
                               )

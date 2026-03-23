@@ -164,7 +164,7 @@ export function KnowledgeBaseSelector({
           {selectedKnowledgeBases.map((kb) => (
             <div
               key={kb.id}
-              className='inline-flex items-center rounded-md border border-[var(--brand-knowledge)]/20 bg-[var(--brand-knowledge)]/10 px-2 py-1 text-xs'
+              className='inline-flex items-center rounded-md border border-[color-mix(in_srgb,var(--brand-knowledge)_20%,transparent)] bg-[color-mix(in_srgb,var(--brand-knowledge)_10%,transparent)] px-2 py-1 text-xs'
             >
               <PackageSearchIcon className='mr-1 h-3 w-3 text-[var(--brand-knowledge)]' />
               <span className='font-medium text-[var(--brand-knowledge)]'>{kb.name}</span>
@@ -172,7 +172,7 @@ export function KnowledgeBaseSelector({
                 <button
                   type='button'
                   onClick={() => handleRemoveKnowledgeBase(kb.id)}
-                  className='ml-1 text-[var(--brand-knowledge)]/60 hover-hover:text-[var(--brand-knowledge)]'
+                  className='ml-1 text-[color-mix(in_srgb,var(--brand-knowledge)_60%,transparent)] hover-hover:text-[var(--brand-knowledge)]'
                   aria-label={`Remove ${kb.name}`}
                 >
                   <X className='h-3 w-3' />

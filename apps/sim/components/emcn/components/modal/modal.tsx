@@ -373,7 +373,7 @@ const ModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
     <div
       ref={ref}
       className={cn(
-        'flex justify-end gap-2 rounded-b-xl border-[var(--border)] border-t bg-[var(--surface-3)]/50 px-4 py-3',
+        'flex justify-end gap-2 rounded-b-xl border-[var(--border)] border-t bg-[color-mix(in_srgb,var(--surface-3)_50%,transparent)] px-4 py-3',
         className
       )}
       {...props}

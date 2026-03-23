@@ -84,7 +84,7 @@ function TrustStrip() {
           <strong className='font-[430] font-season text-small text-white leading-none'>
             SOC 2 & HIPAA
           </strong>
-          <span className='font-[430] font-season text-[var(--landing-text-subtle)]/30 text-xs leading-none tracking-[0.02em] transition-colors group-hover:text-[var(--landing-text-subtle)]/55'>
+          <span className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_30%,transparent)] text-xs leading-none tracking-[0.02em] transition-colors group-hover:text-[color-mix(in_srgb,var(--landing-text-subtle)_55%,transparent)]'>
             Type II · PHI protected →
           </span>
         </div>
@@ -104,7 +104,7 @@ function TrustStrip() {
           <strong className='font-[430] font-season text-small text-white leading-none'>
             Open Source
           </strong>
-          <span className='font-[430] font-season text-[var(--landing-text-subtle)]/30 text-xs leading-none tracking-[0.02em] transition-colors group-hover:text-[var(--landing-text-subtle)]/55'>
+          <span className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_30%,transparent)] text-xs leading-none tracking-[0.02em] transition-colors group-hover:text-[color-mix(in_srgb,var(--landing-text-subtle)_55%,transparent)]'>
             View on GitHub →
           </span>
         </div>
@@ -119,7 +119,7 @@ function TrustStrip() {
           <strong className='font-[430] font-season text-small text-white leading-none'>
             SSO & SCIM
           </strong>
-          <span className='font-[430] font-season text-[var(--landing-text-subtle)]/30 text-xs leading-none tracking-[0.02em]'>
+          <span className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_30%,transparent)] text-xs leading-none tracking-[0.02em]'>
             Okta, Azure AD, Google
           </span>
         </div>
