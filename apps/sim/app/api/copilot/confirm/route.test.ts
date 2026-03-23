@@ -15,7 +15,6 @@ const {
   getRunSegment,
   upsertAsyncToolCall,
   completeAsyncToolCall,
-  getRedisClient,
   publishToolConfirmation,
 } = vi.hoisted(() => ({
   authenticateCopilotRequestSessionOnly: vi.fn(),
@@ -36,7 +35,6 @@ const {
   getRunSegment: vi.fn(),
   upsertAsyncToolCall: vi.fn(),
   completeAsyncToolCall: vi.fn(),
-  getRedisClient: vi.fn(),
   publishToolConfirmation: vi.fn(),
 }))
 
@@ -54,10 +52,6 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
   getRunSegment,
   upsertAsyncToolCall,
   completeAsyncToolCall,
-}))
-
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient,
 }))
 
 vi.mock('@/lib/copilot/orchestrator/persistence', () => ({
@@ -85,9 +79,6 @@ describe('Copilot Confirm API Route', () => {
     getRunSegment.mockResolvedValue({ id: 'run-1', userId: 'user-1' })
     upsertAsyncToolCall.mockResolvedValue(existingRow)
     completeAsyncToolCall.mockResolvedValue(existingRow)
-    getRedisClient.mockReturnValue({
-      set: vi.fn().mockResolvedValue('OK'),
-    })
   })
 
   function createMockPostRequest(body: Record<string, unknown>): NextRequest {
@@ -144,9 +135,6 @@ describe('Copilot Confirm API Route', () => {
   })
 
   it('persists terminal confirmations through completeAsyncToolCall', async () => {
-    const redisSet = vi.fn().mockResolvedValue('OK')
-    getRedisClient.mockReturnValue({ set: redisSet })
-
     const response = await POST(
       createMockPostRequest({
         toolCallId: 'tool-call-123',
@@ -164,7 +152,6 @@ describe('Copilot Confirm API Route', () => {
       error: null,
     })
     expect(upsertAsyncToolCall).not.toHaveBeenCalled()
-    expect(redisSet).toHaveBeenCalledOnce()
     expect(publishToolConfirmation).toHaveBeenCalledWith(
       expect.objectContaining({
         toolCallId: 'tool-call-123',
@@ -194,9 +181,7 @@ describe('Copilot Confirm API Route', () => {
     expect(completeAsyncToolCall).not.toHaveBeenCalled()
   })
 
-  it('publishes confirmation even when Redis is unavailable', async () => {
-    getRedisClient.mockReturnValue(null)
-
+  it('publishes confirmation after a durable non-terminal update', async () => {
     const response = await POST(
       createMockPostRequest({
         toolCallId: 'tool-call-123',
@@ -205,11 +190,33 @@ describe('Copilot Confirm API Route', () => {
     )
 
     expect(response.status).toBe(200)
+    expect(upsertAsyncToolCall).toHaveBeenCalledWith({
+      runId: 'run-1',
+      checkpointId: 'checkpoint-1',
+      toolCallId: 'tool-call-123',
+      toolName: 'client_tool',
+      args: { foo: 'bar' },
+      status: 'pending',
+    })
     expect(publishToolConfirmation).toHaveBeenCalledWith(
       expect.objectContaining({
         toolCallId: 'tool-call-123',
         status: 'background',
       })
     )
+  })
+
+  it('returns 400 when the durable write fails before publish', async () => {
+    completeAsyncToolCall.mockRejectedValueOnce(new Error('db down'))
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        status: 'success',
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
   })
 })

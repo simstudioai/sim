@@ -761,20 +761,9 @@ export async function executeToolAndReport(
   }
 }
 
-export async function waitForToolDecision(
-  toolCallId: string,
-  timeoutMs: number,
-  abortSignal?: AbortSignal
-): Promise<{ status: string; message?: string } | null> {
-  const decision = await waitForToolConfirmation(toolCallId, timeoutMs, abortSignal)
-  if (!decision) return null
-  return { status: decision.status, message: decision.message }
-}
-
 /**
  * Wait for a tool completion signal (success/error/rejected) from the client.
- * Unlike waitForToolDecision which returns on any status, this ignores the
- * initial 'accepted' status and only returns on terminal statuses:
+ * Ignores intermediate statuses like `accepted` and only returns terminal statuses:
  * - success: client finished executing successfully
  * - error: client execution failed
  * - rejected: user clicked Skip (subagent run tools where user hasn't auto-allowed)
@@ -788,13 +777,22 @@ export async function waitForToolCompletion(
   timeoutMs: number,
   abortSignal?: AbortSignal
 ): Promise<{ status: string; message?: string; data?: Record<string, unknown> } | null> {
-  const decision = await waitForToolConfirmation(toolCallId, timeoutMs, abortSignal)
+  const decision = await waitForToolConfirmation(toolCallId, timeoutMs, abortSignal, {
+    acceptStatus: (status) =>
+      status === 'success' ||
+      status === 'error' ||
+      status === 'rejected' ||
+      status === 'background' ||
+      status === 'cancelled' ||
+      status === 'delivered',
+  })
   if (
     decision?.status === 'success' ||
     decision?.status === 'error' ||
     decision?.status === 'rejected' ||
     decision?.status === 'background' ||
-    decision?.status === 'cancelled'
+    decision?.status === 'cancelled' ||
+    decision?.status === 'delivered'
   ) {
     return decision
   }

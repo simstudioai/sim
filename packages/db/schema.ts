@@ -1667,8 +1667,7 @@ export const copilotAsyncToolStatusEnum = pgEnum('copilot_async_tool_status', [
   'completed',
   'failed',
   'cancelled',
-  'resume_enqueued',
-  'resumed',
+  'delivered',
 ])
 
 export type CopilotRunStatus = (typeof copilotRunStatusEnum.enumValues)[number]

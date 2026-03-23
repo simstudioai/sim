@@ -1,9 +1,16 @@
 import { createLogger } from '@sim/logger'
-import { ASYNC_TOOL_STATUS, isTerminalAsyncStatus } from '@/lib/copilot/async-runs/lifecycle'
+import {
+  ASYNC_TOOL_STATUS,
+  inferDeliveredAsyncSuccess,
+  isDeliveredAsyncStatus,
+  isTerminalAsyncStatus,
+} from '@/lib/copilot/async-runs/lifecycle'
 import {
   claimCompletedAsyncToolCall,
+  getAsyncToolCall,
   getAsyncToolCalls,
-  markAsyncToolResumed,
+  markAsyncToolDelivered,
+  releaseCompletedAsyncToolClaim,
   updateRunStatus,
 } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
@@ -36,19 +43,11 @@ function didAsyncToolSucceed(input: {
     return false
   }
 
-  if (
-    durableStatus === ASYNC_TOOL_STATUS.resumeEnqueued ||
-    durableStatus === ASYNC_TOOL_STATUS.resumed
-  ) {
-    if (durableError) {
-      return false
-    }
-    if (durableResult?.cancelled === true || typeof durableResult?.error === 'string') {
-      return false
-    }
-    if (durableResult) {
-      return true
-    }
+  if (durableStatus === ASYNC_TOOL_STATUS.delivered) {
+    return inferDeliveredAsyncSuccess({
+      result: durableResult,
+      error: durableError,
+    })
   }
 
   return completion?.status === 'success' || toolStateSuccess === true
@@ -109,11 +108,12 @@ export async function orchestrateCopilotStream(
     runId,
     messageId: typeof payloadMsgId === 'string' ? payloadMsgId : crypto.randomUUID(),
   })
+  let claimedToolCallIds: string[] = []
+  let claimedByWorkerId: string | null = null
 
   try {
     let route = goRoute
     let payload = requestPayload
-    let claimedToolCallIds: string[] = []
 
     const callerOnEvent = options.onEvent
 
@@ -130,7 +130,6 @@ export async function orchestrateCopilotStream(
               if (runId) {
                 await updateRunStatus(runId, 'paused_waiting_for_tool').catch(() => {})
               }
-              return
             }
           }
           await callerOnEvent?.(event)
@@ -154,11 +153,14 @@ export async function orchestrateCopilotStream(
       )
 
       if (claimedToolCallIds.length > 0) {
-        logger.info('Marking async tool calls as resumed', { toolCallIds: claimedToolCallIds })
+        logger.info('Marking async tool calls as delivered', { toolCallIds: claimedToolCallIds })
         await Promise.all(
-          claimedToolCallIds.map((toolCallId) => markAsyncToolResumed(toolCallId).catch(() => null))
+          claimedToolCallIds.map((toolCallId) =>
+            markAsyncToolDelivered(toolCallId).catch(() => null)
+          )
         )
         claimedToolCallIds = []
+        claimedByWorkerId = null
       }
 
       if (options.abortSignal?.aborted || context.wasAborted) {
@@ -171,7 +173,9 @@ export async function orchestrateCopilotStream(
 
       claimedToolCallIds = []
       const resumeWorkerId = continuation.runId || context.runId || context.messageId
+      claimedByWorkerId = resumeWorkerId
       const claimableToolCallIds: string[] = []
+      const localPendingPromises: Promise<unknown>[] = []
       for (const toolCallId of continuation.pendingToolCallIds) {
         const claimed = await claimCompletedAsyncToolCall(toolCallId, resumeWorkerId).catch(
           () => null
@@ -181,20 +185,31 @@ export async function orchestrateCopilotStream(
           claimedToolCallIds.push(toolCallId)
           continue
         }
-        // Fall back to local continuation if the durable row is missing, but do not
-        // retry rows another worker already claimed.
-        const localPending = context.pendingToolPromises.has(toolCallId)
-        if (localPending) {
+        const durableRow = await getAsyncToolCall(toolCallId).catch(() => null)
+        const localPendingPromise = context.pendingToolPromises.get(toolCallId)
+        if (!durableRow && localPendingPromise) {
           claimableToolCallIds.push(toolCallId)
-        } else {
-          logger.warn('Skipping already-claimed or missing async tool resume', {
+          continue
+        }
+        if (durableRow && durableRow.status === ASYNC_TOOL_STATUS.running && localPendingPromise) {
+          localPendingPromises.push(localPendingPromise)
+          logger.info('Waiting for local async tool completion before retrying resume claim', {
             toolCallId,
             runId: continuation.runId,
           })
+          continue
         }
+        logger.warn('Skipping already-claimed or missing async tool resume', {
+          toolCallId,
+          runId: continuation.runId,
+        })
       }
 
       if (claimableToolCallIds.length === 0) {
+        if (localPendingPromises.length > 0) {
+          await Promise.allSettled(localPendingPromises)
+          continue
+        }
         logger.warn('Skipping async resume because no tool calls were claimable', {
           checkpointId: continuation.checkpointId,
           runId: continuation.runId,
@@ -240,7 +255,11 @@ export async function orchestrateCopilotStream(
                   error: completion?.message || durable?.error || toolState?.error || 'Tool failed',
                 })
 
-          if (durableStatus && !isTerminalAsyncStatus(durableStatus)) {
+          if (
+            durableStatus &&
+            !isTerminalAsyncStatus(durableStatus) &&
+            !isDeliveredAsyncStatus(durableStatus)
+          ) {
             logger.warn('Async tool row was claimed for resume without terminal durable state', {
               toolCallId,
               status: durableStatus,
@@ -279,6 +298,17 @@ export async function orchestrateCopilotStream(
     return result
   } catch (error) {
     const err = error instanceof Error ? error : new Error('Copilot orchestration failed')
+    if (claimedToolCallIds.length > 0 && claimedByWorkerId) {
+      logger.warn('Releasing async tool claims after delivery failure', {
+        toolCallIds: claimedToolCallIds,
+        workerId: claimedByWorkerId,
+      })
+      await Promise.all(
+        claimedToolCallIds.map((toolCallId) =>
+          releaseCompletedAsyncToolClaim(toolCallId, claimedByWorkerId!).catch(() => null)
+        )
+      )
+    }
     logger.error('Copilot orchestration failed', { error: err.message })
     await options.onError?.(err)
     return {

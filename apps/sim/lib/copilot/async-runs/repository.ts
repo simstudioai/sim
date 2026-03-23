@@ -8,7 +8,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
-import { isTerminalAsyncStatus } from './lifecycle'
+import { ASYNC_TOOL_STATUS, isDeliveredAsyncStatus, isTerminalAsyncStatus } from './lifecycle'
 
 const logger = createLogger('CopilotAsyncRunsRepo')
 
@@ -224,11 +224,7 @@ export async function completeAsyncToolCall(input: {
     return null
   }
 
-  if (
-    isTerminalAsyncStatus(existing.status) ||
-    existing.status === 'resume_enqueued' ||
-    existing.status === 'resumed'
-  ) {
+  if (isTerminalAsyncStatus(existing.status) || isDeliveredAsyncStatus(existing.status)) {
     return existing
   }
 
@@ -241,12 +237,11 @@ export async function completeAsyncToolCall(input: {
   })
 }
 
-export async function enqueueAsyncToolResume(toolCallId: string) {
-  return markAsyncToolStatus(toolCallId, 'resume_enqueued')
-}
-
-export async function markAsyncToolResumed(toolCallId: string) {
-  return markAsyncToolStatus(toolCallId, 'resumed')
+export async function markAsyncToolDelivered(toolCallId: string) {
+  return markAsyncToolStatus(toolCallId, ASYNC_TOOL_STATUS.delivered, {
+    claimedBy: null,
+    claimedAt: null,
+  })
 }
 
 export async function listAsyncToolCallsForRun(runId: string) {
@@ -278,6 +273,26 @@ export async function claimCompletedAsyncToolCall(toolCallId: string, workerId: 
         eq(copilotAsyncToolCalls.toolCallId, toolCallId),
         inArray(copilotAsyncToolCalls.status, ['completed', 'failed', 'cancelled']),
         isNull(copilotAsyncToolCalls.claimedBy)
+      )
+    )
+    .returning()
+
+  return row ?? null
+}
+
+export async function releaseCompletedAsyncToolClaim(toolCallId: string, workerId: string) {
+  const [row] = await db
+    .update(copilotAsyncToolCalls)
+    .set({
+      claimedBy: null,
+      claimedAt: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+        inArray(copilotAsyncToolCalls.status, ['completed', 'failed', 'cancelled']),
+        eq(copilotAsyncToolCalls.claimedBy, workerId)
       )
     )
     .returning()
