@@ -1,5 +1,3 @@
-'use client'
-
 import type { ReactNode } from 'react'
 import { Blimp } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'

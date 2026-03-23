@@ -1,5 +1,3 @@
-'use client'
-
 import { Skeleton } from '@/components/emcn'
 
 export function ChatLoadingState() {

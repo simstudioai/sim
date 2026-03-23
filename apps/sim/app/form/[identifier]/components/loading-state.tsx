@@ -1,5 +1,3 @@
-'use client'
-
 import { Skeleton } from '@/components/emcn'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 

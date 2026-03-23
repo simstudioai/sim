@@ -1,5 +1,3 @@
-'use client'
-
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { ChatMessageAttachment } from '../types'
