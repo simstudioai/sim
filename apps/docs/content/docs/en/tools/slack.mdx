@@ -943,7 +943,7 @@ Create a new public or private channel in a Slack workspace.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `channel` | object | The newly created channel object |
+| `channelInfo` | object | The newly created channel object |
 |   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
 |   ↳ `name` | string | Channel name without # prefix |
 |   ↳ `is_channel` | boolean | Whether this is a channel |
@@ -979,7 +979,7 @@ Invite one or more users to a Slack channel. Supports up to 100 users at a time.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `channel` | object | The channel object after inviting users |
+| `channelInfo` | object | The channel object after inviting users |
 |   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
 |   ↳ `name` | string | Channel name without # prefix |
 |   ↳ `is_channel` | boolean | Whether this is a channel |
