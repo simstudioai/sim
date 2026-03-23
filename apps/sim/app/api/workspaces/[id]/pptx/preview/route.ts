@@ -34,6 +34,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'code is required' }, { status: 400 })
     }
 
+    const MAX_CODE_BYTES = 512 * 1024
+    if (Buffer.byteLength(code, 'utf-8') > MAX_CODE_BYTES) {
+      return NextResponse.json({ error: 'code exceeds maximum size' }, { status: 413 })
+    }
+
     const buffer = await generatePptxFromCode(code, workspaceId, req.signal)
 
     return new NextResponse(new Uint8Array(buffer), {

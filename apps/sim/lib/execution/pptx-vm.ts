@@ -27,17 +27,20 @@ type WorkerMessage =
   | { type: 'error'; message: string }
   | { type: 'getFile'; fileReqId: number; fileId: string }
 
-// Resolved once at module load — the path never changes at runtime.
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
-const WORKER_PATH = (() => {
+let cachedWorkerPath: string | undefined
+
+function getWorkerPath(): string {
+  if (cachedWorkerPath) return cachedWorkerPath
   const candidates = [
     path.join(currentDir, 'pptx-worker.cjs'),
     path.join(process.cwd(), 'lib', 'execution', 'pptx-worker.cjs'),
   ]
   const found = candidates.find((p) => fs.existsSync(p))
   if (!found) throw new Error(`pptx-worker.cjs not found at any of: ${candidates.join(', ')}`)
+  cachedWorkerPath = found
   return found
-})()
+}
 
 /**
  * Generate a PPTX file by executing AI-generated PptxGenJS code in a sandboxed
@@ -82,7 +85,7 @@ export async function generatePptxFromCode(
     })
 
     try {
-      proc = spawn('node', [WORKER_PATH], {
+      proc = spawn('node', [getWorkerPath()], {
         stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
         serialization: 'json',
         env: { PATH: process.env.PATH ?? '' } as unknown as NodeJS.ProcessEnv,
