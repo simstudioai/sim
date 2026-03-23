@@ -347,26 +347,26 @@ export const sseHandlers: Record<string, SSEHandler> = {
      * it updates tool state, calls markToolComplete, and emits result events.
      */
     const fireToolExecution = () => {
-      void upsertAsyncToolCall({
-        runId: context.runId || crypto.randomUUID(),
-        toolCallId,
-        toolName,
-        args,
-      }).catch(() => {})
-      const pendingPromise = executeToolAndReport(toolCallId, context, execContext, options).catch(
-        (err) => {
-          logger.error('Parallel tool execution failed', {
-            toolCallId,
-            toolName,
-            error: err instanceof Error ? err.message : String(err),
-          })
-          return {
-            status: 'error',
-            message: err instanceof Error ? err.message : String(err),
-            data: { error: err instanceof Error ? err.message : String(err) },
-          }
+      const pendingPromise = (async () => {
+        await upsertAsyncToolCall({
+          runId: context.runId || crypto.randomUUID(),
+          toolCallId,
+          toolName,
+          args,
+        })
+        return executeToolAndReport(toolCallId, context, execContext, options)
+      })().catch((err) => {
+        logger.error('Parallel tool execution failed', {
+          toolCallId,
+          toolName,
+          error: err instanceof Error ? err.message : String(err),
+        })
+        return {
+          status: 'error',
+          message: err instanceof Error ? err.message : String(err),
+          data: { error: err instanceof Error ? err.message : String(err) },
         }
-      )
+      })
       context.pendingToolPromises.set(toolCallId, pendingPromise)
       pendingPromise.finally(() => {
         context.pendingToolPromises.delete(toolCallId)
@@ -565,26 +565,26 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     }
 
     const fireToolExecution = () => {
-      void upsertAsyncToolCall({
-        runId: context.runId || crypto.randomUUID(),
-        toolCallId,
-        toolName,
-        args,
-      }).catch(() => {})
-      const pendingPromise = executeToolAndReport(toolCallId, context, execContext, options).catch(
-        (err) => {
-          logger.error('Parallel subagent tool execution failed', {
-            toolCallId,
-            toolName,
-            error: err instanceof Error ? err.message : String(err),
-          })
-          return {
-            status: 'error',
-            message: err instanceof Error ? err.message : String(err),
-            data: { error: err instanceof Error ? err.message : String(err) },
-          }
+      const pendingPromise = (async () => {
+        await upsertAsyncToolCall({
+          runId: context.runId || crypto.randomUUID(),
+          toolCallId,
+          toolName,
+          args,
+        })
+        return executeToolAndReport(toolCallId, context, execContext, options)
+      })().catch((err) => {
+        logger.error('Parallel subagent tool execution failed', {
+          toolCallId,
+          toolName,
+          error: err instanceof Error ? err.message : String(err),
+        })
+        return {
+          status: 'error',
+          message: err instanceof Error ? err.message : String(err),
+          data: { error: err instanceof Error ? err.message : String(err) },
         }
-      )
+      })
       context.pendingToolPromises.set(toolCallId, pendingPromise)
       pendingPromise.finally(() => {
         context.pendingToolPromises.delete(toolCallId)
