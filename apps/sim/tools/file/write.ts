@@ -1,4 +1,4 @@
-import type { ToolConfig, ToolResponse } from '@/tools/types'
+import type { ToolConfig, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
 
 interface FileWriteParams {
   fileName?: string
@@ -7,6 +7,7 @@ interface FileWriteParams {
   contentType?: string
   append?: boolean
   workspaceId?: string
+  _context?: WorkflowToolExecutionContext
 }
 
 export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
@@ -64,7 +65,7 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
       content: params.content,
       contentType: params.contentType,
       append: params.append ?? false,
-      workspaceId: params.workspaceId || (params as Record<string, unknown>)._context?.workspaceId,
+      workspaceId: params.workspaceId || params._context?.workspaceId,
     }),
   },
 
