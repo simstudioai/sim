@@ -39,7 +39,39 @@ const CreateKnowledgeBaseSchema = z.object({
     ])
     .default('text-embedding-3-small'),
   embeddingDimension: z.number().int().min(64).max(8192).default(1536),
-  ollamaBaseUrl: z.string().url('Ollama base URL must be a valid URL').optional(),
+  ollamaBaseUrl: z
+    .string()
+    .url('Ollama base URL must be a valid URL')
+    .refine(
+      (url) => {
+        try {
+          const parsed = new URL(url)
+          const hostname = parsed.hostname.toLowerCase()
+          // Allow localhost, 127.x.x.x, ::1, and private network ranges
+          if (
+            hostname === 'localhost' ||
+            hostname === '::1' ||
+            hostname.startsWith('127.') ||
+            hostname.startsWith('10.') ||
+            hostname.startsWith('192.168.')
+          ) {
+            return true
+          }
+          // Allow 172.16.0.0 – 172.31.255.255
+          if (hostname.startsWith('172.')) {
+            const second = Number.parseInt(hostname.split('.')[1], 10)
+            return second >= 16 && second <= 31
+          }
+          return false
+        } catch {
+          return false
+        }
+      },
+      {
+        message: 'Ollama base URL must point to localhost or a private network address',
+      }
+    )
+    .optional(),
   chunkingConfig: z
     .object({
       /** Maximum chunk size in tokens (1 token ≈ 4 characters) */
