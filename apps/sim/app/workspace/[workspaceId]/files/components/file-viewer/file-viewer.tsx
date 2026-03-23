@@ -543,11 +543,6 @@ function PptxPreview({
   const [renderError, setRenderError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (cached) {
-      setSlides(cached)
-      return
-    }
-
     let cancelled = false
 
     async function render() {
@@ -578,6 +573,11 @@ function PptxPreview({
             },
             () => cancelled
           )
+          return
+        }
+
+        if (cached) {
+          setSlides(cached)
           return
         }
 

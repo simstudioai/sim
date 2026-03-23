@@ -200,15 +200,13 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
         }
 
         case 'patch': {
-          const fileId = (args as Record<string, unknown>).fileId as string | undefined
-          const edits = (args as Record<string, unknown>).edits as
-            | { search: string; replace: string }[]
-            | undefined
+          const fileId = args?.fileId
+          const edits = args?.edits
 
           if (!fileId) {
             return { success: false, message: 'fileId is required for patch operation' }
           }
-          if (!edits || !Array.isArray(edits) || edits.length === 0) {
+          if (!edits || edits.length === 0) {
             return { success: false, message: 'edits array is required for patch operation' }
           }
 
@@ -221,14 +219,23 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           let content = currentBuffer.toString('utf-8')
 
           for (const edit of edits) {
-            const idx = content.indexOf(edit.search)
-            if (idx === -1) {
+            const firstIdx = content.indexOf(edit.search)
+            if (firstIdx === -1) {
               return {
                 success: false,
                 message: `Patch failed: search string not found in file "${fileRecord.name}". Search: "${edit.search.slice(0, 100)}${edit.search.length > 100 ? '...' : ''}"`,
               }
             }
-            content = content.slice(0, idx) + edit.replace + content.slice(idx + edit.search.length)
+            if (content.indexOf(edit.search, firstIdx + 1) !== -1) {
+              return {
+                success: false,
+                message: `Patch failed: search string is ambiguous — found at multiple locations in "${fileRecord.name}". Use a longer, unique search string.`,
+              }
+            }
+            content =
+              content.slice(0, firstIdx) +
+              edit.replace +
+              content.slice(firstIdx + edit.search.length)
           }
 
           const patchedBuffer = Buffer.from(content, 'utf-8')
