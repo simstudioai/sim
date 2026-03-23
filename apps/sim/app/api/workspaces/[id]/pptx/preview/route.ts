@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'code is required' }, { status: 400 })
     }
 
-    const buffer = await generatePptxFromCode(code, workspaceId)
+    const buffer = await generatePptxFromCode(code, workspaceId, req.signal)
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,

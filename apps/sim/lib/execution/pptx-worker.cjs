@@ -2,10 +2,11 @@
  * Node.js worker for sandboxed PPTX generation.
  * Runs in a separate Node.js process, communicates with parent via IPC.
  *
- * Security model: PptxGenJS code from the AI runs inside vm.createContext with a
- * null-prototype sandbox so it has no access to Node.js globals (process, require,
- * Buffer, fs, etc.). Process-level isolation ensures that even a vm escape cannot
- * reach the main Next.js process, the database, or secrets.
+ * Security model: vm.createContext is NOT a true sandbox — objects with normal
+ * prototypes (pptx, getFileBase64) allow escape via the constructor chain.
+ * The actual security boundary is process-level isolation: this subprocess
+ * runs with a minimal env (only PATH), so a vm escape cannot reach the parent
+ * Next.js process, the database, or any secrets.
  */
 
 'use strict'

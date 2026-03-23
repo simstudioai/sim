@@ -45,8 +45,19 @@ const WORKER_PATH = (() => {
  * Generate a PPTX file by executing AI-generated PptxGenJS code in a sandboxed
  * subprocess. File resources referenced by the code are fetched from workspace
  * storage by the main process and delivered to the worker via IPC.
+ *
+ * Security note: `vm.createContext` is NOT a true security sandbox — objects
+ * injected into the context retain their prototypes, enabling escape via
+ * `pptx.constructor.constructor('return process')()`. The actual security
+ * boundary is the subprocess itself: even a full vm escape only reaches the
+ * subprocess's minimal env (`{ PATH }`), not the parent Next.js process,
+ * database, or secrets.
  */
-export async function generatePptxFromCode(code: string, workspaceId: string): Promise<Buffer> {
+export async function generatePptxFromCode(
+  code: string,
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
     let proc: ChildProcess | null = null
     let settled = false
@@ -69,6 +80,11 @@ export async function generatePptxFromCode(code: string, workspaceId: string): P
       if (err) reject(err)
       else resolve(result as Buffer)
     }
+
+    // Propagate caller abort (e.g. client disconnect) to the subprocess.
+    signal?.addEventListener('abort', () => done(new Error('PPTX generation cancelled')), {
+      once: true,
+    })
 
     try {
       proc = spawn('node', [WORKER_PATH], {
