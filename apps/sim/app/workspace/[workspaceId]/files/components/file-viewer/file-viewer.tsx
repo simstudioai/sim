@@ -544,8 +544,11 @@ function PptxPreview({
 
   useEffect(() => {
     let cancelled = false
+    const controller = new AbortController()
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
     async function render() {
+      if (cancelled) return
       try {
         setRendering(true)
         setRenderError(null)
@@ -555,6 +558,7 @@ function PptxPreview({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code: streamingContent }),
+            signal: controller.signal,
           })
           if (!response.ok) {
             const err = await response.json().catch(() => ({ error: 'Preview failed' }))
@@ -596,7 +600,7 @@ function PptxPreview({
           pptxCacheSet(cacheKey, images)
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
           const msg = err instanceof Error ? err.message : 'Failed to render presentation'
           logger.error('PPTX render failed', { error: msg })
           setRenderError(msg)
@@ -606,9 +610,18 @@ function PptxPreview({
       }
     }
 
-    render()
+    // Debounce streaming renders so rapid SSE updates don't spawn a subprocess
+    // per event. Non-streaming renders (file load / cache) run immediately.
+    if (streamingContent !== undefined) {
+      debounceTimer = setTimeout(render, 500)
+    } else {
+      render()
+    }
+
     return () => {
       cancelled = true
+      if (debounceTimer) clearTimeout(debounceTimer)
+      controller.abort()
     }
   }, [fileData, dataUpdatedAt, streamingContent, cacheKey, workspaceId])
 

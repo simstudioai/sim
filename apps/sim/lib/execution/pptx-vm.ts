@@ -74,6 +74,10 @@ export async function generatePptxFromCode(code: string, workspaceId: string): P
       proc = spawn('node', [WORKER_PATH], {
         stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
         serialization: 'json',
+        // Prevent the subprocess from inheriting secrets (DB URL, API keys, etc.)
+        // from the parent Next.js process. pptxgenjs only needs PATH to resolve
+        // its own require() calls.
+        env: { PATH: process.env.PATH ?? '' } as unknown as NodeJS.ProcessEnv,
       })
     } catch (err) {
       done(err instanceof Error ? err : new Error(String(err)))

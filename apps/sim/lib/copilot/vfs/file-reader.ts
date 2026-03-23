@@ -107,14 +107,10 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
       }
     }
 
-    if (!isReadableType(record.type)) {
-      return {
-        content: `[Binary file: ${record.name} (${record.type}, ${record.size} bytes). Cannot display as text.]`,
-        totalLines: 1,
-      }
+    return {
+      content: `[Binary file: ${record.name} (${record.type}, ${record.size} bytes). Cannot display as text.]`,
+      totalLines: 1,
     }
-
-    return null
   } catch (err) {
     logger.warn('Failed to read workspace file', {
       fileName: record.name,
