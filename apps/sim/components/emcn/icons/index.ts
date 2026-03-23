@@ -1,3 +1,4 @@
+export { AlertTriangle } from './alert-triangle'
 export { ArrowDown } from './arrow-down'
 export { ArrowLeft } from './arrow-left'
 export { ArrowRight } from './arrow-right'

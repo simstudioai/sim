@@ -2,7 +2,7 @@
 
 import { createElement } from 'react'
 import { useParams } from 'next/navigation'
-import { ArrowRight } from '@/components/emcn'
+import { AlertTriangle, ArrowRight } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 
@@ -464,36 +464,17 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
 
   return (
-    <div className='animate-stream-fade-in rounded-xl border border-amber-300/40 bg-amber-50/50 px-4 py-3 dark:border-amber-500/20 dark:bg-amber-950/20'>
-      <div className='flex items-center gap-2'>
-        <svg
-          className='h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400'
-          viewBox='0 0 16 16'
-          fill='none'
-          xmlns='http://www.w3.org/2000/svg'
-        >
-          <path
-            d='M8 1.5L1 14h14L8 1.5z'
-            stroke='currentColor'
-            strokeWidth='1.3'
-            strokeLinejoin='round'
-          />
-          <path d='M8 6.5v3' stroke='currentColor' strokeWidth='1.3' strokeLinecap='round' />
-          <circle cx='8' cy='11.5' r='0.75' fill='currentColor' />
-        </svg>
-        <span className='font-[500] text-[14px] text-amber-800 leading-5 dark:text-amber-300'>
-          Usage Limit Reached
-        </span>
-      </div>
-      <p className='mt-1.5 text-[13px] text-amber-700/90 leading-[20px] dark:text-amber-400/80'>
+    <div className='animate-stream-fade-in space-y-1'>
+      <span className='font-base text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>
         {data.message}
-      </p>
+      </span>
       <a
         href={settingsPath}
-        className='mt-2 inline-flex items-center gap-1 font-[500] text-[13px] text-amber-700 underline decoration-dashed underline-offset-2 transition-colors hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-200'
+        className='flex items-center gap-[8px] rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover:bg-[var(--surface-5)]'
       >
-        {buttonLabel}
-        <ArrowRight className='h-3 w-3' />
+        <AlertTriangle className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
+        <span className='flex-1 font-base text-[14px] text-[var(--text-body)]'>{buttonLabel}</span>
+        <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
       </a>
     </div>
   )
