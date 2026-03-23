@@ -55,10 +55,15 @@ const CreateKnowledgeBaseSchema = z.object({
           if (hostname === '169.254.169.254' || hostname === 'metadata.google.internal') {
             return false
           }
+          // Block IPv6 addresses (except loopback) — prevents IPv6-mapped IPv4 bypass
+          // URL.hostname keeps brackets for IPv6, e.g. "[::ffff:169.254.169.254]"
+          if (hostname.startsWith('[') && hostname !== '[::1]') {
+            return false
+          }
           // Allow localhost, loopback, and private network ranges
           if (
             hostname === 'localhost' ||
-            hostname === '::1' ||
+            hostname === '[::1]' ||
             hostname.startsWith('127.') ||
             hostname.startsWith('10.') ||
             hostname.startsWith('192.168.')
