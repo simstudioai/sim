@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
 import {
+  cancelRunToolExecution,
   executeRunToolOnClient,
   markRunToolManuallyStopped,
   reportManualRunToolStop,
@@ -1433,7 +1434,8 @@ export function useChat(
     for (const [workflowId, wfExec] of execState.workflowExecutions) {
       if (!wfExec.isExecuting) continue
 
-      markRunToolManuallyStopped(workflowId)
+      const toolCallId = markRunToolManuallyStopped(workflowId)
+      cancelRunToolExecution(workflowId)
 
       const executionId = execState.getCurrentExecutionId(workflowId)
       if (executionId) {
@@ -1466,7 +1468,7 @@ export function useChat(
       execState.setIsDebugging(workflowId, false)
       execState.setActiveBlocks(workflowId, new Set())
 
-      reportManualRunToolStop(workflowId).catch(() => {})
+      reportManualRunToolStop(workflowId, toolCallId).catch(() => {})
     }
   }, [invalidateChatQueries, persistPartialResponse, executionStream])
 

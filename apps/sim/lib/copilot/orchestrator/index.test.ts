@@ -223,7 +223,6 @@ describe('orchestrateCopilotStream async continuation', () => {
         }
         context.pendingToolPromises.set('tool-1', localPendingPromise)
       })
-      .mockImplementationOnce(async () => {})
       .mockImplementationOnce(async (url: string, opts: RequestInit) => {
         expect(url).toContain('/api/tools/resume')
         const body = JSON.parse(String(opts.body))
@@ -247,6 +246,7 @@ describe('orchestrateCopilotStream async continuation', () => {
     )
 
     expect(result.success).toBe(true)
+    expect(runStreamLoop).toHaveBeenCalledTimes(2)
     expect(markAsyncToolDelivered).toHaveBeenCalledWith('tool-1')
   })
 

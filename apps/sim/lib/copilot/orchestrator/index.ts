@@ -168,118 +168,122 @@ export async function orchestrateCopilotStream(
         break
       }
 
-      const continuation = context.awaitingAsyncContinuation
+      let continuation = context.awaitingAsyncContinuation
       if (!continuation) break
 
-      claimedToolCallIds = []
-      const resumeWorkerId = continuation.runId || context.runId || context.messageId
-      claimedByWorkerId = resumeWorkerId
-      const claimableToolCallIds: string[] = []
-      const localPendingPromises: Promise<unknown>[] = []
-      for (const toolCallId of continuation.pendingToolCallIds) {
-        const claimed = await claimCompletedAsyncToolCall(toolCallId, resumeWorkerId).catch(
-          () => null
-        )
-        if (claimed) {
-          claimableToolCallIds.push(toolCallId)
-          claimedToolCallIds.push(toolCallId)
-          continue
-        }
-        const durableRow = await getAsyncToolCall(toolCallId).catch(() => null)
-        const localPendingPromise = context.pendingToolPromises.get(toolCallId)
-        if (!durableRow && localPendingPromise) {
-          claimableToolCallIds.push(toolCallId)
-          continue
-        }
-        if (durableRow && durableRow.status === ASYNC_TOOL_STATUS.running && localPendingPromise) {
-          localPendingPromises.push(localPendingPromise)
-          logger.info('Waiting for local async tool completion before retrying resume claim', {
+      for (;;) {
+        claimedToolCallIds = []
+        const resumeWorkerId = continuation.runId || context.runId || context.messageId
+        claimedByWorkerId = resumeWorkerId
+        const claimableToolCallIds: string[] = []
+        const localPendingPromises: Promise<unknown>[] = []
+        for (const toolCallId of continuation.pendingToolCallIds) {
+          const claimed = await claimCompletedAsyncToolCall(toolCallId, resumeWorkerId).catch(
+            () => null
+          )
+          if (claimed) {
+            claimableToolCallIds.push(toolCallId)
+            claimedToolCallIds.push(toolCallId)
+            continue
+          }
+          const durableRow = await getAsyncToolCall(toolCallId).catch(() => null)
+          const localPendingPromise = context.pendingToolPromises.get(toolCallId)
+          if (!durableRow && localPendingPromise) {
+            claimableToolCallIds.push(toolCallId)
+            continue
+          }
+          if (durableRow && durableRow.status === ASYNC_TOOL_STATUS.running && localPendingPromise) {
+            localPendingPromises.push(localPendingPromise)
+            logger.info('Waiting for local async tool completion before retrying resume claim', {
+              toolCallId,
+              runId: continuation.runId,
+            })
+            continue
+          }
+          logger.warn('Skipping already-claimed or missing async tool resume', {
             toolCallId,
             runId: continuation.runId,
           })
-          continue
         }
-        logger.warn('Skipping already-claimed or missing async tool resume', {
-          toolCallId,
-          runId: continuation.runId,
-        })
-      }
 
-      if (claimableToolCallIds.length === 0) {
-        if (localPendingPromises.length > 0) {
-          await Promise.allSettled(localPendingPromises)
-          continue
+        if (claimableToolCallIds.length === 0) {
+          if (localPendingPromises.length > 0) {
+            await Promise.allSettled(localPendingPromises)
+            continue
+          }
+          logger.warn('Skipping async resume because no tool calls were claimable', {
+            checkpointId: continuation.checkpointId,
+            runId: continuation.runId,
+          })
+          context.awaitingAsyncContinuation = undefined
+          break
         }
-        logger.warn('Skipping async resume because no tool calls were claimable', {
+
+        logger.info('Resuming async tool continuation', {
           checkpointId: continuation.checkpointId,
           runId: continuation.runId,
+          toolCallIds: claimableToolCallIds,
         })
-        context.awaitingAsyncContinuation = undefined
-        break
-      }
 
-      logger.info('Resuming async tool continuation', {
-        checkpointId: continuation.checkpointId,
-        runId: continuation.runId,
-        toolCallIds: claimableToolCallIds,
-      })
+        const durableRows = await getAsyncToolCalls(claimableToolCallIds).catch(() => [])
+        const durableByToolCallId = new Map(durableRows.map((row) => [row.toolCallId, row]))
 
-      const durableRows = await getAsyncToolCalls(claimableToolCallIds).catch(() => [])
-      const durableByToolCallId = new Map(durableRows.map((row) => [row.toolCallId, row]))
+        const results = await Promise.all(
+          claimableToolCallIds.map(async (toolCallId) => {
+            const completion = await context.pendingToolPromises.get(toolCallId)
+            const toolState = context.toolCalls.get(toolCallId)
 
-      const results = await Promise.all(
-        claimableToolCallIds.map(async (toolCallId) => {
-          const completion = await context.pendingToolPromises.get(toolCallId)
-          const toolState = context.toolCalls.get(toolCallId)
-
-          const durable = durableByToolCallId.get(toolCallId)
-          const durableStatus = durable?.status
-          const durableResult =
-            durable?.result && typeof durable.result === 'object'
-              ? (durable.result as Record<string, unknown>)
-              : undefined
-          const success = didAsyncToolSucceed({
-            durableStatus,
-            durableResult,
-            durableError: durable?.error,
-            completion,
-            toolStateSuccess: toolState?.result?.success,
-          })
-          const data =
-            durableResult ||
-            completion?.data ||
-            (toolState?.result?.output as Record<string, unknown> | undefined) ||
-            (success
-              ? { message: completion?.message || 'Tool completed' }
-              : {
-                  error: completion?.message || durable?.error || toolState?.error || 'Tool failed',
-                })
-
-          if (
-            durableStatus &&
-            !isTerminalAsyncStatus(durableStatus) &&
-            !isDeliveredAsyncStatus(durableStatus)
-          ) {
-            logger.warn('Async tool row was claimed for resume without terminal durable state', {
-              toolCallId,
-              status: durableStatus,
+            const durable = durableByToolCallId.get(toolCallId)
+            const durableStatus = durable?.status
+            const durableResult =
+              durable?.result && typeof durable.result === 'object'
+                ? (durable.result as Record<string, unknown>)
+                : undefined
+            const success = didAsyncToolSucceed({
+              durableStatus,
+              durableResult,
+              durableError: durable?.error,
+              completion,
+              toolStateSuccess: toolState?.result?.success,
             })
-          }
+            const data =
+              durableResult ||
+              completion?.data ||
+              (toolState?.result?.output as Record<string, unknown> | undefined) ||
+              (success
+                ? { message: completion?.message || 'Tool completed' }
+                : {
+                    error:
+                      completion?.message || durable?.error || toolState?.error || 'Tool failed',
+                  })
 
-          return {
-            callId: toolCallId,
-            name: durable?.toolName || toolState?.name || '',
-            data,
-            success,
-          }
-        })
-      )
+            if (
+              durableStatus &&
+              !isTerminalAsyncStatus(durableStatus) &&
+              !isDeliveredAsyncStatus(durableStatus)
+            ) {
+              logger.warn('Async tool row was claimed for resume without terminal durable state', {
+                toolCallId,
+                status: durableStatus,
+              })
+            }
 
-      context.awaitingAsyncContinuation = undefined
-      route = '/api/tools/resume'
-      payload = {
-        checkpointId: continuation.checkpointId,
-        results,
+            return {
+              callId: toolCallId,
+              name: durable?.toolName || toolState?.name || '',
+              data,
+              success,
+            }
+          })
+        )
+
+        context.awaitingAsyncContinuation = undefined
+        route = '/api/tools/resume'
+        payload = {
+          checkpointId: continuation.checkpointId,
+          results,
+        }
+        break
       }
     }
 
