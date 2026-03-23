@@ -40,7 +40,7 @@ function createWorkflowState({
 }
 
 describe('getTargetedLayoutChangeSet', () => {
-  it('includes newly added blocks', () => {
+  it('does not relayout newly added blocks that already have valid positions', () => {
     const before = createWorkflowState({
       blocks: {
         start: createBlock('start'),
@@ -51,6 +51,23 @@ describe('getTargetedLayoutChangeSet', () => {
       blocks: {
         start: createBlock('start'),
         agent: createBlock('agent', { position: { x: 400, y: 100 } }),
+      },
+    })
+
+    expect(getTargetedLayoutChangeSet({ before, after })).toEqual([])
+  })
+
+  it('includes newly added blocks when they still have sentinel positions', () => {
+    const before = createWorkflowState({
+      blocks: {
+        start: createBlock('start'),
+      },
+    })
+
+    const after = createWorkflowState({
+      blocks: {
+        start: createBlock('start'),
+        agent: createBlock('agent', { position: { x: 0, y: 0 } }),
       },
     })
 

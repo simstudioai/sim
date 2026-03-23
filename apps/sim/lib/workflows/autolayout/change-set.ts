@@ -25,7 +25,15 @@ export function getTargetedLayoutImpact({
 
   for (const blockId of afterBlockIds) {
     if (!beforeBlockIds.has(blockId)) {
-      layoutBlockIds.add(blockId)
+      const position = after.blocks[blockId]?.position
+      if (
+        !position ||
+        !Number.isFinite(position.x) ||
+        !Number.isFinite(position.y) ||
+        (position.x === 0 && position.y === 0)
+      ) {
+        layoutBlockIds.add(blockId)
+      }
       continue
     }
 
