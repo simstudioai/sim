@@ -436,8 +436,8 @@ function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
 
 const pptxSlideCache = new Map<string, string[]>()
 
-function pptxCacheKey(fileId: string, dataUpdatedAt: number): string {
-  return `${fileId}:${dataUpdatedAt}`
+function pptxCacheKey(fileId: string, dataUpdatedAt: number, byteLength: number): string {
+  return `${fileId}:${dataUpdatedAt}:${byteLength}`
 }
 
 function pptxCacheSet(key: string, slides: string[]): void {
@@ -492,11 +492,15 @@ async function getPptxRenderSize(
     const presentationXml = await zip.file('ppt/presentation.xml')?.async('text')
     if (!presentationXml) return fallback
 
-    const match = presentationXml.match(/<p:sldSz[^>]*cx="(\d+)"[^>]*cy="(\d+)"/)
-    if (!match) return fallback
+    const tagMatch = presentationXml.match(/<p:sldSz\s[^>]+>/)
+    if (!tagMatch) return fallback
+    const tag = tagMatch[0]
+    const cxMatch = tag.match(/\bcx="(\d+)"/)
+    const cyMatch = tag.match(/\bcy="(\d+)"/)
+    if (!cxMatch || !cyMatch) return fallback
 
-    const cx = Number(match[1])
-    const cy = Number(match[2])
+    const cx = Number(cxMatch[1])
+    const cy = Number(cyMatch[1])
     if (!Number.isFinite(cx) || !Number.isFinite(cy) || cx <= 0 || cy <= 0) return fallback
 
     const aspectRatio = cx / cy
@@ -535,7 +539,7 @@ function PptxPreview({
     dataUpdatedAt,
   } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
 
-  const cacheKey = pptxCacheKey(file.id, dataUpdatedAt)
+  const cacheKey = pptxCacheKey(file.id, dataUpdatedAt, fileData?.byteLength ?? 0)
   const cached = pptxSlideCache.get(cacheKey)
 
   const [slides, setSlides] = useState<string[]>(cached ?? [])
@@ -543,24 +547,29 @@ function PptxPreview({
   const [renderError, setRenderError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (cached) {
-      setSlides(cached)
-      return
-    }
-
     let cancelled = false
+    const controller = new AbortController()
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
     async function render() {
+      if (cancelled) return
       try {
         setRendering(true)
         setRenderError(null)
 
         if (streamingContent !== undefined) {
-          const PptxGenJS = (await import('pptxgenjs')).default
-          const pptx = new PptxGenJS()
-          const fn = new Function('pptx', `return (async () => { ${streamingContent} })()`)
-          await fn(pptx)
-          const arrayBuffer = (await pptx.write({ outputType: 'arraybuffer' })) as ArrayBuffer
+          const response = await fetch(`/api/workspaces/${workspaceId}/pptx/preview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: streamingContent }),
+            signal: controller.signal,
+          })
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({ error: 'Preview failed' }))
+            throw new Error(err.error || 'Preview failed')
+          }
+          if (cancelled) return
+          const arrayBuffer = await response.arrayBuffer()
           if (cancelled) return
           const data = new Uint8Array(arrayBuffer)
           const images: string[] = []
@@ -575,7 +584,13 @@ function PptxPreview({
           return
         }
 
+        if (cached) {
+          setSlides(cached)
+          return
+        }
+
         if (!fileData) return
+        setSlides([])
         const data = new Uint8Array(fileData)
         const images: string[] = []
         await renderPptxSlides(
@@ -590,7 +605,7 @@ function PptxPreview({
           pptxCacheSet(cacheKey, images)
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
           const msg = err instanceof Error ? err.message : 'Failed to render presentation'
           logger.error('PPTX render failed', { error: msg })
           setRenderError(msg)
@@ -600,11 +615,20 @@ function PptxPreview({
       }
     }
 
-    render()
+    // Debounce streaming renders so rapid SSE updates don't spawn a subprocess
+    // per event. Non-streaming renders (file load / cache) run immediately.
+    if (streamingContent !== undefined) {
+      debounceTimer = setTimeout(render, 500)
+    } else {
+      render()
+    }
+
     return () => {
       cancelled = true
+      if (debounceTimer) clearTimeout(debounceTimer)
+      controller.abort()
     }
-  }, [fileData, dataUpdatedAt, streamingContent, cacheKey])
+  }, [fileData, dataUpdatedAt, streamingContent, cacheKey, workspaceId])
 
   const error = fetchError
     ? fetchError instanceof Error

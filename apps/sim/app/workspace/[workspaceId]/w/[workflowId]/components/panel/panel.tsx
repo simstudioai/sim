@@ -292,7 +292,7 @@ export const Panel = memo(function Panel() {
   )
 
   const handleCopilotToolResult = useCallback(
-    (toolName: string, success: boolean, output: unknown) => {
+    (toolName: string, success: boolean, _output: unknown) => {
       if (toolName !== 'edit_workflow' || !success) return
       const workflowId = activeWorkflowId || useWorkflowRegistry.getState().activeWorkflowId
       if (!workflowId) return

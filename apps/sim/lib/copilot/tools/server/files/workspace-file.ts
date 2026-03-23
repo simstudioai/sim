@@ -270,14 +270,23 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           let content = currentBuffer.toString('utf-8')
 
           for (const edit of edits) {
-            const idx = content.indexOf(edit.search)
-            if (idx === -1) {
+            const firstIdx = content.indexOf(edit.search)
+            if (firstIdx === -1) {
               return {
                 success: false,
                 message: `Patch failed: search string not found in file "${fileRecord.name}". Search: "${edit.search.slice(0, 100)}${edit.search.length > 100 ? '...' : ''}"`,
               }
             }
-            content = content.slice(0, idx) + edit.replace + content.slice(idx + edit.search.length)
+            if (content.indexOf(edit.search, firstIdx + 1) !== -1) {
+              return {
+                success: false,
+                message: `Patch failed: search string is ambiguous — found at multiple locations in "${fileRecord.name}". Use a longer, unique search string.`,
+              }
+            }
+            content =
+              content.slice(0, firstIdx) +
+              edit.replace +
+              content.slice(firstIdx + edit.search.length)
           }
 
           const isPptxPatch = fileRecord.name?.toLowerCase().endsWith('.pptx')

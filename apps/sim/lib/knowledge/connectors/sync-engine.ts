@@ -6,7 +6,7 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lt, ne, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -272,11 +272,12 @@ export async function executeSync(
   }
 
   const syncLogId = crypto.randomUUID()
+  const syncStartedAt = new Date()
   await db.insert(knowledgeConnectorSyncLog).values({
     id: syncLogId,
     connectorId,
     status: 'started',
-    startedAt: new Date(),
+    startedAt: syncStartedAt,
   })
 
   let syncExitedCleanly = false
@@ -536,19 +537,23 @@ export async function executeSync(
       throw new Error(`Knowledge base ${connector.knowledgeBaseId} was deleted during sync`)
     }
 
-    // Retry stuck documents that failed or never completed processing
+    // Retry stuck documents that failed or never completed processing.
+    // Only retry docs uploaded BEFORE this sync — docs added in the current sync
+    // are still processing asynchronously and would cause a duplicate processing race.
     const stuckDocs = await db
       .select({
         id: document.id,
         fileUrl: document.fileUrl,
         filename: document.filename,
         fileSize: document.fileSize,
+        mimeType: document.mimeType,
       })
       .from(document)
       .where(
         and(
           eq(document.connectorId, connectorId),
           inArray(document.processingStatus, ['pending', 'failed']),
+          lt(document.uploadedAt, syncStartedAt),
           eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt)
@@ -565,7 +570,7 @@ export async function executeSync(
             filename: doc.filename ?? 'document.txt',
             fileUrl: doc.fileUrl ?? '',
             fileSize: doc.fileSize ?? 0,
-            mimeType: 'text/plain',
+            mimeType: doc.mimeType ?? 'text/plain',
           },
           {}
         ).catch((error) => {

@@ -1,9 +1,10 @@
+import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generatePptxFromCode } from '@/lib/copilot/tools/server/files/workspace-file'
+import { generatePptxFromCode } from '@/lib/execution/pptx-vm'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -22,6 +23,16 @@ const logger = createLogger('FilesServeAPI')
 
 const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04])
 
+const MAX_COMPILED_PPTX_CACHE = 10
+const compiledPptxCache = new Map<string, Buffer>()
+
+function compiledCacheSet(key: string, buffer: Buffer): void {
+  if (compiledPptxCache.size >= MAX_COMPILED_PPTX_CACHE) {
+    compiledPptxCache.delete(compiledPptxCache.keys().next().value as string)
+  }
+  compiledPptxCache.set(key, buffer)
+}
+
 async function compilePptxIfNeeded(
   buffer: Buffer,
   filename: string,
@@ -34,7 +45,20 @@ async function compilePptxIfNeeded(
   }
 
   const code = buffer.toString('utf-8')
+  const cacheKey = createHash('sha256')
+    .update(code)
+    .update(workspaceId ?? '')
+    .digest('hex')
+  const cached = compiledPptxCache.get(cacheKey)
+  if (cached) {
+    return {
+      buffer: cached,
+      contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    }
+  }
+
   const compiled = await generatePptxFromCode(code, workspaceId || '')
+  compiledCacheSet(cacheKey, compiled)
   return {
     buffer: compiled,
     contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',

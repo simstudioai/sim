@@ -1,5 +1,3 @@
-'use client'
-
 import { PillsRing } from '@/components/emcn'
 import type { ToolCallStatus } from '../../../../types'
 import { getToolIcon } from '../../utils'

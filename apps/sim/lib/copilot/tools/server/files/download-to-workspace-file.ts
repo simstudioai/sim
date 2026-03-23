@@ -5,6 +5,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   getExtensionFromMimeType,
@@ -14,6 +15,7 @@ import {
 
 const logger = createLogger('DownloadToWorkspaceFileTool')
 
+const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024 // 50 MB
 const DownloadToWorkspaceFileArgsSchema = z.object({
   url: z.string().url(),
   fileName: z.string().min(1).optional(),
@@ -96,13 +98,13 @@ function ensureFileExtension(fileName: string, mimeType: string): string {
 
 function inferOutputFileName(
   requestedFileName: string | undefined,
-  response: Response,
+  headers: { get(name: string): string | null },
   url: string,
   mimeType: string
 ): string {
   const preferredName =
     requestedFileName ||
-    extractFileNameFromContentDisposition(response.headers.get('content-disposition')) ||
+    extractFileNameFromContentDisposition(headers.get('content-disposition')) ||
     extractFileNameFromUrl(url) ||
     'downloaded-file'
 
@@ -134,9 +136,10 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
     try {
       assertServerToolNotAborted(context)
 
-      const response = await fetch(params.url, {
-        redirect: 'follow',
-        signal: context.abortSignal,
+      // secureFetchWithValidation handles: DNS resolution, private IP blocking (via ipaddr.js),
+      // SSRF-safe redirect following, and streaming size enforcement
+      const response = await secureFetchWithValidation(params.url, {
+        maxResponseBytes: MAX_DOWNLOAD_BYTES,
       })
 
       if (!response.ok) {
@@ -149,14 +152,9 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
       const mimeType = resolveMimeType(
         response.headers.get('content-type'),
         params.fileName,
-        response.url || params.url
+        params.url
       )
-      const fileName = inferOutputFileName(
-        params.fileName,
-        response,
-        response.url || params.url,
-        mimeType
-      )
+      const fileName = inferOutputFileName(params.fileName, response.headers, params.url, mimeType)
 
       assertServerToolNotAborted(context)
 
@@ -177,7 +175,6 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
 
       logger.info('Downloaded remote file to workspace', {
         sourceUrl: params.url,
-        resolvedUrl: response.url,
         fileId: uploaded.id,
         fileName: uploaded.name,
         mimeType,

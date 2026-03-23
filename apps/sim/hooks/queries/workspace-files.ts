@@ -102,8 +102,8 @@ export function useWorkspaceFileContent(
 }
 
 async function fetchWorkspaceFileBinary(key: string, signal?: AbortSignal): Promise<ArrayBuffer> {
-  const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace`
-  const response = await fetch(serveUrl, { signal })
+  const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&t=${Date.now()}`
+  const response = await fetch(serveUrl, { signal, cache: 'no-store' })
   if (!response.ok) throw new Error('Failed to fetch file content')
   return response.arrayBuffer()
 }
@@ -119,6 +119,7 @@ export function useWorkspaceFileBinary(workspaceId: string, fileId: string, key:
     queryFn: ({ signal }) => fetchWorkspaceFileBinary(key, signal),
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: 30 * 1000,
+    refetchOnWindowFocus: 'always',
   })
 }
 

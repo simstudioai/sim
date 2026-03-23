@@ -64,15 +64,27 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   manage_mcp_tool: ['add', 'edit', 'delete'],
   manage_skill: ['add', 'edit', 'delete'],
   manage_credential: ['rename', 'delete'],
-  workspace_file: ['write', 'update', 'delete', 'rename'],
+  workspace_file: ['write', 'update', 'delete', 'rename', 'patch'],
+  download_to_workspace_file: ['*'],
   generate_visualization: ['generate'],
   generate_image: ['generate'],
 }
 
-function isActionAllowed(toolName: string, action: string, userPermission: string): boolean {
-  const writeActions = WRITE_ACTIONS[toolName]
-  if (!writeActions || !writeActions.includes(action)) return true
+function isWritePermission(userPermission: string): boolean {
   return userPermission === 'write' || userPermission === 'admin'
+}
+
+function isActionAllowed(
+  toolName: string,
+  action: string | undefined,
+  userPermission: string
+): boolean {
+  const writeActions = WRITE_ACTIONS[toolName]
+  if (!writeActions) return true
+  // '*' means the tool is always a write operation regardless of action field
+  if (writeActions.includes('*')) return isWritePermission(userPermission)
+  if (action && writeActions.includes(action)) return isWritePermission(userPermission)
+  return true
 }
 
 /** Registry of all server tools. Tools self-declare their validation schemas. */
@@ -115,10 +127,11 @@ export async function routeExecution(
   // Action-level permission enforcement for mixed read/write tools
   if (context?.userPermission && WRITE_ACTIONS[toolName]) {
     const p = payload as Record<string, unknown>
-    const action = (p?.operation ?? p?.action) as string
-    if (action && !isActionAllowed(toolName, action, context.userPermission)) {
+    const action = (p?.operation ?? p?.action) as string | undefined
+    if (!isActionAllowed(toolName, action, context.userPermission)) {
+      const actionLabel = action ? `'${action}' on ` : ''
       throw new Error(
-        `Permission denied: '${action}' on ${toolName} requires write access. You have '${context.userPermission}' permission.`
+        `Permission denied: ${actionLabel}${toolName} requires write access. You have '${context.userPermission}' permission.`
       )
     }
   }
