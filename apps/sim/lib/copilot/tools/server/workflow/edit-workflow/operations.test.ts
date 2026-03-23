@@ -400,7 +400,9 @@ describe('handleEditOperation nestedNodes merge', () => {
     expect(state.blocks['inner-loop']).toBeDefined()
     expect(state.blocks['inner-agent']).toBeUndefined()
     expect(
-      state.edges.some((edge: any) => edge.source === 'inner-agent' || edge.target === 'inner-agent')
+      state.edges.some(
+        (edge: any) => edge.source === 'inner-agent' || edge.target === 'inner-agent'
+      )
     ).toBe(false)
 
     const helperBlock = Object.values(state.blocks).find((block: any) => block.name === 'Helper')
