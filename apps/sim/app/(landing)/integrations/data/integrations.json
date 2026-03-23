@@ -9582,6 +9582,14 @@
         "description": "Create a canvas pinned to a Slack channel as its resource hub"
       },
       {
+        "name": "Create Conversation",
+        "description": "Create a new public or private channel in a Slack workspace."
+      },
+      {
+        "name": "Invite to Conversation",
+        "description": "Invite one or more users to a Slack channel. Supports up to 100 users at a time."
+      },
+      {
         "name": "Open View",
         "description": "Open a modal view in Slack using a trigger_id from an interaction payload. Used to display forms, confirmations, and other interactive modals."
       },
@@ -9598,7 +9606,7 @@
         "description": "Publish a static view to a user"
       }
     ],
-    "operationCount": 23,
+    "operationCount": 25,
     "triggers": [
       {
         "id": "slack_webhook",

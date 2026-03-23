@@ -46,6 +46,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         { label: 'Get User Presence', id: 'get_user_presence' },
         { label: 'Edit Canvas', id: 'edit_canvas' },
         { label: 'Create Channel Canvas', id: 'create_channel_canvas' },
+        { label: 'Create Conversation', id: 'create_conversation' },
+        { label: 'Invite to Conversation', id: 'invite_to_conversation' },
         { label: 'Open View', id: 'open_view' },
         { label: 'Update View', id: 'update_view' },
         { label: 'Push View', id: 'push_view' },
@@ -144,6 +146,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
             'get_user',
             'get_user_presence',
             'edit_canvas',
+            'create_conversation',
             'open_view',
             'update_view',
             'push_view',
@@ -179,6 +182,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
             'get_user',
             'get_user_presence',
             'edit_canvas',
+            'create_conversation',
             'open_view',
             'update_view',
             'push_view',
@@ -816,6 +820,70 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: 'create_channel_canvas',
       },
     },
+    // Create Conversation specific fields
+    {
+      id: 'conversationName',
+      title: 'Channel Name',
+      type: 'short-input',
+      placeholder: 'e.g., project-updates',
+      condition: {
+        field: 'operation',
+        value: 'create_conversation',
+      },
+      required: true,
+    },
+    {
+      id: 'isPrivate',
+      title: 'Private Channel',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: {
+        field: 'operation',
+        value: 'create_conversation',
+      },
+    },
+    {
+      id: 'teamId',
+      title: 'Team ID',
+      type: 'short-input',
+      placeholder: 'Encoded team ID (org tokens only)',
+      condition: {
+        field: 'operation',
+        value: 'create_conversation',
+      },
+      mode: 'advanced',
+    },
+    // Invite to Conversation specific fields
+    {
+      id: 'inviteUsers',
+      title: 'User IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated user IDs (e.g., U123,U456)',
+      condition: {
+        field: 'operation',
+        value: 'invite_to_conversation',
+      },
+      required: true,
+    },
+    {
+      id: 'inviteForce',
+      title: 'Skip Invalid Users',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: {
+        field: 'operation',
+        value: 'invite_to_conversation',
+      },
+      mode: 'advanced',
+    },
     // Open View / Push View specific fields
     {
       id: 'viewTriggerId',
@@ -990,6 +1058,8 @@ Do not include any explanations, markdown formatting, or other text outside the 
       'slack_get_user_presence',
       'slack_edit_canvas',
       'slack_create_channel_canvas',
+      'slack_create_conversation',
+      'slack_invite_to_conversation',
       'slack_open_view',
       'slack_update_view',
       'slack_push_view',
@@ -1036,6 +1106,10 @@ Do not include any explanations, markdown formatting, or other text outside the 
             return 'slack_edit_canvas'
           case 'create_channel_canvas':
             return 'slack_create_channel_canvas'
+          case 'create_conversation':
+            return 'slack_create_conversation'
+          case 'invite_to_conversation':
+            return 'slack_invite_to_conversation'
           case 'open_view':
             return 'slack_open_view'
           case 'update_view':
@@ -1090,6 +1164,11 @@ Do not include any explanations, markdown formatting, or other text outside the 
           canvasTitle,
           channelCanvasTitle,
           channelCanvasContent,
+          conversationName,
+          isPrivate,
+          teamId,
+          inviteUsers,
+          inviteForce,
           viewTriggerId,
           viewInteractivityPointer,
           viewId,
@@ -1264,6 +1343,21 @@ Do not include any explanations, markdown formatting, or other text outside the 
             }
             break
 
+          case 'create_conversation':
+            baseParams.name = conversationName
+            baseParams.isPrivate = isPrivate === 'true'
+            if (teamId) {
+              baseParams.teamId = teamId
+            }
+            break
+
+          case 'invite_to_conversation':
+            baseParams.users = inviteUsers
+            if (inviteForce === 'true') {
+              baseParams.force = true
+            }
+            break
+
           case 'open_view':
             baseParams.triggerId = viewTriggerId
             if (viewInteractivityPointer) {
@@ -1367,6 +1461,13 @@ Do not include any explanations, markdown formatting, or other text outside the 
     // Create Channel Canvas inputs
     channelCanvasTitle: { type: 'string', description: 'Title for channel canvas' },
     channelCanvasContent: { type: 'string', description: 'Content for channel canvas' },
+    // Create Conversation inputs
+    conversationName: { type: 'string', description: 'Name for the new channel' },
+    isPrivate: { type: 'string', description: 'Create as private channel (true/false)' },
+    teamId: { type: 'string', description: 'Encoded team ID for org tokens' },
+    // Invite to Conversation inputs
+    inviteUsers: { type: 'string', description: 'Comma-separated user IDs to invite' },
+    inviteForce: { type: 'string', description: 'Skip invalid users (true/false)' },
     // View operation inputs
     viewTriggerId: { type: 'string', description: 'Trigger ID from interaction payload' },
     viewInteractivityPointer: {
@@ -1522,6 +1623,13 @@ Do not include any explanations, markdown formatting, or other text outside the 
       type: 'json',
       description:
         'View object with properties: id, team_id, type, title, submit, close, blocks, private_metadata, callback_id, external_id, state, hash, clear_on_close, notify_on_close, root_view_id, previous_view_id, app_id, bot_id',
+    },
+
+    // slack_invite_to_conversation outputs (invite_to_conversation operation)
+    errors: {
+      type: 'json',
+      description:
+        'Array of per-user error objects when force is true and some invitations failed (user, ok, error)',
     },
 
     // Trigger outputs (when used as webhook trigger)
