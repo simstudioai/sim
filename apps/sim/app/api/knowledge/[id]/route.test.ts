@@ -99,6 +99,10 @@ vi.mock('@sim/db/schema', () => ({
 
 vi.mock('@/lib/audit/log', () => auditMock)
 
+vi.mock('@/lib/knowledge/dynamic-tables', () => ({
+  dropKBEmbeddingTable: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@/lib/knowledge/service', () => ({
   getKnowledgeBaseById: vi.fn(),
   updateKnowledgeBase: vi.fn(),
