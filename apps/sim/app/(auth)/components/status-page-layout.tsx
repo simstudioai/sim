@@ -1,5 +1,3 @@
-'use client'
-
 import type { ReactNode } from 'react'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import Navbar from '@/app/(home)/components/navbar/navbar'
