@@ -57,12 +57,12 @@ export async function createKBEmbeddingTable(kbId: string, dimension: number): P
         start_offset INTEGER,
         end_offset INTEGER,
         tag1 TEXT, tag2 TEXT, tag3 TEXT, tag4 TEXT, tag5 TEXT, tag6 TEXT, tag7 TEXT,
-        number1 NUMERIC, number2 NUMERIC, number3 NUMERIC, number4 NUMERIC, number5 NUMERIC,
-        date1 TIMESTAMPTZ, date2 TIMESTAMPTZ,
+        number1 DOUBLE PRECISION, number2 DOUBLE PRECISION, number3 DOUBLE PRECISION, number4 DOUBLE PRECISION, number5 DOUBLE PRECISION,
+        date1 TIMESTAMP, date2 TIMESTAMP,
         boolean1 BOOLEAN, boolean2 BOOLEAN, boolean3 BOOLEAN,
         enabled BOOLEAN NOT NULL DEFAULT TRUE,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `)
   )
@@ -132,6 +132,7 @@ export interface KBEmbeddingRecord {
   boolean1: boolean | null
   boolean2: boolean | null
   boolean3: boolean | null
+  enabled: boolean
   createdAt: Date
   updatedAt: Date
 }
@@ -185,6 +186,7 @@ function createDynamicKBTable(tableName: string, dimensions: number) {
     boolean1: boolean('boolean1'),
     boolean2: boolean('boolean2'),
     boolean3: boolean('boolean3'),
+    enabled: boolean('enabled').notNull().default(true),
     createdAt: timestamp('created_at').notNull(),
     updatedAt: timestamp('updated_at').notNull(),
   })
