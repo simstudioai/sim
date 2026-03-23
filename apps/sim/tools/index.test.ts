@@ -649,6 +649,81 @@ describe('Internal Tool Timeout Behavior', () => {
       tools.function_execute = originalFunctionTool
     }
   })
+
+  it('should preserve plain text error bodies for internal secure fetch responses', async () => {
+    vi.spyOn(securityValidation, 'secureFetchWithPinnedIP').mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: new securityValidation.SecureFetchHeaders({ 'content-type': 'text/plain' }),
+      text: async () => 'Invalid access token',
+      json: async () => {
+        throw new Error('Invalid JSON')
+      },
+      arrayBuffer: async () => new TextEncoder().encode('Invalid access token').buffer,
+    })
+
+    const result = await executeTool(
+      'function_execute',
+      {
+        code: 'return 1',
+      },
+      true
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Invalid access token')
+  })
+
+  it('should not read a body for internal 204 responses', async () => {
+    const arrayBufferSpy = vi.fn(async () => new ArrayBuffer(0))
+    const secureFetchSpy = vi
+      .spyOn(securityValidation, 'secureFetchWithPinnedIP')
+      .mockResolvedValue({
+        ok: true,
+        status: 204,
+        statusText: 'No Content',
+        headers: new securityValidation.SecureFetchHeaders({}),
+        text: async () => '',
+        json: async () => {
+          throw new Error('No response body')
+        },
+        arrayBuffer: arrayBufferSpy,
+      })
+
+    const originalTool = (tools as any).test_internal_no_content
+    ;(tools as any).test_internal_no_content = {
+      id: 'test_internal_no_content',
+      name: 'Test Internal No Content',
+      description: 'A test tool for internal 204 responses',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: '/api/test/no-content',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+      },
+    }
+
+    try {
+      const result = await executeTool('test_internal_no_content', {}, true)
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual({ status: 204 })
+      expect(secureFetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining('/api/test/no-content'),
+        '127.0.0.1',
+        expect.any(Object)
+      )
+      expect(arrayBufferSpy).not.toHaveBeenCalled()
+    } finally {
+      if (originalTool) {
+        ;(tools as any).test_internal_no_content = originalTool
+      } else {
+        delete (tools as any).test_internal_no_content
+      }
+    }
+  })
 })
 
 describe('Automatic Internal Route Detection', () => {
@@ -1048,8 +1123,7 @@ describe('Centralized Error Handling', () => {
     )
 
     expect(result.success).toBe(false)
-    // Current behavior falls back to HTTP status text on JSON parsing failures.
-    expect(result.error).toBe('Unauthorized')
+    expect(result.error).toBe('Invalid access token')
   })
 
   it('should handle plain text error responses from APIs like Apollo', async () => {
@@ -1078,7 +1152,7 @@ describe('Centralized Error Handling', () => {
     )
 
     expect(result.success).toBe(false)
-    expect(result.error).toBe('Forbidden')
+    expect(result.error).toBe('Invalid API key provided')
   })
 
   it('should fall back to HTTP status text when both JSON and text parsing fail', async () => {

@@ -1359,8 +1359,9 @@ async function executeToolRequest(
       }
 
       let errorData: any
+      const jsonProbe = response.clone()
       try {
-        errorData = await response.json()
+        errorData = await jsonProbe.json()
       } catch (jsonError) {
         // JSON parsing failed, fall back to reading as text for error extraction
         logger.warn(`[${requestId}] Response is not JSON for ${toolId}, reading as text`)
