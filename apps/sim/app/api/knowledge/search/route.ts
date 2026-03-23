@@ -344,18 +344,20 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Merge and re-rank when results come from multiple providers.
-      // Distance scores from different embedding spaces are not directly comparable,
-      // so normalize each provider's scores to 0-1 range before merging.
+      // Sort, normalize, and trim results to topK.
+      // When results come from multiple providers, distance scores from different
+      // embedding spaces are not directly comparable — normalize each provider's
+      // scores to 0-1 range before merging.
+      const normalizeScores = (items: SearchResult[]): SearchResult[] => {
+        if (items.length <= 1) return items
+        const min = Math.min(...items.map((r) => r.distance))
+        const max = Math.max(...items.map((r) => r.distance))
+        const range = max - min || 1
+        return items.map((r) => ({ ...r, distance: (r.distance - min) / range }))
+      }
+
       let results: SearchResult[]
       if (openaiKbIds.length > 0 && ollamaKbIds.length > 0) {
-        const normalizeScores = (items: SearchResult[]): SearchResult[] => {
-          if (items.length === 0) return items
-          const min = Math.min(...items.map((r) => r.distance))
-          const max = Math.max(...items.map((r) => r.distance))
-          const range = max - min || 1
-          return items.map((r) => ({ ...r, distance: (r.distance - min) / range }))
-        }
         const openaiResults = normalizeScores(
           allResults.filter((r) => openaiKbIds.includes(r.knowledgeBaseId))
         )
@@ -366,7 +368,8 @@ export async function POST(request: NextRequest) {
           .sort((a, b) => a.distance - b.distance)
           .slice(0, validatedData.topK)
       } else {
-        results = allResults
+        // Single provider — still sort and trim to topK
+        results = allResults.sort((a, b) => a.distance - b.distance).slice(0, validatedData.topK)
       }
 
       if (!hasQuery && !hasFilters) {
