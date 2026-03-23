@@ -214,6 +214,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
       onClick={
         item.onClick
           ? (e) => {
+              if (e.ctrlKey || e.metaKey || e.shiftKey) return
               e.preventDefault()
               item.onClick!()
             }
