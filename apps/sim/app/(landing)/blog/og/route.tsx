@@ -36,96 +36,6 @@ async function loadGoogleFont(font: string, weights: string, text: string): Prom
   throw new Error('Failed to load font data')
 }
 
-function Block({
-  x,
-  y,
-  w,
-  h,
-  color,
-  opacity = 1,
-}: {
-  x: number
-  y: number
-  w: number
-  h: number
-  color: string
-  opacity?: number
-}) {
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: x,
-        top: y,
-        width: w,
-        height: h,
-        borderRadius: 2.6,
-        backgroundColor: color,
-        opacity,
-      }}
-    />
-  )
-}
-
-function BlocksLeft() {
-  return (
-    <div style={{ display: 'flex', position: 'relative', width: 34, height: 226 }}>
-      <Block x={0} y={0} w={34} h={34} color='#FA4EDF' opacity={0.6} />
-      <Block x={0} y={0} w={17} h={17} color='#FA4EDF' />
-      <Block x={17} y={0} w={17} h={68} color='#FA4EDF' opacity={0.6} />
-      <Block x={17} y={17} w={17} h={17} color='#FA4EDF' />
-      <Block x={0} y={52} w={34} h={17} color='#FA4EDF' opacity={0.6} />
-      <Block x={17} y={85} w={17} h={141} color='#00F701' opacity={0.6} />
-      <Block x={0} y={120} w={17} h={17} color='#FFCC02' />
-      <Block x={0} y={120} w={17} h={34} color='#FFCC02' opacity={0.4} />
-      <Block x={0} y={154} w={17} h={17} color='#00F701' />
-      <Block x={0} y={154} w={34} h={34} color='#00F701' opacity={0.5} />
-    </div>
-  )
-}
-
-function BlocksRight() {
-  return (
-    <div style={{ display: 'flex', position: 'relative', width: 34, height: 205 }}>
-      <Block x={0} y={0} w={17} h={17} color='#FA4EDF' opacity={0.6} />
-      <Block x={17} y={0} w={17} h={17} color='#FA4EDF' opacity={0.6} />
-      <Block x={17} y={0} w={34} h={17} color='#FA4EDF' opacity={0.6} />
-      <Block x={17} y={17} w={17} h={68} color='#FA4EDF' opacity={0.6} />
-      <Block x={17} y={34} w={17} h={17} color='#FA4EDF' />
-      <Block x={0} y={34} w={34} h={17} color='#FA4EDF' opacity={0.6} />
-      <Block x={0} y={69} w={34} h={17} color='#FA4EDF' opacity={0.6} />
-      <Block x={17} y={102} w={17} h={102} color='#2ABBF8' opacity={0.6} />
-      <Block x={0} y={137} w={17} h={17} color='#00F701' />
-      <Block x={0} y={137} w={17} h={34} color='#00F701' opacity={0.4} />
-    </div>
-  )
-}
-
-function BlocksTopRight() {
-  return (
-    <div style={{ display: 'flex', position: 'relative', width: 295, height: 34 }}>
-      <Block x={0} y={0} w={17} h={34} color='#2ABBF8' />
-      <Block x={0} y={0} w={17} h={17} color='#2ABBF8' />
-      <Block x={0} y={0} w={85} h={17} color='#2ABBF8' opacity={0.6} />
-      <Block x={34} y={0} w={34} h={34} color='#2ABBF8' opacity={0.6} />
-      <Block x={34} y={0} w={17} h={17} color='#2ABBF8' />
-      <Block x={52} y={17} w={17} h={17} color='#2ABBF8' />
-      <Block x={68} y={0} w={55} h={17} color='#00F701' />
-      <Block x={106} y={0} w={34} h={34} color='#00F701' opacity={0.6} />
-      <Block x={106} y={0} w={51} h={17} color='#00F701' opacity={0.6} />
-      <Block x={124} y={17} w={17} h={17} color='#00F701' />
-      <Block x={157} y={0} w={34} h={17} color='#FFCC02' opacity={0.6} />
-      <Block x={157} y={0} w={17} h={17} color='#FFCC02' />
-      <Block x={209} y={0} w={17} h={34} color='#FA4EDF' opacity={0.6} />
-      <Block x={209} y={0} w={68} h={17} color='#FA4EDF' opacity={0.6} />
-      <Block x={243} y={0} w={34} h={34} color='#FA4EDF' opacity={0.6} />
-      <Block x={243} y={0} w={17} h={17} color='#FA4EDF' />
-      <Block x={260} y={0} w={34} h={17} color='#FA4EDF' opacity={0.6} />
-      <Block x={261} y={17} w={17} h={17} color='#FA4EDF' />
-    </div>
-  )
-}
-
 export async function GET(request: NextRequest) {
   const slug = request.nextUrl.searchParams.get('slug')
 
@@ -176,55 +86,9 @@ export async function GET(request: NextRequest) {
           backgroundSize: '32px 32px',
         }}
       />
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          border: '1px solid #2A2A2A',
-        }}
-      />
-
-      <div
-        style={{
-          position: 'absolute',
-          left: 96,
-          top: 502,
-          display: 'flex',
-          transform: 'rotate(90deg)',
-        }}
-      >
-        <BlocksLeft />
-      </div>
-
-      <div
-        style={{
-          position: 'absolute',
-          right: 0,
-          top: 212,
-          display: 'flex',
-        }}
-      >
-        <BlocksRight />
-      </div>
-
-      <div
-        style={{
-          position: 'absolute',
-          right: 0,
-          top: 0,
-          display: 'flex',
-        }}
-      >
-        <BlocksTopRight />
-      </div>
-
       <div style={{ display: 'flex', flexDirection: 'column', gap: 30, zIndex: 1 }}>
         <img src={logoDataUrl} alt='Sim' height={33} width={106.5} />
       </div>
-
       <div
         style={{
           display: 'flex',
@@ -243,7 +107,7 @@ export async function GET(request: NextRequest) {
               padding: '4px 12px',
               backgroundColor: category.color,
               color: '#000000',
-              fontSize: 12,
+              fontSize: 16,
               fontWeight: 700,
               textTransform: 'uppercase',
               letterSpacing: '0.1em',
@@ -254,7 +118,7 @@ export async function GET(request: NextRequest) {
           {post.readingTime && (
             <span
               style={{
-                fontSize: 13,
+                fontSize: 16,
                 color: '#666666',
                 textTransform: 'uppercase',
                 letterSpacing: '0.08em',
@@ -279,7 +143,7 @@ export async function GET(request: NextRequest) {
         </div>
         <div
           style={{
-            fontSize: 18,
+            fontSize: 20,
             color: '#999999',
             lineHeight: 1.5,
             maxWidth: '80%',
@@ -292,7 +156,6 @@ export async function GET(request: NextRequest) {
             : post.description}
         </div>
       </div>
-
       <div
         style={{
           display: 'flex',
@@ -300,12 +163,12 @@ export async function GET(request: NextRequest) {
           alignItems: 'center',
           zIndex: 1,
           borderTop: '1px solid #2A2A2A',
-          paddingTop: 30,
+          paddingTop: 20,
           marginBottom: 30,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ fontSize: 14, color: '#999999', fontWeight: 500 }}>{authorNames}</span>
+          <span style={{ fontSize: 16, color: '#999999', fontWeight: 500 }}>{authorNames}</span>
           <span
             style={{
               width: 4,
@@ -314,13 +177,13 @@ export async function GET(request: NextRequest) {
               borderRadius: '50%',
             }}
           />
-          <span style={{ fontSize: 14, color: '#666666', fontWeight: 500 }}>
+          <span style={{ fontSize: 16, color: '#666666', fontWeight: 500 }}>
             {formatDate(new Date(post.date))}
           </span>
         </div>
         <span
           style={{
-            fontSize: 14,
+            fontSize: 16,
             color: '#666666',
             fontWeight: 500,
             letterSpacing: '0.05em',
