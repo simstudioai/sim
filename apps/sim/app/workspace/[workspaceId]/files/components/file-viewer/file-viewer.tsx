@@ -436,8 +436,8 @@ function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
 
 const pptxSlideCache = new Map<string, string[]>()
 
-function pptxCacheKey(fileId: string, dataUpdatedAt: number): string {
-  return `${fileId}:${dataUpdatedAt}`
+function pptxCacheKey(fileId: string, byteLength: number): string {
+  return `${fileId}:${byteLength}`
 }
 
 function pptxCacheSet(key: string, slides: string[]): void {
@@ -492,11 +492,15 @@ async function getPptxRenderSize(
     const presentationXml = await zip.file('ppt/presentation.xml')?.async('text')
     if (!presentationXml) return fallback
 
-    const match = presentationXml.match(/<p:sldSz[^>]*cx="(\d+)"[^>]*cy="(\d+)"/)
-    if (!match) return fallback
+    const tagMatch = presentationXml.match(/<p:sldSz\s[^>]+>/)
+    if (!tagMatch) return fallback
+    const tag = tagMatch[0]
+    const cxMatch = tag.match(/\bcx="(\d+)"/)
+    const cyMatch = tag.match(/\bcy="(\d+)"/)
+    if (!cxMatch || !cyMatch) return fallback
 
-    const cx = Number(match[1])
-    const cy = Number(match[2])
+    const cx = Number(cxMatch[1])
+    const cy = Number(cyMatch[1])
     if (!Number.isFinite(cx) || !Number.isFinite(cy) || cx <= 0 || cy <= 0) return fallback
 
     const aspectRatio = cx / cy
@@ -532,10 +536,9 @@ function PptxPreview({
     data: fileData,
     isLoading: isFetching,
     error: fetchError,
-    dataUpdatedAt,
   } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
 
-  const cacheKey = pptxCacheKey(file.id, dataUpdatedAt)
+  const cacheKey = pptxCacheKey(file.id, fileData?.byteLength ?? 0)
   const cached = pptxSlideCache.get(cacheKey)
 
   const [slides, setSlides] = useState<string[]>(cached ?? [])
