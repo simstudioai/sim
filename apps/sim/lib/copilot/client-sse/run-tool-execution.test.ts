@@ -12,12 +12,9 @@ const setIsExecuting = vi.fn()
 const setCurrentExecutionId = vi.fn()
 const getWorkflowExecution = vi.fn(() => ({ isExecuting: false }))
 
-vi.mock(
-  '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils',
-  () => ({
-    executeWorkflowWithFullLogging,
-  })
-)
+vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils', () => ({
+  executeWorkflowWithFullLogging,
+}))
 
 vi.mock('@/stores/execution/store', () => ({
   useExecutionStore: {

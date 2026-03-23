@@ -164,13 +164,21 @@ export async function orchestrateCopilotStream(
       }
 
       if (options.abortSignal?.aborted || context.wasAborted) {
+        for (const [toolCallId, toolCall] of context.toolCalls) {
+          if (toolCall.status === 'pending' || toolCall.status === 'executing') {
+            toolCall.status = 'cancelled'
+            toolCall.endTime = Date.now()
+            toolCall.error = 'Stopped by user'
+          }
+        }
         context.awaitingAsyncContinuation = undefined
         break
       }
 
-      let continuation = context.awaitingAsyncContinuation
+      const continuation = context.awaitingAsyncContinuation
       if (!continuation) break
 
+      let resumeReady = false
       for (;;) {
         claimedToolCallIds = []
         const resumeWorkerId = continuation.runId || context.runId || context.messageId
@@ -192,7 +200,11 @@ export async function orchestrateCopilotStream(
             claimableToolCallIds.push(toolCallId)
             continue
           }
-          if (durableRow && durableRow.status === ASYNC_TOOL_STATUS.running && localPendingPromise) {
+          if (
+            durableRow &&
+            durableRow.status === ASYNC_TOOL_STATUS.running &&
+            localPendingPromise
+          ) {
             localPendingPromises.push(localPendingPromise)
             logger.info('Waiting for local async tool completion before retrying resume claim', {
               toolCallId,
@@ -283,6 +295,11 @@ export async function orchestrateCopilotStream(
           checkpointId: continuation.checkpointId,
           results,
         }
+        resumeReady = true
+        break
+      }
+
+      if (!resumeReady) {
         break
       }
     }

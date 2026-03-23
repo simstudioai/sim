@@ -403,6 +403,19 @@ export const sseHandlers: Record<string, SSEHandler> = {
         }
       } else {
         toolCall.status = 'executing'
+        await upsertAsyncToolCall({
+          runId: context.runId || crypto.randomUUID(),
+          toolCallId,
+          toolName,
+          args,
+          status: 'running',
+        }).catch((err) => {
+          logger.warn('Failed to persist async tool row for client-executable tool', {
+            toolCallId,
+            toolName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        })
         const completion = await waitForToolCompletion(
           toolCallId,
           options.timeout || STREAM_TIMEOUT_MS,
@@ -624,6 +637,19 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
         }
       } else {
         toolCall.status = 'executing'
+        await upsertAsyncToolCall({
+          runId: context.runId || crypto.randomUUID(),
+          toolCallId,
+          toolName,
+          args,
+          status: 'running',
+        }).catch((err) => {
+          logger.warn('Failed to persist async tool row for client-executable subagent tool', {
+            toolCallId,
+            toolName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        })
         const completion = await waitForToolCompletion(
           toolCallId,
           options.timeout || STREAM_TIMEOUT_MS,
