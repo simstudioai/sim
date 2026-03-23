@@ -1,12 +1,6 @@
 /**
  * Node.js worker for sandboxed PPTX generation.
  * Runs in a separate Node.js process, communicates with parent via IPC.
- *
- * Security model: vm.createContext is NOT a true sandbox — objects with normal
- * prototypes (pptx, getFileBase64) allow escape via the constructor chain.
- * The actual security boundary is process-level isolation: this subprocess
- * runs with a minimal env (only PATH), so a vm escape cannot reach the parent
- * Next.js process, the database, or any secrets.
  */
 
 'use strict'
@@ -42,8 +36,6 @@ async function handleGenerate(msg) {
   try {
     const pptx = new PptxGenJS()
 
-    // Delegates file fetches to the parent process via IPC so the subprocess
-    // never touches the database directly.
     const getFileBase64 = (fileId) =>
       new Promise((resolve, reject) => {
         if (typeof fileId !== 'string' || fileId.length === 0) {
@@ -68,15 +60,12 @@ async function handleGenerate(msg) {
         }
       })
 
-    // Null-prototype sandbox: no access to Node.js globals whatsoever.
     const sandbox = Object.create(null)
     sandbox.pptx = pptx
     sandbox.getFileBase64 = getFileBase64
 
     vm.createContext(sandbox)
 
-    // vm timeout only covers synchronous ticks; the subprocess kill timeout set
-    // by the parent process bounds total wall-clock time.
     const promise = vm.runInContext(`(async () => { ${code} })()`, sandbox, {
       timeout: EXECUTION_TIMEOUT_MS,
       filename: 'pptx-code.js',

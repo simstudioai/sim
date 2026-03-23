@@ -1,10 +1,8 @@
 /**
  * Sandboxed PPTX generation via subprocess.
  *
- * Mirrors the pattern used by isolated-vm.ts: user code runs in a separate
- * Node.js child process so that even a vm sandbox escape cannot reach the main
- * Next.js process, the database, or any secrets. File access is brokered via
- * IPC — the subprocess never touches the database directly.
+ * User code runs in a separate Node.js child process. File access is brokered
+ * via IPC — the subprocess never touches the database directly.
  */
 
 import { type ChildProcess, spawn } from 'node:child_process'
@@ -45,13 +43,6 @@ const WORKER_PATH = (() => {
  * Generate a PPTX file by executing AI-generated PptxGenJS code in a sandboxed
  * subprocess. File resources referenced by the code are fetched from workspace
  * storage by the main process and delivered to the worker via IPC.
- *
- * Security note: `vm.createContext` is NOT a true security sandbox — objects
- * injected into the context retain their prototypes, enabling escape via
- * `pptx.constructor.constructor('return process')()`. The actual security
- * boundary is the subprocess itself: even a full vm escape only reaches the
- * subprocess's minimal env (`{ PATH }`), not the parent Next.js process,
- * database, or secrets.
  */
 export async function generatePptxFromCode(
   code: string,
@@ -81,7 +72,6 @@ export async function generatePptxFromCode(
       else resolve(result as Buffer)
     }
 
-    // Propagate caller abort (e.g. client disconnect) to the subprocess.
     signal?.addEventListener('abort', () => done(new Error('PPTX generation cancelled')), {
       once: true,
     })
@@ -90,9 +80,6 @@ export async function generatePptxFromCode(
       proc = spawn('node', [WORKER_PATH], {
         stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
         serialization: 'json',
-        // Prevent the subprocess from inheriting secrets (DB URL, API keys, etc.)
-        // from the parent Next.js process. pptxgenjs only needs PATH to resolve
-        // its own require() calls.
         env: { PATH: process.env.PATH ?? '' } as unknown as NodeJS.ProcessEnv,
       })
     } catch (err) {
