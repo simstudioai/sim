@@ -472,7 +472,7 @@ export default function LoginPage({
           </div>
 
           {turnstileSiteKey && (
-            <div className='h-0 w-0 overflow-hidden'>
+            <div className='absolute'>
               <Turnstile
                 ref={turnstileRef}
                 siteKey={turnstileSiteKey}
