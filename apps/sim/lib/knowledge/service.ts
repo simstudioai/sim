@@ -155,6 +155,7 @@ export async function updateKnowledgeBase(
       maxSize: number
       minSize: number
       overlap: number
+      ollamaBaseUrl?: unknown
     }
     embeddingModel?: string
     embeddingDimension?: number
@@ -166,7 +167,17 @@ export async function updateKnowledgeBase(
   if (updates.description !== undefined) updateData.description = updates.description
   if (updates.workspaceId !== undefined) updateData.workspaceId = updates.workspaceId
   if (updates.chunkingConfig !== undefined) {
-    updateData.chunkingConfig = updates.chunkingConfig
+    // Preserve ollamaBaseUrl stored in existing chunkingConfig JSONB
+    const existing = await db
+      .select({ chunkingConfig: knowledgeBase.chunkingConfig })
+      .from(knowledgeBase)
+      .where(eq(knowledgeBase.id, knowledgeBaseId))
+      .limit(1)
+    const existingConfig = existing[0]?.chunkingConfig as Record<string, unknown> | null
+    const ollamaBaseUrl = existingConfig?.ollamaBaseUrl
+    updateData.chunkingConfig = ollamaBaseUrl
+      ? { ...updates.chunkingConfig, ollamaBaseUrl }
+      : updates.chunkingConfig
   }
 
   await db.update(knowledgeBase).set(updateData).where(eq(knowledgeBase.id, knowledgeBaseId))
