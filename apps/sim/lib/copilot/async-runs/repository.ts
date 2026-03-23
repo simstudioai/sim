@@ -169,17 +169,18 @@ export async function markAsyncToolStatus(
   status: CopilotAsyncToolStatus,
   updates: {
     claimedBy?: string | null
+    claimedAt?: Date | null
     result?: Record<string, unknown> | null
     error?: string | null
     completedAt?: Date | null
   } = {}
 ) {
   const claimedAt =
-    status === 'running' && updates.claimedBy
-      ? updates.completedAt
-        ? undefined
-        : new Date()
-      : undefined
+    updates.claimedAt !== undefined
+      ? updates.claimedAt
+      : status === 'running' && updates.claimedBy
+        ? new Date()
+        : undefined
 
   const [row] = await db
     .update(copilotAsyncToolCalls)
@@ -223,6 +224,8 @@ export async function completeAsyncToolCall(input: {
   }
 
   return markAsyncToolStatus(input.toolCallId, input.status, {
+    claimedBy: null,
+    claimedAt: null,
     result: input.result ?? null,
     error: input.error ?? null,
     completedAt: new Date(),
