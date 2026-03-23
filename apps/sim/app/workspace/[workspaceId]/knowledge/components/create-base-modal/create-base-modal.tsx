@@ -18,6 +18,13 @@ import {
   ModalHeader,
   Textarea,
 } from '@/components/emcn'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/core/utils/cn'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
@@ -471,26 +478,27 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
 
                     <div className='flex flex-col gap-[8px]'>
                       <Label htmlFor='ollamaPreset'>Embedding Model</Label>
-                      <select
-                        id='ollamaPreset'
+                      <Select
                         value={ollamaPreset}
-                        onChange={(e) => {
-                          const preset = OLLAMA_PRESET_MODELS.find(
-                            (m) => m.value === e.target.value
-                          )
-                          setOllamaPreset(e.target.value)
+                        onValueChange={(value) => {
+                          const preset = OLLAMA_PRESET_MODELS.find((m) => m.value === value)
+                          setOllamaPreset(value)
                           if (preset && preset.dimension > 0) {
                             setOllamaDimension(preset.dimension)
                           }
                         }}
-                        className='rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)] px-[10px] py-[6px] text-[12px] text-[var(--text-primary)]'
                       >
-                        {OLLAMA_PRESET_MODELS.map((m) => (
-                          <option key={m.value} value={m.value}>
-                            {m.label}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger id='ollamaPreset'>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {OLLAMA_PRESET_MODELS.map((m) => (
+                            <SelectItem key={m.value} value={m.value}>
+                              {m.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     {ollamaPreset === 'custom' && (
