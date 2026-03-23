@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generatePptxFromCode } from '@/lib/copilot/tools/server/files/workspace-file'
+import { generatePptxFromCode } from '@/lib/execution/pptx-vm'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -45,10 +45,6 @@ const STORAGE_KEY_PREFIX_RE = /^\d{13}-[a-z0-9]{7}-/
 
 function stripStorageKeyPrefix(segment: string): string {
   return STORAGE_KEY_PREFIX_RE.test(segment) ? segment.replace(STORAGE_KEY_PREFIX_RE, '') : segment
-}
-
-function getWorkspaceIdForCompile(key: string): string | undefined {
-  return parseWorkspaceFileKey(key) ?? undefined
 }
 
 export async function GET(
@@ -143,7 +139,7 @@ async function handleLocalFile(
     const rawBuffer = await readFile(filePath)
     const segment = filename.split('/').pop() || filename
     const displayName = stripStorageKeyPrefix(segment)
-    const workspaceId = getWorkspaceIdForCompile(filename)
+    const workspaceId = parseWorkspaceFileKey(filename) ?? undefined
     const { buffer: fileBuffer, contentType } = await compilePptxIfNeeded(
       rawBuffer,
       displayName,
@@ -208,7 +204,7 @@ async function handleCloudProxy(
 
     const segment = cloudKey.split('/').pop() || 'download'
     const displayName = stripStorageKeyPrefix(segment)
-    const workspaceId = getWorkspaceIdForCompile(cloudKey)
+    const workspaceId = parseWorkspaceFileKey(cloudKey) ?? undefined
     const { buffer: fileBuffer, contentType } = await compilePptxIfNeeded(
       rawBuffer,
       displayName,

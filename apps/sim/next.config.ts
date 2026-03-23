@@ -90,7 +90,13 @@ const nextConfig: NextConfig = {
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
-    '/*': ['./node_modules/sharp/**/*', './node_modules/@img/**/*'],
+    '/*': [
+      './node_modules/sharp/**/*',
+      './node_modules/@img/**/*',
+      // pptxgenjs is required by the PPTX worker subprocess at runtime.
+      // It has no static import that Next.js can trace, so we include it explicitly.
+      './node_modules/pptxgenjs/**/*',
+    ],
   },
   experimental: {
     optimizeCss: true,
