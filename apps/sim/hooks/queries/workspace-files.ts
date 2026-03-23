@@ -119,6 +119,7 @@ export function useWorkspaceFileBinary(workspaceId: string, fileId: string, key:
     queryFn: ({ signal }) => fetchWorkspaceFileBinary(key, signal),
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: 30 * 1000,
+    refetchOnWindowFocus: 'always',
   })
 }
 

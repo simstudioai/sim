@@ -30,20 +30,41 @@ const DownloadToWorkspaceFileResultSchema = z.object({
 type DownloadToWorkspaceFileArgs = z.infer<typeof DownloadToWorkspaceFileArgsSchema>
 type DownloadToWorkspaceFileResult = z.infer<typeof DownloadToWorkspaceFileResultSchema>
 
+const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024 // 50 MB
+
+function isPrivateIPv4(a: number, b: number): boolean {
+  if (a === 0 || a === 127 || a === 10) return true
+  if (a === 172 && b >= 16 && b <= 31) return true
+  if (a === 192 && b === 168) return true
+  if (a === 169 && b === 254) return true // link-local + cloud metadata
+  return false
+}
+
 function isPrivateUrl(url: string): boolean {
   try {
     const { hostname, protocol } = new URL(url)
     if (protocol !== 'https:' && protocol !== 'http:') return true
-    if (hostname === 'localhost' || hostname === '::1') return true
+    if (hostname === 'localhost') return true
+
+    // Plain IPv4
     const ipv4 = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/)
     if (ipv4) {
-      const [a, b] = [Number(ipv4[1]), Number(ipv4[2])]
-      // Loopback, RFC 1918, link-local (including cloud metadata 169.254.169.254)
-      if (a === 127 || a === 10 || a === 0) return true
-      if (a === 172 && b >= 16 && b <= 31) return true
-      if (a === 192 && b === 168) return true
-      if (a === 169 && b === 254) return true
+      return isPrivateIPv4(Number(ipv4[1]), Number(ipv4[2]))
     }
+
+    // IPv6: block loopback, link-local (fe80::/10), unique local (fc00::/7),
+    // and IPv4-mapped (::ffff:a.b.c.d) that resolve to private IPv4
+    if (hostname.includes(':')) {
+      const h = hostname.toLowerCase()
+      if (h === '::1') return true
+      if (h.startsWith('fe8') || h.startsWith('fe9') || h.startsWith('fea') || h.startsWith('feb'))
+        return true // fe80::/10 link-local
+      if (h.startsWith('fc') || h.startsWith('fd')) return true // fc00::/7 unique local
+      const mapped = h.match(/^::ffff:(\d+)\.(\d+)\.(\d+)\.(\d+)$/)
+      if (mapped) return isPrivateIPv4(Number(mapped[1]), Number(mapped[2]))
+      return false
+    }
+
     return false
   } catch {
     return true
@@ -166,10 +187,26 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
         signal: context.abortSignal,
       })
 
+      // Block SSRF via redirect (e.g. initial URL passes check but redirects to internal IP)
+      if (response.url && response.url !== params.url && isPrivateUrl(response.url)) {
+        return {
+          success: false,
+          message: 'Downloading from private or internal URLs is not allowed',
+        }
+      }
+
       if (!response.ok) {
         return {
           success: false,
           message: `Download failed with status ${response.status} ${response.statusText}`,
+        }
+      }
+
+      const contentLength = Number(response.headers.get('content-length') ?? Number.NaN)
+      if (!Number.isNaN(contentLength) && contentLength > MAX_DOWNLOAD_BYTES) {
+        return {
+          success: false,
+          message: `File too large (limit ${MAX_DOWNLOAD_BYTES / 1024 / 1024} MB)`,
         }
       }
 
@@ -189,6 +226,13 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
 
       const arrayBuffer = await response.arrayBuffer()
       const fileBuffer = Buffer.from(arrayBuffer)
+
+      if (fileBuffer.length > MAX_DOWNLOAD_BYTES) {
+        return {
+          success: false,
+          message: `File too large (limit ${MAX_DOWNLOAD_BYTES / 1024 / 1024} MB)`,
+        }
+      }
 
       if (fileBuffer.length === 0) {
         return { success: false, message: 'Downloaded file is empty' }

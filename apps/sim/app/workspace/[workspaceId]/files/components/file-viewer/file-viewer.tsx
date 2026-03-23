@@ -610,7 +610,7 @@ function PptxPreview({
     return () => {
       cancelled = true
     }
-  }, [fileData, dataUpdatedAt, streamingContent, cacheKey])
+  }, [fileData, dataUpdatedAt, streamingContent, cacheKey, workspaceId])
 
   const error = fetchError
     ? fetchError instanceof Error
