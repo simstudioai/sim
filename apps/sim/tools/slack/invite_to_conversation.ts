@@ -127,7 +127,7 @@ export const slackInviteToConversationTool: ToolConfig<
     return {
       success: true,
       output: {
-        channel: {
+        channelInfo: {
           id: ch.id,
           name: ch.name,
           is_private: ch.is_private || false,
@@ -144,7 +144,7 @@ export const slackInviteToConversationTool: ToolConfig<
   },
 
   outputs: {
-    channel: {
+    channelInfo: {
       type: 'object',
       description: 'The channel object after inviting users',
       properties: CHANNEL_OUTPUT_PROPERTIES,

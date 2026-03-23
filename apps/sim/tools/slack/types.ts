@@ -1044,13 +1044,13 @@ export interface SlackGetChannelInfoResponse extends ToolResponse {
 
 export interface SlackCreateConversationResponse extends ToolResponse {
   output: {
-    channel: SlackChannel
+    channelInfo: SlackChannel
   }
 }
 
 export interface SlackInviteToConversationResponse extends ToolResponse {
   output: {
-    channel: SlackChannel
+    channelInfo: SlackChannel
     errors?: Array<{ user: string; ok: boolean; error: string }>
   }
 }

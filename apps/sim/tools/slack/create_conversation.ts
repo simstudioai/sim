@@ -115,7 +115,7 @@ export const slackCreateConversationTool: ToolConfig<
     return {
       success: true,
       output: {
-        channel: {
+        channelInfo: {
           id: ch.id,
           name: ch.name,
           is_private: ch.is_private || false,
@@ -131,7 +131,7 @@ export const slackCreateConversationTool: ToolConfig<
   },
 
   outputs: {
-    channel: {
+    channelInfo: {
       type: 'object',
       description: 'The newly created channel object',
       properties: CHANNEL_OUTPUT_PROPERTIES,
