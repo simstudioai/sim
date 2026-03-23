@@ -556,11 +556,17 @@ function PptxPreview({
         setRenderError(null)
 
         if (streamingContent !== undefined) {
-          const PptxGenJS = (await import('pptxgenjs')).default
-          const pptx = new PptxGenJS()
-          const fn = new Function('pptx', `return (async () => { ${streamingContent} })()`)
-          await fn(pptx)
-          const arrayBuffer = (await pptx.write({ outputType: 'arraybuffer' })) as ArrayBuffer
+          const response = await fetch(`/api/workspaces/${workspaceId}/pptx/preview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: streamingContent }),
+          })
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({ error: 'Preview failed' }))
+            throw new Error(err.error || 'Preview failed')
+          }
+          if (cancelled) return
+          const arrayBuffer = await response.arrayBuffer()
           if (cancelled) return
           const data = new Uint8Array(arrayBuffer)
           const images: string[] = []
