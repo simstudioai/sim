@@ -589,6 +589,7 @@ function PptxPreview({
         }
 
         if (!fileData) return
+        setSlides([])
         const data = new Uint8Array(fileData)
         const images: string[] = []
         await renderPptxSlides(
