@@ -199,27 +199,40 @@ const SidebarNavItem = memo(function SidebarNavItem({
     'group flex h-[30px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
   const activeClasses = active ? 'bg-[var(--surface-active)]' : ''
 
-  const element = item.onClick ? (
+  const content = (
+    <>
+      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+      <span className='truncate font-base text-[var(--text-body)]'>{item.label}</span>
+    </>
+  )
+
+  const element = item.href ? (
+    <Link
+      href={item.href}
+      data-item-id={item.id}
+      className={`${baseClasses} ${activeClasses}`}
+      onClick={
+        item.onClick
+          ? (e) => {
+              e.preventDefault()
+              item.onClick!()
+            }
+          : undefined
+      }
+      onContextMenu={onContextMenu ? (e) => onContextMenu(e, item.href!) : undefined}
+    >
+      {content}
+    </Link>
+  ) : item.onClick ? (
     <button
       type='button'
       data-item-id={item.id}
       className={`${baseClasses} ${activeClasses}`}
       onClick={item.onClick}
     >
-      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate font-base text-[var(--text-body)]'>{item.label}</span>
+      {content}
     </button>
-  ) : (
-    <Link
-      href={item.href!}
-      data-item-id={item.id}
-      className={`${baseClasses} ${activeClasses}`}
-      onContextMenu={onContextMenu ? (e) => onContextMenu(e, item.href!) : undefined}
-    >
-      <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate font-base text-[var(--text-body)]'>{item.label}</span>
-    </Link>
-  )
+  ) : null
 
   return (
     <Tooltip.Root>
@@ -263,7 +276,7 @@ export const Sidebar = memo(function Sidebar() {
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const { canEdit } = useUserPermissionsContext()
   const { config: permissionConfig, filterBlocks } = usePermissionConfig()
-  const { navigateToSettings } = useSettingsNavigation()
+  const { navigateToSettings, getSettingsHref } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
 
   useEffect(() => {
@@ -592,6 +605,7 @@ export const Sidebar = memo(function Sidebar() {
         id: 'settings',
         label: 'Settings',
         icon: Settings,
+        href: getSettingsHref(),
         onClick: () => {
           if (!isCollapsed) {
             setSidebarWidth(SIDEBAR_WIDTH.MIN)
@@ -600,7 +614,7 @@ export const Sidebar = memo(function Sidebar() {
         },
       },
     ],
-    [workspaceId, navigateToSettings, isCollapsed, setSidebarWidth]
+    [workspaceId, navigateToSettings, getSettingsHref, isCollapsed, setSidebarWidth]
   )
 
   const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)
@@ -1379,8 +1393,9 @@ export const Sidebar = memo(function Sidebar() {
                   <SidebarNavItem
                     key={`${item.id}-${isCollapsed}`}
                     item={item}
-                    active={false}
+                    active={item.id === 'settings' && isOnSettingsPage}
                     showCollapsedContent={showCollapsedContent}
+                    onContextMenu={item.href ? handleNavItemContextMenu : undefined}
                   />
                 ))}
               </div>
