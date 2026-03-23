@@ -93,9 +93,10 @@ const nextConfig: NextConfig = {
     '/*': [
       './node_modules/sharp/**/*',
       './node_modules/@img/**/*',
-      // pptxgenjs is required by the PPTX worker subprocess at runtime.
-      // It has no static import that Next.js can trace, so we include it explicitly.
+      // pptxgenjs and the PPTX worker are required at runtime by the subprocess.
+      // Neither has a static import that Next.js can trace, so we include them explicitly.
       './node_modules/pptxgenjs/**/*',
+      './lib/execution/pptx-worker.cjs',
     ],
   },
   experimental: {

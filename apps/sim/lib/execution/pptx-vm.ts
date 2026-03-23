@@ -72,6 +72,11 @@ export async function generatePptxFromCode(
       else resolve(result as Buffer)
     }
 
+    if (signal?.aborted) {
+      reject(new Error('PPTX generation cancelled'))
+      return
+    }
+
     signal?.addEventListener('abort', () => done(new Error('PPTX generation cancelled')), {
       once: true,
     })

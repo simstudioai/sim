@@ -103,7 +103,7 @@ export function useWorkspaceFileContent(
 
 async function fetchWorkspaceFileBinary(key: string, signal?: AbortSignal): Promise<ArrayBuffer> {
   const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace`
-  const response = await fetch(serveUrl, { signal })
+  const response = await fetch(serveUrl, { signal, cache: 'no-store' })
   if (!response.ok) throw new Error('Failed to fetch file content')
   return response.arrayBuffer()
 }
