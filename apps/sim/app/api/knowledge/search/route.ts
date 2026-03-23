@@ -244,10 +244,19 @@ export async function POST(request: NextRequest) {
       const hasQuery = validatedData.query && validatedData.query.trim().length > 0
       const hasFilters = structuredFilters && structuredFilters.length > 0
 
-      // Generate OpenAI search embedding
+      // Generate OpenAI search embedding using the KB's configured model
       let openaiQueryVector: string | null = null
+      let openaiEmbeddingModel = 'text-embedding-3-small'
       if (hasQuery && openaiKbIds.length > 0) {
-        const emb = await generateSearchEmbedding(validatedData.query!, undefined, workspaceId)
+        const firstOpenaiConfig = kbConfigMap.get(openaiKbIds[0])
+        if (firstOpenaiConfig) {
+          openaiEmbeddingModel = firstOpenaiConfig.embeddingModel
+        }
+        const emb = await generateSearchEmbedding(
+          validatedData.query!,
+          openaiEmbeddingModel,
+          workspaceId
+        )
         openaiQueryVector = JSON.stringify(emb)
       }
 
@@ -349,7 +358,8 @@ export async function POST(request: NextRequest) {
       // embedding spaces are not directly comparable — normalize each provider's
       // scores to 0-1 range before merging.
       const normalizeScores = (items: SearchResult[]): SearchResult[] => {
-        if (items.length <= 1) return items
+        if (items.length === 0) return items
+        if (items.length === 1) return [{ ...items[0], distance: 0 }]
         const min = Math.min(...items.map((r) => r.distance))
         const max = Math.max(...items.map((r) => r.distance))
         const range = max - min || 1
@@ -378,7 +388,7 @@ export async function POST(request: NextRequest) {
       if (hasQuery && openaiKbIds.length > 0) {
         try {
           tokenCount = estimateTokenCount(validatedData.query!, 'openai')
-          cost = calculateCost('text-embedding-3-small', tokenCount.count, 0, false)
+          cost = calculateCost(openaiEmbeddingModel, tokenCount.count, 0, false)
         } catch (error) {
           logger.warn(`[${requestId}] Failed to calculate cost for search query`, {
             error: error instanceof Error ? error.message : 'Unknown error',
@@ -473,7 +483,7 @@ export async function POST(request: NextRequest) {
                     completion: 0,
                     total: tokenCount.count,
                   },
-                  model: 'text-embedding-3-small',
+                  model: openaiEmbeddingModel,
                   pricing: cost.pricing,
                 },
               }
