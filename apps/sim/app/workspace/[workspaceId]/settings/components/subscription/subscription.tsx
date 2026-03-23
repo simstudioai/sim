@@ -953,9 +953,7 @@ export function Subscription() {
                   onClick={() => {
                     const portalWindow = window.open('', '_blank')
                     const context =
-                      subscription.isTeam || subscription.isEnterprise
-                        ? 'organization'
-                        : 'user'
+                      subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
                     openBillingPortal.mutate(
                       {
                         context,
