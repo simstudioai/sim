@@ -1393,7 +1393,7 @@ export const Sidebar = memo(function Sidebar() {
                   <SidebarNavItem
                     key={`${item.id}-${isCollapsed}`}
                     item={item}
-                    active={item.id === 'settings' && isOnSettingsPage}
+                    active={false}
                     showCollapsedContent={showCollapsedContent}
                     onContextMenu={item.href ? handleNavItemContextMenu : undefined}
                   />
