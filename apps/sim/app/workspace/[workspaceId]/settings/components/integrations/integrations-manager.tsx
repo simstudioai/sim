@@ -999,6 +999,8 @@ export function IntegrationsManager() {
                           selectedValue={memberUserId}
                           onChange={setMemberUserId}
                           placeholder='Add member...'
+                          searchable
+                          searchPlaceholder='Search members...'
                           size='sm'
                         />
                         <Combobox
