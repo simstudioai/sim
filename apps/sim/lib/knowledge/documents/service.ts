@@ -575,7 +575,7 @@ export async function processDocumentAsync(
           chunkHash: crypto.createHash('sha256').update(chunk.text).digest('hex'),
           content: chunk.text,
           contentLength: chunk.text.length,
-          tokenCount: Math.ceil(chunk.text.length / 4),
+          tokenCount: Math.ceil(chunk.text.length / (embeddingProvider === 'ollama' ? 3 : 4)),
           embedding: embeddings[chunkIndex] || null,
           embeddingModel: embeddingModelName,
           startOffset: chunk.metadata.startIndex,
@@ -601,6 +601,7 @@ export async function processDocumentAsync(
           boolean1: documentTags.boolean1,
           boolean2: documentTags.boolean2,
           boolean3: documentTags.boolean3,
+          enabled: true,
           createdAt: now,
           updatedAt: now,
         }))
