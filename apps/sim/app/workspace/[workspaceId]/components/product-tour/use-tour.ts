@@ -145,9 +145,9 @@ export function useTour({
   /** Auto-start on first visit */
   useEffect(() => {
     if (disabled || hasAutoStarted.current) return
-    hasAutoStarted.current = true
 
     const timer = setTimeout(() => {
+      hasAutoStarted.current = true
       if (!isTourCompleted(storageKey)) {
         setStepIndex(0)
         setIsEntrance(true)

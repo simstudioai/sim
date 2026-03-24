@@ -610,7 +610,8 @@ const PopoverContent = React.forwardRef<
           showArrow ? 'overflow-visible' : 'overflow-auto',
           STYLES.colorScheme[colorScheme].content,
           STYLES.content,
-          hasUserWidthConstraint && '[&_.flex-1]:truncate [&_[data-popover-section]]:truncate',
+          hasUserWidthConstraint &&
+            '[&_.flex-1:not([data-popover-scroll])]:truncate [&_[data-popover-section]]:truncate',
           border && 'border border-[var(--border-1)]',
           className
         )}
@@ -628,7 +629,13 @@ const PopoverContent = React.forwardRef<
           ...style,
         }}
       >
-        {showArrow ? <div className='flex-1 overflow-auto'>{children}</div> : children}
+        {showArrow ? (
+          <div data-popover-scroll className='min-h-0 flex-1 overflow-auto'>
+            {children}
+          </div>
+        ) : (
+          children
+        )}
         {showArrow && (
           <PopoverPrimitive.Arrow width={14} height={7} asChild>
             <svg
