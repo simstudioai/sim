@@ -36,11 +36,11 @@ function handleRootPathRedirects(
   }
 
   // For root path, redirect authenticated users to workspace
-  // Unless they have a 'from' query parameter (e.g., ?from=nav, ?from=settings)
+  // Unless they have a 'home' query parameter (e.g., ?home)
   // This allows intentional navigation to the homepage from anywhere in the app
   if (hasActiveSession) {
-    const from = url.searchParams.get('from')
-    if (!from) {
+    const isBrowsingHome = url.searchParams.has('home')
+    if (!isBrowsingHome) {
       return NextResponse.redirect(new URL('/workspace', request.url))
     }
   }
