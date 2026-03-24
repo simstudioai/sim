@@ -599,10 +599,17 @@ export async function executeToolAndReport(
     toolCall.endTime = Date.now()
 
     if (result.success) {
+      const raw = result.output
+      const preview =
+        typeof raw === 'string'
+          ? raw.slice(0, 200)
+          : raw && typeof raw === 'object'
+            ? JSON.stringify(raw).slice(0, 200)
+            : undefined
       logger.info('Tool execution succeeded', {
         toolCallId: toolCall.id,
         toolName: toolCall.name,
-        output: result.output,
+        outputPreview: preview,
       })
     } else {
       logger.warn('Tool execution failed', {
