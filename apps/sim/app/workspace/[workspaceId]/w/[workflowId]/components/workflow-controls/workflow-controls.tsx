@@ -4,6 +4,7 @@ import { memo, useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Scan } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Button,
   ChevronDown,
@@ -36,7 +37,9 @@ const logger = createLogger('WorkflowControls')
 export const WorkflowControls = memo(function WorkflowControls() {
   const reactFlowInstance = useReactFlow()
   const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
-  const { mode, setMode } = useCanvasModeStore()
+  const { mode, setMode } = useCanvasModeStore(
+    useShallow((s) => ({ mode: s.mode, setMode: s.setMode }))
+  )
   const { undo, redo } = useCollaborativeWorkflow()
   const showWorkflowControls = useShowActionBar()
   const updateSetting = useUpdateGeneralSetting()

@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo } from 'react'
 import clsx from 'clsx'
+import { useShallow } from 'zustand/react/shallow'
 import { EmptyAreaContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/empty-area-context-menu'
 import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/folder-item/folder-item'
 import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/workflow-item'
@@ -78,7 +79,14 @@ export const WorkflowList = memo(function WorkflowList({
 }: WorkflowListProps) {
   const { isLoading: foldersLoading } = useFolders(workspaceId)
   const folders = useFolderStore((state) => state.folders)
-  const { getFolderTree, expandedFolders, getFolderPath, setExpanded } = useFolderStore()
+  const { getFolderTree, expandedFolders, getFolderPath, setExpanded } = useFolderStore(
+    useShallow((s) => ({
+      getFolderTree: s.getFolderTree,
+      expandedFolders: s.expandedFolders,
+      getFolderPath: s.getFolderPath,
+      setExpanded: s.setExpanded,
+    }))
+  )
 
   const {
     isOpen: isEmptyAreaMenuOpen,

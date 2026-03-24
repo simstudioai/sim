@@ -36,7 +36,7 @@ function WorkflowsListInner({
   searchQuery: string
   segmentDurationMs: number
 }) {
-  const { workflows } = useWorkflowRegistry()
+  const workflows = useWorkflowRegistry((s) => s.workflows)
 
   return (
     <div className='flex h-full flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)] dark:bg-[var(--surface-1)]'>

@@ -3,6 +3,7 @@
 import { memo, useCallback, useMemo, useState } from 'react'
 import { ArrowUp, Bell, Library, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Button,
   Combobox,
@@ -195,7 +196,25 @@ export const LogsToolbar = memo(function LogsToolbar({
     setDateRange,
     clearDateRange,
     resetFilters,
-  } = useFilterStore()
+  } = useFilterStore(
+    useShallow((s) => ({
+      level: s.level,
+      setLevel: s.setLevel,
+      workflowIds: s.workflowIds,
+      setWorkflowIds: s.setWorkflowIds,
+      folderIds: s.folderIds,
+      setFolderIds: s.setFolderIds,
+      triggers: s.triggers,
+      setTriggers: s.setTriggers,
+      timeRange: s.timeRange,
+      setTimeRange: s.setTimeRange,
+      startDate: s.startDate,
+      endDate: s.endDate,
+      setDateRange: s.setDateRange,
+      clearDateRange: s.clearDateRange,
+      resetFilters: s.resetFilters,
+    }))
+  )
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [previousTimeRange, setPreviousTimeRange] = useState(timeRange)

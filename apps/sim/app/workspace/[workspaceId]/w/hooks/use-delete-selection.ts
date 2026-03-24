@@ -46,7 +46,8 @@ export function useDeleteSelection({
   onSuccess,
 }: UseDeleteSelectionProps) {
   const router = useRouter()
-  const { workflows, removeWorkflow } = useWorkflowRegistry()
+  const workflows = useWorkflowRegistry((s) => s.workflows)
+  const removeWorkflow = useWorkflowRegistry((s) => s.removeWorkflow)
   const deleteFolderMutation = useDeleteFolderMutation()
   const [isDeleting, setIsDeleting] = useState(false)
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useToolbarStore } from '@/stores/panel'
 
 /**
@@ -76,7 +77,12 @@ export function useToolbarResize({
   triggersContentRef,
   triggersHeaderRef,
 }: UseToolbarResizeProps) {
-  const { toolbarTriggersHeight, setToolbarTriggersHeight } = useToolbarStore()
+  const { toolbarTriggersHeight, setToolbarTriggersHeight } = useToolbarStore(
+    useShallow((s) => ({
+      toolbarTriggersHeight: s.toolbarTriggersHeight,
+      setToolbarTriggersHeight: s.setToolbarTriggersHeight,
+    }))
+  )
 
   const [isResizing, setIsResizing] = useState(false)
   const startYRef = useRef<number>(0)

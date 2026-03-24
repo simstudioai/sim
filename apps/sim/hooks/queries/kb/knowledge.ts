@@ -731,7 +731,7 @@ export function useCreateKnowledgeBase(workspaceId?: string) {
     mutationFn: createKnowledgeBase,
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.all,
+        queryKey: knowledgeKeys.lists(),
       })
     },
   })
@@ -779,10 +779,10 @@ export function useUpdateKnowledgeBase(workspaceId?: string) {
     },
     onSuccess: (_, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        queryKey: knowledgeKeys.lists(),
       })
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.all,
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
     },
   })
@@ -815,9 +815,12 @@ export function useDeleteKnowledgeBase(workspaceId?: string) {
 
   return useMutation({
     mutationFn: deleteKnowledgeBase,
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.all,
+        queryKey: knowledgeKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.detail(variables.knowledgeBaseId),
       })
     },
   })

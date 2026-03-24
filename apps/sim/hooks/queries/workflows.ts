@@ -60,6 +60,7 @@ export function useWorkflowState(workflowId: string | undefined) {
     queryFn: ({ signal }) => fetchWorkflowState(workflowId!, signal),
     enabled: Boolean(workflowId),
     staleTime: 30 * 1000, // 30 seconds
+    placeholderData: keepPreviousData,
   })
 }
 
