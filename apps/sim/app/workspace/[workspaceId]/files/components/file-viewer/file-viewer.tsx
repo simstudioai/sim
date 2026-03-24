@@ -546,50 +546,80 @@ function PptxPreview({
   const [rendering, setRendering] = useState(false)
   const [renderError, setRenderError] = useState<string | null>(null)
 
+  // Streaming preview: only re-triggers when the streaming source code or
+  // workspace changes. Isolated from fileData/dataUpdatedAt so that file-list
+  // refreshes don't abort the in-flight compilation request.
   useEffect(() => {
+    if (streamingContent === undefined) return
+
     let cancelled = false
     const controller = new AbortController()
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
-    async function render() {
+    const debounceTimer = setTimeout(async () => {
       if (cancelled) return
       try {
         setRendering(true)
         setRenderError(null)
 
-        if (streamingContent !== undefined) {
-          const response = await fetch(`/api/workspaces/${workspaceId}/pptx/preview`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: streamingContent }),
-            signal: controller.signal,
-          })
-          if (!response.ok) {
-            const err = await response.json().catch(() => ({ error: 'Preview failed' }))
-            throw new Error(err.error || 'Preview failed')
-          }
-          if (cancelled) return
-          const arrayBuffer = await response.arrayBuffer()
-          if (cancelled) return
-          const data = new Uint8Array(arrayBuffer)
-          const images: string[] = []
-          await renderPptxSlides(
-            data,
-            (src) => {
-              images.push(src)
-              if (!cancelled) setSlides([...images])
-            },
-            () => cancelled
-          )
-          return
+        const response = await fetch(`/api/workspaces/${workspaceId}/pptx/preview`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: streamingContent }),
+          signal: controller.signal,
+        })
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ error: 'Preview failed' }))
+          throw new Error(err.error || 'Preview failed')
         }
+        if (cancelled) return
+        const arrayBuffer = await response.arrayBuffer()
+        if (cancelled) return
+        const data = new Uint8Array(arrayBuffer)
+        const images: string[] = []
+        await renderPptxSlides(
+          data,
+          (src) => {
+            images.push(src)
+            if (!cancelled) setSlides([...images])
+          },
+          () => cancelled
+        )
+      } catch (err) {
+        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
+          const msg = err instanceof Error ? err.message : 'Failed to render presentation'
+          logger.error('PPTX render failed', { error: msg })
+          setRenderError(msg)
+        }
+      } finally {
+        if (!cancelled) setRendering(false)
+      }
+    }, 500)
 
+    return () => {
+      cancelled = true
+      clearTimeout(debounceTimer)
+      controller.abort()
+    }
+  }, [streamingContent, workspaceId])
+
+  // Non-streaming render: uses the fetched binary directly on the client.
+  // Skipped while streaming is active so it doesn't interfere.
+  useEffect(() => {
+    if (streamingContent !== undefined) return
+
+    let cancelled = false
+
+    async function render() {
+      if (cancelled) return
+      try {
         if (cached) {
           setSlides(cached)
           return
         }
 
         if (!fileData) return
+        setRendering(true)
+        setRenderError(null)
         setSlides([])
         const data = new Uint8Array(fileData)
         const images: string[] = []
@@ -605,7 +635,7 @@ function PptxPreview({
           pptxCacheSet(cacheKey, images)
         }
       } catch (err) {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
+        if (!cancelled) {
           const msg = err instanceof Error ? err.message : 'Failed to render presentation'
           logger.error('PPTX render failed', { error: msg })
           setRenderError(msg)
@@ -615,18 +645,10 @@ function PptxPreview({
       }
     }
 
-    // Debounce streaming renders so rapid SSE updates don't spawn a subprocess
-    // per event. Non-streaming renders (file load / cache) run immediately.
-    if (streamingContent !== undefined) {
-      debounceTimer = setTimeout(render, 500)
-    } else {
-      render()
-    }
+    render()
 
     return () => {
       cancelled = true
-      if (debounceTimer) clearTimeout(debounceTimer)
-      controller.abort()
     }
   }, [fileData, dataUpdatedAt, streamingContent, cacheKey, workspaceId])
 
