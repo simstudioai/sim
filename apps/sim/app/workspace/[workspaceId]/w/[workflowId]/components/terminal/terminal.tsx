@@ -54,8 +54,7 @@ import {
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useShowTrainingControls } from '@/hooks/queries/general-settings'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
-import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
-import { openCopilotWithMessage } from '@/stores/notifications/utils'
+import { sendMothershipMessage } from '@/stores/notifications/utils'
 import type { ConsoleEntry } from '@/stores/terminal'
 import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -604,11 +603,15 @@ export const Terminal = memo(function Terminal() {
   const [autoSelectEnabled, setAutoSelectEnabled] = useState(true)
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
 
-  const [isTrainingEnvEnabled, setIsTrainingEnvEnabled] = useState(false)
+  const [isTrainingEnvEnabled] = useState(() =>
+    isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
+  )
   const showTrainingControls = useShowTrainingControls()
-  const { isTraining, toggleModal: toggleTrainingModal, stopTraining } = useCopilotTrainingStore()
+  const isTraining = false
+  const toggleTrainingModal = useCallback(() => {}, [])
+  const stopTraining = useCallback(() => {}, [])
 
-  const [isPlaygroundEnabled, setIsPlaygroundEnabled] = useState(false)
+  const [isPlaygroundEnabled] = useState(() => isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
 
   const { handleMouseDown } = useTerminalResize()
   const { handleMouseDown: handleOutputPanelResizeMouseDown } = useOutputPanelResize()
@@ -709,21 +712,21 @@ export const Terminal = memo(function Terminal() {
   }, [outputData])
 
   // Keep refs in sync for keyboard handler
-  useEffect(() => {
-    selectedEntryRef.current = selectedEntry
-    navigableEntriesRef.current = navigableEntries
-    showInputRef.current = showInput
-    hasInputDataRef.current = hasInputData
-    isExpandedRef.current = isExpanded
-  }, [selectedEntry, navigableEntries, showInput, hasInputData, isExpanded])
+  selectedEntryRef.current = selectedEntry
+  navigableEntriesRef.current = navigableEntries
+  showInputRef.current = showInput
+  hasInputDataRef.current = hasInputData
+  isExpandedRef.current = isExpanded
 
   /**
    * Reset entry tracking when switching workflows to ensure auto-open
    * works correctly for each workflow independently.
    */
-  useEffect(() => {
+  const prevActiveWorkflowIdRef = useRef(activeWorkflowId)
+  if (prevActiveWorkflowIdRef.current !== activeWorkflowId) {
+    prevActiveWorkflowIdRef.current = activeWorkflowId
     hasInitializedEntriesRef.current = false
-  }, [activeWorkflowId])
+  }
 
   /**
    * Auto-open the terminal on new entries when "Open on run" is enabled.
@@ -915,7 +918,7 @@ export const Terminal = memo(function Terminal() {
       const errorMessage = entry.error ? String(entry.error) : 'Unknown error'
       const blockName = entry.blockName || 'Unknown Block'
       const message = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
-      openCopilotWithMessage(message)
+      sendMothershipMessage(message)
       closeLogRowMenu()
     },
     [closeLogRowMenu]
@@ -959,11 +962,6 @@ export const Terminal = memo(function Terminal() {
       lastExpandedHeightRef.current = state.lastExpandedHeight
     })
     return unsub
-  }, [])
-
-  useEffect(() => {
-    setIsTrainingEnvEnabled(isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED')))
-    setIsPlaygroundEnabled(isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
   }, [])
 
   useEffect(() => {

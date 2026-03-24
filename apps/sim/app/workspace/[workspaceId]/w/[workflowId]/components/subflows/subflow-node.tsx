@@ -168,7 +168,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
           <ActionBar blockId={id} blockType={data.kind} disabled={!userPermissions.canEdit} />
         )}
 
-        {/* Header Section — only interactive area for dragging */}
+        {/* Header Section */}
         <div
           onClick={() => setCurrentBlockId(id)}
           className='workflow-drag-handle flex cursor-grab items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px] [&:active]:cursor-grabbing'
@@ -198,14 +198,15 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
         </div>
 
         {/*
-         * Subflow body background. Uses pointer-events: none so that edges rendered
-         * inside the subflow remain clickable. The subflow node wrapper also has
-         * pointer-events: none (set in workflow.tsx), so body-area clicks pass
-         * through to the pane. Subflow selection is done via the header above.
+         * Subflow body background. Captures clicks to select the subflow in the
+         * panel editor, matching the header click behavior. Child nodes and edges
+         * are rendered as sibling divs at the viewport level by ReactFlow (not as
+         * DOM children), so enabling pointer events here doesn't block them.
          */}
         <div
-          className='absolute inset-0 top-[44px] rounded-b-[8px]'
-          style={{ pointerEvents: 'none' }}
+          className='workflow-drag-handle absolute inset-0 top-[44px] cursor-grab rounded-b-[8px] [&:active]:cursor-grabbing'
+          style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
+          onClick={() => setCurrentBlockId(id)}
         />
 
         {!isPreview && (

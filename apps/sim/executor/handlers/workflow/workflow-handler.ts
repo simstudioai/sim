@@ -363,6 +363,10 @@ export class WorkflowBlockHandler implements BlockHandler {
     const workflowStateWithVariables = {
       ...workflowState,
       variables: workflowVariables,
+      metadata: {
+        ...(workflowState.metadata || {}),
+        name: workflowData.name || DEFAULTS.WORKFLOW_NAME,
+      },
     }
 
     if (Object.keys(workflowVariables).length > 0) {
@@ -444,13 +448,18 @@ export class WorkflowBlockHandler implements BlockHandler {
     )
 
     const workflowVariables = (wfData?.variables as Record<string, any>) || {}
+    const childName = wfData?.name || DEFAULTS.WORKFLOW_NAME
     const workflowStateWithVariables = {
       ...deployedState,
       variables: workflowVariables,
+      metadata: {
+        ...(deployedState.metadata || {}),
+        name: childName,
+      },
     }
 
     return {
-      name: wfData?.name || DEFAULTS.WORKFLOW_NAME,
+      name: childName,
       serializedState: serializedWorkflow,
       variables: workflowVariables,
       workflowState: workflowStateWithVariables,

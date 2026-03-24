@@ -15,6 +15,8 @@ export function generateThemeCSS(): string {
 
   if (process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR) {
     cssVars.push(`--brand-primary-hex: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR};`)
+    // Override tertiary-2 so Run/Deploy buttons and other tertiary-styled elements use the brand color
+    cssVars.push(`--brand-tertiary-2: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR};`)
   }
 
   if (process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR) {

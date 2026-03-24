@@ -91,6 +91,10 @@ export function applyAutoLayout(
   }
 }
 
+export {
+  getTargetedLayoutChangeSet,
+  getTargetedLayoutImpact,
+} from '@/lib/workflows/autolayout/change-set'
 export type { TargetedLayoutOptions } from '@/lib/workflows/autolayout/targeted'
 export { applyTargetedLayout } from '@/lib/workflows/autolayout/targeted'
 export type { Edge, LayoutOptions, LayoutResult } from '@/lib/workflows/autolayout/types'

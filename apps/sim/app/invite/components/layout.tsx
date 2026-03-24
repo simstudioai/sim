@@ -1,7 +1,5 @@
-'use client'
-
-import AuthBackground from '@/app/(auth)/components/auth-background'
-import Nav from '@/app/(landing)/components/nav/nav'
+import { SupportFooter } from '@/app/(auth)/components/support-footer'
+import Navbar from '@/app/(home)/components/navbar/navbar'
 
 interface InviteLayoutProps {
   children: React.ReactNode
@@ -9,15 +7,16 @@ interface InviteLayoutProps {
 
 export default function InviteLayout({ children }: InviteLayoutProps) {
   return (
-    <AuthBackground>
-      <main className='relative flex min-h-screen flex-col text-foreground'>
-        <Nav hideAuthButtons={true} variant='auth' />
-        <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
-          <div className='w-full max-w-lg px-4'>
-            <div className='flex flex-col items-center justify-center'>{children}</div>
-          </div>
+    <div className='relative flex min-h-screen flex-col bg-[#1C1C1C] font-[430] font-season text-[#ECECEC]'>
+      <header className='shrink-0'>
+        <Navbar logoOnly />
+      </header>
+      <main className='flex flex-1 flex-col items-center justify-center px-4'>
+        <div className='w-full max-w-lg px-4'>
+          <div className='flex flex-col items-center justify-center'>{children}</div>
         </div>
       </main>
-    </AuthBackground>
+      <SupportFooter position='absolute' />
+    </div>
   )
 }

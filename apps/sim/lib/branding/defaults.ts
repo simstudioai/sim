@@ -19,4 +19,5 @@ export const defaultBrandConfig: BrandConfig = {
     accentHoverColor: '#a66fff',
     backgroundColor: '#0c0c0c',
   },
+  isWhitelabeled: false,
 }

@@ -1,7 +1,19 @@
 import type { ReactNode } from 'react'
+import type { Viewport } from 'next'
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return children
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0c0c0c' },
+  ],
 }
 
 export const metadata = {
@@ -12,6 +24,9 @@ export const metadata = {
   },
   description:
     'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.',
+  applicationName: 'Sim Docs',
+  generator: 'Next.js',
+  referrer: 'origin-when-cross-origin' as const,
   keywords: [
     'AI agents',
     'agentic workforce',
@@ -37,16 +52,27 @@ export const metadata = {
   manifest: '/favicon/site.webmanifest',
   icons: {
     icon: [
+      { url: '/icon.svg', type: 'image/svg+xml', sizes: 'any' },
       { url: '/favicon/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
       { url: '/favicon/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/favicon/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
     ],
     apple: '/favicon/apple-touch-icon.png',
-    shortcut: '/favicon/favicon.ico',
+    shortcut: '/icon.svg',
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
     title: 'Sim Docs',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  other: {
+    'apple-mobile-web-app-capable': 'yes',
+    'mobile-web-app-capable': 'yes',
+    'msapplication-TileColor': '#33C482',
   },
   openGraph: {
     type: 'website',

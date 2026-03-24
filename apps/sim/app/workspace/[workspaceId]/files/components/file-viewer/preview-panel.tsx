@@ -4,7 +4,10 @@ import { memo, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
+import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { useAutoScroll } from '@/app/workspace/[workspaceId]/home/hooks/use-auto-scroll'
+import { useStreamingReveal } from '@/app/workspace/[workspaceId]/home/hooks/use-streaming-reveal'
 
 type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | null
 
@@ -36,12 +39,14 @@ interface PreviewPanelProps {
   content: string
   mimeType: string | null
   filename: string
+  isStreaming?: boolean
 }
 
-export function PreviewPanel({ content, mimeType, filename }: PreviewPanelProps) {
+export function PreviewPanel({ content, mimeType, filename, isStreaming }: PreviewPanelProps) {
   const previewType = resolvePreviewType(mimeType, filename)
 
-  if (previewType === 'markdown') return <MarkdownPreview content={content} />
+  if (previewType === 'markdown')
+    return <MarkdownPreview content={content} isStreaming={isStreaming} />
   if (previewType === 'html') return <HtmlPreview content={content} />
   if (previewType === 'csv') return <CsvPreview content={content} />
   if (previewType === 'svg') return <SvgPreview content={content} />
@@ -49,121 +54,145 @@ export function PreviewPanel({ content, mimeType, filename }: PreviewPanelProps)
   return null
 }
 
-const MarkdownPreview = memo(function MarkdownPreview({ content }: { content: string }) {
-  return (
-    <div className='h-full overflow-auto p-[24px]'>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks]}
-        components={{
-          p: ({ children }: any) => (
-            <p className='mb-3 break-words text-[14px] text-[var(--text-primary)] leading-[1.6] last:mb-0'>
-              {children}
-            </p>
-          ),
-          h1: ({ children }: any) => (
-            <h1 className='mt-6 mb-4 break-words border-[var(--border)] border-b pb-2 font-semibold text-[24px] text-[var(--text-primary)] first:mt-0'>
-              {children}
-            </h1>
-          ),
-          h2: ({ children }: any) => (
-            <h2 className='mt-5 mb-3 break-words border-[var(--border)] border-b pb-1.5 font-semibold text-[20px] text-[var(--text-primary)] first:mt-0'>
-              {children}
-            </h2>
-          ),
-          h3: ({ children }: any) => (
-            <h3 className='mt-4 mb-2 break-words font-semibold text-[16px] text-[var(--text-primary)] first:mt-0'>
-              {children}
-            </h3>
-          ),
-          h4: ({ children }: any) => (
-            <h4 className='mt-3 mb-2 break-words font-semibold text-[14px] text-[var(--text-primary)] first:mt-0'>
-              {children}
-            </h4>
-          ),
-          ul: ({ children }: any) => (
-            <ul className='mt-1 mb-3 list-disc space-y-1 break-words pl-6 text-[14px] text-[var(--text-primary)]'>
-              {children}
-            </ul>
-          ),
-          ol: ({ children }: any) => (
-            <ol className='mt-1 mb-3 list-decimal space-y-1 break-words pl-6 text-[14px] text-[var(--text-primary)]'>
-              {children}
-            </ol>
-          ),
-          li: ({ children }: any) => <li className='break-words leading-[1.6]'>{children}</li>,
-          code: ({ inline, className, children, ...props }: any) => {
-            const isInline = inline || !className?.includes('language-')
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks]
 
-            if (isInline) {
-              return (
-                <code
-                  {...props}
-                  className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[#F59E0B] text-[13px]'
-                >
-                  {children}
-                </code>
-              )
-            }
+const PREVIEW_MARKDOWN_COMPONENTS = {
+  p: ({ children }: any) => (
+    <p className='mb-3 break-words text-[14px] text-[var(--text-primary)] leading-[1.6] last:mb-0'>
+      {children}
+    </p>
+  ),
+  h1: ({ children }: any) => (
+    <h1 className='mt-6 mb-4 break-words border-[var(--border)] border-b pb-2 font-semibold text-[24px] text-[var(--text-primary)] first:mt-0'>
+      {children}
+    </h1>
+  ),
+  h2: ({ children }: any) => (
+    <h2 className='mt-5 mb-3 break-words border-[var(--border)] border-b pb-1.5 font-semibold text-[20px] text-[var(--text-primary)] first:mt-0'>
+      {children}
+    </h2>
+  ),
+  h3: ({ children }: any) => (
+    <h3 className='mt-4 mb-2 break-words font-semibold text-[16px] text-[var(--text-primary)] first:mt-0'>
+      {children}
+    </h3>
+  ),
+  h4: ({ children }: any) => (
+    <h4 className='mt-3 mb-2 break-words font-semibold text-[14px] text-[var(--text-primary)] first:mt-0'>
+      {children}
+    </h4>
+  ),
+  ul: ({ children }: any) => (
+    <ul className='mt-1 mb-3 list-disc space-y-1 break-words pl-6 text-[14px] text-[var(--text-primary)]'>
+      {children}
+    </ul>
+  ),
+  ol: ({ children }: any) => (
+    <ol className='mt-1 mb-3 list-decimal space-y-1 break-words pl-6 text-[14px] text-[var(--text-primary)]'>
+      {children}
+    </ol>
+  ),
+  li: ({ children }: any) => <li className='break-words leading-[1.6]'>{children}</li>,
+  code: ({ inline, className, children, ...props }: any) => {
+    const isInline = inline || !className?.includes('language-')
 
-            return (
-              <code
-                {...props}
-                className='my-3 block whitespace-pre-wrap break-words rounded-md bg-[var(--surface-5)] p-4 font-mono text-[13px] text-[var(--text-primary)]'
-              >
-                {children}
-              </code>
-            )
-          },
-          pre: ({ children }: any) => <>{children}</>,
-          a: ({ href, children }: any) => (
-            <a
-              href={href}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='break-all text-[var(--brand-secondary)] underline-offset-2 hover:underline'
-            >
-              {children}
-            </a>
-          ),
-          strong: ({ children }: any) => (
-            <strong className='break-words font-semibold text-[var(--text-primary)]'>
-              {children}
-            </strong>
-          ),
-          em: ({ children }: any) => (
-            <em className='break-words text-[var(--text-tertiary)]'>{children}</em>
-          ),
-          blockquote: ({ children }: any) => (
-            <blockquote className='my-4 break-words border-[var(--border-1)] border-l-4 py-1 pl-4 text-[var(--text-tertiary)] italic'>
-              {children}
-            </blockquote>
-          ),
-          hr: () => <hr className='my-6 border-[var(--border)]' />,
-          img: ({ src, alt }: any) => (
-            <img src={src} alt={alt ?? ''} className='my-3 max-w-full rounded-md' loading='lazy' />
-          ),
-          table: ({ children }: any) => (
-            <div className='my-4 max-w-full overflow-x-auto rounded-md border border-[var(--border)]'>
-              <table className='w-full border-collapse text-[13px]'>{children}</table>
-            </div>
-          ),
-          thead: ({ children }: any) => <thead className='bg-[var(--surface-2)]'>{children}</thead>,
-          tbody: ({ children }: any) => <tbody>{children}</tbody>,
-          tr: ({ children }: any) => (
-            <tr className='border-[var(--border)] border-b last:border-b-0'>{children}</tr>
-          ),
-          th: ({ children }: any) => (
-            <th className='px-3 py-2 text-left font-semibold text-[12px] text-[var(--text-primary)]'>
-              {children}
-            </th>
-          ),
-          td: ({ children }: any) => (
-            <td className='px-3 py-2 text-[var(--text-secondary)]'>{children}</td>
-          ),
-        }}
+    if (isInline) {
+      return (
+        <code
+          {...props}
+          className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[#F59E0B] text-[13px]'
+        >
+          {children}
+        </code>
+      )
+    }
+
+    return (
+      <code
+        {...props}
+        className='my-3 block whitespace-pre-wrap break-words rounded-md bg-[var(--surface-5)] p-4 font-mono text-[13px] text-[var(--text-primary)]'
       >
-        {content}
-      </ReactMarkdown>
+        {children}
+      </code>
+    )
+  },
+  pre: ({ children }: any) => <>{children}</>,
+  a: ({ href, children }: any) => (
+    <a
+      href={href}
+      target='_blank'
+      rel='noopener noreferrer'
+      className='break-all text-[var(--brand-secondary)] underline-offset-2 hover:underline'
+    >
+      {children}
+    </a>
+  ),
+  strong: ({ children }: any) => (
+    <strong className='break-words font-semibold text-[var(--text-primary)]'>{children}</strong>
+  ),
+  em: ({ children }: any) => (
+    <em className='break-words text-[var(--text-tertiary)]'>{children}</em>
+  ),
+  blockquote: ({ children }: any) => (
+    <blockquote className='my-4 break-words border-[var(--border-1)] border-l-4 py-1 pl-4 text-[var(--text-tertiary)] italic'>
+      {children}
+    </blockquote>
+  ),
+  hr: () => <hr className='my-6 border-[var(--border)]' />,
+  img: ({ src, alt }: any) => (
+    <img src={src} alt={alt ?? ''} className='my-3 max-w-full rounded-md' loading='lazy' />
+  ),
+  table: ({ children }: any) => (
+    <div className='my-4 max-w-full overflow-x-auto rounded-md border border-[var(--border)]'>
+      <table className='w-full border-collapse text-[13px]'>{children}</table>
+    </div>
+  ),
+  thead: ({ children }: any) => <thead className='bg-[var(--surface-2)]'>{children}</thead>,
+  tbody: ({ children }: any) => <tbody>{children}</tbody>,
+  tr: ({ children }: any) => (
+    <tr className='border-[var(--border)] border-b last:border-b-0'>{children}</tr>
+  ),
+  th: ({ children }: any) => (
+    <th className='px-3 py-2 text-left font-semibold text-[12px] text-[var(--text-primary)]'>
+      {children}
+    </th>
+  ),
+  td: ({ children }: any) => <td className='px-3 py-2 text-[var(--text-secondary)]'>{children}</td>,
+}
+
+const MarkdownPreview = memo(function MarkdownPreview({
+  content,
+  isStreaming = false,
+}: {
+  content: string
+  isStreaming?: boolean
+}) {
+  const { ref: scrollRef } = useAutoScroll(isStreaming)
+  const { committed, incoming, generation } = useStreamingReveal(content, isStreaming)
+
+  const committedMarkdown = useMemo(
+    () =>
+      committed ? (
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={PREVIEW_MARKDOWN_COMPONENTS}>
+          {committed}
+        </ReactMarkdown>
+      ) : null,
+    [committed]
+  )
+
+  return (
+    <div ref={scrollRef} className='h-full overflow-auto p-[24px]'>
+      {committedMarkdown}
+      {incoming && (
+        <div
+          key={generation}
+          className={cn(isStreaming && 'animate-stream-fade-in', '[&>:first-child]:mt-0')}
+        >
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={PREVIEW_MARKDOWN_COMPONENTS}>
+            {incoming}
+          </ReactMarkdown>
+        </div>
+      )}
     </div>
   )
 })

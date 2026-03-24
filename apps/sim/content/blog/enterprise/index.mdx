@@ -8,11 +8,11 @@ authors:
   - vik
 readingTime: 10
 tags: [Enterprise, Security, Self-Hosted, SSO, SAML, Compliance, BYOK, Access Control, Copilot, Whitelabel, API, Import, Export]
-ogImage: /studio/enterprise/cover.png
+ogImage: /blog/enterprise/cover.png
 ogAlt: 'Sim Enterprise features overview'
 about: ['Enterprise Software', 'Security', 'Compliance', 'Self-Hosting']
 timeRequired: PT10M
-canonical: https://sim.ai/studio/enterprise
+canonical: https://sim.ai/blog/enterprise
 featured: true
 draft: false
 ---
@@ -21,13 +21,13 @@ We've been working with security teams at larger organizations to bring Sim into
 
 ## Access Control
 
-![Access Control Settings](/studio/enterprise/access-control.png)
+![Access Control Settings](/blog/enterprise/access-control.png)
 
 Permission groups let administrators control what features and integrations are available to different teams within an organization. This isn't just UI filtering—restrictions are enforced at the execution layer.
 
 ### Model Provider Restrictions
 
-![Model Provider Restrictions](/studio/enterprise/model-providers.png)
+![Model Provider Restrictions](/blog/enterprise/model-providers.png)
 
 Allowlist specific providers while blocking others. Users in a restricted group see only approved providers in the model selector. A workflow that tries to use an unapproved provider won't execute.
 
@@ -35,13 +35,13 @@ This is useful when you've approved certain providers for production use, negoti
 
 ### Integration Controls
 
-![Integration Controls](/studio/enterprise/integration-controls.png)
+![Integration Controls](/blog/enterprise/integration-controls.png)
 
 Restrict which workflow blocks appear in the editor. Disable the HTTP block to prevent arbitrary external API calls. Block access to integrations that haven't completed your security review.
 
 ### Platform Feature Toggles
 
-![Platform Feature Toggles](/studio/enterprise/platform-controls.png)
+![Platform Feature Toggles](/blog/enterprise/platform-controls.png)
 
 Control access to platform capabilities per permission group:
 
@@ -56,7 +56,7 @@ Users not assigned to any permission group have full access, so restrictions are
 
 ## Bring Your Own Keys
 
-![BYOK Configuration](/studio/enterprise/byok.png)
+![BYOK Configuration](/blog/enterprise/byok.png)
 
 When you configure your own API keys for model providers—OpenAI, Anthropic, Google, Azure OpenAI, AWS Bedrock, or any supported provider—your prompts and completions route directly between Sim and that provider. The traffic doesn't pass through our infrastructure.
 
@@ -70,7 +70,7 @@ A healthcare organization can use Azure OpenAI with their BAA-covered subscripti
 
 ## Self-Hosted Deployments
 
-![Self-Hosted Architecture](/studio/enterprise/self-hosted.png)
+![Self-Hosted Architecture](/blog/enterprise/self-hosted.png)
 
 Run Sim entirely on your infrastructure. Deploy with [Docker Compose](https://docs.sim.ai/self-hosting/docker) or [Helm charts](https://docs.sim.ai/self-hosting/kubernetes) for Kubernetes—the application, WebSocket server, and PostgreSQL database all stay within your network.
 
@@ -96,7 +96,7 @@ This is particularly relevant for organizations where the context Copilot needs 
 
 ## SSO & SAML
 
-![SSO Configuration](/studio/enterprise/sso.png)
+![SSO Configuration](/blog/enterprise/sso.png)
 
 Integrate with your existing identity provider through SAML 2.0 or OIDC. We support Okta, Azure AD (Entra ID), Google Workspace, OneLogin, Auth0, JumpCloud, Ping Identity, ADFS, and any compliant identity provider.
 
@@ -126,7 +126,7 @@ This is useful for internal platforms, customer-facing deployments, or any scena
 
 ## Compliance & Data Retention
 
-![Compliance Certifications](/studio/enterprise/compliance.png)
+![Compliance Certifications](/blog/enterprise/compliance.png)
 
 Sim maintains **SOC 2 Type II** certification with annual audits covering security, availability, and confidentiality controls. We share our SOC 2 report directly with prospective customers under NDA.
 

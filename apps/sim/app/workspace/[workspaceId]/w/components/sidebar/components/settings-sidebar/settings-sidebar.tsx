@@ -20,9 +20,10 @@ import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/general-settings'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/subscription'
-import { useSuperUserStatus } from '@/hooks/queries/user-profile'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+
+const SKELETON_SECTIONS = [3, 2, 2] as const
 
 interface SettingsSidebarProps {
   isCollapsed?: boolean
@@ -47,7 +48,6 @@ export function SettingsSidebar({
     staleTime: 5 * 60 * 1000,
   })
   const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
-  const { data: superUserData } = useSuperUserStatus(session?.user?.id)
 
   const activeOrganization = organizationsData?.activeOrganization
   const { config: permissionConfig } = usePermissionConfig()
@@ -63,7 +63,7 @@ export function SettingsSidebar({
   const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
   const hasEnterprisePlan = subscriptionStatus.isEnterprise
 
-  const isSuperUser = superUserData?.isSuperUser ?? false
+  const isSuperUser = session?.user?.role === 'admin'
 
   const isSSOProviderOwner = useMemo(() => {
     if (isHosted) return null
@@ -118,6 +118,10 @@ export function SettingsSidebar({
       const superUserModeEnabled = generalSettings?.superUserModeEnabled ?? false
       const effectiveSuperUser = isSuperUser && superUserModeEnabled
       if (item.requiresSuperUser && !effectiveSuperUser) {
+        return false
+      }
+
+      if (item.requiresAdminRole && !isSuperUser) {
         return false
       }
 
@@ -205,9 +209,22 @@ export function SettingsSidebar({
           !isCollapsed && 'overflow-y-auto overflow-x-hidden'
         )}
       >
-        {sessionLoading || orgsLoading
-          ? Array.from({ length: 3 }, (_, i) => (
-              <div key={i} className='flex flex-shrink-0 flex-col'>
+        {sessionLoading || orgsLoading ? (
+          isCollapsed ? (
+            <>
+              {SKELETON_SECTIONS.map((count, sectionIdx) => (
+                <div key={sectionIdx} className='flex flex-col gap-[2px] px-[8px]'>
+                  {Array.from({ length: count }, (_, i) => (
+                    <div key={i} className='mx-[2px] flex h-[30px] items-center px-[8px]'>
+                      <Skeleton className='h-[16px] w-[16px] rounded-[4px]' />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </>
+          ) : (
+            Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className='sidebar-collapse-hide flex flex-shrink-0 flex-col'>
                 <div className='px-[16px] pb-[6px]'>
                   <Skeleton className='h-[14px] w-[64px] rounded-[4px]' />
                 </div>
@@ -220,73 +237,75 @@ export function SettingsSidebar({
                 </div>
               </div>
             ))
-          : sectionConfig.map(({ key, title }) => {
-              const sectionItems = navigationItems.filter((item) => item.section === key)
-              if (sectionItems.length === 0) return null
+          )
+        ) : (
+          sectionConfig.map(({ key, title }) => {
+            const sectionItems = navigationItems.filter((item) => item.section === key)
+            if (sectionItems.length === 0) return null
 
-              return (
-                <div key={key} className='flex flex-shrink-0 flex-col'>
-                  <div className='px-[16px] pb-[6px]'>
-                    <div className='font-base text-[var(--text-icon)] text-small'>{title}</div>
-                  </div>
-                  <div className='flex flex-col gap-[2px] px-[8px]'>
-                    {sectionItems.map((item) => {
-                      const Icon = item.icon
-                      const active = activeSection === item.id
-                      const itemClassName = cn(
-                        'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
-                        active && 'bg-[var(--surface-active)]'
-                      )
-                      const content = (
-                        <>
-                          <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                          <span className='truncate font-base text-[var(--text-body)]'>
-                            {item.label}
-                          </span>
-                        </>
-                      )
-
-                      const element = item.externalUrl ? (
-                        <a
-                          href={item.externalUrl}
-                          target='_blank'
-                          rel='noopener noreferrer'
-                          className={itemClassName}
-                        >
-                          {content}
-                        </a>
-                      ) : (
-                        <button
-                          type='button'
-                          className={itemClassName}
-                          onMouseEnter={() => handlePrefetch(item.id)}
-                          onFocus={() => handlePrefetch(item.id)}
-                          onClick={() =>
-                            router.replace(
-                              getSettingsHref({ section: item.id as SettingsSection }),
-                              { scroll: false }
-                            )
-                          }
-                        >
-                          {content}
-                        </button>
-                      )
-
-                      return (
-                        <Tooltip.Root key={`${item.id}-${isCollapsed}`}>
-                          <Tooltip.Trigger asChild>{element}</Tooltip.Trigger>
-                          {showCollapsedContent && (
-                            <Tooltip.Content side='right'>
-                              <p>{item.label}</p>
-                            </Tooltip.Content>
-                          )}
-                        </Tooltip.Root>
-                      )
-                    })}
-                  </div>
+            return (
+              <div key={key} className='flex flex-shrink-0 flex-col'>
+                <div className='px-[16px] pb-[6px]'>
+                  <div className='font-base text-[var(--text-icon)] text-small'>{title}</div>
                 </div>
-              )
-            })}
+                <div className='flex flex-col gap-[2px] px-[8px]'>
+                  {sectionItems.map((item) => {
+                    const Icon = item.icon
+                    const active = activeSection === item.id
+                    const itemClassName = cn(
+                      'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
+                      active && 'bg-[var(--surface-active)]'
+                    )
+                    const content = (
+                      <>
+                        <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                        <span className='truncate font-base text-[var(--text-body)]'>
+                          {item.label}
+                        </span>
+                      </>
+                    )
+
+                    const element = item.externalUrl ? (
+                      <a
+                        href={item.externalUrl}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className={itemClassName}
+                      >
+                        {content}
+                      </a>
+                    ) : (
+                      <button
+                        type='button'
+                        className={itemClassName}
+                        onMouseEnter={() => handlePrefetch(item.id)}
+                        onFocus={() => handlePrefetch(item.id)}
+                        onClick={() =>
+                          router.replace(getSettingsHref({ section: item.id as SettingsSection }), {
+                            scroll: false,
+                          })
+                        }
+                      >
+                        {content}
+                      </button>
+                    )
+
+                    return (
+                      <Tooltip.Root key={`${item.id}-${isCollapsed}`}>
+                        <Tooltip.Trigger asChild>{element}</Tooltip.Trigger>
+                        {showCollapsedContent && (
+                          <Tooltip.Content side='right'>
+                            <p>{item.label}</p>
+                          </Tooltip.Content>
+                        )}
+                      </Tooltip.Root>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })
+        )}
       </div>
     </>
   )

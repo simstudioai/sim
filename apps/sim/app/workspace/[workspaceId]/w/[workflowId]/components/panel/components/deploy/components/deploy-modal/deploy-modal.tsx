@@ -25,7 +25,7 @@ import { startsWithUuid } from '@/executor/constants'
 import { useA2AAgentByWorkflow } from '@/hooks/queries/a2a/agents'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import {
-  deploymentKeys,
+  invalidateDeploymentQueries,
   useActivateDeploymentVersion,
   useChatDeploymentInfo,
   useDeploymentInfo,
@@ -33,7 +33,7 @@ import {
   useDeployWorkflow,
   useUndeployWorkflow,
 } from '@/hooks/queries/deployments'
-import { useTemplateByWorkflow } from '@/hooks/queries/templates'
+// import { useTemplateByWorkflow } from '@/hooks/queries/templates'
 import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -59,9 +59,8 @@ interface DeployModalProps {
   workflowId: string | null
   isDeployed: boolean
   needsRedeployment: boolean
-  deployedState: WorkflowState
+  deployedState?: WorkflowState | null
   isLoadingDeployedState: boolean
-  refetchDeployedState: () => Promise<void>
 }
 
 interface WorkflowDeploymentInfoUI {
@@ -74,7 +73,7 @@ interface WorkflowDeploymentInfoUI {
   isPublicApi: boolean
 }
 
-type TabView = 'general' | 'api' | 'chat' | 'template' | 'mcp' | 'form' | 'a2a'
+type TabView = 'general' | 'api' | 'chat' | /* 'template' | */ 'mcp' | 'form' | 'a2a'
 
 export function DeployModal({
   open,
@@ -84,7 +83,6 @@ export function DeployModal({
   needsRedeployment,
   deployedState,
   isLoadingDeployedState,
-  refetchDeployedState,
 }: DeployModalProps) {
   const queryClient = useQueryClient()
   const { navigateToSettings } = useSettingsNavigation()
@@ -104,8 +102,8 @@ export function DeployModal({
   const [selectedStreamingOutputs, setSelectedStreamingOutputs] = useState<string[]>([])
 
   const [showUndeployConfirm, setShowUndeployConfirm] = useState(false)
-  const [templateFormValid, setTemplateFormValid] = useState(false)
-  const [templateSubmitting, setTemplateSubmitting] = useState(false)
+  // const [templateFormValid, setTemplateFormValid] = useState(false)
+  // const [templateSubmitting, setTemplateSubmitting] = useState(false)
   const [mcpToolSubmitting, setMcpToolSubmitting] = useState(false)
   const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
   const [a2aSubmitting, setA2aSubmitting] = useState(false)
@@ -161,17 +159,17 @@ export function DeployModal({
   const hasA2aAgent = !!existingA2aAgent
   const isA2aPublished = existingA2aAgent?.isPublished ?? false
 
-  const { data: existingTemplate } = useTemplateByWorkflow(workflowId || '', {
-    enabled: !!workflowId,
-  })
-  const hasExistingTemplate = !!existingTemplate
-  const templateStatus = existingTemplate
-    ? {
-        status: existingTemplate.status as 'pending' | 'approved' | 'rejected' | null,
-        views: existingTemplate.views,
-        stars: existingTemplate.stars,
-      }
-    : null
+  // const { data: existingTemplate } = useTemplateByWorkflow(workflowId || '', {
+  //   enabled: !!workflowId,
+  // })
+  // const hasExistingTemplate = !!existingTemplate
+  // const templateStatus = existingTemplate
+  //   ? {
+  //       status: existingTemplate.status as 'pending' | 'approved' | 'rejected' | null,
+  //       views: existingTemplate.views,
+  //       stars: existingTemplate.stars,
+  //     }
+  //   : null
 
   const deployMutation = useDeployWorkflow()
   const undeployMutation = useUndeployWorkflow()
@@ -229,12 +227,39 @@ export function DeployModal({
     getApiKeyLabel,
   ])
 
+  const selectedStreamingOutputsRef = useRef(selectedStreamingOutputs)
+  selectedStreamingOutputsRef.current = selectedStreamingOutputs
+
   useEffect(() => {
     if (open && workflowId) {
       setActiveTab('general')
       setDeployError(null)
       setDeployWarnings([])
       setChatSuccess(false)
+
+      const currentOutputs = selectedStreamingOutputsRef.current
+      if (currentOutputs.length > 0) {
+        const blocks = Object.values(useWorkflowStore.getState().blocks)
+        const validOutputs = currentOutputs.filter((outputId) => {
+          if (startsWithUuid(outputId)) {
+            const underscoreIndex = outputId.indexOf('_')
+            if (underscoreIndex === -1) return false
+            const blockId = outputId.substring(0, underscoreIndex)
+            return blocks.some((b) => b.id === blockId)
+          }
+          const parts = outputId.split('.')
+          if (parts.length >= 2) {
+            const blockName = parts[0]
+            return blocks.some(
+              (b) => b.name?.toLowerCase().replace(/\s+/g, '') === blockName.toLowerCase()
+            )
+          }
+          return true
+        })
+        if (validOutputs.length !== currentOutputs.length) {
+          setSelectedStreamingOutputs(validOutputs)
+        }
+      }
     }
     return () => {
       if (chatSuccessTimeoutRef.current) {
@@ -242,38 +267,6 @@ export function DeployModal({
       }
     }
   }, [open, workflowId])
-
-  useEffect(() => {
-    if (!open || selectedStreamingOutputs.length === 0) return
-
-    const blocks = Object.values(useWorkflowStore.getState().blocks)
-
-    const validOutputs = selectedStreamingOutputs.filter((outputId) => {
-      if (startsWithUuid(outputId)) {
-        const underscoreIndex = outputId.indexOf('_')
-        if (underscoreIndex === -1) return false
-
-        const blockId = outputId.substring(0, underscoreIndex)
-        const block = blocks.find((b) => b.id === blockId)
-        return !!block
-      }
-
-      const parts = outputId.split('.')
-      if (parts.length >= 2) {
-        const blockName = parts[0]
-        const block = blocks.find(
-          (b) => b.name?.toLowerCase().replace(/\s+/g, '') === blockName.toLowerCase()
-        )
-        return !!block
-      }
-
-      return true
-    })
-
-    if (validOutputs.length !== selectedStreamingOutputs.length) {
-      setSelectedStreamingOutputs(validOutputs)
-    }
-  }, [open, selectedStreamingOutputs, setSelectedStreamingOutputs])
 
   useEffect(() => {
     const handleOpenDeployModal = (event: Event) => {
@@ -298,17 +291,17 @@ export function DeployModal({
     setDeployWarnings([])
 
     try {
+      // Deploy mutation handles query invalidation in its onSuccess callback
       const result = await deployMutation.mutateAsync({ workflowId, deployChatEnabled: false })
       if (result.warnings && result.warnings.length > 0) {
         setDeployWarnings(result.warnings)
       }
-      await refetchDeployedState()
     } catch (error: unknown) {
       logger.error('Error deploying workflow:', { error })
       const errorMessage = error instanceof Error ? error.message : 'Failed to deploy workflow'
       setDeployError(errorMessage)
     }
-  }, [workflowId, deployMutation, refetchDeployedState])
+  }, [workflowId, deployMutation])
 
   const handlePromoteToLive = useCallback(
     async (version: number) => {
@@ -321,13 +314,12 @@ export function DeployModal({
         if (result.warnings && result.warnings.length > 0) {
           setDeployWarnings(result.warnings)
         }
-        await refetchDeployedState()
       } catch (error) {
         logger.error('Error promoting version:', { error })
         throw error
       }
     },
-    [workflowId, activateVersionMutation, refetchDeployedState]
+    [workflowId, activateVersionMutation]
   )
 
   const handleUndeploy = useCallback(async () => {
@@ -367,13 +359,12 @@ export function DeployModal({
       if (result.warnings && result.warnings.length > 0) {
         setDeployWarnings(result.warnings)
       }
-      await refetchDeployedState()
     } catch (error: unknown) {
       logger.error('Error redeploying workflow:', { error })
       const errorMessage = error instanceof Error ? error.message : 'Failed to redeploy workflow'
       setDeployError(errorMessage)
     }
-  }, [workflowId, deployMutation, refetchDeployedState])
+  }, [workflowId, deployMutation])
 
   const handleCloseModal = useCallback(() => {
     setChatSubmitting(false)
@@ -385,9 +376,8 @@ export function DeployModal({
   const handleChatDeployed = useCallback(async () => {
     if (!workflowId) return
 
-    queryClient.invalidateQueries({ queryKey: deploymentKeys.versions(workflowId) })
+    invalidateDeploymentQueries(queryClient, workflowId)
 
-    await refetchDeployedState()
     useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
 
     if (chatSuccessTimeoutRef.current) {
@@ -395,7 +385,7 @@ export function DeployModal({
     }
     setChatSuccess(true)
     chatSuccessTimeoutRef.current = setTimeout(() => setChatSuccess(false), 2000)
-  }, [workflowId, queryClient, refetchDeployedState])
+  }, [workflowId, queryClient])
 
   const handleRefetchChat = useCallback(async () => {
     await refetchChatInfo()
@@ -416,10 +406,10 @@ export function DeployModal({
     }
   }, [])
 
-  const handleTemplateFormSubmit = useCallback(() => {
-    const form = document.getElementById('template-deploy-form') as HTMLFormElement
-    form?.requestSubmit()
-  }, [])
+  // const handleTemplateFormSubmit = useCallback(() => {
+  //   const form = document.getElementById('template-deploy-form') as HTMLFormElement
+  //   form?.requestSubmit()
+  // }, [])
 
   const handleMcpToolFormSubmit = useCallback(() => {
     const form = document.getElementById('mcp-deploy-form') as HTMLFormElement
@@ -463,11 +453,11 @@ export function DeployModal({
     setShowA2aDeleteConfirm(false)
   }, [])
 
-  const handleTemplateDelete = useCallback(() => {
-    const form = document.getElementById('template-deploy-form')
-    const deleteTrigger = form?.querySelector('[data-template-delete-trigger]') as HTMLButtonElement
-    deleteTrigger?.click()
-  }, [])
+  // const handleTemplateDelete = useCallback(() => {
+  //   const form = document.getElementById('template-deploy-form')
+  //   const deleteTrigger = form?.querySelector('[data-template-delete-trigger]') as HTMLButtonElement
+  //   deleteTrigger?.click()
+  // }, [])
 
   const isSubmitting = deployMutation.isPending
   const isUndeploying = undeployMutation.isPending
@@ -948,28 +938,28 @@ function StatusBadge({ isWarning }: StatusBadgeProps) {
   )
 }
 
-interface TemplateStatusBadgeProps {
-  status: 'pending' | 'approved' | 'rejected' | null
-  views?: number
-  stars?: number
-}
+// interface TemplateStatusBadgeProps {
+//   status: 'pending' | 'approved' | 'rejected' | null
+//   views?: number
+//   stars?: number
+// }
 
-function TemplateStatusBadge({ status, views, stars }: TemplateStatusBadgeProps) {
-  const isPending = status === 'pending'
-  const label = isPending ? 'Under review' : 'Live'
+// function TemplateStatusBadge({ status, views, stars }: TemplateStatusBadgeProps) {
+//   const isPending = status === 'pending'
+//   const label = isPending ? 'Under review' : 'Live'
 
-  const statsText =
-    status === 'approved' && views !== undefined && views > 0
-      ? `${views} views${stars !== undefined && stars > 0 ? ` • ${stars} stars` : ''}`
-      : null
+//   const statsText =
+//     status === 'approved' && views !== undefined && views > 0
+//       ? `${views} views${stars !== undefined && stars > 0 ? ` • ${stars} stars` : ''}`
+//       : null
 
-  return (
-    <Badge variant={isPending ? 'amber' : 'green'} size='lg' dot>
-      {label}
-      {statsText && <span>• {statsText}</span>}
-    </Badge>
-  )
-}
+//   return (
+//     <Badge variant={isPending ? 'amber' : 'green'} size='lg' dot>
+//       {label}
+//       {statsText && <span>• {statsText}</span>}
+//     </Badge>
+//   )
+// }
 
 interface GeneralFooterProps {
   isDeployed?: boolean

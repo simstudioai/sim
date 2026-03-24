@@ -3,8 +3,11 @@ import {
   AirtableIcon,
   AsanaIcon,
   AttioIcon,
+  AzureIcon,
+  BoxCompanyIcon,
   CalComIcon,
   ConfluenceIcon,
+  DocuSignIcon,
   DropboxIcon,
   GmailIcon,
   GoogleAdsIcon,
@@ -241,6 +244,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     name: 'Microsoft',
     icon: MicrosoftIcon,
     services: {
+      'microsoft-ad': {
+        name: 'Azure AD',
+        description: 'Connect to Azure AD (Microsoft Entra ID) and manage users and groups.',
+        providerId: 'microsoft-ad',
+        icon: AzureIcon,
+        baseProviderIcon: MicrosoftIcon,
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'User.Read.All',
+          'User.ReadWrite.All',
+          'Group.ReadWrite.All',
+          'GroupMember.ReadWrite.All',
+          'Directory.Read.All',
+          'offline_access',
+        ],
+      },
       'microsoft-dataverse': {
         name: 'Microsoft Dataverse',
         description: 'Connect to Microsoft Dataverse and manage records.',
@@ -571,6 +592,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'linear',
   },
+  box: {
+    name: 'Box',
+    icon: BoxCompanyIcon,
+    services: {
+      box: {
+        name: 'Box',
+        description: 'Manage files, folders, and e-signatures with Box.',
+        providerId: 'box',
+        icon: BoxCompanyIcon,
+        baseProviderIcon: BoxCompanyIcon,
+        scopes: ['root_readwrite', 'sign_requests.readwrite'],
+      },
+    },
+    defaultService: 'box',
+  },
   dropbox: {
     name: 'Dropbox',
     icon: DropboxIcon,
@@ -779,6 +815,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'calcom',
   },
+  docusign: {
+    name: 'DocuSign',
+    icon: DocuSignIcon,
+    services: {
+      docusign: {
+        name: 'DocuSign',
+        description: 'Send documents for e-signature with DocuSign.',
+        providerId: 'docusign',
+        icon: DocuSignIcon,
+        baseProviderIcon: DocuSignIcon,
+        scopes: ['signature', 'extended'],
+      },
+    },
+    defaultService: 'docusign',
+  },
   pipedrive: {
     name: 'Pipedrive',
     icon: PipedriveIcon,
@@ -836,6 +887,9 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'crm.lists.read',
           'crm.lists.write',
           'crm.objects.tickets.read',
+          'crm.objects.tickets.write',
+          'tickets',
+          'oauth',
         ],
       },
     },
@@ -1104,6 +1158,28 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
+      }
+    }
+    case 'box': {
+      const { clientId, clientSecret } = getCredentials(env.BOX_CLIENT_ID, env.BOX_CLIENT_SECRET)
+      return {
+        tokenEndpoint: 'https://api.box.com/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
+    case 'docusign': {
+      const { clientId, clientSecret } = getCredentials(
+        env.DOCUSIGN_CLIENT_ID,
+        env.DOCUSIGN_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://account-d.docusign.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: false,
       }
     }
     case 'dropbox': {

@@ -113,7 +113,7 @@ export const {service}{Action}Tool: ToolConfig<Params, Response> = {
 ```typescript
 import { {Service}Icon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { getScopesForService } from '@/lib/oauth/utils'
 
 export const {Service}Block: BlockConfig = {
@@ -123,6 +123,8 @@ export const {Service}Block: BlockConfig = {
   longDescription: '...',
   docsLink: 'https://docs.sim.ai/tools/{service}',
   category: 'tools',
+  integrationType: IntegrationType.X,   // Primary category (see IntegrationType enum)
+  tags: ['oauth', 'api'],              // Cross-cutting tags (see IntegrationTag type)
   bgColor: '#HEXCOLOR',
   icon: {Service}Icon,
   authMode: AuthMode.OAuth,  // or AuthMode.ApiKey
@@ -410,6 +412,8 @@ If creating V2 versions (API-aligned outputs):
 
 ### Block
 - [ ] Created `blocks/blocks/{service}.ts`
+- [ ] Set `integrationType` to the correct `IntegrationType` enum value
+- [ ] Set `tags` array with all applicable `IntegrationTag` values
 - [ ] Defined operation dropdown with all operations
 - [ ] Added credential field with `requiredScopes: getScopesForService('{service}')`
 - [ ] Added conditional fields per operation

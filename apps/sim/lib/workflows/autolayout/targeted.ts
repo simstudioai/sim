@@ -2,6 +2,7 @@ import {
   CONTAINER_PADDING,
   DEFAULT_HORIZONTAL_SPACING,
   DEFAULT_VERTICAL_SPACING,
+  MAX_OVERLAP_ITERATIONS,
 } from '@/lib/workflows/autolayout/constants'
 import { assignLayers, layoutBlocksCore } from '@/lib/workflows/autolayout/core'
 import type { Edge, LayoutOptions } from '@/lib/workflows/autolayout/types'
@@ -19,6 +20,7 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export interface TargetedLayoutOptions extends LayoutOptions {
   changedBlockIds: string[]
+  shiftSourceBlockIds?: string[]
   verticalSpacing?: number
   horizontalSpacing?: number
 }
@@ -34,16 +36,18 @@ export function applyTargetedLayout(
 ): Record<string, BlockState> {
   const {
     changedBlockIds,
+    shiftSourceBlockIds = [],
     verticalSpacing = DEFAULT_VERTICAL_SPACING,
     horizontalSpacing = DEFAULT_HORIZONTAL_SPACING,
     gridSize,
   } = options
 
-  if (!changedBlockIds || changedBlockIds.length === 0) {
+  if ((!changedBlockIds || changedBlockIds.length === 0) && shiftSourceBlockIds.length === 0) {
     return blocks
   }
 
   const changedSet = new Set(changedBlockIds)
+  const shiftSourceSet = new Set(shiftSourceBlockIds)
   const blocksCopy: Record<string, BlockState> = JSON.parse(JSON.stringify(blocks))
 
   prepareContainerDimensions(
@@ -65,6 +69,7 @@ export function applyTargetedLayout(
     blocksCopy,
     edges,
     changedSet,
+    shiftSourceSet,
     verticalSpacing,
     horizontalSpacing,
     subflowDepths,
@@ -78,6 +83,7 @@ export function applyTargetedLayout(
       blocksCopy,
       edges,
       changedSet,
+      shiftSourceSet,
       verticalSpacing,
       horizontalSpacing,
       subflowDepths,
@@ -90,9 +96,10 @@ export function applyTargetedLayout(
 
 /**
  * Selects the best anchor block for offset computation.
- * Prefers an unchanged block that is a direct edge-neighbor of a block
- * that needs layout, so the offset aligns new blocks relative to their
- * actual graph neighbors rather than an arbitrary/outlier block.
+ * Prefers an upstream (predecessor) anchor over a downstream one because
+ * upstream blocks keep their layer assignment when new blocks are inserted
+ * after them, giving a stable offset. Downstream blocks shift to later
+ * layers in the ideal layout, producing a large incorrect offset.
  */
 function selectBestAnchor(
   eligibleIds: string[],
@@ -107,11 +114,14 @@ function selectBestAnchor(
   const candidateSet = new Set(candidates)
 
   for (const edge of edges) {
-    if (needsLayoutSet.has(edge.source) && candidateSet.has(edge.target)) {
-      return edge.target
-    }
     if (needsLayoutSet.has(edge.target) && candidateSet.has(edge.source)) {
       return edge.source
+    }
+  }
+
+  for (const edge of edges) {
+    if (needsLayoutSet.has(edge.source) && candidateSet.has(edge.target)) {
+      return edge.target
     }
   }
 
@@ -129,6 +139,7 @@ function layoutGroup(
   blocks: Record<string, BlockState>,
   edges: Edge[],
   changedSet: Set<string>,
+  shiftSourceSet: Set<string>,
   verticalSpacing: number,
   horizontalSpacing: number,
   subflowDepths: Map<string, number>,
@@ -159,62 +170,209 @@ function layoutGroup(
   })
   const needsLayoutSet = new Set([...requestedLayout, ...invalidPositions])
   const needsLayout = Array.from(needsLayoutSet)
+  const groupShiftSourceIds = layoutEligibleChildIds.filter((id) => shiftSourceSet.has(id))
+  const activeShiftSourceSet = new Set([...needsLayoutSet, ...groupShiftSourceIds])
 
-  if (needsLayout.length === 0) {
+  if (needsLayout.length === 0 && activeShiftSourceSet.size === 0) {
     if (parentBlock) {
       updateContainerDimensions(parentBlock, childIds, blocks)
     }
     return
   }
 
-  const oldPositions = new Map<string, { x: number; y: number }>()
-  for (const id of layoutEligibleChildIds) {
-    const block = blocks[id]
-    if (!block) continue
-    oldPositions.set(id, { ...block.position })
+  if (needsLayout.length > 0) {
+    const oldPositions = new Map<string, { x: number; y: number }>()
+    for (const id of layoutEligibleChildIds) {
+      const block = blocks[id]
+      if (!block) continue
+      oldPositions.set(id, { ...block.position })
+    }
+
+    const layoutPositions = computeLayoutPositions(
+      layoutEligibleChildIds,
+      blocks,
+      edges,
+      parentBlock,
+      horizontalSpacing,
+      verticalSpacing,
+      parentId === null ? subflowDepths : undefined,
+      gridSize
+    )
+
+    if (layoutPositions.size === 0) {
+      if (parentBlock) {
+        updateContainerDimensions(parentBlock, childIds, blocks)
+      }
+      return
+    }
+
+    let offsetX = 0
+    let offsetY = 0
+
+    const anchorId = selectBestAnchor(
+      layoutEligibleChildIds,
+      needsLayoutSet,
+      edges,
+      layoutPositions
+    )
+
+    if (anchorId) {
+      const oldPos = oldPositions.get(anchorId)
+      const newPos = layoutPositions.get(anchorId)
+      if (oldPos && newPos) {
+        offsetX = oldPos.x - newPos.x
+        offsetY = oldPos.y - newPos.y
+      }
+    }
+
+    for (const id of needsLayout) {
+      const block = blocks[id]
+      const newPos = layoutPositions.get(id)
+      if (!block || !newPos) continue
+      block.position = snapPositionToGrid(
+        { x: newPos.x + offsetX, y: newPos.y + offsetY },
+        gridSize
+      )
+    }
   }
 
-  const layoutPositions = computeLayoutPositions(
+  shiftDownstreamFrozenBlocks(
+    activeShiftSourceSet,
+    needsLayoutSet,
     layoutEligibleChildIds,
     blocks,
     edges,
-    parentBlock,
     horizontalSpacing,
-    verticalSpacing,
-    parentId === null ? subflowDepths : undefined,
     gridSize
   )
 
-  if (layoutPositions.size === 0) {
-    if (parentBlock) {
-      updateContainerDimensions(parentBlock, childIds, blocks)
-    }
-    return
-  }
-
-  let offsetX = 0
-  let offsetY = 0
-
-  const anchorId = selectBestAnchor(layoutEligibleChildIds, needsLayoutSet, edges, layoutPositions)
-
-  if (anchorId) {
-    const oldPos = oldPositions.get(anchorId)
-    const newPos = layoutPositions.get(anchorId)
-    if (oldPos && newPos) {
-      offsetX = oldPos.x - newPos.x
-      offsetY = oldPos.y - newPos.y
-    }
-  }
-
-  for (const id of needsLayout) {
-    const block = blocks[id]
-    const newPos = layoutPositions.get(id)
-    if (!block || !newPos) continue
-    block.position = snapPositionToGrid({ x: newPos.x + offsetX, y: newPos.y + offsetY }, gridSize)
+  if (needsLayout.length > 0) {
+    resolveVerticalOverlapsWithFrozen(
+      needsLayoutSet,
+      layoutEligibleChildIds,
+      blocks,
+      verticalSpacing,
+      gridSize
+    )
   }
 
   if (parentBlock) {
     updateContainerDimensions(parentBlock, childIds, blocks)
+  }
+}
+
+/**
+ * Shifts frozen (unchanged) blocks rightward when a newly placed block
+ * overlaps with them in the X-axis. Traverses the DAG forward from changed
+ * blocks via BFS, cascading shifts through downstream frozen blocks so that
+ * insertions between existing layers push everything after them to the right.
+ *
+ * Only considers edges within the current layout group (scoped to subflow).
+ */
+function shiftDownstreamFrozenBlocks(
+  shiftSourceSet: Set<string>,
+  needsLayoutSet: Set<string>,
+  eligibleIds: string[],
+  blocks: Record<string, BlockState>,
+  edges: Edge[],
+  horizontalSpacing: number,
+  gridSize?: number
+): void {
+  const eligibleSet = new Set(eligibleIds)
+
+  const downstreamMap = new Map<string, string[]>()
+  for (const edge of edges) {
+    if (!eligibleSet.has(edge.source) || !eligibleSet.has(edge.target)) continue
+    if (!downstreamMap.has(edge.source)) downstreamMap.set(edge.source, [])
+    downstreamMap.get(edge.source)!.push(edge.target)
+  }
+
+  const shifted = new Set<string>()
+  const queue: string[] = Array.from(shiftSourceSet)
+
+  while (queue.length > 0) {
+    const sourceId = queue.shift()!
+    const sourceBlock = blocks[sourceId]
+    if (!sourceBlock) continue
+
+    const sourceMetrics = getBlockMetrics(sourceBlock)
+    const sourceRight = sourceBlock.position.x + sourceMetrics.width
+
+    const successors = downstreamMap.get(sourceId) || []
+    for (const targetId of successors) {
+      if (needsLayoutSet.has(targetId)) continue
+      if (shifted.has(targetId)) continue
+
+      const targetBlock = blocks[targetId]
+      if (!targetBlock) continue
+
+      if (targetBlock.position.x < sourceRight + horizontalSpacing) {
+        const shiftX = sourceRight + horizontalSpacing - targetBlock.position.x
+        targetBlock.position = snapPositionToGrid(
+          { x: targetBlock.position.x + shiftX, y: targetBlock.position.y },
+          gridSize
+        )
+        shifted.add(targetId)
+        queue.push(targetId)
+      }
+    }
+  }
+}
+
+/**
+ * Resolves Y-axis overlaps between changed/shifted blocks and frozen blocks
+ * that share the same column (overlapping X ranges). When a new block is
+ * inserted into the same layer as existing blocks (e.g. adding a parallel
+ * branch), this pushes frozen blocks downward to make room, cascading
+ * through any further blocks below.
+ */
+function resolveVerticalOverlapsWithFrozen(
+  needsLayoutSet: Set<string>,
+  eligibleIds: string[],
+  blocks: Record<string, BlockState>,
+  verticalSpacing: number,
+  gridSize?: number
+): void {
+  const blockInfos = eligibleIds
+    .map((id) => {
+      const block = blocks[id]
+      if (!block) return null
+      return { id, block, metrics: getBlockMetrics(block) }
+    })
+    .filter((info): info is NonNullable<typeof info> => info !== null)
+
+  if (blockInfos.length < 2) return
+
+  const movedSet = new Set(needsLayoutSet)
+  let hasOverlap = true
+  let iteration = 0
+
+  while (hasOverlap && iteration < MAX_OVERLAP_ITERATIONS) {
+    hasOverlap = false
+    iteration++
+
+    blockInfos.sort((a, b) => a.block.position.y - b.block.position.y)
+
+    for (let i = 0; i < blockInfos.length - 1; i++) {
+      const upper = blockInfos[i]
+      const lower = blockInfos[i + 1]
+
+      if (!movedSet.has(upper.id) && !movedSet.has(lower.id)) continue
+
+      const upperRight = upper.block.position.x + upper.metrics.width
+      const lowerRight = lower.block.position.x + lower.metrics.width
+      if (upper.block.position.x >= lowerRight || lower.block.position.x >= upperRight) continue
+
+      const requiredY = upper.block.position.y + upper.metrics.height + verticalSpacing
+      if (lower.block.position.y < requiredY) {
+        lower.block.position = snapPositionToGrid(
+          { x: lower.block.position.x, y: requiredY },
+          gridSize
+        )
+        movedSet.add(lower.id)
+        hasOverlap = true
+      }
+    }
   }
 }
 

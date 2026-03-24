@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
@@ -184,6 +185,19 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
       logger.info(`[${requestId}] Restored ${updated.length} excluded documents`, { connectorId })
 
+      recordAudit({
+        workspaceId: writeCheck.knowledgeBase.workspaceId,
+        actorId: auth.userId,
+        actorName: auth.userName,
+        actorEmail: auth.userEmail,
+        action: AuditAction.CONNECTOR_DOCUMENT_RESTORED,
+        resourceType: AuditResourceType.CONNECTOR,
+        resourceId: connectorId,
+        description: `Restored ${updated.length} excluded document(s) for knowledge base "${writeCheck.knowledgeBase.name}"`,
+        metadata: { knowledgeBaseId, documentCount: updated.length },
+        request,
+      })
+
       return NextResponse.json({
         success: true,
         data: { restoredCount: updated.length, documentIds: updated.map((d) => d.id) },
@@ -205,6 +219,19 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .returning({ id: document.id })
 
     logger.info(`[${requestId}] Excluded ${updated.length} documents`, { connectorId })
+
+    recordAudit({
+      workspaceId: writeCheck.knowledgeBase.workspaceId,
+      actorId: auth.userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.CONNECTOR_DOCUMENT_EXCLUDED,
+      resourceType: AuditResourceType.CONNECTOR,
+      resourceId: connectorId,
+      description: `Excluded ${updated.length} document(s) from knowledge base "${writeCheck.knowledgeBase.name}"`,
+      metadata: { knowledgeBaseId, documentCount: updated.length },
+      request,
+    })
 
     return NextResponse.json({
       success: true,

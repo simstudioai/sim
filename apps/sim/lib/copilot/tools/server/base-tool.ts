@@ -4,6 +4,17 @@ export interface ServerToolContext {
   userId: string
   workspaceId?: string
   userPermission?: string
+  chatId?: string
+  abortSignal?: AbortSignal
+}
+
+export function assertServerToolNotAborted(
+  context?: ServerToolContext,
+  message = 'Request aborted before tool mutation could be applied.'
+): void {
+  if (context?.abortSignal?.aborted) {
+    throw new Error(message)
+  }
 }
 
 /**

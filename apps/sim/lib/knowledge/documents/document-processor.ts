@@ -760,7 +760,7 @@ async function parseDataURI(fileUrl: string, filename: string, mimeType: string)
       : decodeURIComponent(base64Data)
   }
 
-  const extension = resolveParserExtension(filename, mimeType)
+  const extension = resolveParserExtension(filename, mimeType, 'txt')
   const buffer = Buffer.from(base64Data, 'base64')
   const result = await parseBuffer(buffer, extension)
   return result.content
@@ -769,7 +769,7 @@ async function parseDataURI(fileUrl: string, filename: string, mimeType: string)
 async function parseHttpFile(
   fileUrl: string,
   filename: string,
-  mimeType: string
+  mimeType?: string
 ): Promise<{ content: string; metadata?: FileParseMetadata }> {
   const buffer = await downloadFileWithTimeout(fileUrl)
 

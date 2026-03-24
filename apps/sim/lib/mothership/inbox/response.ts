@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { marked } from 'marked'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
+import { replaceUntilStable } from '@/lib/mothership/inbox/format'
 import type { InboxTask } from '@/lib/mothership/inbox/types'
 
 const logger = createLogger('InboxResponse')
@@ -82,7 +83,9 @@ const EMAIL_STYLES = `
 function stripRawHtml(text: string): string {
   return text
     .split(/(```[\s\S]*?```)/g)
-    .map((segment, i) => (i % 2 === 0 ? segment.replace(/<\/?[a-z][^>]*>/gi, '') : segment))
+    .map((segment, i) =>
+      i % 2 === 0 ? replaceUntilStable(segment, /<\/?[a-z][^>]*>/gi, '') : segment
+    )
     .join('')
 }
 

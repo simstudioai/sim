@@ -3,6 +3,7 @@ import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/serv
 import type { WorkspaceFileArgs, WorkspaceFileResult } from '@/lib/copilot/tools/shared/schemas'
 import {
   deleteWorkspaceFile,
+  downloadWorkspaceFile as downloadWsFile,
   getWorkspaceFile,
   renameWorkspaceFile,
   updateWorkspaceFileContent,
@@ -10,6 +11,8 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('WorkspaceFileServerTool')
+
+const PPTX_SOURCE_MIME = 'text/x-pptxgenjs'
 
 const EXT_TO_MIME: Record<string, string> = {
   '.txt': 'text/plain',
@@ -58,8 +61,12 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             return { success: false, message: 'content is required for write operation' }
           }
 
-          const contentType = inferContentType(fileName, explicitType)
+          const contentType = fileName.toLowerCase().endsWith('.pptx')
+            ? PPTX_SOURCE_MIME
+            : inferContentType(fileName, explicitType)
+
           const fileBuffer = Buffer.from(content, 'utf-8')
+
           const result = await uploadWorkspaceFile(
             workspaceId,
             context.userId,
@@ -106,7 +113,14 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
 
           const fileBuffer = Buffer.from(content, 'utf-8')
-          await updateWorkspaceFileContent(workspaceId, fileId, context.userId, fileBuffer)
+
+          await updateWorkspaceFileContent(
+            workspaceId,
+            fileId,
+            context.userId,
+            fileBuffer,
+            fileRecord.name?.toLowerCase().endsWith('.pptx') ? PPTX_SOURCE_MIME : undefined
+          )
 
           logger.info('Workspace file updated via copilot', {
             fileId,
@@ -185,10 +199,76 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
         }
 
+        case 'patch': {
+          const fileId = args?.fileId
+          const edits = args?.edits
+
+          if (!fileId) {
+            return { success: false, message: 'fileId is required for patch operation' }
+          }
+          if (!edits || edits.length === 0) {
+            return { success: false, message: 'edits array is required for patch operation' }
+          }
+
+          const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+          if (!fileRecord) {
+            return { success: false, message: `File with ID "${fileId}" not found` }
+          }
+
+          const currentBuffer = await downloadWsFile(fileRecord)
+          let content = currentBuffer.toString('utf-8')
+
+          for (const edit of edits) {
+            const firstIdx = content.indexOf(edit.search)
+            if (firstIdx === -1) {
+              return {
+                success: false,
+                message: `Patch failed: search string not found in file "${fileRecord.name}". Search: "${edit.search.slice(0, 100)}${edit.search.length > 100 ? '...' : ''}"`,
+              }
+            }
+            if (content.indexOf(edit.search, firstIdx + 1) !== -1) {
+              return {
+                success: false,
+                message: `Patch failed: search string is ambiguous — found at multiple locations in "${fileRecord.name}". Use a longer, unique search string.`,
+              }
+            }
+            content =
+              content.slice(0, firstIdx) +
+              edit.replace +
+              content.slice(firstIdx + edit.search.length)
+          }
+
+          const patchedBuffer = Buffer.from(content, 'utf-8')
+          await updateWorkspaceFileContent(
+            workspaceId,
+            fileId,
+            context.userId,
+            patchedBuffer,
+            fileRecord.name?.toLowerCase().endsWith('.pptx') ? PPTX_SOURCE_MIME : undefined
+          )
+
+          logger.info('Workspace file patched via copilot', {
+            fileId,
+            name: fileRecord.name,
+            editCount: edits.length,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: `File "${fileRecord.name}" patched successfully (${edits.length} edit${edits.length > 1 ? 's' : ''} applied)`,
+            data: {
+              id: fileId,
+              name: fileRecord.name,
+              size: patchedBuffer.length,
+            },
+          }
+        }
+
         default:
           return {
             success: false,
-            message: `Unknown operation: ${operation}. Supported: write, update, rename, delete. Use the filesystem to list/read files.`,
+            message: `Unknown operation: ${operation}. Supported: write, update, patch, rename, delete.`,
           }
       }
     } catch (error) {

@@ -1,7 +1,7 @@
 import { PipedriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { PipedriveResponse } from '@/tools/pipedrive/types'
 
 export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
@@ -13,6 +13,8 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
     'Integrate Pipedrive into your workflow. Manage deals, contacts, sales pipeline, projects, activities, files, and communications with powerful CRM capabilities.',
   docsLink: 'https://docs.sim.ai/tools/pipedrive',
   category: 'tools',
+  integrationType: IntegrationType.CRM,
+  tags: ['sales-engagement', 'project-management'],
   bgColor: '#2E6936',
   icon: PipedriveIcon,
   subBlocks: [

@@ -124,13 +124,6 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     }
   }, [hoverFolderId, isDragging, expandedFolders, setExpanded])
 
-  useEffect(() => {
-    if (!isDragging) {
-      setHoverFolderId(null)
-      setDropIndicator(null)
-    }
-  }, [isDragging])
-
   const calculateDropPosition = useCallback(
     (e: React.DragEvent, element: HTMLElement): 'before' | 'after' => {
       const rect = element.getBoundingClientRect()

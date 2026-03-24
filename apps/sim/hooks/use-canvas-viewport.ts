@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import type { Node, ReactFlowInstance } from 'reactflow'
 import { BLOCK_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 
@@ -10,18 +10,34 @@ interface VisibleBounds {
   offsetBottom: number
 }
 
+export interface CanvasViewportOptions {
+  embedded?: boolean
+}
+
 /**
  * Gets the visible canvas bounds accounting for sidebar, terminal, and panel overlays.
- * Works correctly regardless of whether the ReactFlow container extends under the sidebar or not.
+ * When embedded, uses the container rect directly since CSS variable offsets don't apply.
  */
-function getVisibleCanvasBounds(): VisibleBounds {
+function getVisibleCanvasBounds(options?: CanvasViewportOptions): VisibleBounds {
+  const flowContainer = document.querySelector('.react-flow')
+
+  if (options?.embedded && flowContainer) {
+    const rect = flowContainer.getBoundingClientRect()
+    return {
+      width: rect.width,
+      height: rect.height,
+      offsetLeft: 0,
+      offsetRight: 0,
+      offsetBottom: 0,
+    }
+  }
+
   const style = getComputedStyle(document.documentElement)
 
   const sidebarWidth = Number.parseInt(style.getPropertyValue('--sidebar-width') || '0', 10)
   const terminalHeight = Number.parseInt(style.getPropertyValue('--terminal-height') || '0', 10)
   const panelWidth = Number.parseInt(style.getPropertyValue('--panel-width') || '0', 10)
 
-  const flowContainer = document.querySelector('.react-flow')
   if (!flowContainer) {
     return {
       width: window.innerWidth - sidebarWidth - panelWidth,
@@ -56,8 +72,8 @@ function getVisibleCanvasBounds(): VisibleBounds {
 /**
  * Gets the center of the visible canvas in screen coordinates.
  */
-function getVisibleCanvasCenter(): { x: number; y: number } {
-  const bounds = getVisibleCanvasBounds()
+function getVisibleCanvasCenter(options?: CanvasViewportOptions): { x: number; y: number } {
+  const bounds = getVisibleCanvasBounds(options)
 
   const flowContainer = document.querySelector('.react-flow')
   const rect = flowContainer?.getBoundingClientRect()
@@ -81,7 +97,16 @@ interface FitViewToBoundsOptions {
 /**
  * Hook providing canvas viewport utilities that account for sidebar, panel, and terminal overlays.
  */
-export function useCanvasViewport(reactFlowInstance: ReactFlowInstance | null) {
+export function useCanvasViewport(
+  reactFlowInstance: ReactFlowInstance | null,
+  viewportOptions?: CanvasViewportOptions
+) {
+  const embedded = viewportOptions?.embedded
+  const stableOptions = useMemo<CanvasViewportOptions | undefined>(
+    () => (embedded ? { embedded } : undefined),
+    [embedded]
+  )
+
   /**
    * Gets the center of the visible canvas in flow coordinates.
    */
@@ -90,9 +115,9 @@ export function useCanvasViewport(reactFlowInstance: ReactFlowInstance | null) {
       return { x: 0, y: 0 }
     }
 
-    const center = getVisibleCanvasCenter()
+    const center = getVisibleCanvasCenter(stableOptions)
     return reactFlowInstance.screenToFlowPosition(center)
-  }, [reactFlowInstance])
+  }, [reactFlowInstance, stableOptions])
 
   /**
    * Fits the view to show all nodes within the visible canvas bounds,
@@ -116,7 +141,7 @@ export function useCanvasViewport(reactFlowInstance: ReactFlowInstance | null) {
         return
       }
 
-      const bounds = getVisibleCanvasBounds()
+      const bounds = getVisibleCanvasBounds(stableOptions)
 
       // Calculate node bounds
       let minX = Number.POSITIVE_INFINITY
@@ -160,12 +185,11 @@ export function useCanvasViewport(reactFlowInstance: ReactFlowInstance | null) {
 
       reactFlowInstance.setViewport({ x, y, zoom }, { duration })
     },
-    [reactFlowInstance]
+    [reactFlowInstance, stableOptions]
   )
 
   return {
     getViewportCenter,
     fitViewToBounds,
-    getVisibleCanvasBounds,
   }
 }

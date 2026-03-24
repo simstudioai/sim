@@ -1,26 +1,26 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+  Input,
+  Label,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalDescription,
+  ModalHeader,
+} from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
+import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
@@ -55,24 +55,6 @@ const PASSWORD_VALIDATIONS = {
   },
 }
 
-const validateCallbackUrl = (url: string): boolean => {
-  try {
-    if (url.startsWith('/')) {
-      return true
-    }
-
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
-    if (url.startsWith(currentOrigin)) {
-      return true
-    }
-
-    return false
-  } catch (error) {
-    logger.error('Error validating callback URL:', { error, url })
-    return false
-  }
-}
-
 const validatePassword = (passwordValue: string): string[] => {
   const errors: string[] = []
 
@@ -101,15 +83,24 @@ export default function LoginPage({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
-  const [_mounted, setMounted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileInstance>(null)
+  const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
   const buttonClass = useBrandedButtonClass()
 
-  const [callbackUrl, setCallbackUrl] = useState('/workspace')
-  const [isInviteFlow, setIsInviteFlow] = useState(false)
+  const callbackUrlParam = searchParams?.get('callbackUrl')
+  const isValidCallbackUrl = callbackUrlParam ? validateCallbackUrl(callbackUrlParam) : false
+  const invalidCallbackRef = useRef(false)
+  if (callbackUrlParam && !isValidCallbackUrl && !invalidCallbackRef.current) {
+    invalidCallbackRef.current = true
+    logger.warn('Invalid callback URL detected and blocked:', { url: callbackUrlParam })
+  }
+  const callbackUrl = isValidCallbackUrl ? callbackUrlParam! : '/workspace'
+  const isInviteFlow = searchParams?.get('invite_flow') === 'true'
 
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
@@ -122,43 +113,11 @@ export default function LoginPage({
   const [email, setEmail] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
-  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null)
-
-  useEffect(() => {
-    setMounted(true)
-
-    if (searchParams) {
-      const callback = searchParams.get('callbackUrl')
-      if (callback) {
-        if (validateCallbackUrl(callback)) {
-          setCallbackUrl(callback)
-        } else {
-          logger.warn('Invalid callback URL detected and blocked:', { url: callback })
-        }
-      }
-
-      const inviteFlow = searchParams.get('invite_flow') === 'true'
-      setIsInviteFlow(inviteFlow)
-
-      const resetSuccess = searchParams.get('resetSuccess') === 'true'
-      if (resetSuccess) {
-        setResetSuccessMessage('Password reset successful. Please sign in with your new password.')
-      }
-    }
-  }, [searchParams])
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Enter' && forgotPasswordOpen) {
-        handleForgotPassword()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [forgotPasswordEmail, forgotPasswordOpen])
+  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(() =>
+    searchParams?.get('resetSuccess') === 'true'
+      ? 'Password reset successful. Please sign in with your new password.'
+      : null
+  )
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value
@@ -207,9 +166,24 @@ export default function LoginPage({
     }
 
     try {
-      const safeCallbackUrl = validateCallbackUrl(callbackUrl) ? callbackUrl : '/workspace'
+      const safeCallbackUrl = callbackUrl
       let errorHandled = false
 
+      // Execute Turnstile challenge on submit and get a fresh token
+      let token: string | undefined
+      if (turnstileSiteKey && turnstileRef.current) {
+        try {
+          turnstileRef.current.reset()
+          turnstileRef.current.execute()
+          token = await turnstileRef.current.getResponsePromise(15_000)
+        } catch {
+          setFormError('Captcha verification failed. Please try again.')
+          setIsLoading(false)
+          return
+        }
+      }
+
+      setFormError(null)
       const result = await client.signIn.email(
         {
           email,
@@ -217,6 +191,11 @@ export default function LoginPage({
           callbackURL: safeCallbackUrl,
         },
         {
+          fetchOptions: {
+            headers: {
+              ...(token ? { 'x-captcha-response': token } : {}),
+            },
+          },
           onError: (ctx) => {
             logger.error('Login error:', ctx.error)
 
@@ -385,17 +364,17 @@ export default function LoginPage({
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+        <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           Sign in
         </h1>
-        <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+        <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
           Enter your details
         </p>
       </div>
 
       {/* SSO Login Button (primary top-only when it is the only method) */}
       {showTopSSO && (
-        <div className={`${inter.className} mt-8`}>
+        <div className='mt-8'>
           <SSOLoginButton
             callbackURL={callbackUrl}
             variant='primary'
@@ -404,16 +383,9 @@ export default function LoginPage({
         </div>
       )}
 
-      {/* Password reset success message */}
-      {resetSuccessMessage && (
-        <div className={`${inter.className} mt-1 space-y-1 text-[#4CAF50] text-xs`}>
-          <p>{resetSuccessMessage}</p>
-        </div>
-      )}
-
       {/* Email/Password Form - show unless explicitly disabled */}
       {!isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && (
-        <form onSubmit={onSubmit} className={`${inter.className} mt-8 space-y-8`}>
+        <form onSubmit={onSubmit} className='mt-8 space-y-8'>
           <div className='space-y-6'>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
@@ -430,10 +402,9 @@ export default function LoginPage({
                 value={email}
                 onChange={handleEmailChange}
                 className={cn(
-                  'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
                   showEmailValidationError &&
                     emailErrors.length > 0 &&
-                    'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                    'border-red-500 focus:border-red-500'
                 )}
               />
               {showEmailValidationError && emailErrors.length > 0 && (
@@ -450,7 +421,7 @@ export default function LoginPage({
                 <button
                   type='button'
                   onClick={() => setForgotPasswordOpen(true)}
-                  className='font-medium text-muted-foreground text-xs transition hover:text-foreground'
+                  className='font-medium text-[#999] text-xs transition hover:text-[#ECECEC]'
                 >
                   Forgot password?
                 </button>
@@ -468,16 +439,16 @@ export default function LoginPage({
                   value={password}
                   onChange={handlePasswordChange}
                   className={cn(
-                    'rounded-[10px] pr-10 shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                    'pr-10',
                     showValidationError &&
                       passwordErrors.length > 0 &&
-                      'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                      'border-red-500 focus:border-red-500'
                   )}
                 />
                 <button
                   type='button'
                   onClick={() => setShowPassword(!showPassword)}
-                  className='-translate-y-1/2 absolute top-1/2 right-3 text-gray-500 transition hover:text-gray-700'
+                  className='-translate-y-1/2 absolute top-1/2 right-3 text-[#999] transition hover:text-[#ECECEC]'
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -493,6 +464,28 @@ export default function LoginPage({
             </div>
           </div>
 
+          {turnstileSiteKey && (
+            <div className='absolute'>
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={turnstileSiteKey}
+                options={{ size: 'invisible', execution: 'execute' }}
+              />
+            </div>
+          )}
+
+          {resetSuccessMessage && (
+            <div className='text-[#4CAF50] text-xs'>
+              <p>{resetSuccessMessage}</p>
+            </div>
+          )}
+
+          {formError && (
+            <div className='text-red-400 text-xs'>
+              <p>{formError}</p>
+            </div>
+          )}
+
           <BrandedButton
             type='submit'
             disabled={isLoading}
@@ -506,18 +499,18 @@ export default function LoginPage({
 
       {/* Divider - show when we have multiple auth methods */}
       {showDivider && (
-        <div className={`${inter.className} relative my-6 font-light`}>
+        <div className='relative my-6 font-light'>
           <div className='absolute inset-0 flex items-center'>
-            <div className='auth-divider w-full border-t' />
+            <div className='w-full border-[#2A2A2A] border-t' />
           </div>
           <div className='relative flex justify-center text-sm'>
-            <span className='bg-white px-4 font-[340] text-muted-foreground'>Or continue with</span>
+            <span className='bg-[#1C1C1C] px-4 font-[340] text-[#999]'>Or continue with</span>
           </div>
         </div>
       )}
 
       {showBottomSection && (
-        <div className={cn(inter.className, !emailEnabled ? 'mt-8' : undefined)}>
+        <div className={cn(!emailEnabled ? 'mt-8' : undefined)}>
           <SocialLoginButtons
             googleAvailable={googleAvailable}
             githubAvailable={githubAvailable}
@@ -537,26 +530,24 @@ export default function LoginPage({
 
       {/* Only show signup link if email/password signup is enabled */}
       {!isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && (
-        <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
+        <div className='pt-6 text-center font-light text-[14px]'>
           <span className='font-normal'>Don't have an account? </span>
           <Link
             href={isInviteFlow ? `/signup?invite_flow=true&callbackUrl=${callbackUrl}` : '/signup'}
-            className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+            className='font-medium text-[#ECECEC] underline-offset-4 transition hover:text-white hover:underline'
           >
             Sign up
           </Link>
         </div>
       )}
 
-      <div
-        className={`${inter.className} auth-text-muted absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[13px] leading-relaxed sm:px-8 md:px-[44px]`}
-      >
+      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[#999] text-[13px] leading-relaxed sm:px-8 md:px-[44px]'>
         By signing in, you agree to our{' '}
         <Link
           href='/terms'
           target='_blank'
           rel='noopener noreferrer'
-          className='auth-link underline-offset-4 transition hover:underline'
+          className='text-[#999] underline-offset-4 transition hover:text-[#ECECEC] hover:underline'
         >
           Terms of Service
         </Link>{' '}
@@ -565,64 +556,64 @@ export default function LoginPage({
           href='/privacy'
           target='_blank'
           rel='noopener noreferrer'
-          className='auth-link underline-offset-4 transition hover:underline'
+          className='text-[#999] underline-offset-4 transition hover:text-[#ECECEC] hover:underline'
         >
           Privacy Policy
         </Link>
       </div>
 
-      <Dialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
-        <DialogContent className='auth-card auth-card-shadow max-w-[540px] rounded-[10px] border backdrop-blur-sm'>
-          <DialogHeader>
-            <DialogTitle className='font-semibold text-black text-xl tracking-tight'>
-              Reset Password
-            </DialogTitle>
-            <DialogDescription className='text-muted-foreground text-sm'>
-              Enter your email address and we'll send you a link to reset your password if your
-              account exists.
-            </DialogDescription>
-          </DialogHeader>
-          <div className='space-y-4'>
-            <div className='space-y-2'>
-              <div className='flex items-center justify-between'>
-                <Label htmlFor='reset-email'>Email</Label>
-              </div>
-              <Input
-                id='reset-email'
-                value={forgotPasswordEmail}
-                onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                placeholder='Enter your email'
-                required
-                type='email'
-                className={cn(
-                  'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
-                  resetStatus.type === 'error' &&
-                    'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
-                )}
-              />
-              {resetStatus.type === 'error' && (
-                <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                  <p>{resetStatus.message}</p>
-                </div>
-              )}
-            </div>
-            {resetStatus.type === 'success' && (
-              <div className='mt-1 space-y-1 text-[#4CAF50] text-xs'>
-                <p>{resetStatus.message}</p>
-              </div>
-            )}
-            <BrandedButton
-              type='button'
-              onClick={handleForgotPassword}
-              disabled={isSubmittingReset}
-              loading={isSubmittingReset}
-              loadingText='Sending'
+      <Modal open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
+        <ModalContent className='dark' size='sm'>
+          <ModalHeader>Reset Password</ModalHeader>
+          <ModalBody>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                handleForgotPassword()
+              }}
             >
-              Send Reset Link
-            </BrandedButton>
-          </div>
-        </DialogContent>
-      </Dialog>
+              <ModalDescription className='mb-4 text-[var(--text-muted)] text-sm'>
+                Enter your email address and we'll send you a link to reset your password if your
+                account exists.
+              </ModalDescription>
+              <div className='space-y-4'>
+                <div className='space-y-2'>
+                  <Label htmlFor='reset-email'>Email</Label>
+                  <Input
+                    id='reset-email'
+                    value={forgotPasswordEmail}
+                    onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                    placeholder='Enter your email'
+                    required
+                    type='email'
+                    className={cn(
+                      resetStatus.type === 'error' && 'border-red-500 focus:border-red-500'
+                    )}
+                  />
+                  {resetStatus.type === 'error' && (
+                    <div className='mt-1 text-red-400 text-xs'>
+                      <p>{resetStatus.message}</p>
+                    </div>
+                  )}
+                </div>
+                {resetStatus.type === 'success' && (
+                  <div className='mt-1 text-[#4CAF50] text-xs'>
+                    <p>{resetStatus.message}</p>
+                  </div>
+                )}
+                <BrandedButton
+                  type='submit'
+                  disabled={isSubmittingReset}
+                  loading={isSubmittingReset}
+                  loadingText='Sending'
+                >
+                  Send Reset Link
+                </BrandedButton>
+              </div>
+            </form>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </>
   )
 }

@@ -1,7 +1,7 @@
 import { GoogleSheetsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 import type { GoogleSheetsResponse, GoogleSheetsV2Response } from '@/tools/google_sheets/types'
 
@@ -16,6 +16,8 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
     'Integrate Google Sheets into the workflow. Can read, write, append, and update data.',
   docsLink: 'https://docs.sim.ai/tools/google_sheets',
   category: 'tools',
+  integrationType: IntegrationType.Documents,
+  tags: ['spreadsheet', 'google-workspace', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: GoogleSheetsIcon,
   subBlocks: [
@@ -302,6 +304,8 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
     'Integrate Google Sheets into the workflow with explicit sheet selection. Can read, write, append, update, clear data, create spreadsheets, get spreadsheet info, and copy sheets.',
   docsLink: 'https://docs.sim.ai/tools/google_sheets',
   category: 'tools',
+  integrationType: IntegrationType.Documents,
+  tags: ['spreadsheet', 'google-workspace', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: GoogleSheetsIcon,
   subBlocks: [

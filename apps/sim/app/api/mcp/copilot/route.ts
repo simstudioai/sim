@@ -19,6 +19,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { ORCHESTRATION_TIMEOUT_MS, SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { orchestrateSubagentStream } from '@/lib/copilot/orchestrator/subagent'
 import {
   executeToolServerSide,
@@ -28,14 +29,18 @@ import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/de
 import { env } from '@/lib/core/config/env'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  resolveWorkflowIdForUser,
+} from '@/lib/workflows/utils'
 
 const logger = createLogger('CopilotMcpAPI')
 const mcpRateLimiter = new RateLimiter()
-const DEFAULT_COPILOT_MODEL = 'claude-opus-4-5'
+const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 300
+export const maxDuration = 3600
 
 interface CopilotKeyAuthResult {
   success: boolean
@@ -512,7 +517,7 @@ async function handleMcpRequestWithSdk(
   try {
     await transport.handleRequest(requestAdapter as any, responseCapture as any, parsedBody)
     await responseCapture.waitForHeaders()
-    // Must exceed the longest possible tool execution (build = 5 min).
+    // Must exceed the longest possible tool execution.
     // Using ORCHESTRATION_TIMEOUT_MS + 60 s buffer so the orchestrator can
     // finish or time-out on its own before the transport is torn down.
     await responseCapture.waitForEnd(ORCHESTRATION_TIMEOUT_MS + 60_000)
@@ -625,7 +630,11 @@ async function handleDirectToolCall(
   userId: string
 ): Promise<CallToolResult> {
   try {
-    const execContext = await prepareExecutionContext(userId, (args.workflowId as string) || '')
+    const execContext = await prepareExecutionContext(
+      userId,
+      (args.workflowId as string) || '',
+      (args.chatId as string) || undefined
+    )
 
     const toolCall = {
       id: randomUUID(),
@@ -660,12 +669,110 @@ async function handleDirectToolCall(
   }
 }
 
+/**
+ * Build mode uses the main chat orchestrator with the 'fast' command instead of
+ * the subagent endpoint. In Go, 'build' is not a registered subagent — it's a mode
+ * (ModeFast) on the main chat processor that bypasses subagent orchestration and
+ * executes all tools directly.
+ */
+async function handleBuildToolCall(
+  args: Record<string, unknown>,
+  userId: string,
+  abortSignal?: AbortSignal
+): Promise<CallToolResult> {
+  try {
+    const requestText = (args.request as string) || JSON.stringify(args)
+    const workflowId = args.workflowId as string | undefined
+
+    const resolved = workflowId
+      ? await (async () => {
+          const authorization = await authorizeWorkflowByWorkspacePermission({
+            workflowId,
+            userId,
+            action: 'read',
+          })
+          return authorization.allowed ? { workflowId } : null
+        })()
+      : await resolveWorkflowIdForUser(userId)
+
+    if (!resolved?.workflowId) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                success: false,
+                error: 'workflowId is required for build. Call create_workflow first.',
+              },
+              null,
+              2
+            ),
+          },
+        ],
+        isError: true,
+      }
+    }
+
+    const chatId = randomUUID()
+
+    const requestPayload = {
+      message: requestText,
+      workflowId: resolved.workflowId,
+      userId,
+      model: DEFAULT_COPILOT_MODEL,
+      mode: 'agent',
+      commands: ['fast'],
+      messageId: randomUUID(),
+      chatId,
+    }
+
+    const result = await orchestrateCopilotStream(requestPayload, {
+      userId,
+      workflowId: resolved.workflowId,
+      chatId,
+      goRoute: '/api/mcp',
+      autoExecuteTools: true,
+      timeout: ORCHESTRATION_TIMEOUT_MS,
+      interactive: false,
+      abortSignal,
+    })
+
+    const responseData = {
+      success: result.success,
+      content: result.content,
+      toolCalls: result.toolCalls,
+      error: result.error,
+    }
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify(responseData, null, 2) }],
+      isError: !result.success,
+    }
+  } catch (error) {
+    logger.error('Build tool call failed', { error })
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Build failed: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ],
+      isError: true,
+    }
+  }
+}
+
 async function handleSubagentToolCall(
   toolDef: (typeof SUBAGENT_TOOL_DEFS)[number],
   args: Record<string, unknown>,
   userId: string,
   abortSignal?: AbortSignal
 ): Promise<CallToolResult> {
+  if (toolDef.agentId === 'build') {
+    return handleBuildToolCall(args, userId, abortSignal)
+  }
+
   try {
     const requestText =
       (args.request as string) ||

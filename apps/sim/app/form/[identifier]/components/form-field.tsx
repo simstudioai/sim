@@ -4,7 +4,6 @@ import { useCallback, useRef, useState } from 'react'
 import { Upload, X } from 'lucide-react'
 import { Input, Label, Switch, Textarea } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { inter } from '@/app/_styles/fonts/inter/inter'
 
 interface InputField {
   name: string
@@ -96,9 +95,7 @@ export function FormField({
               onCheckedChange={onChange}
               style={value ? { backgroundColor: primaryColor } : undefined}
             />
-            <span className={`${inter.className} text-[14px] text-muted-foreground`}>
-              {value ? 'Yes' : 'No'}
-            </span>
+            <span className={'text-[14px] text-muted-foreground'}>{value ? 'Yes' : 'No'}</span>
           </div>
         )
 
@@ -159,7 +156,7 @@ export function FormField({
                 className='mb-2 h-6 w-6 text-muted-foreground'
                 style={isDragging ? { color: primaryColor } : undefined}
               />
-              <p className={`${inter.className} text-center text-[14px] text-muted-foreground`}>
+              <p className={'text-center text-[14px] text-muted-foreground'}>
                 <span style={{ color: primaryColor }} className='font-medium'>
                   Click to upload
                 </span>{' '}
@@ -175,12 +172,10 @@ export function FormField({
                     className='flex items-center justify-between rounded-[8px] border border-border bg-muted/30 px-3 py-2'
                   >
                     <div className='min-w-0 flex-1'>
-                      <p
-                        className={`${inter.className} truncate font-medium text-[13px] text-foreground`}
-                      >
+                      <p className={'truncate font-medium text-[13px] text-foreground'}>
                         {file.name}
                       </p>
-                      <p className={`${inter.className} text-[12px] text-muted-foreground`}>
+                      <p className={'text-[12px] text-muted-foreground'}>
                         {formatFileSize(file.size)}
                       </p>
                     </div>
@@ -217,7 +212,7 @@ export function FormField({
 
   return (
     <div className='space-y-2'>
-      <Label className={`${inter.className} font-medium text-[14px] text-foreground`}>
+      <Label className={'font-medium text-[14px] text-foreground'}>
         {displayLabel}
         {isRequired && <span className='ml-0.5 text-[var(--text-error)]'>*</span>}
       </Label>

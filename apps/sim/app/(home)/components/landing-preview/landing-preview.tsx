@@ -95,7 +95,7 @@ export function LandingPreview() {
           onSelectHome={handleSelectHome}
         />
       </motion.div>
-      <div className='flex min-w-0 flex-1 flex-col p-[8px] pl-0'>
+      <div className='flex min-w-0 flex-1 flex-col py-[8px] pr-[8px] pl-[8px] lg:pl-0'>
         <div className='flex flex-1 overflow-hidden rounded-[8px] border border-[#2c2c2c] bg-[#1b1b1b]'>
           <div
             className={

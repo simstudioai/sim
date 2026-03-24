@@ -27,6 +27,7 @@ import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import type {
   BlockOutputData,
   ExecutionEnvironment,
+  ExecutionFinalizationPath,
   ExecutionTrigger,
   ExecutionLoggerService as IExecutionLoggerService,
   TraceSpan,
@@ -49,11 +50,21 @@ export interface ToolCall {
 
 const logger = createLogger('ExecutionLogger')
 
+function countTraceSpans(traceSpans?: TraceSpan[]): number {
+  if (!Array.isArray(traceSpans) || traceSpans.length === 0) {
+    return 0
+  }
+
+  return traceSpans.reduce((count, span) => count + 1 + countTraceSpans(span.children), 0)
+}
+
 export class ExecutionLogger implements IExecutionLoggerService {
   private buildCompletedExecutionData(params: {
     existingExecutionData?: WorkflowExecutionLog['executionData']
     traceSpans?: TraceSpan[]
     finalOutput: BlockOutputData
+    finalizationPath?: ExecutionFinalizationPath
+    completionFailure?: string
     executionCost: {
       tokens: {
         input: number
@@ -64,7 +75,16 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
     executionState?: SerializableExecutionState
   }): WorkflowExecutionLog['executionData'] {
-    const { existingExecutionData, traceSpans, finalOutput, executionCost, executionState } = params
+    const {
+      existingExecutionData,
+      traceSpans,
+      finalOutput,
+      finalizationPath,
+      completionFailure,
+      executionCost,
+      executionState,
+    } = params
+    const traceSpanCount = countTraceSpans(traceSpans)
 
     return {
       ...(existingExecutionData?.environment
@@ -78,6 +98,17 @@ export class ExecutionLogger implements IExecutionLoggerService {
               existingExecutionData?.trigger?.data?.correlation,
           }
         : {}),
+      ...(existingExecutionData?.error ? { error: existingExecutionData.error } : {}),
+      ...(existingExecutionData?.lastStartedBlock
+        ? { lastStartedBlock: existingExecutionData.lastStartedBlock }
+        : {}),
+      ...(existingExecutionData?.lastCompletedBlock
+        ? { lastCompletedBlock: existingExecutionData.lastCompletedBlock }
+        : {}),
+      ...(completionFailure ? { completionFailure } : {}),
+      ...(finalizationPath ? { finalizationPath } : {}),
+      hasTraceSpans: traceSpanCount > 0,
+      traceSpanCount,
       traceSpans,
       finalOutput,
       tokens: {
@@ -173,6 +204,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
           environment,
           trigger,
           ...(trigger.data?.correlation ? { correlation: trigger.data.correlation } : {}),
+          hasTraceSpans: false,
+          traceSpanCount: 0,
         },
         cost: {
           total: BASE_EXECUTION_CHARGE,
@@ -232,6 +265,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
     traceSpans?: TraceSpan[]
     workflowInput?: any
     executionState?: SerializableExecutionState
+    finalizationPath?: ExecutionFinalizationPath
+    completionFailure?: string
     isResume?: boolean
     level?: 'info' | 'error'
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'
@@ -245,6 +280,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
       traceSpans,
       workflowInput,
       executionState,
+      finalizationPath,
+      completionFailure,
       isResume,
       level: levelOverride,
       status: statusOverride,
@@ -315,6 +352,16 @@ export class ExecutionLogger implements IExecutionLoggerService {
         ? Math.max(0, Math.round(rawDurationMs))
         : 0
 
+    const completedExecutionData = this.buildCompletedExecutionData({
+      existingExecutionData,
+      traceSpans: redactedTraceSpans,
+      finalOutput: redactedFinalOutput,
+      finalizationPath,
+      completionFailure,
+      executionCost,
+      executionState,
+    })
+
     const [updatedLog] = await db
       .update(workflowExecutionLogs)
       .set({
@@ -323,13 +370,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         endedAt: new Date(endedAt),
         totalDurationMs: totalDuration,
         files: executionFiles.length > 0 ? executionFiles : null,
-        executionData: this.buildCompletedExecutionData({
-          existingExecutionData,
-          traceSpans: redactedTraceSpans,
-          finalOutput: redactedFinalOutput,
-          executionCost,
-          executionState,
-        }),
+        executionData: completedExecutionData,
         cost: executionCost,
       })
       .where(eq(workflowExecutionLogs.executionId, executionId))

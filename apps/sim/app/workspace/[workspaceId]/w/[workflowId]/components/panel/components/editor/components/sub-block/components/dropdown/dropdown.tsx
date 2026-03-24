@@ -124,7 +124,6 @@ export const Dropdown = memo(function Dropdown({
     isEqual
   )
 
-  const [storeInitialized, setStoreInitialized] = useState(false)
   const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -242,17 +241,13 @@ export const Dropdown = memo(function Dropdown({
   }, [defaultValue, comboboxOptions, multiSelect])
 
   useEffect(() => {
-    setStoreInitialized(true)
-  }, [])
-
-  useEffect(() => {
-    if (multiSelect || !storeInitialized || defaultOptionValue === undefined) {
+    if (multiSelect || defaultOptionValue === undefined) {
       return
     }
     if (storeValue === null || storeValue === undefined || storeValue === '') {
       setStoreValue(defaultOptionValue)
     }
-  }, [storeInitialized, storeValue, defaultOptionValue, setStoreValue, multiSelect])
+  }, [storeValue, defaultOptionValue, setStoreValue, multiSelect])
 
   /**
    * Normalizes variable references in JSON strings by wrapping them in quotes

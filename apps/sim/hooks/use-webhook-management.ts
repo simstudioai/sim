@@ -119,21 +119,21 @@ export function useWebhookManagement({
 
   const queryEnabled = useWebhookUrl && !isPreview && Boolean(workflowId && blockId)
 
+  // Reset sync flag when blockId changes or query becomes disabled (render-phase guard)
+  const prevBlockIdRef = useRef(blockId)
+  if (blockId !== prevBlockIdRef.current) {
+    prevBlockIdRef.current = blockId
+    syncedRef.current = false
+  }
+  if (!queryEnabled) {
+    syncedRef.current = false
+  }
+
   const { data: webhook, isLoading: queryLoading } = useWebhookQuery(
     workflowId,
     blockId,
     queryEnabled
   )
-
-  useEffect(() => {
-    syncedRef.current = false
-  }, [blockId])
-
-  useEffect(() => {
-    if (!queryEnabled) {
-      syncedRef.current = false
-    }
-  }, [queryEnabled])
 
   useEffect(() => {
     if (!queryEnabled || syncedRef.current) return

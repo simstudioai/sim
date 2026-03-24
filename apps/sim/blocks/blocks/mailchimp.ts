@@ -1,6 +1,6 @@
 import { MailchimpIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const MailchimpBlock: BlockConfig = {
   type: 'mailchimp',
@@ -11,6 +11,8 @@ export const MailchimpBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/mailchimp',
   authMode: AuthMode.ApiKey,
   category: 'tools',
+  integrationType: IntegrationType.Email,
+  tags: ['email-marketing', 'marketing', 'automation'],
   bgColor: '#FFE01B',
   icon: MailchimpIcon,
   subBlocks: [

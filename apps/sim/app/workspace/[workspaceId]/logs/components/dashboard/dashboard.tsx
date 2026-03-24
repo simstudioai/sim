@@ -220,10 +220,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
 
     return result
   }, [rawExecutions])
-
-  useEffect(() => {
-    prevExecutionsRef.current = executions
-  }, [executions])
+  prevExecutionsRef.current = executions
 
   const lastExecutionByWorkflow = useMemo(() => {
     const map = new Map<string, number>()

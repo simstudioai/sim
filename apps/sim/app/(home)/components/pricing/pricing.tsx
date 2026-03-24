@@ -22,9 +22,10 @@ const PRICING_TIERS: PricingTier[] = [
     features: [
       '1,000 credits (trial)',
       '5GB file storage',
+      '3 tables · 1,000 rows each',
       '5 min execution limit',
-      'Limited log retention',
-      'CLI/SDK Access',
+      '7-day log retention',
+      'CLI/SDK/MCP Access',
     ],
     cta: { label: 'Get started', href: '/signup' },
   },
@@ -36,11 +37,12 @@ const PRICING_TIERS: PricingTier[] = [
     billingPeriod: 'per month',
     color: '#00F701',
     features: [
-      '6,000 credits/mo',
-      '+50 daily refresh credits',
-      '150 runs/min (sync)',
-      '50 min sync execution limit',
+      '6,000 credits/mo · +50/day',
       '50GB file storage',
+      '25 tables · 5,000 rows each',
+      '50 min execution · 150 runs/min',
+      'Unlimited log retention',
+      'CLI/SDK/MCP Access',
     ],
     cta: { label: 'Get started', href: '/signup' },
   },
@@ -52,11 +54,12 @@ const PRICING_TIERS: PricingTier[] = [
     billingPeriod: 'per month',
     color: '#FA4EDF',
     features: [
-      '25,000 credits/mo',
-      '+200 daily refresh credits',
-      '300 runs/min (sync)',
-      '50 min sync execution limit',
+      '25,000 credits/mo · +200/day',
       '500GB file storage',
+      '25 tables · 5,000 rows each',
+      '50 min execution · 300 runs/min',
+      'Unlimited log retention',
+      'CLI/SDK/MCP Access',
     ],
     cta: { label: 'Get started', href: '/signup' },
   },
@@ -66,8 +69,16 @@ const PRICING_TIERS: PricingTier[] = [
     description: 'For organizations needing security and scale',
     price: 'Custom',
     color: '#FFCC02',
-    features: ['Custom infra limits', 'SSO', 'SOC2', 'Self hosting', 'Dedicated support'],
-    cta: { label: 'Book a demo', href: '/contact' },
+    features: [
+      'Custom credits & infra limits',
+      'Custom file storage',
+      '10,000 tables · 1M rows each',
+      'Custom execution limits',
+      'Unlimited log retention',
+      'SSO & SCIM · SOC2 & HIPAA',
+      'Self hosting · Dedicated support',
+    ],
+    cta: { label: 'Book a demo', href: 'https://form.typeform.com/to/jqCO12pF' },
   },
 ]
 
@@ -116,6 +127,8 @@ function PricingCard({ tier }: PricingCardProps) {
             {isEnterprise ? (
               <a
                 href={tier.cta.href}
+                target='_blank'
+                rel='noopener noreferrer'
                 className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#E5E5E5] px-[10px] font-[430] font-season text-[#1C1C1C] text-[14px] transition-colors hover:bg-[#F0F0F0]'
               >
                 {tier.cta.label}
@@ -174,7 +187,7 @@ function PricingCard({ tier }: PricingCardProps) {
 export default function Pricing() {
   return (
     <section id='pricing' aria-labelledby='pricing-heading' className='bg-[#F6F6F6]'>
-      <div className='px-4 pt-[100px] pb-[80px] sm:px-8 md:px-[80px]'>
+      <div className='px-4 pt-[60px] pb-[40px] sm:px-8 sm:pt-[80px] sm:pb-0 md:px-[80px] md:pt-[100px]'>
         <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-[20px]'>
           <Badge
             variant='blue'
@@ -193,7 +206,7 @@ export default function Pricing() {
           </h2>
         </div>
 
-        <div className='mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+        <div className='mt-8 grid grid-cols-1 gap-4 sm:mt-10 sm:grid-cols-2 md:mt-12 lg:grid-cols-4'>
           {PRICING_TIERS.map((tier) => (
             <PricingCard key={tier.id} tier={tier} />
           ))}

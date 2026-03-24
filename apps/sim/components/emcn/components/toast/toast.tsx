@@ -18,6 +18,9 @@ const AUTO_DISMISS_MS = 0
 const EXIT_ANIMATION_MS = 200
 const MAX_VISIBLE = 20
 
+const RING_RADIUS = 5.5
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
+
 type ToastVariant = 'default' | 'success' | 'error'
 
 interface ToastAction {
@@ -28,7 +31,6 @@ interface ToastAction {
 interface ToastData {
   id: string
   message: string
-  description?: string
   variant: ToastVariant
   action?: ToastAction
   duration: number
@@ -36,7 +38,6 @@ interface ToastData {
 
 type ToastInput = {
   message: string
-  description?: string
   variant?: ToastVariant
   action?: ToastAction
   duration?: number
@@ -90,17 +91,39 @@ export function useToast() {
   return ctx
 }
 
-const VARIANT_STYLES: Record<ToastVariant, string> = {
-  default: 'border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)]',
-  success:
-    'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800/40 dark:bg-emerald-950/30 dark:text-emerald-200',
-  error:
-    'border-red-200 bg-red-50 text-red-900 dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-200',
+function CountdownRing({ duration }: { duration: number }) {
+  return (
+    <svg
+      width='14'
+      height='14'
+      viewBox='0 0 16 16'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      style={{ transform: 'rotate(-90deg) scaleX(-1)' }}
+    >
+      <circle cx='8' cy='8' r={RING_RADIUS} stroke='var(--border)' strokeWidth='1.5' />
+      <circle
+        cx='8'
+        cy='8'
+        r={RING_RADIUS}
+        stroke='var(--text-icon)'
+        strokeWidth='1.5'
+        strokeLinecap='round'
+        strokeDasharray={RING_CIRCUMFERENCE}
+        style={{
+          animation: `notification-countdown ${duration}ms linear forwards`,
+        }}
+      />
+    </svg>
+  )
 }
 
 function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: string) => void }) {
   const [exiting, setExiting] = useState(false)
+  const [paused, setPaused] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const remainingRef = useRef(t.duration)
+  const startRef = useRef(0)
 
   const dismiss = useCallback(() => {
     setExiting(true)
@@ -109,46 +132,76 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
 
   useEffect(() => {
     if (t.duration > 0) {
+      startRef.current = Date.now()
+      remainingRef.current = t.duration
       timerRef.current = setTimeout(dismiss, t.duration)
       return () => clearTimeout(timerRef.current)
     }
   }, [dismiss, t.duration])
 
+  const handleMouseEnter = useCallback(() => {
+    if (t.duration <= 0) return
+    clearTimeout(timerRef.current)
+    remainingRef.current -= Date.now() - startRef.current
+    setPaused(true)
+  }, [t.duration])
+
+  const handleMouseLeave = useCallback(() => {
+    if (t.duration <= 0) return
+    setPaused(false)
+    startRef.current = Date.now()
+    timerRef.current = setTimeout(dismiss, Math.max(remainingRef.current, 0))
+  }, [dismiss, t.duration])
+
+  const hasDuration = t.duration > 0
+
   return (
     <div
+      onMouseEnter={hasDuration ? handleMouseEnter : undefined}
+      onMouseLeave={hasDuration ? handleMouseLeave : undefined}
       className={cn(
-        'pointer-events-auto flex w-[320px] items-start gap-[8px] rounded-[8px] border px-[12px] py-[10px] shadow-md transition-all',
-        VARIANT_STYLES[t.variant],
+        'pointer-events-auto w-[240px] overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] shadow-sm',
         exiting
           ? 'animate-[toast-exit_200ms_ease-in_forwards]'
           : 'animate-[toast-enter_200ms_ease-out_forwards]'
       )}
     >
-      <div className='min-w-0 flex-1'>
-        <p className='font-medium text-[13px] leading-[18px]'>{t.message}</p>
-        {t.description && (
-          <p className='mt-[2px] text-[12px] leading-[16px] opacity-80'>{t.description}</p>
+      <div className='flex flex-col gap-[8px] p-[8px]'>
+        <div className='flex items-start gap-[8px]'>
+          <div className='line-clamp-2 min-w-0 flex-1 font-medium text-[12px] text-[var(--text-body)]'>
+            {t.variant === 'error' && (
+              <span className='mr-[8px] mb-[2px] inline-block h-[8px] w-[8px] rounded-[2px] bg-[var(--text-error)] align-middle' />
+            )}
+            {t.variant === 'success' && (
+              <span className='mr-[8px] mb-[2px] inline-block h-[8px] w-[8px] rounded-[2px] bg-[var(--text-success)] align-middle' />
+            )}
+            {t.message}
+          </div>
+          <div className='flex shrink-0 items-start gap-[2px]'>
+            {t.duration > 0 && <CountdownRing duration={t.duration} />}
+            <button
+              type='button'
+              onClick={dismiss}
+              aria-label='Dismiss notification'
+              className='-m-[2px] shrink-0 rounded-[5px] p-[4px] hover:bg-[var(--surface-active)]'
+            >
+              <X className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+            </button>
+          </div>
+        </div>
+        {t.action && (
+          <button
+            type='button'
+            onClick={() => {
+              t.action!.onClick()
+              dismiss()
+            }}
+            className='w-full rounded-[5px] bg-[var(--surface-active)] px-[8px] py-[4px] font-medium text-[12px] hover:bg-[var(--surface-hover)]'
+          >
+            {t.action.label}
+          </button>
         )}
       </div>
-      {t.action && (
-        <button
-          type='button'
-          onClick={() => {
-            t.action!.onClick()
-            dismiss()
-          }}
-          className='shrink-0 font-medium text-[13px] underline underline-offset-2 opacity-90 hover:opacity-100'
-        >
-          {t.action.label}
-        </button>
-      )}
-      <button
-        type='button'
-        onClick={dismiss}
-        className='shrink-0 rounded-[4px] p-[2px] opacity-60 hover:opacity-100'
-      >
-        <X className='h-[14px] w-[14px]' />
-      </button>
     </div>
   )
 }
@@ -175,7 +228,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     const data: ToastData = {
       id,
       message: input.message,
-      description: input.description,
       variant: input.variant ?? 'default',
       action: input.action,
       duration: input.duration ?? AUTO_DISMISS_MS,

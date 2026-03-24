@@ -1,0 +1,440 @@
+---
+title: Box
+description: Manage files, folders, and e-signatures with Box
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="box"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Box](https://www.box.com/) is a leading cloud content management and file sharing platform trusted by enterprises worldwide to securely store, manage, and collaborate on files. Box provides robust APIs for automating file operations and integrating with business workflows, including [Box Sign](https://www.box.com/esignature) for native e-signatures.
+
+With the Box integration in Sim, you can:
+
+- **Upload files**: Upload documents, images, and other files to any Box folder
+- **Download files**: Retrieve file content from Box for processing in your workflows
+- **Get file info**: Access detailed metadata including size, owner, timestamps, tags, and shared links
+- **List folder contents**: Browse files and folders with sorting and pagination support
+- **Create folders**: Organize your Box storage by creating new folders programmatically
+- **Delete files and folders**: Remove content with optional recursive deletion for folders
+- **Copy files**: Duplicate files across folders with optional renaming
+- **Search**: Find files and folders by name, content, extension, or location
+- **Update file metadata**: Rename, move, add descriptions, or tag files
+- **Create sign requests**: Send documents for e-signature with one or more signers
+- **Track signing status**: Monitor the progress of sign requests
+- **List sign requests**: View all sign requests with marker-based pagination
+- **Cancel sign requests**: Cancel pending sign requests that are no longer needed
+- **Resend sign reminders**: Send reminder notifications to signers who haven't completed signing
+
+These capabilities allow your Sim agents to automate Box operations directly within your workflows — from organizing documents and distributing content to processing uploaded files, managing e-signature workflows for offer letters and contracts, and maintaining structured cloud storage as part of your business processes.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Box into your workflow to manage files, folders, and e-signatures. Upload and download files, search content, create folders, send documents for e-signature, track signing status, and more.
+
+
+
+## Tools
+
+### `box_upload_file`
+
+Upload a file to a Box folder
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `parentFolderId` | string | Yes | The ID of the folder to upload the file to \(use "0" for root\) |
+| `file` | file | No | The file to upload \(UserFile object\) |
+| `fileContent` | string | No | Legacy: base64 encoded file content |
+| `fileName` | string | No | Optional filename override |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | File ID |
+| `name` | string | File name |
+| `size` | number | File size in bytes |
+| `sha1` | string | SHA1 hash of file content |
+| `createdAt` | string | Creation timestamp |
+| `modifiedAt` | string | Last modified timestamp |
+| `parentId` | string | Parent folder ID |
+| `parentName` | string | Parent folder name |
+
+### `box_download_file`
+
+Download a file from Box
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to download |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+| `content` | string | Base64 encoded file content |
+
+### `box_get_file_info`
+
+Get detailed information about a file in Box
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to get information about |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | File ID |
+| `name` | string | File name |
+| `description` | string | File description |
+| `size` | number | File size in bytes |
+| `sha1` | string | SHA1 hash of file content |
+| `createdAt` | string | Creation timestamp |
+| `modifiedAt` | string | Last modified timestamp |
+| `createdBy` | object | User who created the file |
+| `modifiedBy` | object | User who last modified the file |
+| `ownedBy` | object | User who owns the file |
+| `parentId` | string | Parent folder ID |
+| `parentName` | string | Parent folder name |
+| `sharedLink` | json | Shared link details |
+| `tags` | array | File tags |
+| `commentCount` | number | Number of comments |
+
+### `box_list_folder_items`
+
+List files and folders in a Box folder
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderId` | string | Yes | The ID of the folder to list items from \(use "0" for root\) |
+| `limit` | number | No | Maximum number of items to return per page |
+| `offset` | number | No | The offset for pagination |
+| `sort` | string | No | Sort field: id, name, date, or size |
+| `direction` | string | No | Sort direction: ASC or DESC |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entries` | array | List of items in the folder |
+|   ↳ `type` | string | Item type \(file, folder, web_link\) |
+|   ↳ `id` | string | Item ID |
+|   ↳ `name` | string | Item name |
+|   ↳ `size` | number | Item size in bytes |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `modifiedAt` | string | Last modified timestamp |
+| `totalCount` | number | Total number of items in the folder |
+| `offset` | number | Current pagination offset |
+| `limit` | number | Current pagination limit |
+
+### `box_create_folder`
+
+Create a new folder in Box
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name for the new folder |
+| `parentFolderId` | string | Yes | The ID of the parent folder \(use "0" for root\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Folder ID |
+| `name` | string | Folder name |
+| `createdAt` | string | Creation timestamp |
+| `modifiedAt` | string | Last modified timestamp |
+| `parentId` | string | Parent folder ID |
+| `parentName` | string | Parent folder name |
+
+### `box_delete_file`
+
+Delete a file from Box
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the file was successfully deleted |
+| `message` | string | Success confirmation message |
+
+### `box_delete_folder`
+
+Delete a folder from Box
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderId` | string | Yes | The ID of the folder to delete |
+| `recursive` | boolean | No | Delete folder and all its contents recursively |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the folder was successfully deleted |
+| `message` | string | Success confirmation message |
+
+### `box_copy_file`
+
+Copy a file to another folder in Box
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to copy |
+| `parentFolderId` | string | Yes | The ID of the destination folder |
+| `name` | string | No | Optional new name for the copied file |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | File ID |
+| `name` | string | File name |
+| `size` | number | File size in bytes |
+| `sha1` | string | SHA1 hash of file content |
+| `createdAt` | string | Creation timestamp |
+| `modifiedAt` | string | Last modified timestamp |
+| `parentId` | string | Parent folder ID |
+| `parentName` | string | Parent folder name |
+
+### `box_search`
+
+Search for files and folders in Box
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query string |
+| `limit` | number | No | Maximum number of results to return |
+| `offset` | number | No | The offset for pagination |
+| `ancestorFolderId` | string | No | Restrict search to a specific folder and its subfolders |
+| `fileExtensions` | string | No | Comma-separated file extensions to filter by \(e.g., pdf,docx\) |
+| `type` | string | No | Restrict to a specific content type: file, folder, or web_link |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Search results |
+|   ↳ `type` | string | Item type \(file, folder, web_link\) |
+|   ↳ `id` | string | Item ID |
+|   ↳ `name` | string | Item name |
+|   ↳ `size` | number | Item size in bytes |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `modifiedAt` | string | Last modified timestamp |
+|   ↳ `parentId` | string | Parent folder ID |
+|   ↳ `parentName` | string | Parent folder name |
+| `totalCount` | number | Total number of matching results |
+
+### `box_update_file`
+
+Update file info in Box (rename, move, change description, add tags)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to update |
+| `name` | string | No | New name for the file |
+| `description` | string | No | New description for the file \(max 256 characters\) |
+| `parentFolderId` | string | No | Move the file to a different folder by specifying the folder ID |
+| `tags` | string | No | Comma-separated tags to set on the file |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | File ID |
+| `name` | string | File name |
+| `description` | string | File description |
+| `size` | number | File size in bytes |
+| `sha1` | string | SHA1 hash of file content |
+| `createdAt` | string | Creation timestamp |
+| `modifiedAt` | string | Last modified timestamp |
+| `createdBy` | object | User who created the file |
+| `modifiedBy` | object | User who last modified the file |
+| `ownedBy` | object | User who owns the file |
+| `parentId` | string | Parent folder ID |
+| `parentName` | string | Parent folder name |
+| `sharedLink` | json | Shared link details |
+| `tags` | array | File tags |
+| `commentCount` | number | Number of comments |
+
+### `box_sign_create_request`
+
+Create a new Box Sign request to send documents for e-signature
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sourceFileIds` | string | Yes | Comma-separated Box file IDs to send for signing |
+| `signerEmail` | string | Yes | Primary signer email address |
+| `signerRole` | string | No | Primary signer role: signer, approver, or final_copy_reader \(default: signer\) |
+| `additionalSigners` | string | No | JSON array of additional signers, e.g. \[\{"email":"user@example.com","role":"signer"\}\] |
+| `parentFolderId` | string | No | Box folder ID where signed documents will be stored \(default: user root\) |
+| `emailSubject` | string | No | Custom subject line for the signing email |
+| `emailMessage` | string | No | Custom message in the signing email body |
+| `name` | string | No | Name for the sign request |
+| `daysValid` | number | No | Number of days before the request expires \(0-730\) |
+| `areRemindersEnabled` | boolean | No | Whether to send automatic signing reminders |
+| `areTextSignaturesEnabled` | boolean | No | Whether to allow typed \(text\) signatures |
+| `signatureColor` | string | No | Signature color: blue, black, or red |
+| `redirectUrl` | string | No | URL to redirect signers to after signing |
+| `declinedRedirectUrl` | string | No | URL to redirect signers to after declining |
+| `isDocumentPreparationNeeded` | boolean | No | Whether document preparation is needed before sending |
+| `externalId` | string | No | External system reference ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Sign request ID |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `name` | string | Sign request name |
+| `shortId` | string | Human-readable short ID |
+| `signers` | array | List of signers |
+| `sourceFiles` | array | Source files for signing |
+| `emailSubject` | string | Custom email subject line |
+| `emailMessage` | string | Custom email message body |
+| `daysValid` | number | Number of days the request is valid |
+| `createdAt` | string | Creation timestamp |
+| `autoExpireAt` | string | Auto-expiration timestamp |
+| `prepareUrl` | string | URL for document preparation \(if preparation is needed\) |
+| `senderEmail` | string | Email of the sender |
+
+### `box_sign_get_request`
+
+Get the details and status of a Box Sign request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signRequestId` | string | Yes | The ID of the sign request to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Sign request ID |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `name` | string | Sign request name |
+| `shortId` | string | Human-readable short ID |
+| `signers` | array | List of signers |
+| `sourceFiles` | array | Source files for signing |
+| `emailSubject` | string | Custom email subject line |
+| `emailMessage` | string | Custom email message body |
+| `daysValid` | number | Number of days the request is valid |
+| `createdAt` | string | Creation timestamp |
+| `autoExpireAt` | string | Auto-expiration timestamp |
+| `prepareUrl` | string | URL for document preparation \(if preparation is needed\) |
+| `senderEmail` | string | Email of the sender |
+
+### `box_sign_list_requests`
+
+List all Box Sign requests
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Maximum number of sign requests to return \(max 1000\) |
+| `marker` | string | No | Pagination marker from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `signRequests` | array | List of sign requests |
+|   ↳ `id` | string | Sign request ID |
+|   ↳ `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+|   ↳ `name` | string | Sign request name |
+|   ↳ `shortId` | string | Human-readable short ID |
+|   ↳ `signers` | array | List of signers |
+|   ↳ `sourceFiles` | array | Source files for signing |
+|   ↳ `emailSubject` | string | Custom email subject line |
+|   ↳ `emailMessage` | string | Custom email message body |
+|   ↳ `daysValid` | number | Number of days the request is valid |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `autoExpireAt` | string | Auto-expiration timestamp |
+|   ↳ `prepareUrl` | string | URL for document preparation \(if preparation is needed\) |
+|   ↳ `senderEmail` | string | Email of the sender |
+| `count` | number | Number of sign requests returned in this page |
+| `nextMarker` | string | Marker for next page of results |
+
+### `box_sign_cancel_request`
+
+Cancel a pending Box Sign request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signRequestId` | string | Yes | The ID of the sign request to cancel |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Sign request ID |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `name` | string | Sign request name |
+| `shortId` | string | Human-readable short ID |
+| `signers` | array | List of signers |
+| `sourceFiles` | array | Source files for signing |
+| `emailSubject` | string | Custom email subject line |
+| `emailMessage` | string | Custom email message body |
+| `daysValid` | number | Number of days the request is valid |
+| `createdAt` | string | Creation timestamp |
+| `autoExpireAt` | string | Auto-expiration timestamp |
+| `prepareUrl` | string | URL for document preparation \(if preparation is needed\) |
+| `senderEmail` | string | Email of the sender |
+
+### `box_sign_resend_request`
+
+Resend a Box Sign request to signers who have not yet signed
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signRequestId` | string | Yes | The ID of the sign request to resend |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success confirmation message |
+
+

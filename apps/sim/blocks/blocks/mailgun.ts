@@ -1,5 +1,6 @@
 import { MailgunIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import type { SendMessageResult } from '@/tools/mailgun/types'
 
 export const MailgunBlock: BlockConfig<SendMessageResult> = {
@@ -10,6 +11,8 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
     'Integrate Mailgun into your workflow. Send transactional emails, manage mailing lists and members, view domain information, and track email events. Supports text and HTML emails, tags for tracking, and comprehensive list management.',
   docsLink: 'https://docs.sim.ai/tools/mailgun',
   category: 'tools',
+  integrationType: IntegrationType.Email,
+  tags: ['messaging', 'email-marketing'],
   bgColor: '#E0E0E0',
   icon: MailgunIcon,
 

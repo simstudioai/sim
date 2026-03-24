@@ -3,15 +3,12 @@
 import { type KeyboardEvent, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Eye, EyeOff } from 'lucide-react'
-import { Input } from '@/components/emcn'
-import { Label } from '@/components/ui/label'
+import { Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
-import Nav from '@/app/(landing)/components/nav/nav'
+import Navbar from '@/app/(home)/components/navbar/navbar'
 
 const logger = createLogger('PasswordAuth')
 
@@ -82,19 +79,19 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
   }
 
   return (
-    <AuthBackground>
-      <main className='relative flex min-h-screen flex-col text-foreground'>
-        <Nav hideAuthButtons={true} variant='auth' />
+    <AuthBackground className='dark font-[430] font-season'>
+      <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
+        <header className='shrink-0 bg-[#1C1C1C]'>
+          <Navbar logoOnly />
+        </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1
-                  className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
-                >
+                <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>
                   Password Required
                 </h1>
-                <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+                <p className='font-[380] text-[#999] text-[16px]'>
                   This chat is password-protected
                 </p>
               </div>
@@ -104,7 +101,7 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
                   e.preventDefault()
                   handleAuthenticate()
                 }}
-                className={`${inter.className} mt-8 w-full max-w-[410px] space-y-6`}
+                className='mt-8 w-full max-w-[410px] space-y-6'
               >
                 <div className='space-y-2'>
                   <div className='flex items-center justify-between'>
@@ -124,17 +121,17 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
                       onChange={handlePasswordChange}
                       onKeyDown={handleKeyDown}
                       className={cn(
-                        'rounded-[10px] pr-10 shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                        'pr-10',
                         showValidationError &&
                           passwordErrors.length > 0 &&
-                          'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                          'border-red-500 focus:border-red-500'
                       )}
                       autoFocus
                     />
                     <button
                       type='button'
                       onClick={() => setShowPassword(!showPassword)}
-                      className='-translate-y-1/2 absolute top-1/2 right-3 text-gray-500 transition hover:text-gray-700'
+                      className='-translate-y-1/2 absolute top-1/2 right-3 text-[#999] hover:text-[#ECECEC]'
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}

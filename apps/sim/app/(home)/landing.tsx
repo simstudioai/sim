@@ -1,3 +1,4 @@
+import { getNavBlogPosts } from '@/lib/blog/registry'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import { season } from '@/app/_styles/fonts/season/season'
 import {
@@ -28,23 +29,25 @@ import {
  *   for immediate availability to AI crawlers.
  * - Section `id` attributes serve as fragment anchors for precise AI citations.
  * - Content ordering prioritizes answer-first patterns: definition (Hero) ->
- *   examples (Templates) -> capabilities (Features) -> social proof (Collaboration, Testimonials) ->
- *   pricing (Pricing) -> enterprise (Enterprise).
+ *   examples (Templates) -> capabilities (Features) -> social proof (Collaboration) ->
+ *   enterprise (Enterprise) -> pricing (Pricing) -> testimonials (Testimonials).
  */
 export default async function Landing() {
+  const blogPosts = await getNavBlogPosts()
+
   return (
     <div className={`${season.variable} ${martianMono.variable} min-h-screen bg-[#1C1C1C]`}>
       <StructuredData />
       <header>
-        <Navbar />
+        <Navbar blogPosts={blogPosts} />
       </header>
       <main>
         <Hero />
         <Templates />
         <Features />
         <Collaboration />
-        <Pricing />
         <Enterprise />
+        <Pricing />
         <Testimonials />
       </main>
       <Footer />

@@ -71,6 +71,31 @@ export interface ExecutionStatus {
   durationMs?: number
 }
 
+export const EXECUTION_FINALIZATION_PATHS = [
+  'completed',
+  'fallback_completed',
+  'force_failed',
+  'cancelled',
+  'paused',
+] as const
+
+export type ExecutionFinalizationPath = (typeof EXECUTION_FINALIZATION_PATHS)[number]
+
+export interface ExecutionLastStartedBlock {
+  blockId: string
+  blockName: string
+  blockType: string
+  startedAt: string
+}
+
+export interface ExecutionLastCompletedBlock {
+  blockId: string
+  blockName: string
+  blockType: string
+  endedAt: string
+  success: boolean
+}
+
 export interface WorkflowExecutionSnapshot {
   id: string
   workflowId: string | null
@@ -105,6 +130,13 @@ export interface WorkflowExecutionLog {
     environment?: ExecutionEnvironment
     trigger?: ExecutionTrigger
     correlation?: AsyncExecutionCorrelation
+    error?: string
+    lastStartedBlock?: ExecutionLastStartedBlock
+    lastCompletedBlock?: ExecutionLastCompletedBlock
+    hasTraceSpans?: boolean
+    traceSpanCount?: number
+    completionFailure?: string
+    finalizationPath?: ExecutionFinalizationPath
     traceSpans?: TraceSpan[]
     tokens?: { input?: number; output?: number; total?: number }
     models?: Record<
@@ -378,6 +410,9 @@ export interface ExecutionLoggerService {
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
     workflowInput?: any
+    executionState?: SerializableExecutionState
+    finalizationPath?: ExecutionFinalizationPath
+    completionFailure?: string
     isResume?: boolean
     level?: 'info' | 'error'
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'

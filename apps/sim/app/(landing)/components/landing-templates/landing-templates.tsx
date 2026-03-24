@@ -1,4 +1,3 @@
-import { inter } from '@/app/_styles/fonts/inter/inter'
 import LandingTemplatePreview from '@/app/(landing)/components/landing-templates/components/landing-template-preview'
 
 const templates = [
@@ -80,7 +79,7 @@ export default function LandingTemplates() {
   return (
     <section
       id='templates'
-      className={`${inter.className} flex flex-col px-4 pt-[40px] sm:px-[50px] sm:pt-[34px]`}
+      className='flex flex-col px-4 pt-[40px] sm:px-[50px] sm:pt-[34px]'
       aria-labelledby='templates-heading'
     >
       <h2

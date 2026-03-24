@@ -1,6 +1,6 @@
 import { AttioIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { AttioResponse } from '@/tools/attio/types'
 import { getTrigger } from '@/triggers'
 
@@ -12,6 +12,8 @@ export const AttioBlock: BlockConfig<AttioResponse> = {
     'Connect to Attio to manage CRM records (people, companies, custom objects), notes, tasks, lists, list entries, comments, workspace members, and webhooks.',
   docsLink: 'https://docs.sim.ai/tools/attio',
   category: 'tools',
+  integrationType: IntegrationType.CRM,
+  tags: ['sales-engagement', 'enrichment'],
   bgColor: '#1D1E20',
   icon: AttioIcon,
   authMode: AuthMode.OAuth,

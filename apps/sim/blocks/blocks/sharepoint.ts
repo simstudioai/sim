@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { MicrosoftSharepointIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SharepointResponse } from '@/tools/sharepoint/types'
 
@@ -17,6 +17,8 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
     'Integrate SharePoint into the workflow. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.',
   docsLink: 'https://docs.sim.ai/tools/sharepoint',
   category: 'tools',
+  integrationType: IntegrationType.Documents,
+  tags: ['microsoft-365', 'content-management', 'document-processing'],
   bgColor: '#E0E0E0',
   icon: MicrosoftSharepointIcon,
   subBlocks: [

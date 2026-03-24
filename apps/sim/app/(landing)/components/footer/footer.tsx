@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { inter } from '@/app/_styles/fonts/inter/inter'
 import {
   ComplianceBadges,
   Logo,
@@ -14,7 +13,7 @@ interface FooterProps {
 
 export default function Footer({ fullWidth = false }: FooterProps) {
   return (
-    <footer className={`${inter.className} relative w-full overflow-hidden bg-white`}>
+    <footer className='relative w-full overflow-hidden bg-white'>
       <div
         className={
           fullWidth
@@ -58,10 +57,10 @@ export default function Footer({ fullWidth = false }: FooterProps) {
                 Enterprise
               </Link>
               <Link
-                href='/studio'
+                href='/blog'
                 className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
               >
-                Sim Studio
+                Blog
               </Link>
               <Link
                 href='/changelog'

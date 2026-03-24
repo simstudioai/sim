@@ -43,6 +43,11 @@ vi.mock('@/lib/core/utils/request', () => ({
 vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
   dispatchSync: mockDispatchSync,
 }))
+vi.mock('@/lib/audit/log', () => ({
+  recordAudit: vi.fn(),
+  AuditAction: {},
+  AuditResourceType: {},
+}))
 
 import { POST } from '@/app/api/knowledge/[id]/connectors/[connectorId]/sync/route'
 
@@ -92,8 +97,16 @@ describe('Connector Manual Sync API Route', () => {
   })
 
   it('dispatches sync on valid request', async () => {
-    mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
-    mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
+    mockCheckSession.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      userName: 'Test',
+      userEmail: 'test@test.com',
+    })
+    mockCheckWriteAccess.mockResolvedValue({
+      hasAccess: true,
+      knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
+    })
     mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456', status: 'active' }])
 
     const req = createMockRequest('POST')

@@ -1,6 +1,6 @@
 import { ApolloIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ApolloResponse } from '@/tools/apollo/types'
 
 export const ApolloBlock: BlockConfig<ApolloResponse> = {
@@ -12,6 +12,8 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
     'Integrates Apollo.io into the workflow. Search for people and companies, enrich contact data, manage your CRM contacts and accounts, add contacts to sequences, and create tasks.',
   docsLink: 'https://docs.sim.ai/tools/apollo',
   category: 'tools',
+  integrationType: IntegrationType.SalesIntelligence,
+  tags: ['enrichment', 'sales-engagement'],
   bgColor: '#EBF212',
   icon: ApolloIcon,
   subBlocks: [

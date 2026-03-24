@@ -1,5 +1,5 @@
 import { ImageIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { DalleResponse } from '@/tools/openai/types'
 
 export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
@@ -11,6 +11,8 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
     'Integrate Image Generator into the workflow. Can generate images using DALL-E 3 or GPT Image.',
   docsLink: 'https://docs.sim.ai/tools/image_generator',
   category: 'tools',
+  integrationType: IntegrationType.AI,
+  tags: ['image-generation', 'llm'],
   bgColor: '#4D5FFF',
   icon: ImageIcon,
   subBlocks: [

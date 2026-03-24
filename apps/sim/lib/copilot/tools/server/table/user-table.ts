@@ -18,6 +18,7 @@ import {
   insertRow,
   queryRows,
   renameColumn,
+  renameTable,
   updateColumnConstraints,
   updateColumnType,
   updateRow,
@@ -26,7 +27,7 @@ import {
 import type { ColumnDefinition, RowData, TableDefinition } from '@/lib/table/types'
 import {
   downloadWorkspaceFile,
-  listWorkspaceFiles,
+  resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('UserTableServerTool')
@@ -40,15 +41,10 @@ async function resolveWorkspaceFile(
   filePath: string,
   workspaceId: string
 ): Promise<{ buffer: Buffer; name: string; type: string }> {
-  const match = filePath.match(/^files\/(.+)$/)
-  const fileName = match ? match[1] : filePath
-  const files = await listWorkspaceFiles(workspaceId)
-  const record = files.find(
-    (f) => f.name === fileName || f.name.normalize('NFC') === fileName.normalize('NFC')
-  )
+  const record = await resolveWorkspaceFileReference(workspaceId, filePath)
   if (!record) {
     throw new Error(
-      `File not found: "${fileName}". Use glob("files/*/meta.json") to list available files.`
+      `File not found: "${filePath}". Use glob("files/*/meta.json") to list available files.`
     )
   }
   const buffer = await downloadWorkspaceFile(record)
@@ -883,13 +879,50 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
         }
 
+        case 'rename': {
+          if (!args.tableId) {
+            return { success: false, message: 'Table ID is required' }
+          }
+          const newName = (args as Record<string, unknown>).newName as string | undefined
+          if (!newName) {
+            return { success: false, message: 'newName is required for renaming a table' }
+          }
+          if (!workspaceId) {
+            return { success: false, message: 'Workspace ID is required' }
+          }
+
+          const table = await getTableById(args.tableId)
+          if (!table) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+          if (table.workspaceId !== workspaceId) {
+            return { success: false, message: 'Table not found' }
+          }
+
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const renamed = await renameTable(args.tableId, newName, requestId)
+
+          return {
+            success: true,
+            message: `Renamed table to "${renamed.name}"`,
+            data: { table: { id: renamed.id, name: renamed.name } },
+          }
+        }
+
         default:
           return { success: false, message: `Unknown operation: ${operation}` }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Table operation failed', { operation, error: errorMessage })
-      return { success: false, message: `Operation failed: ${errorMessage}` }
+      const cause =
+        error instanceof Error && error.cause
+          ? error.cause instanceof Error
+            ? error.cause.message
+            : String(error.cause)
+          : undefined
+      logger.error('Table operation failed', { operation, error: errorMessage, cause })
+      const displayMessage = cause ? `${errorMessage} (${cause})` : errorMessage
+      return { success: false, message: `Operation failed: ${displayMessage}` }
     }
   },
 }

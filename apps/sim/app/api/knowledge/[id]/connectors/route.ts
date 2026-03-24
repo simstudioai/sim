@@ -5,6 +5,7 @@ import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { encryptApiKey } from '@/lib/api-key/crypto'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
@@ -225,6 +226,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
 
     logger.info(`[${requestId}] Created connector ${connectorId} for KB ${knowledgeBaseId}`)
+
+    recordAudit({
+      workspaceId: writeCheck.knowledgeBase.workspaceId,
+      actorId: auth.userId,
+      actorName: auth.userName,
+      actorEmail: auth.userEmail,
+      action: AuditAction.CONNECTOR_CREATED,
+      resourceType: AuditResourceType.CONNECTOR,
+      resourceId: connectorId,
+      resourceName: connectorType,
+      description: `Created ${connectorType} connector for knowledge base "${writeCheck.knowledgeBase.name}"`,
+      metadata: { knowledgeBaseId, connectorType, syncIntervalMinutes },
+      request,
+    })
 
     dispatchSync(connectorId, { requestId }).catch((error) => {
       logger.error(

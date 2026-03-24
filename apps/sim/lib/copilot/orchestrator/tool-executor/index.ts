@@ -12,10 +12,13 @@ import { routeExecution } from '@/lib/copilot/tools/server/router'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { validateMcpDomain } from '@/lib/mcp/domain-check'
 import { mcpService } from '@/lib/mcp/service'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
+import { getTableById } from '@/lib/table/service'
+import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   deleteCustomTool,
   getCustomToolById,
@@ -24,7 +27,7 @@ import {
 } from '@/lib/workflows/custom-tools/operations'
 import { deleteSkill, listSkills, upsertSkills } from '@/lib/workflows/skills/operations'
 import { getWorkflowById } from '@/lib/workflows/utils'
-import { isMcpTool } from '@/executor/constants'
+import { isMcpTool, isUuid } from '@/executor/constants'
 import { executeTool } from '@/tools'
 import { getTool, resolveToolId } from '@/tools/utils'
 import {
@@ -68,6 +71,8 @@ import type {
   ListWorkspaceMcpServersParams,
   MoveFolderParams,
   MoveWorkflowParams,
+  OpenResourceParams,
+  OpenResourceType,
   RenameFolderParams,
   RenameWorkflowParams,
   RunBlockParams,
@@ -77,6 +82,7 @@ import type {
   SetGlobalWorkflowVariablesParams,
   UpdateWorkflowParams,
   UpdateWorkspaceMcpServerParams,
+  ValidOpenResourceParams,
 } from './param-types'
 import { PLATFORM_ACTIONS_CONTENT } from './platform-actions'
 import { executeVfsGlob, executeVfsGrep, executeVfsList, executeVfsRead } from './vfs-tools'
@@ -105,6 +111,36 @@ import {
 } from './workflow-tools'
 
 const logger = createLogger('CopilotToolExecutor')
+const VALID_OPEN_RESOURCE_TYPES = new Set<OpenResourceType>([
+  'workflow',
+  'table',
+  'knowledgebase',
+  'file',
+])
+
+function validateOpenResourceParams(
+  params: OpenResourceParams
+): { success: true; params: ValidOpenResourceParams } | { success: false; error: string } {
+  if (!params.type) {
+    return { success: false, error: 'type is required' }
+  }
+
+  if (!VALID_OPEN_RESOURCE_TYPES.has(params.type)) {
+    return { success: false, error: `Invalid resource type: ${params.type}` }
+  }
+
+  if (!params.id) {
+    return { success: false, error: `${params.type} resources require \`id\`` }
+  }
+
+  return {
+    success: true,
+    params: {
+      type: params.type,
+      id: params.id,
+    },
+  }
+}
 
 type ManageCustomToolOperation = 'add' | 'edit' | 'delete' | 'list'
 
@@ -698,14 +734,16 @@ const SERVER_TOOLS = new Set<string>([
   'edit_workflow',
   'get_workflow_logs',
   'search_documentation',
-  'search_online',
   'set_environment_variables',
   'make_api_request',
   'knowledge_base',
   'user_table',
   'workspace_file',
+  'download_to_workspace_file',
   'get_execution_summary',
   'get_job_logs',
+  'generate_visualization',
+  'generate_image',
 ])
 
 /**
@@ -864,7 +902,7 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   deploy_api: (p, c) => executeDeployApi(p as DeployApiParams, c),
   deploy_chat: (p, c) => executeDeployChat(p as DeployChatParams, c),
   deploy_mcp: (p, c) => executeDeployMcp(p as DeployMcpParams, c),
-  redeploy: (_p, c) => executeRedeploy(c),
+  redeploy: (p, c) => executeRedeploy(p as { workflowId?: string }, c),
   check_deployment_status: (p, c) =>
     executeCheckDeploymentStatus(p as CheckDeploymentStatusParams, c),
   list_workspace_mcp_servers: (p, c) =>
@@ -996,16 +1034,97 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   list: (p, c) => executeVfsList(p, c),
 
   // Resource visibility
-  open_resource: async (p) => {
-    const resourceType = p.type as string | undefined
-    const resourceId = p.id as string | undefined
-    if (!resourceType || !resourceId) {
-      return { success: false, error: 'type and id are required' }
+  open_resource: async (p: OpenResourceParams, c: ExecutionContext) => {
+    const validated = validateOpenResourceParams(p)
+    if (!validated.success) {
+      return { success: false, error: validated.error }
     }
-    const validTypes = new Set(['workflow', 'table', 'knowledgebase', 'file'])
-    if (!validTypes.has(resourceType)) {
-      return { success: false, error: `Invalid resource type: ${resourceType}` }
+
+    const params = validated.params
+    const resourceType = params.type
+    let resourceId = params.id
+    let title: string = resourceType
+
+    if (resourceType === 'file') {
+      if (!c.workspaceId) {
+        return {
+          success: false,
+          error:
+            'Opening a workspace file requires workspace context. Pass the file UUID from files/<name>/meta.json.',
+        }
+      }
+      if (!isUuid(params.id)) {
+        return {
+          success: false,
+          error:
+            'open_resource for files requires the canonical UUID from files/<name>/meta.json (the "id" field). Do not pass VFS paths, display names, or file_<name> strings.',
+        }
+      }
+      const record = await getWorkspaceFile(c.workspaceId, params.id)
+      if (!record) {
+        return {
+          success: false,
+          error: `No workspace file with id "${params.id}". Confirm the UUID from meta.json.`,
+        }
+      }
+      resourceId = record.id
+      title = record.name
     }
+
+    if (resourceType === 'workflow') {
+      const workflow = await getWorkflowById(params.id)
+      if (!workflow) {
+        return {
+          success: false,
+          error: `No workflow with id "${params.id}". Confirm the workflow ID before opening it.`,
+        }
+      }
+      if (c.workspaceId && workflow.workspaceId !== c.workspaceId) {
+        return {
+          success: false,
+          error: `Workflow "${params.id}" was not found in the current workspace.`,
+        }
+      }
+      resourceId = workflow.id
+      title = workflow.name
+    }
+
+    if (resourceType === 'table') {
+      const table = await getTableById(params.id)
+      if (!table) {
+        return {
+          success: false,
+          error: `No table with id "${params.id}". Confirm the table ID before opening it.`,
+        }
+      }
+      if (c.workspaceId && table.workspaceId !== c.workspaceId) {
+        return {
+          success: false,
+          error: `Table "${params.id}" was not found in the current workspace.`,
+        }
+      }
+      resourceId = table.id
+      title = table.name
+    }
+
+    if (resourceType === 'knowledgebase') {
+      const knowledgeBase = await getKnowledgeBaseById(params.id)
+      if (!knowledgeBase) {
+        return {
+          success: false,
+          error: `No knowledge base with id "${params.id}". Confirm the knowledge base ID before opening it.`,
+        }
+      }
+      if (c.workspaceId && knowledgeBase.workspaceId !== c.workspaceId) {
+        return {
+          success: false,
+          error: `Knowledge base "${params.id}" was not found in the current workspace.`,
+        }
+      }
+      resourceId = knowledgeBase.id
+      title = knowledgeBase.name
+    }
+
     return {
       success: true,
       output: { message: `Opened ${resourceType} ${resourceId} for the user` },
@@ -1013,7 +1132,7 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
         {
           type: resourceType as 'workflow' | 'table' | 'knowledgebase' | 'file',
           id: resourceId,
-          title: resourceType,
+          title,
         },
       ],
     }
@@ -1023,8 +1142,8 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
 /**
  * Check whether a tool can be executed on the Sim (TypeScript) side.
  *
- * Tools that are only available on the Go backend (e.g. search_patterns,
- * search_errors, remember_debug) will return false.  The subagent tool_call
+ * Tools that are only available on the Go backend (e.g. search_patterns)
+ * will return false.  The subagent tool_call
  * handler uses this to decide whether to execute a tool locally or let the
  * Go backend's own tool_result SSE event handle it.
  */
@@ -1121,7 +1240,30 @@ async function executeServerToolDirect(
       userId: context.userId,
       workspaceId: context.workspaceId,
       userPermission: context.userPermission,
+      chatId: context.chatId,
+      abortSignal: context.abortSignal,
     })
+
+    const resultRecord =
+      result && typeof result === 'object' && !Array.isArray(result)
+        ? (result as Record<string, unknown>)
+        : null
+
+    // Some server tools return an explicit { success, message, ... } envelope.
+    // Preserve tool-level failures instead of reporting them as transport success.
+    if (resultRecord?.success === false) {
+      const message =
+        (typeof resultRecord.error === 'string' && resultRecord.error) ||
+        (typeof resultRecord.message === 'string' && resultRecord.message) ||
+        `${toolName} failed`
+
+      return {
+        success: false,
+        error: message,
+        output: result,
+      }
+    }
+
     return { success: true, output: result }
   } catch (error) {
     logger.error('Server tool execution failed', {
@@ -1227,7 +1369,8 @@ export async function markToolComplete(
  */
 export async function prepareExecutionContext(
   userId: string,
-  workflowId: string
+  workflowId: string,
+  chatId?: string
 ): Promise<ExecutionContext> {
   const wf = await getWorkflowById(workflowId)
   const workspaceId = wf?.workspaceId ?? undefined
@@ -1238,6 +1381,7 @@ export async function prepareExecutionContext(
     userId,
     workflowId,
     workspaceId,
+    chatId,
     decryptedEnvVars,
   }
 }

@@ -175,24 +175,26 @@ export function SearchModal({
     ]
   )
 
+  const [search, setSearch] = useState('')
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+    if (open) setSearch('')
+  }
+
   useEffect(() => {
-    if (open) {
-      setSearch('')
-      if (inputRef.current) {
-        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-          window.HTMLInputElement.prototype,
-          'value'
-        )?.set
-        if (nativeInputValueSetter) {
-          nativeInputValueSetter.call(inputRef.current, '')
-          inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
-        }
-        inputRef.current.focus()
-      }
+    if (!open || !inputRef.current) return
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value'
+    )?.set
+    if (nativeInputValueSetter) {
+      nativeInputValueSetter.call(inputRef.current, '')
+      inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
     }
+    inputRef.current.focus()
   }, [open])
 
-  const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
 
   const handleSearchChange = useCallback((value: string) => {

@@ -53,6 +53,11 @@ vi.mock('@/lib/auth/hybrid', () => ({
 vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn().mockReturnValue('test-req-id'),
 }))
+vi.mock('@/lib/audit/log', () => ({
+  recordAudit: vi.fn(),
+  AuditAction: {},
+  AuditResourceType: {},
+}))
 
 import { GET, PATCH } from '@/app/api/knowledge/[id]/connectors/[connectorId]/documents/route'
 
@@ -168,8 +173,16 @@ describe('Connector Documents API Route', () => {
     })
 
     it('returns success for restore operation', async () => {
-      mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
-      mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
+      mockCheckSession.mockResolvedValue({
+        success: true,
+        userId: 'user-1',
+        userName: 'Test',
+        userEmail: 'test@test.com',
+      })
+      mockCheckWriteAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
+      })
       mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456' }])
       mockDbChain.returning.mockResolvedValueOnce([{ id: 'doc-1' }])
 
@@ -182,8 +195,16 @@ describe('Connector Documents API Route', () => {
     })
 
     it('returns success for exclude operation', async () => {
-      mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
-      mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
+      mockCheckSession.mockResolvedValue({
+        success: true,
+        userId: 'user-1',
+        userName: 'Test',
+        userEmail: 'test@test.com',
+      })
+      mockCheckWriteAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: { workspaceId: 'ws-1', name: 'Test KB' },
+      })
       mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456' }])
       mockDbChain.returning.mockResolvedValueOnce([{ id: 'doc-2' }, { id: 'doc-3' }])
 

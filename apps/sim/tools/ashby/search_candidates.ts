@@ -80,6 +80,8 @@ export const searchCandidatesTool: ToolConfig<
                   isPrimary: c.primaryPhoneNumber.isPrimary ?? true,
                 }
               : null,
+            createdAt: c.createdAt ?? null,
+            updatedAt: c.updatedAt ?? null,
           })
         ),
       },
@@ -115,6 +117,8 @@ export const searchCandidatesTool: ToolConfig<
               isPrimary: { type: 'boolean', description: 'Whether this is the primary phone' },
             },
           },
+          createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
+          updatedAt: { type: 'string', description: 'ISO 8601 last update timestamp' },
         },
       },
     },

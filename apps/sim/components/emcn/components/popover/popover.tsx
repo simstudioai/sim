@@ -226,6 +226,7 @@ const Popover: React.FC<PopoverProps> = ({
   size = 'md',
   colorScheme = 'default',
   open,
+  onOpenChange,
   ...props
 }) => {
   const [currentFolder, setCurrentFolder] = React.useState<string | null>(null)
@@ -251,21 +252,33 @@ const Popover: React.FC<PopoverProps> = ({
     }
   }, [])
 
+  /** Resets all navigation state to initial values */
+  const resetState = React.useCallback(() => {
+    setCurrentFolder(null)
+    setFolderTitle(null)
+    setOnFolderSelect(null)
+    setSearchQuery('')
+    setLastHoveredItem(null)
+    setIsKeyboardNav(false)
+    setSelectedIndex(-1)
+    registeredItemsRef.current = []
+  }, [])
+
   React.useEffect(() => {
-    if (open === false) {
-      setCurrentFolder(null)
-      setFolderTitle(null)
-      setOnFolderSelect(null)
-      setSearchQuery('')
-      setLastHoveredItem(null)
-      setIsKeyboardNav(false)
-      setSelectedIndex(-1)
-      registeredItemsRef.current = []
-    } else {
-      // Reset hover state when opening to prevent stale submenu from previous menu
-      setLastHoveredItem(null)
+    if (!open) {
+      resetState()
     }
-  }, [open])
+  }, [open, resetState])
+
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      if (nextOpen) {
+        setLastHoveredItem(null)
+      }
+      onOpenChange?.(nextOpen)
+    },
+    [onOpenChange]
+  )
 
   const openFolder = React.useCallback(
     (id: string, title: string, onLoad?: () => void | Promise<void>, onSelect?: () => void) => {
@@ -336,7 +349,7 @@ const Popover: React.FC<PopoverProps> = ({
 
   return (
     <PopoverContext.Provider value={contextValue}>
-      <PopoverPrimitive.Root open={open} {...props}>
+      <PopoverPrimitive.Root open={open} onOpenChange={handleOpenChange} {...props}>
         {children}
       </PopoverPrimitive.Root>
     </PopoverContext.Provider>

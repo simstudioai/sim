@@ -6,8 +6,6 @@ import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { signOut, useSession } from '@/lib/auth/auth-client'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { BrandedButton } from '@/app/(auth)/components/branded-button'
 
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
@@ -129,10 +127,10 @@ export default function OAuthConsentPage() {
     return (
       <div className='flex flex-col items-center justify-center'>
         <div className='space-y-1 text-center'>
-          <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
             Authorize Application
           </h1>
-          <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+          <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
             Loading application details...
           </p>
         </div>
@@ -144,14 +142,14 @@ export default function OAuthConsentPage() {
     return (
       <div className='flex flex-col items-center justify-center'>
         <div className='space-y-1 text-center'>
-          <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
             Authorization Error
           </h1>
-          <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+          <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
             {error}
           </p>
         </div>
-        <div className={`${inter.className} mt-8 w-full max-w-[410px] space-y-3`}>
+        <div className='mt-8 w-full max-w-[410px] space-y-3'>
           <BrandedButton onClick={() => router.push('/')}>Return to Home</BrandedButton>
         </div>
       </div>
@@ -172,11 +170,11 @@ export default function OAuthConsentPage() {
             className='rounded-[10px]'
           />
         ) : (
-          <div className='flex h-12 w-12 items-center justify-center rounded-[10px] bg-muted font-medium text-[18px] text-muted-foreground'>
+          <div className='flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#2A2A2A] font-medium text-[#999] text-[18px]'>
             {(clientName ?? '?').charAt(0).toUpperCase()}
           </div>
         )}
-        <ArrowLeftRight className='h-5 w-5 text-muted-foreground' />
+        <ArrowLeftRight className='h-5 w-5 text-[#999]' />
         <Image
           src='/new/logo/colorized-bg.svg'
           alt='Sim'
@@ -187,19 +185,17 @@ export default function OAuthConsentPage() {
       </div>
 
       <div className='space-y-1 text-center'>
-        <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+        <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           Authorize Application
         </h1>
-        <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-          <span className='font-medium text-foreground'>{clientName}</span> is requesting access to
+        <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
+          <span className='font-medium text-[#ECECEC]'>{clientName}</span> is requesting access to
           your account
         </p>
       </div>
 
       {session?.user && (
-        <div
-          className={`${inter.className} mt-5 flex items-center gap-3 rounded-lg border px-4 py-3`}
-        >
+        <div className='mt-5 flex items-center gap-3 rounded-lg border border-[#2A2A2A] px-4 py-3'>
           {session.user.image ? (
             <Image
               src={session.user.image}
@@ -210,7 +206,7 @@ export default function OAuthConsentPage() {
               unoptimized
             />
           ) : (
-            <div className='flex h-8 w-8 items-center justify-center rounded-full bg-muted font-medium text-[13px] text-muted-foreground'>
+            <div className='flex h-8 w-8 items-center justify-center rounded-full bg-[#2A2A2A] font-medium text-[#999] text-[13px]'>
               {(session.user.name ?? session.user.email ?? '?').charAt(0).toUpperCase()}
             </div>
           )}
@@ -218,12 +214,12 @@ export default function OAuthConsentPage() {
             {session.user.name && (
               <p className='truncate font-medium text-[14px]'>{session.user.name}</p>
             )}
-            <p className='truncate text-[13px] text-muted-foreground'>{session.user.email}</p>
+            <p className='truncate text-[#999] text-[13px]'>{session.user.email}</p>
           </div>
           <button
             type='button'
             onClick={handleSwitchAccount}
-            className='ml-auto text-[13px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline'
+            className='ml-auto text-[#999] text-[13px] underline-offset-2 transition-colors hover:text-[#ECECEC] hover:underline'
           >
             Switch
           </button>
@@ -231,15 +227,12 @@ export default function OAuthConsentPage() {
       )}
 
       {scopes.length > 0 && (
-        <div className={`${inter.className} mt-5 w-full max-w-[410px]`}>
+        <div className='mt-5 w-full max-w-[410px]'>
           <div className='rounded-lg border p-4'>
             <p className='mb-3 font-medium text-[14px]'>This will allow the application to:</p>
             <ul className='space-y-2'>
               {scopes.map((s) => (
-                <li
-                  key={s}
-                  className='flex items-start gap-2 font-normal text-[13px] text-muted-foreground'
-                >
+                <li key={s} className='flex items-start gap-2 font-normal text-[#999] text-[13px]'>
                   <span className='mt-0.5 text-green-500'>&#10003;</span>
                   <span>{SCOPE_DESCRIPTIONS[s] ?? s}</span>
                 </li>
@@ -249,7 +242,7 @@ export default function OAuthConsentPage() {
         </div>
       )}
 
-      <div className={`${inter.className} mt-6 flex w-full max-w-[410px] gap-3`}>
+      <div className='mt-6 flex w-full max-w-[410px] gap-3'>
         <Button
           variant='outline'
           size='md'

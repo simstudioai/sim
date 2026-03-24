@@ -5,7 +5,7 @@ import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileReader')
 
-const MAX_TEXT_READ_BYTES = 512 * 1024 // 512 KB
+const MAX_TEXT_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 
 const TEXT_TYPES = new Set([
@@ -14,6 +14,7 @@ const TEXT_TYPES = new Set([
   'text/markdown',
   'text/html',
   'text/xml',
+  'text/x-pptxgenjs',
   'application/json',
   'application/xml',
   'application/javascript',
@@ -72,6 +73,19 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
       }
     }
 
+    if (isReadableType(record.type)) {
+      if (record.size > MAX_TEXT_READ_BYTES) {
+        return {
+          content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
+          totalLines: 1,
+        }
+      }
+
+      const buffer = await downloadWorkspaceFile(record)
+      const content = buffer.toString('utf-8')
+      return { content, totalLines: content.split('\n').length }
+    }
+
     const ext = getExtension(record.name)
     if (PARSEABLE_EXTENSIONS.has(ext)) {
       const buffer = await downloadWorkspaceFile(record)
@@ -93,23 +107,10 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
       }
     }
 
-    if (!isReadableType(record.type)) {
-      return {
-        content: `[Binary file: ${record.name} (${record.type}, ${record.size} bytes). Cannot display as text.]`,
-        totalLines: 1,
-      }
+    return {
+      content: `[Binary file: ${record.name} (${record.type}, ${record.size} bytes). Cannot display as text.]`,
+      totalLines: 1,
     }
-
-    if (record.size > MAX_TEXT_READ_BYTES) {
-      return {
-        content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
-        totalLines: 1,
-      }
-    }
-
-    const buffer = await downloadWorkspaceFile(record)
-    const content = buffer.toString('utf-8')
-    return { content, totalLines: content.split('\n').length }
   } catch (err) {
     logger.warn('Failed to read workspace file', {
       fileName: record.name,

@@ -709,6 +709,18 @@ export interface SlackGetUserPresenceParams extends SlackBaseParams {
   userId: string
 }
 
+export interface SlackCreateConversationParams extends SlackBaseParams {
+  name: string
+  isPrivate?: boolean
+  teamId?: string
+}
+
+export interface SlackInviteToConversationParams extends SlackBaseParams {
+  channel: string
+  users: string
+  force?: boolean
+}
+
 export interface SlackEditCanvasParams extends SlackBaseParams {
   canvasId: string
   operation: string
@@ -1030,6 +1042,19 @@ export interface SlackGetChannelInfoResponse extends ToolResponse {
   }
 }
 
+export interface SlackCreateConversationResponse extends ToolResponse {
+  output: {
+    channelInfo: SlackChannel
+  }
+}
+
+export interface SlackInviteToConversationResponse extends ToolResponse {
+  output: {
+    channelInfo: SlackChannel
+    errors?: Array<{ user: string; ok: boolean; error: string }>
+  }
+}
+
 export interface SlackGetUserPresenceResponse extends ToolResponse {
   output: {
     presence: string
@@ -1118,6 +1143,8 @@ export type SlackResponse =
   | SlackGetUserPresenceResponse
   | SlackEditCanvasResponse
   | SlackCreateChannelCanvasResponse
+  | SlackCreateConversationResponse
+  | SlackInviteToConversationResponse
   | SlackOpenViewResponse
   | SlackUpdateViewResponse
   | SlackPushViewResponse

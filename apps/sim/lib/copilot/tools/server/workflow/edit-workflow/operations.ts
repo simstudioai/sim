@@ -26,6 +26,308 @@ import {
 
 const logger = createLogger('EditWorkflowServerTool')
 
+/**
+ * Applies loop/parallel container config from `inputs` onto a block state (data.loopType, etc.).
+ */
+function applyLoopOrParallelContainerData(block: any, params: Record<string, any>): void {
+  if (params.type === 'loop') {
+    const validLoopTypes = ['for', 'forEach', 'while', 'doWhile']
+    const loopType =
+      params.inputs?.loopType && validLoopTypes.includes(params.inputs.loopType)
+        ? params.inputs.loopType
+        : 'for'
+    block.data = {
+      ...block.data,
+      loopType,
+      ...(loopType === 'forEach' &&
+        params.inputs?.collection && { collection: params.inputs.collection }),
+      ...(loopType === 'for' && params.inputs?.iterations && { count: params.inputs.iterations }),
+      ...(loopType === 'while' &&
+        params.inputs?.condition && { whileCondition: params.inputs.condition }),
+      ...(loopType === 'doWhile' &&
+        params.inputs?.condition && { doWhileCondition: params.inputs.condition }),
+    }
+  } else if (params.type === 'parallel') {
+    const validParallelTypes = ['count', 'collection']
+    const parallelType =
+      params.inputs?.parallelType && validParallelTypes.includes(params.inputs.parallelType)
+        ? params.inputs.parallelType
+        : 'count'
+    block.data = {
+      ...block.data,
+      parallelType,
+      ...(parallelType === 'collection' &&
+        params.inputs?.collection && { collection: params.inputs.collection }),
+      ...(parallelType === 'count' && params.inputs?.count && { count: params.inputs.count }),
+    }
+  }
+}
+
+/**
+ * Adds child blocks under a loop/parallel container, including nested loop/parallel subflows.
+ */
+function processNestedNodesForParent(
+  parentBlockId: string,
+  nestedNodes: Record<string, any>,
+  ctx: OperationContext
+): void {
+  const { modifiedState, skippedItems, validationErrors, permissionConfig, deferredConnections } =
+    ctx
+
+  const parentBlock = modifiedState.blocks[parentBlockId]
+  if (parentBlock?.locked) {
+    logSkippedItem(skippedItems, {
+      type: 'block_locked',
+      operationType: 'add_nested_nodes',
+      blockId: parentBlockId,
+      reason: `Container "${parentBlockId}" is locked - cannot add nested nodes`,
+    })
+    return
+  }
+
+  Object.entries(nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
+    if (!isValidKey(childId)) {
+      logSkippedItem(skippedItems, {
+        type: 'missing_required_params',
+        operationType: 'add_nested_node',
+        blockId: String(childId || 'invalid'),
+        reason: `Invalid childId "${childId}" in nestedNodes - child block skipped`,
+      })
+      logger.error('Invalid childId detected in nestedNodes', {
+        parentBlockId,
+        childId,
+        childId_type: typeof childId,
+      })
+      return
+    }
+
+    const childBlockState = createBlockFromParams(
+      childId,
+      childBlock,
+      parentBlockId,
+      validationErrors,
+      permissionConfig,
+      skippedItems
+    )
+    if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
+      applyLoopOrParallelContainerData(childBlockState, childBlock)
+    }
+    modifiedState.blocks[childId] = childBlockState
+
+    if (childBlock.connections) {
+      deferredConnections.push({
+        blockId: childId,
+        connections: childBlock.connections,
+      })
+    }
+
+    if (childBlock.nestedNodes && (childBlock.type === 'loop' || childBlock.type === 'parallel')) {
+      processNestedNodesForParent(childId, childBlock.nestedNodes, ctx)
+    }
+  })
+}
+
+function updateLoopOrParallelContainerData(block: any, params: Record<string, any>): void {
+  if (block.type === 'loop') {
+    block.data = block.data || {}
+    if (params.inputs?.loopType) {
+      const validLoopTypes = ['for', 'forEach', 'while', 'doWhile']
+      if (validLoopTypes.includes(params.inputs.loopType)) {
+        block.data.loopType = params.inputs.loopType
+      }
+    }
+    const effectiveLoopType = params.inputs?.loopType ?? block.data.loopType ?? 'for'
+    if (params.inputs?.iterations && effectiveLoopType === 'for') {
+      block.data.count = params.inputs.iterations
+    }
+    if (params.inputs?.collection && effectiveLoopType === 'forEach') {
+      block.data.collection = params.inputs.collection
+    }
+    if (
+      params.inputs?.condition &&
+      (effectiveLoopType === 'while' || effectiveLoopType === 'doWhile')
+    ) {
+      if (effectiveLoopType === 'doWhile') {
+        block.data.doWhileCondition = params.inputs.condition
+      } else {
+        block.data.whileCondition = params.inputs.condition
+      }
+    }
+  } else if (block.type === 'parallel') {
+    block.data = block.data || {}
+    if (params.inputs?.parallelType) {
+      const validParallelTypes = ['count', 'collection']
+      if (validParallelTypes.includes(params.inputs.parallelType)) {
+        block.data.parallelType = params.inputs.parallelType
+      }
+    }
+    const effectiveParallelType = params.inputs?.parallelType ?? block.data.parallelType ?? 'count'
+    if (params.inputs?.count && effectiveParallelType === 'count') {
+      block.data.count = params.inputs.count
+    }
+    if (params.inputs?.collection && effectiveParallelType === 'collection') {
+      block.data.collection = params.inputs.collection
+    }
+  }
+}
+
+function mergeNestedNodesForParent(
+  parentBlockId: string,
+  nestedNodes: Record<string, any>,
+  ctx: OperationContext
+): void {
+  const { modifiedState, skippedItems, validationErrors, permissionConfig, deferredConnections } =
+    ctx
+
+  const existingChildren: Array<[string, any]> = Object.entries(modifiedState.blocks).filter(
+    ([, block]: [string, any]) => block.data?.parentId === parentBlockId
+  )
+
+  const existingByName = new Map<string, [string, any]>()
+  for (const [id, child] of existingChildren) {
+    existingByName.set(normalizeName(child.name), [id, child])
+  }
+
+  const matchedExistingIds = new Set<string>()
+
+  Object.entries(nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
+    const incomingName = normalizeName(childBlock.name || '')
+    const existingMatch = incomingName ? existingByName.get(incomingName) : undefined
+
+    if (existingMatch) {
+      const [existingId, existingBlock] = existingMatch
+      matchedExistingIds.add(existingId)
+
+      if (childBlock.inputs) {
+        if (!existingBlock.subBlocks) existingBlock.subBlocks = {}
+        const childValidation = validateInputsForBlock(
+          existingBlock.type,
+          childBlock.inputs,
+          existingId
+        )
+        validationErrors.push(...childValidation.errors)
+
+        Object.entries(childValidation.validInputs).forEach(([key, value]) => {
+          if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) return
+          let sanitizedValue = value
+          if (shouldNormalizeArrayIds(key)) {
+            sanitizedValue = normalizeArrayWithIds(value)
+          }
+          sanitizedValue = normalizeConditionRouterIds(existingId, key, sanitizedValue)
+          if (key === 'tools' && Array.isArray(value)) {
+            sanitizedValue = filterDisallowedTools(
+              normalizeTools(value),
+              permissionConfig,
+              existingId,
+              skippedItems
+            )
+          }
+          if (key === 'responseFormat' && value) {
+            sanitizedValue = normalizeResponseFormat(value)
+          }
+
+          const subBlockDef = getBlock(existingBlock.type)?.subBlocks.find(
+            (sb: any) => sb.id === key
+          )
+          if (!existingBlock.subBlocks[key]) {
+            existingBlock.subBlocks[key] = {
+              id: key,
+              type: subBlockDef?.type || 'short-input',
+              value: sanitizedValue,
+            }
+          } else {
+            existingBlock.subBlocks[key].value = sanitizedValue
+          }
+        })
+      }
+
+      if (existingBlock.type === 'loop' || existingBlock.type === 'parallel') {
+        updateLoopOrParallelContainerData(existingBlock, childBlock)
+      }
+
+      if (childBlock.connections) {
+        modifiedState.edges = modifiedState.edges.filter((edge: any) => edge.source !== existingId)
+        deferredConnections.push({
+          blockId: existingId,
+          connections: childBlock.connections,
+        })
+      }
+
+      if (
+        childBlock.nestedNodes &&
+        (existingBlock.type === 'loop' || existingBlock.type === 'parallel')
+      ) {
+        mergeNestedNodesForParent(existingId, childBlock.nestedNodes, ctx)
+      }
+      return
+    }
+
+    if (!isValidKey(childId)) {
+      logSkippedItem(skippedItems, {
+        type: 'missing_required_params',
+        operationType: 'add_nested_node',
+        blockId: String(childId || 'invalid'),
+        reason: `Invalid childId "${childId}" in nestedNodes - child block skipped`,
+      })
+      return
+    }
+
+    const childBlockState = createBlockFromParams(
+      childId,
+      childBlock,
+      parentBlockId,
+      validationErrors,
+      permissionConfig,
+      skippedItems
+    )
+    if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
+      applyLoopOrParallelContainerData(childBlockState, childBlock)
+    }
+    modifiedState.blocks[childId] = childBlockState
+
+    if (childBlock.connections) {
+      deferredConnections.push({
+        blockId: childId,
+        connections: childBlock.connections,
+      })
+    }
+
+    if (childBlock.nestedNodes && (childBlock.type === 'loop' || childBlock.type === 'parallel')) {
+      processNestedNodesForParent(childId, childBlock.nestedNodes, ctx)
+    }
+  })
+
+  const collectBlockAndDescendants = (
+    rootId: string,
+    collected = new Set<string>()
+  ): Set<string> => {
+    collected.add(rootId)
+    Object.entries(modifiedState.blocks).forEach(([childId, block]: [string, any]) => {
+      if (block.data?.parentId === rootId && !collected.has(childId)) {
+        collectBlockAndDescendants(childId, collected)
+      }
+    })
+    return collected
+  }
+
+  const removedIds = new Set<string>()
+  for (const [existingId] of existingChildren) {
+    if (!matchedExistingIds.has(existingId)) {
+      const subtreeIds = collectBlockAndDescendants(existingId)
+      subtreeIds.forEach((id) => {
+        delete modifiedState.blocks[id]
+        removedIds.add(id)
+      })
+    }
+  }
+
+  if (removedIds.size > 0) {
+    modifiedState.edges = modifiedState.edges.filter(
+      (edge: any) => !removedIds.has(edge.source) && !removedIds.has(edge.target)
+    )
+  }
+}
+
 export function handleDeleteOperation(op: EditWorkflowOperation, ctx: OperationContext): void {
   const { modifiedState, skippedItems } = ctx
   const { block_id } = op
@@ -347,181 +649,10 @@ export function handleEditOperation(op: EditWorkflowOperation, ctx: OperationCon
   // (preserving their block ID). New children are created. Children not present
   // in the incoming set are removed.
   if (params?.nestedNodes) {
-    const existingChildren: Array<[string, any]> = Object.entries(modifiedState.blocks).filter(
-      ([, b]: [string, any]) => b.data?.parentId === block_id
-    )
-
-    const existingByName = new Map<string, [string, any]>()
-    for (const [id, child] of existingChildren) {
-      existingByName.set(normalizeName(child.name), [id, child])
-    }
-
-    const matchedExistingIds = new Set<string>()
-
-    Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
-      if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
-        logSkippedItem(skippedItems, {
-          type: 'nested_subflow_not_allowed',
-          operationType: 'edit_nested_node',
-          blockId: childId,
-          reason: `Cannot nest ${childBlock.type} inside ${block.type} - nested subflows are not supported`,
-          details: { parentType: block.type, childType: childBlock.type },
-        })
-        return
-      }
-
-      const incomingName = normalizeName(childBlock.name || '')
-      const existingMatch = incomingName ? existingByName.get(incomingName) : undefined
-
-      if (existingMatch) {
-        const [existingId, existingBlock] = existingMatch
-        matchedExistingIds.add(existingId)
-
-        if (childBlock.inputs) {
-          if (!existingBlock.subBlocks) existingBlock.subBlocks = {}
-          const childValidation = validateInputsForBlock(
-            existingBlock.type,
-            childBlock.inputs,
-            existingId
-          )
-          validationErrors.push(...childValidation.errors)
-
-          Object.entries(childValidation.validInputs).forEach(([key, value]) => {
-            if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(key)) return
-            let sanitizedValue = value
-            if (shouldNormalizeArrayIds(key)) {
-              sanitizedValue = normalizeArrayWithIds(value)
-            }
-            sanitizedValue = normalizeConditionRouterIds(existingId, key, sanitizedValue)
-            if (key === 'tools' && Array.isArray(value)) {
-              sanitizedValue = filterDisallowedTools(
-                normalizeTools(value),
-                permissionConfig,
-                existingId,
-                skippedItems
-              )
-            }
-            if (key === 'responseFormat' && value) {
-              sanitizedValue = normalizeResponseFormat(value)
-            }
-
-            const subBlockDef = getBlock(existingBlock.type)?.subBlocks.find(
-              (sb: any) => sb.id === key
-            )
-            if (!existingBlock.subBlocks[key]) {
-              existingBlock.subBlocks[key] = {
-                id: key,
-                type: subBlockDef?.type || 'short-input',
-                value: sanitizedValue,
-              }
-            } else {
-              existingBlock.subBlocks[key].value = sanitizedValue
-            }
-          })
-        }
-
-        if (childBlock.connections) {
-          modifiedState.edges = modifiedState.edges.filter(
-            (edge: any) => edge.source !== existingId
-          )
-          deferredConnections.push({
-            blockId: existingId,
-            connections: childBlock.connections,
-          })
-        }
-      } else {
-        if (!isValidKey(childId)) {
-          logSkippedItem(skippedItems, {
-            type: 'missing_required_params',
-            operationType: 'add_nested_node',
-            blockId: String(childId || 'invalid'),
-            reason: `Invalid childId "${childId}" in nestedNodes - child block skipped`,
-          })
-          return
-        }
-
-        const childBlockState = createBlockFromParams(
-          childId,
-          childBlock,
-          block_id,
-          validationErrors,
-          permissionConfig,
-          skippedItems
-        )
-        modifiedState.blocks[childId] = childBlockState
-
-        if (childBlock.connections) {
-          deferredConnections.push({
-            blockId: childId,
-            connections: childBlock.connections,
-          })
-        }
-      }
-    })
-
-    const removedIds = new Set<string>()
-    for (const [existingId] of existingChildren) {
-      if (!matchedExistingIds.has(existingId)) {
-        delete modifiedState.blocks[existingId]
-        removedIds.add(existingId)
-      }
-    }
-    if (removedIds.size > 0) {
-      modifiedState.edges = modifiedState.edges.filter(
-        (edge: any) => !removedIds.has(edge.source) && !removedIds.has(edge.target)
-      )
-    }
+    mergeNestedNodesForParent(block_id, params.nestedNodes, ctx)
 
     // Update loop/parallel configuration based on type (strict validation)
-    if (block.type === 'loop') {
-      block.data = block.data || {}
-      // loopType is always valid
-      if (params.inputs?.loopType) {
-        const validLoopTypes = ['for', 'forEach', 'while', 'doWhile']
-        if (validLoopTypes.includes(params.inputs.loopType)) {
-          block.data.loopType = params.inputs.loopType
-        }
-      }
-      const effectiveLoopType = params.inputs?.loopType ?? block.data.loopType ?? 'for'
-      // iterations only valid for 'for' loopType
-      if (params.inputs?.iterations && effectiveLoopType === 'for') {
-        block.data.count = params.inputs.iterations
-      }
-      // collection only valid for 'forEach' loopType
-      if (params.inputs?.collection && effectiveLoopType === 'forEach') {
-        block.data.collection = params.inputs.collection
-      }
-      // condition only valid for 'while' or 'doWhile' loopType
-      if (
-        params.inputs?.condition &&
-        (effectiveLoopType === 'while' || effectiveLoopType === 'doWhile')
-      ) {
-        if (effectiveLoopType === 'doWhile') {
-          block.data.doWhileCondition = params.inputs.condition
-        } else {
-          block.data.whileCondition = params.inputs.condition
-        }
-      }
-    } else if (block.type === 'parallel') {
-      block.data = block.data || {}
-      // parallelType is always valid
-      if (params.inputs?.parallelType) {
-        const validParallelTypes = ['count', 'collection']
-        if (validParallelTypes.includes(params.inputs.parallelType)) {
-          block.data.parallelType = params.inputs.parallelType
-        }
-      }
-      const effectiveParallelType =
-        params.inputs?.parallelType ?? block.data.parallelType ?? 'count'
-      // count only valid for 'count' parallelType
-      if (params.inputs?.count && effectiveParallelType === 'count') {
-        block.data.count = params.inputs.count
-      }
-      // collection only valid for 'collection' parallelType
-      if (params.inputs?.collection && effectiveParallelType === 'collection') {
-        block.data.collection = params.inputs.collection
-      }
-    }
+    updateLoopOrParallelContainerData(block, params)
   }
 
   // Defer connections to pass 2 so all blocks exist before edges are created
@@ -664,41 +795,8 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
     skippedItems
   )
 
-  // Set loop/parallel data on parent block BEFORE adding to blocks (strict validation)
-  if (params.nestedNodes) {
-    if (params.type === 'loop') {
-      const validLoopTypes = ['for', 'forEach', 'while', 'doWhile']
-      const loopType =
-        params.inputs?.loopType && validLoopTypes.includes(params.inputs.loopType)
-          ? params.inputs.loopType
-          : 'for'
-      newBlock.data = {
-        ...newBlock.data,
-        loopType,
-        // Only include type-appropriate fields
-        ...(loopType === 'forEach' &&
-          params.inputs?.collection && { collection: params.inputs.collection }),
-        ...(loopType === 'for' && params.inputs?.iterations && { count: params.inputs.iterations }),
-        ...(loopType === 'while' &&
-          params.inputs?.condition && { whileCondition: params.inputs.condition }),
-        ...(loopType === 'doWhile' &&
-          params.inputs?.condition && { doWhileCondition: params.inputs.condition }),
-      }
-    } else if (params.type === 'parallel') {
-      const validParallelTypes = ['count', 'collection']
-      const parallelType =
-        params.inputs?.parallelType && validParallelTypes.includes(params.inputs.parallelType)
-          ? params.inputs.parallelType
-          : 'count'
-      newBlock.data = {
-        ...newBlock.data,
-        parallelType,
-        // Only include type-appropriate fields
-        ...(parallelType === 'collection' &&
-          params.inputs?.collection && { collection: params.inputs.collection }),
-        ...(parallelType === 'count' && params.inputs?.count && { count: params.inputs.count }),
-      }
-    }
+  if (params.type === 'loop' || params.type === 'parallel') {
+    applyLoopOrParallelContainerData(newBlock, params)
   }
 
   // Add parent block FIRST before adding children
@@ -707,65 +805,7 @@ export function handleAddOperation(op: EditWorkflowOperation, ctx: OperationCont
 
   // Handle nested nodes (for loops/parallels created from scratch)
   if (params.nestedNodes) {
-    // Defensive check: verify parent is not locked before adding children
-    // (Parent was just created with locked: false, but check for consistency)
-    const parentBlock = modifiedState.blocks[block_id]
-    if (parentBlock?.locked) {
-      logSkippedItem(skippedItems, {
-        type: 'block_locked',
-        operationType: 'add_nested_nodes',
-        blockId: block_id,
-        reason: `Container "${block_id}" is locked - cannot add nested nodes`,
-      })
-      return
-    }
-
-    Object.entries(params.nestedNodes).forEach(([childId, childBlock]: [string, any]) => {
-      // Validate childId is a valid string
-      if (!isValidKey(childId)) {
-        logSkippedItem(skippedItems, {
-          type: 'missing_required_params',
-          operationType: 'add_nested_node',
-          blockId: String(childId || 'invalid'),
-          reason: `Invalid childId "${childId}" in nestedNodes - child block skipped`,
-        })
-        logger.error('Invalid childId detected in nestedNodes', {
-          parentBlockId: block_id,
-          childId,
-          childId_type: typeof childId,
-        })
-        return
-      }
-
-      if (childBlock.type === 'loop' || childBlock.type === 'parallel') {
-        logSkippedItem(skippedItems, {
-          type: 'nested_subflow_not_allowed',
-          operationType: 'add_nested_node',
-          blockId: childId,
-          reason: `Cannot nest ${childBlock.type} inside ${params.type} - nested subflows are not supported`,
-          details: { parentType: params.type, childType: childBlock.type },
-        })
-        return
-      }
-
-      const childBlockState = createBlockFromParams(
-        childId,
-        childBlock,
-        block_id,
-        validationErrors,
-        permissionConfig,
-        skippedItems
-      )
-      modifiedState.blocks[childId] = childBlockState
-
-      // Defer connection processing to ensure all blocks exist first
-      if (childBlock.connections) {
-        deferredConnections.push({
-          blockId: childId,
-          connections: childBlock.connections,
-        })
-      }
-    })
+    processNestedNodesForParent(block_id, params.nestedNodes, ctx)
   }
 
   // Defer connection processing to ensure all blocks exist first (pass 2)
@@ -834,32 +874,10 @@ export function handleInsertIntoSubflowOperation(
     return
   }
 
-  if (params.type === 'loop' || params.type === 'parallel') {
-    logSkippedItem(skippedItems, {
-      type: 'nested_subflow_not_allowed',
-      operationType: 'insert_into_subflow',
-      blockId: block_id,
-      reason: `Cannot nest ${params.type} inside ${subflowBlock.type} - nested subflows are not supported`,
-      details: { parentType: subflowBlock.type, childType: params.type },
-    })
-    return
-  }
-
   // Check if block already exists (moving into subflow) or is new
   const existingBlock = modifiedState.blocks[block_id]
 
   if (existingBlock) {
-    if (existingBlock.type === 'loop' || existingBlock.type === 'parallel') {
-      logSkippedItem(skippedItems, {
-        type: 'nested_subflow_not_allowed',
-        operationType: 'insert_into_subflow',
-        blockId: block_id,
-        reason: `Cannot move ${existingBlock.type} into ${subflowBlock.type} - nested subflows are not supported`,
-        details: { parentType: subflowBlock.type, childType: existingBlock.type },
-      })
-      return
-    }
-
     // Check if existing block is locked
     if (existingBlock.locked) {
       logSkippedItem(skippedItems, {
@@ -981,6 +999,12 @@ export function handleInsertIntoSubflowOperation(
       skippedItems
     )
     modifiedState.blocks[block_id] = newBlock
+    if (params.type === 'loop' || params.type === 'parallel') {
+      applyLoopOrParallelContainerData(newBlock, params)
+    }
+    if (params.nestedNodes && (params.type === 'loop' || params.type === 'parallel')) {
+      processNestedNodesForParent(block_id, params.nestedNodes, ctx)
+    }
   }
 
   // Defer connection processing to ensure all blocks exist first

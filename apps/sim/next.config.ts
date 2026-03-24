@@ -2,6 +2,7 @@ import type { NextConfig } from 'next'
 import { env, getEnv, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/feature-flags'
 import {
+  getChatEmbedCSPPolicy,
   getFormEmbedCSPPolicy,
   getMainCSPPolicy,
   getWorkflowExecutionCSPPolicy,
@@ -89,7 +90,14 @@ const nextConfig: NextConfig = {
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
-    '/*': ['./node_modules/sharp/**/*', './node_modules/@img/**/*'],
+    '/*': [
+      './node_modules/sharp/**/*',
+      './node_modules/@img/**/*',
+      // pptxgenjs and the PPTX worker are required at runtime by the subprocess.
+      // Neither has a static import that Next.js can trace, so we include them explicitly.
+      './node_modules/pptxgenjs/**/*',
+      './lib/execution/pptx-worker.cjs',
+    ],
   },
   experimental: {
     optimizeCss: true,
@@ -119,6 +127,7 @@ const nextConfig: NextConfig = {
     '@t3-oss/env-nextjs',
     '@t3-oss/env-core',
     '@sim/db',
+    'better-auth-harmony',
   ],
   async headers() {
     return [
@@ -255,6 +264,24 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // Chat pages - allow iframe embedding from any origin
+      {
+        source: '/chat/:path*',
+        headers: [
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          // No X-Frame-Options to allow iframe embedding
+          {
+            key: 'Content-Security-Policy',
+            value: getChatEmbedCSPPolicy(),
+          },
+          // Permissive CORS for chat requests from embedded chats
+          { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
+        ],
+      },
       // Form pages - allow iframe embedding from any origin
       {
         source: '/form/:path*',
@@ -284,10 +311,10 @@ const nextConfig: NextConfig = {
         ],
       },
       // Apply security headers to routes not handled by middleware runtime CSP
-      // Middleware handles: /, /workspace/*, /chat/*
-      // Exclude form routes which have their own permissive headers
+      // Middleware handles: /, /workspace/*
+      // Exclude chat and form routes which have their own permissive embed headers
       {
-        source: '/((?!workspace|chat$|form).*)',
+        source: '/((?!workspace|chat|form).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
@@ -337,30 +364,30 @@ const nextConfig: NextConfig = {
       }
     )
 
-    // Redirect /building and /blog to /studio (legacy URL support)
+    // Redirect /building and /studio to /blog (legacy URL support)
     redirects.push(
       {
         source: '/building/:path*',
-        destination: 'https://sim.ai/studio/:path*',
+        destination: 'https://sim.ai/blog/:path*',
         permanent: true,
       },
       {
-        source: '/blog/:path*',
-        destination: 'https://sim.ai/studio/:path*',
+        source: '/studio/:path*',
+        destination: 'https://sim.ai/blog/:path*',
         permanent: true,
       }
     )
 
-    // Move root feeds to studio namespace
+    // Move root feeds to blog namespace
     redirects.push(
       {
         source: '/rss.xml',
-        destination: '/studio/rss.xml',
+        destination: '/blog/rss.xml',
         permanent: true,
       },
       {
         source: '/sitemap-images.xml',
-        destination: '/studio/sitemap-images.xml',
+        destination: '/blog/sitemap-images.xml',
         permanent: true,
       }
     )

@@ -33,6 +33,7 @@ export interface QueuedMessage {
  */
 export type SSEEventType =
   | 'chat_id'
+  | 'request_id'
   | 'title_updated'
   | 'content'
   | 'reasoning' // openai reasoning - render as thinking text
@@ -48,6 +49,8 @@ export type SSEEventType =
   | 'structured_result' // structured result from a tool call
   | 'subagent_result' // result from a subagent
   | 'done' // end of the chat
+  | 'context_compaction_start' // context compaction started
+  | 'context_compaction' // conversation context was compacted
   | 'error' // error in the chat
   | 'start' // start of the chat
 
@@ -93,6 +96,7 @@ export type MothershipToolName =
   | 'edit'
   | 'fast_edit'
   | 'open_resource'
+  | 'context_compaction'
 
 /**
  * Subagent identifiers dispatched via `subagent_start` SSE events.
@@ -118,6 +122,7 @@ export type SubagentName =
   | 'run'
   | 'agent'
   | 'job'
+  | 'file_write'
 
 export type ToolPhase =
   | 'workspace'
@@ -129,11 +134,20 @@ export type ToolPhase =
 
 export type ToolCallStatus = 'executing' | 'success' | 'error' | 'cancelled'
 
+export interface ToolCallResult {
+  success: boolean
+  output?: unknown
+  error?: string
+}
+
 export interface ToolCallData {
   id: string
   toolName: string
   displayTitle: string
   status: ToolCallStatus
+  params?: Record<string, unknown>
+  result?: ToolCallResult
+  streamingArgs?: string
 }
 
 export interface ToolCallInfo {
@@ -142,8 +156,10 @@ export interface ToolCallInfo {
   status: ToolCallStatus
   displayTitle?: string
   phaseLabel?: string
+  params?: Record<string, unknown>
   calledBy?: string
   result?: { success: boolean; output?: unknown; error?: string }
+  streamingArgs?: string
 }
 
 export interface OptionItem {
@@ -155,6 +171,7 @@ export type ContentBlockType =
   | 'text'
   | 'tool_call'
   | 'subagent'
+  | 'subagent_end'
   | 'subagent_text'
   | 'options'
   | 'stopped'
@@ -162,6 +179,7 @@ export type ContentBlockType =
 export interface ContentBlock {
   type: ContentBlockType
   content?: string
+  subagent?: string
   toolCall?: ToolCallInfo
   options?: OptionItem[]
 }
@@ -190,6 +208,7 @@ export interface ChatMessage {
   contentBlocks?: ContentBlock[]
   attachments?: ChatMessageAttachment[]
   contexts?: ChatMessageContext[]
+  requestId?: string
 }
 
 export const SUBAGENT_LABELS: Record<SubagentName, string> = {
@@ -208,6 +227,7 @@ export const SUBAGENT_LABELS: Record<SubagentName, string> = {
   run: 'Run agent',
   agent: 'Agent manager',
   job: 'Job agent',
+  file_write: 'File Write',
 } as const
 
 export interface ToolUIMetadata {
@@ -337,6 +357,11 @@ export const TOOL_UI_METADATA: Partial<Record<MothershipToolName, ToolUIMetadata
     title: 'Opening resource',
     phaseLabel: 'Resource',
     phase: 'resource',
+  },
+  context_compaction: {
+    title: 'Compacted context',
+    phaseLabel: 'Context',
+    phase: 'management',
   },
 }
 

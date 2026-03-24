@@ -1,5 +1,6 @@
 import { ArxivIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import type { ArxivResponse } from '@/tools/arxiv/types'
 
 export const ArxivBlock: BlockConfig<ArxivResponse> = {
@@ -10,6 +11,8 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
     'Integrates ArXiv into the workflow. Can search for papers, get paper details, and get author papers. Does not require OAuth or an API key.',
   docsLink: 'https://docs.sim.ai/tools/arxiv',
   category: 'tools',
+  integrationType: IntegrationType.Search,
+  tags: ['document-processing', 'knowledge-base'],
   bgColor: '#E0E0E0',
   icon: ArxivIcon,
   subBlocks: [

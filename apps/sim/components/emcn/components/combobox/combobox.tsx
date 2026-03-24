@@ -462,13 +462,25 @@ const Combobox = memo(
         [disabled, editable, inputRef]
       )
 
+      const effectiveHighlightedIndex =
+        highlightedIndex >= 0 && highlightedIndex < filteredOptions.length ? highlightedIndex : -1
+
+      /**
+       * Reset highlighted index when filtered options change and index is out of bounds
+       */
+      useEffect(() => {
+        if (highlightedIndex >= 0 && highlightedIndex >= filteredOptions.length) {
+          setHighlightedIndex(-1)
+        }
+      }, [filteredOptions, highlightedIndex])
+
       /**
        * Scroll highlighted option into view
        */
       useEffect(() => {
-        if (highlightedIndex >= 0 && dropdownRef.current) {
+        if (effectiveHighlightedIndex >= 0 && dropdownRef.current) {
           const highlightedElement = dropdownRef.current.querySelector(
-            `[data-option-index="${highlightedIndex}"]`
+            `[data-option-index="${effectiveHighlightedIndex}"]`
           )
           if (highlightedElement) {
             highlightedElement.scrollIntoView({
@@ -477,19 +489,7 @@ const Combobox = memo(
             })
           }
         }
-      }, [highlightedIndex])
-
-      /**
-       * Adjust highlighted index when filtered options change
-       */
-      useEffect(() => {
-        setHighlightedIndex((prev) => {
-          if (prev >= 0 && prev < filteredOptions.length) {
-            return prev
-          }
-          return -1
-        })
-      }, [filteredOptions])
+      }, [effectiveHighlightedIndex])
 
       const SelectedIcon = selectedOption?.icon
 
@@ -713,7 +713,7 @@ const Combobox = memo(
                             const globalIndex = filteredOptions.findIndex(
                               (o) => o.value === option.value
                             )
-                            const isHighlighted = globalIndex === highlightedIndex
+                            const isHighlighted = globalIndex === effectiveHighlightedIndex
                             const OptionIcon = option.icon
 
                             return (
@@ -789,7 +789,7 @@ const Combobox = memo(
                         const isSelected = multiSelect
                           ? multiSelectValues?.includes(option.value)
                           : effectiveSelectedValue === option.value
-                        const isHighlighted = index === highlightedIndex
+                        const isHighlighted = index === effectiveHighlightedIndex
                         const OptionIcon = option.icon
 
                         return (

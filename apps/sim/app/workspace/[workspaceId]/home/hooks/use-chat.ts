@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
@@ -8,10 +8,15 @@ import {
   reportManualRunToolStop,
 } from '@/lib/copilot/client-sse/run-tool-execution'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import {
+  extractResourcesFromToolResult,
+  isResourceToolName,
+} from '@/lib/copilot/resource-extraction'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import { deploymentKeys } from '@/hooks/queries/deployments'
 import {
   type TaskChatHistory,
   type TaskStoredContentBlock,
@@ -22,6 +27,7 @@ import {
   useChatHistory,
 } from '@/hooks/queries/tasks'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
+import { workflowKeys } from '@/hooks/queries/workflows'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
@@ -64,6 +70,7 @@ export interface UseChatReturn {
   removeFromQueue: (id: string) => void
   sendNow: (id: string) => Promise<void>
   editQueuedMessage: (id: string) => QueuedMessage | undefined
+  streamingFile: { fileName: string; content: string } | null
 }
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
@@ -73,6 +80,8 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   rejected: 'error',
   skipped: 'success',
 } as const
+
+const DEPLOY_TOOL_NAMES = new Set(['deploy_api', 'deploy_chat', 'deploy_mcp', 'redeploy'])
 
 function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
   const mapped: ContentBlock = {
@@ -88,6 +97,7 @@ function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
       status: resolvedStatus,
       displayTitle:
         resolvedStatus === 'cancelled' ? 'Stopped by user' : block.toolCall.display?.text,
+      params: block.toolCall.params,
       calledBy: block.toolCall.calledBy,
       result: block.toolCall.result,
     }
@@ -105,6 +115,7 @@ function mapStoredToolCall(tc: TaskStoredToolCall): ContentBlock {
       name: tc.name,
       status: resolvedStatus,
       displayTitle: resolvedStatus === 'cancelled' ? 'Stopped by user' : undefined,
+      params: tc.params,
       result:
         tc.result != null
           ? {
@@ -124,7 +135,7 @@ function toDisplayAttachment(f: TaskStoredFileAttachment): ChatMessageAttachment
     media_type: f.media_type,
     size: f.size,
     previewUrl: f.media_type.startsWith('image/')
-      ? `/api/files/serve/${encodeURIComponent(f.key)}?context=copilot`
+      ? `/api/files/serve/${encodeURIComponent(f.key)}?context=mothership`
       : undefined,
   }
 }
@@ -134,6 +145,7 @@ function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
     id: msg.id,
     role: msg.role,
     content: msg.content,
+    ...(msg.requestId ? { requestId: msg.requestId } : {}),
   }
 
   const hasContentBlocks = Array.isArray(msg.contentBlocks) && msg.contentBlocks.length > 0
@@ -240,6 +252,12 @@ function extractResourceFromReadResult(
 
 export interface UseChatOptions {
   onResourceEvent?: () => void
+  apiPath?: string
+  stopPath?: string
+  workflowId?: string
+  onToolResult?: (toolName: string, success: boolean, result: unknown) => void
+  onTitleUpdate?: () => void
+  onStreamEnd?: (chatId: string, messages: ChatMessage[]) => void
 }
 
 export function useChat(
@@ -258,25 +276,60 @@ export function useChat(
   const [activeResourceId, setActiveResourceId] = useState<string | null>(null)
   const onResourceEventRef = useRef(options?.onResourceEvent)
   onResourceEventRef.current = options?.onResourceEvent
+  const apiPathRef = useRef(options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH)
+  apiPathRef.current = options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH
+  const stopPathRef = useRef(options?.stopPath ?? '/api/mothership/chat/stop')
+  stopPathRef.current = options?.stopPath ?? '/api/mothership/chat/stop'
+  const workflowIdRef = useRef(options?.workflowId)
+  workflowIdRef.current = options?.workflowId
+  const onToolResultRef = useRef(options?.onToolResult)
+  onToolResultRef.current = options?.onToolResult
+  const onTitleUpdateRef = useRef(options?.onTitleUpdate)
+  onTitleUpdateRef.current = options?.onTitleUpdate
+  const onStreamEndRef = useRef(options?.onStreamEnd)
+  onStreamEndRef.current = options?.onStreamEnd
   const resourcesRef = useRef(resources)
   resourcesRef.current = resources
-  const activeResourceIdRef = useRef(activeResourceId)
-  activeResourceIdRef.current = activeResourceId
+
+  // Derive the effective active resource ID — auto-selects the last resource when the stored ID is
+  // absent or no longer in the list, avoiding a separate Effect-based state correction loop.
+  const effectiveActiveResourceId = useMemo(() => {
+    if (resources.length === 0) return null
+    if (activeResourceId && resources.some((r) => r.id === activeResourceId))
+      return activeResourceId
+    return resources[resources.length - 1].id
+  }, [resources, activeResourceId])
+
+  const activeResourceIdRef = useRef(effectiveActiveResourceId)
+  activeResourceIdRef.current = effectiveActiveResourceId
+
+  const [streamingFile, setStreamingFile] = useState<{
+    fileName: string
+    content: string
+  } | null>(null)
+  const streamingFileRef = useRef(streamingFile)
+  streamingFileRef.current = streamingFile
 
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
-  useEffect(() => {
-    messageQueueRef.current = messageQueue
-  }, [messageQueue])
+  messageQueueRef.current = messageQueue
 
   const sendMessageRef = useRef<UseChatReturn['sendMessage']>(async () => {})
   const processSSEStreamRef = useRef<
-    (reader: ReadableStreamDefaultReader<Uint8Array>, assistantId: string) => Promise<void>
+    (
+      reader: ReadableStreamDefaultReader<Uint8Array>,
+      assistantId: string,
+      expectedGen?: number
+    ) => Promise<void>
   >(async () => {})
   const finalizeRef = useRef<(options?: { error?: boolean }) => void>(() => {})
 
   const abortControllerRef = useRef<AbortController | null>(null)
+  const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
+  /** Panel/task selection — drives createNewChat + request chatId; may differ from chatIdRef while a stream is still finishing. */
+  const selectedChatIdRef = useRef<string | undefined>(initialChatId)
+  selectedChatIdRef.current = initialChatId
   const appliedChatIdRef = useRef<string | undefined>(undefined)
   const pendingUserMsgRef = useRef<{ id: string; content: string } | null>(null)
   const streamIdRef = useRef<string | undefined>(undefined)
@@ -301,12 +354,16 @@ export function useChat(
     })
     setActiveResourceId(resource.id)
 
-    const currentChatId = chatIdRef.current
-    if (currentChatId) {
+    if (resource.id === 'streaming-file') {
+      return true
+    }
+
+    const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
+    if (persistChatId) {
       fetch('/api/copilot/chat/resources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId: currentChatId, resource }),
+        body: JSON.stringify({ chatId: persistChatId, resource }),
       }).catch((err) => {
         logger.warn('Failed to persist resource', err)
       })
@@ -324,10 +381,27 @@ export function useChat(
 
   useEffect(() => {
     if (sendingRef.current) {
-      chatIdRef.current = initialChatId
-      setResolvedChatId(initialChatId)
-      setMessageQueue([])
-      return
+      const streamOwnerId = chatIdRef.current
+      const navigatedToDifferentChat =
+        initialChatId !== streamOwnerId &&
+        (initialChatId !== undefined || streamOwnerId !== undefined)
+
+      if (navigatedToDifferentChat) {
+        const abandonedChatId = streamOwnerId
+        // Detach the current UI from the old stream without cancelling it on the server.
+        // Reopening that chat later will reconnect through the existing chatHistory flow.
+        streamGenRef.current++
+        abortControllerRef.current = null
+        sendingRef.current = false
+        setIsSending(false)
+        if (abandonedChatId) {
+          queryClient.invalidateQueries({ queryKey: taskKeys.detail(abandonedChatId) })
+        }
+      } else {
+        setResolvedChatId(initialChatId)
+        setMessageQueue([])
+        return
+      }
     }
     chatIdRef.current = initialChatId
     setResolvedChatId(initialChatId)
@@ -339,15 +413,15 @@ export function useChat(
     setResources([])
     setActiveResourceId(null)
     setMessageQueue([])
-  }, [initialChatId])
+  }, [initialChatId, queryClient])
 
   useEffect(() => {
+    if (workflowIdRef.current) return
     if (!isHomePage || !chatIdRef.current) return
     streamGenRef.current++
     chatIdRef.current = undefined
     setResolvedChatId(undefined)
     appliedChatIdRef.current = undefined
-    abortControllerRef.current?.abort()
     abortControllerRef.current = null
     sendingRef.current = false
     setMessages([])
@@ -361,25 +435,66 @@ export function useChat(
 
   useEffect(() => {
     if (!chatHistory || appliedChatIdRef.current === chatHistory.id) return
+
+    const activeStreamId = chatHistory.activeStreamId
+    const snapshot = chatHistory.streamSnapshot
+
+    if (activeStreamId && !snapshot && !sendingRef.current) {
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(chatHistory.id) })
+      return
+    }
+
     appliedChatIdRef.current = chatHistory.id
-    setMessages(chatHistory.messages.map(mapStoredMessage))
+    const mappedMessages = chatHistory.messages.map(mapStoredMessage)
+    const shouldPreserveActiveStreamingMessage =
+      sendingRef.current && Boolean(activeStreamId) && activeStreamId === streamIdRef.current
 
-    if (chatHistory.resources.length > 0) {
-      setResources(chatHistory.resources)
-      setActiveResourceId(chatHistory.resources[chatHistory.resources.length - 1].id)
+    if (shouldPreserveActiveStreamingMessage) {
+      setMessages((prev) => {
+        const localStreamingAssistant = prev[prev.length - 1]
+        if (localStreamingAssistant?.role !== 'assistant') {
+          return mappedMessages
+        }
 
-      for (const resource of chatHistory.resources) {
+        const nextMessages =
+          mappedMessages[mappedMessages.length - 1]?.role === 'assistant'
+            ? mappedMessages.slice(0, -1)
+            : mappedMessages
+
+        return [...nextMessages, localStreamingAssistant]
+      })
+    } else {
+      setMessages(mappedMessages)
+    }
+
+    if (chatHistory.resources.some((r) => r.id === 'streaming-file')) {
+      fetch('/api/copilot/chat/resources', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatId: chatHistory.id,
+          resourceType: 'file',
+          resourceId: 'streaming-file',
+        }),
+      }).catch(() => {})
+    }
+
+    const persistedResources = chatHistory.resources.filter((r) => r.id !== 'streaming-file')
+    if (persistedResources.length > 0) {
+      setResources(persistedResources)
+      setActiveResourceId(persistedResources[persistedResources.length - 1].id)
+
+      for (const resource of persistedResources) {
         if (resource.type !== 'workflow') continue
         ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
       }
+    } else if (chatHistory.resources.some((r) => r.id === 'streaming-file')) {
+      setResources([])
+      setActiveResourceId(null)
     }
 
-    // Kick off stream reconnection immediately if there's an active stream.
-    // The stream snapshot was fetched in parallel with the chat history (same
-    // API call), so there's no extra round-trip.
-    const activeStreamId = chatHistory.activeStreamId
-    const snapshot = chatHistory.streamSnapshot
     if (activeStreamId && !sendingRef.current) {
+      abortControllerRef.current?.abort()
       const gen = ++streamGenRef.current
       const abortController = new AbortController()
       abortControllerRef.current = abortController
@@ -396,11 +511,10 @@ export function useChat(
           const batchEvents = snapshot?.events ?? []
           const streamStatus = snapshot?.status ?? ''
 
-          if (!snapshot || (batchEvents.length === 0 && streamStatus === 'unknown')) {
-            // No snapshot available — stream buffer expired. Clean up.
+          if (batchEvents.length === 0 && streamStatus === 'unknown') {
             const cid = chatIdRef.current
             if (cid) {
-              fetch('/api/mothership/chat/stop', {
+              fetch(stopPathRef.current, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ chatId: cid, streamId: activeStreamId, content: '' }),
@@ -450,7 +564,7 @@ export function useChat(
             },
           })
 
-          await processSSEStreamRef.current(combinedStream.getReader(), assistantId)
+          await processSSEStreamRef.current(combinedStream.getReader(), assistantId, gen)
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') return
         } finally {
@@ -462,317 +576,551 @@ export function useChat(
       }
       reconnect()
     }
-  }, [chatHistory, workspaceId])
-
-  useEffect(() => {
-    if (resources.length === 0) {
-      if (activeResourceId !== null) {
-        setActiveResourceId(null)
-      }
-      return
-    }
-
-    if (!activeResourceId || !resources.some((resource) => resource.id === activeResourceId)) {
-      setActiveResourceId(resources[resources.length - 1].id)
-    }
-  }, [activeResourceId, resources])
+  }, [chatHistory, workspaceId, queryClient])
 
   const processSSEStream = useCallback(
-    async (reader: ReadableStreamDefaultReader<Uint8Array>, assistantId: string) => {
+    async (
+      reader: ReadableStreamDefaultReader<Uint8Array>,
+      assistantId: string,
+      expectedGen?: number
+    ) => {
       const decoder = new TextDecoder()
+      streamReaderRef.current = reader
       let buffer = ''
       const blocks: ContentBlock[] = []
       const toolMap = new Map<string, number>()
       const toolArgsMap = new Map<string, Record<string, unknown>>()
       const clientExecutionStarted = new Set<string>()
       let activeSubagent: string | undefined
+      let activeCompactionId: string | undefined
       let runningText = ''
       let lastContentSource: 'main' | 'subagent' | null = null
+      let streamRequestId: string | undefined
 
       streamingContentRef.current = ''
       streamingBlocksRef.current = []
 
       const ensureTextBlock = (): ContentBlock => {
         const last = blocks[blocks.length - 1]
-        if (last?.type === 'text') return last
+        if (last?.type === 'text' && last.subagent === activeSubagent) return last
         const b: ContentBlock = { type: 'text', content: '' }
         blocks.push(b)
         return b
       }
 
+      const isStale = () => expectedGen !== undefined && streamGenRef.current !== expectedGen
+
       const flush = () => {
+        if (isStale()) return
         streamingBlocksRef.current = [...blocks]
-        const snapshot = { content: runningText, contentBlocks: [...blocks] }
+        const snapshot: Partial<ChatMessage> = {
+          content: runningText,
+          contentBlocks: [...blocks],
+        }
+        if (streamRequestId) snapshot.requestId = streamRequestId
         setMessages((prev) => {
+          if (expectedGen !== undefined && streamGenRef.current !== expectedGen) return prev
           const idx = prev.findIndex((m) => m.id === assistantId)
           if (idx >= 0) {
             return prev.map((m) => (m.id === assistantId ? { ...m, ...snapshot } : m))
           }
-          return [...prev, { id: assistantId, role: 'assistant' as const, ...snapshot }]
+          return [
+            ...prev,
+            { id: assistantId, role: 'assistant' as const, content: '', ...snapshot },
+          ]
         })
       }
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const raw = line.slice(6)
-
-          let parsed: SSEPayload
-          try {
-            parsed = JSON.parse(raw)
-          } catch {
-            continue
+      try {
+        while (true) {
+          if (isStale()) {
+            reader.cancel().catch(() => {})
+            break
           }
+          const { done, value } = await reader.read()
+          if (done) break
 
-          logger.debug('SSE event received', parsed)
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
 
-          switch (parsed.type) {
-            case 'chat_id': {
-              if (parsed.chatId) {
-                const isNewChat = !chatIdRef.current
-                chatIdRef.current = parsed.chatId
-                setResolvedChatId(parsed.chatId)
-                queryClient.invalidateQueries({
-                  queryKey: taskKeys.list(workspaceId),
-                })
-                if (isNewChat) {
-                  const userMsg = pendingUserMsgRef.current
-                  const activeStreamId = streamIdRef.current
-                  if (userMsg && activeStreamId) {
-                    queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(parsed.chatId), {
-                      id: parsed.chatId,
-                      title: null,
-                      messages: [
-                        {
-                          id: userMsg.id,
-                          role: 'user',
-                          content: userMsg.content,
-                        },
-                      ],
-                      activeStreamId,
-                      resources: [],
-                    })
+          for (const line of lines) {
+            if (isStale()) break
+            if (!line.startsWith('data: ')) continue
+            const raw = line.slice(6)
+
+            let parsed: SSEPayload
+            try {
+              parsed = JSON.parse(raw)
+            } catch {
+              continue
+            }
+
+            logger.debug('SSE event received', parsed)
+            switch (parsed.type) {
+              case 'chat_id': {
+                if (parsed.chatId) {
+                  const isNewChat = !chatIdRef.current
+                  chatIdRef.current = parsed.chatId
+                  const selected = selectedChatIdRef.current
+                  if (selected == null) {
+                    if (isNewChat) {
+                      setResolvedChatId(parsed.chatId)
+                    }
+                  } else if (parsed.chatId === selected) {
+                    setResolvedChatId(parsed.chatId)
                   }
-                  window.history.replaceState(
-                    null,
-                    '',
-                    `/workspace/${workspaceId}/task/${parsed.chatId}`
-                  )
+                  queryClient.invalidateQueries({
+                    queryKey: taskKeys.list(workspaceId),
+                  })
+                  if (isNewChat) {
+                    const userMsg = pendingUserMsgRef.current
+                    const activeStreamId = streamIdRef.current
+                    if (userMsg && activeStreamId) {
+                      queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(parsed.chatId), {
+                        id: parsed.chatId,
+                        title: null,
+                        messages: [
+                          {
+                            id: userMsg.id,
+                            role: 'user',
+                            content: userMsg.content,
+                          },
+                        ],
+                        activeStreamId,
+                        resources: [],
+                      })
+                    }
+                    if (!workflowIdRef.current) {
+                      window.history.replaceState(
+                        null,
+                        '',
+                        `/workspace/${workspaceId}/task/${parsed.chatId}`
+                      )
+                    }
+                  }
                 }
+                break
               }
-              break
-            }
-            case 'content': {
-              const chunk = typeof parsed.data === 'string' ? parsed.data : (parsed.content ?? '')
-              if (chunk) {
-                const contentSource: 'main' | 'subagent' = activeSubagent ? 'subagent' : 'main'
-                const needsBoundaryNewline =
-                  lastContentSource !== null &&
-                  lastContentSource !== contentSource &&
-                  runningText.length > 0 &&
-                  !runningText.endsWith('\n')
-                const tb = ensureTextBlock()
-                const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
-                tb.content = (tb.content ?? '') + normalizedChunk
-                runningText += normalizedChunk
-                lastContentSource = contentSource
-                streamingContentRef.current = runningText
-                flush()
+              case 'request_id': {
+                const rid = typeof parsed.data === 'string' ? parsed.data : undefined
+                if (rid) {
+                  streamRequestId = rid
+                  flush()
+                }
+                break
               }
-              break
-            }
-            case 'tool_generating':
-            case 'tool_call': {
-              const id = parsed.toolCallId
-              const data = getPayloadData(parsed)
-              const name = parsed.toolName || data?.name || 'unknown'
-              const isPartial = data?.partial === true
-              if (!id) break
+              case 'content': {
+                const chunk = typeof parsed.data === 'string' ? parsed.data : (parsed.content ?? '')
+                if (chunk) {
+                  const contentSource: 'main' | 'subagent' = activeSubagent ? 'subagent' : 'main'
+                  const needsBoundaryNewline =
+                    lastContentSource !== null &&
+                    lastContentSource !== contentSource &&
+                    runningText.length > 0 &&
+                    !runningText.endsWith('\n')
+                  const tb = ensureTextBlock()
+                  const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
+                  tb.content = (tb.content ?? '') + normalizedChunk
+                  if (activeSubagent) tb.subagent = activeSubagent
+                  runningText += normalizedChunk
+                  lastContentSource = contentSource
+                  streamingContentRef.current = runningText
+                  flush()
+                }
+                break
+              }
+              case 'tool_generating':
+              case 'tool_call': {
+                const id = parsed.toolCallId
+                const data = getPayloadData(parsed)
+                const name = parsed.toolName || data?.name || 'unknown'
+                const isPartial = data?.partial === true
+                if (!id) break
 
-              if (name.endsWith('_respond')) break
-              const ui = parsed.ui || data?.ui
-              if (ui?.hidden) break
-              const displayTitle = ui?.title || ui?.phaseLabel
-              const phaseLabel = ui?.phaseLabel
-              if (!toolMap.has(id)) {
-                toolMap.set(id, blocks.length)
+                if (name === 'tool_search_tool_regex') {
+                  break
+                }
+                const ui = parsed.ui || data?.ui
+                if (ui?.hidden) break
+                const displayTitle = ui?.title || ui?.phaseLabel
+                const phaseLabel = ui?.phaseLabel
+                const args = (data?.arguments ?? data?.input) as Record<string, unknown> | undefined
+                if (!toolMap.has(id)) {
+                  toolMap.set(id, blocks.length)
+                  blocks.push({
+                    type: 'tool_call',
+                    toolCall: {
+                      id,
+                      name,
+                      status: 'executing',
+                      displayTitle,
+                      phaseLabel,
+                      params: args,
+                      calledBy: activeSubagent,
+                    },
+                  })
+                  if (name === 'read' || isResourceToolName(name)) {
+                    if (args) toolArgsMap.set(id, args)
+                  }
+                } else {
+                  const idx = toolMap.get(id)!
+                  const tc = blocks[idx].toolCall
+                  if (tc) {
+                    tc.name = name
+                    if (displayTitle) tc.displayTitle = displayTitle
+                    if (phaseLabel) tc.phaseLabel = phaseLabel
+                    if (args) tc.params = args
+                  }
+                }
+                flush()
+
+                if (
+                  parsed.type === 'tool_call' &&
+                  ui?.clientExecutable &&
+                  isWorkflowToolName(name) &&
+                  !isPartial &&
+                  !clientExecutionStarted.has(id)
+                ) {
+                  clientExecutionStarted.add(id)
+                  const args = data?.arguments ?? data?.input ?? {}
+                  const targetWorkflowId =
+                    typeof (args as Record<string, unknown>).workflowId === 'string'
+                      ? ((args as Record<string, unknown>).workflowId as string)
+                      : useWorkflowRegistry.getState().activeWorkflowId
+                  if (targetWorkflowId) {
+                    const meta = useWorkflowRegistry.getState().workflows[targetWorkflowId]
+                    const wasAdded = addResource({
+                      type: 'workflow',
+                      id: targetWorkflowId,
+                      title: meta?.name ?? 'Workflow',
+                    })
+                    if (!wasAdded && activeResourceIdRef.current !== targetWorkflowId) {
+                      setActiveResourceId(targetWorkflowId)
+                    }
+                    onResourceEventRef.current?.()
+                  }
+                  executeRunToolOnClient(id, name, args as Record<string, unknown>)
+                }
+                break
+              }
+              case 'tool_call_delta': {
+                const id = parsed.toolCallId
+                const delta = typeof parsed.data === 'string' ? parsed.data : ''
+                if (!id || !delta) break
+
+                const toolName = typeof parsed.toolName === 'string' ? parsed.toolName : ''
+                const streamWorkspaceFile =
+                  activeSubagent === 'file_write' || toolName === 'workspace_file'
+
+                if (streamWorkspaceFile) {
+                  let prev = streamingFileRef.current
+                  if (!prev) {
+                    prev = { fileName: '', content: '' }
+                    streamingFileRef.current = prev
+                    setStreamingFile(prev)
+                  }
+                  const raw = prev.content + delta
+                  let fileName = prev.fileName
+                  if (!fileName) {
+                    const m = raw.match(/"fileName"\s*:\s*"([^"]+)"/)
+                    if (m) {
+                      fileName = m[1]
+                    }
+                  }
+                  const fileIdMatch = raw.match(/"fileId"\s*:\s*"([^"]+)"/)
+                  const matchedResourceId = fileIdMatch?.[1]
+                  if (
+                    matchedResourceId &&
+                    resourcesRef.current.some(
+                      (resource) => resource.type === 'file' && resource.id === matchedResourceId
+                    )
+                  ) {
+                    setActiveResourceId(matchedResourceId)
+                    setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
+                  } else if (fileName || fileIdMatch) {
+                    const hasStreamingResource = resourcesRef.current.some(
+                      (resource) => resource.id === 'streaming-file'
+                    )
+                    if (!hasStreamingResource) {
+                      addResource({
+                        type: 'file',
+                        id: 'streaming-file',
+                        title: fileName || 'Writing file...',
+                      })
+                    } else if (fileName) {
+                      setResources((rs) =>
+                        rs.map((resource) =>
+                          resource.id === 'streaming-file'
+                            ? { ...resource, title: fileName }
+                            : resource
+                        )
+                      )
+                    }
+                  }
+                  const next = { fileName, content: raw }
+                  streamingFileRef.current = next
+                  setStreamingFile(next)
+                }
+
+                const idx = toolMap.get(id)
+                if (idx !== undefined && blocks[idx].toolCall) {
+                  const tc = blocks[idx].toolCall!
+                  tc.streamingArgs = (tc.streamingArgs ?? '') + delta
+                  flush()
+                }
+                break
+              }
+              case 'tool_result': {
+                const id = parsed.toolCallId || getPayloadData(parsed)?.id
+                if (!id) break
+                const idx = toolMap.get(id)
+                if (idx !== undefined && blocks[idx].toolCall) {
+                  const tc = blocks[idx].toolCall!
+
+                  const payloadData = getPayloadData(parsed)
+                  const resultObj =
+                    parsed.result && typeof parsed.result === 'object'
+                      ? (parsed.result as Record<string, unknown>)
+                      : undefined
+                  const isCancelled =
+                    resultObj?.reason === 'user_cancelled' ||
+                    resultObj?.cancelledByUser === true ||
+                    (payloadData as Record<string, unknown> | undefined)?.reason ===
+                      'user_cancelled' ||
+                    (payloadData as Record<string, unknown> | undefined)?.cancelledByUser === true
+
+                  if (isCancelled) {
+                    tc.status = 'cancelled'
+                    tc.displayTitle = 'Stopped by user'
+                  } else {
+                    tc.status = parsed.success ? 'success' : 'error'
+                  }
+                  tc.streamingArgs = undefined
+                  tc.result = {
+                    success: !!parsed.success,
+                    output: parsed.result ?? getPayloadData(parsed)?.result,
+                    error: (parsed.error ?? getPayloadData(parsed)?.error) as string | undefined,
+                  }
+                  flush()
+
+                  if (tc.name === 'read' && tc.status === 'success') {
+                    const readArgs = toolArgsMap.get(id)
+                    const resource = extractResourceFromReadResult(
+                      readArgs?.path as string | undefined,
+                      tc.result.output
+                    )
+                    if (resource && addResource(resource)) {
+                      onResourceEventRef.current?.()
+                    }
+                  }
+
+                  if (DEPLOY_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
+                    const output = tc.result?.output as Record<string, unknown> | undefined
+                    const deployedWorkflowId = (output?.workflowId as string) ?? undefined
+                    if (deployedWorkflowId && typeof output?.isDeployed === 'boolean') {
+                      const isDeployed = output.isDeployed as boolean
+                      const serverDeployedAt = output.deployedAt
+                        ? new Date(output.deployedAt as string)
+                        : undefined
+                      useWorkflowRegistry
+                        .getState()
+                        .setDeploymentStatus(
+                          deployedWorkflowId,
+                          isDeployed,
+                          isDeployed ? (serverDeployedAt ?? new Date()) : undefined
+                        )
+                      queryClient.invalidateQueries({
+                        queryKey: deploymentKeys.info(deployedWorkflowId),
+                      })
+                      queryClient.invalidateQueries({
+                        queryKey: deploymentKeys.versions(deployedWorkflowId),
+                      })
+                      queryClient.invalidateQueries({
+                        queryKey: workflowKeys.list(workspaceId),
+                      })
+                    }
+                  }
+
+                  const extractedResources =
+                    tc.status === 'success' && isResourceToolName(tc.name)
+                      ? extractResourcesFromToolResult(
+                          tc.name,
+                          toolArgsMap.get(id) as Record<string, unknown> | undefined,
+                          tc.result?.output
+                        )
+                      : []
+
+                  for (const resource of extractedResources) {
+                    invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
+                  }
+
+                  onToolResultRef.current?.(tc.name, tc.status === 'success', tc.result?.output)
+
+                  if (tc.name === 'workspace_file') {
+                    setStreamingFile(null)
+                    streamingFileRef.current = null
+
+                    const fileResource = extractedResources.find((r) => r.type === 'file')
+                    if (fileResource) {
+                      setResources((rs) => {
+                        const without = rs.filter((r) => r.id !== 'streaming-file')
+                        if (without.some((r) => r.type === 'file' && r.id === fileResource.id)) {
+                          return without
+                        }
+                        return [...without, fileResource]
+                      })
+                      setActiveResourceId(fileResource.id)
+                    } else {
+                      setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
+                    }
+                  }
+                }
+
+                break
+              }
+              case 'resource_added': {
+                const resource = parsed.resource
+                if (resource?.type && resource?.id) {
+                  const wasAdded = addResource(resource)
+                  invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
+
+                  if (!wasAdded && activeResourceIdRef.current !== resource.id) {
+                    setActiveResourceId(resource.id)
+                  }
+                  onResourceEventRef.current?.()
+
+                  if (resource.type === 'workflow') {
+                    const wasRegistered = ensureWorkflowInRegistry(
+                      resource.id,
+                      resource.title,
+                      workspaceId
+                    )
+                    if (wasAdded && wasRegistered) {
+                      useWorkflowRegistry.getState().setActiveWorkflow(resource.id)
+                    } else {
+                      useWorkflowRegistry.getState().loadWorkflowState(resource.id)
+                    }
+                  }
+                }
+                break
+              }
+              case 'resource_deleted': {
+                const resource = parsed.resource
+                if (resource?.type && resource?.id) {
+                  removeResource(resource.type as MothershipResourceType, resource.id)
+                  invalidateResourceQueries(
+                    queryClient,
+                    workspaceId,
+                    resource.type as MothershipResourceType,
+                    resource.id
+                  )
+                  onResourceEventRef.current?.()
+                }
+                break
+              }
+              case 'context_compaction_start': {
+                const compactionId = `compaction_${Date.now()}`
+                activeCompactionId = compactionId
+                toolMap.set(compactionId, blocks.length)
                 blocks.push({
                   type: 'tool_call',
                   toolCall: {
-                    id,
-                    name,
+                    id: compactionId,
+                    name: 'context_compaction',
                     status: 'executing',
-                    displayTitle,
-                    phaseLabel,
-                    calledBy: activeSubagent,
+                    displayTitle: 'Compacting context...',
                   },
                 })
-                if (name === 'read') {
-                  const args = (data?.arguments ?? data?.input) as
-                    | Record<string, unknown>
-                    | undefined
-                  if (args) toolArgsMap.set(id, args)
-                }
-              } else {
-                const idx = toolMap.get(id)!
-                const tc = blocks[idx].toolCall
-                if (tc) {
-                  tc.name = name
-                  if (displayTitle) tc.displayTitle = displayTitle
-                  if (phaseLabel) tc.phaseLabel = phaseLabel
-                }
+                flush()
+                break
               }
-              flush()
-
-              if (
-                parsed.type === 'tool_call' &&
-                ui?.clientExecutable &&
-                isWorkflowToolName(name) &&
-                !isPartial &&
-                !clientExecutionStarted.has(id)
-              ) {
-                clientExecutionStarted.add(id)
-                const args = data?.arguments ?? data?.input ?? {}
-                executeRunToolOnClient(id, name, args as Record<string, unknown>)
-              }
-              break
-            }
-            case 'tool_result': {
-              const id = parsed.toolCallId || getPayloadData(parsed)?.id
-              if (!id) break
-              const idx = toolMap.get(id)
-              if (idx !== undefined && blocks[idx].toolCall) {
-                const tc = blocks[idx].toolCall!
-
-                const payloadData = getPayloadData(parsed)
-                const resultObj =
-                  parsed.result && typeof parsed.result === 'object'
-                    ? (parsed.result as Record<string, unknown>)
-                    : undefined
-                const isCancelled =
-                  resultObj?.reason === 'user_cancelled' ||
-                  resultObj?.cancelledByUser === true ||
-                  (payloadData as Record<string, unknown> | undefined)?.reason ===
-                    'user_cancelled' ||
-                  (payloadData as Record<string, unknown> | undefined)?.cancelledByUser === true
-
-                if (isCancelled) {
-                  tc.status = 'cancelled'
-                  tc.displayTitle = 'Stopped by user'
+              case 'context_compaction': {
+                const compactionId = activeCompactionId || `compaction_${Date.now()}`
+                activeCompactionId = undefined
+                const idx = toolMap.get(compactionId)
+                if (idx !== undefined && blocks[idx]?.toolCall) {
+                  blocks[idx].toolCall!.status = 'success'
+                  blocks[idx].toolCall!.displayTitle = 'Compacted context'
                 } else {
-                  tc.status = parsed.success ? 'success' : 'error'
-                }
-                tc.result = {
-                  success: !!parsed.success,
-                  output: parsed.result ?? getPayloadData(parsed)?.result,
-                  error: (parsed.error ?? getPayloadData(parsed)?.error) as string | undefined,
+                  toolMap.set(compactionId, blocks.length)
+                  blocks.push({
+                    type: 'tool_call',
+                    toolCall: {
+                      id: compactionId,
+                      name: 'context_compaction',
+                      status: 'success',
+                      displayTitle: 'Compacted context',
+                    },
+                  })
                 }
                 flush()
-
-                if (tc.name === 'read' && tc.status === 'success') {
-                  const readArgs = toolArgsMap.get(id)
-                  const resource = extractResourceFromReadResult(
-                    readArgs?.path as string | undefined,
-                    tc.result.output
-                  )
-                  if (resource && addResource(resource)) {
-                    onResourceEventRef.current?.()
+                break
+              }
+              case 'tool_error': {
+                const id = parsed.toolCallId || getPayloadData(parsed)?.id
+                if (!id) break
+                const idx = toolMap.get(id)
+                if (idx !== undefined && blocks[idx].toolCall) {
+                  blocks[idx].toolCall!.status = 'error'
+                  flush()
+                }
+                break
+              }
+              case 'subagent_start': {
+                const name = parsed.subagent || getPayloadData(parsed)?.agent
+                if (name) {
+                  activeSubagent = name
+                  blocks.push({ type: 'subagent', content: name })
+                  if (name === 'file_write') {
+                    const emptyFile = { fileName: '', content: '' }
+                    // Ref must be updated synchronously: tool_call_delta can arrive before React
+                    // re-renders after setStreamingFile, and the handler only appends when prev exists.
+                    streamingFileRef.current = emptyFile
+                    setStreamingFile(emptyFile)
                   }
+                  flush()
                 }
+                break
               }
-
-              break
-            }
-            case 'resource_added': {
-              const resource = parsed.resource
-              if (resource?.type && resource?.id) {
-                const wasAdded = addResource(resource)
-                invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
-
-                if (!wasAdded && activeResourceIdRef.current !== resource.id) {
-                  setActiveResourceId(resource.id)
+              case 'subagent_end': {
+                if (activeSubagent === 'file_write') {
+                  setStreamingFile(null)
+                  streamingFileRef.current = null
+                  setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
                 }
-                onResourceEventRef.current?.()
-
-                if (resource.type === 'workflow') {
-                  const wasRegistered = ensureWorkflowInRegistry(
-                    resource.id,
-                    resource.title,
-                    workspaceId
-                  )
-                  if (wasAdded && wasRegistered) {
-                    useWorkflowRegistry.getState().setActiveWorkflow(resource.id)
-                  } else {
-                    useWorkflowRegistry.getState().loadWorkflowState(resource.id)
-                  }
-                }
-              }
-              break
-            }
-            case 'resource_deleted': {
-              const resource = parsed.resource
-              if (resource?.type && resource?.id) {
-                removeResource(resource.type as MothershipResourceType, resource.id)
-                invalidateResourceQueries(
-                  queryClient,
-                  workspaceId,
-                  resource.type as MothershipResourceType,
-                  resource.id
-                )
-                onResourceEventRef.current?.()
-              }
-              break
-            }
-            case 'tool_error': {
-              const id = parsed.toolCallId || getPayloadData(parsed)?.id
-              if (!id) break
-              const idx = toolMap.get(id)
-              if (idx !== undefined && blocks[idx].toolCall) {
-                blocks[idx].toolCall!.status = 'error'
+                activeSubagent = undefined
+                blocks.push({ type: 'subagent_end' })
                 flush()
+                break
               }
-              break
-            }
-            case 'subagent_start': {
-              const name = parsed.subagent || getPayloadData(parsed)?.agent
-              if (name) {
-                activeSubagent = name
-                blocks.push({ type: 'subagent', content: name })
-                flush()
+              case 'title_updated': {
+                queryClient.invalidateQueries({
+                  queryKey: taskKeys.list(workspaceId),
+                })
+                onTitleUpdateRef.current?.()
+                break
               }
-              break
-            }
-            case 'subagent_end': {
-              activeSubagent = undefined
-              flush()
-              break
-            }
-            case 'title_updated': {
-              queryClient.invalidateQueries({
-                queryKey: taskKeys.list(workspaceId),
-              })
-              break
-            }
-            case 'error': {
-              setError(parsed.error || 'An error occurred')
-              break
+              case 'error': {
+                setError(parsed.error || 'An error occurred')
+                break
+              }
             }
           }
+          if (isStale()) {
+            reader.cancel().catch(() => {})
+            break
+          }
+        }
+      } finally {
+        if (streamReaderRef.current === reader) {
+          streamReaderRef.current = null
         }
       }
     },
     [workspaceId, queryClient, addResource, removeResource]
   )
-  useLayoutEffect(() => {
-    processSSEStreamRef.current = processSSEStream
-  })
+  processSSEStreamRef.current = processSSEStream
 
   const persistPartialResponse = useCallback(async () => {
     const chatId = chatIdRef.current
@@ -792,6 +1140,7 @@ export function useChat(
             id: block.toolCall.id,
             name: block.toolCall.name,
             state: isCancelled ? 'cancelled' : block.toolCall.status,
+            params: block.toolCall.params,
             result: block.toolCall.result,
             display: {
               text: isCancelled ? 'Stopped by user' : block.toolCall.displayTitle,
@@ -808,7 +1157,7 @@ export function useChat(
     }
 
     try {
-      const res = await fetch('/api/mothership/chat/stop', {
+      const res = await fetch(stopPathRef.current, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -837,12 +1186,22 @@ export function useChat(
     queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
   }, [workspaceId, queryClient])
 
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+
   const finalize = useCallback(
     (options?: { error?: boolean }) => {
       sendingRef.current = false
       setIsSending(false)
       abortControllerRef.current = null
       invalidateChatQueries()
+
+      if (!options?.error) {
+        const cid = chatIdRef.current
+        if (cid && onStreamEndRef.current) {
+          onStreamEndRef.current(cid, messagesRef.current)
+        }
+      }
 
       if (options?.error) {
         setMessageQueue([])
@@ -861,9 +1220,7 @@ export function useChat(
     },
     [invalidateChatQueries]
   )
-  useLayoutEffect(() => {
-    finalizeRef.current = finalize
-  })
+  finalizeRef.current = finalize
 
   const sendMessage = useCallback(
     async (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
@@ -903,22 +1260,23 @@ export function useChat(
             }))
           : undefined
 
-      if (chatIdRef.current) {
+      const requestChatId = selectedChatIdRef.current ?? chatIdRef.current
+      if (requestChatId) {
         const cachedUserMsg: TaskStoredMessage = {
           id: userMessageId,
           role: 'user' as const,
           content: message,
           ...(storedAttachments && { fileAttachments: storedAttachments }),
         }
-        queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatIdRef.current), (old) =>
-          old
+        queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(requestChatId), (old) => {
+          return old
             ? {
                 ...old,
                 messages: [...old.messages, cachedUserMsg],
                 activeStreamId: userMessageId,
               }
             : undefined
-        )
+        })
       }
 
       const userAttachments = storedAttachments?.map(toDisplayAttachment)
@@ -960,18 +1318,19 @@ export function useChat(
               }))
             : undefined
 
-        const response = await fetch(MOTHERSHIP_CHAT_API_PATH, {
+        const response = await fetch(apiPathRef.current, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message,
             workspaceId,
             userMessageId,
-            createNewChat: !chatIdRef.current,
-            ...(chatIdRef.current ? { chatId: chatIdRef.current } : {}),
+            createNewChat: !requestChatId,
+            ...(requestChatId ? { chatId: requestChatId } : {}),
             ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
             ...(resourceAttachments ? { resourceAttachments } : {}),
             ...(contexts && contexts.length > 0 ? { contexts } : {}),
+            ...(workflowIdRef.current ? { workflowId: workflowIdRef.current } : {}),
             userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: abortController.signal,
@@ -984,7 +1343,7 @@ export function useChat(
 
         if (!response.body) throw new Error('No response body')
 
-        await processSSEStream(response.body.getReader(), assistantId)
+        await processSSEStream(response.body.getReader(), assistantId, gen)
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return
         setError(err instanceof Error ? err.message : 'Failed to send message')
@@ -999,25 +1358,24 @@ export function useChat(
     },
     [workspaceId, queryClient, processSSEStream, finalize]
   )
-  useLayoutEffect(() => {
-    sendMessageRef.current = sendMessage
-  })
+  sendMessageRef.current = sendMessage
 
   const stopGeneration = useCallback(async () => {
-    if (sendingRef.current) {
-      await persistPartialResponse()
-    }
+    const wasSending = sendingRef.current
     const sid =
       streamIdRef.current ||
       queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatIdRef.current))
         ?.activeStreamId ||
       undefined
+
     streamGenRef.current++
+    streamReaderRef.current?.cancel().catch(() => {})
+    streamReaderRef.current = null
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
     sendingRef.current = false
     setIsSending(false)
-    invalidateChatQueries()
+
     if (sid) {
       fetch('/api/copilot/chat/abort', {
         method: 'POST',
@@ -1025,6 +1383,21 @@ export function useChat(
         body: JSON.stringify({ streamId: sid }),
       }).catch(() => {})
     }
+
+    if (wasSending && !chatIdRef.current) {
+      const start = Date.now()
+      while (!chatIdRef.current && Date.now() - start < 3000) {
+        await new Promise((r) => setTimeout(r, 50))
+      }
+    }
+
+    if (wasSending && chatIdRef.current) {
+      await persistPartialResponse()
+    }
+    invalidateChatQueries()
+    setStreamingFile(null)
+    streamingFileRef.current = null
+    setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
 
     setMessages((prev) =>
       prev.map((msg) => {
@@ -1115,12 +1488,10 @@ export function useChat(
 
   useEffect(() => {
     return () => {
-      streamGenRef.current++
-      // Only drop the browser→Sim read; the Sim→Go stream stays open
-      // so the backend can finish persisting. Explicit abort is only
-      // triggered by the stop button via /api/copilot/chat/abort.
-      abortControllerRef.current?.abort()
+      streamReaderRef.current?.cancel().catch(() => {})
+      streamReaderRef.current = null
       abortControllerRef.current = null
+      streamGenRef.current++
       sendingRef.current = false
     }
   }, [])
@@ -1134,7 +1505,7 @@ export function useChat(
     sendMessage,
     stopGeneration,
     resources,
-    activeResourceId,
+    activeResourceId: effectiveActiveResourceId,
     setActiveResourceId,
     addResource,
     removeResource,
@@ -1143,5 +1514,6 @@ export function useChat(
     removeFromQueue,
     sendNow,
     editQueuedMessage,
+    streamingFile,
   }
 }

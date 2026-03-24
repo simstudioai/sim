@@ -54,6 +54,7 @@ export interface TaskStoredMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  requestId?: string
   toolCalls?: TaskStoredToolCall[]
   contentBlocks?: TaskStoredContentBlock[]
   fileAttachments?: TaskStoredFileAttachment[]

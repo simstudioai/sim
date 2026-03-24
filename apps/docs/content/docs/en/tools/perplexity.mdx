@@ -49,6 +49,9 @@ Generate completions using Perplexity AI chat models
 | `max_tokens` | number | No | Maximum number of tokens to generate \(e.g., 1024, 2048, 4096\) |
 | `temperature` | number | No | Sampling temperature between 0 and 1 \(e.g., 0.0 for deterministic, 0.7 for creative\) |
 | `apiKey` | string | Yes | Perplexity API key |
+| `pricing` | custom | No | No description |
+| `metadata` | string | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -78,6 +81,8 @@ Get ranked search results from Perplexity
 | `search_after_date` | string | No | Include only content published after this date \(format: MM/DD/YYYY\) |
 | `search_before_date` | string | No | Include only content published before this date \(format: MM/DD/YYYY\) |
 | `apiKey` | string | Yes | Perplexity API key |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 

@@ -1,19 +1,11 @@
-'use client'
-
-import { useEffect } from 'react'
 import Link from 'next/link'
 import { getEnv } from '@/lib/core/config/env'
-import { LegalLayout } from '@/app/(landing)/components'
+import { ExternalRedirect, LegalLayout } from '@/app/(landing)/components'
 
 export default function PrivacyPolicy() {
-  useEffect(() => {
-    const privacyUrl = getEnv('NEXT_PUBLIC_PRIVACY_URL')
-    if (privacyUrl?.startsWith('http')) {
-      window.location.href = privacyUrl
-    }
-  }, [])
   return (
     <LegalLayout title='Privacy Policy'>
+      <ExternalRedirect url={getEnv('NEXT_PUBLIC_PRIVACY_URL') ?? ''} />
       <section>
         <p className='mb-4'>Last Updated: October 11, 2025</p>
         <p>
@@ -582,7 +574,7 @@ export default function PrivacyPolicy() {
           Please note that we may ask you to verify your identity before responding to such
           requests.
         </p>
-        <p className='mb-4 border-[var(--brand-primary-hex)] border-l-4 bg-[var(--brand-primary-hex)]/10 p-3'>
+        <p className='mb-4 border-[#3d3d3d] border-l-4 bg-[#2A2A2A] p-3 text-[#ECECEC]'>
           You have the right to complain to a Data Protection Authority about our collection and use
           of your Personal Information. For more information, please contact your local data
           protection authority in the European Economic Area (EEA).
@@ -604,10 +596,7 @@ export default function PrivacyPolicy() {
           sharing practices (such as analytics or advertising services) may be considered a "sale"
           or "share" under CCPA/CPRA. You have the right to opt-out of such data sharing. To
           exercise this right, contact us at{' '}
-          <Link
-            href='mailto:privacy@sim.ai'
-            className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
-          >
+          <Link href='mailto:privacy@sim.ai' className='text-[#ECECEC] underline hover:text-white'>
             privacy@sim.ai
           </Link>
           .
@@ -693,10 +682,7 @@ export default function PrivacyPolicy() {
           Sim interacts with are not covered by this policy and should be reported directly to the
           solution vendor in accordance with their disclosure policy (if any). Before beginning your
           inquiry, email us at{' '}
-          <Link
-            href='mailto:security@sim.ai'
-            className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
-          >
+          <Link href='mailto:security@sim.ai' className='text-[#ECECEC] underline hover:text-white'>
             security@sim.ai
           </Link>{' '}
           if you're unsure whether a system or endpoint is in scope.
@@ -715,10 +701,7 @@ export default function PrivacyPolicy() {
         <h3 className='mb-2 font-medium text-xl'>Reporting a vulnerability</h3>
         <p className='mb-4'>
           To report any security flaws, send an email to{' '}
-          <Link
-            href='mailto:security@sim.ai'
-            className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
-          >
+          <Link href='mailto:security@sim.ai' className='text-[#ECECEC] underline hover:text-white'>
             security@sim.ai
           </Link>
           . The next business day, we'll acknowledge receipt of your vulnerability report and keep
@@ -762,7 +745,7 @@ export default function PrivacyPolicy() {
             Email:{' '}
             <Link
               href='mailto:privacy@sim.ai'
-              className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
+              className='text-[#ECECEC] underline hover:text-white'
             >
               privacy@sim.ai
             </Link>

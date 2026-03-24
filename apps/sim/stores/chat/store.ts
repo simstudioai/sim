@@ -260,7 +260,7 @@ export const useChatStore = create<ChatState>()(
             ...msg,
             attachments: msg.attachments?.map((att) => ({
               ...att,
-              dataUrl: '',
+              previewUrl: undefined,
             })),
           })),
         }),

@@ -16,7 +16,7 @@ import {
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { useStreamingReveal } from '@/app/workspace/[workspaceId]/home/hooks/use-streaming-reveal'
-import { useThrottledValue } from '@/hooks/use-throttled-value'
+import { useStreamingText } from '@/hooks/use-streaming-text'
 
 const REMARK_PLUGINS = [remarkGfm]
 
@@ -187,11 +187,8 @@ interface ChatContentProps {
   onOptionSelect?: (id: string) => void
 }
 
-const STREAMING_THROTTLE_MS = 50
-
 export function ChatContent({ content, isStreaming = false, onOptionSelect }: ChatContentProps) {
-  const throttled = useThrottledValue(content, isStreaming ? STREAMING_THROTTLE_MS : undefined)
-  const rendered = isStreaming ? throttled : content
+  const rendered = useStreamingText(content, isStreaming)
 
   const parsed = useMemo(() => parseSpecialTags(rendered, isStreaming), [rendered, isStreaming])
   const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
@@ -216,9 +213,9 @@ export function ChatContent({ content, isStreaming = false, onOptionSelect }: Ch
     return (
       <div className='space-y-3'>
         {parsed.segments.map((segment, i) => {
-          if (segment.type === 'text') {
+          if (segment.type === 'text' || segment.type === 'thinking') {
             return (
-              <div key={`text-${i}`} className={PROSE_CLASSES}>
+              <div key={`${segment.type}-${i}`} className={PROSE_CLASSES}>
                 <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
                   {segment.content}
                 </ReactMarkdown>

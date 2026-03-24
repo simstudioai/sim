@@ -134,6 +134,66 @@ function makeLoopWorkflow() {
   }
 }
 
+function makeNestedLoopWorkflow() {
+  return {
+    blocks: {
+      'outer-loop': {
+        id: 'outer-loop',
+        type: 'loop',
+        name: 'Outer Loop',
+        position: { x: 0, y: 0 },
+        enabled: true,
+        subBlocks: {},
+        outputs: {},
+        data: { loopType: 'for', count: 2 },
+      },
+      'inner-loop': {
+        id: 'inner-loop',
+        type: 'loop',
+        name: 'Inner Loop',
+        position: { x: 120, y: 80 },
+        enabled: true,
+        subBlocks: {},
+        outputs: {},
+        data: { parentId: 'outer-loop', extent: 'parent', loopType: 'for', count: 3 },
+      },
+      'inner-agent': {
+        id: 'inner-agent',
+        type: 'agent',
+        name: 'Inner Agent',
+        position: { x: 240, y: 120 },
+        enabled: true,
+        subBlocks: {
+          systemPrompt: { id: 'systemPrompt', type: 'long-input', value: 'Original prompt' },
+          model: { id: 'model', type: 'combobox', value: 'gpt-4o' },
+        },
+        outputs: {},
+        data: { parentId: 'inner-loop', extent: 'parent' },
+      },
+    },
+    edges: [
+      {
+        id: 'edge-outer-inner',
+        source: 'outer-loop',
+        sourceHandle: 'loop-start-source',
+        target: 'inner-loop',
+        targetHandle: 'target',
+        type: 'default',
+      },
+      {
+        id: 'edge-inner-agent',
+        source: 'inner-loop',
+        sourceHandle: 'loop-start-source',
+        target: 'inner-agent',
+        targetHandle: 'target',
+        type: 'default',
+      },
+    ],
+    loops: {},
+    parallels: {},
+  }
+}
+
 describe('handleEditOperation nestedNodes merge', () => {
   it('preserves existing child block IDs when editing a loop with nestedNodes', () => {
     const workflow = makeLoopWorkflow()
@@ -260,5 +320,130 @@ describe('handleEditOperation nestedNodes merge', () => {
     const agent = state.blocks['agent-1']
     expect(agent).toBeDefined()
     expect(agent.subBlocks.systemPrompt.value).toBe('New prompt')
+  })
+
+  it('recursively updates an existing nested loop and preserves grandchild IDs', () => {
+    const workflow = makeNestedLoopWorkflow()
+
+    const { state } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'outer-loop',
+        params: {
+          nestedNodes: {
+            'new-inner-loop': {
+              type: 'loop',
+              name: 'Inner Loop',
+              inputs: {
+                loopType: 'forEach',
+                collection: '<start.input.items>',
+              },
+              nestedNodes: {
+                'new-inner-agent': {
+                  type: 'agent',
+                  name: 'Inner Agent',
+                  inputs: { systemPrompt: 'Updated prompt' },
+                },
+                'new-helper': {
+                  type: 'function',
+                  name: 'Helper',
+                  inputs: { code: 'return 1' },
+                },
+              },
+            },
+          },
+        },
+      },
+    ])
+
+    expect(state.blocks['inner-loop']).toBeDefined()
+    expect(state.blocks['new-inner-loop']).toBeUndefined()
+    expect(state.blocks['inner-loop'].data.loopType).toBe('forEach')
+    expect(state.blocks['inner-loop'].data.collection).toBe('<start.input.items>')
+
+    expect(state.blocks['inner-agent']).toBeDefined()
+    expect(state.blocks['new-inner-agent']).toBeUndefined()
+    expect(state.blocks['inner-agent'].subBlocks.systemPrompt.value).toBe('Updated prompt')
+
+    const helperBlock = Object.values(state.blocks).find((block: any) => block.name === 'Helper') as
+      | any
+      | undefined
+    expect(helperBlock).toBeDefined()
+    expect(helperBlock?.data?.parentId).toBe('inner-loop')
+  })
+
+  it('removes grandchildren omitted from an existing nested loop update', () => {
+    const workflow = makeNestedLoopWorkflow()
+
+    const { state } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'outer-loop',
+        params: {
+          nestedNodes: {
+            'new-inner-loop': {
+              type: 'loop',
+              name: 'Inner Loop',
+              nestedNodes: {
+                'new-helper': {
+                  type: 'function',
+                  name: 'Helper',
+                  inputs: { code: 'return 1' },
+                },
+              },
+            },
+          },
+        },
+      },
+    ])
+
+    expect(state.blocks['inner-loop']).toBeDefined()
+    expect(state.blocks['inner-agent']).toBeUndefined()
+    expect(
+      state.edges.some(
+        (edge: any) => edge.source === 'inner-agent' || edge.target === 'inner-agent'
+      )
+    ).toBe(false)
+
+    const helperBlock = Object.values(state.blocks).find((block: any) => block.name === 'Helper')
+    expect(helperBlock).toBeDefined()
+  })
+
+  it('removes an unmatched nested container with all descendants and edges', () => {
+    const workflow = makeNestedLoopWorkflow()
+
+    const { state } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'outer-loop',
+        params: {
+          nestedNodes: {
+            replacement: {
+              type: 'function',
+              name: 'Replacement',
+              inputs: { code: 'return 2' },
+            },
+          },
+        },
+      },
+    ])
+
+    expect(state.blocks['inner-loop']).toBeUndefined()
+    expect(state.blocks['inner-agent']).toBeUndefined()
+    expect(
+      state.edges.some(
+        (edge: any) =>
+          edge.source === 'inner-loop' ||
+          edge.target === 'inner-loop' ||
+          edge.source === 'inner-agent' ||
+          edge.target === 'inner-agent'
+      )
+    ).toBe(false)
+
+    const replacementBlock = Object.values(state.blocks).find(
+      (block: any) => block.name === 'Replacement'
+    ) as any
+    expect(replacementBlock).toBeDefined()
+    expect(replacementBlock.data?.parentId).toBe('outer-loop')
   })
 })

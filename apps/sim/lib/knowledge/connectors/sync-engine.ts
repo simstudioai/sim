@@ -6,7 +6,7 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lt, ne, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
@@ -40,6 +40,12 @@ class ConnectorDeletedException extends Error {
 
 const SYNC_BATCH_SIZE = 5
 const MAX_PAGES = 500
+const MAX_SAFE_TITLE_LENGTH = 200
+
+/** Sanitizes a document title for use in S3 storage keys. */
+function sanitizeStorageTitle(title: string): string {
+  return title.replace(/[^a-zA-Z0-9.-]/g, '_').slice(0, MAX_SAFE_TITLE_LENGTH)
+}
 type KnowledgeBaseLockingTx = Pick<typeof db, 'execute' | 'select'>
 
 type DocOp =
@@ -274,7 +280,7 @@ export async function executeSync(
   const userId = kbRows[0].userId
   const sourceConfig = connector.sourceConfig as Record<string, unknown>
 
-  const accessToken = await resolveAccessToken(connector, connectorConfig, userId)
+  let accessToken = await resolveAccessToken(connector, connectorConfig, userId)
 
   if (!accessToken) {
     throw new Error('Failed to obtain access token')
@@ -299,12 +305,15 @@ export async function executeSync(
   }
 
   const syncLogId = crypto.randomUUID()
+  const syncStartedAt = new Date()
   await db.insert(knowledgeConnectorSyncLog).values({
     id: syncLogId,
     connectorId,
     status: 'started',
-    startedAt: new Date(),
+    startedAt: syncStartedAt,
   })
+
+  let syncExitedCleanly = false
 
   try {
     const externalDocs: ExternalDocument[] = []
@@ -322,6 +331,11 @@ export async function executeSync(
       isIncremental && connector.lastSyncAt ? new Date(connector.lastSyncAt) : undefined
 
     for (let pageNum = 0; hasMore && pageNum < MAX_PAGES; pageNum++) {
+      if (pageNum > 0 && connectorConfig.auth.mode === 'oauth') {
+        const refreshed = await resolveAccessToken(connector, connectorConfig, userId)
+        if (refreshed) accessToken = refreshed
+      }
+
       const page = await connectorConfig.listDocuments(
         accessToken,
         sourceConfig,
@@ -423,7 +437,7 @@ export async function executeSync(
         continue
       }
 
-      if (!extDoc.content.trim()) {
+      if (!extDoc.content.trim() && !extDoc.contentDeferred) {
         logger.info(`Skipping empty document: ${extDoc.title}`, {
           externalId: extDoc.externalId,
         })
@@ -449,7 +463,54 @@ export async function executeSync(
         throw new Error(`Knowledge base ${connector.knowledgeBaseId} was deleted during sync`)
       }
 
-      const batch = pendingOps.slice(i, i + SYNC_BATCH_SIZE)
+      const rawBatch = pendingOps.slice(i, i + SYNC_BATCH_SIZE)
+
+      const deferredOps = rawBatch.filter((op) => op.extDoc.contentDeferred)
+      const readyOps = rawBatch.filter((op) => !op.extDoc.contentDeferred)
+
+      if (deferredOps.length > 0) {
+        if (connectorConfig.auth.mode === 'oauth') {
+          const refreshed = await resolveAccessToken(connector, connectorConfig, userId)
+          if (refreshed) accessToken = refreshed
+        }
+
+        const hydrated = await Promise.allSettled(
+          deferredOps.map(async (op) => {
+            const fullDoc = await connectorConfig.getDocument(
+              accessToken!,
+              sourceConfig,
+              op.extDoc.externalId,
+              syncContext
+            )
+            if (!fullDoc?.content.trim()) return null
+            return {
+              ...op,
+              extDoc: {
+                ...op.extDoc,
+                content: fullDoc.content,
+                contentHash: fullDoc.contentHash ?? op.extDoc.contentHash,
+                contentDeferred: false,
+              },
+            }
+          })
+        )
+
+        for (const outcome of hydrated) {
+          if (outcome.status === 'fulfilled' && outcome.value) {
+            readyOps.push(outcome.value)
+          } else if (outcome.status === 'rejected') {
+            result.docsFailed++
+            logger.error('Failed to hydrate deferred document', {
+              connectorId,
+              error:
+                outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
+            })
+          }
+        }
+      }
+
+      const batch = readyOps
+
       const settled = await Promise.allSettled(
         batch.map((op) => {
           if (op.type === 'add') {
@@ -509,19 +570,23 @@ export async function executeSync(
       throw new Error(`Knowledge base ${connector.knowledgeBaseId} was deleted during sync`)
     }
 
-    // Retry stuck documents that failed or never completed processing
+    // Retry stuck documents that failed or never completed processing.
+    // Only retry docs uploaded BEFORE this sync — docs added in the current sync
+    // are still processing asynchronously and would cause a duplicate processing race.
     const stuckDocs = await db
       .select({
         id: document.id,
         fileUrl: document.fileUrl,
         filename: document.filename,
         fileSize: document.fileSize,
+        mimeType: document.mimeType,
       })
       .from(document)
       .where(
         and(
           eq(document.connectorId, connectorId),
           inArray(document.processingStatus, ['pending', 'failed']),
+          lt(document.uploadedAt, syncStartedAt),
           eq(document.userExcluded, false),
           isNull(document.archivedAt),
           isNull(document.deletedAt)
@@ -538,7 +603,7 @@ export async function executeSync(
             filename: doc.filename ?? 'document.txt',
             fileUrl: doc.fileUrl ?? '',
             fileSize: doc.fileSize ?? 0,
-            mimeType: 'text/plain',
+            mimeType: doc.mimeType ?? 'text/plain',
           },
           processingOptions: {},
           requestId: `connector-retry-${connectorId}`,
@@ -569,6 +634,7 @@ export async function executeSync(
       )
 
     logger.info('Sync completed', { connectorId, ...result })
+    syncExitedCleanly = true
     return result
   } catch (error) {
     if (error instanceof ConnectorDeletedException) {
@@ -600,6 +666,7 @@ export async function executeSync(
       }
 
       result.error = 'Connector deleted during sync'
+      syncExitedCleanly = true
       return result
     }
 
@@ -639,7 +706,27 @@ export async function executeSync(
     }
 
     result.error = errorMessage
+    syncExitedCleanly = true
     return result
+  } finally {
+    if (!syncExitedCleanly) {
+      try {
+        await db
+          .update(knowledgeConnector)
+          .set({
+            status: 'error',
+            lastSyncError: 'Sync terminated unexpectedly',
+            updatedAt: new Date(),
+          })
+          .where(eq(knowledgeConnector.id, connectorId))
+        logger.warn('Reset stale syncing status in finally block', { connectorId })
+      } catch (finallyError) {
+        logger.warn('Failed to reset syncing status in finally block', {
+          connectorId,
+          error: finallyError instanceof Error ? finallyError.message : String(finallyError),
+        })
+      }
+    }
   }
 }
 
@@ -659,7 +746,7 @@ async function addDocument(
   }
   const documentId = crypto.randomUUID()
   const contentBuffer = Buffer.from(extDoc.content, 'utf-8')
-  const safeTitle = extDoc.title.replace(/[^a-zA-Z0-9.-]/g, '_')
+  const safeTitle = sanitizeStorageTitle(extDoc.title)
   const customKey = `kb/${Date.now()}-${documentId}-${safeTitle}.txt`
 
   const fileInfo = await StorageService.uploadFile({
@@ -753,7 +840,7 @@ async function updateDocument(
   const oldFileUrl = existingRows[0]?.fileUrl
 
   const contentBuffer = Buffer.from(extDoc.content, 'utf-8')
-  const safeTitle = extDoc.title.replace(/[^a-zA-Z0-9.-]/g, '_')
+  const safeTitle = sanitizeStorageTitle(extDoc.title)
   const customKey = `kb/${Date.now()}-${existingDocId}-${safeTitle}.txt`
 
   const fileInfo = await StorageService.uploadFile({

@@ -3,21 +3,20 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
-import { Skeleton } from '@/components/emcn'
 import { PanelLeft } from '@/components/emcn/icons'
-import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   LandingPromptStorage,
-  LandingTemplateStorage,
   type LandingWorkflowSeed,
   LandingWorkflowSeedStorage,
 } from '@/lib/core/utils/browser-storage'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import type { ChatContext } from '@/stores/panel'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import {
+  assistantMessageHasRenderableContent,
+  ChatMessageAttachments,
   MessageContent,
   MothershipView,
   QueuedMessages,
@@ -26,42 +25,10 @@ import {
   UserMessageContent,
 } from './components'
 import { PendingTagIndicator } from './components/message-content/components/special-tags'
-import { useAutoScroll, useChat } from './hooks'
+import { useAutoScroll, useChat, useMothershipResize } from './hooks'
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
-
-interface FileAttachmentPillProps {
-  mediaType: string
-  filename: string
-}
-
-function FileAttachmentPill({ mediaType, filename }: FileAttachmentPillProps) {
-  const Icon = getDocumentIcon(mediaType, filename)
-  return (
-    <div className='flex max-w-[140px] items-center gap-[5px] rounded-[10px] bg-[var(--surface-5)] px-[6px] py-[3px]'>
-      <Icon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate text-[11px] text-[var(--text-body)]'>{filename}</span>
-    </div>
-  )
-}
-
-const SKELETON_LINE_COUNT = 4
-
-function ChatSkeleton({ children }: { children: React.ReactNode }) {
-  return (
-    <div className='flex h-full flex-col bg-[var(--bg)]'>
-      <div className='min-h-0 flex-1 overflow-hidden px-6 py-4'>
-        <div className='mx-auto max-w-[42rem] space-y-[10px] pt-3'>
-          {Array.from({ length: SKELETON_LINE_COUNT }).map((_, i) => (
-            <Skeleton key={i} className='h-[16px]' style={{ width: `${120 + (i % 4) * 48}px` }} />
-          ))}
-        </div>
-      </div>
-      <div className='flex-shrink-0 px-[24px] pb-[16px]'>{children}</div>
-    </div>
-  )
-}
 
 interface HomeProps {
   chatId?: string
@@ -76,6 +43,8 @@ export function Home({ chatId }: HomeProps = {}) {
   const initialViewInputRef = useRef<HTMLDivElement>(null)
   const templateRef = useRef<HTMLDivElement>(null)
   const baseInputHeightRef = useRef<number | null>(null)
+
+  const [isInputEntering, setIsInputEntering] = useState(false)
 
   const createWorkflowFromLandingSeed = useCallback(
     async (seed: LandingWorkflowSeed) => {
@@ -134,12 +103,12 @@ export function Home({ chatId }: HomeProps = {}) {
       return
     }
 
-    const templateId = LandingTemplateStorage.consume()
-    if (templateId) {
-      logger.info('Retrieved landing page template, redirecting to template detail')
-      router.replace(`/workspace/${workspaceId}/templates/${templateId}?use=true`)
-      return
-    }
+    // const templateId = LandingTemplateStorage.consume()
+    // if (templateId) {
+    //   logger.info('Retrieved landing page template, redirecting to template detail')
+    //   router.replace(`/workspace/${workspaceId}/templates/${templateId}?use=true`)
+    //   return
+    // }
 
     const prompt = LandingPromptStorage.consume()
     if (prompt) {
@@ -150,8 +119,10 @@ export function Home({ chatId }: HomeProps = {}) {
 
   const wasSendingRef = useRef(false)
 
-  const { isLoading: isLoadingHistory } = useChatHistory(chatId)
+  useChatHistory(chatId)
   const { mutate: markRead } = useMarkTaskRead(workspaceId)
+
+  const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
   const [isResourceAnimatingIn, setIsResourceAnimatingIn] = useState(false)
@@ -159,25 +130,35 @@ export function Home({ chatId }: HomeProps = {}) {
   const isResourceCollapsedRef = useRef(isResourceCollapsed)
   isResourceCollapsedRef.current = isResourceCollapsed
 
-  const collapseResource = useCallback(() => setIsResourceCollapsed(true), [])
+  const collapseResource = useCallback(() => {
+    clearWidth()
+    setIsResourceCollapsed(true)
+  }, [clearWidth])
+  const animatingInTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const startAnimatingIn = useCallback(() => {
+    if (animatingInTimerRef.current) clearTimeout(animatingInTimerRef.current)
+    setIsResourceAnimatingIn(true)
+    animatingInTimerRef.current = setTimeout(() => {
+      setIsResourceAnimatingIn(false)
+      animatingInTimerRef.current = null
+    }, 400)
+  }, [])
+
   const expandResource = useCallback(() => {
     setIsResourceCollapsed(false)
-    setIsResourceAnimatingIn(true)
-  }, [])
+    startAnimatingIn()
+  }, [startAnimatingIn])
 
   const handleResourceEvent = useCallback(() => {
     if (isResourceCollapsedRef.current) {
-      const { isCollapsed, toggleCollapsed } = useSidebarStore.getState()
-      if (!isCollapsed) toggleCollapsed()
       setIsResourceCollapsed(false)
-      setIsResourceAnimatingIn(true)
+      startAnimatingIn()
     }
-  }, [])
+  }, [startAnimatingIn])
 
   const {
     messages,
     isSending,
-    isReconnecting,
     sendMessage,
     stopGeneration,
     resolvedChatId,
@@ -191,10 +172,18 @@ export function Home({ chatId }: HomeProps = {}) {
     removeFromQueue,
     sendNow,
     editQueuedMessage,
+    streamingFile,
   } = useChat(workspaceId, chatId, { onResourceEvent: handleResourceEvent })
 
   const [editingInputValue, setEditingInputValue] = useState('')
+  const [prevChatId, setPrevChatId] = useState(chatId)
   const clearEditingValue = useCallback(() => setEditingInputValue(''), [])
+
+  // Clear editing value when navigating to a different chat (guarded render-phase update)
+  if (chatId !== prevChatId) {
+    setPrevChatId(chatId)
+    setEditingInputValue('')
+  }
 
   const handleEditQueuedMessage = useCallback(
     (id: string) => {
@@ -205,10 +194,6 @@ export function Home({ chatId }: HomeProps = {}) {
     },
     [editQueuedMessage]
   )
-
-  useEffect(() => {
-    setEditingInputValue('')
-  }, [chatId])
 
   useEffect(() => {
     wasSendingRef.current = false
@@ -223,32 +208,35 @@ export function Home({ chatId }: HomeProps = {}) {
   }, [isSending, resolvedChatId, markRead])
 
   useEffect(() => {
-    if (!isResourceAnimatingIn) return
-    const timer = setTimeout(() => setIsResourceAnimatingIn(false), 400)
-    return () => clearTimeout(timer)
-  }, [isResourceAnimatingIn])
-
-  useEffect(() => {
-    if (resources.length > 0 && isResourceCollapsedRef.current) {
-      setSkipResourceTransition(true)
-      setIsResourceCollapsed(false)
-    }
-  }, [resources])
-
-  useEffect(() => {
-    if (!skipResourceTransition) return
+    if (!(resources.length > 0 && isResourceCollapsedRef.current)) return
+    setIsResourceCollapsed(false)
+    setSkipResourceTransition(true)
     const id = requestAnimationFrame(() => setSkipResourceTransition(false))
     return () => cancelAnimationFrame(id)
-  }, [skipResourceTransition])
+  }, [resources])
 
   const handleSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       const trimmed = text.trim()
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
+
+      if (initialViewInputRef.current) {
+        setIsInputEntering(true)
+      }
+
       sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
     [sendMessage]
   )
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const message = (e as CustomEvent<{ message: string }>).detail?.message
+      if (message) sendMessage(message)
+    }
+    window.addEventListener('mothership-send-message', handler)
+    return () => window.removeEventListener('mothership-send-message', handler)
+  }, [sendMessage])
 
   const handleContextAdd = useCallback(
     (context: ChatContext) => {
@@ -330,22 +318,7 @@ export function Home({ chatId }: HomeProps = {}) {
     return () => ro.disconnect()
   }, [hasMessages])
 
-  if (chatId && (isLoadingHistory || isReconnecting)) {
-    return (
-      <ChatSkeleton>
-        <UserInput
-          onSubmit={handleSubmit}
-          isSending={isSending}
-          onStopGeneration={stopGeneration}
-          isInitialView={false}
-          userId={session?.user?.id}
-          onContextAdd={handleContextAdd}
-        />
-      </ChatSkeleton>
-    )
-  }
-
-  if (!hasMessages) {
+  if (!hasMessages && !chatId) {
     return (
       <div className='h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable]'>
         <div className='flex min-h-full flex-col items-center justify-center px-[24px] pb-[2vh]'>
@@ -364,7 +337,10 @@ export function Home({ chatId }: HomeProps = {}) {
             />
           </div>
         </div>
-        <div ref={templateRef} className='-mt-[30vh] mx-auto w-full max-w-[42rem] pb-[32px]'>
+        <div
+          ref={templateRef}
+          className='-mt-[30vh] mx-auto w-full max-w-[68rem] px-[16px] pb-[32px] sm:px-[24px] lg:px-[40px]'
+        >
           <TemplatePrompts onSelect={handleSubmit} />
         </div>
       </div>
@@ -373,7 +349,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
   return (
     <div className='relative flex h-full bg-[var(--bg)]'>
-      <div className='flex h-full min-w-0 flex-1 flex-col'>
+      <div className='flex h-full min-w-[320px] flex-1 flex-col'>
         <div
           ref={scrollContainerRef}
           className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-8 [scrollbar-gutter:stable]'
@@ -385,51 +361,44 @@ export function Home({ chatId }: HomeProps = {}) {
                 return (
                   <div key={msg.id} className='flex flex-col items-end gap-[6px] pt-3'>
                     {hasAttachments && (
-                      <div className='flex max-w-[70%] flex-wrap justify-end gap-[6px]'>
-                        {msg.attachments!.map((att) => {
-                          const isImage = att.media_type.startsWith('image/')
-                          return isImage && att.previewUrl ? (
-                            <div
-                              key={att.id}
-                              className='h-[56px] w-[56px] overflow-hidden rounded-[8px]'
-                            >
-                              <img
-                                src={att.previewUrl}
-                                alt={att.filename}
-                                className='h-full w-full object-cover'
-                              />
-                            </div>
-                          ) : (
-                            <FileAttachmentPill
-                              key={att.id}
-                              mediaType={att.media_type}
-                              filename={att.filename}
-                            />
-                          )
-                        })}
-                      </div>
+                      <ChatMessageAttachments
+                        attachments={msg.attachments!}
+                        align='end'
+                        className='max-w-[70%]'
+                      />
                     )}
-                    <div className='max-w-[70%] rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2'>
+                    <div className='max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2'>
                       <UserMessageContent content={msg.content} contexts={msg.contexts} />
                     </div>
                   </div>
                 )
               }
 
-              const hasBlocks = msg.contentBlocks && msg.contentBlocks.length > 0
+              const hasAnyBlocks = Boolean(msg.contentBlocks?.length)
+              const hasRenderableAssistant = assistantMessageHasRenderableContent(
+                msg.contentBlocks ?? [],
+                msg.content ?? ''
+              )
               const isLastAssistant = msg.role === 'assistant' && index === messages.length - 1
               const isThisStreaming = isSending && isLastAssistant
 
-              if (!hasBlocks && !msg.content && isThisStreaming) {
+              if (!hasAnyBlocks && !msg.content?.trim() && isThisStreaming) {
                 return <PendingTagIndicator key={msg.id} />
               }
 
-              if (!hasBlocks && !msg.content) return null
+              if (!hasRenderableAssistant && !msg.content?.trim() && !isThisStreaming) {
+                return null
+              }
 
               const isLastMessage = index === messages.length - 1
 
               return (
-                <div key={msg.id} className='pb-4'>
+                <div key={msg.id} className='group/msg relative pb-5'>
+                  {!isThisStreaming && (msg.content || msg.contentBlocks?.length) && (
+                    <div className='absolute right-0 bottom-0 z-10'>
+                      <MessageActions content={msg.content} requestId={msg.requestId} />
+                    </div>
+                  )}
                   <MessageContent
                     blocks={msg.contentBlocks || []}
                     fallbackContent={msg.content}
@@ -442,7 +411,10 @@ export function Home({ chatId }: HomeProps = {}) {
           </div>
         </div>
 
-        <div className='flex-shrink-0 px-[24px] pb-[16px]'>
+        <div
+          className={`flex-shrink-0 px-[24px] pb-[16px]${isInputEntering ? ' animate-slide-in-bottom' : ''}`}
+          onAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
+        >
           <div className='mx-auto max-w-[42rem]'>
             <QueuedMessages
               messageQueue={messageQueue}
@@ -464,7 +436,21 @@ export function Home({ chatId }: HomeProps = {}) {
         </div>
       </div>
 
+      {/* Resize handle — zero-width flex child whose absolute child straddles the border */}
+      {!isResourceCollapsed && (
+        <div className='relative z-20 w-0 flex-none'>
+          <div
+            className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize'
+            role='separator'
+            aria-orientation='vertical'
+            aria-label='Resize resource panel'
+            onPointerDown={handleResizePointerDown}
+          />
+        </div>
+      )}
+
       <MothershipView
+        ref={mothershipRef}
         workspaceId={workspaceId}
         chatId={resolvedChatId}
         resources={resources}
@@ -475,6 +461,7 @@ export function Home({ chatId }: HomeProps = {}) {
         onReorderResources={reorderResources}
         onCollapse={collapseResource}
         isCollapsed={isResourceCollapsed}
+        streamingFile={streamingFile}
         className={
           isResourceAnimatingIn
             ? 'animate-slide-in-right'

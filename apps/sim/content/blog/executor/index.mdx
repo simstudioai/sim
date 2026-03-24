@@ -8,11 +8,11 @@ authors:
   - sid
 readingTime: 12
 tags: [Executor, Architecture, DAG, Orchestration]
-ogImage: /studio/executor/cover.png
+ogImage: /blog/executor/cover.png
 ogAlt: 'Sim Executor technical overview'
 about: ['Execution', 'Workflow Orchestration']
 timeRequired: PT12M
-canonical: https://sim.ai/studio/executor
+canonical: https://sim.ai/blog/executor
 featured: false
 draft: false
 ---
@@ -106,7 +106,7 @@ Behind the scenes, this expands to the same branch‑indexed DAG structure. The 
 
 Loops present a challenge for DAGs: graphs are acyclic, but loops repeat. We handle this by expanding loops into sentinel nodes during compilation.
 
-![Loop sentinel nodes](/studio/executor/loop-sentinels.png)
+![Loop sentinel nodes](/blog/executor/loop-sentinels.png)
 *Loops expand into sentinel start and end nodes. The backward edge only activates when the loop continues, preserving the DAG's acyclic property.*
 
 A loop is bookended by two nodes: a sentinel start and a sentinel end. The sentinel start activates the first blocks inside the loop. When terminal blocks complete, they route to the sentinel end. The sentinel end evaluates the loop condition and returns either "continue" (which routes back to the start) or "exit" (which activates blocks after the loop).
@@ -135,7 +135,7 @@ This makes AI-driven routing deterministic and traceable. You can inspect the ex
 
 When a condition or router executes, it evaluates its logic and returns a single selection. The edge manager checks each outgoing edge to see if its label matches the selection. The matching edge activates; the rest deactivate.
 
-![Edge activation and pruning](/studio/executor/edge-pruning.png)
+![Edge activation and pruning](/blog/executor/edge-pruning.png)
 *When a condition selects one path, the chosen edge activates while unselected paths deactivate recursively, preventing unreachable blocks from executing.*
 
 Deactivation cascades. If an edge deactivates, the executor recursively deactivates all edges downstream from its target—unless that target has other active incoming edges. This automatic pruning prevents unreachable blocks from ever entering the ready queue.
@@ -182,7 +182,7 @@ The lock also prevents a resumed node from racing with other executing nodes. Wh
 
 ### Example
 
-![Iterative agent refinement with human feedback](/studio/executor/hitl-loop.png)
+![Iterative agent refinement with human feedback](/blog/executor/hitl-loop.png)
 *A common pattern: agent generates output, pauses for human review, router decides pass/fail based on feedback, saves to workflow variable, and loop continues until approved.*
 
 A while loop runs an agent with previous feedback as context. The agent's output goes to a human‑in‑the‑loop block, which pauses execution and sends a notification. The user reviews the output and provides feedback via the resume link.

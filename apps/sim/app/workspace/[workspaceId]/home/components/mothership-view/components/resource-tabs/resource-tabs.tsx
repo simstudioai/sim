@@ -41,6 +41,12 @@ const PREVIEW_MODE_ICONS = {
   preview: Pencil,
 } satisfies Record<PreviewMode, (props: ComponentProps<typeof Eye>) => ReactNode>
 
+const PREVIEW_MODE_LABELS: Record<PreviewMode, string> = {
+  editor: 'Split Mode',
+  split: 'Preview Mode',
+  preview: 'Edit Mode',
+}
+
 /**
  * Builds a `type:id` -> current name lookup from live query data so resource
  * tabs always reflect the latest name even after a rename.
@@ -273,103 +279,105 @@ export function ResourceTabs({
           <p>Collapse</p>
         </Tooltip.Content>
       </Tooltip.Root>
-      <div
-        ref={scrollNodeRef}
-        className={cn(
-          'flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-          RESOURCE_TAB_GAP_CLASS
-        )}
-        onDragOver={(e) => {
-          e.preventDefault()
-          startEdgeScroll(e.clientX)
-        }}
-        onDrop={handleDrop}
-      >
-        {resources.map((resource, idx) => {
-          const config = getResourceConfig(resource.type)
-          const displayName = nameLookup.get(`${resource.type}:${resource.id}`) ?? resource.title
-          const isActive = activeId === resource.id
-          const isHovered = hoveredTabId === resource.id
-          const isDragging = draggedIdx === idx
-          const showGapBefore =
-            dropGapIdx === idx &&
-            draggedIdx !== null &&
-            draggedIdx !== idx &&
-            draggedIdx !== idx - 1
-          const showGapAfter =
-            idx === resources.length - 1 &&
-            dropGapIdx === resources.length &&
-            draggedIdx !== null &&
-            draggedIdx !== idx
+      <div className={cn('flex min-w-0 flex-1 items-center', RESOURCE_TAB_GAP_CLASS)}>
+        <div
+          ref={scrollNodeRef}
+          className={cn(
+            'flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+            RESOURCE_TAB_GAP_CLASS
+          )}
+          onDragOver={(e) => {
+            e.preventDefault()
+            startEdgeScroll(e.clientX)
+          }}
+          onDrop={handleDrop}
+        >
+          {resources.map((resource, idx) => {
+            const config = getResourceConfig(resource.type)
+            const displayName = nameLookup.get(`${resource.type}:${resource.id}`) ?? resource.title
+            const isActive = activeId === resource.id
+            const isHovered = hoveredTabId === resource.id
+            const isDragging = draggedIdx === idx
+            const showGapBefore =
+              dropGapIdx === idx &&
+              draggedIdx !== null &&
+              draggedIdx !== idx &&
+              draggedIdx !== idx - 1
+            const showGapAfter =
+              idx === resources.length - 1 &&
+              dropGapIdx === resources.length &&
+              draggedIdx !== null &&
+              draggedIdx !== idx
 
-          return (
-            <div key={resource.id} className='relative flex shrink-0 items-center'>
-              {showGapBefore && (
-                <div className='-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-10 h-[16px] w-[2px] rounded-full bg-[var(--text-subtle)]' />
-              )}
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='subtle'
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, idx)}
-                    onDragOver={(e) => handleDragOver(e, idx)}
-                    onDragLeave={handleDragLeave}
-                    onDragEnd={handleDragEnd}
-                    onMouseDown={(e) => {
-                      if (e.button === 1 && chatId) {
-                        e.preventDefault()
-                        handleRemove(e, resource)
-                      }
-                    }}
-                    onClick={() => onSelect(resource.id)}
-                    onMouseEnter={() => setHoveredTabId(resource.id)}
-                    onMouseLeave={() => setHoveredTabId(null)}
-                    className={cn(
-                      'group relative shrink-0 bg-transparent px-[8px] py-[4px] pr-[22px] text-[12px] transition-opacity duration-150',
-                      isActive && 'bg-[var(--surface-4)]',
-                      isDragging && 'opacity-30'
-                    )}
-                  >
-                    {config.renderTabIcon(resource, 'mr-[6px] h-[14px] w-[14px]')}
-                    {displayName}
-                    {(isHovered || isActive) && chatId && (
-                      <span
-                        role='button'
-                        tabIndex={-1}
-                        onClick={(e) => handleRemove(e, resource)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter')
-                            handleRemove(e as unknown as React.MouseEvent, resource)
-                        }}
-                        className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-[4px] p-[1px] hover:bg-[var(--surface-5)]'
-                        aria-label={`Close ${displayName}`}
-                      >
-                        <svg
-                          className='h-[10px] w-[10px] text-[var(--text-icon)]'
-                          viewBox='0 0 24 24'
-                          fill='none'
-                          stroke='currentColor'
-                          strokeWidth='2.5'
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
+            return (
+              <div key={resource.id} className='relative flex shrink-0 items-center'>
+                {showGapBefore && (
+                  <div className='-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-10 h-[16px] w-[2px] rounded-full bg-[var(--text-subtle)]' />
+                )}
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      variant='subtle'
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, idx)}
+                      onDragOver={(e) => handleDragOver(e, idx)}
+                      onDragLeave={handleDragLeave}
+                      onDragEnd={handleDragEnd}
+                      onMouseDown={(e) => {
+                        if (e.button === 1 && chatId) {
+                          e.preventDefault()
+                          handleRemove(e, resource)
+                        }
+                      }}
+                      onClick={() => onSelect(resource.id)}
+                      onMouseEnter={() => setHoveredTabId(resource.id)}
+                      onMouseLeave={() => setHoveredTabId(null)}
+                      className={cn(
+                        'group relative shrink-0 bg-transparent px-[8px] py-[4px] pr-[22px] text-[12px] transition-opacity duration-150',
+                        isActive && 'bg-[var(--surface-4)]',
+                        isDragging && 'opacity-30'
+                      )}
+                    >
+                      {config.renderTabIcon(resource, 'mr-[6px] h-[14px] w-[14px]')}
+                      {displayName}
+                      {(isHovered || isActive) && chatId && (
+                        <span
+                          role='button'
+                          tabIndex={-1}
+                          onClick={(e) => handleRemove(e, resource)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter')
+                              handleRemove(e as unknown as React.MouseEvent, resource)
+                          }}
+                          className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-[4px] p-[1px] hover:bg-[var(--surface-5)]'
+                          aria-label={`Close ${displayName}`}
                         >
-                          <path d='M18 6 6 18M6 6l12 12' />
-                        </svg>
-                      </span>
-                    )}
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='bottom'>
-                  <p>{displayName}</p>
-                </Tooltip.Content>
-              </Tooltip.Root>
-              {showGapAfter && (
-                <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 z-10 h-[16px] w-[2px] translate-x-1/2 rounded-full bg-[var(--text-subtle)]' />
-              )}
-            </div>
-          )
-        })}
+                          <svg
+                            className='h-[10px] w-[10px] text-[var(--text-icon)]'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke='currentColor'
+                            strokeWidth='2.5'
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                          >
+                            <path d='M18 6 6 18M6 6l12 12' />
+                          </svg>
+                        </span>
+                      )}
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom'>
+                    <p>{displayName}</p>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+                {showGapAfter && (
+                  <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 z-10 h-[16px] w-[2px] translate-x-1/2 rounded-full bg-[var(--text-subtle)]' />
+                )}
+              </div>
+            )
+          })}
+        </div>
         {chatId && (
           <AddResourceDropdown
             workspaceId={workspaceId}
@@ -395,7 +403,7 @@ export function ResourceTabs({
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content side='bottom'>
-                <p>Preview mode</p>
+                <p>{PREVIEW_MODE_LABELS[previewMode]}</p>
               </Tooltip.Content>
             </Tooltip.Root>
           )}

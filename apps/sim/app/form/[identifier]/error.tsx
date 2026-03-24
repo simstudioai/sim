@@ -21,7 +21,6 @@ export default function FormError({ error, reset }: FormErrorProps) {
     <StatusPageLayout
       title='Something went wrong'
       description='We encountered an error loading this form. Please try again.'
-      hideNav
     >
       <BrandedButton onClick={reset}>Try again</BrandedButton>
     </StatusPageLayout>

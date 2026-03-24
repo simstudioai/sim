@@ -5,8 +5,8 @@ import {
   generatePresignedDownloadUrl,
   generatePresignedUploadUrl,
 } from '@/lib/uploads/core/storage-service'
-import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import type { PresignedUrlResponse } from '@/lib/uploads/shared/types'
+import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('CopilotFileManager')
 
@@ -27,6 +27,8 @@ const SUPPORTED_FILE_TYPES = [
   'application/json',
   'application/xml',
   'text/xml',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/x-pptxgenjs',
 ]
 
 /**

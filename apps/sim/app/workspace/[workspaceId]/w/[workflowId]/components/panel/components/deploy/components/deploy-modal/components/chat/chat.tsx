@@ -20,7 +20,6 @@ import {
   Textarea,
   Tooltip,
 } from '@/components/emcn'
-import { Alert, AlertDescription } from '@/components/ui'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { generatePassword } from '@/lib/core/security/encryption'
 import { cn } from '@/lib/core/utils/cn'
@@ -323,10 +322,10 @@ export function ChatDeploy({
         className='-mx-1 space-y-4 overflow-y-auto px-1'
       >
         {errors.general && (
-          <Alert variant='destructive'>
-            <AlertTriangle className='h-4 w-4' />
-            <AlertDescription>{errors.general}</AlertDescription>
-          </Alert>
+          <div className='flex items-center gap-2 rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-400'>
+            <AlertTriangle className='h-4 w-4 flex-shrink-0' />
+            <span>{errors.general}</span>
+          </div>
         )}
 
         <div className='space-y-[12px]'>

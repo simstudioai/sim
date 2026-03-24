@@ -112,10 +112,14 @@ const SELF_HEALING_CRM_WORKFLOW: PreviewWorkflow = {
     },
     {
       id: 'mothership-1',
-      name: 'Update Agent',
+      name: 'CRM Agent',
       type: 'mothership',
       bgColor: '#33C482',
       rows: [{ title: 'Prompt', value: 'Audit CRM records, fix...' }],
+      tools: [
+        { name: 'HubSpot', type: 'hubspot', bgColor: '#FF7A59' },
+        { name: 'Salesforce', type: 'salesforce', bgColor: '#E0E0E0' },
+      ],
       position: { x: 420, y: 180 },
       hideSourceHandle: true,
     },

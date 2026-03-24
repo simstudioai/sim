@@ -1,11 +1,11 @@
 import {
   BookOpen,
-  Bug,
   Card,
   Connections,
   HexSimple,
   Key,
   KeySquare,
+  Lock,
   LogIn,
   Mail,
   Send,
@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   TerminalWindow,
   TrashOutline,
-  User,
   Users,
   Wrench,
 } from '@/components/emcn'
@@ -40,7 +39,7 @@ export type SettingsSection =
   | 'workflow-mcp-servers'
   | 'inbox'
   | 'docs'
-  | 'debug'
+  | 'admin'
   | 'recently-deleted'
 
 export type NavigationSection =
@@ -62,6 +61,7 @@ export interface NavigationItem {
   requiresHosted?: boolean
   selfHostedOverride?: boolean
   requiresSuperUser?: boolean
+  requiresAdminRole?: boolean
   externalUrl?: string
 }
 
@@ -83,7 +83,7 @@ export const sectionConfig: { key: NavigationSection; title: string }[] = [
 
 export const allNavigationItems: NavigationItem[] = [
   { id: 'general', label: 'General', icon: Settings, section: 'account' },
-  { id: 'template-profile', label: 'Template Profile', icon: User, section: 'account' },
+  // { id: 'template-profile', label: 'Template Profile', icon: User, section: 'account' },
   {
     id: 'access-control',
     label: 'Access Control',
@@ -165,10 +165,10 @@ export const allNavigationItems: NavigationItem[] = [
     externalUrl: 'https://docs.sim.ai',
   },
   {
-    id: 'debug',
-    label: 'Debug',
-    icon: Bug,
+    id: 'admin',
+    label: 'Admin',
+    icon: Lock,
     section: 'superuser',
-    requiresSuperUser: true,
+    requiresAdminRole: true,
   },
 ]

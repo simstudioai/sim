@@ -1,7 +1,7 @@
 import { LinkedInIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { LinkedInResponse } from '@/tools/linkedin/types'
 
 export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
@@ -13,6 +13,8 @@ export const LinkedInBlock: BlockConfig<LinkedInResponse> = {
     'Integrate LinkedIn into workflows. Share posts to your personal feed and access your LinkedIn profile information.',
   docsLink: 'https://docs.sim.ai/tools/linkedin',
   category: 'tools',
+  integrationType: IntegrationType.Social,
+  tags: ['marketing', 'sales-engagement', 'enrichment'],
   bgColor: '#0072B1',
   icon: LinkedInIcon,
   subBlocks: [

@@ -34,6 +34,7 @@ describe('sse-handlers tool lifecycle', () => {
       accumulatedContent: '',
       contentBlocks: [],
       toolCalls: new Map(),
+      pendingToolPromises: new Map(),
       currentThinkingBlock: null,
       isInThinkingBlock: false,
       subAgentParentToolCallId: undefined,
@@ -100,5 +101,42 @@ describe('sse-handlers tool lifecycle', () => {
 
     expect(executeToolServerSide).toHaveBeenCalledTimes(1)
     expect(markToolComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks an in-flight tool as cancelled when aborted mid-execution', async () => {
+    const abortController = new AbortController()
+    execContext.abortSignal = abortController.signal
+
+    executeToolServerSide.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve({ success: true, output: { ok: true } }), 0)
+        })
+    )
+    markToolComplete.mockResolvedValue(true)
+
+    await sseHandlers.tool_call(
+      {
+        type: 'tool_call',
+        data: { id: 'tool-cancel', name: 'read', arguments: { workflowId: 'workflow-1' } },
+      } as any,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000, abortSignal: abortController.signal }
+    )
+
+    abortController.abort()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    expect(markToolComplete).toHaveBeenCalledWith(
+      'tool-cancel',
+      'read',
+      499,
+      'Request aborted during tool execution',
+      { cancelled: true }
+    )
+
+    const updated = context.toolCalls.get('tool-cancel')
+    expect(updated?.status).toBe('cancelled')
   })
 })

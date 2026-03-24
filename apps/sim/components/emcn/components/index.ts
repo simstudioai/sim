@@ -56,6 +56,7 @@ export {
   DropdownMenuTrigger,
 } from './dropdown-menu/dropdown-menu'
 export { Input, type InputProps, inputVariants } from './input/input'
+export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
 export { Label } from './label/label'
 export {
   MODAL_SIZES,
@@ -143,5 +144,6 @@ export {
 } from './tag-input/tag-input'
 export { Textarea } from './textarea/textarea'
 export { TimePicker, type TimePickerProps, timePickerVariants } from './time-picker/time-picker'
+export { CountdownRing } from './toast/countdown-ring'
 export { ToastProvider, toast, useToast } from './toast/toast'
 export { Tooltip } from './tooltip/tooltip'

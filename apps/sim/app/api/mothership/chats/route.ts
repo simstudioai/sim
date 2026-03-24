@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
         workspaceId,
         type: 'mothership',
         title: null,
-        model: 'claude-opus-4-5',
+        model: 'claude-opus-4-6',
         messages: [],
         updatedAt: now,
         lastSeenAt: now,

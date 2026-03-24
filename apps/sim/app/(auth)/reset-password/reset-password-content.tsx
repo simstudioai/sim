@@ -1,11 +1,9 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { SetNewPasswordForm } from '@/app/(auth)/reset-password/reset-password-form'
 
 const logger = createLogger('ResetPasswordPage')
@@ -24,14 +22,9 @@ function ResetPasswordContent() {
     text: '',
   })
 
-  useEffect(() => {
-    if (!token) {
-      setStatusMessage({
-        type: 'error',
-        text: 'Invalid or missing reset token. Please request a new password reset link.',
-      })
-    }
-  }, [token])
+  const tokenError = !token
+    ? 'Invalid or missing reset token. Please request a new password reset link.'
+    : null
 
   const handleResetPassword = async (password: string) => {
     try {
@@ -76,28 +69,28 @@ function ResetPasswordContent() {
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+        <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           Reset your password
         </h1>
-        <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+        <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
           Enter a new password for your account
         </p>
       </div>
 
-      <div className={`${inter.className} mt-8`}>
+      <div className='mt-8'>
         <SetNewPasswordForm
           token={token}
           onSubmit={handleResetPassword}
           isSubmitting={isSubmitting}
-          statusType={statusMessage.type}
-          statusMessage={statusMessage.text}
+          statusType={tokenError ? 'error' : statusMessage.type}
+          statusMessage={tokenError ?? statusMessage.text}
         />
       </div>
 
-      <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
+      <div className='pt-6 text-center font-light text-[14px]'>
         <Link
           href='/login'
-          className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+          className='font-medium text-[#ECECEC] underline-offset-4 transition hover:text-white hover:underline'
         >
           Back to login
         </Link>

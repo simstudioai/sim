@@ -1,6 +1,6 @@
 import { DevinIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const DevinBlock: BlockConfig = {
   type: 'devin',
@@ -17,6 +17,8 @@ export const DevinBlock: BlockConfig = {
   `,
   docsLink: 'https://docs.sim.ai/tools/devin',
   category: 'tools',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['agentic', 'automation'],
   bgColor: '#12141A',
   icon: DevinIcon,
   authMode: AuthMode.ApiKey,

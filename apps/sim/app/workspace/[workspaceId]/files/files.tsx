@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
+  Columns2,
   Download,
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +49,7 @@ import {
   ResourceHeader,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
+import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   FileViewer,
   isPreviewable,
@@ -121,7 +123,10 @@ export function Files() {
   const saveRef = useRef<(() => Promise<void>) | null>(null)
 
   const params = useParams()
+  const router = useRouter()
   const workspaceId = params?.workspaceId as string
+  const fileIdFromRoute =
+    typeof params?.fileId === 'string' && params.fileId.length > 0 ? params.fileId : null
   const userPermissions = useUserPermissionsContext()
 
   const { data: files = [], isLoading, error } = useWorkspaceFiles(workspaceId)
@@ -149,15 +154,16 @@ export function Files() {
   }
 
   const justCreatedFileIdRef = useRef<string | null>(null)
+  const filesRef = useRef(files)
+  filesRef.current = files
 
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [showPreview, setShowPreview] = useState(true)
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('preview')
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [contextMenuFile, setContextMenuFile] = useState<WorkspaceFileRecord | null>(null)
@@ -174,8 +180,8 @@ export function Files() {
   })
 
   const selectedFile = useMemo(
-    () => (selectedFileId ? files.find((f) => f.id === selectedFileId) : null),
-    [selectedFileId, files]
+    () => (fileIdFromRoute ? files.find((f) => f.id === fileIdFromRoute) : null),
+    [fileIdFromRoute, files]
   )
 
   const filteredFiles = useMemo(() => {
@@ -293,15 +299,15 @@ export function Files() {
       })
       setShowDeleteConfirm(false)
       setDeleteTargetFile(null)
-      if (selectedFileId === target.id) {
+      if (fileIdFromRoute === target.id) {
         setIsDirty(false)
         setSaveStatus('idle')
-        setSelectedFileId(null)
+        router.push(`/workspace/${workspaceId}/files`)
       }
     } catch (err) {
       logger.error('Failed to delete file:', err)
     }
-  }, [deleteTargetFile, workspaceId, selectedFileId])
+  }, [deleteTargetFile, workspaceId, fileIdFromRoute, router])
 
   const handleSave = useCallback(async () => {
     if (!saveRef.current || !isDirty || saveStatus === 'saving') return
@@ -312,10 +318,10 @@ export function Files() {
     if (isDirty) {
       setShowUnsavedChangesAlert(true)
     } else {
-      setShowPreview(false)
-      setSelectedFileId(null)
+      setPreviewMode('editor')
+      router.push(`/workspace/${workspaceId}/files`)
     }
-  }, [isDirty])
+  }, [isDirty, router, workspaceId])
 
   const handleStartHeaderRename = useCallback(() => {
     if (selectedFile) headerRename.startRename(selectedFile.id, selectedFile.name)
@@ -382,15 +388,13 @@ export function Files() {
     ]
   )
 
-  const handleTogglePreview = useCallback(() => setShowPreview((prev) => !prev), [])
-
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedChangesAlert(false)
     setIsDirty(false)
     setSaveStatus('idle')
-    setShowPreview(false)
-    setSelectedFileId(null)
-  }, [])
+    setPreviewMode('editor')
+    router.push(`/workspace/${workspaceId}/files`)
+  }, [router, workspaceId])
 
   const handleCreateFile = useCallback(async () => {
     if (creatingFile) return
@@ -412,14 +416,14 @@ export function Files() {
       const fileId = result.file?.id
       if (fileId) {
         justCreatedFileIdRef.current = fileId
-        setSelectedFileId(fileId)
+        router.push(`/workspace/${workspaceId}/files/${fileId}`)
       }
     } catch (err) {
       logger.error('Failed to create file:', err)
     } finally {
       setCreatingFile(false)
     }
-  }, [creatingFile, files, workspaceId])
+  }, [creatingFile, files, workspaceId, router])
 
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
@@ -434,9 +438,9 @@ export function Files() {
 
   const handleContextMenuOpen = useCallback(() => {
     if (!contextMenuFile) return
-    setSelectedFileId(contextMenuFile.id)
+    router.push(`/workspace/${workspaceId}/files/${contextMenuFile.id}`)
     closeContextMenu()
-  }, [contextMenuFile, closeContextMenu])
+  }, [contextMenuFile, closeContextMenu, router, workspaceId])
 
   const handleContextMenuDownload = useCallback(() => {
     if (!contextMenuFile) return
@@ -476,12 +480,19 @@ export function Files() {
   }, [closeListContextMenu])
 
   useEffect(() => {
-    const isJustCreated = selectedFileId != null && justCreatedFileIdRef.current === selectedFileId
+    const isJustCreated =
+      fileIdFromRoute != null && justCreatedFileIdRef.current === fileIdFromRoute
     if (justCreatedFileIdRef.current && !isJustCreated) {
       justCreatedFileIdRef.current = null
     }
-    setShowPreview(!isJustCreated)
-  }, [selectedFileId])
+    if (isJustCreated) {
+      setPreviewMode('editor')
+    } else {
+      const file = fileIdFromRoute ? filesRef.current.find((f) => f.id === fileIdFromRoute) : null
+      const canPreview = file ? isPreviewable(file) : false
+      setPreviewMode(canPreview ? 'preview' : 'editor')
+    }
+  }, [fileIdFromRoute])
 
   useEffect(() => {
     if (!selectedFile) return
@@ -504,10 +515,23 @@ export function Files() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [isDirty])
 
+  const handleCyclePreviewMode = useCallback(() => {
+    setPreviewMode((prev) => {
+      if (prev === 'editor') return 'split'
+      if (prev === 'split') return 'preview'
+      return 'editor'
+    })
+  }, [])
+
+  const handleTogglePreview = useCallback(() => {
+    setPreviewMode((prev) => (prev === 'preview' ? 'editor' : 'preview'))
+  }, [])
+
   const fileActions = useMemo<HeaderAction[]>(() => {
     if (!selectedFile) return []
     const canEditText = isTextEditable(selectedFile)
     const canPreview = isPreviewable(selectedFile)
+    const hasSplitView = canEditText && canPreview
 
     const saveLabel =
       saveStatus === 'saving'
@@ -518,16 +542,12 @@ export function Files() {
             ? 'Save failed'
             : 'Save'
 
+    const nextModeLabel =
+      previewMode === 'editor' ? 'Split' : previewMode === 'split' ? 'Preview' : 'Edit'
+    const nextModeIcon =
+      previewMode === 'editor' ? Columns2 : previewMode === 'split' ? Eye : Pencil
+
     return [
-      ...(canPreview
-        ? [
-            {
-              label: showPreview ? 'Edit' : 'Preview',
-              icon: showPreview ? Pencil : Eye,
-              onClick: handleTogglePreview,
-            },
-          ]
-        : []),
       ...(canEditText
         ? [
             {
@@ -540,6 +560,23 @@ export function Files() {
             },
           ]
         : []),
+      ...(hasSplitView
+        ? [
+            {
+              label: nextModeLabel,
+              icon: nextModeIcon,
+              onClick: handleCyclePreviewMode,
+            },
+          ]
+        : canPreview
+          ? [
+              {
+                label: previewMode === 'preview' ? 'Edit' : 'Preview',
+                icon: previewMode === 'preview' ? Pencil : Eye,
+                onClick: handleTogglePreview,
+              },
+            ]
+          : []),
       {
         label: 'Download',
         icon: Download,
@@ -554,7 +591,8 @@ export function Files() {
   }, [
     selectedFile,
     saveStatus,
-    showPreview,
+    previewMode,
+    handleCyclePreviewMode,
     handleTogglePreview,
     handleSave,
     isDirty,
@@ -562,13 +600,16 @@ export function Files() {
     handleDeleteSelected,
   ])
 
-  if (selectedFileId && !selectedFile) {
+  if (fileIdFromRoute && !selectedFile) {
     return (
       <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
         <ResourceHeader
           icon={FilesIcon}
           breadcrumbs={[
-            { label: 'Files', onClick: () => setSelectedFileId(null) },
+            {
+              label: 'Files',
+              onClick: () => router.push(`/workspace/${workspaceId}/files`),
+            },
             { label: '...' },
           ]}
         />
@@ -580,8 +621,6 @@ export function Files() {
   }
 
   if (selectedFile) {
-    const canPreview = isPreviewable(selectedFile)
-
     return (
       <>
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
@@ -595,7 +634,7 @@ export function Files() {
             file={selectedFile}
             workspaceId={workspaceId}
             canEdit={userPermissions.canEdit === true}
-            showPreview={showPreview && canPreview}
+            previewMode={previewMode}
             autoFocus={justCreatedFileIdRef.current === selectedFile.id}
             onDirtyChange={setIsDirty}
             onSaveStatusChange={setSaveStatus}
@@ -666,7 +705,9 @@ export function Files() {
         columns={COLUMNS}
         rows={rows}
         onRowClick={(id) => {
-          if (listRename.editingId !== id && !headerRename.editingId) setSelectedFileId(id)
+          if (listRename.editingId !== id && !headerRename.editingId) {
+            router.push(`/workspace/${workspaceId}/files/${id}`)
+          }
         }}
         onRowContextMenu={handleRowContextMenu}
         isLoading={isLoading}

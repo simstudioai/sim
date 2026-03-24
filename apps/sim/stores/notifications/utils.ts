@@ -1,52 +1,17 @@
 import { createLogger } from '@sim/logger'
-import { useCopilotStore, usePanelStore } from '@/stores/panel'
 
 const logger = createLogger('NotificationUtils')
 
 /**
- * Opens the copilot panel and directly sends the message.
- *
- * @param message - The message to send in the copilot.
+ * Dispatches a message to the mothership chat via a custom window event.
+ * The mothership `Home` component listens for this event and calls `sendMessage`.
  */
-export function openCopilotWithMessage(message: string): void {
-  try {
-    const trimmedMessage = message.trim()
-
-    // Avoid sending empty/whitespace messages
-    if (!trimmedMessage) {
-      logger.warn('openCopilotWithMessage called with empty message')
-      return
-    }
-
-    // Switch to copilot tab
-    const panelStore = usePanelStore.getState()
-    panelStore.setActiveTab('copilot')
-
-    // Read current copilot state
-    const copilotStore = useCopilotStore.getState()
-
-    // If workflowId is not set, sendMessage will early-return; surface that explicitly
-    if (!copilotStore.workflowId) {
-      logger.warn('Copilot workflowId is not set, skipping sendMessage', {
-        messageLength: trimmedMessage.length,
-      })
-      return
-    }
-
-    // Avoid overlapping sends; let existing stream finish/abort first
-    if (copilotStore.isSendingMessage) {
-      logger.warn('Copilot is already sending a message, skipping new send', {
-        messageLength: trimmedMessage.length,
-      })
-      return
-    }
-
-    void copilotStore.sendMessage(trimmedMessage, { stream: true }).catch((error) => {
-      logger.error('Failed to send message to copilot', { error })
-    })
-
-    logger.info('Opened copilot and sent message', { messageLength: trimmedMessage.length })
-  } catch (error) {
-    logger.error('Failed to open copilot with message', { error })
+export function sendMothershipMessage(message: string): void {
+  const trimmed = message.trim()
+  if (!trimmed) {
+    logger.warn('sendMothershipMessage called with empty message')
+    return
   }
+  window.dispatchEvent(new CustomEvent('mothership-send-message', { detail: { message: trimmed } }))
+  logger.info('Dispatched mothership message event', { messageLength: trimmed.length })
 }

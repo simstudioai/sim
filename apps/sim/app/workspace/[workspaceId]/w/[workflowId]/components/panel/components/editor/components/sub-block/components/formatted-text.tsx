@@ -1,5 +1,3 @@
-'use client'
-
 import type { ReactNode } from 'react'
 import { splitReferenceSegment } from '@/lib/workflows/sanitization/references'
 import { normalizeName, REFERENCE } from '@/executor/constants'

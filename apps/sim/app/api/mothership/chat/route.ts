@@ -7,7 +7,11 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
-import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/chat-streaming'
+import {
+  createSSEStream,
+  SSE_RESPONSE_HEADERS,
+  waitForPendingChatStream,
+} from '@/lib/copilot/chat-streaming'
 import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
 import { processContextsServer, resolveActiveResourceContext } from '@/lib/copilot/process-contents'
 import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/request-helpers'
@@ -17,6 +21,8 @@ import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
 } from '@/lib/workspaces/permissions/utils'
+
+export const maxDuration = 3600
 
 const logger = createLogger('MothershipChatAPI')
 
@@ -110,6 +116,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 403 })
     }
 
+    let currentChat: any = null
+    let conversationHistory: any[] = []
+    let actualChatId = chatId
+
+    if (chatId || createNewChat) {
+      const chatResult = await resolveOrCreateChat({
+        chatId,
+        userId: authenticatedUserId,
+        workspaceId,
+        model: 'claude-opus-4-6',
+        type: 'mothership',
+      })
+      currentChat = chatResult.chat
+      actualChatId = chatResult.chatId || chatId
+      conversationHistory = Array.isArray(chatResult.conversationHistory)
+        ? chatResult.conversationHistory
+        : []
+
+      if (chatId && !currentChat) {
+        return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
+      }
+    }
+
     let agentContexts: Array<{ type: string; content: string }> = []
     if (Array.isArray(contexts) && contexts.length > 0) {
       try {
@@ -117,7 +146,8 @@ export async function POST(req: NextRequest) {
           contexts as any,
           authenticatedUserId,
           message,
-          workspaceId
+          workspaceId,
+          actualChatId
         )
       } catch (e) {
         logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
@@ -131,7 +161,8 @@ export async function POST(req: NextRequest) {
             r.type,
             r.id,
             workspaceId,
-            authenticatedUserId
+            authenticatedUserId,
+            actualChatId
           )
           if (!ctx) return null
           return {
@@ -149,29 +180,6 @@ export async function POST(req: NextRequest) {
             result.reason
           )
         }
-      }
-    }
-
-    let currentChat: any = null
-    let conversationHistory: any[] = []
-    let actualChatId = chatId
-
-    if (chatId || createNewChat) {
-      const chatResult = await resolveOrCreateChat({
-        chatId,
-        userId: authenticatedUserId,
-        workspaceId,
-        model: 'claude-opus-4-5',
-        type: 'mothership',
-      })
-      currentChat = chatResult.chat
-      actualChatId = chatResult.chatId || chatId
-      conversationHistory = Array.isArray(chatResult.conversationHistory)
-        ? chatResult.conversationHistory
-        : []
-
-      if (chatId && !currentChat) {
-        return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
       }
     }
 
@@ -244,24 +252,35 @@ export async function POST(req: NextRequest) {
       { selectedModel: '' }
     )
 
+    if (actualChatId) {
+      await waitForPendingChatStream(actualChatId)
+    }
+
+    const executionId = crypto.randomUUID()
+    const runId = crypto.randomUUID()
     const stream = createSSEStream({
       requestPayload,
       userId: authenticatedUserId,
       streamId: userMessageId,
+      executionId,
+      runId,
       chatId: actualChatId,
       currentChat,
       isNewChat: conversationHistory.length === 0,
       message,
-      titleModel: 'claude-opus-4-5',
+      titleModel: 'claude-opus-4-6',
       requestId: tracker.requestId,
       workspaceId,
       orchestrateOptions: {
         userId: authenticatedUserId,
         workspaceId,
         chatId: actualChatId,
+        executionId,
+        runId,
         goRoute: '/api/mothership',
         autoExecuteTools: true,
-        interactive: false,
+        interactive: true,
+        promptForToolApproval: false,
         onComplete: async (result: OrchestratorResult) => {
           if (!actualChatId) return
 
@@ -270,6 +289,7 @@ export async function POST(req: NextRequest) {
             role: 'assistant' as const,
             content: result.content,
             timestamp: new Date().toISOString(),
+            ...(result.requestId ? { requestId: result.requestId } : {}),
           }
           if (result.toolCalls.length > 0) {
             assistantMessage.toolCalls = result.toolCalls

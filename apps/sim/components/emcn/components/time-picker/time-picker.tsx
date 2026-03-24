@@ -135,13 +135,15 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
     const [hour, setHour] = React.useState(parsed.hour)
     const [minute, setMinute] = React.useState(parsed.minute)
     const [ampm, setAmpm] = React.useState<'AM' | 'PM'>(parsed.ampm)
+    const [prevValue, setPrevValue] = React.useState(value)
 
-    React.useEffect(() => {
+    if (value !== prevValue) {
+      setPrevValue(value)
       const newParsed = parseTime(value || '')
       setHour(newParsed.hour)
       setMinute(newParsed.minute)
       setAmpm(newParsed.ampm)
-    }, [value])
+    }
 
     React.useEffect(() => {
       if (open) {

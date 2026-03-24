@@ -1,5 +1,5 @@
 import { PagerDutyIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 
 export const PagerDutyBlock: BlockConfig = {
   type: 'pagerduty',
@@ -9,6 +9,8 @@ export const PagerDutyBlock: BlockConfig = {
     'Integrate PagerDuty into your workflow to list, create, and update incidents, add notes, list services, and check on-call schedules.',
   docsLink: 'https://docs.sim.ai/tools/pagerduty',
   category: 'tools',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['incident-management', 'monitoring'],
   bgColor: '#06AC38',
   icon: PagerDutyIcon,
   authMode: AuthMode.ApiKey,

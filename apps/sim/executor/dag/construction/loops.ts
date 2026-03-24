@@ -8,22 +8,19 @@ const logger = createLogger('LoopConstructor')
 export class LoopConstructor {
   execute(dag: DAG, reachableBlocks: Set<string>): void {
     for (const [loopId, loopConfig] of dag.loopConfigs) {
-      const loopNodes = loopConfig.nodes
-
-      if (loopNodes.length === 0) {
+      if (!reachableBlocks.has(loopId)) {
         continue
       }
 
-      if (!this.hasReachableNodes(loopNodes, reachableBlocks)) {
-        continue
+      const loopNodes = loopConfig.nodes
+      const hasReachableChildren = loopNodes.some((nodeId) => reachableBlocks.has(nodeId))
+
+      if (!hasReachableChildren) {
+        loopConfig.nodes = []
       }
 
       this.createSentinelPair(dag, loopId)
     }
-  }
-
-  private hasReachableNodes(loopNodes: string[], reachableBlocks: Set<string>): boolean {
-    return loopNodes.some((nodeId) => reachableBlocks.has(nodeId))
   }
 
   private createSentinelPair(dag: DAG, loopId: string): void {

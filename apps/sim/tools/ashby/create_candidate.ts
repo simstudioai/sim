@@ -25,27 +25,15 @@ export const createCandidateTool: ToolConfig<
     },
     email: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description: 'Primary email address for the candidate',
-    },
-    emailType: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Email address type: Personal, Work, or Other (default Work)',
     },
     phoneNumber: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Primary phone number for the candidate',
-    },
-    phoneType: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Phone number type: Personal, Work, or Other (default Work)',
     },
     linkedInUrl: {
       type: 'string',
@@ -77,27 +65,11 @@ export const createCandidateTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {
         name: params.name,
+        email: params.email,
       }
-      if (params.email) {
-        body.primaryEmailAddress = {
-          value: params.email,
-          type: params.emailType || 'Work',
-          isPrimary: true,
-        }
-      }
-      if (params.phoneNumber) {
-        body.primaryPhoneNumber = {
-          value: params.phoneNumber,
-          type: params.phoneType || 'Work',
-          isPrimary: true,
-        }
-      }
-      if (params.linkedInUrl || params.githubUrl) {
-        const socialLinks: Array<{ url: string; type: string }> = []
-        if (params.linkedInUrl) socialLinks.push({ url: params.linkedInUrl, type: 'LinkedIn' })
-        if (params.githubUrl) socialLinks.push({ url: params.githubUrl, type: 'GitHub' })
-        body.socialLinks = socialLinks
-      }
+      if (params.phoneNumber) body.phoneNumber = params.phoneNumber
+      if (params.linkedInUrl) body.linkedInUrl = params.linkedInUrl
+      if (params.githubUrl) body.githubUrl = params.githubUrl
       if (params.sourceId) body.sourceId = params.sourceId
       return body
     },

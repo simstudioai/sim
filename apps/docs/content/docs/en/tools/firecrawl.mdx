@@ -53,6 +53,9 @@ Extract structured content from web pages with comprehensive metadata support. C
 | `url` | string | Yes | The URL to scrape content from \(e.g., "https://example.com/page"\) |
 | `scrapeOptions` | json | No | Options for content scraping |
 | `apiKey` | string | Yes | Firecrawl API key |
+| `pricing` | custom | No | No description |
+| `metadata` | string | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -86,6 +89,9 @@ Search for information on the web using Firecrawl
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query to use |
 | `apiKey` | string | Yes | Firecrawl API key |
+| `pricing` | custom | No | No description |
+| `metadata` | string | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -123,6 +129,9 @@ Crawl entire websites and extract structured content from all accessible pages
 | `includePaths` | json | No | URL paths to include in crawling \(e.g., \["/docs/*", "/api/*"\]\). Only these paths will be crawled |
 | `onlyMainContent` | boolean | No | Extract only main content from pages |
 | `apiKey` | string | Yes | Firecrawl API Key |
+| `pricing` | custom | No | No description |
+| `metadata` | string | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -142,7 +151,6 @@ Crawl entire websites and extract structured content from all accessible pages
 |     ↳ `statusCode` | number | HTTP status code |
 |     ↳ `ogLocaleAlternate` | array | Alternate locale versions |
 | `total` | number | Total number of pages found during crawl |
-| `creditsUsed` | number | Number of credits consumed by the crawl operation |
 
 ### `firecrawl_map`
 
@@ -161,6 +169,9 @@ Get a complete list of URLs from any website quickly and reliably. Useful for di
 | `timeout` | number | No | Request timeout in milliseconds |
 | `location` | json | No | Geographic context for proxying \(country, languages\) |
 | `apiKey` | string | Yes | Firecrawl API key |
+| `pricing` | custom | No | No description |
+| `metadata` | string | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -187,6 +198,9 @@ Extract structured data from entire webpages using natural language prompts and 
 | `ignoreInvalidURLs` | boolean | No | Skip invalid URLs in the array \(default: true\) |
 | `scrapeOptions` | json | No | Advanced scraping configuration options |
 | `apiKey` | string | Yes | Firecrawl API key |
+| `pricing` | custom | No | No description |
+| `metadata` | string | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -217,7 +231,6 @@ Autonomous web data extraction agent. Searches and gathers information based on 
 | `success` | boolean | Whether the agent operation was successful |
 | `status` | string | Current status of the agent job \(processing, completed, failed\) |
 | `data` | object | Extracted data from the agent |
-| `creditsUsed` | number | Number of credits consumed by this agent task |
 | `expiresAt` | string | Timestamp when the results expire \(24 hours\) |
 | `sources` | object | Array of source URLs used by the agent |
 

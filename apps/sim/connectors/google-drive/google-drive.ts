@@ -112,7 +112,7 @@ function buildQuery(sourceConfig: Record<string, unknown>): string {
 
   const folderId = sourceConfig.folderId as string | undefined
   if (folderId?.trim()) {
-    parts.push(`'${folderId.trim().replace(/'/g, "\\'")}' in parents`)
+    parts.push(`'${folderId.trim().replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' in parents`)
   }
 
   const fileType = (sourceConfig.fileType as string) || 'all'

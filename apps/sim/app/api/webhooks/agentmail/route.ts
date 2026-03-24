@@ -267,11 +267,24 @@ async function createRejectedTask(
  * Format: "username@domain.com" or "Display Name <username@domain.com>"
  */
 function extractSenderEmail(from: string): string {
-  const match = from.match(/<([^>]+)>/)
-  return (match?.[1] || from).toLowerCase().trim()
+  const openBracket = from.indexOf('<')
+  const closeBracket = from.indexOf('>', openBracket + 1)
+  if (openBracket !== -1 && closeBracket !== -1) {
+    return from
+      .substring(openBracket + 1, closeBracket)
+      .toLowerCase()
+      .trim()
+  }
+  return from.toLowerCase().trim()
 }
 
 function extractDisplayName(from: string): string | null {
-  const match = from.match(/^(.+?)\s*</)
-  return match?.[1]?.trim().replace(/^"|"$/g, '') || null
+  const openBracket = from.indexOf('<')
+  if (openBracket <= 0) return null
+  const name = from.substring(0, openBracket).trim()
+  if (!name) return null
+  if (name.startsWith('"') && name.endsWith('"')) {
+    return name.slice(1, -1) || null
+  }
+  return name
 }

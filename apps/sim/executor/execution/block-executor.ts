@@ -77,7 +77,7 @@ export class BlockExecutor {
     if (!isSentinel) {
       blockLog = this.createBlockLog(ctx, node.id, block, node)
       ctx.blockLogs.push(blockLog)
-      this.callOnBlockStart(ctx, node, block, blockLog.executionOrder)
+      await this.callOnBlockStart(ctx, node, block, blockLog.executionOrder)
     }
 
     const startTime = performance.now()
@@ -105,7 +105,7 @@ export class BlockExecutor {
       }
     } catch (error) {
       cleanupSelfReference?.()
-      return this.handleBlockError(
+      return await this.handleBlockError(
         error,
         ctx,
         node,
@@ -179,7 +179,7 @@ export class BlockExecutor {
         const displayOutput = filterOutputForLog(block.metadata?.id || '', normalizedOutput, {
           block,
         })
-        this.callOnBlockComplete(
+        await this.callOnBlockComplete(
           ctx,
           node,
           block,
@@ -195,7 +195,7 @@ export class BlockExecutor {
 
       return normalizedOutput
     } catch (error) {
-      return this.handleBlockError(
+      return await this.handleBlockError(
         error,
         ctx,
         node,
@@ -226,7 +226,7 @@ export class BlockExecutor {
     return this.blockHandlers.find((h) => h.canHandle(block))
   }
 
-  private handleBlockError(
+  private async handleBlockError(
     error: unknown,
     ctx: ExecutionContext,
     node: DAGNode,
@@ -236,7 +236,7 @@ export class BlockExecutor {
     resolvedInputs: Record<string, any>,
     isSentinel: boolean,
     phase: 'input_resolution' | 'execution'
-  ): NormalizedBlockOutput {
+  ): Promise<NormalizedBlockOutput> {
     const duration = performance.now() - startTime
     const errorMessage = normalizeError(error)
     const hasResolvedInputs =
@@ -287,7 +287,7 @@ export class BlockExecutor {
         ? error.childWorkflowInstanceId
         : undefined
       const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
-      this.callOnBlockComplete(
+      await this.callOnBlockComplete(
         ctx,
         node,
         block,
@@ -439,12 +439,12 @@ export class BlockExecutor {
     return redactApiKeys(result)
   }
 
-  private callOnBlockStart(
+  private async callOnBlockStart(
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
     executionOrder: number
-  ): void {
+  ): Promise<void> {
     const blockId = node.metadata?.originalBlockId ?? node.id
     const blockName = block.metadata?.name ?? blockId
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
@@ -452,18 +452,26 @@ export class BlockExecutor {
     const iterationContext = getIterationContext(ctx, node?.metadata)
 
     if (this.contextExtensions.onBlockStart) {
-      this.contextExtensions.onBlockStart(
-        blockId,
-        blockName,
-        blockType,
-        executionOrder,
-        iterationContext,
-        ctx.childWorkflowContext
-      )
+      try {
+        await this.contextExtensions.onBlockStart(
+          blockId,
+          blockName,
+          blockType,
+          executionOrder,
+          iterationContext,
+          ctx.childWorkflowContext
+        )
+      } catch (error) {
+        logger.warn('Block start callback failed', {
+          blockId,
+          blockType,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
     }
   }
 
-  private callOnBlockComplete(
+  private async callOnBlockComplete(
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
@@ -474,7 +482,7 @@ export class BlockExecutor {
     executionOrder: number,
     endedAt: string,
     childWorkflowInstanceId?: string
-  ): void {
+  ): Promise<void> {
     const blockId = node.metadata?.originalBlockId ?? node.id
     const blockName = block.metadata?.name ?? blockId
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
@@ -482,22 +490,30 @@ export class BlockExecutor {
     const iterationContext = getIterationContext(ctx, node?.metadata)
 
     if (this.contextExtensions.onBlockComplete) {
-      this.contextExtensions.onBlockComplete(
-        blockId,
-        blockName,
-        blockType,
-        {
-          input,
-          output,
-          executionTime: duration,
-          startedAt,
-          executionOrder,
-          endedAt,
-          childWorkflowInstanceId,
-        },
-        iterationContext,
-        ctx.childWorkflowContext
-      )
+      try {
+        await this.contextExtensions.onBlockComplete(
+          blockId,
+          blockName,
+          blockType,
+          {
+            input,
+            output,
+            executionTime: duration,
+            startedAt,
+            executionOrder,
+            endedAt,
+            childWorkflowInstanceId,
+          },
+          iterationContext,
+          ctx.childWorkflowContext
+        )
+      } catch (error) {
+        logger.warn('Block completion callback failed', {
+          blockId,
+          blockType,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
     }
   }
 

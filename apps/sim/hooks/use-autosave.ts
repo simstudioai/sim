@@ -32,9 +32,12 @@ export function useAutosave({
 }: UseAutosaveOptions): UseAutosaveReturn {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const savingRef = useRef(false)
   const onSaveRef = useRef(onSave)
   onSaveRef.current = onSave
+  const enabledRef = useRef(enabled)
+  enabledRef.current = enabled
   const savedContentRef = useRef(savedContent)
   savedContentRef.current = savedContent
   const contentRef = useRef(content)
@@ -45,7 +48,13 @@ export function useAutosave({
   const MIN_SAVING_DISPLAY_MS = 600
 
   const save = useCallback(async () => {
-    if (savingRef.current || contentRef.current === savedContentRef.current) return
+    if (
+      !enabledRef.current ||
+      savingRef.current ||
+      contentRef.current === savedContentRef.current
+    ) {
+      return
+    }
     savingRef.current = true
     savingStartRef.current = Date.now()
     setSaveStatus('saving')
@@ -59,6 +68,8 @@ export function useAutosave({
       const remaining = Math.max(0, MIN_SAVING_DISPLAY_MS - elapsed)
       setTimeout(() => {
         setSaveStatus(nextStatus)
+        clearTimeout(idleTimerRef.current)
+        idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
         savingRef.current = false
         if (nextStatus !== 'error' && contentRef.current !== savedContentRef.current) {
           save()
@@ -75,16 +86,14 @@ export function useAutosave({
   }, [content, enabled, isDirty, delay, save])
 
   useEffect(() => {
-    if (saveStatus === 'saved' || saveStatus === 'error') {
-      const t = setTimeout(() => setSaveStatus('idle'), 2000)
-      return () => clearTimeout(t)
-    }
-  }, [saveStatus])
-
-  useEffect(() => {
     return () => {
       clearTimeout(timerRef.current)
-      if (contentRef.current !== savedContentRef.current && !savingRef.current) {
+      clearTimeout(idleTimerRef.current)
+      if (
+        enabledRef.current &&
+        contentRef.current !== savedContentRef.current &&
+        !savingRef.current
+      ) {
         onSaveRef.current().catch(() => {})
       }
     }

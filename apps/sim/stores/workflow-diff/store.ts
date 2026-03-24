@@ -15,7 +15,6 @@ import {
   captureBaselineSnapshot,
   cloneWorkflowState,
   createBatchedUpdater,
-  findLatestEditWorkflowToolCallId,
   getLatestUserMessageId,
   persistWorkflowStateToServer,
 } from './utils'
@@ -161,16 +160,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             diffError: null,
             _triggerMessageId: triggerMessageId ?? null,
           })
-
-          if (triggerMessageId) {
-            import('@/stores/panel/copilot/store')
-              .then(({ useCopilotStore }) =>
-                useCopilotStore.getState().saveMessageCheckpoint(triggerMessageId)
-              )
-              .catch((error) => {
-                logger.warn('Failed to save checkpoint for diff', { error })
-              })
-          }
 
           logger.info('Workflow diff applied optimistically', {
             workflowId: activeWorkflowId,
@@ -334,18 +323,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               })
             })
           }
-
-          findLatestEditWorkflowToolCallId().then((toolCallId) => {
-            if (toolCallId) {
-              import('@/stores/panel/copilot/store')
-                .then(({ useCopilotStore }) => {
-                  useCopilotStore.getState().updatePreviewToolCallState('accepted', toolCallId)
-                })
-                .catch((error) => {
-                  logger.warn('Failed to update tool accept state', { error })
-                })
-            }
-          })
         },
 
         rejectChanges: async (options) => {
@@ -439,18 +416,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               })
             })
           }
-
-          findLatestEditWorkflowToolCallId().then((toolCallId) => {
-            if (toolCallId) {
-              import('@/stores/panel/copilot/store')
-                .then(({ useCopilotStore }) => {
-                  useCopilotStore.getState().updatePreviewToolCallState('rejected', toolCallId)
-                })
-                .catch((error) => {
-                  logger.warn('Failed to update tool reject state', { error })
-                })
-            }
-          })
         },
 
         reapplyDiffMarkers: () => {

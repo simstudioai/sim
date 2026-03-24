@@ -1,6 +1,6 @@
 import { StripeIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { StripeResponse } from '@/tools/stripe/types'
 import { getTrigger } from '@/triggers'
 
@@ -13,6 +13,8 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
     'Integrates Stripe into the workflow. Manage payment intents, customers, subscriptions, invoices, charges, products, prices, and events. Can be used in trigger mode to trigger a workflow when a Stripe event occurs.',
   docsLink: 'https://docs.sim.ai/tools/stripe',
   category: 'tools',
+  integrationType: IntegrationType.Ecommerce,
+  tags: ['payments', 'subscriptions', 'webhooks'],
   bgColor: '#635BFF',
   icon: StripeIcon,
   subBlocks: [

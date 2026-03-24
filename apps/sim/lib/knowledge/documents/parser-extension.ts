@@ -24,7 +24,11 @@ function isSupportedParserExtension(extension: string): boolean {
   return SUPPORTED_FILE_TYPES.includes(extension as (typeof SUPPORTED_FILE_TYPES)[number])
 }
 
-export function resolveParserExtension(filename: string, mimeType: string): string {
+export function resolveParserExtension(
+  filename: string,
+  mimeType?: string,
+  fallback?: string
+): string {
   const filenameExtension = filename.includes('.')
     ? filename.split('.').pop()?.toLowerCase()
     : undefined
@@ -33,9 +37,13 @@ export function resolveParserExtension(filename: string, mimeType: string): stri
     return filenameExtension
   }
 
-  const mimeExtension = getExtensionFromMimeType(mimeType)
+  const mimeExtension = mimeType ? getExtensionFromMimeType(mimeType) : undefined
   if (mimeExtension && isSupportedParserExtension(mimeExtension)) {
     return mimeExtension
+  }
+
+  if (fallback) {
+    return fallback
   }
 
   if (filenameExtension) {

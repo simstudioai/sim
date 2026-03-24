@@ -1,20 +1,11 @@
+import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/types'
+
 /**
  * Position interface for floating chat
  */
 export interface ChatPosition {
   x: number
   y: number
-}
-
-/**
- * Chat attachment interface
- */
-export interface ChatAttachment {
-  id: string
-  name: string
-  type: string
-  dataUrl: string
-  size?: number
 }
 
 /**
@@ -28,7 +19,7 @@ export interface ChatMessage {
   timestamp: string
   blockId?: string
   isStreaming?: boolean
-  attachments?: ChatAttachment[]
+  attachments?: ChatMessageAttachment[]
 }
 
 /**
