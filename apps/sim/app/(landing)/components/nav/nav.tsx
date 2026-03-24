@@ -29,7 +29,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
   const buttonClass = useBrandedButtonClass()
   const { data: session, isPending: isSessionPending } = useSession()
   const isAuthenticated = Boolean(session?.user?.id)
-  const logoHref = isAuthenticated ? '/?home' : '/?from=nav'
+  const logoHref = isAuthenticated ? '/?home' : '/'
 
   useEffect(() => {
     if (variant !== 'landing') return
@@ -76,7 +76,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
       </li>
       <li>
         <Link
-          href={isAuthenticated ? '/?home#pricing' : '/?from=nav#pricing'}
+          href={isAuthenticated ? '/?home#pricing' : '/#pricing'}
           className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
           scroll={true}
         >
