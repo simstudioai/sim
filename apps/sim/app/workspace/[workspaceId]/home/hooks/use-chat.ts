@@ -323,8 +323,8 @@ export function useChat(
       reader: ReadableStreamDefaultReader<Uint8Array>,
       assistantId: string,
       expectedGen?: number
-    ) => Promise<void>
-  >(async () => {})
+    ) => Promise<boolean>
+  >(async () => false)
   const finalizeRef = useRef<(options?: { error?: boolean }) => void>(() => {})
 
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -415,6 +415,8 @@ export function useChat(
     setIsReconnecting(false)
     setResources([])
     setActiveResourceId(null)
+    setStreamingFile(null)
+    streamingFileRef.current = null
     setMessageQueue([])
   }, [initialChatId, queryClient])
 
@@ -433,6 +435,8 @@ export function useChat(
     setIsReconnecting(false)
     setResources([])
     setActiveResourceId(null)
+    setStreamingFile(null)
+    streamingFileRef.current = null
     setMessageQueue([])
   }, [isHomePage])
 
@@ -441,12 +445,6 @@ export function useChat(
 
     const activeStreamId = chatHistory.activeStreamId
     const snapshot = chatHistory.streamSnapshot
-
-    if (activeStreamId && !snapshot && !sendingRef.current) {
-      queryClient.invalidateQueries({ queryKey: taskKeys.detail(chatHistory.id) })
-      return
-    }
-
     appliedChatIdRef.current = chatHistory.id
     const mappedMessages = chatHistory.messages.map(mapStoredMessage)
     const shouldPreserveActiveStreamingMessage =
@@ -497,7 +495,6 @@ export function useChat(
     }
 
     if (activeStreamId && !sendingRef.current) {
-      abortControllerRef.current?.abort()
       const gen = ++streamGenRef.current
       const abortController = new AbortController()
       abortControllerRef.current = abortController
@@ -508,6 +505,7 @@ export function useChat(
       const assistantId = crypto.randomUUID()
 
       const reconnect = async () => {
+        let reconnectFailed = false
         try {
           const encoder = new TextEncoder()
 
@@ -515,14 +513,8 @@ export function useChat(
           const streamStatus = snapshot?.status ?? ''
 
           if (batchEvents.length === 0 && streamStatus === 'unknown') {
-            const cid = chatIdRef.current
-            if (cid) {
-              fetch(stopPathRef.current, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chatId: cid, streamId: activeStreamId, content: '' }),
-              }).catch(() => {})
-            }
+            reconnectFailed = true
+            setError(RECONNECT_TAIL_ERROR)
             return
           }
 
@@ -550,6 +542,7 @@ export function useChat(
                     { signal: abortController.signal }
                   )
                   if (!sseRes.ok || !sseRes.body) {
+                    reconnectFailed = true
                     logger.warn('SSE tail reconnect returned no readable body', {
                       status: sseRes.status,
                       streamId: activeStreamId,
@@ -565,6 +558,7 @@ export function useChat(
                   }
                 } catch (err) {
                   if (!(err instanceof Error && err.name === 'AbortError')) {
+                    reconnectFailed = true
                     logger.warn('SSE tail failed during reconnect', err)
                     setError(RECONNECT_TAIL_ERROR)
                   }
@@ -575,13 +569,21 @@ export function useChat(
             },
           })
 
-          await processSSEStreamRef.current(combinedStream.getReader(), assistantId, gen)
+          const hadStreamError = await processSSEStreamRef.current(
+            combinedStream.getReader(),
+            assistantId,
+            gen
+          )
+          if (hadStreamError) {
+            reconnectFailed = true
+          }
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') return
+          reconnectFailed = true
         } finally {
           setIsReconnecting(false)
           if (streamGenRef.current === gen) {
-            finalizeRef.current()
+            finalizeRef.current(reconnectFailed ? { error: true } : undefined)
           }
         }
       }
@@ -619,7 +621,34 @@ export function useChat(
         return b
       }
 
+      const appendInlineErrorTag = (tag: string) => {
+        if (runningText.includes(tag)) return
+        const tb = ensureTextBlock()
+        const prefix = runningText.length > 0 && !runningText.endsWith('\n') ? '\n' : ''
+        tb.content = `${tb.content ?? ''}${prefix}${tag}`
+        if (activeSubagent) tb.subagent = activeSubagent
+        runningText += `${prefix}${tag}`
+        streamingContentRef.current = runningText
+        flush()
+      }
+
+      const buildInlineErrorTag = (payload: SSEPayload) => {
+        const data = getPayloadData(payload) as Record<string, unknown> | undefined
+        const message =
+          (data?.displayMessage as string | undefined) ||
+          payload.error ||
+          'An unexpected error occurred'
+        const provider = (data?.provider as string | undefined) || undefined
+        const code = (data?.code as string | undefined) || undefined
+        return `<mothership-error>${JSON.stringify({
+          message,
+          ...(code ? { code } : {}),
+          ...(provider ? { provider } : {}),
+        })}</mothership-error>`
+      }
+
       const isStale = () => expectedGen !== undefined && streamGenRef.current !== expectedGen
+      let sawStreamError = false
 
       const flush = () => {
         if (isStale()) return
@@ -644,12 +673,9 @@ export function useChat(
 
       try {
         while (true) {
-          if (isStale()) {
-            reader.cancel().catch(() => {})
-            break
-          }
           const { done, value } = await reader.read()
           if (done) break
+          if (isStale()) continue
 
           buffer += decoder.decode(value, { stream: true })
           const lines = buffer.split('\n')
@@ -1113,14 +1139,12 @@ export function useChat(
                 break
               }
               case 'error': {
+                sawStreamError = true
                 setError(parsed.error || 'An error occurred')
+                appendInlineErrorTag(buildInlineErrorTag(parsed))
                 break
               }
             }
-          }
-          if (isStale()) {
-            reader.cancel().catch(() => {})
-            break
           }
         }
       } finally {
@@ -1128,6 +1152,7 @@ export function useChat(
           streamReaderRef.current = null
         }
       }
+      return sawStreamError
     },
     [workspaceId, queryClient, addResource, removeResource]
   )
@@ -1354,7 +1379,10 @@ export function useChat(
 
         if (!response.body) throw new Error('No response body')
 
-        await processSSEStream(response.body.getReader(), assistantId, gen)
+        const hadStreamError = await processSSEStream(response.body.getReader(), assistantId, gen)
+        if (streamGenRef.current === gen) {
+          finalize(hadStreamError ? { error: true } : undefined)
+        }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return
         setError(err instanceof Error ? err.message : 'Failed to send message')
@@ -1362,9 +1390,6 @@ export function useChat(
           finalize({ error: true })
         }
         return
-      }
-      if (streamGenRef.current === gen) {
-        finalize()
       }
     },
     [workspaceId, queryClient, processSSEStream, finalize]
@@ -1386,6 +1411,25 @@ export function useChat(
     abortControllerRef.current = null
     sendingRef.current = false
     setIsSending(false)
+
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (!msg.contentBlocks?.some((b) => b.toolCall?.status === 'executing')) return msg
+        const updated = msg.contentBlocks!.map((block) => {
+          if (block.toolCall?.status !== 'executing') return block
+          return {
+            ...block,
+            toolCall: {
+              ...block.toolCall,
+              status: 'cancelled' as const,
+              displayTitle: 'Stopped by user',
+            },
+          }
+        })
+        updated.push({ type: 'stopped' as const })
+        return { ...msg, contentBlocks: updated }
+      })
+    )
 
     if (sid) {
       fetch('/api/copilot/chat/abort', {
@@ -1409,25 +1453,6 @@ export function useChat(
     setStreamingFile(null)
     streamingFileRef.current = null
     setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
-
-    setMessages((prev) =>
-      prev.map((msg) => {
-        if (!msg.contentBlocks?.some((b) => b.toolCall?.status === 'executing')) return msg
-        const updated = msg.contentBlocks!.map((block) => {
-          if (block.toolCall?.status !== 'executing') return block
-          return {
-            ...block,
-            toolCall: {
-              ...block.toolCall,
-              status: 'cancelled' as const,
-              displayTitle: 'Stopped by user',
-            },
-          }
-        })
-        updated.push({ type: 'stopped' as const })
-        return { ...msg, contentBlocks: updated }
-      })
-    )
 
     const execState = useExecutionStore.getState()
     const consoleStore = useTerminalConsoleStore.getState()
@@ -1500,7 +1525,6 @@ export function useChat(
 
   useEffect(() => {
     return () => {
-      streamReaderRef.current?.cancel().catch(() => {})
       streamReaderRef.current = null
       abortControllerRef.current = null
       streamGenRef.current++

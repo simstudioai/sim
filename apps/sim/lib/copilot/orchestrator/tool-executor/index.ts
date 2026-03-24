@@ -1050,21 +1050,21 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
         return {
           success: false,
           error:
-            'Opening a workspace file requires workspace context. Pass the file UUID from files/<name>/meta.json.',
+            'Opening a workspace file requires workspace context. Pass the canonical file UUID from files/by-id/<fileId>/meta.json.',
         }
       }
       if (!isUuid(params.id)) {
         return {
           success: false,
           error:
-            'open_resource for files requires the canonical UUID from files/<name>/meta.json (the "id" field). Do not pass VFS paths, display names, or file_<name> strings.',
+            'open_resource for files requires the canonical file UUID. Read files/by-id/<fileId>/meta.json or files/<name>/meta.json and pass the "id" field. Do not pass VFS paths or display names.',
         }
       }
       const record = await getWorkspaceFile(c.workspaceId, params.id)
       if (!record) {
         return {
           success: false,
-          error: `No workspace file with id "${params.id}". Confirm the UUID from meta.json.`,
+          error: `No workspace file with id "${params.id}". Confirm the UUID from files/by-id/<fileId>/meta.json.`,
         }
       }
       resourceId = record.id

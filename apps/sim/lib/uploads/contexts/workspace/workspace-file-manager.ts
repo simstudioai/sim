@@ -382,15 +382,20 @@ export async function listWorkspaceFiles(
 }
 
 /**
- * Normalize a workspace file reference to its display name.
- * Supports raw names and VFS-style paths like `files/name`, `files/name/content`,
- * and `files/name/meta.json`.
- *
- * Used by storage resolution (`findWorkspaceFileRecord`), not by `open_resource`, which
- * requires the canonical database UUID only.
+ * Normalize a workspace file reference to either a display name or canonical file ID.
+ * Supports raw IDs, `files/{name}`, `files/{name}/content`, `files/{name}/meta.json`,
+ * and canonical VFS aliases like `files/by-id/{fileId}/content`.
  */
 export function normalizeWorkspaceFileReference(fileReference: string): string {
   const trimmed = fileReference.trim().replace(/^\/+/, '')
+
+  if (trimmed.startsWith('files/by-id/')) {
+    const byIdRef = trimmed.slice('files/by-id/'.length)
+    const match = byIdRef.match(/^([^/]+)(?:\/(?:meta\.json|content))?$/)
+    if (match?.[1]) {
+      return match[1]
+    }
+  }
 
   if (trimmed.startsWith('files/')) {
     const withoutPrefix = trimmed.slice('files/'.length)
@@ -407,6 +412,13 @@ export function normalizeWorkspaceFileReference(fileReference: string): string {
 }
 
 /**
+ * Canonical sandbox mount path for an existing workspace file.
+ */
+export function getSandboxWorkspaceFilePath(file: Pick<WorkspaceFileRecord, 'id' | 'name'>): string {
+  return `/home/user/files/${file.id}/${file.name}`
+}
+
+/**
  * Find a workspace file record in an existing list from either its id or a VFS/name reference.
  * For copilot `open_resource` and the resource panel, use {@link getWorkspaceFile} with a UUID only.
  */
@@ -420,10 +432,13 @@ export function findWorkspaceFileRecord(
   }
 
   const normalizedReference = normalizeWorkspaceFileReference(fileReference)
+  const normalizedIdMatch = files.find((file) => file.id === normalizedReference)
+  if (normalizedIdMatch) {
+    return normalizedIdMatch
+  }
+
   const segmentKey = normalizeVfsSegment(normalizedReference)
-  return (
-    files.find((file) => normalizeVfsSegment(file.name) === segmentKey) ?? null
-  )
+  return files.find((file) => normalizeVfsSegment(file.name) === segmentKey) ?? null
 }
 
 /**

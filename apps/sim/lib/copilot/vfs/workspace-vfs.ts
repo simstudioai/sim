@@ -271,6 +271,7 @@ function getStaticComponentFiles(): Map<string, string> {
  *   knowledgebases/{name}/connectors.json
  *   tables/{name}/meta.json
  *   files/{name}/meta.json
+ *   files/by-id/{id}/meta.json
  *   jobs/{title}/meta.json
  *   jobs/{title}/history.json
  *   jobs/{title}/executions.json
@@ -390,7 +391,7 @@ export class WorkspaceVFS {
   /**
    * Attempt to read dynamic workspace file content from storage.
    * Handles images (base64), parseable documents (PDF, etc.), and text files.
-   * Returns null if the path doesn't match `files/{name}` or the file isn't found.
+   * Returns null if the path doesn't match `files/{name}` / `files/by-id/{id}` or the file isn't found.
    */
   async readFileContent(path: string): Promise<FileReadResult | null> {
     const match = path.match(/^files\/(.+?)(?:\/content)?$/)
@@ -668,6 +669,16 @@ export class WorkspaceVFS {
         const safeName = sanitizeName(file.name)
         this.files.set(
           `files/${safeName}/meta.json`,
+          serializeFileMeta({
+            id: file.id,
+            name: file.name,
+            contentType: file.type,
+            size: file.size,
+            uploadedAt: file.uploadedAt,
+          })
+        )
+        this.files.set(
+          `files/by-id/${file.id}/meta.json`,
           serializeFileMeta({
             id: file.id,
             name: file.name,

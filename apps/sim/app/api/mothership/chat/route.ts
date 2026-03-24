@@ -8,9 +8,9 @@ import { getSession } from '@/lib/auth'
 import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
 import {
+  acquirePendingChatStream,
   createSSEStream,
   SSE_RESPONSE_HEADERS,
-  waitForPendingChatStream,
 } from '@/lib/copilot/chat-streaming'
 import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
 import { processContextsServer, resolveActiveResourceContext } from '@/lib/copilot/process-contents'
@@ -253,7 +253,16 @@ export async function POST(req: NextRequest) {
     )
 
     if (actualChatId) {
-      await waitForPendingChatStream(actualChatId)
+      const acquired = await acquirePendingChatStream(actualChatId, userMessageId)
+      if (!acquired) {
+        return NextResponse.json(
+          {
+            error:
+              'A response is already in progress for this chat. Wait for it to finish or use Stop.',
+          },
+          { status: 409 }
+        )
+      }
     }
 
     const executionId = crypto.randomUUID()
@@ -271,6 +280,7 @@ export async function POST(req: NextRequest) {
       titleModel: 'claude-opus-4-6',
       requestId: tracker.requestId,
       workspaceId,
+      pendingChatStreamAlreadyRegistered: Boolean(actualChatId),
       orchestrateOptions: {
         userId: authenticatedUserId,
         workspaceId,
@@ -282,6 +292,7 @@ export async function POST(req: NextRequest) {
         interactive: true,
         onComplete: async (result: OrchestratorResult) => {
           if (!actualChatId) return
+          if (!result.success) return
 
           const assistantMessage: Record<string, unknown> = {
             id: crypto.randomUUID(),

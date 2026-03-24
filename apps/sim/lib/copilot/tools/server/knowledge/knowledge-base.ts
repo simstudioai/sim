@@ -230,10 +230,12 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          if (!args.filePath) {
+          const fileReference = args.fileId || args.filePath
+          if (!fileReference) {
             return {
               success: false,
-              message: 'filePath is required (e.g. "files/report.pdf")',
+              message:
+                'fileId is required for add_file. Read files/{name}/meta.json or files/by-id/*/meta.json to get the canonical file ID.',
             }
           }
 
@@ -246,12 +248,12 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           const kbWorkspaceId: string = targetKb.workspaceId
-          const fileRecord = await resolveWorkspaceFileReference(kbWorkspaceId, args.filePath)
+          const fileRecord = await resolveWorkspaceFileReference(kbWorkspaceId, fileReference)
 
           if (!fileRecord) {
             return {
               success: false,
-              message: `Workspace file not found: "${args.filePath}"`,
+              message: `Workspace file not found: "${fileReference}"`,
             }
           }
 

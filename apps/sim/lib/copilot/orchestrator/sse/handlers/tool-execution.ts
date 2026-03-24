@@ -117,6 +117,20 @@ const FORMAT_TO_CONTENT_TYPE: Record<OutputFormat, string> = {
   html: 'text/html',
 }
 
+function normalizeOutputWorkspaceFileName(outputPath: string): string {
+  const trimmed = outputPath.trim().replace(/^\/+/, '')
+  const withoutPrefix = trimmed.startsWith('files/') ? trimmed.slice('files/'.length) : trimmed
+  if (!withoutPrefix) {
+    throw new Error('outputPath must include a file name, e.g. "files/result.json"')
+  }
+  if (withoutPrefix.includes('/')) {
+    throw new Error(
+      'outputPath must target a flat workspace file, e.g. "files/result.json". Nested paths like "files/reports/result.json" are not supported.'
+    )
+  }
+  return withoutPrefix
+}
+
 function resolveOutputFormat(fileName: string, explicit?: string): OutputFormat {
   if (explicit && explicit in FORMAT_TO_CONTENT_TYPE) return explicit as OutputFormat
   const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
@@ -153,10 +167,10 @@ async function maybeWriteOutputToFile(
 
   const explicitFormat =
     (params?.outputFormat as string | undefined) ?? (args?.outputFormat as string | undefined)
-  const fileName = outputPath.replace(/^files\//, '')
-  const format = resolveOutputFormat(fileName, explicitFormat)
 
   try {
+    const fileName = normalizeOutputWorkspaceFileName(outputPath)
+    const format = resolveOutputFormat(fileName, explicitFormat)
     if (context.abortSignal?.aborted) {
       throw new Error('Request aborted before tool mutation could be applied')
     }
@@ -193,12 +207,16 @@ async function maybeWriteOutputToFile(
       },
     }
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
     logger.warn('Failed to write tool output to file', {
       toolName,
       outputPath,
-      error: err instanceof Error ? err.message : String(err),
+      error: message,
     })
-    return result
+    return {
+      success: false,
+      error: `Failed to write output file: ${message}`,
+    }
   }
 }
 
@@ -581,10 +599,17 @@ export async function executeToolAndReport(
     toolCall.endTime = Date.now()
 
     if (result.success) {
+      const raw = result.output
+      const preview =
+        typeof raw === 'string'
+          ? raw.slice(0, 200)
+          : raw && typeof raw === 'object'
+            ? JSON.stringify(raw).slice(0, 200)
+            : undefined
       logger.info('Tool execution succeeded', {
         toolCallId: toolCall.id,
         toolName: toolCall.name,
-        output: result.output,
+        outputPreview: preview,
       })
     } else {
       logger.warn('Tool execution failed', {

@@ -8,7 +8,9 @@ import { getSession } from '@/lib/auth'
 import { getAccessibleCopilotChat, resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
 import {
+  acquirePendingChatStream,
   createSSEStream,
+  releasePendingChatStream,
   requestChatTitle,
   SSE_RESPONSE_HEADERS,
 } from '@/lib/copilot/chat-streaming'
@@ -16,6 +18,7 @@ import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { getStreamMeta, readStreamEvents } from '@/lib/copilot/orchestrator/stream/buffer'
 import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
+import { resolveActiveResourceContext } from '@/lib/copilot/process-contents'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -44,6 +47,13 @@ const FileAttachmentSchema = z.object({
   size: z.number(),
 })
 
+const ResourceAttachmentSchema = z.object({
+  type: z.enum(['workflow', 'table', 'file', 'knowledgebase']),
+  id: z.string().min(1),
+  title: z.string().optional(),
+  active: z.boolean().optional(),
+})
+
 const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   userMessageId: z.string().optional(),
@@ -58,6 +68,7 @@ const ChatMessageSchema = z.object({
   stream: z.boolean().optional().default(true),
   implicitFeedback: z.string().optional(),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
+  resourceAttachments: z.array(ResourceAttachmentSchema).optional(),
   provider: z.string().optional(),
   contexts: z
     .array(
@@ -98,6 +109,10 @@ const ChatMessageSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
+  let actualChatId: string | undefined
+  let pendingChatStreamAcquired = false
+  let pendingChatStreamHandedOff = false
+  let pendingChatStreamID: string | undefined
 
   try {
     // Get session to access user information including name
@@ -124,6 +139,7 @@ export async function POST(req: NextRequest) {
       stream,
       implicitFeedback,
       fileAttachments,
+      resourceAttachments,
       provider,
       contexts,
       commands,
@@ -189,7 +205,7 @@ export async function POST(req: NextRequest) {
 
     let currentChat: any = null
     let conversationHistory: any[] = []
-    let actualChatId = chatId
+    actualChatId = chatId
     const selectedModel = model || 'claude-opus-4-6'
 
     if (chatId || createNewChat) {
@@ -238,6 +254,39 @@ export async function POST(req: NextRequest) {
         }
       } catch (e) {
         logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
+      }
+    }
+
+    if (
+      Array.isArray(resourceAttachments) &&
+      resourceAttachments.length > 0 &&
+      resolvedWorkspaceId
+    ) {
+      const results = await Promise.allSettled(
+        resourceAttachments.map(async (r) => {
+          const ctx = await resolveActiveResourceContext(
+            r.type,
+            r.id,
+            resolvedWorkspaceId!,
+            authenticatedUserId,
+            actualChatId
+          )
+          if (!ctx) return null
+          return {
+            ...ctx,
+            tag: r.active ? '@active_tab' : '@open_tab',
+          }
+        })
+      )
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value) {
+          agentContexts.push(result.value)
+        } else if (result.status === 'rejected') {
+          logger.error(
+            `[${tracker.requestId}] Failed to resolve resource attachment`,
+            result.reason
+          )
+        }
       }
     }
 
@@ -291,6 +340,21 @@ export async function POST(req: NextRequest) {
       })
     } catch {}
 
+    if (stream && actualChatId) {
+      const acquired = await acquirePendingChatStream(actualChatId, userMessageIdToUse)
+      if (!acquired) {
+        return NextResponse.json(
+          {
+            error:
+              'A response is already in progress for this chat. Wait for it to finish or use Stop.',
+          },
+          { status: 409 }
+        )
+      }
+      pendingChatStreamAcquired = true
+      pendingChatStreamID = userMessageIdToUse
+    }
+
     if (actualChatId) {
       const userMsg = {
         id: userMessageIdToUse,
@@ -337,6 +401,7 @@ export async function POST(req: NextRequest) {
         titleProvider: provider,
         requestId: tracker.requestId,
         workspaceId: resolvedWorkspaceId,
+        pendingChatStreamAlreadyRegistered: Boolean(actualChatId && stream),
         orchestrateOptions: {
           userId: authenticatedUserId,
           workflowId,
@@ -348,6 +413,7 @@ export async function POST(req: NextRequest) {
           interactive: true,
           onComplete: async (result: OrchestratorResult) => {
             if (!actualChatId) return
+            if (!result.success) return
 
             const assistantMessage: Record<string, unknown> = {
               id: crypto.randomUUID(),
@@ -423,6 +489,7 @@ export async function POST(req: NextRequest) {
           },
         },
       })
+      pendingChatStreamHandedOff = true
 
       return new Response(sseStream, { headers: SSE_RESPONSE_HEADERS })
     }
@@ -528,6 +595,14 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (error) {
+    if (
+      actualChatId &&
+      pendingChatStreamAcquired &&
+      !pendingChatStreamHandedOff &&
+      pendingChatStreamID
+    ) {
+      await releasePendingChatStream(actualChatId, pendingChatStreamID).catch(() => {})
+    }
     const duration = tracker.getDuration()
 
     if (error instanceof z.ZodError) {

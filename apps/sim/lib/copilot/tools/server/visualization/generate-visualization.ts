@@ -11,6 +11,7 @@ import { getServePathPrefix } from '@/lib/uploads'
 import {
   downloadWorkspaceFile,
   findWorkspaceFileRecord,
+  getSandboxWorkspaceFilePath,
   getWorkspaceFile,
   listWorkspaceFiles,
   updateWorkspaceFileContent,
@@ -49,6 +50,15 @@ const TEXT_EXTENSIONS = new Set(['csv', 'json', 'txt', 'md', 'html', 'xml', 'tsv
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const MAX_TOTAL_SIZE = 50 * 1024 * 1024
 
+function validateGeneratedWorkspaceFileName(fileName: string): string | null {
+  const trimmed = fileName.trim()
+  if (!trimmed) return 'File name cannot be empty'
+  if (trimmed.includes('/')) {
+    return 'Workspace files use a flat namespace. Use a plain file name like "chart.png", not a path like "charts/chart.png".'
+  }
+  return null
+}
+
 async function collectSandboxFiles(
   workspaceId: string,
   inputFiles?: string[],
@@ -59,20 +69,27 @@ async function collectSandboxFiles(
 
   if (inputFiles?.length) {
     const allFiles = await listWorkspaceFiles(workspaceId)
-    for (const filePath of inputFiles) {
-      const fileName = filePath.replace(/^files\//, '')
-      const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
-      if (!TEXT_EXTENSIONS.has(ext)) {
-        logger.warn('Skipping non-text sandbox input file', { fileName, ext })
+    for (const fileRef of inputFiles) {
+      const record = findWorkspaceFileRecord(allFiles, fileRef)
+      if (!record) {
+        logger.warn('Sandbox input file not found', { fileRef })
         continue
       }
-      const record = findWorkspaceFileRecord(allFiles, filePath)
-      if (!record) {
-        logger.warn('Sandbox input file not found', { fileName })
+      const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
+      if (!TEXT_EXTENSIONS.has(ext)) {
+        logger.warn('Skipping non-text sandbox input file', {
+          fileId: record.id,
+          fileName: record.name,
+          ext,
+        })
         continue
       }
       if (record.size > MAX_FILE_SIZE) {
-        logger.warn('Sandbox input file exceeds size limit', { fileName, size: record.size })
+        logger.warn('Sandbox input file exceeds size limit', {
+          fileId: record.id,
+          fileName: record.name,
+          size: record.size,
+        })
         continue
       }
       if (totalSize + record.size > MAX_TOTAL_SIZE) {
@@ -81,7 +98,15 @@ async function collectSandboxFiles(
       }
       const buffer = await downloadWorkspaceFile(record)
       totalSize += buffer.length
-      sandboxFiles.push({ path: `/home/user/${fileName}`, content: buffer.toString('utf-8') })
+      const textContent = buffer.toString('utf-8')
+      sandboxFiles.push({
+        path: getSandboxWorkspaceFilePath(record),
+        content: textContent,
+      })
+      sandboxFiles.push({
+        path: `/home/user/${record.name}`,
+        content: textContent,
+      })
     }
   }
 
@@ -185,6 +210,10 @@ export const generateVisualizationServerTool: BaseServerTool<
       }
 
       const fileName = params.fileName || 'chart.png'
+      const fileNameValidationError = validateGeneratedWorkspaceFileName(fileName)
+      if (fileNameValidationError) {
+        return { success: false, message: fileNameValidationError }
+      }
       const imageBuffer = Buffer.from(imageBase64, 'base64')
 
       if (params.overwriteFileId) {

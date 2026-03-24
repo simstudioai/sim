@@ -35,6 +35,15 @@ function inferContentType(fileName: string, explicitType?: string): string {
   return EXT_TO_MIME[ext] || 'text/plain'
 }
 
+function validateFlatWorkspaceFileName(fileName: string): string | null {
+  const trimmed = fileName.trim()
+  if (!trimmed) return 'File name cannot be empty'
+  if (trimmed.includes('/')) {
+    return 'Workspace files use a flat namespace. Use a plain file name like "report.csv", not a path like "files/reports/report.csv".'
+  }
+  return null
+}
+
 export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, WorkspaceFileResult> = {
   name: 'workspace_file',
   async execute(
@@ -66,6 +75,10 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
           if (content === undefined || content === null) {
             return { success: false, message: 'content is required for write operation' }
+          }
+          const fileNameValidationError = validateFlatWorkspaceFileName(fileName)
+          if (fileNameValidationError) {
+            return { success: false, message: fileNameValidationError }
           }
 
           const isPptx = fileName.toLowerCase().endsWith('.pptx')
@@ -187,6 +200,10 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
           if (!newName) {
             return { success: false, message: 'newName is required for rename operation' }
+          }
+          const fileNameValidationError = validateFlatWorkspaceFileName(newName)
+          if (fileNameValidationError) {
+            return { success: false, message: fileNameValidationError }
           }
 
           const fileRecord = await getWorkspaceFile(workspaceId, fileId)

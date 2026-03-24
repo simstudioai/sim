@@ -190,6 +190,7 @@ export async function orchestrateCopilotStream(
       if (!continuation) break
 
       let resumeReady = false
+      let emptyClaimRetries = 0
       for (;;) {
         claimedToolCallIds = []
         const resumeWorkerId = continuation.runId || context.runId || context.messageId
@@ -246,6 +247,16 @@ export async function orchestrateCopilotStream(
         }
 
         if (claimableToolCallIds.length === 0) {
+          if (emptyClaimRetries < 3 && continuation.pendingToolCallIds.length > 0) {
+            emptyClaimRetries++
+            logger.info('Retrying async resume claim after no tool calls were claimable', {
+              checkpointId: continuation.checkpointId,
+              runId: continuation.runId,
+              retry: emptyClaimRetries,
+            })
+            await new Promise((resolve) => setTimeout(resolve, 250 * emptyClaimRetries))
+            continue
+          }
           logger.warn('Skipping async resume because no tool calls were claimable', {
             checkpointId: continuation.checkpointId,
             runId: continuation.runId,
