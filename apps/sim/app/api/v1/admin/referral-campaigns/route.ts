@@ -127,18 +127,26 @@ async function resolveProductIds(stripe: Stripe, targets: AppliesTo[]): Promise<
     if (plan.annualDiscountPriceId) priceIds.push(plan.annualDiscountPriceId)
   }
 
-  const productIds = new Set<string>()
-  await Promise.all(
+  const results = await Promise.allSettled(
     priceIds.map(async (priceId) => {
-      try {
-        const price = await stripe.prices.retrieve(priceId)
-        const productId = typeof price.product === 'string' ? price.product : price.product.id
-        productIds.add(productId)
-      } catch (err) {
-        logger.warn('Failed to resolve product for price, skipping', { priceId, err })
-      }
+      const price = await stripe.prices.retrieve(priceId)
+      return typeof price.product === 'string' ? price.product : price.product.id
     })
   )
+
+  const failures = results.filter((r) => r.status === 'rejected')
+  if (failures.length > 0) {
+    logger.error('Failed to resolve all Stripe products for appliesTo', {
+      failed: failures.length,
+      total: priceIds.length,
+    })
+    throw new Error('Could not resolve all Stripe products for the specified plan categories.')
+  }
+
+  const productIds = new Set<string>()
+  for (const r of results) {
+    if (r.status === 'fulfilled') productIds.add(r.value)
+  }
 
   return [...productIds]
 }
