@@ -5,17 +5,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OrchestratorOptions } from './types'
 
-const {
-  prepareExecutionContext,
-  getEffectiveDecryptedEnv,
-  runStreamLoop,
-  updateRunStatus,
-} = vi.hoisted(() => ({
-  prepareExecutionContext: vi.fn(),
-  getEffectiveDecryptedEnv: vi.fn(),
-  runStreamLoop: vi.fn(),
-  updateRunStatus: vi.fn(),
-}))
+const { prepareExecutionContext, getEffectiveDecryptedEnv, runStreamLoop, updateRunStatus } =
+  vi.hoisted(() => ({
+    prepareExecutionContext: vi.fn(),
+    getEffectiveDecryptedEnv: vi.fn(),
+    runStreamLoop: vi.fn(),
+    updateRunStatus: vi.fn(),
+  }))
 
 vi.mock('@/lib/copilot/orchestrator/tool-executor', () => ({
   prepareExecutionContext,
@@ -118,14 +114,13 @@ describe('orchestrateCopilotStream async continuation', () => {
       }),
     })
 
-    runStreamLoop
-      .mockImplementationOnce(async (_url: string, _opts: RequestInit, context: any) => {
-        context.awaitingAsyncContinuation = {
-          checkpointId: 'checkpoint-1',
-          runId: 'run-1',
-          pendingToolCallIds: ['tool-1'],
-        }
-      })
+    runStreamLoop.mockImplementationOnce(async (_url: string, _opts: RequestInit, context: any) => {
+      context.awaitingAsyncContinuation = {
+        checkpointId: 'checkpoint-1',
+        runId: 'run-1',
+        pendingToolCallIds: ['tool-1'],
+      }
+    })
 
     const result = await orchestrateCopilotStream(
       { message: 'hello' },

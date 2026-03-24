@@ -201,7 +201,11 @@ describe('sse-handlers tool lifecycle', () => {
     await sseHandlers.tool_call(
       {
         type: 'tool_call',
-        data: { id: 'tool-mark-complete', name: 'workspace_file', arguments: { operation: 'write' } },
+        data: {
+          id: 'tool-mark-complete',
+          name: 'workspace_file',
+          arguments: { operation: 'write' },
+        },
       } as any,
       context,
       execContext,
