@@ -4,6 +4,7 @@ import { useReactFlow } from 'reactflow'
 import type { AutoLayoutOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/auto-layout-utils'
 import { applyAutoLayoutAndUpdateStore as applyAutoLayoutStandalone } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/auto-layout-utils'
 import { useSnapToGridSize } from '@/hooks/queries/general-settings'
+import type { CanvasViewportOptions } from '@/hooks/use-canvas-viewport'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 
 export type { AutoLayoutOptions }
@@ -18,9 +19,9 @@ const logger = createLogger('useAutoLayout')
  *
  * Note: This hook requires a ReactFlowProvider ancestor.
  */
-export function useAutoLayout(workflowId: string | null) {
+export function useAutoLayout(workflowId: string | null, options?: CanvasViewportOptions) {
   const reactFlowInstance = useReactFlow()
-  const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
+  const { fitViewToBounds } = useCanvasViewport(reactFlowInstance, options)
   const snapToGridSize = useSnapToGridSize()
 
   const applyAutoLayoutAndUpdateStore = useCallback(

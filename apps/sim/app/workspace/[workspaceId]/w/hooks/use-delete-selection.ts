@@ -46,7 +46,8 @@ export function useDeleteSelection({
   onSuccess,
 }: UseDeleteSelectionProps) {
   const router = useRouter()
-  const { workflows, removeWorkflow } = useWorkflowRegistry()
+  const workflows = useWorkflowRegistry((s) => s.workflows)
+  const removeWorkflow = useWorkflowRegistry((s) => s.removeWorkflow)
   const deleteFolderMutation = useDeleteFolderMutation()
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -118,7 +119,7 @@ export function useDeleteSelection({
         if (nextWorkflowId) {
           router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
         } else {
-          router.push(`/workspace/${workspaceId}/w`)
+          router.push(`/workspace/${workspaceId}/home`)
         }
       }
 

@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
-import { Layout, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { Button, Library } from '@/components/emcn'
@@ -29,11 +29,11 @@ interface CommandItem {
  * Available commands list
  */
 const commands: CommandItem[] = [
-  {
-    label: 'Templates',
-    icon: Layout,
-    shortcut: 'Y',
-  },
+  // {
+  //   label: 'Templates',
+  //   icon: Layout,
+  //   shortcut: 'Y',
+  // },
   {
     label: 'New Agent',
     icon: AgentIcon,
@@ -58,7 +58,7 @@ const commands: CommandItem[] = [
 export function CommandList() {
   const params = useParams()
   const router = useRouter()
-  const { open: openSearchModal } = useSearchModalStore()
+  const openSearchModal = useSearchModalStore((s) => s.open)
   const preventZoomRef = usePreventZoom()
 
   const workspaceId = params.workspaceId as string | undefined
@@ -78,14 +78,14 @@ export function CommandList() {
     (label: string) => {
       try {
         switch (label) {
-          case 'Templates': {
-            if (!workspaceId) {
-              logger.warn('No workspace ID found, cannot navigate to templates from command list')
-              return
-            }
-            router.push(`/workspace/${workspaceId}/templates`)
-            return
-          }
+          // case 'Templates': {
+          //   if (!workspaceId) {
+          //     logger.warn('No workspace ID found, cannot navigate to templates from command list')
+          //     return
+          //   }
+          //   router.push(`/workspace/${workspaceId}/templates`)
+          //   return
+          // }
           case 'New Agent': {
             const event = new CustomEvent('add-block-from-toolbar', {
               detail: { type: 'agent', enableTriggerMode: false },
@@ -179,6 +179,7 @@ export function CommandList() {
       )}
     >
       <div
+        data-tour='command-list'
         className='pointer-events-auto flex flex-col gap-[8px]'
         onDragOver={handleDragOver}
         onDrop={handleDrop}
@@ -195,7 +196,6 @@ export function CommandList() {
               filter:
                 'brightness(0) saturate(100%) invert(69%) sepia(0%) saturate(0%) hue-rotate(202deg) brightness(94%) contrast(89%)',
             }}
-            priority
           />
         </div>
 

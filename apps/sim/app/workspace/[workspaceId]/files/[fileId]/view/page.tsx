@@ -1,8 +1,14 @@
+import type { Metadata } from 'next'
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/[fileId]/view/file-viewer'
+
+export const metadata: Metadata = {
+  title: 'File',
+  robots: { index: false },
+}
 
 interface FileViewerPageProps {
   params: Promise<{

@@ -1,5 +1,5 @@
 import { STTIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { SttBlockResponse } from '@/tools/stt/types'
 
@@ -13,6 +13,8 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
     'Transcribe audio and video files to text using leading AI providers. Supports multiple languages, timestamps, and speaker diarization.',
   docsLink: 'https://docs.sim.ai/tools/stt',
   category: 'tools',
+  integrationType: IntegrationType.AI,
+  tags: ['speech-to-text', 'document-processing'],
   bgColor: '#181C1E',
   icon: STTIcon,
 

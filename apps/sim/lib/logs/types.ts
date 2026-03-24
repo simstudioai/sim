@@ -1,4 +1,5 @@
 import type { Edge } from 'reactflow'
+import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import type { ParentIteration, SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
 import type { DeploymentStatus } from '@/stores/workflows/registry/types'
@@ -57,7 +58,9 @@ import type { CoreTriggerType } from '@/stores/logs/filters/types'
 export interface ExecutionTrigger {
   type: CoreTriggerType | string
   source: string
-  data?: Record<string, unknown>
+  data?: Record<string, unknown> & {
+    correlation?: AsyncExecutionCorrelation
+  }
   timestamp: string
 }
 
@@ -66,6 +69,31 @@ export interface ExecutionStatus {
   startedAt: string
   endedAt?: string
   durationMs?: number
+}
+
+export const EXECUTION_FINALIZATION_PATHS = [
+  'completed',
+  'fallback_completed',
+  'force_failed',
+  'cancelled',
+  'paused',
+] as const
+
+export type ExecutionFinalizationPath = (typeof EXECUTION_FINALIZATION_PATHS)[number]
+
+export interface ExecutionLastStartedBlock {
+  blockId: string
+  blockName: string
+  blockType: string
+  startedAt: string
+}
+
+export interface ExecutionLastCompletedBlock {
+  blockId: string
+  blockName: string
+  blockType: string
+  endedAt: string
+  success: boolean
 }
 
 export interface WorkflowExecutionSnapshot {
@@ -101,6 +129,14 @@ export interface WorkflowExecutionLog {
   executionData: {
     environment?: ExecutionEnvironment
     trigger?: ExecutionTrigger
+    correlation?: AsyncExecutionCorrelation
+    error?: string
+    lastStartedBlock?: ExecutionLastStartedBlock
+    lastCompletedBlock?: ExecutionLastCompletedBlock
+    hasTraceSpans?: boolean
+    traceSpanCount?: number
+    completionFailure?: string
+    finalizationPath?: ExecutionFinalizationPath
     traceSpans?: TraceSpan[]
     tokens?: { input?: number; output?: number; total?: number }
     models?: Record<
@@ -374,6 +410,9 @@ export interface ExecutionLoggerService {
     finalOutput: BlockOutputData
     traceSpans?: TraceSpan[]
     workflowInput?: any
+    executionState?: SerializableExecutionState
+    finalizationPath?: ExecutionFinalizationPath
+    completionFailure?: string
     isResume?: boolean
     level?: 'info' | 'error'
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'

@@ -23,6 +23,8 @@ export const workflowMcpServerKeys = {
     [...workflowMcpServerKeys.servers(workspaceId), serverId] as const,
   tools: (workspaceId: string, serverId: string) =>
     [...workflowMcpServerKeys.server(workspaceId, serverId), 'tools'] as const,
+  deployedWorkflows: (workspaceId: string) =>
+    [...workflowMcpServerKeys.all, 'deployed-workflows', workspaceId] as const,
 }
 
 /**
@@ -58,8 +60,11 @@ export interface WorkflowMcpTool {
 /**
  * Fetch workflow MCP servers for a workspace
  */
-async function fetchWorkflowMcpServers(workspaceId: string): Promise<WorkflowMcpServer[]> {
-  const response = await fetch(`/api/mcp/workflow-servers?workspaceId=${workspaceId}`)
+async function fetchWorkflowMcpServers(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkflowMcpServer[]> {
+  const response = await fetch(`/api/mcp/workflow-servers?workspaceId=${workspaceId}`, { signal })
 
   if (response.status === 404) {
     return []
@@ -80,7 +85,7 @@ async function fetchWorkflowMcpServers(workspaceId: string): Promise<WorkflowMcp
 export function useWorkflowMcpServers(workspaceId: string) {
   return useQuery({
     queryKey: workflowMcpServerKeys.servers(workspaceId),
-    queryFn: () => fetchWorkflowMcpServers(workspaceId),
+    queryFn: ({ signal }) => fetchWorkflowMcpServers(workspaceId, signal),
     enabled: !!workspaceId,
     retry: false,
     staleTime: 60 * 1000,
@@ -93,9 +98,12 @@ export function useWorkflowMcpServers(workspaceId: string) {
  */
 async function fetchWorkflowMcpServer(
   workspaceId: string,
-  serverId: string
+  serverId: string,
+  signal?: AbortSignal
 ): Promise<{ server: WorkflowMcpServer; tools: WorkflowMcpTool[] }> {
-  const response = await fetch(`/api/mcp/workflow-servers/${serverId}?workspaceId=${workspaceId}`)
+  const response = await fetch(`/api/mcp/workflow-servers/${serverId}?workspaceId=${workspaceId}`, {
+    signal,
+  })
 
   const data = await response.json()
 
@@ -115,7 +123,7 @@ async function fetchWorkflowMcpServer(
 export function useWorkflowMcpServer(workspaceId: string, serverId: string | null) {
   return useQuery({
     queryKey: workflowMcpServerKeys.server(workspaceId, serverId || ''),
-    queryFn: () => fetchWorkflowMcpServer(workspaceId, serverId!),
+    queryFn: ({ signal }) => fetchWorkflowMcpServer(workspaceId, serverId!, signal),
     enabled: !!workspaceId && !!serverId,
     retry: false,
     staleTime: 30 * 1000,
@@ -127,10 +135,12 @@ export function useWorkflowMcpServer(workspaceId: string, serverId: string | nul
  */
 async function fetchWorkflowMcpTools(
   workspaceId: string,
-  serverId: string
+  serverId: string,
+  signal?: AbortSignal
 ): Promise<WorkflowMcpTool[]> {
   const response = await fetch(
-    `/api/mcp/workflow-servers/${serverId}/tools?workspaceId=${workspaceId}`
+    `/api/mcp/workflow-servers/${serverId}/tools?workspaceId=${workspaceId}`,
+    { signal }
   )
 
   if (response.status === 404) {
@@ -152,7 +162,7 @@ async function fetchWorkflowMcpTools(
 export function useWorkflowMcpTools(workspaceId: string, serverId: string | null) {
   return useQuery({
     queryKey: workflowMcpServerKeys.tools(workspaceId, serverId || ''),
-    queryFn: () => fetchWorkflowMcpTools(workspaceId, serverId!),
+    queryFn: ({ signal }) => fetchWorkflowMcpTools(workspaceId, serverId!, signal),
     enabled: !!workspaceId && !!serverId,
     retry: false,
     staleTime: 30 * 1000,
@@ -444,8 +454,11 @@ export function useDeleteWorkflowMcpTool() {
 /**
  * Fetch deployed workflows for a workspace
  */
-async function fetchDeployedWorkflows(workspaceId: string): Promise<DeployedWorkflow[]> {
-  const response = await fetch(`/api/workflows?workspaceId=${workspaceId}`)
+async function fetchDeployedWorkflows(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<DeployedWorkflow[]> {
+  const response = await fetch(`/api/workflows?workspaceId=${workspaceId}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch workflows')
@@ -468,8 +481,8 @@ async function fetchDeployedWorkflows(workspaceId: string): Promise<DeployedWork
  */
 export function useDeployedWorkflows(workspaceId: string) {
   return useQuery({
-    queryKey: ['deployed-workflows', workspaceId],
-    queryFn: () => fetchDeployedWorkflows(workspaceId),
+    queryKey: workflowMcpServerKeys.deployedWorkflows(workspaceId),
+    queryFn: ({ signal }) => fetchDeployedWorkflows(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,

@@ -1,64 +1,58 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { format } from 'date-fns'
-import {
-  AlertCircle,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-  Circle,
-  CircleOff,
-  Loader2,
-  RotateCcw,
-  Search,
-  X,
-} from 'lucide-react'
+import { AlertCircle, Loader2, Pencil, Plus, Tag, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Badge,
-  Breadcrumb,
   Button,
-  Checkbox,
+  Combobox,
+  type ComboboxOption,
+  DatePicker,
+  Input,
+  Label,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverTrigger,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   Tooltip,
   Trash,
 } from '@/components/emcn'
-import { Input } from '@/components/ui/input'
+import { Database, DatabaseX } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
-import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/core/utils/cn'
-import { formatAbsoluteDate, formatRelativeTime } from '@/lib/core/utils/formatting'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import type { DocumentData } from '@/lib/knowledge/types'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import type {
+  BreadcrumbItem,
+  FilterTag,
+  HeaderAction,
+  ResourceCell,
+  ResourceColumn,
+  ResourceRow,
+  SelectableConfig,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components'
+import { Resource } from '@/app/workspace/[workspaceId]/components'
 import {
   ActionBar,
+  AddConnectorModal,
   AddDocumentsModal,
   BaseTagsModal,
+  ConnectorsSection,
   DocumentContextMenu,
   RenameDocumentModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import {
   useKnowledgeBase,
   useKnowledgeBaseDocuments,
@@ -68,173 +62,36 @@ import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/kb/use-knowledge-base-tag-definitions'
+import { useConnectorList } from '@/hooks/queries/kb/connectors'
+import type { DocumentTagFilter } from '@/hooks/queries/kb/knowledge'
 import {
   useBulkDocumentOperation,
   useDeleteDocument,
   useDeleteKnowledgeBase,
   useUpdateDocument,
-} from '@/hooks/queries/knowledge'
+  useUpdateKnowledgeBase,
+} from '@/hooks/queries/kb/knowledge'
+import { useInlineRename } from '@/hooks/use-inline-rename'
+import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 
 const logger = createLogger('KnowledgeBase')
 
 const DOCUMENTS_PER_PAGE = 50
 
-function DocumentTableRowSkeleton() {
-  return (
-    <TableRow className='hover:bg-transparent'>
-      <TableCell className='w-[28px] py-[8px] pr-0 pl-0'>
-        <div className='flex items-center justify-center'>
-          <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
-        </div>
-      </TableCell>
-      <TableCell className='w-[180px] max-w-[180px] px-[12px] py-[8px]'>
-        <div className='flex min-w-0 items-center gap-[8px]'>
-          <Skeleton className='h-6 w-5 flex-shrink-0 rounded-[2px]' />
-          <Skeleton className='h-[17px] w-[120px]' />
-        </div>
-      </TableCell>
-      <TableCell className='hidden px-[12px] py-[8px] lg:table-cell'>
-        <Skeleton className='h-[15px] w-[48px]' />
-      </TableCell>
-      <TableCell className='hidden px-[12px] py-[8px] lg:table-cell'>
-        <Skeleton className='h-[15px] w-[32px]' />
-      </TableCell>
-      <TableCell className='px-[12px] py-[8px]'>
-        <Skeleton className='h-[15px] w-[24px]' />
-      </TableCell>
-      <TableCell className='px-[12px] py-[8px]'>
-        <Skeleton className='h-[15px] w-[60px]' />
-      </TableCell>
-      <TableCell className='px-[12px] py-[8px]'>
-        <Skeleton className='h-[24px] w-[64px] rounded-md' />
-      </TableCell>
-      <TableCell className='px-[12px] py-[8px]'>
-        <div className='flex items-center gap-[4px]'>
-          <Skeleton className='h-[18px] w-[40px] rounded-full' />
-          <Skeleton className='h-[18px] w-[40px] rounded-full' />
-        </div>
-      </TableCell>
-      <TableCell className='py-[8px] pr-[4px] pl-[12px]'>
-        <div className='flex items-center gap-[4px]'>
-          <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
-          <Skeleton className='h-[28px] w-[28px] rounded-[4px]' />
-        </div>
-      </TableCell>
-    </TableRow>
-  )
-}
-
-function DocumentTableSkeleton({ rowCount = 5 }: { rowCount?: number }) {
-  return (
-    <Table className='min-w-[700px] table-fixed text-[13px]'>
-      <TableHeader>
-        <TableRow className='hover:bg-transparent'>
-          <TableHead className='w-[28px] py-[8px] pr-0 pl-0'>
-            <div className='flex items-center justify-center'>
-              <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
-            </div>
-          </TableHead>
-          <TableHead className='w-[180px] max-w-[180px] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-            Name
-          </TableHead>
-          <TableHead className='hidden w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)] lg:table-cell'>
-            Size
-          </TableHead>
-          <TableHead className='hidden w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)] lg:table-cell'>
-            Tokens
-          </TableHead>
-          <TableHead className='w-[8%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-            Chunks
-          </TableHead>
-          <TableHead className='w-[11%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-            Uploaded
-          </TableHead>
-          <TableHead className='w-[10%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-            Status
-          </TableHead>
-          <TableHead className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-            Tags
-          </TableHead>
-          <TableHead className='w-[11%] py-[8px] pr-[4px] pl-[12px] text-[12px] text-[var(--text-secondary)]'>
-            Actions
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {Array.from({ length: rowCount }).map((_, i) => (
-          <DocumentTableRowSkeleton key={i} />
-        ))}
-      </TableBody>
-    </Table>
-  )
-}
-
-interface KnowledgeBaseLoadingProps {
-  knowledgeBaseName: string
-}
-
-function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoadingProps) {
-  const params = useParams()
-  const workspaceId = params?.workspaceId as string
-
-  const breadcrumbItems = [
-    { label: 'Knowledge Base', href: `/workspace/${workspaceId}/knowledge` },
-    { label: knowledgeBaseName },
-  ]
-
-  return (
-    <div className='flex h-full flex-1 flex-col'>
-      <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[24px] pb-[24px] dark:bg-[var(--bg)]'>
-          <Breadcrumb items={breadcrumbItems} />
-
-          <div className='mt-[14px] flex items-center justify-between'>
-            <Skeleton className='h-[27px] w-[200px] rounded-[4px]' />
-            <div className='flex items-center gap-2'>
-              <Skeleton className='h-[32px] w-[52px] rounded-[6px]' />
-              <Skeleton className='h-[32px] w-[32px] rounded-[6px]' />
-            </div>
-          </div>
-
-          <div>
-            <Skeleton className='mt-[4px] h-[21px] w-[300px] rounded-[4px]' />
-          </div>
-
-          <div className='mt-[16px] flex items-center gap-[8px]'>
-            <Skeleton className='h-[21px] w-[80px] rounded-[4px]' />
-            <div className='mb-[-1.5px] h-[18px] w-[1.25px] rounded-full bg-[#3A3A3A]' />
-            <Skeleton className='h-[21px] w-[140px] rounded-[4px]' />
-          </div>
-
-          <div className='mt-[14px] flex items-center justify-between'>
-            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-3)] px-[8px] dark:bg-[var(--surface-4)]'>
-              <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
-              <Input
-                placeholder='Search documents...'
-                disabled
-                className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-            </div>
-            <div className='flex items-center gap-[8px]'>
-              <Skeleton className='h-[32px] w-[52px] rounded-[6px]' />
-              <Button disabled variant='tertiary' className='h-[32px] rounded-[6px]'>
-                Add Documents
-              </Button>
-            </div>
-          </div>
-
-          <div className='mt-[12px] flex flex-1 flex-col overflow-hidden'>
-            <DocumentTableSkeleton rowCount={8} />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
+const DOCUMENT_COLUMNS: ResourceColumn[] = [
+  { id: 'name', header: 'Name' },
+  { id: 'size', header: 'Size' },
+  { id: 'tokens', header: 'Tokens' },
+  { id: 'chunks', header: 'Chunks' },
+  { id: 'uploaded', header: 'Uploaded' },
+  { id: 'status', header: 'Status' },
+  { id: 'tags', header: 'Tags' },
+]
 
 interface KnowledgeBaseProps {
   id: string
   knowledgeBaseName?: string
+  workspaceId?: string
 }
 
 const AnimatedLoader = ({ className }: { className?: string }) => (
@@ -329,9 +186,11 @@ function getDocumentTags(doc: DocumentData, definitions: TagDefinition[]): TagVa
 export function KnowledgeBase({
   id,
   knowledgeBaseName: passedKnowledgeBaseName,
+  workspaceId: propWorkspaceId,
 }: KnowledgeBaseProps) {
   const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = propWorkspaceId || (params.workspaceId as string)
+  useOAuthReturnForKBConnectors(id)
   const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
   const userPermissions = useUserPermissionsContext()
 
@@ -339,34 +198,63 @@ export function KnowledgeBase({
   const { mutate: deleteDocumentMutation } = useDeleteDocument()
   const { mutate: deleteKnowledgeBaseMutation, isPending: isDeleting } =
     useDeleteKnowledgeBase(workspaceId)
+  const { mutate: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
+
+  const kbRename = useInlineRename({
+    onSave: (kbId, name) =>
+      updateKnowledgeBaseMutation({ knowledgeBaseId: kbId, updates: { name } }),
+  })
   const { mutate: bulkDocumentMutation, isPending: isBulkOperating } = useBulkDocumentOperation()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [showTagsModal, setShowTagsModal] = useState(false)
   const [enabledFilter, setEnabledFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
-  const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false)
+  const [tagFilterEntries, setTagFilterEntries] = useState<
+    {
+      id: string
+      tagName: string
+      tagSlot: string
+      fieldType: FilterFieldType
+      operator: string
+      value: string
+      valueTo: string
+    }[]
+  >([])
 
-  /**
-   * Memoize the search query setter to prevent unnecessary re-renders
-   */
+  const activeTagFilters: DocumentTagFilter[] = useMemo(
+    () =>
+      tagFilterEntries
+        .filter((f) => f.tagSlot && f.value.trim())
+        .map((f) => ({
+          tagSlot: f.tagSlot,
+          fieldType: f.fieldType,
+          operator: f.operator,
+          value: f.value,
+          ...(f.operator === 'between' && f.valueTo ? { valueTo: f.valueTo } : {}),
+        })),
+    [tagFilterEntries]
+  )
+
   const handleSearchChange = useCallback((newQuery: string) => {
     setSearchQuery(newQuery)
     setCurrentPage(1)
   }, [])
 
-  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
+  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(() => new Set())
   const [isSelectAllMode, setIsSelectAllMode] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showAddDocumentsModal, setShowAddDocumentsModal] = useState(false)
   const [showDeleteDocumentModal, setShowDeleteDocumentModal] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
+  const [showConnectorsModal, setShowConnectorsModal] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState<DocumentSortField>('uploadedAt')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
+  const [showAddConnectorModal, setShowAddConnectorModal] = useState(false)
 
   const {
     isOpen: isContextMenuOpen,
@@ -382,6 +270,11 @@ export function KnowledgeBase({
     error: knowledgeBaseError,
     refresh: refreshKnowledgeBase,
   } = useKnowledgeBase(id)
+
+  const { data: connectors = [], isLoading: isLoadingConnectors } = useConnectorList(id)
+  const hasSyncingConnectors = connectors.some((c) => c.status === 'syncing')
+  const hasSyncingConnectorsRef = useRef(hasSyncingConnectors)
+  hasSyncingConnectorsRef.current = hasSyncingConnectors
 
   const {
     documents,
@@ -404,12 +297,24 @@ export function KnowledgeBase({
       const hasPending = data?.documents?.some(
         (doc) => doc.processingStatus === 'pending' || doc.processingStatus === 'processing'
       )
-      return hasPending ? 3000 : false
+      if (hasPending) return 3000
+      if (hasSyncingConnectorsRef.current) return 5000
+      return false
     },
     enabledFilter,
+    tagFilters: activeTagFilters.length > 0 ? activeTagFilters : undefined,
   })
 
   const { tagDefinitions } = useKnowledgeBaseTagDefinitions(id)
+
+  const prevHadSyncingRef = useRef(false)
+  useEffect(() => {
+    if (prevHadSyncingRef.current && !hasSyncingConnectors) {
+      refreshKnowledgeBase()
+      refreshDocuments()
+    }
+    prevHadSyncingRef.current = hasSyncingConnectors
+  }, [hasSyncingConnectors, refreshKnowledgeBase, refreshDocuments])
 
   const router = useRouter()
 
@@ -417,60 +322,6 @@ export function KnowledgeBase({
   const error = knowledgeBaseError || documentsError
 
   const totalPages = Math.ceil(pagination.total / pagination.limit)
-  const hasNextPage = currentPage < totalPages
-  const hasPrevPage = currentPage > 1
-
-  const goToPage = useCallback(
-    (page: number) => {
-      if (page >= 1 && page <= totalPages) {
-        setCurrentPage(page)
-      }
-    },
-    [totalPages]
-  )
-
-  const nextPage = useCallback(() => {
-    if (hasNextPage) {
-      setCurrentPage((prev) => prev + 1)
-    }
-  }, [hasNextPage])
-
-  const prevPage = useCallback(() => {
-    if (hasPrevPage) {
-      setCurrentPage((prev) => prev - 1)
-    }
-  }, [hasPrevPage])
-
-  const handleSort = useCallback(
-    (field: DocumentSortField) => {
-      if (sortBy === field) {
-        setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-      } else {
-        setSortBy(field)
-        setSortOrder('desc')
-      }
-      setCurrentPage(1)
-    },
-    [sortBy, sortOrder]
-  )
-
-  const renderSortableHeader = (field: DocumentSortField, label: string, className = '') => (
-    <TableHead className={`px-[12px] py-[8px] ${className}`}>
-      <button
-        type='button'
-        onClick={() => handleSort(field)}
-        className='flex items-center gap-[4px] text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]'
-      >
-        <span>{label}</span>
-        {sortBy === field &&
-          (sortOrder === 'asc' ? (
-            <ChevronUp className='h-[12px] w-[12px]' />
-          ) : (
-            <ChevronDown className='h-[12px] w-[12px]' />
-          ))}
-      </button>
-    </TableHead>
-  )
 
   /**
    * Checks for documents with stale processing states and marks them as failed
@@ -525,7 +376,6 @@ export function KnowledgeBase({
 
     const newEnabled = !document.enabled
 
-    // Optimistic update
     updateDocument(docId, { enabled: newEnabled })
 
     updateDocumentMutation(
@@ -536,7 +386,6 @@ export function KnowledgeBase({
       },
       {
         onError: () => {
-          // Rollback on error
           updateDocument(docId, { enabled: !newEnabled })
         },
       }
@@ -547,7 +396,6 @@ export function KnowledgeBase({
    * Handles retrying a failed document processing
    */
   const handleRetryDocument = (docId: string) => {
-    // Optimistic update
     updateDocument(docId, {
       processingStatus: 'pending',
       processingError: null,
@@ -563,7 +411,6 @@ export function KnowledgeBase({
       },
       {
         onSuccess: () => {
-          refreshDocuments()
           logger.info(`Document retry initiated successfully for: ${docId}`)
         },
         onError: (err) => {
@@ -593,7 +440,6 @@ export function KnowledgeBase({
     const currentDoc = documents.find((doc) => doc.id === documentId)
     const previousName = currentDoc?.filename
 
-    // Optimistic update
     updateDocument(documentId, { filename: newName })
 
     return new Promise<void>((resolve, reject) => {
@@ -609,7 +455,6 @@ export function KnowledgeBase({
             resolve()
           },
           onError: (err) => {
-            // Rollback on error
             if (previousName !== undefined) {
               updateDocument(documentId, { filename: previousName })
             }
@@ -639,7 +484,6 @@ export function KnowledgeBase({
       { knowledgeBaseId: id, documentId: documentToDelete },
       {
         onSuccess: () => {
-          refreshDocuments()
           setSelectedDocuments((prev) => {
             const newSet = new Set(prev)
             newSet.delete(documentToDelete)
@@ -688,6 +532,7 @@ export function KnowledgeBase({
    */
   const handleDocumentClick = (docId: string) => {
     const document = documents.find((doc) => doc.id === docId)
+    if (document?.processingStatus !== 'completed') return
     const urlParams = new URLSearchParams({
       kbName: knowledgeBaseName,
       docName: document?.filename || 'Document',
@@ -712,9 +557,6 @@ export function KnowledgeBase({
     )
   }
 
-  /**
-   * Opens the add documents modal
-   */
   const handleAddDocuments = () => {
     setShowAddDocumentsModal(true)
   }
@@ -736,7 +578,6 @@ export function KnowledgeBase({
             logger.info(`Successfully enabled ${result.successCount} documents`)
             setSelectedDocuments(new Set())
             setIsSelectAllMode(false)
-            refreshDocuments()
           },
         }
       )
@@ -784,7 +625,6 @@ export function KnowledgeBase({
             logger.info(`Successfully disabled ${result.successCount} documents`)
             setSelectedDocuments(new Set())
             setIsSelectAllMode(false)
-            refreshDocuments()
           },
         }
       )
@@ -832,7 +672,6 @@ export function KnowledgeBase({
         {
           onSuccess: (result) => {
             logger.info(`Successfully deleted ${result.successCount} documents`)
-            refreshDocuments()
             setSelectedDocuments(new Set())
             setIsSelectAllMode(false)
           },
@@ -857,7 +696,6 @@ export function KnowledgeBase({
       {
         onSuccess: (result) => {
           logger.info(`Successfully deleted ${result.successCount} documents`)
-          refreshDocuments()
           setSelectedDocuments(new Set())
         },
         onSettled: () => {
@@ -880,7 +718,10 @@ export function KnowledgeBase({
     : selectedDocumentsList.filter((doc) => !doc.enabled).length
 
   const handleDocumentContextMenu = useCallback(
-    (e: React.MouseEvent, doc: DocumentData) => {
+    (e: React.MouseEvent, docId: string) => {
+      const doc = documents.find((d) => d.id === docId)
+      if (!doc) return
+
       const isCurrentlySelected = selectedDocuments.has(doc.id)
 
       if (!isCurrentlySelected) {
@@ -890,12 +731,9 @@ export function KnowledgeBase({
       setContextMenuDocument(doc)
       baseHandleContextMenu(e)
     },
-    [selectedDocuments, baseHandleContextMenu]
+    [documents, selectedDocuments, baseHandleContextMenu]
   )
 
-  /**
-   * Handle right-click on empty space (table container)
-   */
   const handleEmptyContextMenu = useCallback(
     (e: React.MouseEvent) => {
       setContextMenuDocument(null)
@@ -904,9 +742,6 @@ export function KnowledgeBase({
     [baseHandleContextMenu]
   )
 
-  /**
-   * Handle context menu close
-   */
   const handleContextMenuClose = useCallback(() => {
     closeContextMenu()
     setContextMenuDocument(null)
@@ -915,546 +750,352 @@ export function KnowledgeBase({
   const prevKnowledgeBaseIdRef = useRef<string>(id)
   const isNavigatingToNewKB = prevKnowledgeBaseIdRef.current !== id
 
-  useEffect(() => {
-    if (knowledgeBase && knowledgeBase.id === id) {
-      prevKnowledgeBaseIdRef.current = id
-    }
-  }, [knowledgeBase, id])
+  if (knowledgeBase && knowledgeBase.id === id) {
+    prevKnowledgeBaseIdRef.current = id
+  }
 
   const isInitialLoad = isLoadingKnowledgeBase && !knowledgeBase
   const isFetchingNewKB = isNavigatingToNewKB && isFetchingDocuments
 
-  if (isInitialLoad || isFetchingNewKB) {
-    return <KnowledgeBaseLoading knowledgeBaseName={knowledgeBaseName} />
+  const breadcrumbs: BreadcrumbItem[] = [
+    {
+      label: 'Knowledge Base',
+      onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
+    },
+    {
+      label: knowledgeBaseName,
+      editing: kbRename.editingId
+        ? {
+            isEditing: true,
+            value: kbRename.editValue,
+            onChange: kbRename.setEditValue,
+            onSubmit: kbRename.submitRename,
+            onCancel: kbRename.cancelRename,
+          }
+        : undefined,
+      dropdownItems: [
+        ...(userPermissions.canEdit
+          ? [
+              {
+                label: 'Rename',
+                icon: Pencil,
+                onClick: () => kbRename.startRename(id, knowledgeBaseName),
+              },
+              { label: 'Tags', icon: Tag, onClick: () => setShowTagsModal(true) },
+              { label: 'Delete', icon: Trash, onClick: () => setShowDeleteDialog(true) },
+            ]
+          : []),
+      ],
+    },
+  ]
+
+  const headerActions: HeaderAction[] = [
+    ...(userPermissions.canEdit
+      ? [{ label: 'New connector', icon: Plus, onClick: () => setShowAddConnectorModal(true) }]
+      : []),
+  ]
+
+  const sortConfig: SortConfig = {
+    options: [
+      { id: 'filename', label: 'Name' },
+      { id: 'fileSize', label: 'Size' },
+      { id: 'tokenCount', label: 'Tokens' },
+      { id: 'chunkCount', label: 'Chunks' },
+      { id: 'uploadedAt', label: 'Uploaded' },
+      { id: 'enabled', label: 'Status' },
+    ],
+    active: { column: sortBy, direction: sortOrder },
+    onSort: (column, direction) => {
+      setSortBy(column as DocumentSortField)
+      setSortOrder(direction)
+      setCurrentPage(1)
+    },
   }
 
-  const breadcrumbItems = [
-    { label: 'Knowledge Base', href: `/workspace/${workspaceId}/knowledge` },
-    { label: knowledgeBaseName },
+  const filterContent = (
+    <div className='w-[320px]'>
+      <div className='border-[var(--border-1)] border-b px-[12px] py-[8px]'>
+        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>Status</span>
+      </div>
+      <div className='flex flex-col gap-[2px] px-[12px] py-[8px]'>
+        {(['all', 'enabled', 'disabled'] as const).map((value) => (
+          <button
+            key={value}
+            type='button'
+            className={cn(
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--surface-active)]',
+              enabledFilter === value && 'bg-[var(--surface-active)]'
+            )}
+            onClick={() => {
+              setEnabledFilter(value)
+              setCurrentPage(1)
+              setSelectedDocuments(new Set())
+              setIsSelectAllMode(false)
+            }}
+          >
+            {value.charAt(0).toUpperCase() + value.slice(1)}
+          </button>
+        ))}
+      </div>
+      <TagFilterSection
+        tagDefinitions={tagDefinitions}
+        entries={tagFilterEntries}
+        onChange={(entries) => {
+          setTagFilterEntries(entries)
+          setCurrentPage(1)
+          setSelectedDocuments(new Set())
+          setIsSelectAllMode(false)
+        }}
+      />
+    </div>
+  )
+
+  const connectorBadges =
+    connectors.length > 0 ? (
+      <>
+        {connectors.map((connector) => {
+          const def = CONNECTOR_REGISTRY[connector.connectorType]
+          const ConnectorIcon = def?.icon
+          return (
+            <button
+              key={connector.id}
+              type='button'
+              onClick={() => setShowConnectorsModal(true)}
+              className='flex shrink-0 cursor-pointer items-center gap-[6px] rounded-[6px] px-[8px] py-[4px] text-[12px] text-[var(--text-secondary)] shadow-[inset_0_0_0_1px_var(--border)] transition-colors hover:bg-[var(--surface-3)]'
+            >
+              {ConnectorIcon && <ConnectorIcon className='h-[14px] w-[14px]' />}
+              {def?.name || connector.connectorType}
+            </button>
+          )
+        })}
+      </>
+    ) : null
+
+  const filterTags: FilterTag[] = [
+    ...(enabledFilter !== 'all'
+      ? [
+          {
+            label: `Status: ${enabledFilter === 'enabled' ? 'Enabled' : 'Disabled'}`,
+            onRemove: () => {
+              setEnabledFilter('all')
+              setCurrentPage(1)
+              setSelectedDocuments(new Set())
+              setIsSelectAllMode(false)
+            },
+          },
+        ]
+      : []),
+    ...tagFilterEntries
+      .filter((f) => f.tagSlot && f.value.trim())
+      .map((f) => ({
+        label: `${f.tagName}: ${f.value}`,
+        onRemove: () => {
+          const updated = tagFilterEntries.filter((_, idx) => idx !== tagFilterEntries.indexOf(f))
+          setTagFilterEntries(updated)
+          setCurrentPage(1)
+          setSelectedDocuments(new Set())
+          setIsSelectAllMode(false)
+        },
+      })),
   ]
+
+  const selectableConfig: SelectableConfig = {
+    selectedIds: selectedDocuments,
+    onSelectRow: handleSelectDocument,
+    onSelectAll: handleSelectAll,
+    isAllSelected,
+    disabled: !userPermissions.canEdit,
+  }
+
+  const documentRows: ResourceRow[] = useMemo(
+    () =>
+      documents.map((doc) => {
+        const ConnectorIcon = doc.connectorType ? CONNECTOR_REGISTRY[doc.connectorType]?.icon : null
+        const DocIcon = ConnectorIcon || getDocumentIcon(doc.mimeType, doc.filename)
+
+        const tags = getDocumentTags(doc, tagDefinitions)
+        const tagsDisplayText = tags.map((t) => t.value).join(', ')
+
+        const statusCell: ResourceCell =
+          doc.processingStatus === 'failed' && doc.processingError
+            ? {
+                content: (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <div style={{ cursor: 'help' }}>{getStatusBadge(doc)}</div>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top' className='max-w-xs'>
+                      {doc.processingError}
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                ),
+              }
+            : { content: getStatusBadge(doc) }
+
+        const tagsCell: ResourceCell =
+          tags.length === 0
+            ? { label: null }
+            : {
+                content: (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <span
+                        className='block max-w-full truncate text-[12px] text-[var(--text-secondary)]'
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {tagsDisplayText}
+                      </span>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content
+                      side='top'
+                      className='max-h-[104px] max-w-[240px] overflow-y-auto'
+                    >
+                      <div className='flex flex-col gap-[2px]'>
+                        {tags.map((tag) => (
+                          <div key={tag.slot} className='text-[11px]'>
+                            <span className='text-[var(--text-muted)]'>{tag.displayName}:</span>{' '}
+                            {tag.value}
+                          </div>
+                        ))}
+                      </div>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                ),
+              }
+
+        return {
+          id: doc.id,
+          cells: {
+            name: {
+              content: (
+                <span className='flex min-w-0 items-center gap-[12px] font-medium text-[14px] text-[var(--text-body)]'>
+                  <span className='flex-shrink-0 text-[var(--text-icon)]'>
+                    <DocIcon className='h-[14px] w-[14px]' />
+                  </span>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <span className='min-w-0 truncate'>
+                        <SearchHighlight text={doc.filename} searchQuery={searchQuery} />
+                      </span>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>{doc.filename}</Tooltip.Content>
+                  </Tooltip.Root>
+                </span>
+              ),
+            },
+            size: { label: formatFileSize(doc.fileSize) },
+            tokens: {
+              label:
+                doc.processingStatus === 'completed'
+                  ? doc.tokenCount > 1000
+                    ? `${(doc.tokenCount / 1000).toFixed(1)}k`
+                    : doc.tokenCount.toLocaleString()
+                  : null,
+            },
+            chunks: {
+              label: doc.processingStatus === 'completed' ? doc.chunkCount.toLocaleString() : null,
+            },
+            uploaded: {
+              content: (
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
+                      {format(new Date(doc.uploadedAt), 'MMM d')}
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>
+                    {format(new Date(doc.uploadedAt), 'MMM d, yyyy h:mm a')}
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              ),
+            },
+            status: statusCell,
+            tags: tagsCell,
+          },
+        }
+      }),
+    [documents, tagDefinitions, searchQuery]
+  )
+
+  const emptyMessage = searchQuery
+    ? 'No documents found'
+    : enabledFilter !== 'all' || activeTagFilters.length > 0
+      ? 'Nothing matches your filter'
+      : undefined
 
   if (error && !knowledgeBase) {
     return (
-      <div className='flex h-full flex-1 flex-col'>
-        <div className='flex flex-1 overflow-hidden'>
-          <div className='flex flex-1 flex-col overflow-auto px-[24px] pt-[24px] pb-[24px]'>
-            <Breadcrumb items={breadcrumbItems} />
-
-            <div className='mt-[24px]'>
-              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
-                <div className='text-center'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                    Error loading knowledge base
-                  </p>
-                  <p className='mt-1 text-[var(--text-muted)] text-xs'>{error}</p>
-                </div>
-              </div>
-            </div>
-          </div>
+      <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
+        <DatabaseX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
+        <div className='flex flex-col items-center gap-[4px]'>
+          <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>
+            Knowledge base not found
+          </h2>
+          <p className='text-[13px] text-[var(--text-muted)]'>
+            This knowledge base may have been deleted or moved
+          </p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className='flex h-full flex-1 flex-col'>
-      <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto bg-white px-[24px] pt-[24px] pb-[24px] dark:bg-[var(--bg)]'>
-          <Breadcrumb items={breadcrumbItems} />
-
-          <div className='mt-[14px] flex items-center justify-between'>
-            <h1 className='font-medium text-[18px] text-[var(--text-primary)]'>
-              {knowledgeBaseName}
-            </h1>
-            <div className='flex items-center gap-2'>
-              {userPermissions.canEdit && (
-                <Button
-                  onClick={() => setShowTagsModal(true)}
-                  variant='default'
-                  className='h-[32px] rounded-[6px]'
-                >
-                  Tags
-                </Button>
-              )}
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    onClick={() => setShowDeleteDialog(true)}
-                    disabled={!userPermissions.canEdit}
-                    className='h-[32px] rounded-[6px]'
-                  >
-                    <Trash className='h-[14px] w-[14px]' />
-                  </Button>
-                </Tooltip.Trigger>
-                {!userPermissions.canEdit && (
-                  <Tooltip.Content>
-                    Write permission required to delete knowledge base
-                  </Tooltip.Content>
-                )}
-              </Tooltip.Root>
-            </div>
-          </div>
-
-          <div>
-            {knowledgeBase?.description && (
-              <p className='mt-[4px] line-clamp-2 max-w-[40vw] font-medium text-[14px] text-[var(--text-tertiary)]'>
-                {knowledgeBase.description}
-              </p>
-            )}
-          </div>
-
-          <div className='mt-[16px] flex items-center gap-[8px]'>
-            <span className='text-[14px] text-[var(--text-muted)]'>
-              {pagination.total} {pagination.total === 1 ? 'document' : 'documents'}
-            </span>
-            {knowledgeBase?.updatedAt && (
-              <>
-                <div className='mb-[-1.5px] h-[18px] w-[1.25px] rounded-full bg-[#3A3A3A]' />
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <span className='cursor-default text-[14px] text-[var(--text-muted)]'>
-                      last updated: {formatRelativeTime(knowledgeBase.updatedAt)}
-                    </span>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>{formatAbsoluteDate(knowledgeBase.updatedAt)}</Tooltip.Content>
-                </Tooltip.Root>
-              </>
-            )}
-          </div>
-
-          <div className='mt-[14px] flex items-center justify-between'>
-            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-4)] px-[8px]'>
-              <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
-              <Input
-                placeholder='Search documents...'
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
-              />
-              {searchQuery &&
-                (isLoadingDocuments ? (
-                  <Loader2 className='h-[14px] w-[14px] animate-spin text-[var(--text-subtle)]' />
-                ) : (
-                  <button
-                    onClick={() => handleSearchChange('')}
-                    className='text-[var(--text-subtle)] transition-colors hover:text-[var(--text-secondary)]'
-                  >
-                    <X className='h-[14px] w-[14px]' />
-                  </button>
-                ))}
-            </div>
-
-            <div className='flex items-center gap-[8px]'>
-              <Popover open={isFilterPopoverOpen} onOpenChange={setIsFilterPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant='default' className='h-[32px] rounded-[6px]'>
-                    {enabledFilter === 'all'
-                      ? 'All'
-                      : enabledFilter === 'enabled'
-                        ? 'Enabled'
-                        : 'Disabled'}
-                    <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align='end' side='bottom' sideOffset={4}>
-                  <div className='flex flex-col gap-[2px]'>
-                    <PopoverItem
-                      active={enabledFilter === 'all'}
-                      onClick={() => {
-                        setEnabledFilter('all')
-                        setIsFilterPopoverOpen(false)
-                        setCurrentPage(1)
-                        setSelectedDocuments(new Set())
-                        setIsSelectAllMode(false)
-                      }}
-                    >
-                      All
-                    </PopoverItem>
-                    <PopoverItem
-                      active={enabledFilter === 'enabled'}
-                      onClick={() => {
-                        setEnabledFilter('enabled')
-                        setIsFilterPopoverOpen(false)
-                        setCurrentPage(1)
-                        setSelectedDocuments(new Set())
-                        setIsSelectAllMode(false)
-                      }}
-                    >
-                      Enabled
-                    </PopoverItem>
-                    <PopoverItem
-                      active={enabledFilter === 'disabled'}
-                      onClick={() => {
-                        setEnabledFilter('disabled')
-                        setIsFilterPopoverOpen(false)
-                        setCurrentPage(1)
-                        setSelectedDocuments(new Set())
-                        setIsSelectAllMode(false)
-                      }}
-                    >
-                      Disabled
-                    </PopoverItem>
-                  </div>
-                </PopoverContent>
-              </Popover>
-
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    onClick={handleAddDocuments}
-                    disabled={userPermissions.canEdit !== true}
-                    variant='tertiary'
-                    className='h-[32px] rounded-[6px]'
-                  >
-                    Add Documents
-                  </Button>
-                </Tooltip.Trigger>
-                {userPermissions.canEdit !== true && (
-                  <Tooltip.Content>Write permission required to add documents</Tooltip.Content>
-                )}
-              </Tooltip.Root>
-            </div>
-          </div>
-
-          {error && !isLoadingKnowledgeBase && (
-            <div className='mt-[24px]'>
-              <div className='flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
-                <div className='text-center'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                    Error loading documents
-                  </p>
-                  <p className='mt-1 text-[var(--text-muted)] text-xs'>{error}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className='mt-[12px] flex flex-1 flex-col' onContextMenu={handleEmptyContextMenu}>
-            {isLoadingDocuments && documents.length === 0 ? (
-              <DocumentTableSkeleton rowCount={5} />
-            ) : documents.length === 0 ? (
-              <div className='mt-[10px] flex h-64 items-center justify-center rounded-lg border border-muted-foreground/25 bg-muted/20'>
-                <div className='text-center'>
-                  <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                    {searchQuery
-                      ? 'No documents found'
-                      : enabledFilter !== 'all'
-                        ? 'Nothing matches your filter'
-                        : 'No documents yet'}
-                  </p>
-                  <p className='mt-1 text-[var(--text-muted)] text-xs'>
-                    {searchQuery
-                      ? 'Try a different search term'
-                      : enabledFilter !== 'all'
-                        ? 'Try changing the filter'
-                        : userPermissions.canEdit === true
-                          ? 'Add documents to get started'
-                          : 'Documents will appear here once added'}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <Table className='min-w-[700px] table-fixed text-[13px]'>
-                <TableHeader>
-                  <TableRow className='hover:bg-transparent'>
-                    <TableHead className='w-[28px] py-[8px] pr-0 pl-0'>
-                      <div className='flex items-center justify-center'>
-                        <Checkbox
-                          size='sm'
-                          checked={isAllSelected}
-                          onCheckedChange={handleSelectAll}
-                          disabled={!userPermissions.canEdit}
-                          aria-label='Select all documents'
-                        />
-                      </div>
-                    </TableHead>
-                    {renderSortableHeader('filename', 'Name', 'w-[180px] max-w-[180px]')}
-                    {renderSortableHeader('fileSize', 'Size', 'hidden w-[8%] lg:table-cell')}
-                    {renderSortableHeader('tokenCount', 'Tokens', 'hidden w-[8%] lg:table-cell')}
-                    {renderSortableHeader('chunkCount', 'Chunks', 'w-[8%]')}
-                    {renderSortableHeader('uploadedAt', 'Uploaded', 'w-[11%]')}
-                    {renderSortableHeader('enabled', 'Status', 'w-[10%]')}
-                    <TableHead className='w-[12%] px-[12px] py-[8px] text-[12px] text-[var(--text-secondary)]'>
-                      Tags
-                    </TableHead>
-                    <TableHead className='w-[11%] py-[8px] pr-[4px] pl-[12px] text-[12px] text-[var(--text-secondary)]'>
-                      Actions
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {documents.map((doc) => {
-                    const isSelected = selectedDocuments.has(doc.id)
-
-                    return (
-                      <TableRow
-                        key={doc.id}
-                        className={`${
-                          isSelected
-                            ? 'bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'
-                            : 'hover:bg-[var(--surface-3)] dark:hover:bg-[var(--surface-4)]'
-                        } ${doc.processingStatus === 'completed' ? 'cursor-pointer' : 'cursor-default'}`}
-                        onClick={() => {
-                          if (doc.processingStatus === 'completed') {
-                            handleDocumentClick(doc.id)
-                          }
-                        }}
-                        onContextMenu={(e) => handleDocumentContextMenu(e, doc)}
-                      >
-                        <TableCell className='w-[28px] py-[8px] pr-0 pl-0'>
-                          <div className='flex items-center justify-center'>
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={(checked) =>
-                                handleSelectDocument(doc.id, checked as boolean)
-                              }
-                              size='sm'
-                              disabled={!userPermissions.canEdit}
-                              onClick={(e) => e.stopPropagation()}
-                              aria-label={`Select ${doc.filename}`}
-                            />
-                          </div>
-                        </TableCell>
-                        <TableCell className='w-[180px] max-w-[180px] px-[12px] py-[8px]'>
-                          <div className='flex min-w-0 items-center gap-[8px]'>
-                            {(() => {
-                              const IconComponent = getDocumentIcon(doc.mimeType, doc.filename)
-                              return <IconComponent className='h-6 w-5 flex-shrink-0' />
-                            })()}
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <span
-                                  className='block min-w-0 truncate text-[14px] text-[var(--text-primary)]'
-                                  title={doc.filename}
-                                >
-                                  <SearchHighlight text={doc.filename} searchQuery={searchQuery} />
-                                </span>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content side='top'>{doc.filename}</Tooltip.Content>
-                            </Tooltip.Root>
-                          </div>
-                        </TableCell>
-                        <TableCell className='hidden px-[12px] py-[8px] text-[12px] text-[var(--text-muted)] lg:table-cell'>
-                          {formatFileSize(doc.fileSize)}
-                        </TableCell>
-                        <TableCell className='hidden px-[12px] py-[8px] text-[12px] lg:table-cell'>
-                          {doc.processingStatus === 'completed' ? (
-                            doc.tokenCount > 1000 ? (
-                              `${(doc.tokenCount / 1000).toFixed(1)}k`
-                            ) : (
-                              doc.tokenCount.toLocaleString()
-                            )
-                          ) : (
-                            <span className='text-[var(--text-muted)]'>—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className='px-[12px] py-[8px] text-[12px] text-[var(--text-muted)]'>
-                          {doc.processingStatus === 'completed'
-                            ? doc.chunkCount.toLocaleString()
-                            : '—'}
-                        </TableCell>
-                        <TableCell className='px-[12px] py-[8px]'>
-                          <Tooltip.Root>
-                            <Tooltip.Trigger asChild>
-                              <span className='text-[12px] text-[var(--text-muted)]'>
-                                {format(new Date(doc.uploadedAt), 'MMM d')}
-                              </span>
-                            </Tooltip.Trigger>
-                            <Tooltip.Content side='top'>
-                              {format(new Date(doc.uploadedAt), 'MMM d, yyyy h:mm a')}
-                            </Tooltip.Content>
-                          </Tooltip.Root>
-                        </TableCell>
-                        <TableCell className='px-[12px] py-[8px]'>
-                          {doc.processingStatus === 'failed' && doc.processingError ? (
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <div style={{ cursor: 'help' }}>{getStatusBadge(doc)}</div>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content side='top' className='max-w-xs'>
-                                {doc.processingError}
-                              </Tooltip.Content>
-                            </Tooltip.Root>
-                          ) : (
-                            getStatusBadge(doc)
-                          )}
-                        </TableCell>
-                        <TableCell className='px-[12px] py-[8px]'>
-                          {(() => {
-                            const tags = getDocumentTags(doc, tagDefinitions)
-                            if (tags.length === 0) {
-                              return <span className='text-[12px] text-[var(--text-muted)]'>—</span>
-                            }
-                            const displayText = tags.map((t) => t.value).join(', ')
-                            return (
-                              <Tooltip.Root>
-                                <Tooltip.Trigger asChild>
-                                  <span
-                                    className='block max-w-full truncate text-[12px] text-[var(--text-secondary)]'
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    {displayText}
-                                  </span>
-                                </Tooltip.Trigger>
-                                <Tooltip.Content
-                                  side='top'
-                                  className='max-h-[104px] max-w-[240px] overflow-y-auto'
-                                >
-                                  <div className='flex flex-col gap-[2px]'>
-                                    {tags.map((tag) => (
-                                      <div key={tag.slot} className='text-[11px]'>
-                                        <span className='text-[var(--text-muted)]'>
-                                          {tag.displayName}:
-                                        </span>{' '}
-                                        {tag.value}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </Tooltip.Content>
-                              </Tooltip.Root>
-                            )
-                          })()}
-                        </TableCell>
-                        <TableCell className='py-[8px] pr-[4px] pl-[12px]'>
-                          <div className='flex items-center gap-[4px]'>
-                            {doc.processingStatus === 'failed' && (
-                              <Tooltip.Root>
-                                <Tooltip.Trigger asChild>
-                                  <Button
-                                    variant='ghost'
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      handleRetryDocument(doc.id)
-                                    }}
-                                    className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                                  >
-                                    <RotateCcw className='h-[14px] w-[14px]' />
-                                  </Button>
-                                </Tooltip.Trigger>
-                                <Tooltip.Content side='top'>Retry processing</Tooltip.Content>
-                              </Tooltip.Root>
-                            )}
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <Button
-                                  variant='ghost'
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleToggleEnabled(doc.id)
-                                  }}
-                                  disabled={
-                                    doc.processingStatus === 'processing' ||
-                                    doc.processingStatus === 'pending' ||
-                                    !userPermissions.canEdit
-                                  }
-                                  className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50'
-                                >
-                                  {doc.enabled ? (
-                                    <Circle className='h-[14px] w-[14px]' />
-                                  ) : (
-                                    <CircleOff className='h-[14px] w-[14px]' />
-                                  )}
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content side='top'>
-                                {doc.processingStatus === 'processing' ||
-                                doc.processingStatus === 'pending'
-                                  ? 'Cannot modify while processing'
-                                  : !userPermissions.canEdit
-                                    ? 'Write permission required to modify documents'
-                                    : doc.enabled
-                                      ? 'Disable Document'
-                                      : 'Enable Document'}
-                              </Tooltip.Content>
-                            </Tooltip.Root>
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <Button
-                                  variant='ghost'
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleDeleteDocument(doc.id)
-                                  }}
-                                  disabled={
-                                    doc.processingStatus === 'processing' ||
-                                    !userPermissions.canEdit
-                                  }
-                                  className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-error)] disabled:opacity-50'
-                                >
-                                  <Trash className='h-[14px] w-[14px]' />
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content side='top'>
-                                {doc.processingStatus === 'processing'
-                                  ? 'Cannot delete while processing'
-                                  : !userPermissions.canEdit
-                                    ? 'Write permission required to delete documents'
-                                    : 'Delete Document'}
-                              </Tooltip.Content>
-                            </Tooltip.Root>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            )}
-
-            {totalPages > 1 && (
-              <div className='flex items-center justify-center border-t bg-background px-4 pt-[10px]'>
-                <div className='flex items-center gap-1'>
-                  <Button
-                    variant='ghost'
-                    onClick={prevPage}
-                    disabled={!hasPrevPage || isLoadingDocuments}
-                  >
-                    <ChevronLeft className='h-3.5 w-3.5' />
-                  </Button>
-
-                  <div className='mx-[12px] flex items-center gap-[16px]'>
-                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                      let page: number
-                      if (totalPages <= 5) {
-                        page = i + 1
-                      } else if (currentPage <= 3) {
-                        page = i + 1
-                      } else if (currentPage >= totalPages - 2) {
-                        page = totalPages - 4 + i
-                      } else {
-                        page = currentPage - 2 + i
-                      }
-
-                      if (page < 1 || page > totalPages) return null
-
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => goToPage(page)}
-                          disabled={isLoadingDocuments}
-                          className={`font-medium text-sm transition-colors hover:text-foreground disabled:opacity-50 ${
-                            page === currentPage ? 'text-foreground' : 'text-muted-foreground'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  <Button
-                    variant='ghost'
-                    onClick={nextPage}
-                    disabled={!hasNextPage || isLoadingDocuments}
-                  >
-                    <ChevronRight className='h-3.5 w-3.5' />
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+    <>
+      <Resource
+        icon={Database}
+        title='Knowledge Base'
+        breadcrumbs={breadcrumbs}
+        create={{
+          label: 'New documents',
+          onClick: handleAddDocuments,
+          disabled: userPermissions.canEdit !== true,
+        }}
+        headerActions={headerActions}
+        sort={sortConfig}
+        search={{
+          value: searchQuery,
+          onChange: handleSearchChange,
+          placeholder: 'Search documents...',
+        }}
+        filter={filterContent}
+        filterTags={filterTags}
+        extras={connectorBadges}
+        columns={DOCUMENT_COLUMNS}
+        rows={documentRows}
+        selectable={selectableConfig}
+        onRowClick={handleDocumentClick}
+        onRowContextMenu={handleDocumentContextMenu}
+        onContextMenu={handleEmptyContextMenu}
+        isLoading={
+          isInitialLoad || isFetchingNewKB || (isLoadingDocuments && documents.length === 0)
+        }
+        pagination={{
+          currentPage,
+          totalPages,
+          onPageChange: (page) => setCurrentPage(page),
+        }}
+        emptyMessage={emptyMessage}
+        overlay={
+          <ActionBar
+            className={totalPages > 1 ? 'bottom-[72px]' : undefined}
+            selectedCount={selectedDocuments.size}
+            onEnable={disabledCount > 0 ? handleBulkEnable : undefined}
+            onDisable={enabledCount > 0 ? handleBulkDisable : undefined}
+            onDelete={handleBulkDelete}
+            enabledCount={enabledCount}
+            disabledCount={disabledCount}
+            isLoading={isBulkOperating}
+            totalCount={pagination.total}
+            isAllPageSelected={isAllSelected}
+            isAllSelected={isSelectAllMode}
+            onSelectAll={() => setIsSelectAllMode(true)}
+            onClearSelectAll={() => {
+              setIsSelectAllMode(false)
+              setSelectedDocuments(new Set())
+            }}
+          />
+        }
+      />
 
       <BaseTagsModal open={showTagsModal} onOpenChange={setShowTagsModal} knowledgeBaseId={id} />
 
@@ -1462,12 +1103,14 @@ export function KnowledgeBase({
         <ModalContent size='sm'>
           <ModalHeader>Delete Knowledge Base</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
-              This will permanently delete the knowledge base and all {pagination.total} document
-              {pagination.total === 1 ? '' : 's'} within it.{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              The knowledge base and all {pagination.total} document
+              {pagination.total === 1 ? '' : 's'} within it will be removed.{' '}
+              <span className='text-[var(--text-tertiary)]'>
+                You can restore it from Recently Deleted in Settings.
+              </span>
             </p>
           </ModalBody>
           <ModalFooter>
@@ -1489,13 +1132,26 @@ export function KnowledgeBase({
         <ModalContent size='sm'>
           <ModalHeader>Delete Document</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {documents.find((doc) => doc.id === documentToDelete)?.filename ?? 'this document'}
-              </span>
-              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
-            </p>
+            {(() => {
+              const docToDelete = documents.find((doc) => doc.id === documentToDelete)
+              return (
+                <p className='text-[var(--text-secondary)]'>
+                  Are you sure you want to delete{' '}
+                  <span className='font-medium text-[var(--text-primary)]'>
+                    {docToDelete?.filename ?? 'this document'}
+                  </span>
+                  ?{' '}
+                  {docToDelete?.connectorId ? (
+                    <span className='text-[var(--text-error)]'>
+                      This document is synced from a connector. Deleting it will permanently exclude
+                      it from future syncs. To temporarily hide it from search, disable it instead.
+                    </span>
+                  ) : (
+                    <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+                  )}
+                </p>
+              )
+            })()}
           </ModalBody>
           <ModalFooter>
             <Button
@@ -1518,7 +1174,7 @@ export function KnowledgeBase({
         <ModalContent size='sm'>
           <ModalHeader>Delete Documents</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete {selectedDocuments.size} document
               {selectedDocuments.size === 1 ? '' : 's'}?{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
@@ -1537,7 +1193,6 @@ export function KnowledgeBase({
         </ModalContent>
       </Modal>
 
-      {/* Add Documents Modal */}
       <AddDocumentsModal
         open={showAddDocumentsModal}
         onOpenChange={setShowAddDocumentsModal}
@@ -1545,7 +1200,10 @@ export function KnowledgeBase({
         chunkingConfig={knowledgeBase?.chunkingConfig}
       />
 
-      {/* Rename Document Modal */}
+      {showAddConnectorModal && (
+        <AddConnectorModal open onOpenChange={setShowAddConnectorModal} knowledgeBaseId={id} />
+      )}
+
       {documentToRename && (
         <RenameDocumentModal
           open={showRenameModal}
@@ -1556,28 +1214,24 @@ export function KnowledgeBase({
         />
       )}
 
-      <ActionBar
-        selectedCount={selectedDocuments.size}
-        onEnable={disabledCount > 0 ? handleBulkEnable : undefined}
-        onDisable={enabledCount > 0 ? handleBulkDisable : undefined}
-        onDelete={handleBulkDelete}
-        enabledCount={enabledCount}
-        disabledCount={disabledCount}
-        isLoading={isBulkOperating}
-        totalCount={pagination.total}
-        isAllPageSelected={isAllSelected}
-        isAllSelected={isSelectAllMode}
-        onSelectAll={() => setIsSelectAllMode(true)}
-        onClearSelectAll={() => {
-          setIsSelectAllMode(false)
-          setSelectedDocuments(new Set())
-        }}
-      />
+      <Modal open={showConnectorsModal} onOpenChange={setShowConnectorsModal}>
+        <ModalContent size='lg'>
+          <ModalHeader>Connected Sources</ModalHeader>
+          <ModalBody>
+            <ConnectorsSection
+              workspaceId={workspaceId}
+              knowledgeBaseId={id}
+              connectors={connectors}
+              isLoading={isLoadingConnectors}
+              canEdit={userPermissions.canEdit}
+            />
+          </ModalBody>
+        </ModalContent>
+      </Modal>
 
       <DocumentContextMenu
         isOpen={isContextMenuOpen}
         position={contextMenuPosition}
-        menuRef={menuRef}
         onClose={handleContextMenuClose}
         hasDocument={contextMenuDocument !== null}
         isDocumentEnabled={contextMenuDocument?.enabled ?? true}
@@ -1603,13 +1257,14 @@ export function KnowledgeBase({
               }
             : undefined
         }
-        onRename={
-          contextMenuDocument && selectedDocuments.size === 1 && userPermissions.canEdit
-            ? () => handleRenameDocument(contextMenuDocument)
+        onOpenSource={
+          contextMenuDocument?.sourceUrl && selectedDocuments.size === 1
+            ? () => window.open(contextMenuDocument.sourceUrl!, '_blank', 'noopener,noreferrer')
             : undefined
         }
+        onRename={contextMenuDocument ? () => handleRenameDocument(contextMenuDocument) : undefined}
         onToggleEnabled={
-          contextMenuDocument && userPermissions.canEdit
+          contextMenuDocument
             ? selectedDocuments.size > 1
               ? () => {
                   if (disabledCount > 0) {
@@ -1635,13 +1290,14 @@ export function KnowledgeBase({
             : undefined
         }
         onDelete={
-          contextMenuDocument && userPermissions.canEdit
+          contextMenuDocument
             ? selectedDocuments.size > 1
               ? handleBulkDelete
               : () => handleDeleteDocument(contextMenuDocument.id)
             : undefined
         }
-        onAddDocument={userPermissions.canEdit ? handleAddDocuments : undefined}
+        onAddDocument={handleAddDocuments}
+        disableRename={!userPermissions.canEdit}
         disableToggleEnabled={
           !userPermissions.canEdit ||
           contextMenuDocument?.processingStatus === 'processing' ||
@@ -1652,6 +1308,209 @@ export function KnowledgeBase({
         }
         disableAddDocument={!userPermissions.canEdit}
       />
+    </>
+  )
+}
+
+interface TagFilterEntry {
+  id: string
+  tagName: string
+  tagSlot: string
+  fieldType: FilterFieldType
+  operator: string
+  value: string
+  valueTo: string
+}
+
+const createEmptyEntry = (): TagFilterEntry => ({
+  id: crypto.randomUUID(),
+  tagName: '',
+  tagSlot: '',
+  fieldType: 'text',
+  operator: 'eq',
+  value: '',
+  valueTo: '',
+})
+
+interface TagFilterSectionProps {
+  tagDefinitions: TagDefinition[]
+  entries: TagFilterEntry[]
+  onChange: (entries: TagFilterEntry[]) => void
+}
+
+/**
+ * Tag filter section rendered inside the combined filter popover
+ */
+function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectionProps) {
+  const activeCount = entries.filter((f) => f.tagSlot && f.value.trim()).length
+
+  const tagOptions: ComboboxOption[] = tagDefinitions.map((t) => ({
+    value: t.displayName,
+    label: t.displayName,
+  }))
+
+  const filtersToShow = useMemo(
+    () => (entries.length > 0 ? entries : [createEmptyEntry()]),
+    [entries]
+  )
+
+  const updateEntry = (id: string, patch: Partial<TagFilterEntry>) => {
+    const existing = filtersToShow.find((e) => e.id === id)
+    if (!existing) return
+    const updated = filtersToShow.map((e) => (e.id === id ? { ...e, ...patch } : e))
+    onChange(updated)
+  }
+
+  const handleTagChange = (id: string, tagName: string) => {
+    const def = tagDefinitions.find((t) => t.displayName === tagName)
+    const fieldType = (def?.fieldType || 'text') as FilterFieldType
+    const operators = getOperatorsForFieldType(fieldType)
+    updateEntry(id, {
+      tagName,
+      tagSlot: def?.tagSlot || '',
+      fieldType,
+      operator: operators[0]?.value || 'eq',
+      value: '',
+      valueTo: '',
+    })
+  }
+
+  const addFilter = () => {
+    onChange([...filtersToShow, createEmptyEntry()])
+  }
+
+  const removeFilter = (id: string) => {
+    const remaining = filtersToShow.filter((e) => e.id !== id)
+    onChange(remaining.length > 0 ? remaining : [])
+  }
+
+  if (tagDefinitions.length === 0) return null
+
+  return (
+    <div className='border-[var(--border-1)] border-t'>
+      <div className='flex items-center justify-between px-[12px] py-[8px]'>
+        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>Filter by tags</span>
+        <div className='flex items-center gap-[4px]'>
+          {activeCount > 0 && (
+            <Button
+              variant='ghost'
+              className='h-auto px-[6px] py-[2px] text-[11px] text-[var(--text-muted)]'
+              onClick={() => onChange([])}
+            >
+              Clear all
+            </Button>
+          )}
+          <Button variant='ghost' className='h-auto p-0' onClick={addFilter}>
+            <Plus className='h-3.5 w-3.5' />
+          </Button>
+        </div>
+      </div>
+
+      <div className='flex max-h-[320px] flex-col gap-[8px] overflow-y-auto px-[12px] pb-[12px]'>
+        {filtersToShow.map((entry) => {
+          const operators = getOperatorsForFieldType(entry.fieldType)
+          const operatorOptions: ComboboxOption[] = operators.map((op) => ({
+            value: op.value,
+            label: op.label,
+          }))
+          const isBetween = entry.operator === 'between'
+
+          return (
+            <div
+              key={entry.id}
+              className='flex flex-col gap-[6px] rounded-[6px] border border-[var(--border-1)] p-[8px]'
+            >
+              <div className='flex items-center justify-between'>
+                <Label className='text-[11px] text-[var(--text-muted)]'>Tag</Label>
+                <button
+                  type='button'
+                  onClick={() => removeFilter(entry.id)}
+                  className='text-[var(--text-muted)] transition-colors hover:text-[var(--text-error)]'
+                >
+                  <X className='h-3 w-3' />
+                </button>
+              </div>
+              <Combobox
+                options={tagOptions}
+                value={entry.tagName}
+                onChange={(v) => handleTagChange(entry.id, v)}
+                placeholder='Select tag'
+              />
+
+              {entry.tagSlot && (
+                <>
+                  <Label className='text-[11px] text-[var(--text-muted)]'>Operator</Label>
+                  <Combobox
+                    options={operatorOptions}
+                    value={entry.operator}
+                    onChange={(v) => updateEntry(entry.id, { operator: v, valueTo: '' })}
+                    placeholder='Select operator'
+                  />
+
+                  <Label className='text-[11px] text-[var(--text-muted)]'>Value</Label>
+                  {entry.fieldType === 'date' ? (
+                    isBetween ? (
+                      <div className='flex items-center gap-[6px]'>
+                        <DatePicker
+                          size='sm'
+                          value={entry.value || undefined}
+                          onChange={(v) => updateEntry(entry.id, { value: v })}
+                          placeholder='From'
+                        />
+                        <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>
+                          to
+                        </span>
+                        <DatePicker
+                          size='sm'
+                          value={entry.valueTo || undefined}
+                          onChange={(v) => updateEntry(entry.id, { valueTo: v })}
+                          placeholder='To'
+                        />
+                      </div>
+                    ) : (
+                      <DatePicker
+                        size='sm'
+                        value={entry.value || undefined}
+                        onChange={(v) => updateEntry(entry.id, { value: v })}
+                        placeholder='Select date'
+                      />
+                    )
+                  ) : isBetween ? (
+                    <div className='flex items-center gap-[6px]'>
+                      <Input
+                        value={entry.value}
+                        onChange={(e) => updateEntry(entry.id, { value: e.target.value })}
+                        placeholder='From'
+                        className='h-[28px] text-[12px]'
+                      />
+                      <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>to</span>
+                      <Input
+                        value={entry.valueTo}
+                        onChange={(e) => updateEntry(entry.id, { valueTo: e.target.value })}
+                        placeholder='To'
+                        className='h-[28px] text-[12px]'
+                      />
+                    </div>
+                  ) : (
+                    <Input
+                      value={entry.value}
+                      onChange={(e) => updateEntry(entry.id, { value: e.target.value })}
+                      placeholder={
+                        entry.fieldType === 'boolean'
+                          ? 'true or false'
+                          : entry.fieldType === 'number'
+                            ? 'Enter number'
+                            : 'Enter value'
+                      }
+                      className='h-[28px] text-[12px]'
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

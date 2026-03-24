@@ -127,13 +127,14 @@ export const useChatStore = create<ChatState>()(
 
           const headers = ['timestamp', 'type', 'content']
 
-          const sortedMessages = messages.sort(
-            (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          const sortedMessages = [...messages].sort(
+            (a: ChatMessage, b: ChatMessage) =>
+              new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
           )
 
           const csvRows = [
             headers.join(','),
-            ...sortedMessages.map((message) =>
+            ...sortedMessages.map((message: ChatMessage) =>
               [
                 formatCSVValue(message.timestamp),
                 formatCSVValue(message.type),
@@ -259,7 +260,7 @@ export const useChatStore = create<ChatState>()(
             ...msg,
             attachments: msg.attachments?.map((att) => ({
               ...att,
-              dataUrl: '',
+              previewUrl: undefined,
             })),
           })),
         }),

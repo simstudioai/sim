@@ -21,6 +21,15 @@ interface PendingOAuthCredentialCreateRequest {
   serviceId: string
   requiredScopes: string[]
   requestedAt: number
+  returnOrigin?:
+    | {
+        type: 'workflow'
+        workflowId: string
+      }
+    | {
+        type: 'kb-connectors'
+        knowledgeBaseId: string
+      }
 }
 
 interface PendingSecretCredentialCreateRequest {
@@ -80,4 +89,54 @@ export function writePendingCredentialCreateRequest(payload: PendingCredentialCr
 export function clearPendingCredentialCreateRequest() {
   if (typeof window === 'undefined') return
   window.sessionStorage.removeItem(PENDING_CREDENTIAL_CREATE_REQUEST_KEY)
+}
+
+const OAUTH_RETURN_CONTEXT_KEY = 'sim.oauth-return-context'
+
+export type OAuthReturnOrigin = 'workflow' | 'integrations' | 'kb-connectors'
+
+interface OAuthReturnBase {
+  displayName: string
+  providerId: string
+  preCount: number
+  workspaceId: string
+  reconnect?: boolean
+  requestedAt: number
+}
+
+interface OAuthReturnWorkflow extends OAuthReturnBase {
+  origin: 'workflow'
+  workflowId: string
+}
+
+interface OAuthReturnIntegrations extends OAuthReturnBase {
+  origin: 'integrations'
+}
+
+interface OAuthReturnKBConnectors extends OAuthReturnBase {
+  origin: 'kb-connectors'
+  knowledgeBaseId: string
+}
+
+export type OAuthReturnContext =
+  | OAuthReturnWorkflow
+  | OAuthReturnIntegrations
+  | OAuthReturnKBConnectors
+
+export function writeOAuthReturnContext(ctx: OAuthReturnContext) {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.setItem(OAUTH_RETURN_CONTEXT_KEY, JSON.stringify(ctx))
+}
+
+export function readOAuthReturnContext(): OAuthReturnContext | null {
+  if (typeof window === 'undefined') return null
+  return parseJson<OAuthReturnContext>(window.sessionStorage.getItem(OAUTH_RETURN_CONTEXT_KEY))
+}
+
+export function consumeOAuthReturnContext(): OAuthReturnContext | null {
+  const ctx = readOAuthReturnContext()
+  if (ctx) {
+    window.sessionStorage.removeItem(OAUTH_RETURN_CONTEXT_KEY)
+  }
+  return ctx
 }

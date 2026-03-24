@@ -13,6 +13,7 @@ import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
 import { AshbyBlock } from '@/blocks/blocks/ashby'
 import { AttioBlock } from '@/blocks/blocks/attio'
+import { BoxBlock } from '@/blocks/blocks/box'
 import { BrandfetchBlock } from '@/blocks/blocks/brandfetch'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { CalComBlock } from '@/blocks/blocks/calcom'
@@ -29,6 +30,7 @@ import { DatabricksBlock } from '@/blocks/blocks/databricks'
 import { DatadogBlock } from '@/blocks/blocks/datadog'
 import { DevinBlock } from '@/blocks/blocks/devin'
 import { DiscordBlock } from '@/blocks/blocks/discord'
+import { DocuSignBlock } from '@/blocks/blocks/docusign'
 import { DropboxBlock } from '@/blocks/blocks/dropbox'
 import { DSPyBlock } from '@/blocks/blocks/dspy'
 import { DubBlock } from '@/blocks/blocks/dub'
@@ -82,6 +84,7 @@ import { HunterBlock } from '@/blocks/blocks/hunter'
 import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
 import { ImapBlock } from '@/blocks/blocks/imap'
 import { IncidentioBlock } from '@/blocks/blocks/incidentio'
+import { InfisicalBlock } from '@/blocks/blocks/infisical'
 import { InputTriggerBlock } from '@/blocks/blocks/input_trigger'
 import { IntercomBlock, IntercomV2Block } from '@/blocks/blocks/intercom'
 import { JinaBlock } from '@/blocks/blocks/jina'
@@ -102,6 +105,7 @@ import { ManualTriggerBlock } from '@/blocks/blocks/manual_trigger'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { Mem0Block } from '@/blocks/blocks/mem0'
 import { MemoryBlock } from '@/blocks/blocks/memory'
+import { MicrosoftAdBlock } from '@/blocks/blocks/microsoft_ad'
 import { MicrosoftDataverseBlock } from '@/blocks/blocks/microsoft_dataverse'
 import { MicrosoftExcelBlock, MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel'
 import { MicrosoftPlannerBlock } from '@/blocks/blocks/microsoft_planner'
@@ -112,11 +116,13 @@ import {
   MistralParseV3Block,
 } from '@/blocks/blocks/mistral_parse'
 import { MongoDBBlock } from '@/blocks/blocks/mongodb'
+import { MothershipBlock } from '@/blocks/blocks/mothership'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
 import { Neo4jBlock } from '@/blocks/blocks/neo4j'
 import { NoteBlock } from '@/blocks/blocks/note'
 import { NotionBlock, NotionV2Block } from '@/blocks/blocks/notion'
 import { ObsidianBlock } from '@/blocks/blocks/obsidian'
+import { OktaBlock } from '@/blocks/blocks/okta'
 import { OneDriveBlock } from '@/blocks/blocks/onedrive'
 import { OnePasswordBlock } from '@/blocks/blocks/onepassword'
 import { OpenAIBlock } from '@/blocks/blocks/openai'
@@ -131,6 +137,7 @@ import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
 import { PostHogBlock } from '@/blocks/blocks/posthog'
 import { PulseBlock, PulseV2Block } from '@/blocks/blocks/pulse'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
+import { QuiverBlock } from '@/blocks/blocks/quiver'
 import { RDSBlock } from '@/blocks/blocks/rds'
 import { RedditBlock } from '@/blocks/blocks/reddit'
 import { RedisBlock } from '@/blocks/blocks/redis'
@@ -163,6 +170,7 @@ import { StarterBlock } from '@/blocks/blocks/starter'
 import { StripeBlock } from '@/blocks/blocks/stripe'
 import { SttBlock, SttV2Block } from '@/blocks/blocks/stt'
 import { SupabaseBlock } from '@/blocks/blocks/supabase'
+import { TableBlock } from '@/blocks/blocks/table'
 import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { TextractBlock, TextractV2Block } from '@/blocks/blocks/textract'
@@ -186,6 +194,7 @@ import { WebhookRequestBlock } from '@/blocks/blocks/webhook_request'
 import { WhatsAppBlock } from '@/blocks/blocks/whatsapp'
 import { WikipediaBlock } from '@/blocks/blocks/wikipedia'
 import { WordPressBlock } from '@/blocks/blocks/wordpress'
+import { WorkdayBlock } from '@/blocks/blocks/workday'
 import { WorkflowBlock } from '@/blocks/blocks/workflow'
 import { WorkflowInputBlock } from '@/blocks/blocks/workflow_input'
 import { XBlock } from '@/blocks/blocks/x'
@@ -213,6 +222,7 @@ export const registry: Record<string, BlockConfig> = {
   ashby: AshbyBlock,
   attio: AttioBlock,
   brandfetch: BrandfetchBlock,
+  box: BoxBlock,
   browser_use: BrowserUseBlock,
   calcom: CalComBlock,
   calendly: CalendlyBlock,
@@ -230,6 +240,7 @@ export const registry: Record<string, BlockConfig> = {
   datadog: DatadogBlock,
   devin: DevinBlock,
   discord: DiscordBlock,
+  docusign: DocuSignBlock,
   dropbox: DropboxBlock,
   dspy: DSPyBlock,
   dub: DubBlock,
@@ -291,6 +302,7 @@ export const registry: Record<string, BlockConfig> = {
   image_generator: ImageGeneratorBlock,
   imap: ImapBlock,
   incidentio: IncidentioBlock,
+  infisical: InfisicalBlock,
   input_trigger: InputTriggerBlock,
   intercom: IntercomBlock,
   intercom_v2: IntercomV2Block,
@@ -313,6 +325,7 @@ export const registry: Record<string, BlockConfig> = {
   mcp: McpBlock,
   mem0: Mem0Block,
   memory: MemoryBlock,
+  microsoft_ad: MicrosoftAdBlock,
   microsoft_dataverse: MicrosoftDataverseBlock,
   microsoft_excel: MicrosoftExcelBlock,
   microsoft_excel_v2: MicrosoftExcelV2Block,
@@ -322,12 +335,14 @@ export const registry: Record<string, BlockConfig> = {
   mistral_parse_v2: MistralParseV2Block,
   mistral_parse_v3: MistralParseV3Block,
   mongodb: MongoDBBlock,
+  mothership: MothershipBlock,
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
   note: NoteBlock,
   notion: NotionBlock,
   notion_v2: NotionV2Block,
   obsidian: ObsidianBlock,
+  okta: OktaBlock,
   onepassword: OnePasswordBlock,
   onedrive: OneDriveBlock,
   openai: OpenAIBlock,
@@ -343,6 +358,7 @@ export const registry: Record<string, BlockConfig> = {
   pulse: PulseBlock,
   pulse_v2: PulseV2Block,
   qdrant: QdrantBlock,
+  quiver: QuiverBlock,
   rds: RDSBlock,
   reddit: RedditBlock,
   redis: RedisBlock,
@@ -378,8 +394,7 @@ export const registry: Record<string, BlockConfig> = {
   stt: SttBlock,
   stt_v2: SttV2Block,
   supabase: SupabaseBlock,
-  // TODO: Uncomment when working on tables
-  // table: TableBlock,
+  table: TableBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,
   textract: TextractBlock,
@@ -406,6 +421,7 @@ export const registry: Record<string, BlockConfig> = {
   whatsapp: WhatsAppBlock,
   wikipedia: WikipediaBlock,
   wordpress: WordPressBlock,
+  workday: WorkdayBlock,
   workflow: WorkflowBlock,
   workflow_input: WorkflowInputBlock,
   x: XBlock,

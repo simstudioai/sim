@@ -79,7 +79,6 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
 
   request: {
     url: (params: RequestParams) => {
-      // Process the URL once and cache the result
       return processUrl(params.url, params.pathParams, params.params)
     },
 
@@ -115,7 +114,6 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       }
 
       if (params.body) {
-        // Check if user wants URL-encoded form data
         const headers = transformTable(params.headers || null)
         const contentType = headers['Content-Type'] || headers['content-type']
 

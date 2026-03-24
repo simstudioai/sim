@@ -88,6 +88,7 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
             name: duplicateName,
             parentId: folder.parentId,
             color: folder.color,
+            newId: crypto.randomUUID(),
           })
 
           if (result?.id) {
@@ -109,6 +110,7 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
             description: workflow.description,
             color: getNextWorkflowColor(),
             folderId: workflow.folderId,
+            newId: crypto.randomUUID(),
           })
 
           duplicatedWorkflowIds.push(result.id)

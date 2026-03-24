@@ -2,7 +2,8 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
+import { useShallow } from 'zustand/react/shallow'
+import { Skeleton } from '@/components/emcn'
 import { formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 import type { DashboardStatsResponse, WorkflowStats } from '@/hooks/queries/logs'
 import { useFilterStore } from '@/stores/logs/filters/store'
@@ -146,7 +147,14 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
   const [lastAnchorIndices, setLastAnchorIndices] = useState<Record<string, number>>({})
   const lastAnchorIndicesRef = useRef<Record<string, number>>({})
 
-  const { workflowIds, searchQuery, toggleWorkflowId, timeRange } = useFilterStore()
+  const { workflowIds, searchQuery, toggleWorkflowId, timeRange } = useFilterStore(
+    useShallow((s) => ({
+      workflowIds: s.workflowIds,
+      searchQuery: s.searchQuery,
+      toggleWorkflowId: s.toggleWorkflowId,
+      timeRange: s.timeRange,
+    }))
+  )
 
   const allWorkflows = useWorkflowRegistry((state) => state.workflows)
 
@@ -220,10 +228,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
 
     return result
   }, [rawExecutions])
-
-  useEffect(() => {
-    prevExecutionsRef.current = executions
-  }, [executions])
+  prevExecutionsRef.current = executions
 
   const lastExecutionByWorkflow = useMemo(() => {
     const map = new Map<string, number>()

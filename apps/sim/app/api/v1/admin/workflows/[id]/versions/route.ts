@@ -1,6 +1,5 @@
-import { db, workflow } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { listWorkflowVersions } from '@/lib/workflows/persistence/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -20,11 +19,7 @@ export const GET = withAdminAuthParams<RouteParams>(async (request, context) => 
   const { id: workflowId } = await context.params
 
   try {
-    const [workflowRecord] = await db
-      .select({ id: workflow.id })
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
+    const workflowRecord = await getActiveWorkflowRecord(workflowId)
 
     if (!workflowRecord) {
       return notFoundResponse('Workflow')

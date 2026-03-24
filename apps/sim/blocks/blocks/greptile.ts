@@ -1,6 +1,6 @@
 import { GreptileIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GreptileResponse } from '@/tools/greptile/types'
 
 export const GreptileBlock: BlockConfig<GreptileResponse> = {
@@ -12,6 +12,8 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
     'Query and search codebases using natural language with Greptile. Get AI-generated answers about your code, find relevant files, and understand complex codebases.',
   docsLink: 'https://docs.sim.ai/tools/greptile',
   category: 'tools',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['version-control', 'knowledge-base'],
   bgColor: '#e5e5e5',
   icon: GreptileIcon,
   subBlocks: [

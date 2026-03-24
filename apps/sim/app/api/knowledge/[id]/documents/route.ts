@@ -13,6 +13,7 @@ import {
   getDocuments,
   getProcessingConfig,
   processDocumentsWithQueue,
+  type TagFilterCondition,
 } from '@/lib/knowledge/documents/service'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
@@ -131,6 +132,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         ? (sortOrderParam as SortOrder)
         : undefined
 
+    let tagFilters: TagFilterCondition[] | undefined
+    const tagFiltersParam = url.searchParams.get('tagFilters')
+    if (tagFiltersParam) {
+      try {
+        const parsed = JSON.parse(tagFiltersParam)
+        if (Array.isArray(parsed)) {
+          tagFilters = parsed.filter(
+            (f: TagFilterCondition) => f.tagSlot && f.operator && f.value !== undefined
+          )
+        }
+      } catch {
+        logger.warn(`[${requestId}] Invalid tagFilters param`)
+      }
+    }
+
     const result = await getDocuments(
       knowledgeBaseId,
       {
@@ -140,6 +156,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         offset,
         ...(sortBy && { sortBy }),
         ...(sortOrder && { sortOrder }),
+        tagFilters,
       },
       requestId
     )
@@ -351,8 +368,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const errorMessage = error instanceof Error ? error.message : 'Failed to create document'
     const isStorageLimitError =
       errorMessage.includes('Storage limit exceeded') || errorMessage.includes('storage limit')
+    const isMissingKnowledgeBase = errorMessage === 'Knowledge base not found'
 
-    return NextResponse.json({ error: errorMessage }, { status: isStorageLimitError ? 413 : 500 })
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: isMissingKnowledgeBase ? 404 : isStorageLimitError ? 413 : 500 }
+    )
   }
 }
 

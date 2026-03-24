@@ -170,9 +170,7 @@ describe('extractFilename', () => {
           'inline; filename="safe-image.png"'
         )
         expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
-        expect(response.headers.get('Content-Security-Policy')).toBe(
-          "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
-        )
+        expect(response.headers.get('Content-Security-Policy')).toBeNull()
       })
 
       it('should serve PDFs inline safely', () => {
@@ -203,33 +201,31 @@ describe('extractFilename', () => {
         expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
       })
 
-      it('should force attachment for SVG files to prevent XSS', () => {
+      it('should serve SVG files inline with CSP sandbox protection', () => {
         const response = createFileResponse({
           buffer: Buffer.from(
             '<svg onload="alert(\'XSS\')" xmlns="http://www.w3.org/2000/svg"></svg>'
           ),
           contentType: 'image/svg+xml',
-          filename: 'malicious.svg',
+          filename: 'image.svg',
         })
 
         expect(response.status).toBe(200)
-        expect(response.headers.get('Content-Type')).toBe('application/octet-stream')
-        expect(response.headers.get('Content-Disposition')).toBe(
-          'attachment; filename="malicious.svg"'
+        expect(response.headers.get('Content-Type')).toBe('image/svg+xml')
+        expect(response.headers.get('Content-Disposition')).toBe('inline; filename="image.svg"')
+        expect(response.headers.get('Content-Security-Policy')).toBe(
+          "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
         )
       })
 
-      it('should override dangerous content types to safe alternatives', () => {
+      it('should not apply CSP sandbox to non-SVG files', () => {
         const response = createFileResponse({
-          buffer: Buffer.from('<svg>safe content</svg>'),
-          contentType: 'image/svg+xml',
-          filename: 'image.png', // Extension doesn't match content-type
+          buffer: Buffer.from('hello'),
+          contentType: 'text/plain',
+          filename: 'readme.txt',
         })
 
-        expect(response.status).toBe(200)
-        // Should override SVG content type to plain text for safety
-        expect(response.headers.get('Content-Type')).toBe('text/plain')
-        expect(response.headers.get('Content-Disposition')).toBe('inline; filename="image.png"')
+        expect(response.headers.get('Content-Security-Policy')).toBeNull()
       })
 
       it('should force attachment for JavaScript files', () => {
@@ -302,15 +298,22 @@ describe('extractFilename', () => {
     })
 
     describe('Content Security Policy', () => {
-      it('should include CSP header in all responses', () => {
-        const response = createFileResponse({
+      it('should include CSP header only for SVG responses', () => {
+        const svgResponse = createFileResponse({
+          buffer: Buffer.from('<svg></svg>'),
+          contentType: 'image/svg+xml',
+          filename: 'icon.svg',
+        })
+        expect(svgResponse.headers.get('Content-Security-Policy')).toBe(
+          "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
+        )
+
+        const txtResponse = createFileResponse({
           buffer: Buffer.from('test'),
           contentType: 'text/plain',
           filename: 'test.txt',
         })
-
-        const csp = response.headers.get('Content-Security-Policy')
-        expect(csp).toBe("default-src 'none'; style-src 'unsafe-inline'; sandbox;")
+        expect(txtResponse.headers.get('Content-Security-Policy')).toBeNull()
       })
 
       it('should include X-Content-Type-Options header', () => {
@@ -328,7 +331,7 @@ describe('extractFilename', () => {
 
 describe('findLocalFile - Path Traversal Security Tests', () => {
   describe('path traversal attack prevention', () => {
-    it.concurrent('should reject classic path traversal attacks', () => {
+    it.concurrent('should reject classic path traversal attacks', async () => {
       const maliciousInputs = [
         '../../../etc/passwd',
         '..\\..\\..\\windows\\system32\\config\\sam',
@@ -337,35 +340,35 @@ describe('findLocalFile - Path Traversal Security Tests', () => {
         '..\\config.ini',
       ]
 
-      maliciousInputs.forEach((input) => {
-        const result = findLocalFile(input)
+      for (const input of maliciousInputs) {
+        const result = await findLocalFile(input)
         expect(result).toBeNull()
-      })
+      }
     })
 
-    it.concurrent('should reject encoded path traversal attempts', () => {
+    it.concurrent('should reject encoded path traversal attempts', async () => {
       const encodedInputs = [
         '%2e%2e%2f%2e%2e%2f%65%74%63%2f%70%61%73%73%77%64', // ../../../etc/passwd
         '..%2f..%2fetc%2fpasswd',
         '..%5c..%5cconfig.ini',
       ]
 
-      encodedInputs.forEach((input) => {
-        const result = findLocalFile(input)
+      for (const input of encodedInputs) {
+        const result = await findLocalFile(input)
         expect(result).toBeNull()
-      })
+      }
     })
 
-    it.concurrent('should reject mixed path separators', () => {
+    it.concurrent('should reject mixed path separators', async () => {
       const mixedInputs = ['../..\\config.txt', '..\\../secret.ini', '/..\\..\\system32']
 
-      mixedInputs.forEach((input) => {
-        const result = findLocalFile(input)
+      for (const input of mixedInputs) {
+        const result = await findLocalFile(input)
         expect(result).toBeNull()
-      })
+      }
     })
 
-    it.concurrent('should reject filenames with dangerous characters', () => {
+    it.concurrent('should reject filenames with dangerous characters', async () => {
       const dangerousInputs = [
         'file:with:colons.txt',
         'file|with|pipes.txt',
@@ -373,43 +376,45 @@ describe('findLocalFile - Path Traversal Security Tests', () => {
         'file*with*asterisks.txt',
       ]
 
-      dangerousInputs.forEach((input) => {
-        const result = findLocalFile(input)
+      for (const input of dangerousInputs) {
+        const result = await findLocalFile(input)
         expect(result).toBeNull()
-      })
+      }
     })
 
-    it.concurrent('should reject null and empty inputs', () => {
-      expect(findLocalFile('')).toBeNull()
-      expect(findLocalFile('   ')).toBeNull()
-      expect(findLocalFile('\t\n')).toBeNull()
+    it.concurrent('should reject null and empty inputs', async () => {
+      expect(await findLocalFile('')).toBeNull()
+      expect(await findLocalFile('   ')).toBeNull()
+      expect(await findLocalFile('\t\n')).toBeNull()
     })
 
-    it.concurrent('should reject filenames that become empty after sanitization', () => {
+    it.concurrent('should reject filenames that become empty after sanitization', async () => {
       const emptyAfterSanitization = ['../..', '..\\..\\', '////', '....', '..']
 
-      emptyAfterSanitization.forEach((input) => {
-        const result = findLocalFile(input)
+      for (const input of emptyAfterSanitization) {
+        const result = await findLocalFile(input)
         expect(result).toBeNull()
-      })
+      }
     })
   })
 
   describe('security validation passes for legitimate files', () => {
-    it.concurrent('should accept properly formatted filenames without throwing errors', () => {
-      const legitimateInputs = [
-        'document.pdf',
-        'image.png',
-        'data.csv',
-        'report-2024.doc',
-        'file_with_underscores.txt',
-        'file-with-dashes.json',
-      ]
+    it.concurrent(
+      'should accept properly formatted filenames without throwing errors',
+      async () => {
+        const legitimateInputs = [
+          'document.pdf',
+          'image.png',
+          'data.csv',
+          'report-2024.doc',
+          'file_with_underscores.txt',
+          'file-with-dashes.json',
+        ]
 
-      legitimateInputs.forEach((input) => {
-        // Should not throw security errors for legitimate filenames
-        expect(() => findLocalFile(input)).not.toThrow()
-      })
-    })
+        for (const input of legitimateInputs) {
+          await expect(findLocalFile(input)).resolves.toBeDefined()
+        }
+      }
+    )
   })
 })

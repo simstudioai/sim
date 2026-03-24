@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { configure } from 'onedollarstats'
 import { env } from '@/lib/core/config/env'
 
 export function OneDollarStats() {
@@ -12,11 +11,15 @@ export function OneDollarStats() {
       return
     }
 
-    configure({
-      collectorUrl: 'https://collector.onedollarstats.com/events',
-      autocollect: true,
-      hashRouting: true,
-    })
+    import('onedollarstats')
+      .then(({ configure }) => {
+        configure({
+          collectorUrl: 'https://collector.onedollarstats.com/events',
+          autocollect: true,
+          hashRouting: true,
+        })
+      })
+      .catch(() => {})
   }, [])
 
   return null

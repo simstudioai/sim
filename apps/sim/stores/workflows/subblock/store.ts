@@ -25,8 +25,6 @@ const logger = createLogger('SubBlockStore')
 export const useSubBlockStore = create<SubBlockStore>()(
   devtools((set, get) => ({
     workflowValues: {},
-    loadingWebhooks: new Set<string>(),
-    checkedWebhooks: new Set<string>(),
 
     setValue: (blockId: string, subBlockId: string, value: any) => {
       const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -143,15 +141,6 @@ export const useSubBlockStore = create<SubBlockStore>()(
         const triggerConfigSubBlock = block.subBlocks?.triggerConfig
         if (triggerConfigSubBlock?.value && typeof triggerConfigSubBlock.value === 'object') {
           populateTriggerFieldsFromConfig(blockId, triggerConfigSubBlock.value, triggerId)
-
-          const currentChecked = get().checkedWebhooks
-          if (currentChecked.has(blockId)) {
-            set((state) => {
-              const newSet = new Set(state.checkedWebhooks)
-              newSet.delete(blockId)
-              return { checkedWebhooks: newSet }
-            })
-          }
         }
       })
     },

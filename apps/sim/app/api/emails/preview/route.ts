@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
         ([category, templates]) => `
         <h2 style="margin-top: 24px; margin-bottom: 12px; font-size: 14px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">${category}</h2>
         <ul style="list-style: none; padding: 0; margin: 0;">
-          ${templates.map((t) => `<li style="margin: 8px 0;"><a href="?template=${t}" style="color: #32bd7e; text-decoration: none; font-size: 16px;">${t}</a></li>`).join('')}
+          ${templates.map((t) => `<li style="margin: 8px 0;"><a href="?template=${t}" style="color: #33C482; text-decoration: none; font-size: 16px;">${t}</a></li>`).join('')}
         </ul>
       `
       )

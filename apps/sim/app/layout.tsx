@@ -110,13 +110,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   if (stored) {
                     var parsed = JSON.parse(stored);
                     var state = parsed && parsed.state;
-                    var width = state && state.sidebarWidth;
-                    var maxSidebarWidth = window.innerWidth * 0.3;
+                    var isCollapsed = state && state.isCollapsed;
 
-                    if (width >= 232 && width <= maxSidebarWidth) {
-                      document.documentElement.style.setProperty('--sidebar-width', width + 'px');
-                    } else if (width > maxSidebarWidth) {
-                      document.documentElement.style.setProperty('--sidebar-width', maxSidebarWidth + 'px');
+                    if (isCollapsed) {
+                      document.documentElement.style.setProperty('--sidebar-width', '51px');
+                      document.documentElement.setAttribute('data-sidebar-collapsed', '');
+                    } else {
+                      var width = state && state.sidebarWidth;
+                      var maxSidebarWidth = window.innerWidth * 0.3;
+
+                      if (width >= 248 && width <= maxSidebarWidth) {
+                        document.documentElement.style.setProperty('--sidebar-width', width + 'px');
+                      } else if (width > maxSidebarWidth) {
+                        document.documentElement.style.setProperty('--sidebar-width', maxSidebarWidth + 'px');
+                      }
                     }
                   }
                 } catch (e) {

@@ -31,7 +31,7 @@ const SettingsSchema = z.object({
 })
 
 const defaultSettings = {
-  theme: 'dark',
+  theme: 'system',
   autoConnect: true,
   telemetryEnabled: true,
   emailPreferences: {},
@@ -72,7 +72,7 @@ export async function GET() {
           emailPreferences: userSettings.emailPreferences ?? {},
           billingUsageNotificationsEnabled: userSettings.billingUsageNotificationsEnabled ?? true,
           showTrainingControls: userSettings.showTrainingControls ?? false,
-          superUserModeEnabled: userSettings.superUserModeEnabled ?? true,
+          superUserModeEnabled: userSettings.superUserModeEnabled ?? false,
           errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,
           snapToGridSize: userSettings.snapToGridSize ?? 0,
           showActionBar: userSettings.showActionBar ?? true,

@@ -3,29 +3,41 @@
  * Colors are derived from globals.css light mode tokens.
  */
 
-/** Color tokens from globals.css (light mode) */
-export const colors = {
-  /** Main canvas background */
-  bgOuter: '#F7F9FC',
-  /** Card/container background - pure white */
-  bgCard: '#ffffff',
-  /** Primary text color */
-  textPrimary: '#2d2d2d',
-  /** Secondary text color */
-  textSecondary: '#404040',
-  /** Tertiary text color */
-  textTertiary: '#5c5c5c',
-  /** Muted text (footer) */
-  textMuted: '#737373',
-  /** Brand primary - purple */
-  brandPrimary: '#6f3dfa',
-  /** Brand tertiary - green (matches Run/Deploy buttons) */
-  brandTertiary: '#32bd7e',
-  /** Border/divider color */
-  divider: '#ededed',
-  /** Footer background */
-  footerBg: '#F7F9FC',
+import { getBrandConfig } from '@/ee/whitelabeling'
+
+/** Color tokens from globals.css (light mode), brand-aware for whitelabeled instances */
+function buildColors() {
+  const brand = getBrandConfig()
+  const isWhitelabeled = brand.isWhitelabeled
+  const accentColor =
+    isWhitelabeled && brand.theme?.primaryColor ? brand.theme.primaryColor : '#33C482'
+
+  return {
+    /** Main canvas background */
+    bgOuter: '#F7F9FC',
+    /** Card/container background - pure white */
+    bgCard: '#ffffff',
+    /** Primary text color */
+    textPrimary: '#2d2d2d',
+    /** Secondary text color */
+    textSecondary: '#404040',
+    /** Tertiary text color */
+    textTertiary: '#5c5c5c',
+    /** Muted text (footer) */
+    textMuted: '#737373',
+    /** Brand primary - purple */
+    brandPrimary:
+      isWhitelabeled && brand.theme?.primaryColor ? brand.theme.primaryColor : '#6f3dfa',
+    /** Brand accent - used for buttons and links */
+    brandTertiary: accentColor,
+    /** Border/divider color */
+    divider: '#ededed',
+    /** Footer background */
+    footerBg: '#F7F9FC',
+  }
 }
+
+export const colors = buildColors()
 
 /** Typography settings */
 export const typography = {

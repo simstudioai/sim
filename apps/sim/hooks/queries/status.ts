@@ -14,8 +14,8 @@ export const statusKeys = {
  * Fetch current system status from the API
  * The API proxies incident.io and caches for 2 minutes server-side
  */
-async function fetchStatus(): Promise<StatusResponse> {
-  const response = await fetch('/api/status')
+async function fetchStatus(signal?: AbortSignal): Promise<StatusResponse> {
+  const response = await fetch('/api/status', { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch status')
@@ -33,7 +33,7 @@ async function fetchStatus(): Promise<StatusResponse> {
 export function useStatus() {
   return useQuery({
     queryKey: statusKeys.current(),
-    queryFn: fetchStatus,
+    queryFn: ({ signal }) => fetchStatus(signal),
     staleTime: 60 * 1000, // 1 minute
     refetchInterval: 60 * 1000, // Poll every 60 seconds
     refetchOnWindowFocus: true, // Refetch when user returns to tab

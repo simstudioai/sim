@@ -1,7 +1,7 @@
 import { GoogleGroupsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const GoogleGroupsBlock: BlockConfig = {
   type: 'google_groups',
@@ -12,6 +12,8 @@ export const GoogleGroupsBlock: BlockConfig = {
     'Connect to Google Workspace to create, update, and manage groups and their members using the Admin SDK Directory API.',
   docsLink: 'https://developers.google.com/admin-sdk/directory/v1/guides/manage-groups',
   category: 'tools',
+  integrationType: IntegrationType.Communication,
+  tags: ['google-workspace', 'messaging', 'identity'],
   bgColor: '#E8F0FE',
   icon: GoogleGroupsIcon,
   subBlocks: [

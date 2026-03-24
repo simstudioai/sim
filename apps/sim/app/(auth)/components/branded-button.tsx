@@ -2,36 +2,20 @@
 
 import { forwardRef, useState } from 'react'
 import { ArrowRight, ChevronRight, Loader2 } from 'lucide-react'
-import { Button, type ButtonProps as EmcnButtonProps } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
+import { useBrandConfig } from '@/ee/whitelabeling'
 
-export interface BrandedButtonProps extends Omit<EmcnButtonProps, 'variant' | 'size'> {
-  /** Shows loading spinner and disables button */
+export interface BrandedButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean
-  /** Text to show when loading (appends "..." automatically) */
   loadingText?: string
-  /** Show arrow animation on hover (default: true) */
   showArrow?: boolean
-  /** Make button full width (default: true) */
   fullWidth?: boolean
 }
 
 /**
  * Branded button for auth and status pages.
- * Automatically detects whitelabel customization and applies appropriate styling.
- *
- * @example
- * ```tsx
- * // Primary branded button with arrow
- * <BrandedButton onClick={handleSubmit}>Sign In</BrandedButton>
- *
- * // Loading state
- * <BrandedButton loading loadingText="Signing in">Sign In</BrandedButton>
- *
- * // Without arrow animation
- * <BrandedButton showArrow={false}>Continue</BrandedButton>
- * ```
+ * Default: white button matching the landing page "Get started" style.
+ * Whitelabel: uses the brand's primary color as background with white text.
  */
 export const BrandedButton = forwardRef<HTMLButtonElement, BrandedButtonProps>(
   (
@@ -49,7 +33,8 @@ export const BrandedButton = forwardRef<HTMLButtonElement, BrandedButtonProps>(
     },
     ref
   ) => {
-    const buttonClass = useBrandedButtonClass()
+    const brand = useBrandConfig()
+    const hasCustomColor = brand.isWhitelabeled && Boolean(brand.theme?.primaryColor)
     const [isHovered, setIsHovered] = useState(false)
 
     const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -63,15 +48,32 @@ export const BrandedButton = forwardRef<HTMLButtonElement, BrandedButtonProps>(
     }
 
     return (
-      <Button
+      <button
         ref={ref}
-        variant='branded'
-        size='branded'
+        {...props}
         disabled={disabled || loading}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className={cn(buttonClass, 'group', fullWidth && 'w-full', className)}
-        {...props}
+        className={cn(
+          'group inline-flex h-[32px] items-center justify-center gap-[8px] rounded-[5px] border px-[10px] font-[430] font-season text-[14px] transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+          !hasCustomColor &&
+            'border-[#FFFFFF] bg-[#FFFFFF] text-black hover:border-[#E0E0E0] hover:bg-[#E0E0E0]',
+          fullWidth && 'w-full',
+          className
+        )}
+        style={
+          hasCustomColor
+            ? {
+                backgroundColor: isHovered
+                  ? (brand.theme?.primaryHoverColor ?? brand.theme?.primaryColor)
+                  : brand.theme?.primaryColor,
+                borderColor: isHovered
+                  ? (brand.theme?.primaryHoverColor ?? brand.theme?.primaryColor)
+                  : brand.theme?.primaryColor,
+                color: '#FFFFFF',
+              }
+            : undefined
+        }
       >
         {loading ? (
           <span className='flex items-center gap-2'>
@@ -92,7 +94,7 @@ export const BrandedButton = forwardRef<HTMLButtonElement, BrandedButtonProps>(
         ) : (
           children
         )}
-      </Button>
+      </button>
     )
   }
 )

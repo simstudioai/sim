@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { AllTagSlot } from '@/lib/knowledge/constants'
 import {
@@ -9,7 +9,7 @@ import {
   useDeleteDocumentTagDefinitions,
   useDocumentTagDefinitionsQuery,
   useSaveDocumentTagDefinitions,
-} from '@/hooks/queries/knowledge'
+} from '@/hooks/queries/kb/knowledge'
 
 export interface TagDefinition {
   id: string
@@ -40,7 +40,7 @@ export function useTagDefinitions(
   const { mutateAsync: saveTagDefinitionsMutation } = useSaveDocumentTagDefinitions()
   const { mutateAsync: deleteTagDefinitionsMutation } = useDeleteDocumentTagDefinitions()
 
-  const tagDefinitions = (query.data ?? []) as TagDefinition[]
+  const tagDefinitions = useMemo(() => (query.data ?? []) as TagDefinition[], [query.data])
 
   const fetchTagDefinitions = useCallback(async () => {
     if (!knowledgeBaseId || !documentId) return

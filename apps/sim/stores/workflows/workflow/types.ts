@@ -212,6 +212,7 @@ export interface WorkflowActions {
   }
   setBlockAdvancedMode: (id: string, advancedMode: boolean) => void
   setBlockCanonicalMode: (id: string, canonicalId: string, mode: 'basic' | 'advanced') => void
+  syncDynamicHandleSubblockValue: (blockId: string, subblockId: string, value: unknown) => void
   setBlockTriggerMode: (id: string, triggerMode: boolean) => void
   updateBlockLayoutMetrics: (id: string, dimensions: { width: number; height: number }) => void
   triggerUpdate: () => void

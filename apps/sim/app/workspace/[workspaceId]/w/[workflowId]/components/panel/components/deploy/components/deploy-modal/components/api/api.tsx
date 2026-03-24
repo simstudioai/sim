@@ -9,9 +9,9 @@ import {
   Code,
   Combobox,
   Label,
+  Skeleton,
   Tooltip,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 
 interface WorkflowDeploymentInfo {

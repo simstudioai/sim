@@ -9,6 +9,7 @@ import { dropKBEmbeddingTable } from '@/lib/knowledge/dynamic-tables'
 import {
   deleteKnowledgeBase,
   getKnowledgeBaseById,
+  KnowledgeBaseConflictError,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
@@ -165,6 +166,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       throw validationError
     }
   } catch (error) {
+    if (error instanceof KnowledgeBaseConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
+
     logger.error(`[${requestId}] Error updating knowledge base`, error)
     return NextResponse.json({ error: 'Failed to update knowledge base' }, { status: 500 })
   }

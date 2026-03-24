@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth/auth-client'
+import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
 
 const logger = createLogger('OrganizationQueries')
 
@@ -22,8 +23,9 @@ export const organizationKeys = {
 /**
  * Fetch all organizations for the current user
  * Note: Billing data is fetched separately via useSubscriptionData() to avoid duplicate calls
+ * Note: better-auth client does not support AbortSignal, so signal is accepted but not forwarded
  */
-async function fetchOrganizations() {
+async function fetchOrganizations(_signal?: AbortSignal) {
   const [orgsResponse, activeOrgResponse] = await Promise.all([
     client.organization.list(),
     client.organization.getFullOrganization(),
@@ -41,16 +43,15 @@ async function fetchOrganizations() {
 export function useOrganizations() {
   return useQuery({
     queryKey: organizationKeys.lists(),
-    queryFn: fetchOrganizations,
+    queryFn: ({ signal }) => fetchOrganizations(signal),
     staleTime: 30 * 1000,
-    placeholderData: keepPreviousData,
   })
 }
 
 /**
  * Fetch a specific organization by ID
  */
-async function fetchOrganization() {
+async function fetchOrganization(_signal?: AbortSignal) {
   const response = await client.organization.getFullOrganization()
   return response.data
 }
@@ -61,7 +62,7 @@ async function fetchOrganization() {
 export function useOrganization(orgId: string) {
   return useQuery({
     queryKey: organizationKeys.detail(orgId),
-    queryFn: fetchOrganization,
+    queryFn: ({ signal }) => fetchOrganization(signal),
     enabled: !!orgId,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
@@ -71,7 +72,7 @@ export function useOrganization(orgId: string) {
 /**
  * Fetch organization subscription data
  */
-async function fetchOrganizationSubscription(orgId: string) {
+async function fetchOrganizationSubscription(orgId: string, _signal?: AbortSignal) {
   if (!orgId) {
     return null
   }
@@ -86,10 +87,10 @@ async function fetchOrganizationSubscription(orgId: string) {
   }
 
   const teamSubscription = response.data?.find(
-    (sub: any) => sub.status === 'active' && sub.plan === 'team'
+    (sub: any) => sub.status === 'active' && isTeam(sub.plan)
   )
   const enterpriseSubscription = response.data?.find(
-    (sub: any) => sub.plan === 'enterprise' || sub.plan === 'enterprise-plus'
+    (sub: any) => isEnterprise(sub.plan) || sub.plan === 'enterprise-plus'
   )
   const activeSubscription = enterpriseSubscription || teamSubscription
 
@@ -102,7 +103,7 @@ async function fetchOrganizationSubscription(orgId: string) {
 export function useOrganizationSubscription(orgId: string) {
   return useQuery({
     queryKey: organizationKeys.subscription(orgId),
-    queryFn: () => fetchOrganizationSubscription(orgId),
+    queryFn: ({ signal }) => fetchOrganizationSubscription(orgId, signal),
     enabled: !!orgId,
     retry: false,
     staleTime: 30 * 1000,
@@ -113,8 +114,8 @@ export function useOrganizationSubscription(orgId: string) {
 /**
  * Fetch organization billing data
  */
-async function fetchOrganizationBilling(orgId: string) {
-  const response = await fetch(`/api/billing?context=organization&id=${orgId}`)
+async function fetchOrganizationBilling(orgId: string, signal?: AbortSignal) {
+  const response = await fetch(`/api/billing?context=organization&id=${orgId}`, { signal })
 
   if (response.status === 404) {
     return null
@@ -132,7 +133,7 @@ async function fetchOrganizationBilling(orgId: string) {
 export function useOrganizationBilling(orgId: string) {
   return useQuery({
     queryKey: organizationKeys.billing(orgId),
-    queryFn: () => fetchOrganizationBilling(orgId),
+    queryFn: ({ signal }) => fetchOrganizationBilling(orgId, signal),
     enabled: !!orgId,
     retry: false,
     staleTime: 30 * 1000,
@@ -143,8 +144,8 @@ export function useOrganizationBilling(orgId: string) {
 /**
  * Fetch organization member usage data
  */
-async function fetchOrganizationMembers(orgId: string) {
-  const response = await fetch(`/api/organizations/${orgId}/members?include=usage`)
+async function fetchOrganizationMembers(orgId: string, signal?: AbortSignal) {
+  const response = await fetch(`/api/organizations/${orgId}/members?include=usage`, { signal })
 
   if (response.status === 404) {
     return { members: [] }
@@ -162,7 +163,7 @@ async function fetchOrganizationMembers(orgId: string) {
 export function useOrganizationMembers(orgId: string) {
   return useQuery({
     queryKey: organizationKeys.memberUsage(orgId),
-    queryFn: () => fetchOrganizationMembers(orgId),
+    queryFn: ({ signal }) => fetchOrganizationMembers(orgId, signal),
     enabled: !!orgId,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
@@ -372,6 +373,8 @@ interface ResendInvitationParams {
 }
 
 export function useResendInvitation() {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: async ({ invitationId, orgId }: ResendInvitationParams) => {
       const response = await fetch(`/api/organizations/${orgId}/invitations/${invitationId}`, {
@@ -385,6 +388,9 @@ export function useResendInvitation() {
       }
 
       return response.json()
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
     },
   })
 }
@@ -488,7 +494,7 @@ export function useCreateOrganization() {
       return response.data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.all })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
     },
   })
 }

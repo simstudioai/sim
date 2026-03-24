@@ -13,14 +13,13 @@ export const mdxComponents: MDXRemoteProps['components'] = {
       className={clsx('h-auto w-full rounded-lg', props.className)}
       sizes='(max-width: 768px) 100vw, 800px'
       loading='lazy'
-      unoptimized
     />
   ),
   h2: ({ children, className, ...props }: any) => (
     <h2
       {...props}
       style={{ fontSize: '30px', marginTop: '3rem', marginBottom: '1.5rem' }}
-      className={clsx('font-medium text-black leading-tight', className)}
+      className={clsx('font-medium text-[#ECECEC] leading-tight', className)}
     >
       {children}
     </h2>
@@ -29,7 +28,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
     <h3
       {...props}
       style={{ fontSize: '24px', marginTop: '1.5rem', marginBottom: '0.75rem' }}
-      className={clsx('font-medium leading-tight', className)}
+      className={clsx('font-medium text-[#ECECEC] leading-tight', className)}
     >
       {children}
     </h3>
@@ -38,7 +37,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
     <h4
       {...props}
       style={{ fontSize: '19px', marginTop: '1.5rem', marginBottom: '0.75rem' }}
-      className={clsx('font-medium leading-tight', className)}
+      className={clsx('font-medium text-[#ECECEC] leading-tight', className)}
     >
       {children}
     </h4>
@@ -47,14 +46,14 @@ export const mdxComponents: MDXRemoteProps['components'] = {
     <p
       {...props}
       style={{ fontSize: '19px', marginBottom: '1.5rem', fontWeight: '400' }}
-      className={clsx('text-gray-800 leading-relaxed', props.className)}
+      className={clsx('text-[#999] leading-relaxed', props.className)}
     />
   ),
   ul: (props: any) => (
     <ul
       {...props}
       style={{ fontSize: '19px', marginBottom: '1rem', fontWeight: '400' }}
-      className={clsx('list-outside list-disc pl-6 text-gray-800 leading-relaxed', props.className)}
+      className={clsx('list-outside list-disc pl-6 text-[#999] leading-relaxed', props.className)}
     />
   ),
   ol: (props: any) => (
@@ -62,14 +61,16 @@ export const mdxComponents: MDXRemoteProps['components'] = {
       {...props}
       style={{ fontSize: '19px', marginBottom: '1rem', fontWeight: '400' }}
       className={clsx(
-        'list-outside list-decimal pl-6 text-gray-800 leading-relaxed',
+        'list-outside list-decimal pl-6 text-[#999] leading-relaxed',
         props.className
       )}
     />
   ),
   li: (props: any) => <li {...props} className={clsx('mb-1', props.className)} />,
-  strong: (props: any) => <strong {...props} className={clsx('font-semibold', props.className)} />,
-  em: (props: any) => <em {...props} className={clsx('italic', props.className)} />,
+  strong: (props: any) => (
+    <strong {...props} className={clsx('font-semibold text-[#ECECEC]', props.className)} />
+  ),
+  em: (props: any) => <em {...props} className={clsx('text-[#bbb] italic', props.className)} />,
   a: (props: any) => {
     const isAnchorLink = props.className?.includes('anchor')
     if (isAnchorLink) {
@@ -78,10 +79,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
     return (
       <a
         {...props}
-        className={clsx(
-          'font-medium text-[#33B4FF] underline hover:text-[#2A9FE8]',
-          props.className
-        )}
+        className={clsx('font-medium text-[#ECECEC] underline hover:text-white', props.className)}
       />
     )
   },
@@ -91,7 +89,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
   hr: (props: any) => (
     <hr
       {...props}
-      className={clsx('my-8 border-gray-200', props.className)}
+      className={clsx('my-8 border-[#2A2A2A]', props.className)}
       style={{ marginBottom: '1.5rem' }}
     />
   ),
@@ -135,7 +133,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
         <code
           {...props}
           className={clsx(
-            'rounded bg-gray-100 px-1.5 py-0.5 font-mono font-normal text-[0.9em] text-red-600',
+            'rounded bg-[#2A2A2A] px-1.5 py-0.5 font-mono font-normal text-[#ECECEC] text-[0.9em]',
             props.className
           )}
           style={{ fontWeight: 400 }}

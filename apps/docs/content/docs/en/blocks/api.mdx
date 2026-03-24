@@ -5,6 +5,7 @@ title: API
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 The API block connects your workflow to external services through HTTP requests. Supports GET, POST, PUT, DELETE, and PATCH methods for interacting with REST APIs.
 
@@ -79,7 +80,6 @@ After an API request completes, you can access its outputs:
 - **`<api.data>`**: The response body data from the API
 - **`<api.status>`**: HTTP status code (200, 404, 500, etc.)
 - **`<api.headers>`**: Response headers from the server
-- **`<api.error>`**: Error details if the request failed
 
 ## Advanced Features
 
@@ -127,7 +127,6 @@ if (<api.status> === 200) {
 - **`<api.data>`**: Response body data from the API
 - **`<api.status>`**: HTTP status code
 - **`<api.headers>`**: Response headers
-- **`<api.error>`**: Error details if request failed
 
 ## Example Use Cases
 
@@ -147,3 +146,12 @@ Function (Validate) → API (Stripe) → Condition (Success) → Supabase (Updat
 - **Handle errors gracefully**: Connect error handling logic for failed requests
 - **Validate responses**: Check status codes and response formats before processing data
 - **Respect rate limits**: Be mindful of API rate limits and implement appropriate throttling
+
+<FAQ items={[
+  { question: "What is the default request timeout?", answer: "The default timeout is 300,000 milliseconds (5 minutes). You can configure it up to a maximum of 600,000 milliseconds (10 minutes) in the block's Advanced settings." },
+  { question: "Which HTTP errors trigger automatic retries?", answer: "Retries are attempted for network/connection failures, timeouts, rate limit responses (HTTP 429), and server errors (5xx). Client errors like 400 or 404 are not retried." },
+  { question: "How does retry backoff work?", answer: "Retries use exponential backoff starting from the configured retry delay (default 500ms). Each subsequent retry doubles the delay, up to the maximum retry delay (default 30,000ms)." },
+  { question: "Are POST and PATCH requests retried by default?", answer: "No. POST and PATCH are non-idempotent methods, so retries are disabled for them by default to avoid creating duplicate resources. You can enable retries for these methods with the 'Retry non-idempotent methods' toggle in Advanced settings, but be aware this may cause duplicate requests." },
+  { question: "What headers are included automatically?", answer: "Standard headers such as User-Agent, Accept, and Cache-Control are added automatically. Any custom headers you configure will be merged with these defaults, and your custom values will override automatic headers with the same name." },
+  { question: "Can I send form data or file uploads?", answer: "The API block primarily sends JSON request bodies through the UI. The underlying HTTP tool also supports form data natively — if you pass form data parameters, it will construct a proper multipart/form-data request automatically. For most use cases, the JSON body field in the block UI is sufficient." },
+]} />

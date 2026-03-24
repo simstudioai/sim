@@ -40,6 +40,8 @@ export function getTriggerOptions(): TriggerOption[] {
     { value: 'mcp', label: 'MCP', color: '#dc2626' },
     { value: 'a2a', label: 'A2A', color: '#14b8a6' },
     { value: 'copilot', label: 'Copilot', color: '#ec4899' },
+    { value: 'mothership', label: 'Mothership', color: '#ec4899' },
+    { value: 'workflow', label: 'Workflow', color: '#0369a1' },
   ]
 
   for (const trigger of triggers) {

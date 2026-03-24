@@ -694,5 +694,5 @@ export function flattenBlockEntriesOnly(
 export const TERMINAL_CONFIG = {
   NEAR_MIN_THRESHOLD: 40,
   BLOCK_COLUMN_WIDTH_PX: TERMINAL_BLOCK_COLUMN_WIDTH,
-  HEADER_TEXT_CLASS: 'font-medium text-[var(--text-tertiary)] text-[12px]',
+  HEADER_TEXT_CLASS: 'font-base text-[var(--text-icon)] text-small',
 } as const

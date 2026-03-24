@@ -4,15 +4,15 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
-  canCreateTable,
   createTable,
   getWorkspaceTableLimits,
   listTables,
   TABLE_LIMITS,
   type TableSchema,
+  type TableScope,
 } from '@/lib/table'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { normalizeColumn } from './utils'
+import { normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableAPI')
 
@@ -66,10 +66,12 @@ const CreateTableSchema = z.object({
       ),
   }),
   workspaceId: z.string().min(1, 'Workspace ID is required'),
+  initialRowCount: z.number().int().min(0).max(100).optional(),
 })
 
 const ListTablesSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
+  scope: z.enum(['active', 'archived', 'all']).optional().default('active'),
 })
 
 interface WorkspaceAccessResult {
@@ -101,7 +103,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const body: unknown = await request.json()
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+    }
+
     const params = CreateTableSchema.parse(body)
 
     const { hasAccess, canWrite } = await checkWorkspaceAccess(
@@ -113,22 +121,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Check billing plan limits
-    const existingTables = await listTables(params.workspaceId)
-    const { canCreate, maxTables } = await canCreateTable(params.workspaceId, existingTables.length)
-
-    if (!canCreate) {
-      return NextResponse.json(
-        {
-          error: `Workspace has reached the maximum table limit (${maxTables}) for your plan. Please upgrade to create more tables.`,
-        },
-        { status: 403 }
-      )
-    }
-
-    // Get plan-based row limits
     const planLimits = await getWorkspaceTableLimits(params.workspaceId)
-    const maxRowsPerTable = planLimits.maxRowsPerTable
 
     const normalizedSchema: TableSchema = {
       columns: params.schema.columns.map(normalizeColumn),
@@ -141,7 +134,9 @@ export async function POST(request: NextRequest) {
         schema: normalizedSchema,
         workspaceId: params.workspaceId,
         userId: authResult.userId,
-        maxRows: maxRowsPerTable,
+        maxRows: planLimits.maxRowsPerTable,
+        maxTables: planLimits.maxTables,
+        initialRowCount: params.initialRowCount,
       },
       requestId
     )
@@ -153,7 +148,9 @@ export async function POST(request: NextRequest) {
           id: table.id,
           name: table.name,
           description: table.description,
-          schema: table.schema,
+          schema: {
+            columns: (table.schema as TableSchema).columns.map(normalizeColumn),
+          },
           rowCount: table.rowCount,
           maxRows: table.maxRows,
           createdAt:
@@ -177,11 +174,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (error instanceof Error) {
+      if (error.message.includes('maximum table limit')) {
+        return NextResponse.json({ error: error.message }, { status: 403 })
+      }
       if (
         error.message.includes('Invalid table name') ||
         error.message.includes('Invalid schema') ||
-        error.message.includes('already exists') ||
-        error.message.includes('maximum table limit')
+        error.message.includes('already exists')
       ) {
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
@@ -204,8 +203,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const workspaceId = searchParams.get('workspaceId')
+    const scope = searchParams.get('scope')
 
-    const validation = ListTablesSchema.safeParse({ workspaceId })
+    const validation = ListTablesSchema.safeParse({ workspaceId, scope })
     if (!validation.success) {
       return NextResponse.json(
         { error: 'Validation error', details: validation.error.errors },
@@ -221,7 +221,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    const tables = await listTables(params.workspaceId)
+    const tables = await listTables(params.workspaceId, { scope: params.scope as TableScope })
 
     logger.info(`[${requestId}] Listed ${tables.length} tables in workspace ${params.workspaceId}`)
 
@@ -231,10 +231,15 @@ export async function GET(request: NextRequest) {
         tables: tables.map((t) => {
           const schemaData = t.schema as TableSchema
           return {
-            ...t,
+            id: t.id,
+            name: t.name,
+            description: t.description,
             schema: {
               columns: schemaData.columns.map(normalizeColumn),
             },
+            rowCount: t.rowCount,
+            maxRows: t.maxRows,
+            createdBy: t.createdBy,
             createdAt:
               t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
             updatedAt:

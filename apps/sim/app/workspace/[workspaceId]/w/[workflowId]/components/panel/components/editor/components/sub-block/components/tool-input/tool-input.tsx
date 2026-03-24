@@ -53,22 +53,18 @@ import {
   type CustomTool as CustomToolDefinition,
   useCustomTools,
 } from '@/hooks/queries/custom-tools'
+import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
 import {
   useForceRefreshMcpTools,
   useMcpServers,
   useMcpToolsEvents,
   useStoredMcpTools,
 } from '@/hooks/queries/mcp'
-import {
-  useChildDeploymentStatus,
-  useDeployChildWorkflow,
-  useWorkflowState,
-  useWorkflows,
-} from '@/hooks/queries/workflows'
+import { useWorkflowState, useWorkflows } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
-import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import {
@@ -200,9 +196,6 @@ function WorkflowInputMapperInput({
   )
 }
 
-/**
- * Badge component showing deployment status for workflow tools
- */
 function WorkflowToolDeployBadge({
   workflowId,
   onDeploySuccess,
@@ -210,18 +203,17 @@ function WorkflowToolDeployBadge({
   workflowId: string
   onDeploySuccess?: () => void
 }) {
-  const { data, isLoading } = useChildDeploymentStatus(workflowId)
-  const deployMutation = useDeployChildWorkflow()
+  const { data, isLoading } = useDeploymentInfo(workflowId)
+  const { mutate, isPending: isDeploying } = useDeployWorkflow()
   const userPermissions = useUserPermissionsContext()
 
   const isDeployed = data?.isDeployed ?? null
-  const needsRedeploy = data?.needsRedeploy ?? false
-  const isDeploying = deployMutation.isPending
+  const needsRedeploy = data?.needsRedeployment ?? false
 
   const deployWorkflow = useCallback(() => {
     if (isDeploying || !workflowId || !userPermissions.canAdmin) return
 
-    deployMutation.mutate(
+    mutate(
       { workflowId },
       {
         onSuccess: () => {
@@ -229,7 +221,7 @@ function WorkflowToolDeployBadge({
         },
       }
     )
-  }, [isDeploying, workflowId, userPermissions.canAdmin, deployMutation, onDeploySuccess])
+  }, [isDeploying, workflowId, userPermissions.canAdmin, mutate, onDeploySuccess])
 
   if (isLoading || (isDeployed && !needsRedeploy)) {
     return null
@@ -514,7 +506,7 @@ export const ToolInput = memo(function ToolInput({
   const { data: storedMcpTools = [] } = useStoredMcpTools(workspaceId)
   const forceRefreshMcpTools = useForceRefreshMcpTools()
   useMcpToolsEvents(workspaceId)
-  const openSettingsModal = useSettingsModalStore((state) => state.openModal)
+  const { navigateToSettings } = useSettingsNavigation()
   const mcpDataLoading = mcpLoading || mcpServersLoading
 
   const { data: workflowsList = [] } = useWorkflows(workspaceId, { syncRegistry: false })
@@ -1387,7 +1379,7 @@ export const ToolInput = memo(function ToolInput({
         icon: McpIcon,
         onSelect: () => {
           setOpen(false)
-          window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'mcp' } }))
+          navigateToSettings({ section: 'mcp' })
         },
         disabled: isPreview,
       })
@@ -1745,7 +1737,7 @@ export const ToolInput = memo(function ToolInput({
                               onClick={(e: React.MouseEvent) => {
                                 e.stopPropagation()
                                 e.preventDefault()
-                                openSettingsModal({ section: 'mcp', mcpServerId: serverId })
+                                navigateToSettings({ section: 'mcp', mcpServerId: serverId })
                               }}
                             >
                               {getIssueBadgeLabel(issue)}

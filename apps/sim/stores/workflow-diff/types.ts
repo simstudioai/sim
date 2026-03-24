@@ -16,6 +16,14 @@ export interface WorkflowDiffState {
 export interface DiffActionOptions {
   /** Skip recording this operation for undo/redo. Used during undo/redo replay. */
   skipRecording?: boolean
+  /** Skip persisting to DB. Use when the server tool already saved (e.g. edit_workflow). */
+  skipPersist?: boolean
+  /**
+   * Explicit baseline snapshot to diff against.
+   * Use this when the proposed state is fetched asynchronously and the live
+   * workflow store may have already been updated to that same state.
+   */
+  baselineWorkflow?: WorkflowState
 }
 
 export interface WorkflowDiffActions {

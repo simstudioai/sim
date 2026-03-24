@@ -1,36 +1,32 @@
-'use client'
-
+import { getNavBlogPosts } from '@/lib/blog/registry'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
-import Footer from '@/app/(landing)/components/footer/footer'
-import Nav from '@/app/(landing)/components/nav/nav'
+import Footer from '@/app/(home)/components/footer/footer'
+import Navbar from '@/app/(home)/components/navbar/navbar'
 
 interface LegalLayoutProps {
   title: string
   children: React.ReactNode
-  navVariant?: 'landing' | 'auth' | 'legal'
 }
 
-export default function LegalLayout({ title, children, navVariant = 'legal' }: LegalLayoutProps) {
-  return (
-    <main className={`${soehne.className} min-h-screen bg-white text-gray-900`}>
-      {/* Header - Nav handles all conditional logic */}
-      <Nav variant={navVariant} />
+export default async function LegalLayout({ title, children }: LegalLayoutProps) {
+  const blogPosts = await getNavBlogPosts()
 
-      {/* Content */}
-      <div className='px-12 pt-[40px] pb-[40px]'>
-        <h1 className='mb-12 text-center font-bold text-4xl text-gray-900 md:text-5xl'>{title}</h1>
-        <div className='prose prose-gray mx-auto prose-h2:mt-12 prose-h3:mt-8 prose-h2:mb-6 prose-h3:mb-4 space-y-8 text-gray-700'>
+  return (
+    <main className='min-h-screen bg-[#1C1C1C] font-[430] font-season text-[#ECECEC]'>
+      <header>
+        <Navbar blogPosts={blogPosts} />
+      </header>
+
+      <div className='mx-auto max-w-[800px] px-6 pt-[60px] pb-[80px] sm:px-12'>
+        <h1 className='mb-12 text-center font-[500] text-4xl text-[#ECECEC] md:text-5xl'>
+          {title}
+        </h1>
+        <div className='space-y-8 text-[#999] text-[15px] leading-[1.7] [&_h2]:mt-12 [&_h2]:mb-6 [&_h2]:text-[#ECECEC] [&_h3]:mt-8 [&_h3]:mb-4 [&_h3]:text-[#ECECEC] [&_li]:text-[#999] [&_strong]:text-[#ECECEC]'>
           {children}
         </div>
       </div>
 
-      {/* Footer - Only for hosted instances */}
-      {isHosted && (
-        <div className='relative z-20'>
-          <Footer fullWidth={true} />
-        </div>
-      )}
+      {isHosted && <Footer hideCTA />}
     </main>
   )
 }

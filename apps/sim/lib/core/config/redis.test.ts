@@ -14,20 +14,27 @@ vi.mock('ioredis', () => ({
   default: MockRedisConstructor,
 }))
 
+import {
+  closeRedisConnection,
+  getRedisClient,
+  onRedisReconnect,
+  resetForTesting,
+} from '@/lib/core/config/redis'
+
 describe('redis config', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
+    resetForTesting()
+    MockRedisConstructor.mockImplementation(() => mockRedisInstance)
   })
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.resetModules()
   })
 
   describe('onRedisReconnect', () => {
     it('should register and invoke reconnect listeners', async () => {
-      const { onRedisReconnect, getRedisClient } = await import('@/lib/core/config/redis')
       const listener = vi.fn()
       onRedisReconnect(listener)
 
@@ -41,7 +48,6 @@ describe('redis config', () => {
     })
 
     it('should not invoke listeners when PINGs succeed', async () => {
-      const { onRedisReconnect, getRedisClient } = await import('@/lib/core/config/redis')
       const listener = vi.fn()
       onRedisReconnect(listener)
 
@@ -56,7 +62,6 @@ describe('redis config', () => {
     })
 
     it('should reset failure count on successful PING', async () => {
-      const { onRedisReconnect, getRedisClient } = await import('@/lib/core/config/redis')
       const listener = vi.fn()
       onRedisReconnect(listener)
 
@@ -74,7 +79,6 @@ describe('redis config', () => {
     })
 
     it('should call disconnect(true) after 2 consecutive PING failures', async () => {
-      const { getRedisClient } = await import('@/lib/core/config/redis')
       getRedisClient()
 
       mockRedisInstance.ping.mockRejectedValue(new Error('ETIMEDOUT'))
@@ -87,7 +91,6 @@ describe('redis config', () => {
     })
 
     it('should handle listener errors gracefully without breaking health check', async () => {
-      const { onRedisReconnect, getRedisClient } = await import('@/lib/core/config/redis')
       const badListener = vi.fn(() => {
         throw new Error('listener crashed')
       })
@@ -107,7 +110,6 @@ describe('redis config', () => {
 
   describe('closeRedisConnection', () => {
     it('should clear the PING interval', async () => {
-      const { getRedisClient, closeRedisConnection } = await import('@/lib/core/config/redis')
       getRedisClient()
 
       mockRedisInstance.quit.mockResolvedValue('OK')
@@ -120,23 +122,20 @@ describe('redis config', () => {
   })
 
   describe('retryStrategy', () => {
-    async function captureRetryStrategy(): Promise<(times: number) => number> {
-      vi.resetModules()
-
+    function captureRetryStrategy(): (times: number) => number {
       let capturedConfig: Record<string, unknown> = {}
       MockRedisConstructor.mockImplementation((_url: string, config: Record<string, unknown>) => {
         capturedConfig = config
         return { ping: vi.fn(), on: vi.fn() }
       })
 
-      const { getRedisClient } = await import('@/lib/core/config/redis')
       getRedisClient()
 
       return capturedConfig.retryStrategy as (times: number) => number
     }
 
-    it('should use exponential backoff with jitter', async () => {
-      const retryStrategy = await captureRetryStrategy()
+    it('should use exponential backoff with jitter', () => {
+      const retryStrategy = captureRetryStrategy()
       expect(retryStrategy).toBeDefined()
 
       const delay1 = retryStrategy(1)
@@ -152,8 +151,8 @@ describe('redis config', () => {
       expect(delay5).toBeLessThanOrEqual(13000)
     })
 
-    it('should cap at 30s for attempts beyond 10', async () => {
-      const retryStrategy = await captureRetryStrategy()
+    it('should cap at 30s for attempts beyond 10', () => {
+      const retryStrategy = captureRetryStrategy()
       expect(retryStrategy(11)).toBe(30000)
       expect(retryStrategy(100)).toBe(30000)
     })

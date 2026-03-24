@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -132,7 +132,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         const existingIdentifier = await db
           .select()
           .from(chat)
-          .where(eq(chat.identifier, identifier))
+          .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
           .limit(1)
 
         if (existingIdentifier.length > 0 && existingIdentifier[0].id !== chatId) {

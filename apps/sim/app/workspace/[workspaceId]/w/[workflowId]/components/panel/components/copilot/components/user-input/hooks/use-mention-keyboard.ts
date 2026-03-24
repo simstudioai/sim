@@ -1,5 +1,4 @@
 import { type KeyboardEvent, useCallback, useMemo } from 'react'
-import type { MentionFolderNav } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/components'
 import {
   FOLDER_CONFIGS,
   FOLDER_ORDER,
@@ -10,6 +9,7 @@ import type {
   useMentionData,
   useMentionMenu,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
+import type { MentionFolderNav } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/types'
 import {
   getFolderData as getFolderDataUtil,
   getFolderEnsureLoaded as getFolderEnsureLoadedUtil,

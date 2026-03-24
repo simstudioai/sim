@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
 import { Search, X } from 'lucide-react'
-import { Badge, Popover, PopoverAnchor, PopoverContent } from '@/components/emcn'
+import { Badge } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { type ParsedFilter, parseQuery } from '@/lib/logs/query-parser'
@@ -154,15 +155,16 @@ export function AutocompleteSearch({
   return (
     <div className={cn('relative', className)}>
       {/* Search Input with Inline Badges */}
-      <Popover
+      <DropdownMenuPrimitive.Root
         open={isOpen}
         onOpenChange={(open) => {
           if (!open) {
             setHighlightedIndex(-1)
           }
         }}
+        modal={false}
       >
-        <PopoverAnchor asChild>
+        <DropdownMenuPrimitive.Trigger asChild>
           <div className='relative flex h-[32px] w-[400px] items-center rounded-[8px] bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
             {/* Search Icon */}
             <Search className='mr-[6px] ml-[8px] h-[14px] w-[14px] flex-shrink-0 text-[var(--text-subtle)]' />
@@ -245,124 +247,126 @@ export function AutocompleteSearch({
               </button>
             )}
           </div>
-        </PopoverAnchor>
+        </DropdownMenuPrimitive.Trigger>
 
         {/* Dropdown */}
-        <PopoverContent
-          ref={dropdownRef}
-          className='p-0'
-          style={{ width: dropdownWidth }}
-          align='start'
-          sideOffset={4}
-          onOpenAutoFocus={(e) => e.preventDefault()}
-        >
-          <div className='max-h-96 overflow-y-auto px-1'>
-            {sections.length > 0 ? (
-              <div className='py-1'>
-                {/* Show all results (no header) */}
-                {suggestions[0]?.category === 'show-all' && (
-                  <button
-                    key={suggestions[0].id}
-                    data-index={0}
-                    className={cn(
-                      'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
-                      'hover:bg-[var(--surface-5)]',
-                      highlightedIndex === 0 && 'bg-[var(--surface-5)]'
-                    )}
-                    onMouseEnter={() => setHighlightedIndex(0)}
-                    onMouseDown={(e) => {
-                      e.preventDefault()
-                      handleSuggestionSelect(suggestions[0])
-                    }}
-                  >
-                    <div className='text-[13px]'>{suggestions[0].label}</div>
-                  </button>
-                )}
-
-                {sections.map((section) => (
-                  <div key={section.title}>
-                    <div className='px-3 py-1.5 font-medium text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide'>
-                      {section.title}
-                    </div>
-                    {section.suggestions.map((suggestion) => {
-                      if (suggestion.category === 'show-all') return null
-
-                      const index = suggestions.indexOf(suggestion)
-                      const isHighlighted = index === highlightedIndex
-
-                      return (
-                        <button
-                          key={suggestion.id}
-                          data-index={index}
-                          className={cn(
-                            'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
-                            'hover:bg-[var(--surface-5)]',
-                            isHighlighted && 'bg-[var(--surface-5)]'
-                          )}
-                          onMouseEnter={() => setHighlightedIndex(index)}
-                          onMouseDown={(e) => {
-                            e.preventDefault()
-                            handleSuggestionSelect(suggestion)
-                          }}
-                        >
-                          <div className='flex items-center justify-between gap-3'>
-                            <div className='min-w-0 flex-1 truncate text-[13px]'>
-                              {suggestion.label}
-                            </div>
-                            {suggestion.value !== suggestion.label && (
-                              <div className='shrink-0 font-mono text-[11px] text-[var(--text-muted)]'>
-                                {suggestion.category === 'workflow' ||
-                                suggestion.category === 'folder'
-                                  ? `${suggestion.category}:`
-                                  : ''}
-                              </div>
-                            )}
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              // Single section layout
-              <div className='py-1'>
-                {suggestionType === 'filters' && (
-                  <div className='px-3 py-1.5 font-medium text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide'>
-                    SUGGESTED FILTERS
-                  </div>
-                )}
-
-                {suggestions.map((suggestion, index) => (
-                  <button
-                    key={suggestion.id}
-                    data-index={index}
-                    className={cn(
-                      'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
-                      'hover:bg-[var(--surface-5)]',
-                      index === highlightedIndex && 'bg-[var(--surface-5)]'
-                    )}
-                    onMouseEnter={() => setHighlightedIndex(index)}
-                    onMouseDown={(e) => {
-                      e.preventDefault()
-                      handleSuggestionSelect(suggestion)
-                    }}
-                  >
-                    <div className='flex items-center justify-between gap-3'>
-                      <div className='min-w-0 flex-1 text-[13px]'>{suggestion.label}</div>
-                      {suggestion.description && (
-                        <div className='shrink-0 text-[11px] text-[var(--text-muted)]'>
-                          {suggestion.value}
-                        </div>
+        <DropdownMenuPrimitive.Portal>
+          <DropdownMenuPrimitive.Content
+            ref={dropdownRef}
+            className='z-50 rounded-[8px] border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+            style={{ width: dropdownWidth }}
+            align='start'
+            sideOffset={4}
+            onCloseAutoFocus={(e) => e.preventDefault()}
+          >
+            <div className='max-h-96 overflow-y-auto px-1'>
+              {sections.length > 0 ? (
+                <div className='py-1'>
+                  {/* Show all results (no header) */}
+                  {suggestions[0]?.category === 'show-all' && (
+                    <button
+                      key={suggestions[0].id}
+                      data-index={0}
+                      className={cn(
+                        'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
+                        'hover:bg-[var(--surface-5)]',
+                        highlightedIndex === 0 && 'bg-[var(--surface-5)]'
                       )}
+                      onMouseEnter={() => setHighlightedIndex(0)}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        handleSuggestionSelect(suggestions[0])
+                      }}
+                    >
+                      <div className='text-[13px]'>{suggestions[0].label}</div>
+                    </button>
+                  )}
+
+                  {sections.map((section) => (
+                    <div key={section.title}>
+                      <div className='px-3 py-1.5 font-medium text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide'>
+                        {section.title}
+                      </div>
+                      {section.suggestions.map((suggestion) => {
+                        if (suggestion.category === 'show-all') return null
+
+                        const index = suggestions.indexOf(suggestion)
+                        const isHighlighted = index === highlightedIndex
+
+                        return (
+                          <button
+                            key={suggestion.id}
+                            data-index={index}
+                            className={cn(
+                              'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
+                              'hover:bg-[var(--surface-5)]',
+                              isHighlighted && 'bg-[var(--surface-5)]'
+                            )}
+                            onMouseEnter={() => setHighlightedIndex(index)}
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              handleSuggestionSelect(suggestion)
+                            }}
+                          >
+                            <div className='flex items-center justify-between gap-3'>
+                              <div className='min-w-0 flex-1 truncate text-[13px]'>
+                                {suggestion.label}
+                              </div>
+                              {suggestion.value !== suggestion.label && (
+                                <div className='shrink-0 font-mono text-[11px] text-[var(--text-muted)]'>
+                                  {suggestion.category === 'workflow' ||
+                                  suggestion.category === 'folder'
+                                    ? `${suggestion.category}:`
+                                    : ''}
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
                     </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
+                  ))}
+                </div>
+              ) : (
+                // Single section layout
+                <div className='py-1'>
+                  {suggestionType === 'filters' && (
+                    <div className='px-3 py-1.5 font-medium text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide'>
+                      SUGGESTED FILTERS
+                    </div>
+                  )}
+
+                  {suggestions.map((suggestion, index) => (
+                    <button
+                      key={suggestion.id}
+                      data-index={index}
+                      className={cn(
+                        'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
+                        'hover:bg-[var(--surface-5)]',
+                        index === highlightedIndex && 'bg-[var(--surface-5)]'
+                      )}
+                      onMouseEnter={() => setHighlightedIndex(index)}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        handleSuggestionSelect(suggestion)
+                      }}
+                    >
+                      <div className='flex items-center justify-between gap-3'>
+                        <div className='min-w-0 flex-1 text-[13px]'>{suggestion.label}</div>
+                        {suggestion.description && (
+                          <div className='shrink-0 text-[11px] text-[var(--text-muted)]'>
+                            {suggestion.value}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DropdownMenuPrimitive.Content>
+        </DropdownMenuPrimitive.Portal>
+      </DropdownMenuPrimitive.Root>
     </div>
   )
 }

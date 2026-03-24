@@ -12,7 +12,7 @@ import {
 } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { io, type Socket } from 'socket.io-client'
+import type { Socket } from 'socket.io-client'
 import { getEnv } from '@/lib/core/config/env'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 
@@ -197,8 +197,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     initializedRef.current = true
     setIsConnecting(true)
 
-    const initializeSocket = () => {
+    const initializeSocket = async () => {
       try {
+        const { io } = await import('socket.io-client')
         const socketUrl = getEnv('NEXT_PUBLIC_SOCKET_URL') || 'http://localhost:3002'
 
         logger.info('Attempting to connect to Socket.IO server', {

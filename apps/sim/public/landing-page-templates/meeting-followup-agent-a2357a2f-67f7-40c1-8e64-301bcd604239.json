@@ -1,0 +1,813 @@
+{
+  "version": "1.0",
+  "exportedAt": "2026-03-09T21:40:19.013Z",
+  "state": {
+    "blocks": {
+      "9f657d7a-b6d0-4a9d-aaac-ffc909df1b24": {
+        "id": "9f657d7a-b6d0-4a9d-aaac-ffc909df1b24",
+        "type": "schedule",
+        "name": "Start",
+        "position": {
+          "x": 150,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": true,
+        "height": 114,
+        "subBlocks": {
+          "timezone": {
+            "id": "timezone",
+            "type": "short-input",
+            "value": "America/New_York"
+          },
+          "inputFormat": {
+            "id": "inputFormat",
+            "type": "input-format",
+            "value": [
+              {
+                "id": "f7bc7ff9-8c98-4bc2-a193-8884ea3a203f",
+                "name": "",
+                "type": "string",
+                "value": "",
+                "collapsed": false
+              }
+            ]
+          },
+          "scheduleType": {
+            "id": "scheduleType",
+            "type": "short-input",
+            "value": "minutes"
+          },
+          "minutesInterval": {
+            "id": "minutesInterval",
+            "type": "short-input",
+            "value": "15"
+          }
+        },
+        "outputs": {
+          "files": {
+            "type": "file[]",
+            "description": "User uploaded files"
+          },
+          "input": {
+            "type": "string",
+            "description": "Primary user input or message"
+          },
+          "conversationId": {
+            "type": "string",
+            "description": "Conversation thread identifier"
+          }
+        },
+        "data": {},
+        "locked": false
+      },
+      "b6030d6c-ad21-41b2-bd43-8e2ce9633ef1": {
+        "id": "b6030d6c-ad21-41b2-bd43-8e2ce9633ef1",
+        "type": "function",
+        "name": "parseAttendees",
+        "position": {
+          "x": 1588,
+          "y": 136
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 100,
+        "subBlocks": {
+          "code": {
+            "id": "code",
+            "type": "short-input",
+            "value": "const attendeesString = input.attendees || '';\nconst attendeesArray = attendeesString.split(',').map(email => email.trim()).filter(email => email.length > 0);\nreturn { attendees: attendeesArray };"
+          },
+          "language": {
+            "id": "language",
+            "type": "short-input",
+            "value": "javascript"
+          }
+        },
+        "outputs": {
+          "result": {
+            "type": "json",
+            "description": "Return value from the executed JavaScript function"
+          },
+          "stdout": {
+            "type": "string",
+            "description": "Console log output and debug messages from function execution"
+          }
+        },
+        "data": {},
+        "locked": false
+      },
+      "a2b4bbcb-aa56-46ce-9e42-2e4933c57f71": {
+        "id": "a2b4bbcb-aa56-46ce-9e42-2e4933c57f71",
+        "type": "loop",
+        "name": "attendeeLoop",
+        "position": {
+          "x": 2150,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 0,
+        "subBlocks": {
+          "loopType": {
+            "id": "loopType",
+            "type": "short-input",
+            "value": "forEach"
+          },
+          "collection": {
+            "id": "collection",
+            "type": "short-input",
+            "value": "<parseAttendees.result.attendees>"
+          }
+        },
+        "outputs": {},
+        "data": {
+          "width": 550,
+          "height": 588,
+          "loopType": "forEach",
+          "collection": "<parseAttendees.result.attendees>",
+          "whileCondition": "",
+          "doWhileCondition": ""
+        },
+        "locked": false
+      },
+      "663243e9-73ee-4efb-beae-65ddcbe480f8": {
+        "id": "663243e9-73ee-4efb-beae-65ddcbe480f8",
+        "type": "note",
+        "name": "Calendar Setup",
+        "position": {
+          "x": 648,
+          "y": -54
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 0,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "short-input",
+            "value": "- Connect Google Calendar Account \n- Select Calendar \n- Set Start and End Time Filters"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      },
+      "ce6ca249-fcdf-45fc-824e-0511879469f2": {
+        "id": "ce6ca249-fcdf-45fc-824e-0511879469f2",
+        "type": "agent",
+        "name": "emailDrafter",
+        "position": {
+          "x": 1150,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 259,
+        "subBlocks": {
+          "model": {
+            "id": "model",
+            "type": "short-input",
+            "value": "gemini-2.5-pro"
+          },
+          "tools": {
+            "id": "tools",
+            "type": "tool-input",
+            "value": []
+          },
+          "apiKey": {
+            "id": "apiKey",
+            "type": "short-input",
+            "value": null
+          },
+          "skills": {
+            "id": "skills",
+            "type": "skill-input",
+            "value": null
+          },
+          "messages": {
+            "id": "messages",
+            "type": "messages-input",
+            "value": [
+              {
+                "role": "system",
+                "content": "Draft follow-up emails based on meeting details. Create a professional follow-up email summarizing the meeting and any action items.\n\nIMPORTANT: For the attendees field, you MUST return a comma-separated string of email addresses, NOT an array. Format example: \"john@example.com, jane@example.com, bob@example.com\""
+              },
+              {
+                "role": "user",
+                "content": "Meeting details:\nTitle: <calendarevents.events>\n\nPlease draft a professional follow-up email for this meeting. Include:\n1. Thank the attendees for their time\n2. Summarize key discussion points from the meeting title/description\n3. List any action items or next steps\n4. Professional sign-off\n\nRemember: Return attendees as a comma-separated string like \"email1@example.com, email2@example.com\""
+              }
+            ]
+          },
+          "maxTokens": {
+            "id": "maxTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "verbosity": {
+            "id": "verbosity",
+            "type": "dropdown",
+            "value": null
+          },
+          "memoryType": {
+            "id": "memoryType",
+            "type": "dropdown",
+            "value": "none"
+          },
+          "temperature": {
+            "id": "temperature",
+            "type": "short-input",
+            "value": 0.3
+          },
+          "azureEndpoint": {
+            "id": "azureEndpoint",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockRegion": {
+            "id": "bedrockRegion",
+            "type": "short-input",
+            "value": null
+          },
+          "thinkingLevel": {
+            "id": "thinkingLevel",
+            "type": "dropdown",
+            "value": null
+          },
+          "vertexProject": {
+            "id": "vertexProject",
+            "type": "short-input",
+            "value": null
+          },
+          "conversationId": {
+            "id": "conversationId",
+            "type": "short-input",
+            "value": null
+          },
+          "responseFormat": {
+            "id": "responseFormat",
+            "type": "short-input",
+            "value": "{\n  \"json_schema\": {\n    \"name\": \"email_output\",\n    \"schema\": {\n      \"additionalProperties\": false,\n      \"properties\": {\n        \"attendees\": {\n          \"description\": \"A comma-separated string of attendee email addresses. Format as: email1@example.com, email2@example.com (NOT an array, must be a single string with emails separated by commas)\",\n          \"type\": \"string\"\n        },\n        \"body\": {\n          \"description\": \"Email body content\",\n          \"type\": \"string\"\n        },\n        \"subject\": {\n          \"description\": \"Email subject line\",\n          \"type\": \"string\"\n        }\n      },\n      \"required\": [\n        \"subject\",\n        \"body\",\n        \"attendees\"\n      ],\n      \"type\": \"object\"\n    },\n    \"strict\": true\n  },\n  \"type\": \"json_schema\"\n}"
+          },
+          "vertexLocation": {
+            "id": "vertexLocation",
+            "type": "short-input",
+            "value": null
+          },
+          "azureApiVersion": {
+            "id": "azureApiVersion",
+            "type": "short-input",
+            "value": null
+          },
+          "reasoningEffort": {
+            "id": "reasoningEffort",
+            "type": "dropdown",
+            "value": null
+          },
+          "bedrockSecretKey": {
+            "id": "bedrockSecretKey",
+            "type": "short-input",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": null
+          },
+          "vertexCredential": {
+            "id": "vertexCredential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "slidingWindowSize": {
+            "id": "slidingWindowSize",
+            "type": "short-input",
+            "value": null
+          },
+          "bedrockAccessKeyId": {
+            "id": "bedrockAccessKeyId",
+            "type": "short-input",
+            "value": null
+          },
+          "slidingWindowTokens": {
+            "id": "slidingWindowTokens",
+            "type": "short-input",
+            "value": null
+          },
+          "previousInteractionId": {
+            "id": "previousInteractionId",
+            "type": "short-input",
+            "value": null
+          }
+        },
+        "outputs": {
+          "cost": {
+            "type": "json",
+            "description": "Cost of the API call"
+          },
+          "model": {
+            "type": "string",
+            "description": "Model used for generation"
+          },
+          "tokens": {
+            "type": "json",
+            "description": "Token usage statistics"
+          },
+          "content": {
+            "type": "string",
+            "description": "Generated response content"
+          },
+          "toolCalls": {
+            "type": "json",
+            "description": "Tool calls made"
+          },
+          "providerTiming": {
+            "type": "json",
+            "description": "Provider timing information"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "oauthCredential": "basic"
+          }
+        },
+        "locked": false
+      },
+      "ddb0094c-3f55-43e1-8198-8372a63c0a2c": {
+        "id": "ddb0094c-3f55-43e1-8198-8372a63c0a2c",
+        "type": "google_calendar_v2",
+        "name": "calendarEvents",
+        "position": {
+          "x": 649,
+          "y": 150
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 230,
+        "subBlocks": {
+          "text": {
+            "id": "text",
+            "type": "long-input",
+            "value": null
+          },
+          "eventId": {
+            "id": "eventId",
+            "type": "short-input",
+            "value": null
+          },
+          "summary": {
+            "id": "summary",
+            "type": "short-input",
+            "value": null
+          },
+          "timeMax": {
+            "id": "timeMax",
+            "type": "short-input",
+            "value": ""
+          },
+          "timeMin": {
+            "id": "timeMin",
+            "type": "short-input",
+            "value": ""
+          },
+          "location": {
+            "id": "location",
+            "type": "short-input",
+            "value": null
+          },
+          "attendees": {
+            "id": "attendees",
+            "type": "short-input",
+            "value": null
+          },
+          "operation": {
+            "id": "operation",
+            "type": "short-input",
+            "value": "list"
+          },
+          "calendarId": {
+            "id": "calendarId",
+            "type": "file-selector",
+            "value": null
+          },
+          "credential": {
+            "id": "credential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "maxResults": {
+            "id": "maxResults",
+            "type": "short-input",
+            "value": null
+          },
+          "description": {
+            "id": "description",
+            "type": "long-input",
+            "value": null
+          },
+          "endDateTime": {
+            "id": "endDateTime",
+            "type": "short-input",
+            "value": null
+          },
+          "sendUpdates": {
+            "id": "sendUpdates",
+            "type": "dropdown",
+            "value": null
+          },
+          "minAccessRole": {
+            "id": "minAccessRole",
+            "type": "dropdown",
+            "value": null
+          },
+          "startDateTime": {
+            "id": "startDateTime",
+            "type": "short-input",
+            "value": null
+          },
+          "replaceExisting": {
+            "id": "replaceExisting",
+            "type": "dropdown",
+            "value": null
+          },
+          "manualCalendarId": {
+            "id": "manualCalendarId",
+            "type": "short-input",
+            "value": ""
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": ""
+          },
+          "destinationCalendar": {
+            "id": "destinationCalendar",
+            "type": "file-selector",
+            "value": null
+          },
+          "manualDestinationCalendarId": {
+            "id": "manualDestinationCalendarId",
+            "type": "short-input",
+            "value": null
+          }
+        },
+        "outputs": {
+          "events": {
+            "type": "json",
+            "description": "List of events"
+          },
+          "timeZone": {
+            "type": "string",
+            "optional": true,
+            "description": "Calendar time zone"
+          },
+          "nextPageToken": {
+            "type": "string",
+            "optional": true,
+            "description": "Next page token"
+          }
+        },
+        "data": {
+          "canonicalModes": {
+            "calendarId": "basic",
+            "oauthCredential": "basic",
+            "destinationCalendarId": "basic"
+          }
+        },
+        "locked": false
+      },
+      "836f06e4-b3d3-47f5-977d-1d1e98d1f029": {
+        "id": "836f06e4-b3d3-47f5-977d-1d1e98d1f029",
+        "type": "gmail_v2",
+        "name": "sendEmail",
+        "position": {
+          "x": 180,
+          "y": 100
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 288,
+        "subBlocks": {
+          "cc": {
+            "id": "cc",
+            "type": "short-input",
+            "value": null
+          },
+          "to": {
+            "id": "to",
+            "type": "short-input",
+            "value": "<loop.currentItem>"
+          },
+          "bcc": {
+            "id": "bcc",
+            "type": "short-input",
+            "value": null
+          },
+          "body": {
+            "id": "body",
+            "type": "short-input",
+            "value": "<emailDrafter.content.body>"
+          },
+          "query": {
+            "id": "query",
+            "type": "short-input",
+            "value": null
+          },
+          "folder": {
+            "id": "folder",
+            "type": "folder-selector",
+            "value": null
+          },
+          "subject": {
+            "id": "subject",
+            "type": "short-input",
+            "value": "<emailDrafter.content.subject>"
+          },
+          "labelIds": {
+            "id": "labelIds",
+            "type": "dropdown",
+            "value": null
+          },
+          "threadId": {
+            "id": "threadId",
+            "type": "short-input",
+            "value": null
+          },
+          "messageId": {
+            "id": "messageId",
+            "type": "short-input",
+            "value": null
+          },
+          "operation": {
+            "id": "operation",
+            "type": "short-input",
+            "value": "send_gmail"
+          },
+          "credential": {
+            "id": "credential",
+            "type": "oauth-input",
+            "value": null
+          },
+          "markAsRead": {
+            "id": "markAsRead",
+            "type": "switch",
+            "value": null
+          },
+          "maxResults": {
+            "id": "maxResults",
+            "type": "short-input",
+            "value": null
+          },
+          "unreadOnly": {
+            "id": "unreadOnly",
+            "type": "switch",
+            "value": null
+          },
+          "attachments": {
+            "id": "attachments",
+            "type": "short-input",
+            "value": null
+          },
+          "contentType": {
+            "id": "contentType",
+            "type": "short-input",
+            "value": "text"
+          },
+          "searchQuery": {
+            "id": "searchQuery",
+            "type": "short-input",
+            "value": null
+          },
+          "sourceLabel": {
+            "id": "sourceLabel",
+            "type": "folder-selector",
+            "value": null
+          },
+          "manualFolder": {
+            "id": "manualFolder",
+            "type": "short-input",
+            "value": null
+          },
+          "labelSelector": {
+            "id": "labelSelector",
+            "type": "folder-selector",
+            "value": null
+          },
+          "manualLabelId": {
+            "id": "manualLabelId",
+            "type": "short-input",
+            "value": null
+          },
+          "moveMessageId": {
+            "id": "moveMessageId",
+            "type": "short-input",
+            "value": null
+          },
+          "actionMessageId": {
+            "id": "actionMessageId",
+            "type": "short-input",
+            "value": null
+          },
+          "attachmentFiles": {
+            "id": "attachmentFiles",
+            "type": "file-upload",
+            "value": null
+          },
+          "destinationLabel": {
+            "id": "destinationLabel",
+            "type": "folder-selector",
+            "value": null
+          },
+          "manualCredential": {
+            "id": "manualCredential",
+            "type": "short-input",
+            "value": ""
+          },
+          "replyToMessageId": {
+            "id": "replyToMessageId",
+            "type": "short-input",
+            "value": null
+          },
+          "manualSourceLabel": {
+            "id": "manualSourceLabel",
+            "type": "short-input",
+            "value": null
+          },
+          "includeAttachments": {
+            "id": "includeAttachments",
+            "type": "switch",
+            "value": null
+          },
+          "triggerCredentials": {
+            "id": "triggerCredentials",
+            "type": "oauth-input",
+            "value": null
+          },
+          "labelFilterBehavior": {
+            "id": "labelFilterBehavior",
+            "type": "dropdown",
+            "value": null
+          },
+          "triggerInstructions": {
+            "id": "triggerInstructions",
+            "type": "text",
+            "value": null
+          },
+          "labelActionMessageId": {
+            "id": "labelActionMessageId",
+            "type": "short-input",
+            "value": null
+          },
+          "manualDestinationLabel": {
+            "id": "manualDestinationLabel",
+            "type": "short-input",
+            "value": null
+          },
+          "samplePayload_gmail_poller": {
+            "id": "samplePayload_gmail_poller",
+            "type": "code",
+            "value": null
+          }
+        },
+        "outputs": {
+          "id": {
+            "type": "string",
+            "optional": true,
+            "description": "Gmail message ID"
+          },
+          "labelIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "optional": true,
+            "description": "Email labels"
+          },
+          "threadId": {
+            "type": "string",
+            "optional": true,
+            "description": "Gmail thread ID"
+          }
+        },
+        "data": {
+          "extent": "parent",
+          "parentId": "a2b4bbcb-aa56-46ce-9e42-2e4933c57f71",
+          "canonicalModes": {
+            "folder": "basic",
+            "addLabelIds": "basic",
+            "attachments": "basic",
+            "manageLabelId": "basic",
+            "removeLabelIds": "basic",
+            "oauthCredential": "basic"
+          }
+        },
+        "locked": false
+      },
+      "038cd27a-de0c-479a-a69b-f424b5da01b3": {
+        "id": "038cd27a-de0c-479a-a69b-f424b5da01b3",
+        "type": "note",
+        "name": "Gmail Setup",
+        "position": {
+          "x": 2275,
+          "y": 12.5
+        },
+        "enabled": true,
+        "horizontalHandles": true,
+        "advancedMode": false,
+        "triggerMode": false,
+        "height": 114,
+        "subBlocks": {
+          "content": {
+            "id": "content",
+            "type": "short-input",
+            "value": "- Connect Gmail Account"
+          }
+        },
+        "outputs": {},
+        "data": {},
+        "locked": false
+      }
+    },
+    "edges": [
+      {
+        "id": "be295f73-9393-4d40-8b01-38fcbcf11674",
+        "source": "9f657d7a-b6d0-4a9d-aaac-ffc909df1b24",
+        "target": "ddb0094c-3f55-43e1-8198-8372a63c0a2c",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      },
+      {
+        "id": "e9b031b1-6957-44f4-a6e6-a9886bb11fb0",
+        "source": "ddb0094c-3f55-43e1-8198-8372a63c0a2c",
+        "target": "ce6ca249-fcdf-45fc-824e-0511879469f2",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      },
+      {
+        "id": "f8b3242c-d811-4988-a56a-34b06b7afaeb",
+        "source": "ce6ca249-fcdf-45fc-824e-0511879469f2",
+        "target": "b6030d6c-ad21-41b2-bd43-8e2ce9633ef1",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      },
+      {
+        "id": "bc0b49f7-6b21-49e6-9469-17885ffa8996",
+        "source": "b6030d6c-ad21-41b2-bd43-8e2ce9633ef1",
+        "target": "a2b4bbcb-aa56-46ce-9e42-2e4933c57f71",
+        "sourceHandle": "source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      },
+      {
+        "id": "05315d4f-81b4-464a-bfaf-5afef10d5608",
+        "source": "a2b4bbcb-aa56-46ce-9e42-2e4933c57f71",
+        "target": "836f06e4-b3d3-47f5-977d-1d1e98d1f029",
+        "sourceHandle": "loop-start-source",
+        "targetHandle": "target",
+        "type": "default",
+        "data": {}
+      }
+    ],
+    "loops": {
+      "a2b4bbcb-aa56-46ce-9e42-2e4933c57f71": {
+        "id": "a2b4bbcb-aa56-46ce-9e42-2e4933c57f71",
+        "nodes": ["836f06e4-b3d3-47f5-977d-1d1e98d1f029"],
+        "iterations": 5,
+        "loopType": "forEach",
+        "enabled": true,
+        "forEachItems": "<parseAttendees.result.attendees>",
+        "whileCondition": "",
+        "doWhileCondition": ""
+      }
+    },
+    "parallels": {},
+    "metadata": {
+      "name": "meeting-followup-agent",
+      "description": "New workflow",
+      "color": "#2ed96a",
+      "exportedAt": "2026-03-09T21:40:19.013Z"
+    },
+    "variables": {}
+  }
+}

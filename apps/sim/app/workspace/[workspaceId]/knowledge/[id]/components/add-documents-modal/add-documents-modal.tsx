@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Loader2, RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -48,7 +48,7 @@ export function AddDocumentsModal({
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragCounter, setDragCounter] = useState(0)
-  const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(new Set())
+  const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(() => new Set())
 
   const { isUploading, uploadProgress, uploadFiles, uploadError, clearError } = useKnowledgeUpload({
     workspaceId,
@@ -75,15 +75,25 @@ export function AddDocumentsModal({
     }
   }, [open, clearError])
 
+  /** Handles close with upload guard */
+  const handleOpenChange = useCallback(
+    (newOpen: boolean) => {
+      if (!newOpen) {
+        if (isUploading) return
+        setFiles([])
+        setFileError(null)
+        clearError()
+        setIsDragging(false)
+        setDragCounter(0)
+        setRetryingIndexes(new Set())
+      }
+      onOpenChange(newOpen)
+    },
+    [isUploading, clearError, onOpenChange]
+  )
+
   const handleClose = () => {
-    if (isUploading) return
-    setFiles([])
-    setFileError(null)
-    clearError()
-    setIsDragging(false)
-    setDragCounter(0)
-    setRetryingIndexes(new Set())
-    onOpenChange(false)
+    handleOpenChange(false)
   }
 
   const processFiles = async (fileList: FileList | File[]) => {
@@ -220,9 +230,9 @@ export function AddDocumentsModal({
   }
 
   return (
-    <Modal open={open} onOpenChange={handleClose}>
+    <Modal open={open} onOpenChange={handleOpenChange}>
       <ModalContent size='md'>
-        <ModalHeader>Add Documents</ModalHeader>
+        <ModalHeader>New Documents</ModalHeader>
 
         <ModalBody>
           <div className='min-h-0 flex-1 overflow-y-auto'>
@@ -347,7 +357,7 @@ export function AddDocumentsModal({
                 Cancel
               </Button>
               <Button
-                variant='tertiary'
+                variant='primary'
                 type='button'
                 onClick={handleUpload}
                 disabled={files.length === 0 || isUploading}

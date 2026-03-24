@@ -5,7 +5,7 @@ export const airtableListBasesTool: ToolConfig<AirtableListBasesParams, Airtable
   {
     id: 'airtable_list_bases',
     name: 'Airtable List Bases',
-    description: 'List all Airtable bases the user has access to',
+    description: 'List all bases the authenticated user has access to',
     version: '1.0.0',
 
     oauth: {
@@ -66,7 +66,7 @@ export const airtableListBasesTool: ToolConfig<AirtableListBasesParams, Airtable
     outputs: {
       bases: {
         type: 'array',
-        description: 'List of Airtable bases',
+        description: 'Array of Airtable bases with id, name, and permissionLevel',
         items: {
           type: 'object',
           properties: {

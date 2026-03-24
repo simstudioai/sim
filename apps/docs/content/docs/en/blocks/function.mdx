@@ -3,6 +3,7 @@ title: Function
 ---
 
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 The Function block executes custom JavaScript or TypeScript code in your workflows. Transform data, perform calculations, or implement custom logic.
 
@@ -71,3 +72,12 @@ return {
 - **Test edge cases**: Ensure your code handles unusual inputs, null values, and boundary conditions correctly
 - **Optimize for performance**: Be mindful of computational complexity and memory usage for large datasets
 - **Use console.log() for debugging**: Leverage stdout output to debug and monitor function execution
+
+<FAQ items={[
+  { question: "What languages does the Function block support?", answer: "The Function block supports JavaScript and Python. JavaScript is the default. Python support requires the E2B feature to be enabled, as Python code always runs in a secure E2B sandbox environment." },
+  { question: "When does code run locally vs. in a sandbox?", answer: "JavaScript code without external imports runs in a local isolated VM for fast execution. JavaScript code that uses import or require statements requires E2B and runs in a secure sandbox. Python code always runs in the E2B sandbox regardless of whether it has imports." },
+  { question: "How do I reference outputs from other blocks inside my code?", answer: "Use the angle bracket syntax directly in your code, like <agent.content> or <api.data>. Do not wrap these references in quotes — the system replaces them with actual values before execution. For environment variables, use double curly braces: {{API_KEY}}." },
+  { question: "What does the Function block return?", answer: "The Function block has two outputs: result (the return value of your code, accessed via <function.result>) and stdout (anything logged with console.log(), accessed via <function.stdout>). Make sure your code includes a return statement if you need to pass data to downstream blocks." },
+  { question: "Can I make HTTP requests from a Function block?", answer: "Yes. The fetch() API is available in the JavaScript execution environment. You can use async/await with fetch to call external APIs. However, you cannot use libraries like axios or request — only the built-in fetch is supported. Your code runs inside an async context automatically, so you can use await directly." },
+  { question: "Is there a timeout for Function block execution?", answer: "Yes. Function blocks have a configurable execution timeout. If your code exceeds the timeout, the execution is terminated and the block reports an error. Keep this in mind when making external API calls or processing large datasets." },
+]} />

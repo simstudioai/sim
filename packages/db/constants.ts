@@ -6,7 +6,7 @@
 /**
  * Default free credits (in dollars) for new users
  */
-export const DEFAULT_FREE_CREDITS = 20
+export const DEFAULT_FREE_CREDITS = 5
 
 /**
  * Storage limit constants (in GB)

@@ -28,7 +28,6 @@ import { formatDuration } from '@/lib/core/utils/formatting'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
-  FilterPopover,
   LogRowContextMenu,
   OutputPanel,
   StatusDisplay,
@@ -55,8 +54,7 @@ import {
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useShowTrainingControls } from '@/hooks/queries/general-settings'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
-import { useCopilotTrainingStore } from '@/stores/copilot-training/store'
-import { openCopilotWithMessage } from '@/stores/notifications/utils'
+import { sendMothershipMessage } from '@/stores/notifications/utils'
 import type { ConsoleEntry } from '@/stores/terminal'
 import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -108,7 +106,7 @@ const BlockRow = memo(function BlockRow({
       data-entry-id={entry.id}
       className={clsx(
         ROW_STYLES.base,
-        'h-[26px]',
+        'h-[30px]',
         isSelected ? ROW_STYLES.selected : ROW_STYLES.hover
       )}
       onClick={(e) => {
@@ -118,19 +116,15 @@ const BlockRow = memo(function BlockRow({
     >
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
         <div
-          className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
+          className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
           style={{ background: bgColor }}
         >
-          {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+          {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
         </div>
         <span
           className={clsx(
-            'min-w-0 truncate font-medium text-[13px]',
-            hasError
-              ? 'text-[var(--text-error)]'
-              : isSelected
-                ? 'text-[var(--text-primary)]'
-                : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+            'min-w-0 truncate font-base text-[14px]',
+            hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
           )}
         >
           {entry.blockName}
@@ -138,9 +132,8 @@ const BlockRow = memo(function BlockRow({
       </div>
       <span
         className={clsx(
-          'flex-shrink-0 font-medium text-[13px]',
-          !isRunning &&
-            (isCanceled ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]')
+          'flex-shrink-0 font-base text-[14px]',
+          !isRunning && 'text-[var(--text-secondary)]'
         )}
       >
         <StatusDisplay
@@ -187,7 +180,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
     <div className='flex min-w-0 flex-col'>
       {/* Iteration Header */}
       <div
-        className={clsx(ROW_STYLES.base, 'h-[26px]', ROW_STYLES.hover)}
+        className={clsx(ROW_STYLES.base, 'h-[30px]', ROW_STYLES.hover)}
         onClick={(e) => {
           e.stopPropagation()
           onToggle()
@@ -196,10 +189,8 @@ const IterationNodeRow = memo(function IterationNodeRow({
         <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
           <span
             className={clsx(
-              'min-w-0 truncate font-medium text-[13px]',
-              hasError
-                ? 'text-[var(--text-error)]'
-                : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+              'min-w-0 truncate font-base text-[14px]',
+              hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
             {iterationLabel}
@@ -207,7 +198,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
           {hasChildren && (
             <ChevronDown
               className={clsx(
-                'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
                 !isExpanded && '-rotate-90'
               )}
             />
@@ -215,9 +206,8 @@ const IterationNodeRow = memo(function IterationNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-medium text-[13px]',
-            !hasRunningChild &&
-              (hasCanceledChild ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]')
+            'flex-shrink-0 font-base text-[14px]',
+            !hasRunningChild && 'text-[var(--text-secondary)]'
           )}
         >
           <StatusDisplay
@@ -285,7 +275,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
     <div className='flex min-w-0 flex-col'>
       {/* Subflow Header */}
       <div
-        className={clsx(ROW_STYLES.base, 'h-[26px]', ROW_STYLES.hover)}
+        className={clsx(ROW_STYLES.base, 'h-[30px]', ROW_STYLES.hover)}
         onClick={(e) => {
           e.stopPropagation()
           onToggleNode(nodeId)
@@ -293,19 +283,15 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
       >
         <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
           <div
-            className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
+            className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+            {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
           </div>
           <span
             className={clsx(
-              'min-w-0 truncate font-medium text-[13px]',
-              hasError
-                ? 'text-[var(--text-error)]'
-                : isExpanded
-                  ? 'text-[var(--text-primary)]'
-                  : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+              'min-w-0 truncate font-base text-[14px]',
+              hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
             {displayName}
@@ -313,7 +299,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
           {hasChildren && (
             <ChevronDown
               className={clsx(
-                'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
                 !isExpanded && '-rotate-90'
               )}
             />
@@ -321,11 +307,8 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-medium text-[13px]',
-            !hasRunningDescendant &&
-              (hasCanceledDescendant
-                ? 'text-[var(--text-secondary)]'
-                : 'text-[var(--text-tertiary)]')
+            'flex-shrink-0 font-base text-[14px]',
+            !hasRunningDescendant && 'text-[var(--text-secondary)]'
           )}
         >
           <StatusDisplay
@@ -400,7 +383,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
       <div
         className={clsx(
           ROW_STYLES.base,
-          'h-[26px]',
+          'h-[30px]',
           isSelected ? ROW_STYLES.selected : ROW_STYLES.hover
         )}
         onClick={(e) => {
@@ -411,19 +394,15 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
       >
         <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
           <div
-            className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-[4px]'
+            className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+            {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
           </div>
           <span
             className={clsx(
-              'min-w-0 truncate font-medium text-[13px]',
-              hasError
-                ? 'text-[var(--text-error)]'
-                : isSelected || isExpanded
-                  ? 'text-[var(--text-primary)]'
-                  : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+              'min-w-0 truncate font-base text-[14px]',
+              hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
             {entry.blockName}
@@ -431,7 +410,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
           {hasChildren && (
             <ChevronDown
               className={clsx(
-                'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+                'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
                 !isExpanded && '-rotate-90'
               )}
             />
@@ -439,11 +418,8 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-medium text-[13px]',
-            !hasRunningDescendant &&
-              (hasCanceledDescendant
-                ? 'text-[var(--text-secondary)]'
-                : 'text-[var(--text-tertiary)]')
+            'flex-shrink-0 font-base text-[14px]',
+            !hasRunningDescendant && 'text-[var(--text-secondary)]'
           )}
         >
           <StatusDisplay
@@ -620,19 +596,22 @@ export const Terminal = memo(function Terminal() {
   const exportConsoleCSV = useTerminalConsoleStore((state) => state.exportConsoleCSV)
 
   const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set())
   const [isToggling, setIsToggling] = useState(false)
   const [showCopySuccess, setShowCopySuccess] = useState(false)
   const [showInput, setShowInput] = useState(false)
   const [autoSelectEnabled, setAutoSelectEnabled] = useState(true)
-  const [filtersOpen, setFiltersOpen] = useState(false)
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
 
-  const [isTrainingEnvEnabled, setIsTrainingEnvEnabled] = useState(false)
+  const [isTrainingEnvEnabled] = useState(() =>
+    isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
+  )
   const showTrainingControls = useShowTrainingControls()
-  const { isTraining, toggleModal: toggleTrainingModal, stopTraining } = useCopilotTrainingStore()
+  const isTraining = false
+  const toggleTrainingModal = useCallback(() => {}, [])
+  const stopTraining = useCallback(() => {}, [])
 
-  const [isPlaygroundEnabled, setIsPlaygroundEnabled] = useState(false)
+  const [isPlaygroundEnabled] = useState(() => isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
 
   const { handleMouseDown } = useTerminalResize()
   const { handleMouseDown: handleOutputPanelResizeMouseDown } = useOutputPanelResize()
@@ -699,23 +678,6 @@ export const Terminal = memo(function Terminal() {
   }, [executionGroups])
 
   /**
-   * Get unique blocks (by ID) from all workflow entries
-   */
-  const uniqueBlocks = useMemo(() => {
-    const blocksMap = new Map<string, { blockId: string; blockName: string; blockType: string }>()
-    allWorkflowEntries.forEach((entry) => {
-      if (!blocksMap.has(entry.blockId)) {
-        blocksMap.set(entry.blockId, {
-          blockId: entry.blockId,
-          blockName: entry.blockName,
-          blockType: entry.blockType,
-        })
-      }
-    })
-    return Array.from(blocksMap.values()).sort((a, b) => a.blockName.localeCompare(b.blockName))
-  }, [allWorkflowEntries])
-
-  /**
    * Check if input data exists for selected entry
    */
   const hasInputData = useMemo(() => {
@@ -750,21 +712,21 @@ export const Terminal = memo(function Terminal() {
   }, [outputData])
 
   // Keep refs in sync for keyboard handler
-  useEffect(() => {
-    selectedEntryRef.current = selectedEntry
-    navigableEntriesRef.current = navigableEntries
-    showInputRef.current = showInput
-    hasInputDataRef.current = hasInputData
-    isExpandedRef.current = isExpanded
-  }, [selectedEntry, navigableEntries, showInput, hasInputData, isExpanded])
+  selectedEntryRef.current = selectedEntry
+  navigableEntriesRef.current = navigableEntries
+  showInputRef.current = showInput
+  hasInputDataRef.current = hasInputData
+  isExpandedRef.current = isExpanded
 
   /**
    * Reset entry tracking when switching workflows to ensure auto-open
    * works correctly for each workflow independently.
    */
-  useEffect(() => {
+  const prevActiveWorkflowIdRef = useRef(activeWorkflowId)
+  if (prevActiveWorkflowIdRef.current !== activeWorkflowId) {
+    prevActiveWorkflowIdRef.current = activeWorkflowId
     hasInitializedEntriesRef.current = false
-  }, [activeWorkflowId])
+  }
 
   /**
    * Auto-open the terminal on new entries when "Open on run" is enabled.
@@ -956,7 +918,7 @@ export const Terminal = memo(function Terminal() {
       const errorMessage = entry.error ? String(entry.error) : 'Unknown error'
       const blockName = entry.blockName || 'Unknown Block'
       const message = `${errorMessage}\n\nError in ${blockName}.\n\nPlease fix this.`
-      openCopilotWithMessage(message)
+      sendMothershipMessage(message)
       closeLogRowMenu()
     },
     [closeLogRowMenu]
@@ -1000,11 +962,6 @@ export const Terminal = memo(function Terminal() {
       lastExpandedHeightRef.current = state.lastExpandedHeight
     })
     return unsub
-  }, [])
-
-  useEffect(() => {
-    setIsTrainingEnvEnabled(isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED')))
-    setIsPlaygroundEnabled(isTruthy(getEnv('NEXT_PUBLIC_ENABLE_PLAYGROUND')))
   }, [])
 
   useEffect(() => {
@@ -1276,19 +1233,10 @@ export const Terminal = memo(function Terminal() {
 
   return (
     <>
-      {/* Resize Handle */}
-      <div
-        className='fixed right-[var(--panel-width)] bottom-[calc(var(--terminal-height)-4px)] left-[var(--sidebar-width)] z-20 h-[8px] cursor-ns-resize'
-        onMouseDown={handleMouseDown}
-        role='separator'
-        aria-label='Resize terminal'
-        aria-orientation='horizontal'
-      />
-
       <aside
         ref={terminalRef}
         className={clsx(
-          'terminal-container fixed right-[var(--panel-width)] bottom-0 left-[var(--sidebar-width)] z-10 overflow-hidden border-[var(--border)] border-t bg-[var(--surface-1)]',
+          'terminal-container relative shrink-0 overflow-hidden border-[var(--border)] border-t bg-[var(--bg)]',
           isToggling && 'transition-[height] duration-100 ease-out'
         )}
         onTransitionEnd={handleTransitionEnd}
@@ -1297,6 +1245,15 @@ export const Terminal = memo(function Terminal() {
         tabIndex={-1}
         aria-label='Terminal'
       >
+        {/* Resize Handle */}
+        <div
+          className='absolute top-[-4px] right-0 left-0 z-20 h-[8px] cursor-ns-resize'
+          onMouseDown={handleMouseDown}
+          role='separator'
+          aria-orientation='horizontal'
+          aria-label='Resize terminal'
+        />
+
         <div className='relative flex h-full'>
           {/* Left Section - Logs */}
           <div
@@ -1305,28 +1262,15 @@ export const Terminal = memo(function Terminal() {
           >
             {/* Header */}
             <div
-              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--surface-1)] pr-[16px] pl-[16px]'
+              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-[16px] pl-[16px]'
               onClick={handleHeaderClick}
             >
               {/* Left side - Logs label */}
               <span className={TERMINAL_CONFIG.HEADER_TEXT_CLASS}>Logs</span>
 
-              {/* Right side - Filters and icons */}
+              {/* Right side - Icons and options */}
               {!selectedEntry && (
                 <div className='flex items-center gap-[8px]'>
-                  {/* Unified filter popover */}
-                  {allWorkflowEntries.length > 0 && (
-                    <FilterPopover
-                      open={filtersOpen}
-                      onOpenChange={setFiltersOpen}
-                      filters={filters}
-                      toggleStatus={toggleStatus}
-                      toggleBlock={toggleBlock}
-                      uniqueBlocks={uniqueBlocks}
-                      hasActiveFilters={hasActiveFilters}
-                    />
-                  )}
-
                   {/* Sort toggle */}
                   {allWorkflowEntries.length > 0 && (
                     <Tooltip.Root>
@@ -1341,9 +1285,9 @@ export const Terminal = memo(function Terminal() {
                           className='!p-1.5 -m-1.5'
                         >
                           {sortConfig.direction === 'desc' ? (
-                            <ArrowDown className='h-3 w-3' />
+                            <ArrowDown className='h-3.5 w-3.5' />
                           ) : (
-                            <ArrowUp className='h-3 w-3' />
+                            <ArrowUp className='h-3.5 w-3.5' />
                           )}
                         </Button>
                       </Tooltip.Trigger>
@@ -1362,7 +1306,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Component Playground'
                             className='!p-1.5 -m-1.5'
                           >
-                            <Palette className='h-3 w-3' />
+                            <Palette className='h-3.5 w-3.5' />
                           </Button>
                         </Link>
                       </Tooltip.Trigger>
@@ -1385,9 +1329,9 @@ export const Terminal = memo(function Terminal() {
                           )}
                         >
                           {isTraining ? (
-                            <Pause className='h-3 w-3' />
+                            <Pause className='h-3.5 w-3.5' />
                           ) : (
-                            <Database className='h-3 w-3' />
+                            <Database className='h-3.5 w-3.5' />
                           )}
                         </Button>
                       </Tooltip.Trigger>
@@ -1407,7 +1351,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Download console CSV'
                             className='!p-1.5 -m-1.5'
                           >
-                            <ArrowDownToLine className='h-3 w-3' />
+                            <ArrowDownToLine className='h-3.5 w-3.5' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
@@ -1422,7 +1366,7 @@ export const Terminal = memo(function Terminal() {
                             aria-label='Clear console'
                             className='!p-1.5 -m-1.5'
                           >
-                            <Trash2 className='h-3 w-3' />
+                            <Trash2 className='h-3.5 w-3.5' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content>
@@ -1519,16 +1463,11 @@ export const Terminal = memo(function Terminal() {
               handleCopy={handleCopy}
               filteredEntries={filteredEntries}
               handleExportConsole={handleExportConsole}
-              hasActiveFilters={hasActiveFilters}
               handleClearConsole={handleClearConsole}
               shouldShowCodeDisplay={shouldShowCodeDisplay}
               outputDataStringified={outputDataStringified}
               outputData={outputData}
               handleClearConsoleFromMenu={handleClearConsoleFromMenu}
-              filters={filters}
-              toggleBlock={toggleBlock}
-              toggleStatus={toggleStatus}
-              uniqueBlocks={uniqueBlocks}
             />
           )}
         </div>

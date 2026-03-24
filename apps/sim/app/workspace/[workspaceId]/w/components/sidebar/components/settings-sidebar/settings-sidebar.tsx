@@ -1,0 +1,312 @@
+'use client'
+
+import { useCallback, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useParams, usePathname, useRouter } from 'next/navigation'
+import { ChevronDown, Skeleton, Tooltip } from '@/components/emcn'
+import { useSession } from '@/lib/auth/auth-client'
+import { getSubscriptionStatus } from '@/lib/billing/client'
+import { isHosted } from '@/lib/core/config/feature-flags'
+import { cn } from '@/lib/core/utils/cn'
+import { getUserRole } from '@/lib/workspaces/organization'
+import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
+import {
+  allNavigationItems,
+  isBillingEnabled,
+  sectionConfig,
+} from '@/app/workspace/[workspaceId]/settings/navigation'
+import { useSSOProviders } from '@/ee/sso/hooks/sso'
+import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
+import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/general-settings'
+import { useOrganizations } from '@/hooks/queries/organization'
+import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/subscription'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+
+const SKELETON_SECTIONS = [3, 2, 2] as const
+
+interface SettingsSidebarProps {
+  isCollapsed?: boolean
+  showCollapsedContent?: boolean
+}
+
+export function SettingsSidebar({
+  isCollapsed = false,
+  showCollapsedContent = false,
+}: SettingsSidebarProps) {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+  const pathname = usePathname()
+  const router = useRouter()
+
+  const queryClient = useQueryClient()
+  const { data: session, isPending: sessionLoading } = useSession()
+  const { data: organizationsData, isLoading: orgsLoading } = useOrganizations()
+  const { data: generalSettings } = useGeneralSettings()
+  const { data: subscriptionData } = useSubscriptionData({
+    enabled: isBillingEnabled,
+    staleTime: 5 * 60 * 1000,
+  })
+  const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
+
+  const activeOrganization = organizationsData?.activeOrganization
+  const { config: permissionConfig } = usePermissionConfig()
+
+  const userEmail = session?.user?.email
+  const userId = session?.user?.id
+
+  const userRole = getUserRole(activeOrganization, userEmail)
+  const isOwner = userRole === 'owner'
+  const isAdmin = userRole === 'admin'
+  const isOrgAdminOrOwner = isOwner || isAdmin
+  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
+  const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
+  const hasEnterprisePlan = subscriptionStatus.isEnterprise
+
+  const isSuperUser = session?.user?.role === 'admin'
+
+  const isSSOProviderOwner = useMemo(() => {
+    if (isHosted) return null
+    if (!userId || isLoadingSSO) return null
+    return (
+      ssoProvidersData?.providers?.some((p: { userId?: string }) => p.userId === userId) || false
+    )
+  }, [userId, ssoProvidersData?.providers, isLoadingSSO])
+
+  const navigationItems = useMemo(() => {
+    return allNavigationItems.filter((item) => {
+      if (item.hideWhenBillingDisabled && !isBillingEnabled) {
+        return false
+      }
+
+      if (item.id === 'template-profile') {
+        return false
+      }
+      if (item.id === 'apikeys' && permissionConfig.hideApiKeysTab) {
+        return false
+      }
+      if (item.id === 'mcp' && permissionConfig.disableMcpTools) {
+        return false
+      }
+      if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) {
+        return false
+      }
+      if (item.id === 'skills' && permissionConfig.disableSkills) {
+        return false
+      }
+
+      if (item.selfHostedOverride && !isHosted) {
+        if (item.id === 'sso') {
+          const hasProviders = (ssoProvidersData?.providers?.length ?? 0) > 0
+          return !hasProviders || isSSOProviderOwner === true
+        }
+        return true
+      }
+
+      if (item.requiresTeam && (!hasTeamPlan || !isOrgAdminOrOwner)) {
+        return false
+      }
+
+      if (item.requiresEnterprise && (!hasEnterprisePlan || !isOrgAdminOrOwner)) {
+        return false
+      }
+
+      if (item.requiresHosted && !isHosted) {
+        return false
+      }
+
+      const superUserModeEnabled = generalSettings?.superUserModeEnabled ?? false
+      const effectiveSuperUser = isSuperUser && superUserModeEnabled
+      if (item.requiresSuperUser && !effectiveSuperUser) {
+        return false
+      }
+
+      if (item.requiresAdminRole && !isSuperUser) {
+        return false
+      }
+
+      return true
+    })
+  }, [
+    hasTeamPlan,
+    hasEnterprisePlan,
+    isOrgAdminOrOwner,
+    isSSOProviderOwner,
+    ssoProvidersData?.providers?.length,
+    permissionConfig,
+    isSuperUser,
+    generalSettings?.superUserModeEnabled,
+  ])
+
+  const activeSection = useMemo(() => {
+    const segments = pathname?.split('/') ?? []
+    const settingsIdx = segments.indexOf('settings')
+    if (settingsIdx !== -1 && segments[settingsIdx + 1]) {
+      return segments[settingsIdx + 1] as SettingsSection
+    }
+    return 'general'
+  }, [pathname])
+
+  const handlePrefetch = useCallback(
+    (itemId: string) => {
+      switch (itemId) {
+        case 'general':
+          prefetchGeneralSettings(queryClient)
+          void import('@/app/workspace/[workspaceId]/settings/components/general/general')
+          break
+        case 'integrations':
+          prefetchWorkspaceCredentials(queryClient, workspaceId)
+          void import('@/app/workspace/[workspaceId]/settings/components/integrations/integrations')
+          break
+        case 'secrets':
+          prefetchWorkspaceCredentials(queryClient, workspaceId)
+          void import('@/app/workspace/[workspaceId]/settings/components/credentials/credentials')
+          break
+        case 'subscription':
+          prefetchSubscriptionData(queryClient)
+          void import('@/app/workspace/[workspaceId]/settings/components/subscription/subscription')
+          break
+      }
+    },
+    [queryClient, workspaceId]
+  )
+
+  const { popSettingsReturnUrl, getSettingsHref } = useSettingsNavigation()
+
+  const handleBack = useCallback(() => {
+    router.push(popSettingsReturnUrl(`/workspace/${workspaceId}/home`))
+  }, [router, popSettingsReturnUrl, workspaceId])
+
+  return (
+    <>
+      {/* Back button */}
+      <div className='mt-[10px] flex flex-shrink-0 flex-col gap-[2px] px-[8px]'>
+        <Tooltip.Root key={`back-${isCollapsed}`}>
+          <Tooltip.Trigger asChild>
+            <button
+              type='button'
+              onClick={handleBack}
+              className='group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
+            >
+              <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
+                <ChevronDown className='h-[10px] w-[10px] rotate-90' />
+              </div>
+              <span className='truncate font-base text-[var(--text-body)]'>Back</span>
+            </button>
+          </Tooltip.Trigger>
+          {showCollapsedContent && (
+            <Tooltip.Content side='right'>
+              <p>Back</p>
+            </Tooltip.Content>
+          )}
+        </Tooltip.Root>
+      </div>
+
+      {/* Settings sections */}
+      <div
+        className={cn(
+          'mt-[14px] flex flex-1 flex-col gap-[14px]',
+          !isCollapsed && 'overflow-y-auto overflow-x-hidden'
+        )}
+      >
+        {sessionLoading || orgsLoading ? (
+          isCollapsed ? (
+            <>
+              {SKELETON_SECTIONS.map((count, sectionIdx) => (
+                <div key={sectionIdx} className='flex flex-col gap-[2px] px-[8px]'>
+                  {Array.from({ length: count }, (_, i) => (
+                    <div key={i} className='mx-[2px] flex h-[30px] items-center px-[8px]'>
+                      <Skeleton className='h-[16px] w-[16px] rounded-[4px]' />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </>
+          ) : (
+            Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className='sidebar-collapse-hide flex flex-shrink-0 flex-col'>
+                <div className='px-[16px] pb-[6px]'>
+                  <Skeleton className='h-[14px] w-[64px] rounded-[4px]' />
+                </div>
+                <div className='flex flex-col gap-[2px] px-[8px]'>
+                  {Array.from({ length: i === 0 ? 3 : 2 }, (_, j) => (
+                    <div key={j} className='mx-[2px] flex h-[30px] items-center px-[8px]'>
+                      <Skeleton className='h-[24px] w-full rounded-[4px]' />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )
+        ) : (
+          sectionConfig.map(({ key, title }) => {
+            const sectionItems = navigationItems.filter((item) => item.section === key)
+            if (sectionItems.length === 0) return null
+
+            return (
+              <div key={key} className='flex flex-shrink-0 flex-col'>
+                <div className='px-[16px] pb-[6px]'>
+                  <div className='font-base text-[var(--text-icon)] text-small'>{title}</div>
+                </div>
+                <div className='flex flex-col gap-[2px] px-[8px]'>
+                  {sectionItems.map((item) => {
+                    const Icon = item.icon
+                    const active = activeSection === item.id
+                    const itemClassName = cn(
+                      'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
+                      active && 'bg-[var(--surface-active)]'
+                    )
+                    const content = (
+                      <>
+                        <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                        <span className='truncate font-base text-[var(--text-body)]'>
+                          {item.label}
+                        </span>
+                      </>
+                    )
+
+                    const element = item.externalUrl ? (
+                      <a
+                        href={item.externalUrl}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className={itemClassName}
+                      >
+                        {content}
+                      </a>
+                    ) : (
+                      <button
+                        type='button'
+                        className={itemClassName}
+                        onMouseEnter={() => handlePrefetch(item.id)}
+                        onFocus={() => handlePrefetch(item.id)}
+                        onClick={() =>
+                          router.replace(getSettingsHref({ section: item.id as SettingsSection }), {
+                            scroll: false,
+                          })
+                        }
+                      >
+                        {content}
+                      </button>
+                    )
+
+                    return (
+                      <Tooltip.Root key={`${item.id}-${isCollapsed}`}>
+                        <Tooltip.Trigger asChild>{element}</Tooltip.Trigger>
+                        {showCollapsedContent && (
+                          <Tooltip.Content side='right'>
+                            <p>{item.label}</p>
+                          </Tooltip.Content>
+                        )}
+                      </Tooltip.Root>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+    </>
+  )
+}

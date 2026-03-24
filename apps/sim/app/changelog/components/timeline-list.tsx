@@ -3,8 +3,6 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/emcn'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import type { ChangelogEntry } from '@/app/changelog/components/changelog-content'
 
 type Props = { initialEntries: ChangelogEntry[] }
@@ -100,7 +98,7 @@ export default function ChangelogList({ initialEntries }: Props) {
         <div key={entry.tag}>
           <div className='flex items-center justify-between gap-4'>
             <div className='flex items-center gap-2'>
-              <div className={`${soehne.className} font-semibold text-[18px] tracking-tight`}>
+              <div className='font-[500] text-[#ECECEC] text-[18px] tracking-tight'>
                 {entry.tag}
               </div>
               {entry.contributors && entry.contributors.length > 0 && (
@@ -115,7 +113,7 @@ export default function ChangelogList({ initialEntries }: Props) {
                       title={`@${contributor}`}
                       className='block'
                     >
-                      <Avatar className='size-6 ring-2 ring-background'>
+                      <Avatar className='size-6 ring-2 ring-[#1C1C1C]'>
                         <AvatarImage
                           src={`https://avatars.githubusercontent.com/${contributor}`}
                           alt={`@${contributor}`}
@@ -126,14 +124,14 @@ export default function ChangelogList({ initialEntries }: Props) {
                     </a>
                   ))}
                   {entry.contributors.length > 5 && (
-                    <div className='relative flex size-6 items-center justify-center rounded-full bg-muted text-[10px] text-foreground ring-2 ring-background hover:z-10'>
+                    <div className='relative flex size-6 items-center justify-center rounded-full bg-[#2A2A2A] text-[#ECECEC] text-[10px] ring-2 ring-[#1C1C1C] hover:z-10'>
                       +{entry.contributors.length - 5}
                     </div>
                   )}
                 </div>
               )}
             </div>
-            <div className={`${inter.className} text-muted-foreground text-xs`}>
+            <div className='text-[#999] text-xs'>
               {new Date(entry.date).toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: 'short',
@@ -142,15 +140,13 @@ export default function ChangelogList({ initialEntries }: Props) {
             </div>
           </div>
 
-          <div
-            className={`${inter.className} prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-a:text-brand-primary prose-headings:text-foreground prose-p:text-muted-foreground prose-a:no-underline hover:prose-a:underline`}
-          >
+          <div className='max-w-none'>
             <ReactMarkdown
               components={{
                 h2: ({ children, ...props }) =>
                   isContributorsLabel(children) ? null : (
                     <h3
-                      className={`${soehne.className} mt-5 mb-2 font-medium text-[13px] text-foreground tracking-tight`}
+                      className='mt-5 mb-2 font-[500] text-[#ECECEC] text-[13px] tracking-tight'
                       {...props}
                     >
                       {children}
@@ -159,7 +155,7 @@ export default function ChangelogList({ initialEntries }: Props) {
                 h3: ({ children, ...props }) =>
                   isContributorsLabel(children) ? null : (
                     <h4
-                      className={`${soehne.className} mt-4 mb-1 font-medium text-[13px] text-foreground tracking-tight`}
+                      className='mt-4 mb-1 font-[500] text-[#ECECEC] text-[13px] tracking-tight'
                       {...props}
                     >
                       {children}
@@ -174,28 +170,25 @@ export default function ChangelogList({ initialEntries }: Props) {
                   const text = String(children)
                   if (/^\s*contributors\s*:?\s*$/i.test(text)) return null
                   return (
-                    <li className='text-[13px] text-muted-foreground leading-relaxed' {...props}>
+                    <li className='text-[#999] text-[13px] leading-relaxed' {...props}>
                       {children}
                     </li>
                   )
                 },
                 p: ({ children, ...props }) =>
                   /^\s*contributors\s*:?\s*$/i.test(String(children)) ? null : (
-                    <p
-                      className='mb-3 text-[13px] text-muted-foreground leading-relaxed'
-                      {...props}
-                    >
+                    <p className='mb-3 text-[#999] text-[13px] leading-relaxed' {...props}>
                       {children}
                     </p>
                   ),
                 strong: ({ children, ...props }) => (
-                  <strong className='font-medium text-foreground' {...props}>
+                  <strong className='font-[500] text-[#ECECEC]' {...props}>
                     {children}
                   </strong>
                 ),
                 code: ({ children, ...props }) => (
                   <code
-                    className='rounded bg-muted px-1 py-0.5 font-mono text-foreground text-xs'
+                    className='rounded bg-[#2A2A2A] px-1 py-0.5 font-mono text-[#ECECEC] text-xs'
                     {...props}
                   >
                     {children}
@@ -224,7 +217,7 @@ export default function ChangelogList({ initialEntries }: Props) {
             type='button'
             onClick={loadMore}
             disabled={loading}
-            className='rounded-md border border-border px-3 py-1.5 text-[13px] hover:bg-muted disabled:opacity-60'
+            className='rounded-[5px] border border-[#3d3d3d] px-3 py-1.5 text-[#ECECEC] text-[13px] transition-colors hover:bg-[#2A2A2A] disabled:opacity-60'
           >
             {loading ? 'Loading…' : 'Show more'}
           </button>

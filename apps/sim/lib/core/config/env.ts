@@ -24,6 +24,9 @@ export const env = createEnv({
     DISABLE_AUTH:                          z.boolean().optional(),                 // Bypass authentication entirely (self-hosted only, creates anonymous session)
     ALLOWED_LOGIN_EMAILS:                  z.string().optional(),                  // Comma-separated list of allowed email addresses for login
     ALLOWED_LOGIN_DOMAINS:                 z.string().optional(),                  // Comma-separated list of allowed email domains for login
+    BLOCKED_SIGNUP_DOMAINS:                z.string().optional(),                  // Comma-separated list of email domains blocked from signing up (e.g., "gmail.com,yahoo.com")
+    TURNSTILE_SECRET_KEY:                  z.string().min(1).optional(),           // Cloudflare Turnstile secret key for captcha verification
+    SIGNUP_EMAIL_VALIDATION_ENABLED:       z.boolean().optional(),                 // Enable disposable email blocking via better-auth-harmony (55K+ domains)
     ENCRYPTION_KEY:                        z.string().min(32),                     // Key for encrypting sensitive data
     API_ENCRYPTION_KEY:                    z.string().min(32).optional(),          // Dedicated key for encrypting API keys (optional for OSS)
     INTERNAL_API_SECRET:                   z.string().min(32),                     // Secret for internal API authentication
@@ -58,6 +61,20 @@ export const env = createEnv({
     ENTERPRISE_TIER_COST_LIMIT:            z.number().optional(),                  // Cost limit for enterprise tier users
     ENTERPRISE_STORAGE_LIMIT_GB:           z.number().optional().default(500),     // Default storage limit in GB for enterprise tier (can be overridden per org)
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
+
+    // Credit-tier Stripe prices (monthly)
+    STRIPE_PRICE_TIER_25_MO:               z.string().min(1).optional(),           // Pro: $25/mo (6,000 credits)
+    STRIPE_PRICE_TIER_100_MO:              z.string().min(1).optional(),           // Max: $100/mo (25,000 credits)
+
+    // Credit-tier Stripe prices (annual, 15% discount)
+    STRIPE_PRICE_TIER_25_YR:               z.string().min(1).optional(),           // Pro: $255/yr (15% off $300)
+    STRIPE_PRICE_TIER_100_YR:              z.string().min(1).optional(),           // Max: $1,020/yr (15% off $1,200)
+
+    // Team-specific Stripe prices (separate products for Billing Portal compat)
+    STRIPE_PRICE_TEAM_25_MO:               z.string().min(1).optional(),           // Team Pro: $25/seat/mo
+    STRIPE_PRICE_TEAM_25_YR:               z.string().min(1).optional(),           // Team Pro: $255/seat/yr
+    STRIPE_PRICE_TEAM_100_MO:              z.string().min(1).optional(),           // Team Max: $100/seat/mo
+    STRIPE_PRICE_TEAM_100_YR:              z.string().min(1).optional(),           // Team Max: $1,020/seat/yr
     OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(50),      // Dollar threshold for incremental overage billing (default: $50)
 
     // Email & Communication
@@ -248,6 +265,8 @@ export const env = createEnv({
     NOTION_CLIENT_SECRET:                  z.string().optional(),                  // Notion OAuth client secret
     DISCORD_CLIENT_ID:                     z.string().optional(),                  // Discord OAuth client ID
     DISCORD_CLIENT_SECRET:                 z.string().optional(),                  // Discord OAuth client secret
+    DOCUSIGN_CLIENT_ID:                    z.string().optional(),                  // DocuSign OAuth client ID
+    DOCUSIGN_CLIENT_SECRET:                z.string().optional(),                  // DocuSign OAuth client secret
     MICROSOFT_CLIENT_ID:                   z.string().optional(),                  // Microsoft OAuth client ID for Office 365/Teams
     MICROSOFT_CLIENT_SECRET:               z.string().optional(),                  // Microsoft OAuth client secret
     HUBSPOT_CLIENT_ID:                     z.string().optional(),                  // HubSpot OAuth client ID
@@ -260,6 +279,8 @@ export const env = createEnv({
     PIPEDRIVE_CLIENT_SECRET:               z.string().optional(),                  // Pipedrive OAuth client secret
     LINEAR_CLIENT_ID:                      z.string().optional(),                  // Linear OAuth client ID
     LINEAR_CLIENT_SECRET:                  z.string().optional(),                  // Linear OAuth client secret
+    BOX_CLIENT_ID:                         z.string().optional(),                  // Box OAuth client ID
+    BOX_CLIENT_SECRET:                     z.string().optional(),                  // Box OAuth client secret
     DROPBOX_CLIENT_ID:                     z.string().optional(),                  // Dropbox OAuth client ID
     DROPBOX_CLIENT_SECRET:                 z.string().optional(),                  // Dropbox OAuth client secret
     SLACK_CLIENT_ID:                       z.string().optional(),                  // Slack OAuth client ID
@@ -282,6 +303,11 @@ export const env = createEnv({
     CALCOM_CLIENT_ID:                      z.string().optional(),                  // Cal.com OAuth client ID
     ATTIO_CLIENT_ID:                       z.string().optional(),                  // Attio OAuth client ID
     ATTIO_CLIENT_SECRET:                   z.string().optional(),                  // Attio OAuth client secret
+
+    // AgentMail - Mothership Email Inbox
+    AGENTMAIL_API_KEY:                     z.string().min(1).optional(),           // AgentMail API key for mothership email inbox
+    AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
+    INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)
 
     // E2B Remote Code Execution
     E2B_ENABLED:                           z.string().optional(),                  // Enable E2B remote code execution
@@ -385,7 +411,9 @@ export const env = createEnv({
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED:     z.boolean().optional(),                   // Enable organizations on self-hosted (bypasses plan requirements)
     NEXT_PUBLIC_DISABLE_INVITATIONS:       z.boolean().optional(),                   // Disable workspace invitations globally (for self-hosted deployments)
     NEXT_PUBLIC_DISABLE_PUBLIC_API:        z.boolean().optional(),                   // Disable public API access UI toggle globally
+    NEXT_PUBLIC_INBOX_ENABLED:             z.boolean().optional(),                   // Enable inbox (Sim Mailer) on self-hosted
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: z.boolean().optional().default(true), // Control visibility of email/password login forms
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY:        z.string().min(1).optional(),           // Cloudflare Turnstile site key for captcha widget
   },
 
   // Variables available on both server and client
@@ -417,7 +445,9 @@ export const env = createEnv({
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED: process.env.NEXT_PUBLIC_ORGANIZATIONS_ENABLED,
     NEXT_PUBLIC_DISABLE_INVITATIONS: process.env.NEXT_PUBLIC_DISABLE_INVITATIONS,
     NEXT_PUBLIC_DISABLE_PUBLIC_API: process.env.NEXT_PUBLIC_DISABLE_PUBLIC_API,
+    NEXT_PUBLIC_INBOX_ENABLED: process.env.NEXT_PUBLIC_INBOX_ENABLED,
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: process.env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_E2B_ENABLED: process.env.NEXT_PUBLIC_E2B_ENABLED,
     NEXT_PUBLIC_COPILOT_TRAINING_ENABLED: process.env.NEXT_PUBLIC_COPILOT_TRAINING_ENABLED,
     NEXT_PUBLIC_ENABLE_PLAYGROUND: process.env.NEXT_PUBLIC_ENABLE_PLAYGROUND,

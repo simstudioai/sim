@@ -8,16 +8,22 @@ import { Image } from '@/components/ui/image'
 
 Sim automatically calculates costs for all workflow executions, providing transparent pricing based on AI model usage and execution charges. Understanding these costs helps you optimize workflows and manage your budget effectively.
 
+## Credits
+
+Sim uses **credits** as the unit of measurement for all usage. **1 credit = $0.005**.
+
+All plan limits, usage meters, and billing thresholds are displayed in credits throughout the Sim UI. Dollar amounts in this documentation are provided for reference.
+
 ## How Costs Are Calculated
 
 Every workflow execution includes two cost components:
 
-**Base Execution Charge**: $0.005 per execution
+**Base Execution Charge**: 1 credit ($0.005) per execution
 
 **AI Model Usage**: Variable cost based on token consumption
 ```javascript
 modelCost = (inputTokens × inputPrice + outputTokens × outputPrice) / 1,000,000
-totalCost = baseExecutionCharge + modelCost
+totalCredits = baseExecutionCharge + modelCost × 200
 ```
 
 <Callout type="info">
@@ -129,22 +135,131 @@ Use your own API keys for AI model providers instead of Sim's hosted keys to pay
 
 When configured, workflows use your key instead of Sim's hosted keys. If removed, workflows automatically fall back to hosted keys with the multiplier.
 
-## Cost Optimization Strategies
+## Plans
 
-- **Model Selection**: Choose models based on task complexity. Simple tasks can use GPT-4.1-nano while complex reasoning might need o1 or Claude Opus.
-- **Prompt Engineering**: Well-structured, concise prompts reduce token usage without sacrificing quality.
-- **Local Models**: Use Ollama or VLLM for non-critical tasks to eliminate API costs entirely.
-- **Caching and Reuse**: Store frequently used results in variables or files to avoid repeated AI model calls.
-- **Batch Processing**: Process multiple items in a single AI request rather than making individual calls.
+Sim has two paid plan tiers — **Pro** and **Max**. Either can be used individually or with a team. Team plans pool credits across all seats in the organization.
+
+| Plan | Price | Credits Included | Daily Refresh |
+|------|-------|------------------|---------------|
+| **Community** | $0 | 1,000 (one-time) | — |
+| **Pro** | $25/mo | 6,000/mo | +50/day |
+| **Max** | $100/mo | 25,000/mo | +200/day |
+| **Enterprise** | Custom | Custom | — |
+
+To use Pro or Max with a team, select **Get For Team** in subscription settings and choose the tier and number of seats. Credits are pooled across the organization at the per-seat rate (e.g. Max for Teams with 3 seats = 75,000 credits/mo pooled).
+
+### Daily Refresh Credits
+
+Paid plans include a small daily credit allowance that does not count toward your plan limit. Each day, usage up to the daily refresh amount is excluded from billable usage. This allowance resets every 24 hours and does not carry over — use it or lose it.
+
+| Plan | Daily Refresh |
+|------|---------------|
+| **Pro** | 50 credits/day ($0.25) |
+| **Max** | 200 credits/day ($1.00) |
+
+For team plans, the daily refresh scales with seats (e.g. Max for Teams with 3 seats = 600 credits/day).
+
+### Annual Billing
+
+All paid plans are available with annual billing at a **15% discount**. Switch between monthly and annual billing in Settings → Subscription.
+
+| Plan | Monthly | Annual (per month) | Annual Total |
+|------|---------|-------------------|--------------|
+| **Pro** | $25/mo | $21.25/mo | $255/yr |
+| **Max** | $100/mo | $85/mo | $1,020/yr |
+
+Team plans follow the same pricing per seat.
+
+### On-Demand Billing
+
+By default, your usage is capped at the credits included in your plan. To allow usage beyond your plan's included amount, you can either enable **on-demand billing** or manually edit your usage limit to any value above your plan's minimum.
+
+- **Enable On-Demand**: Removes the usage cap entirely. You pay for any overage at the end of the billing period.
+- **Edit Usage Limit**: Set a specific cap above your plan's included amount to control how much overage you're willing to allow.
+- **Disable On-Demand**: Resets your usage limit back to the plan's included amount (only available if your current usage hasn't already exceeded it).
+
+<Callout type="info">
+  On-demand billing is managed by workspace admins for team plans. Non-admin team members cannot toggle on-demand billing.
+</Callout>
+
+## Plan Limits
+
+### Rate Limits
+
+| Plan | Sync (req/min) | Async (req/min) |
+|------|----------------|-----------------|
+| **Free** | 50 | 200 |
+| **Pro** | 150 | 1,000 |
+| **Max** | 300 | 2,500 |
+| **Enterprise** | 600 | 5,000 |
+
+Max (individual) shares the same rate limits as team plans. Team plans (Pro or Max for Teams) use the Max-tier rate limits.
+
+### File Storage
+
+| Plan | Storage |
+|------|---------|
+| **Free** | 5 GB |
+| **Pro** | 50 GB |
+| **Max** | 500 GB |
+| **Enterprise** | 500 GB (customizable) |
+
+Team plans (Pro or Max for Teams) use 500 GB.
+
+### Execution Time Limits
+
+| Plan | Sync | Async |
+|------|------|-------|
+| **Free** | 5 minutes | 90 minutes |
+| **Pro / Max / Team / Enterprise** | 50 minutes | 90 minutes |
+
+**Sync executions** run immediately and return results directly. These are triggered via the API with `async: false` (default) or through the UI.
+**Async executions** (triggered via API with `async: true`, webhooks, or schedules) run in the background.
+
+<Callout type="info">
+  If a workflow exceeds its time limit, it will be terminated and marked as failed with a timeout error. Design long-running workflows to use async execution or break them into smaller workflows.
+</Callout>
+
+## Billing Model
+
+Sim uses a **base subscription + overage** billing model:
+
+### How It Works
+
+**Pro Plan ($25/month — 6,000 credits):**
+- Monthly subscription includes 6,000 credits of usage
+- Usage under 6,000 credits → No additional charges
+- Usage over 6,000 credits (with on-demand enabled) → Pay the overage at month end
+- Example: 7,000 credits used = $25 (subscription) + $5 (overage for 1,000 extra credits at $0.005/credit)
+
+**Team Plans:**
+- Usage is pooled across all team members in the organization
+- Overage is calculated from total team usage against the pooled limit
+- Organization owner receives one bill
+
+**Enterprise Plans:**
+- Fixed monthly price, no overages
+- Custom usage limits per agreement
+
+### Threshold Billing
+
+When on-demand is enabled and unbilled overage reaches $50, Sim automatically bills the full unbilled amount.
+
+**Example:**
+- Day 10: $70 overage → Bill $70 immediately
+- Day 15: Additional $35 usage ($105 total) → Already billed, no action
+- Day 20: Another $50 usage ($155 total, $85 unbilled) → Bill $85 immediately
+
+This spreads large overage charges throughout the month instead of one large bill at period end.
 
 ## Usage Monitoring
 
 Monitor your usage and billing in Settings → Subscription:
 
-- **Current Usage**: Real-time usage and costs for the current period
-- **Usage Limits**: Plan limits with visual progress indicators
-- **Billing Details**: Projected charges and minimum commitments
-- **Plan Management**: Upgrade options and billing history
+- **Current Usage**: Real-time credit usage for the current billing period
+- **Usage Limits**: Plan limits with a visual progress bar
+- **On-Demand Billing**: Toggle on-demand billing to allow usage beyond your plan's included credits
+- **Plan Management**: Upgrade, downgrade, or switch between monthly and annual billing
 
 ### Programmatic Usage Tracking
 
@@ -187,7 +302,7 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
   "usage": {
     "currentPeriodCost": 12.34,
     "limit": 100,
-    "plan": "pro"
+    "plan": "pro_6000"
   }
 }
 ```
@@ -198,79 +313,17 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
 - `remaining`: Current tokens available (can be up to `maxBurst`)
 
 **Response Fields:**
-- `currentPeriodCost` reflects usage in the current billing period
-- `limit` is derived from individual limits (Free/Pro) or pooled organization limits (Team/Enterprise)
+- `currentPeriodCost` reflects usage in the current billing period (in dollars)
+- `limit` is derived from individual limits (Free/Pro/Max) or pooled organization limits (Team/Enterprise)
 - `plan` is the highest-priority active plan associated with your user
 
-## Plan Limits
+## Cost Optimization Strategies
 
-Different subscription plans have different usage limits:
-
-| Plan | Monthly Usage Included | Rate Limits (per minute) |
-|------|------------------------|-------------------------|
-| **Free** | $20 | 50 sync, 200 async |
-| **Pro** | $20 (adjustable) | 150 sync, 1,000 async |
-| **Team** | $40/seat (pooled, adjustable) | 300 sync, 2,500 async |
-| **Enterprise** | Custom | Custom |
-
-## Execution Time Limits
-
-Workflows have maximum execution time limits based on your subscription plan:
-
-| Plan | Sync Execution | Async Execution |
-|------|----------------|-----------------|
-| **Free** | 5 minutes | 10 minutes |
-| **Pro** | 50 minutes | 90 minutes |
-| **Team** | 50 minutes | 90 minutes |
-| **Enterprise** | 50 minutes | 90 minutes |
-
-**Sync executions** run immediately and return results directly. These are triggered via the API with `async: false` (default) or through the UI.
-**Async executions** (triggered via API with `async: true`, webhooks, or schedules) run in the background. Async time limits are up to 2x the sync limit, capped at 90 minutes.
-
-
-<Callout type="info">
-  If a workflow exceeds its time limit, it will be terminated and marked as failed with a timeout error. Design long-running workflows to use async execution or break them into smaller workflows.
-</Callout>
-
-## Billing Model
-
-Sim uses a **base subscription + overage** billing model:
-
-### How It Works
-
-**Pro Plan ($20/month):**
-- Monthly subscription includes $20 of usage
-- Usage under $20 → No additional charges
-- Usage over $20 → Pay the overage at month end
-- Example: $35 usage = $20 (subscription) + $15 (overage)
-
-**Team Plan ($40/seat/month):**
-- Pooled usage across all team members
-- Overage calculated from total team usage
-- Organization owner receives one bill
-
-**Enterprise Plans:**
-- Fixed monthly price, no overages
-- Custom usage limits per agreement
-
-### Threshold Billing
-
-When unbilled overage reaches $50, Sim automatically bills the full unbilled amount.
-
-**Example:**
-- Day 10: $70 overage → Bill $70 immediately
-- Day 15: Additional $35 usage ($105 total) → Already billed, no action
-- Day 20: Another $50 usage ($155 total, $85 unbilled) → Bill $85 immediately
-
-This spreads large overage charges throughout the month instead of one large bill at period end.
-
-## Cost Management Best Practices
-
-1. **Monitor Regularly**: Check your usage dashboard frequently to avoid surprises
-2. **Set Budgets**: Use plan limits as guardrails for your spending
-3. **Optimize Workflows**: Review high-cost executions and optimize prompts or model selection
-4. **Use Appropriate Models**: Match model complexity to task requirements
-5. **Batch Similar Tasks**: Combine multiple requests when possible to reduce overhead
+- **Model Selection**: Choose models based on task complexity. Simple tasks can use GPT-4.1-nano while complex reasoning might need o1 or Claude Opus.
+- **Prompt Engineering**: Well-structured, concise prompts reduce token usage without sacrificing quality.
+- **Local Models**: Use Ollama or VLLM for non-critical tasks to eliminate API costs entirely.
+- **Caching and Reuse**: Store frequently used results in variables or files to avoid repeated AI model calls.
+- **Batch Processing**: Process multiple items in a single AI request rather than making individual calls.
 
 ## Next Steps
 
@@ -278,3 +331,15 @@ This spreads large overage charges throughout the month instead of one large bil
 - Learn about [Logging](/execution/logging) to track execution details
 - Explore the [External API](/execution/api) for programmatic cost monitoring
 - Check out [workflow optimization techniques](/blocks) to reduce costs
+
+import { FAQ } from '@/components/ui/faq'
+
+<FAQ items={[
+  { question: "How much does a single workflow execution cost?", answer: "Every execution incurs a base charge of 1 credit ($0.005). On top of that, any AI model usage is billed based on token consumption. Workflows that do not use AI blocks only pay the base execution charge." },
+  { question: "What is the credit-to-dollar conversion rate?", answer: "1 credit equals $0.005. All plan limits, usage meters, and billing thresholds in the Sim UI are displayed in credits." },
+  { question: "Do unused daily refresh credits carry over?", answer: "No. Daily refresh credits reset every 24 hours and do not accumulate. If you do not use them within the day, they are lost." },
+  { question: "What happens when I exceed my plan's credit limit?", answer: "By default, your usage is capped at your plan's included credits and executions will stop. If you enable on-demand billing or manually raise your usage limit in Settings, you can continue running workflows and pay for the overage at the end of the billing period." },
+  { question: "How does the 1.1x hosted model multiplier work?", answer: "When you use Sim's hosted API keys (instead of bringing your own), a 1.1x multiplier is applied to the base model pricing for Agent blocks. This covers infrastructure and API management costs. You can avoid this multiplier by using your own API keys via the BYOK feature." },
+  { question: "Are there any free options for AI models?", answer: "Yes. If you run local models through Ollama or VLLM, there are no API costs for those model calls. You still pay the base execution charge of 1 credit per execution." },
+  { question: "When does threshold billing trigger?", answer: "When on-demand billing is enabled and your unbilled overage reaches $50, Sim automatically bills the full unbilled amount. This spreads large charges throughout the month instead of accumulating one large bill at period end." },
+]} />

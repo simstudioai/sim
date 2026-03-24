@@ -1,6 +1,6 @@
 import { HexIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { HexResponse } from '@/tools/hex/types'
 
 export const HexBlock: BlockConfig<HexResponse> = {
@@ -11,6 +11,8 @@ export const HexBlock: BlockConfig<HexResponse> = {
     'Integrate Hex into your workflow. Run projects, check run status, manage collections and groups, list users, and view data connections. Requires a Hex API token.',
   docsLink: 'https://docs.sim.ai/tools/hex',
   category: 'tools',
+  integrationType: IntegrationType.Analytics,
+  tags: ['data-warehouse', 'data-analytics'],
   bgColor: '#14151A',
   icon: HexIcon,
   authMode: AuthMode.ApiKey,

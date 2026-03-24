@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { chat, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
 import {
   isEmailAllowed,
@@ -60,7 +60,7 @@ export async function checkChatAccess(
     })
     .from(chat)
     .innerJoin(workflow, eq(chat.workflowId, workflow.id))
-    .where(eq(chat.id, chatId))
+    .where(and(eq(chat.id, chatId), isNull(chat.archivedAt)))
     .limit(1)
 
   if (chatData.length === 0) {

@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getPlanPricing } from '@/lib/billing/core/billing'
+import { isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
@@ -75,7 +76,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const orgSubscription = subscriptionRecord[0]
 
     // Only team plans support seat changes (not enterprise - those are handled manually)
-    if (orgSubscription.plan !== 'team') {
+    if (!isTeam(orgSubscription.plan)) {
       return NextResponse.json(
         { error: 'Seat changes are only available for Team plans' },
         { status: 400 }
@@ -160,7 +161,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             quantity: newSeatCount,
           },
         ],
-        proration_behavior: 'create_prorations', // Stripe's default - charge/credit immediately
+        proration_behavior: 'always_invoice',
       }
     )
 
@@ -174,7 +175,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .where(eq(subscription.id, orgSubscription.id))
 
     // Update orgUsageLimit to reflect new seat count (seats × basePrice as minimum)
-    const { basePrice } = getPlanPricing('team')
+    const { basePrice } = getPlanPricing(orgSubscription.plan)
     const newMinimumLimit = newSeatCount * basePrice
 
     const orgData = await db
@@ -212,7 +213,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       oldSeats: currentSeats,
       newSeats: newSeatCount,
       updatedBy: session.user.id,
-      prorationBehavior: 'create_prorations',
+      prorationBehavior: 'always_invoice',
     })
 
     return NextResponse.json({

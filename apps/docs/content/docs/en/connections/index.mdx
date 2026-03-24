@@ -7,6 +7,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { ConnectIcon } from '@/components/icons'
 import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
 
 Connections are the pathways that allow data to flow between blocks in your workflow. They define how information is passed from one block to another, enabling you to create sophisticated, multi-step processes.
 
@@ -40,3 +41,12 @@ Sim supports different types of connections that enable various workflow pattern
     Follow recommended patterns for effective connection management
   </Card>
 </Cards>
+
+<FAQ items={[
+  { question: "How does data actually flow between connected blocks?", answer: "The execution engine builds a directed acyclic graph (DAG) from your connections and processes blocks in dependency order. When a block finishes, its output is stored in the execution context. Downstream blocks reference that output using connection tags like <BlockName.response>, which the variable resolver replaces with the actual data at execution time." },
+  { question: "Can a block receive input from multiple upstream blocks?", answer: "Yes. A block waits until all of its incoming connections have been fulfilled before it executes. The engine tracks incoming edges for each node and only marks a block as ready when every upstream dependency has completed. You can reference outputs from any connected block using their respective connection tags." },
+  { question: "What happens if an upstream block fails?", answer: "If a block errors, the engine activates the error edge (if one exists) and deactivates the normal output edge. Downstream blocks on the success path will not execute. You can connect an error handle to a separate block to build fallback or recovery logic." },
+  { question: "Do connections support conditional branching?", answer: "Yes. Router and Condition blocks produce a selected route or option that determines which outgoing edge is activated. Only the blocks on the chosen path will execute. Edges on unselected paths are deactivated and their entire downstream subgraph is skipped." },
+  { question: "Can blocks in parallel branches share data with each other?", answer: "Blocks within the same parallel branch cannot directly reference blocks in a sibling branch because branches execute independently. However, once all branches complete and the parallel block exits, downstream blocks can access the aggregated results from all branches." },
+  { question: "How are connection tags formatted?", answer: "Connection tags use angle-bracket syntax: <BlockName.property>. For nested data you can chain dot notation, such as <BlockName.response.items[0].name>. The resolver walks the object path at execution time and substitutes the resolved value into your input field." },
+]} />

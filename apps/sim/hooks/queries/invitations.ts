@@ -29,8 +29,11 @@ export interface WorkspaceInvitation {
   invitationId?: string
 }
 
-async function fetchPendingInvitations(workspaceId: string): Promise<WorkspaceInvitation[]> {
-  const response = await fetch('/api/workspaces/invitations')
+async function fetchPendingInvitations(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkspaceInvitation[]> {
+  const response = await fetch('/api/workspaces/invitations', { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch pending invitations')
@@ -59,7 +62,7 @@ async function fetchPendingInvitations(workspaceId: string): Promise<WorkspaceIn
 export function usePendingInvitations(workspaceId: string | undefined) {
   return useQuery({
     queryKey: invitationKeys.list(workspaceId ?? ''),
-    queryFn: () => fetchPendingInvitations(workspaceId as string),
+    queryFn: ({ signal }) => fetchPendingInvitations(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,

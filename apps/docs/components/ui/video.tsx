@@ -38,7 +38,7 @@ export function Video({
         loop={loop}
         muted={muted}
         playsInline={playsInline}
-        className={`${className} ${enableLightbox ? 'cursor-pointer transition-opacity hover:opacity-90' : ''}`}
+        className={`${className} ${enableLightbox ? 'cursor-pointer transition-opacity hover:opacity-95' : ''}`}
         src={getAssetUrl(src)}
         onClick={handleVideoClick}
       />

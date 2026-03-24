@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import { workflowKeys } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -39,7 +41,9 @@ export function useDeleteWorkflow({
   onSuccess,
 }: UseDeleteWorkflowProps) {
   const router = useRouter()
-  const { workflows, removeWorkflow } = useWorkflowRegistry()
+  const queryClient = useQueryClient()
+  const workflows = useWorkflowRegistry((s) => s.workflows)
+  const removeWorkflow = useWorkflowRegistry((s) => s.removeWorkflow)
   const [isDeleting, setIsDeleting] = useState(false)
 
   /**
@@ -97,11 +101,12 @@ export function useDeleteWorkflow({
         if (nextWorkflowId) {
           router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
         } else {
-          router.push(`/workspace/${workspaceId}/w`)
+          router.push(`/workspace/${workspaceId}/home`)
         }
       }
 
       await Promise.all(workflowIdsToDelete.map((id) => removeWorkflow(id)))
+      await queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
 
       const { clearSelection } = useFolderStore.getState()
       clearSelection()
@@ -114,7 +119,17 @@ export function useDeleteWorkflow({
     } finally {
       setIsDeleting(false)
     }
-  }, [workflowIds, isDeleting, workflows, workspaceId, isActive, router, removeWorkflow, onSuccess])
+  }, [
+    workflowIds,
+    isDeleting,
+    workflows,
+    workspaceId,
+    isActive,
+    router,
+    removeWorkflow,
+    onSuccess,
+    queryClient,
+  ])
 
   return {
     isDeleting,

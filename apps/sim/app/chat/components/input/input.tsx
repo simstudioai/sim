@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Paperclip, Send, Square, X } from 'lucide-react'
 import { Badge, Tooltip } from '@/components/emcn'
+import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { VoiceInput } from '@/app/chat/components/input/voice-input'
 
 const logger = createLogger('ChatInput')
@@ -15,6 +16,13 @@ const PLACEHOLDER_MOBILE = 'Enter a message'
 const PLACEHOLDER_DESKTOP = 'Enter a message or click the mic to speak'
 const MAX_TEXTAREA_HEIGHT = 120 // Max height in pixels (e.g., for about 3-4 lines)
 const MAX_TEXTAREA_HEIGHT_MOBILE = 100 // Smaller for mobile
+const IS_STT_AVAILABLE =
+  typeof window !== 'undefined' &&
+  !!(
+    (window as Window & { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown })
+      .SpeechRecognition ||
+    (window as Window & { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition
+  )
 
 interface AttachedFile {
   id: string
@@ -42,10 +50,6 @@ export const ChatInput: React.FC<{
   const [dragCounter, setDragCounter] = useState(0)
   const isDragOver = dragCounter > 0
 
-  // Check if speech-to-text is available in the browser
-  const isSttAvailable =
-    typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
-
   // Function to adjust textarea height
   const adjustTextareaHeight = () => {
     if (textareaRef.current) {
@@ -67,11 +71,6 @@ export const ChatInput: React.FC<{
     }
   }
 
-  // Adjust height on input change
-  useEffect(() => {
-    adjustTextareaHeight()
-  }, [inputValue])
-
   // Close the input when clicking outside (only when empty)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -90,17 +89,14 @@ export const ChatInput: React.FC<{
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [inputValue])
 
-  // Handle focus and initial height when activated
-  useEffect(() => {
-    if (isActive && textareaRef.current) {
-      textareaRef.current.focus()
-      adjustTextareaHeight() // Adjust height when becoming active
-    }
-  }, [isActive])
-
   const handleActivate = () => {
     setIsActive(true)
-    // Focus is now handled by the useEffect above
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus()
+        adjustTextareaHeight()
+      }
+    })
   }
 
   // Handle file selection
@@ -182,6 +178,7 @@ export const ChatInput: React.FC<{
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value)
+    adjustTextareaHeight()
   }
 
   // Handle voice start with smooth transition to voice-first mode
@@ -195,7 +192,7 @@ export const ChatInput: React.FC<{
       <Tooltip.Provider>
         <div className='flex items-center justify-center'>
           {/* Voice Input Only */}
-          {isSttAvailable && (
+          {IS_STT_AVAILABLE && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <div>
@@ -268,7 +265,7 @@ export const ChatInput: React.FC<{
           >
             {/* File Previews */}
             {attachedFiles.length > 0 && (
-              <div className='mb-2 flex flex-wrap gap-2 px-3 pt-3 md:px-4'>
+              <div className='mb-2 flex max-h-[160px] flex-wrap gap-2 overflow-y-auto px-3 pt-3 md:px-4'>
                 {attachedFiles.map((file) => {
                   const formatFileSize = (bytes: number) => {
                     if (bytes === 0) return '0 B'
@@ -348,7 +345,7 @@ export const ChatInput: React.FC<{
                 ref={fileInputRef}
                 type='file'
                 multiple
-                accept='.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.xml,.rtf,image/*'
+                accept={CHAT_ACCEPT_ATTRIBUTE}
                 onChange={(e) => {
                   handleFileSelect(e.target.files)
                   if (fileInputRef.current) {
@@ -406,7 +403,7 @@ export const ChatInput: React.FC<{
               </div>
 
               {/* Voice Input */}
-              {isSttAvailable && (
+              {IS_STT_AVAILABLE && (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <div>

@@ -1,5 +1,5 @@
 import { type JSX, type MouseEvent, memo, useCallback, useMemo, useRef, useState } from 'react'
-import isEqual from 'lodash/isEqual'
+import { isEqual } from 'es-toolkit'
 import {
   AlertTriangle,
   ArrowLeftRight,
@@ -331,7 +331,7 @@ const renderLabel = (
                   placeholder='Generate with AI...'
                 />
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   disabled={!wandState.searchQuery.trim() || wandState.isStreaming}
                   onMouseDown={(e: React.MouseEvent) => {
                     e.preventDefault()

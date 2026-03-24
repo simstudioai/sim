@@ -111,6 +111,78 @@ describe('ExecutionLogger', () => {
     test('should have getWorkflowExecution method', () => {
       expect(typeof logger.getWorkflowExecution).toBe('function')
     })
+
+    test('preserves correlation and diagnostics when execution completes', () => {
+      const loggerInstance = new ExecutionLogger() as any
+
+      const completedData = loggerInstance.buildCompletedExecutionData({
+        existingExecutionData: {
+          environment: {
+            variables: {},
+            workflowId: 'workflow-123',
+            executionId: 'execution-123',
+            userId: 'user-123',
+            workspaceId: 'workspace-123',
+          },
+          trigger: {
+            type: 'webhook',
+            source: 'webhook',
+            timestamp: '2025-01-01T00:00:00.000Z',
+            data: {
+              correlation: {
+                executionId: 'execution-123',
+                requestId: 'req-1234',
+                source: 'webhook',
+                workflowId: 'workflow-123',
+                webhookId: 'webhook-123',
+                path: 'incoming/slack',
+                triggerType: 'webhook',
+              },
+            },
+          },
+          lastStartedBlock: {
+            blockId: 'block-start',
+            blockName: 'Start',
+            blockType: 'agent',
+            startedAt: '2025-01-01T00:00:00.000Z',
+          },
+          lastCompletedBlock: {
+            blockId: 'block-end',
+            blockName: 'Finish',
+            blockType: 'api',
+            endedAt: '2025-01-01T00:00:05.000Z',
+            success: true,
+          },
+        },
+        traceSpans: [],
+        finalOutput: { ok: true },
+        finalizationPath: 'completed',
+        completionFailure: 'fallback failure',
+        executionCost: {
+          tokens: { input: 0, output: 0, total: 0 },
+          models: {},
+        },
+      })
+
+      expect(completedData.environment?.workflowId).toBe('workflow-123')
+      expect(completedData.trigger?.data?.correlation).toEqual({
+        executionId: 'execution-123',
+        requestId: 'req-1234',
+        source: 'webhook',
+        workflowId: 'workflow-123',
+        webhookId: 'webhook-123',
+        path: 'incoming/slack',
+        triggerType: 'webhook',
+      })
+      expect(completedData.correlation).toEqual(completedData.trigger?.data?.correlation)
+      expect(completedData.finalOutput).toEqual({ ok: true })
+      expect(completedData.lastStartedBlock?.blockId).toBe('block-start')
+      expect(completedData.lastCompletedBlock?.blockId).toBe('block-end')
+      expect(completedData.finalizationPath).toBe('completed')
+      expect(completedData.completionFailure).toBe('fallback failure')
+      expect(completedData.hasTraceSpans).toBe(false)
+      expect(completedData.traceSpanCount).toBe(0)
+    })
   })
 
   describe('file extraction', () => {

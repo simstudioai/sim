@@ -40,6 +40,10 @@ export const AuditAction = {
   CREDENTIAL_SET_INVITATION_RESENT: 'credential_set_invitation.resent',
   CREDENTIAL_SET_INVITATION_REVOKED: 'credential_set_invitation.revoked',
 
+  // Connector Documents
+  CONNECTOR_DOCUMENT_RESTORED: 'connector_document.restored',
+  CONNECTOR_DOCUMENT_EXCLUDED: 'connector_document.excluded',
+
   // Documents
   DOCUMENT_UPLOADED: 'document.uploaded',
   DOCUMENT_UPDATED: 'document.updated',
@@ -50,7 +54,9 @@ export const AuditAction = {
 
   // Files
   FILE_UPLOADED: 'file.uploaded',
+  FILE_UPDATED: 'file.updated',
   FILE_DELETED: 'file.deleted',
+  FILE_RESTORED: 'file.restored',
 
   // Folders
   FOLDER_CREATED: 'folder.created',
@@ -66,10 +72,17 @@ export const AuditAction = {
   INVITATION_ACCEPTED: 'invitation.accepted',
   INVITATION_REVOKED: 'invitation.revoked',
 
+  // Knowledge Base Connectors
+  CONNECTOR_CREATED: 'connector.created',
+  CONNECTOR_UPDATED: 'connector.updated',
+  CONNECTOR_DELETED: 'connector.deleted',
+  CONNECTOR_SYNCED: 'connector.synced',
+
   // Knowledge Bases
   KNOWLEDGE_BASE_CREATED: 'knowledge_base.created',
   KNOWLEDGE_BASE_UPDATED: 'knowledge_base.updated',
   KNOWLEDGE_BASE_DELETED: 'knowledge_base.deleted',
+  KNOWLEDGE_BASE_RESTORED: 'knowledge_base.restored',
 
   // MCP Servers
   MCP_SERVER_ADDED: 'mcp_server.added',
@@ -114,6 +127,12 @@ export const AuditAction = {
   // Schedules
   SCHEDULE_UPDATED: 'schedule.updated',
 
+  // Tables
+  TABLE_CREATED: 'table.created',
+  TABLE_UPDATED: 'table.updated',
+  TABLE_DELETED: 'table.deleted',
+  TABLE_RESTORED: 'table.restored',
+
   // Templates
   TEMPLATE_CREATED: 'template.created',
   TEMPLATE_UPDATED: 'template.updated',
@@ -126,6 +145,7 @@ export const AuditAction = {
   // Workflows
   WORKFLOW_CREATED: 'workflow.created',
   WORKFLOW_DELETED: 'workflow.deleted',
+  WORKFLOW_RESTORED: 'workflow.restored',
   WORKFLOW_DEPLOYED: 'workflow.deployed',
   WORKFLOW_UNDEPLOYED: 'workflow.undeployed',
   WORKFLOW_DUPLICATED: 'workflow.duplicated',
@@ -151,6 +171,7 @@ export const AuditResourceType = {
   BILLING: 'billing',
   BYOK_KEY: 'byok_key',
   CHAT: 'chat',
+  CONNECTOR: 'connector',
   CREDENTIAL_SET: 'credential_set',
   DOCUMENT: 'document',
   ENVIRONMENT: 'environment',
@@ -165,6 +186,7 @@ export const AuditResourceType = {
   PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',
   SCHEDULE: 'schedule',
+  TABLE: 'table',
   TEMPLATE: 'template',
   WEBHOOK: 'webhook',
   WORKFLOW: 'workflow',

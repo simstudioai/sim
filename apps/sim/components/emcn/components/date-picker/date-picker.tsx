@@ -559,12 +559,15 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
     }
   }, [open, isRangeMode, initialStart, initialEnd])
 
-  React.useEffect(() => {
-    if (!isRangeMode && selectedDate) {
+  const singleValueKey = !isRangeMode && selectedDate ? selectedDate.getTime() : undefined
+  const [prevSingleValueKey, setPrevSingleValueKey] = React.useState(singleValueKey)
+  if (singleValueKey !== prevSingleValueKey) {
+    setPrevSingleValueKey(singleValueKey)
+    if (selectedDate) {
       setViewMonth(selectedDate.getMonth())
       setViewYear(selectedDate.getFullYear())
     }
-  }, [isRangeMode, selectedDate])
+  }
 
   /**
    * Handles selection of a specific day in single mode.
@@ -797,7 +800,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
       side='bottom'
       align='start'
       sideOffset={4}
-      avoidCollisions={false}
+      collisionPadding={16}
       className={cn(
         'rounded-[6px] border border-[var(--border-1)] p-0',
         isRangeMode ? 'w-auto' : 'w-[280px]'

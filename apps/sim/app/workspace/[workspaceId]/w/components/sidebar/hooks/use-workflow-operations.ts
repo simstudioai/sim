@@ -42,6 +42,7 @@ export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProp
         workspaceId,
         name,
         color,
+        id: crypto.randomUUID(),
       })
 
       if (result.id) {

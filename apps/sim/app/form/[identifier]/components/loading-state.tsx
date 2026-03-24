@@ -1,6 +1,4 @@
-'use client'
-
-import { Skeleton } from '@/components/ui/skeleton'
+import { Skeleton } from '@/components/emcn'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 
 export function FormLoadingState() {

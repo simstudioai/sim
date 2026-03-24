@@ -1,10 +1,15 @@
 import { createLogger } from '@sim/logger'
+import { getBYOKKey } from '@/lib/api-key/byok'
 import { generateInternalToken } from '@/lib/auth/internal'
+import { logFixedUsage } from '@/lib/billing/core/usage-log'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
@@ -14,7 +19,14 @@ import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext } from '@/executor/types'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
-import type { OAuthTokenPayload, ToolConfig, ToolResponse, ToolRetryConfig } from '@/tools/types'
+import type {
+  BYOKProviderId,
+  OAuthTokenPayload,
+  ToolConfig,
+  ToolHostingPricing,
+  ToolResponse,
+  ToolRetryConfig,
+} from '@/tools/types'
 import {
   formatRequestParams,
   getTool,
@@ -23,6 +35,383 @@ import {
 } from '@/tools/utils'
 
 const logger = createLogger('Tools')
+
+/** Result from hosted key injection */
+interface HostedKeyInjectionResult {
+  isUsingHostedKey: boolean
+  envVarName?: string
+}
+
+/**
+ * Inject hosted API key if tool supports it and user didn't provide one.
+ * Checks BYOK workspace keys first, then uses the HostedKeyRateLimiter for round-robin key selection.
+ * Returns whether a hosted (billable) key was injected and which env var it came from.
+ */
+async function injectHostedKeyIfNeeded(
+  tool: ToolConfig,
+  params: Record<string, unknown>,
+  executionContext: ExecutionContext | undefined,
+  requestId: string
+): Promise<HostedKeyInjectionResult> {
+  if (!tool.hosting) return { isUsingHostedKey: false }
+  if (!isHosted) return { isUsingHostedKey: false }
+
+  const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
+
+  // Derive workspace/user/workflow IDs from executionContext or params._context
+  const ctx = params._context as Record<string, unknown> | undefined
+  const workspaceId = executionContext?.workspaceId || (ctx?.workspaceId as string | undefined)
+  const userId = executionContext?.userId || (ctx?.userId as string | undefined)
+  const workflowId = executionContext?.workflowId || (ctx?.workflowId as string | undefined)
+
+  // Check BYOK workspace key first
+  if (byokProviderId && workspaceId) {
+    try {
+      const byokResult = await getBYOKKey(workspaceId, byokProviderId as BYOKProviderId)
+      if (byokResult) {
+        params[apiKeyParam] = byokResult.apiKey
+        logger.info(`[${requestId}] Using BYOK key for ${tool.id}`)
+        return { isUsingHostedKey: false } // Don't bill - user's own key
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to get BYOK key for ${tool.id}:`, error)
+      // Fall through to hosted key
+    }
+  }
+
+  const rateLimiter = getHostedKeyRateLimiter()
+  const provider = byokProviderId || tool.id
+  const billingActorId = workspaceId
+
+  if (!billingActorId) {
+    logger.error(`[${requestId}] No workspace ID available for hosted key rate limiting`)
+    return { isUsingHostedKey: false }
+  }
+
+  const acquireResult = await rateLimiter.acquireKey(
+    provider,
+    envKeyPrefix,
+    rateLimit,
+    billingActorId
+  )
+
+  if (!acquireResult.success && acquireResult.billingActorRateLimited) {
+    logger.warn(`[${requestId}] Billing actor ${billingActorId} rate limited for ${tool.id}`, {
+      provider,
+      retryAfterMs: acquireResult.retryAfterMs,
+    })
+
+    PlatformEvents.hostedKeyUserThrottled({
+      toolId: tool.id,
+      reason: 'billing_actor_limit',
+      provider,
+      retryAfterMs: acquireResult.retryAfterMs ?? 0,
+      userId,
+      workspaceId,
+      workflowId,
+    })
+
+    const error = new Error(acquireResult.error || `Rate limit exceeded for ${tool.id}`)
+    ;(error as any).status = 429
+    ;(error as any).retryAfterMs = acquireResult.retryAfterMs
+    throw error
+  }
+
+  // Handle no keys configured (503)
+  if (!acquireResult.success) {
+    logger.error(`[${requestId}] No hosted keys configured for ${tool.id}: ${acquireResult.error}`)
+    const error = new Error(acquireResult.error || `No hosted keys configured for ${tool.id}`)
+    ;(error as any).status = 503
+    throw error
+  }
+
+  params[apiKeyParam] = acquireResult.key
+  logger.info(`[${requestId}] Using hosted key for ${tool.id} (${acquireResult.envVarName})`, {
+    keyIndex: acquireResult.keyIndex,
+    provider,
+  })
+
+  return {
+    isUsingHostedKey: true,
+    envVarName: acquireResult.envVarName,
+  }
+}
+
+/**
+ * Check if an error is a rate limit (throttling) or quota exhaustion error.
+ * Some providers (e.g. Perplexity) return 401/403 with "insufficient_quota"
+ * instead of the standard 429, so we also inspect the error message.
+ */
+function isRateLimitError(error: unknown): boolean {
+  if (error && typeof error === 'object') {
+    const status = (error as { status?: number }).status
+    if (status === 429 || status === 503) return true
+
+    if (status === 401 || status === 403) {
+      const message = ((error as { message?: string }).message || '').toLowerCase()
+      if (message.includes('quota') || message.includes('rate limit')) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+/** Context for retry with rate limit tracking */
+interface RetryContext {
+  requestId: string
+  toolId: string
+  envVarName: string
+  executionContext?: ExecutionContext
+}
+
+/**
+ * Execute a function with exponential backoff retry for rate limiting errors.
+ * Only used for hosted key requests. Tracks rate limit events via telemetry.
+ */
+async function executeWithRetry<T>(
+  fn: () => Promise<T>,
+  context: RetryContext,
+  maxRetries = 3,
+  baseDelayMs = 1000
+): Promise<T> {
+  const { requestId, toolId, envVarName, executionContext } = context
+  let lastError: unknown
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+
+      if (!isRateLimitError(error) || attempt === maxRetries) {
+        if (isRateLimitError(error) && attempt === maxRetries) {
+          PlatformEvents.hostedKeyUserThrottled({
+            toolId,
+            reason: 'upstream_retries_exhausted',
+            userId: executionContext?.userId,
+            workspaceId: executionContext?.workspaceId,
+            workflowId: executionContext?.workflowId,
+          })
+        }
+        throw error
+      }
+
+      const delayMs = baseDelayMs * 2 ** attempt
+
+      // Track throttling event via telemetry
+      PlatformEvents.hostedKeyRateLimited({
+        toolId,
+        envVarName,
+        attempt: attempt + 1,
+        maxRetries,
+        delayMs,
+        userId: executionContext?.userId,
+        workspaceId: executionContext?.workspaceId,
+        workflowId: executionContext?.workflowId,
+      })
+
+      logger.warn(
+        `[${requestId}] Rate limited for ${toolId} (${envVarName}), retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`
+      )
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+    }
+  }
+
+  throw lastError
+}
+
+/** Result from cost calculation */
+interface ToolCostResult {
+  cost: number
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Calculate cost based on pricing model
+ */
+function calculateToolCost(
+  pricing: ToolHostingPricing,
+  params: Record<string, unknown>,
+  response: Record<string, unknown>
+): ToolCostResult {
+  switch (pricing.type) {
+    case 'per_request':
+      return { cost: pricing.cost }
+
+    case 'custom': {
+      const result = pricing.getCost(params, response)
+      if (typeof result === 'number') {
+        return { cost: result }
+      }
+      return result
+    }
+
+    default: {
+      const exhaustiveCheck: never = pricing
+      throw new Error(`Unknown pricing type: ${(exhaustiveCheck as ToolHostingPricing).type}`)
+    }
+  }
+}
+
+interface HostedKeyCostResult {
+  cost: number
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Calculate and log hosted key cost for a tool execution.
+ * Logs to usageLog for audit trail and returns cost + metadata for output.
+ */
+async function processHostedKeyCost(
+  tool: ToolConfig,
+  params: Record<string, unknown>,
+  response: Record<string, unknown>,
+  executionContext: ExecutionContext | undefined,
+  requestId: string
+): Promise<HostedKeyCostResult> {
+  if (!tool.hosting?.pricing) {
+    return { cost: 0 }
+  }
+
+  const { cost, metadata } = calculateToolCost(tool.hosting.pricing, params, response)
+
+  if (cost <= 0) return { cost: 0 }
+
+  const ctx = params._context as Record<string, unknown> | undefined
+  const userId = executionContext?.userId || (ctx?.userId as string | undefined)
+  const wsId = executionContext?.workspaceId || (ctx?.workspaceId as string | undefined)
+  const wfId = executionContext?.workflowId || (ctx?.workflowId as string | undefined)
+
+  if (!userId) return { cost, metadata }
+
+  const skipLog = !!ctx?.skipFixedUsageLog || !!tool.hosting?.skipFixedUsageLog
+  if (!skipLog) {
+    try {
+      await logFixedUsage({
+        userId,
+        source: 'workflow',
+        description: `tool:${tool.id}`,
+        cost,
+        workspaceId: wsId,
+        workflowId: wfId,
+        executionId: executionContext?.executionId,
+        metadata,
+      })
+      logger.debug(
+        `[${requestId}] Logged hosted key cost for ${tool.id}: $${cost}`,
+        metadata ? { metadata } : {}
+      )
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to log hosted key usage for ${tool.id}:`, error)
+    }
+  } else {
+    logger.debug(
+      `[${requestId}] Skipping fixed usage log for ${tool.id} (cost will be tracked via provider tool loop)`
+    )
+  }
+
+  return { cost, metadata }
+}
+
+/**
+ * Report custom dimension usage after successful hosted-key tool execution.
+ * Only applies to tools with `custom` rate limit mode. Fires and logs;
+ * failures here do not block the response since execution already succeeded.
+ */
+async function reportCustomDimensionUsage(
+  tool: ToolConfig,
+  params: Record<string, unknown>,
+  response: Record<string, unknown>,
+  executionContext: ExecutionContext | undefined,
+  requestId: string
+): Promise<void> {
+  if (tool.hosting?.rateLimit.mode !== 'custom') return
+  const ctx = params._context as Record<string, unknown> | undefined
+  const billingActorId = executionContext?.workspaceId || (ctx?.workspaceId as string | undefined)
+  if (!billingActorId) return
+
+  const rateLimiter = getHostedKeyRateLimiter()
+  const provider = tool.hosting.byokProviderId || tool.id
+
+  try {
+    const result = await rateLimiter.reportUsage(
+      provider,
+      billingActorId,
+      tool.hosting.rateLimit,
+      params,
+      response
+    )
+
+    for (const dim of result.dimensions) {
+      if (!dim.allowed) {
+        logger.warn(`[${requestId}] Dimension ${dim.name} overdrawn after ${tool.id} execution`, {
+          consumed: dim.consumed,
+          tokensRemaining: dim.tokensRemaining,
+        })
+      }
+    }
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to report custom dimension usage for ${tool.id}:`, error)
+  }
+}
+
+/**
+ * Strips internal fields (keys starting with `__`) from tool output before
+ * returning to users. The double-underscore prefix is reserved for transient
+ * data (e.g. `__costDollars`) and will never collide with legitimate API
+ * fields like `_id`.
+ */
+function stripInternalFields(output: Record<string, unknown>): Record<string, unknown> {
+  if (typeof output !== 'object' || output === null || Array.isArray(output)) {
+    return output
+  }
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(output)) {
+    if (!key.startsWith('__')) {
+      result[key] = value
+    }
+  }
+  return result
+}
+
+/**
+ * Apply post-execution hosted-key cost tracking to a successful tool result.
+ * Reports custom dimension usage, calculates cost, and merges it into the output.
+ */
+async function applyHostedKeyCostToResult(
+  finalResult: ToolResponse,
+  tool: ToolConfig,
+  params: Record<string, unknown>,
+  executionContext: ExecutionContext | undefined,
+  requestId: string
+): Promise<void> {
+  await reportCustomDimensionUsage(tool, params, finalResult.output, executionContext, requestId)
+
+  if (tool.hosting?.skipFixedUsageLog) {
+    const ctx = params._context as Record<string, unknown> | undefined
+    if (ctx) {
+      ctx.skipFixedUsageLog = true
+    }
+  }
+
+  const { cost: hostedKeyCost, metadata } = await processHostedKeyCost(
+    tool,
+    params,
+    finalResult.output,
+    executionContext,
+    requestId
+  )
+  if (hostedKeyCost > 0) {
+    finalResult.output = {
+      ...finalResult.output,
+      cost: {
+        ...metadata,
+        total: hostedKeyCost,
+      },
+    }
+  }
+}
 
 /**
  * Normalizes a tool ID by stripping resource ID suffix (UUID/tableId).
@@ -299,6 +688,15 @@ export async function executeTool(
       throw new Error(`Tool not found: ${toolId}`)
     }
 
+    // Inject hosted API key if tool supports it and user didn't provide one
+    const hostedKeyInfo = await injectHostedKeyIfNeeded(
+      tool,
+      contextParams,
+      executionContext,
+      requestId
+    )
+
+    // If we have a credential parameter, fetch the access token
     if (contextParams.oauthCredential) {
       contextParams.credential = contextParams.oauthCredential
     }
@@ -419,8 +817,24 @@ export async function executeTool(
       const endTime = new Date()
       const endTimeISO = endTime.toISOString()
       const duration = endTime.getTime() - startTime.getTime()
+
+      if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
+        await applyHostedKeyCostToResult(
+          finalResult,
+          tool,
+          contextParams,
+          executionContext,
+          requestId
+        )
+      }
+
+      const strippedOutput = isCustomTool(normalizedToolId)
+        ? finalResult.output
+        : stripInternalFields(finalResult.output ?? {})
+
       return {
         ...finalResult,
+        output: strippedOutput,
         timing: {
           startTime: startTimeISO,
           endTime: endTimeISO,
@@ -430,7 +844,15 @@ export async function executeTool(
     }
 
     // Execute the tool request directly (internal routes use regular fetch, external use SSRF-protected fetch)
-    const result = await executeToolRequest(toolId, tool, contextParams)
+    // Wrap with retry logic for hosted keys to handle rate limiting due to higher usage
+    const result = hostedKeyInfo.isUsingHostedKey
+      ? await executeWithRetry(() => executeToolRequest(toolId, tool, contextParams), {
+          requestId,
+          toolId,
+          envVarName: hostedKeyInfo.envVarName!,
+          executionContext,
+        })
+      : await executeToolRequest(toolId, tool, contextParams)
 
     // Apply post-processing if available and not skipped
     let finalResult = result
@@ -452,8 +874,24 @@ export async function executeTool(
     const endTime = new Date()
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - startTime.getTime()
+
+    if (hostedKeyInfo.isUsingHostedKey && finalResult.success) {
+      await applyHostedKeyCostToResult(
+        finalResult,
+        tool,
+        contextParams,
+        executionContext,
+        requestId
+      )
+    }
+
+    const strippedOutput = isCustomTool(normalizedToolId)
+      ? finalResult.output
+      : stripInternalFields(finalResult.output ?? {})
+
     return {
       ...finalResult,
+      output: strippedOutput,
       timing: {
         startTime: startTimeISO,
         endTime: endTimeISO,

@@ -210,7 +210,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
   return (
     <>
       <Modal open={open} onOpenChange={(openState) => !openState && handleCloseAttempt()}>
-        <ModalContent className='max-w-[480px]'>
+        <ModalContent size='md'>
           <ModalHeader>
             <span>Edit API Info</span>
           </ModalHeader>
@@ -301,7 +301,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
       </Modal>
 
       <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
-        <ModalContent className='max-w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>
             <span>Unsaved Changes</span>
           </ModalHeader>

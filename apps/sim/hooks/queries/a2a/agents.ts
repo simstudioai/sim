@@ -36,15 +36,20 @@ export interface A2AAgent {
  */
 export const a2aAgentKeys = {
   all: ['a2a-agents'] as const,
-  list: (workspaceId: string) => [...a2aAgentKeys.all, 'list', workspaceId] as const,
-  detail: (agentId: string) => [...a2aAgentKeys.all, 'detail', agentId] as const,
+  lists: () => [...a2aAgentKeys.all, 'list'] as const,
+  list: (workspaceId: string) => [...a2aAgentKeys.lists(), workspaceId] as const,
+  details: () => [...a2aAgentKeys.all, 'detail'] as const,
+  detail: (agentId: string) => [...a2aAgentKeys.details(), agentId] as const,
+  byWorkflows: () => [...a2aAgentKeys.all, 'byWorkflow'] as const,
+  byWorkflow: (workspaceId: string, workflowId: string) =>
+    [...a2aAgentKeys.byWorkflows(), workspaceId, workflowId] as const,
 }
 
 /**
  * Fetch A2A agents for a workspace
  */
-async function fetchA2AAgents(workspaceId: string): Promise<A2AAgent[]> {
-  const response = await fetch(`/api/a2a/agents?workspaceId=${workspaceId}`)
+async function fetchA2AAgents(workspaceId: string, signal?: AbortSignal): Promise<A2AAgent[]> {
+  const response = await fetch(`/api/a2a/agents?workspaceId=${workspaceId}`, { signal })
   if (!response.ok) {
     throw new Error('Failed to fetch A2A agents')
   }
@@ -58,7 +63,7 @@ async function fetchA2AAgents(workspaceId: string): Promise<A2AAgent[]> {
 export function useA2AAgents(workspaceId: string) {
   return useQuery({
     queryKey: a2aAgentKeys.list(workspaceId),
-    queryFn: () => fetchA2AAgents(workspaceId),
+    queryFn: ({ signal }) => fetchA2AAgents(workspaceId, signal),
     enabled: Boolean(workspaceId),
     staleTime: 60 * 1000, // 1 minute
   })
@@ -87,8 +92,8 @@ export interface A2AAgentCard {
 /**
  * Fetch a single A2A agent card (discovery document)
  */
-async function fetchA2AAgentCard(agentId: string): Promise<A2AAgentCard> {
-  const response = await fetch(`/api/a2a/agents/${agentId}`)
+async function fetchA2AAgentCard(agentId: string, signal?: AbortSignal): Promise<A2AAgentCard> {
+  const response = await fetch(`/api/a2a/agents/${agentId}`, { signal })
   if (!response.ok) {
     throw new Error('Failed to fetch A2A agent')
   }
@@ -101,8 +106,9 @@ async function fetchA2AAgentCard(agentId: string): Promise<A2AAgentCard> {
 export function useA2AAgentCard(agentId: string) {
   return useQuery({
     queryKey: a2aAgentKeys.detail(agentId),
-    queryFn: () => fetchA2AAgentCard(agentId),
+    queryFn: ({ signal }) => fetchA2AAgentCard(agentId, signal),
     enabled: Boolean(agentId),
+    staleTime: 5 * 60 * 1000, // 5 minutes - agent cards are relatively static
   })
 }
 
@@ -145,9 +151,11 @@ export function useCreateA2AAgent() {
   return useMutation({
     mutationFn: createA2AAgent,
     onSuccess: () => {
-      // Invalidate all a2a-agent queries (list, detail, byWorkflow, etc.)
       queryClient.invalidateQueries({
-        queryKey: a2aAgentKeys.all,
+        queryKey: a2aAgentKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.byWorkflows(),
       })
     },
   })
@@ -194,10 +202,15 @@ export function useUpdateA2AAgent() {
 
   return useMutation({
     mutationFn: updateA2AAgent,
-    onSuccess: () => {
-      // Invalidate all a2a-agent queries (list, detail, byWorkflow, etc.)
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: a2aAgentKeys.all,
+        queryKey: a2aAgentKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.detail(variables.agentId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.byWorkflows(),
       })
     },
   })
@@ -224,10 +237,15 @@ export function useDeleteA2AAgent() {
 
   return useMutation({
     mutationFn: deleteA2AAgent,
-    onSuccess: () => {
-      // Invalidate all a2a-agent queries (list, detail, byWorkflow, etc.)
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: a2aAgentKeys.all,
+        queryKey: a2aAgentKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.detail(variables.agentId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.byWorkflows(),
       })
     },
   })
@@ -269,10 +287,15 @@ export function usePublishA2AAgent() {
 
   return useMutation({
     mutationFn: publishA2AAgent,
-    onSuccess: () => {
-      // Invalidate all a2a-agent queries (list, detail, byWorkflow, etc.)
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: a2aAgentKeys.all,
+        queryKey: a2aAgentKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.detail(variables.agentId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.byWorkflows(),
       })
     },
   })
@@ -283,9 +306,10 @@ export function usePublishA2AAgent() {
  */
 async function fetchA2AAgentByWorkflow(
   workspaceId: string,
-  workflowId: string
+  workflowId: string,
+  signal?: AbortSignal
 ): Promise<A2AAgent | null> {
-  const response = await fetch(`/api/a2a/agents?workspaceId=${workspaceId}`)
+  const response = await fetch(`/api/a2a/agents?workspaceId=${workspaceId}`, { signal })
   if (!response.ok) {
     throw new Error('Failed to fetch A2A agents')
   }
@@ -299,8 +323,8 @@ async function fetchA2AAgentByWorkflow(
  */
 export function useA2AAgentByWorkflow(workspaceId: string, workflowId: string) {
   return useQuery({
-    queryKey: [...a2aAgentKeys.all, 'byWorkflow', workspaceId, workflowId] as const,
-    queryFn: () => fetchA2AAgentByWorkflow(workspaceId, workflowId),
+    queryKey: a2aAgentKeys.byWorkflow(workspaceId, workflowId),
+    queryFn: ({ signal }) => fetchA2AAgentByWorkflow(workspaceId, workflowId, signal),
     enabled: Boolean(workspaceId) && Boolean(workflowId),
     staleTime: 30 * 1000, // 30 seconds
   })

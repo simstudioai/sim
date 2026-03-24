@@ -9,7 +9,7 @@ import type { GlobalCommand } from '@/app/workspace/[workspaceId]/providers/glob
 export type CommandId =
   | 'accept-diff-changes'
   | 'add-agent'
-  | 'goto-templates'
+  // | 'goto-templates'
   | 'goto-logs'
   | 'open-search'
   | 'run-workflow'
@@ -52,11 +52,11 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
     shortcut: 'Mod+Shift+A',
     allowInEditable: true,
   },
-  'goto-templates': {
-    id: 'goto-templates',
-    shortcut: 'Mod+Y',
-    allowInEditable: true,
-  },
+  // 'goto-templates': {
+  //   id: 'goto-templates',
+  //   shortcut: 'Mod+Y',
+  //   allowInEditable: true,
+  // },
   'goto-logs': {
     id: 'goto-logs',
     shortcut: 'Mod+L',

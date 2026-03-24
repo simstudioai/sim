@@ -5,7 +5,7 @@
 import { db } from '@sim/db'
 import { userTableDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { TableSchema } from '../types'
 
 const logger = createLogger('TableWandEnricher')
@@ -31,7 +31,11 @@ export async function enrichTableSchema(
       })
       .from(userTableDefinitions)
       .where(
-        and(eq(userTableDefinitions.id, tableId), eq(userTableDefinitions.workspaceId, workspaceId))
+        and(
+          eq(userTableDefinitions.id, tableId),
+          eq(userTableDefinitions.workspaceId, workspaceId),
+          isNull(userTableDefinitions.archivedAt)
+        )
       )
       .limit(1)
 

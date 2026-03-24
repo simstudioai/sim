@@ -49,6 +49,28 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     },
   },
 
+  hosting: {
+    envKeyPrefix: 'SERPER_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'serper',
+    pricing: {
+      type: 'custom',
+      getCost: (params, output) => {
+        if (!Array.isArray(output.searchResults)) {
+          throw new Error('Serper response missing searchResults, cannot determine cost')
+        }
+        const num = Number(params.num) || 10
+        const credits = num > 10 ? 2 : 1
+        const cost = credits * 0.001
+        return { cost, metadata: { num, credits } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 100,
+    },
+  },
+
   request: {
     url: (params) => `https://google.serper.dev/${params.type || 'search'}`,
     method: 'POST',

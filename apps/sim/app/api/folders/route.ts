@@ -3,11 +3,21 @@ import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersAPI')
+
+const CreateFolderSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().min(1, 'Name is required'),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  parentId: z.string().optional(),
+  color: z.string().optional(),
+  sortOrder: z.number().int().optional(),
+})
 
 // GET - Fetch folders for a workspace
 export async function GET(request: NextRequest) {
@@ -59,13 +69,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, workspaceId, parentId, color, sortOrder: providedSortOrder } = body
+    const {
+      id: clientId,
+      name,
+      workspaceId,
+      parentId,
+      color,
+      sortOrder: providedSortOrder,
+    } = CreateFolderSchema.parse(body)
 
-    if (!name || !workspaceId) {
-      return NextResponse.json({ error: 'Name and workspace ID are required' }, { status: 400 })
-    }
-
-    // Check if user has workspace permissions (at least 'write' access to create folders)
     const workspacePermission = await getUserEntityPermissions(
       session.user.id,
       'workspace',
@@ -79,8 +91,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate a new ID
-    const id = crypto.randomUUID()
+    const id = clientId || crypto.randomUUID()
 
     const newFolder = await db.transaction(async (tx) => {
       let sortOrder: number
@@ -150,6 +161,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ folder: newFolder })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      logger.warn('Invalid folder creation data', { errors: error.errors })
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
     logger.error('Error creating folder:', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

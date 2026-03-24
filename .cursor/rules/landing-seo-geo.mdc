@@ -1,0 +1,26 @@
+---
+description: SEO and GEO guidelines for the landing page
+globs: ["apps/sim/app/(home)/**/*.tsx"]
+---
+
+# Landing Page — SEO / GEO
+
+## SEO
+
+- One `<h1>` per page, in Hero only — never add another.
+- Strict heading hierarchy: H1 (Hero) → H2 (section titles) → H3 (feature names).
+- Every section: `<section id="…" aria-labelledby="…-heading">`.
+- Decorative/animated elements: `aria-hidden="true"`.
+- All internal routes use Next.js `<Link>` (crawlable). External links get `rel="noopener noreferrer"`.
+- Navbar is a Server Component (no `'use client'`) for immediate crawlability. Logo `<Image>` has `priority` (LCP element).
+- Navbar `<nav>` carries `SiteNavigationElement` schema.org markup.
+- Feature lists must stay in sync with `WebApplication.featureList` in `structured-data.tsx`.
+
+## GEO (Generative Engine Optimisation)
+
+- **Answer-first pattern**: each section's H2 + subtitle should directly answer a user question (e.g. "What is Sim?", "How fast can I deploy?").
+- **Atomic answer blocks**: each feature / template card should be independently extractable by an AI summariser.
+- **Entity consistency**: always write "Sim" by name — never "the platform" or "our tool".
+- **Keyword density**: first 150 visible chars of Hero must name "Sim", "AI agents", "agentic workflows".
+- **sr-only summaries**: Hero and Templates each have a `<p className="sr-only">` (~50 words) as an atomic product/catalog summary for AI citation.
+- **Specific numbers**: prefer concrete figures ("1,000+ integrations", "15+ AI providers") over vague claims.

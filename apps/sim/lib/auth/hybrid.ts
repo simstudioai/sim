@@ -17,6 +17,7 @@ export type AuthTypeValue = (typeof AuthType)[keyof typeof AuthType]
 export interface AuthResult {
   success: boolean
   userId?: string
+  workspaceId?: string
   userName?: string | null
   userEmail?: string | null
   authType?: AuthTypeValue
@@ -216,6 +217,7 @@ export async function checkHybridAuth(
         return {
           success: true,
           userId: result.userId!,
+          workspaceId: result.workspaceId,
           authType: AuthType.API_KEY,
           apiKeyType: result.keyType,
         }

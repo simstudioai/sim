@@ -21,7 +21,7 @@ const mockCheckSessionOrInternalAuth = vi.fn()
 const mockLoadWorkflowFromNormalizedTables = vi.fn()
 const mockGetWorkflowById = vi.fn()
 const mockAuthorizeWorkflowByWorkspacePermission = vi.fn()
-const mockDbDelete = vi.fn()
+const mockArchiveWorkflow = vi.fn()
 const mockDbUpdate = vi.fn()
 const mockDbSelect = vi.fn()
 
@@ -72,9 +72,12 @@ vi.mock('@/lib/workflows/utils', () => ({
   }) => mockAuthorizeWorkflowByWorkspacePermission(params),
 }))
 
+vi.mock('@/lib/workflows/lifecycle', () => ({
+  archiveWorkflow: (...args: unknown[]) => mockArchiveWorkflow(...args),
+}))
+
 vi.mock('@sim/db', () => ({
   db: {
-    delete: () => mockDbDelete(),
     update: () => mockDbUpdate(),
     select: () => mockDbSelect(),
   },
@@ -297,8 +300,9 @@ describe('Workflow By ID API Route', () => {
         }),
       })
 
-      mockDbDelete.mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ id: 'workflow-123' }]),
+      mockArchiveWorkflow.mockResolvedValue({
+        archived: true,
+        workflow: mockWorkflow,
       })
 
       setupGlobalFetchMock({ ok: true })
@@ -340,8 +344,9 @@ describe('Workflow By ID API Route', () => {
         }),
       })
 
-      mockDbDelete.mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ id: 'workflow-123' }]),
+      mockArchiveWorkflow.mockResolvedValue({
+        archived: true,
+        workflow: mockWorkflow,
       })
 
       setupGlobalFetchMock({ ok: true })

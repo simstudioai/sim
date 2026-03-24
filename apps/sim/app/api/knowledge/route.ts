@@ -15,6 +15,8 @@ import {
   createKnowledgeBase,
   deleteKnowledgeBase,
   getKnowledgeBases,
+  KnowledgeBaseConflictError,
+  type KnowledgeBaseScope,
 } from '@/lib/knowledge/service'
 
 const logger = createLogger('KnowledgeBaseAPI')
@@ -129,8 +131,12 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const workspaceId = searchParams.get('workspaceId')
+    const scope = (searchParams.get('scope') ?? 'active') as KnowledgeBaseScope
+    if (!['active', 'archived', 'all'].includes(scope)) {
+      return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
+    }
 
-    const knowledgeBasesWithCounts = await getKnowledgeBases(session.user.id, workspaceId)
+    const knowledgeBasesWithCounts = await getKnowledgeBases(session.user.id, workspaceId, scope)
 
     return NextResponse.json({
       success: true,
@@ -275,6 +281,10 @@ export async function POST(req: NextRequest) {
       throw validationError
     }
   } catch (error) {
+    if (error instanceof KnowledgeBaseConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
+
     logger.error(`[${requestId}] Error creating knowledge base`, error)
     return NextResponse.json({ error: 'Failed to create knowledge base' }, { status: 500 })
   }

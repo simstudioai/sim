@@ -1,4 +1,4 @@
-import { db, workflow, workflowDeploymentVersion } from '@sim/db'
+import { db, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -8,7 +8,9 @@ import {
   restorePreviousVersionWebhooks,
   saveTriggerWebhooksForDeploy,
 } from '@/lib/webhooks/deploy'
+import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import {
+  activateWorkflowVersionById,
   deployWorkflow,
   loadWorkflowFromNormalizedTables,
   undeployWorkflow,
@@ -40,11 +42,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
   const requestId = generateRequestId()
 
   try {
-    const [workflowRecord] = await db
-      .select()
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
+    const workflowRecord = await getActiveWorkflowRecord(workflowId)
 
     if (!workflowRecord) {
       return notFoundResponse('Workflow')
@@ -71,6 +69,27 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       )
       .limit(1)
     const previousVersionId = currentActiveVersion?.id
+
+    const rollbackDeployment = async () => {
+      if (previousVersionId) {
+        await restorePreviousVersionWebhooks({
+          request,
+          workflow: workflowData,
+          userId: workflowRecord.userId,
+          previousVersionId,
+          requestId,
+        })
+        const reactivateResult = await activateWorkflowVersionById({
+          workflowId,
+          deploymentVersionId: previousVersionId,
+        })
+        if (reactivateResult.success) {
+          return
+        }
+      }
+
+      await undeployWorkflow({ workflowId })
+    }
 
     const deployResult = await deployWorkflow({
       workflowId,
@@ -107,7 +126,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
         requestId,
         deploymentVersionId: deployResult.deploymentVersionId,
       })
-      await undeployWorkflow({ workflowId })
+      await rollbackDeployment()
       return internalErrorResponse(
         triggerSaveResult.error?.message || 'Failed to sync trigger configuration'
       )
@@ -129,16 +148,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
         requestId,
         deploymentVersionId: deployResult.deploymentVersionId,
       })
-      if (previousVersionId) {
-        await restorePreviousVersionWebhooks({
-          request,
-          workflow: workflowData,
-          userId: workflowRecord.userId,
-          previousVersionId,
-          requestId,
-        })
-      }
-      await undeployWorkflow({ workflowId })
+      await rollbackDeployment()
       return internalErrorResponse(scheduleResult.error || 'Failed to create schedule')
     }
 
@@ -186,14 +196,15 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) 
   const requestId = generateRequestId()
 
   try {
-    const [workflowRecord] = await db
-      .select()
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
+    const workflowRecord = await getActiveWorkflowRecord(workflowId)
 
     if (!workflowRecord) {
       return notFoundResponse('Workflow')
+    }
+
+    const result = await undeployWorkflow({ workflowId })
+    if (!result.success) {
+      return internalErrorResponse(result.error || 'Failed to undeploy workflow')
     }
 
     await cleanupWebhooksForWorkflow(
@@ -201,11 +212,6 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) 
       workflowRecord as Record<string, unknown>,
       requestId
     )
-
-    const result = await undeployWorkflow({ workflowId })
-    if (!result.success) {
-      return internalErrorResponse(result.error || 'Failed to undeploy workflow')
-    }
 
     await removeMcpToolsForWorkflow(workflowId, requestId)
 

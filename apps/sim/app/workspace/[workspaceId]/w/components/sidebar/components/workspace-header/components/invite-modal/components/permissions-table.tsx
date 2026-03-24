@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useRef } from 'react'
 import { Loader2, RotateCw, X } from 'lucide-react'
-import { Badge, Button, Tooltip } from '@/components/emcn'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Badge, Button, Skeleton, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -65,13 +64,18 @@ export const PermissionsTable = ({
 }: PermissionsTableProps) => {
   const { data: session } = useSession()
   const userPerms = useUserPermissionsContext()
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
+  const hasLoadedOnceRef = useRef(false)
 
-  useEffect(() => {
-    if (!permissionsLoading && !userPerms.isLoading && !isPendingInvitationsLoading) {
-      setHasLoadedOnce(true)
-    }
-  }, [permissionsLoading, userPerms.isLoading, isPendingInvitationsLoading])
+  if (
+    !hasLoadedOnceRef.current &&
+    !permissionsLoading &&
+    !userPerms.isLoading &&
+    !isPendingInvitationsLoading
+  ) {
+    hasLoadedOnceRef.current = true
+  }
+
+  const hasLoadedOnce = hasLoadedOnceRef.current
 
   const existingUsers: UserPermissions[] = useMemo(
     () =>

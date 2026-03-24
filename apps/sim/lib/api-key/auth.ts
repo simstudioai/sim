@@ -1,4 +1,8 @@
+import { db } from '@sim/db'
+import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { and, eq } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
 import {
   decryptApiKey,
   encryptApiKey,
@@ -211,6 +215,52 @@ export async function getEncryptedApiKeyLast4(encryptedKey: string): Promise<str
  * @param apiKey - The API key to validate
  * @returns boolean - true if the format appears valid
  */
-export function isValidApiKeyFormat(apiKey: string): boolean {
-  return typeof apiKey === 'string' && apiKey.length > 10 && apiKey.length < 200
+export function isValidApiKeyFormat(apiKeyValue: string): boolean {
+  return typeof apiKeyValue === 'string' && apiKeyValue.length > 10 && apiKeyValue.length < 200
+}
+
+export async function createWorkspaceApiKey(params: {
+  workspaceId: string
+  userId: string
+  name: string
+}) {
+  const existingKey = await db
+    .select({ id: apiKey.id })
+    .from(apiKey)
+    .where(
+      and(
+        eq(apiKey.workspaceId, params.workspaceId),
+        eq(apiKey.name, params.name),
+        eq(apiKey.type, 'workspace')
+      )
+    )
+    .limit(1)
+
+  if (existingKey.length > 0) {
+    throw new Error(
+      `A workspace API key named "${params.name}" already exists. Choose a different name.`
+    )
+  }
+
+  const { key: plainKey, encryptedKey } = await createApiKey(true)
+  if (!encryptedKey) {
+    throw new Error('Failed to encrypt API key for storage')
+  }
+
+  const [newKey] = await db
+    .insert(apiKey)
+    .values({
+      id: nanoid(),
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      createdBy: params.userId,
+      name: params.name,
+      key: encryptedKey,
+      type: 'workspace',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning({ id: apiKey.id, name: apiKey.name, createdAt: apiKey.createdAt })
+
+  return { id: newKey.id, name: newKey.name, key: plainKey, createdAt: newKey.createdAt }
 }

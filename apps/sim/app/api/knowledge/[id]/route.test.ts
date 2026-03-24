@@ -103,11 +103,15 @@ vi.mock('@/lib/knowledge/dynamic-tables', () => ({
   dropKBEmbeddingTable: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/knowledge/service', () => ({
-  getKnowledgeBaseById: vi.fn(),
-  updateKnowledgeBase: vi.fn(),
-  deleteKnowledgeBase: vi.fn(),
-}))
+vi.mock('@/lib/knowledge/service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/knowledge/service')>()
+  return {
+    ...actual,
+    getKnowledgeBaseById: vi.fn(),
+    updateKnowledgeBase: vi.fn(),
+    deleteKnowledgeBase: vi.fn(),
+  }
+})
 
 vi.mock('@/app/api/knowledge/utils', () => ({
   checkKnowledgeBaseAccess: vi.fn(),

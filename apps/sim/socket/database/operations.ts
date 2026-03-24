@@ -1,12 +1,13 @@
 import * as schema from '@sim/db'
 import { webhook, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { env } from '@/lib/core/config/env'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
+import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { mergeSubBlockValues } from '@/lib/workflows/subblocks'
 import {
@@ -28,7 +29,7 @@ const socketDb = drizzle(
     prepare: false,
     idle_timeout: 10,
     connect_timeout: 20,
-    max: 15,
+    max: 10,
     onnotice: () => {},
   }),
   { schema }
@@ -174,7 +175,7 @@ export async function getWorkflowState(workflowId: string) {
     const workflowData = await db
       .select()
       .from(workflow)
-      .where(eq(workflow.id, workflowId))
+      .where(and(eq(workflow.id, workflowId), isNull(workflow.archivedAt)))
       .limit(1)
 
     if (!workflowData.length) {
@@ -216,6 +217,11 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
   const startTime = Date.now()
   try {
     const { operation: op, target, payload, timestamp, userId } = operation
+
+    const activeWorkflow = await getActiveWorkflowContext(workflowId)
+    if (!activeWorkflow) {
+      throw new Error(`Workflow ${workflowId} is archived or unavailable`)
+    }
 
     if (op === BLOCK_OPERATIONS.UPDATE_POSITION && Math.random() < 0.01) {
       logger.debug('Socket DB operation sample:', {
@@ -695,7 +701,28 @@ async function handleBlocksOperationTx(
           }
         })
 
-        await tx.insert(workflowBlocks).values(blockValues)
+        await tx
+          .insert(workflowBlocks)
+          .values(blockValues)
+          .onConflictDoUpdate({
+            target: workflowBlocks.id,
+            set: {
+              type: sql`excluded.type`,
+              name: sql`excluded.name`,
+              positionX: sql`excluded.position_x`,
+              positionY: sql`excluded.position_y`,
+              enabled: sql`excluded.enabled`,
+              horizontalHandles: sql`excluded.horizontal_handles`,
+              advancedMode: sql`excluded.advanced_mode`,
+              triggerMode: sql`excluded.trigger_mode`,
+              locked: sql`excluded.locked`,
+              height: sql`excluded.height`,
+              subBlocks: sql`excluded.sub_blocks`,
+              outputs: sql`excluded.outputs`,
+              data: sql`excluded.data`,
+              updatedAt: sql`now()`,
+            },
+          })
 
         // Create subflow entries for loop/parallel blocks (skip if already in payload)
         const loopIds = new Set(loops ? Object.keys(loops) : [])
@@ -703,27 +730,45 @@ async function handleBlocksOperationTx(
         for (const block of allowedBlocks) {
           const blockId = block.id as string
           if (block.type === 'loop' && !loopIds.has(blockId)) {
-            await tx.insert(workflowSubflows).values({
-              id: blockId,
-              workflowId,
-              type: 'loop',
-              config: {
-                loopType: 'for',
-                iterations: DEFAULT_LOOP_ITERATIONS,
-                nodes: [],
-              },
-            })
+            await tx
+              .insert(workflowSubflows)
+              .values({
+                id: blockId,
+                workflowId,
+                type: 'loop',
+                config: {
+                  loopType: 'for',
+                  iterations: DEFAULT_LOOP_ITERATIONS,
+                  nodes: [],
+                },
+              })
+              .onConflictDoUpdate({
+                target: workflowSubflows.id,
+                set: {
+                  config: sql`excluded.config`,
+                  updatedAt: sql`now()`,
+                },
+              })
           } else if (block.type === 'parallel' && !parallelIds.has(blockId)) {
-            await tx.insert(workflowSubflows).values({
-              id: blockId,
-              workflowId,
-              type: 'parallel',
-              config: {
-                parallelType: 'fixed',
-                count: DEFAULT_PARALLEL_COUNT,
-                nodes: [],
-              },
-            })
+            await tx
+              .insert(workflowSubflows)
+              .values({
+                id: blockId,
+                workflowId,
+                type: 'parallel',
+                config: {
+                  parallelType: 'fixed',
+                  count: DEFAULT_PARALLEL_COUNT,
+                  nodes: [],
+                },
+              })
+              .onConflictDoUpdate({
+                target: workflowSubflows.id,
+                set: {
+                  config: sql`excluded.config`,
+                  updatedAt: sql`now()`,
+                },
+              })
           }
         }
 
@@ -750,7 +795,18 @@ async function handleBlocksOperationTx(
           targetHandle: (edge.targetHandle as string | null) || null,
         }))
 
-        await tx.insert(workflowEdges).values(edgeValues)
+        await tx
+          .insert(workflowEdges)
+          .values(edgeValues)
+          .onConflictDoUpdate({
+            target: workflowEdges.id,
+            set: {
+              sourceBlockId: sql`excluded.source_block_id`,
+              targetBlockId: sql`excluded.target_block_id`,
+              sourceHandle: sql`excluded.source_handle`,
+              targetHandle: sql`excluded.target_handle`,
+            },
+          })
       }
 
       if (loops && Object.keys(loops).length > 0) {
@@ -761,7 +817,16 @@ async function handleBlocksOperationTx(
           config: loop as Record<string, unknown>,
         }))
 
-        await tx.insert(workflowSubflows).values(loopValues)
+        await tx
+          .insert(workflowSubflows)
+          .values(loopValues)
+          .onConflictDoUpdate({
+            target: workflowSubflows.id,
+            set: {
+              config: sql`excluded.config`,
+              updatedAt: sql`now()`,
+            },
+          })
       }
 
       if (parallels && Object.keys(parallels).length > 0) {
@@ -772,7 +837,16 @@ async function handleBlocksOperationTx(
           config: parallel as Record<string, unknown>,
         }))
 
-        await tx.insert(workflowSubflows).values(parallelValues)
+        await tx
+          .insert(workflowSubflows)
+          .values(parallelValues)
+          .onConflictDoUpdate({
+            target: workflowSubflows.id,
+            set: {
+              config: sql`excluded.config`,
+              updatedAt: sql`now()`,
+            },
+          })
       }
 
       logger.info(`Successfully batch added blocks to workflow ${workflowId}`)
@@ -1546,7 +1620,18 @@ async function handleEdgesOperationTx(
         targetHandle: (edge.targetHandle as string | null) || null,
       }))
 
-      await tx.insert(workflowEdges).values(edgeValues)
+      await tx
+        .insert(workflowEdges)
+        .values(edgeValues)
+        .onConflictDoUpdate({
+          target: workflowEdges.id,
+          set: {
+            sourceBlockId: sql`excluded.source_block_id`,
+            targetBlockId: sql`excluded.target_block_id`,
+            sourceHandle: sql`excluded.source_handle`,
+            targetHandle: sql`excluded.target_handle`,
+          },
+        })
 
       logger.debug(`Batch added ${safeEdges.length} edges to workflow ${workflowId}`)
       break

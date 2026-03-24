@@ -30,7 +30,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, session.user.id)
     if (!accessCheck.hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json(
+        { error: accessCheck.notFound ? 'Not found' : 'Forbidden' },
+        { status: accessCheck.notFound ? 404 : 403 }
+      )
     }
 
     // Get existing definitions once and reuse

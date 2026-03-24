@@ -1,5 +1,5 @@
 import { FathomIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { FathomResponse } from '@/tools/fathom/types'
 import { getTrigger } from '@/triggers'
 import { fathomTriggerOptions } from '@/triggers/fathom/utils'
@@ -14,6 +14,8 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
     'Integrate Fathom AI Notetaker into your workflow. List meetings, get transcripts and summaries, and manage team members and teams. Can also trigger workflows when new meeting content is ready.',
   docsLink: 'https://docs.sim.ai/tools/fathom',
   category: 'tools',
+  integrationType: IntegrationType.Analytics,
+  tags: ['meeting', 'note-taking'],
   bgColor: '#181C1E',
   icon: FathomIcon,
   subBlocks: [

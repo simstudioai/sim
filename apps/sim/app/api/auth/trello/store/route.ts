@@ -1,11 +1,12 @@
+import { db } from '@sim/db'
+import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
+import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
-import { db } from '@/../../packages/db'
-import { account } from '@/../../packages/db/schema'
 
 const logger = createLogger('TrelloStore')
 
@@ -85,6 +86,28 @@ export async function POST(request: NextRequest) {
         },
         { provider: 'Trello', identifier: trelloUser.id }
       )
+    }
+
+    const persisted =
+      existing ??
+      (await db.query.account.findFirst({
+        where: and(
+          eq(account.userId, session.user.id),
+          eq(account.providerId, 'trello'),
+          eq(account.accountId, trelloUser.id)
+        ),
+      }))
+
+    if (persisted) {
+      try {
+        await processCredentialDraft({
+          userId: session.user.id,
+          providerId: 'trello',
+          accountId: persisted.id,
+        })
+      } catch (error) {
+        logger.error('Failed to process credential draft for Trello', { error })
+      }
     }
 
     return NextResponse.json({ success: true })

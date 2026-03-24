@@ -1,6 +1,6 @@
 import { db, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { cleanupWebhooksForWorkflow } from '@/lib/webhooks/deploy'
 import type { BlockState } from '@/lib/workflows/schedules/utils'
@@ -81,9 +81,10 @@ export async function createSchedulesForDeploy(
           deploymentVersionId
             ? and(
                 eq(workflowSchedule.workflowId, workflowId),
-                eq(workflowSchedule.deploymentVersionId, deploymentVersionId)
+                eq(workflowSchedule.deploymentVersionId, deploymentVersionId),
+                isNull(workflowSchedule.archivedAt)
               )
-            : eq(workflowSchedule.workflowId, workflowId)
+            : and(eq(workflowSchedule.workflowId, workflowId), isNull(workflowSchedule.archivedAt))
         )
 
       const orphanedScheduleIds = existingSchedules
@@ -137,6 +138,7 @@ export async function createSchedulesForDeploy(
               workflowSchedule.blockId,
               workflowSchedule.deploymentVersionId,
             ],
+            targetWhere: isNull(workflowSchedule.archivedAt),
             set: setValues,
           })
 
@@ -178,9 +180,10 @@ export async function deleteSchedulesForWorkflow(
       deploymentVersionId
         ? and(
             eq(workflowSchedule.workflowId, workflowId),
-            eq(workflowSchedule.deploymentVersionId, deploymentVersionId)
+            eq(workflowSchedule.deploymentVersionId, deploymentVersionId),
+            isNull(workflowSchedule.archivedAt)
           )
-        : eq(workflowSchedule.workflowId, workflowId)
+        : and(eq(workflowSchedule.workflowId, workflowId), isNull(workflowSchedule.archivedAt))
     )
 
   logger.info(

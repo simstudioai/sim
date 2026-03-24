@@ -32,9 +32,12 @@ export const MIN_VARIABLES_HEIGHT = DEFAULT_HEIGHT
 export const MAX_VARIABLES_WIDTH = 500
 export const MAX_VARIABLES_HEIGHT = 600
 
+/** Inset gap between the viewport edge and the content window */
+const CONTENT_WINDOW_GAP = 8
+
 /**
  * Compute a center-biased default position, factoring in current layout chrome
- * (sidebar, right panel, and terminal), mirroring the chat modal behavior.
+ * (sidebar, right panel, terminal) and content window inset.
  */
 const calculateDefaultPosition = (): VariablesPosition => {
   if (typeof window === 'undefined') {
@@ -51,10 +54,10 @@ const calculateDefaultPosition = (): VariablesPosition => {
     getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
   )
 
-  const availableWidth = window.innerWidth - sidebarWidth - panelWidth
-  const availableHeight = window.innerHeight - terminalHeight
+  const availableWidth = window.innerWidth - sidebarWidth - CONTENT_WINDOW_GAP - panelWidth
+  const availableHeight = window.innerHeight - CONTENT_WINDOW_GAP * 2 - terminalHeight
   const x = sidebarWidth + (availableWidth - DEFAULT_WIDTH) / 2
-  const y = (availableHeight - DEFAULT_HEIGHT) / 2
+  const y = CONTENT_WINDOW_GAP + (availableHeight - DEFAULT_HEIGHT) / 2
   return { x, y }
 }
 
@@ -79,9 +82,9 @@ const constrainPosition = (
   )
 
   const minX = sidebarWidth
-  const maxX = window.innerWidth - panelWidth - width
-  const minY = 0
-  const maxY = window.innerHeight - terminalHeight - height
+  const maxX = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - width
+  const minY = CONTENT_WINDOW_GAP
+  const maxY = window.innerHeight - CONTENT_WINDOW_GAP - terminalHeight - height
 
   return {
     x: Math.max(minX, Math.min(maxX, position.x)),

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -13,9 +13,9 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Skeleton,
   Tooltip,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
@@ -26,7 +26,7 @@ const logger = createLogger('GeneralDeploy')
 
 interface GeneralDeployProps {
   workflowId: string | null
-  deployedState: WorkflowState
+  deployedState?: WorkflowState | null
   isLoadingDeployedState: boolean
   versions: WorkflowDeploymentVersionResponse[]
   versionsLoading: boolean
@@ -49,7 +49,10 @@ export function GeneralDeploy({
   onLoadDeploymentComplete,
 }: GeneralDeployProps) {
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
-  const [previewMode, setPreviewMode] = useState<PreviewMode>('active')
+  const [showActiveDespiteSelection, setShowActiveDespiteSelection] = useState(false)
+  // Derived — no useEffect needed
+  const previewMode: PreviewMode =
+    selectedVersion !== null && !showActiveDespiteSelection ? 'selected' : 'active'
   const [showLoadDialog, setShowLoadDialog] = useState(false)
   const [showPromoteDialog, setShowPromoteDialog] = useState(false)
   const [showExpandedPreview, setShowExpandedPreview] = useState(false)
@@ -64,16 +67,9 @@ export function GeneralDeploy({
 
   const revertMutation = useRevertToVersion()
 
-  useEffect(() => {
-    if (selectedVersion !== null) {
-      setPreviewMode('selected')
-    } else {
-      setPreviewMode('active')
-    }
-  }, [selectedVersion])
-
   const handleSelectVersion = useCallback((version: number | null) => {
     setSelectedVersion(version)
+    setShowActiveDespiteSelection(false)
   }, [])
 
   const handleLoadDeployment = useCallback((version: number) => {
@@ -164,7 +160,9 @@ export function GeneralDeploy({
             >
               <ButtonGroup
                 value={previewMode}
-                onValueChange={(val) => setPreviewMode(val as PreviewMode)}
+                onValueChange={(val) =>
+                  setShowActiveDespiteSelection((val as PreviewMode) === 'active')
+                }
               >
                 <ButtonGroupItem value='active'>Live</ButtonGroupItem>
                 <ButtonGroupItem value='selected' className='truncate'>
@@ -235,7 +233,7 @@ export function GeneralDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Load Deployment</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to load{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {versionToLoadInfo?.name || `v${versionToLoad}`}
@@ -261,7 +259,7 @@ export function GeneralDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Promote to live</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to promote{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {versionToPromoteInfo?.name || `v${versionToPromote}`}

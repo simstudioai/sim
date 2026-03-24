@@ -1,7 +1,7 @@
 import { ConfluenceIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { ConfluenceResponse } from '@/tools/confluence/types'
 import { getTrigger } from '@/triggers'
@@ -16,6 +16,8 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
     'Integrate Confluence into the workflow. Can read, create, update, delete pages, manage comments, attachments, labels, and search content.',
   docsLink: 'https://docs.sim.ai/tools/confluence',
   category: 'tools',
+  integrationType: IntegrationType.Documents,
+  tags: ['knowledge-base', 'content-management', 'note-taking'],
   bgColor: '#E0E0E0',
   icon: ConfluenceIcon,
   subBlocks: [

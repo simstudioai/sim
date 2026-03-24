@@ -1,5 +1,6 @@
 import { GoogleMapsIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 
 export const GoogleMapsBlock: BlockConfig = {
   type: 'google_maps',
@@ -9,6 +10,8 @@ export const GoogleMapsBlock: BlockConfig = {
     'Integrate Google Maps Platform APIs into your workflow. Supports geocoding addresses to coordinates, reverse geocoding, getting directions between locations, calculating distance matrices, searching for places, retrieving place details, elevation data, and timezone information.',
   docsLink: 'https://docs.sim.ai/tools/google_maps',
   category: 'tools',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['google-workspace', 'enrichment'],
   bgColor: '#E0E0E0',
   icon: GoogleMapsIcon,
 
@@ -36,7 +39,7 @@ export const GoogleMapsBlock: BlockConfig = {
       value: () => 'geocode',
     },
 
-    // API Key
+    // API Key — hidden when hosted for operations with hosted key support
     {
       id: 'apiKey',
       title: 'API Key',
@@ -44,6 +47,18 @@ export const GoogleMapsBlock: BlockConfig = {
       password: true,
       placeholder: 'Enter your Google Maps API key',
       required: true,
+      hideWhenHosted: true,
+      condition: { field: 'operation', value: 'speed_limits', not: true },
+    },
+    // API Key — always visible for Speed Limits (deprecated API, no hosted key support)
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      password: true,
+      placeholder: 'Enter your Google Maps API key',
+      required: true,
+      condition: { field: 'operation', value: 'speed_limits' },
     },
 
     // ========== Geocode ==========

@@ -16,4 +16,6 @@ export interface BrandConfig {
   termsUrl?: string
   privacyUrl?: string
   theme?: ThemeColors
+  /** Whether this instance has custom branding applied (any brand env var is set) */
+  isWhitelabeled: boolean
 }

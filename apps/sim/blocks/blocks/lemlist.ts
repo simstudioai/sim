@@ -1,5 +1,5 @@
 import { LemlistIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { LemlistResponse } from '@/tools/lemlist/types'
 import { getTrigger } from '@/triggers'
 
@@ -12,6 +12,8 @@ export const LemlistBlock: BlockConfig<LemlistResponse> = {
     'Integrate Lemlist into your workflow. Retrieve campaign activities and replies, get lead information, and send emails through the Lemlist inbox.',
   docsLink: 'https://docs.sim.ai/tools/lemlist',
   category: 'tools',
+  integrationType: IntegrationType.Email,
+  tags: ['sales-engagement', 'email-marketing', 'automation'],
   bgColor: '#316BFF',
   icon: LemlistIcon,
   subBlocks: [

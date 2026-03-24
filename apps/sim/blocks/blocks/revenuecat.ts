@@ -1,6 +1,6 @@
 import { RevenueCatIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { RevenueCatResponse } from '@/tools/revenuecat/types'
 
 export const RevenueCatBlock: BlockConfig<RevenueCatResponse> = {
@@ -12,6 +12,8 @@ export const RevenueCatBlock: BlockConfig<RevenueCatResponse> = {
     'Integrate RevenueCat into the workflow. Manage subscribers, entitlements, offerings, and Google Play subscriptions. Retrieve customer subscription status, grant or revoke promotional entitlements, record purchases, update subscriber attributes, and manage Google Play subscription billing.',
   docsLink: 'https://docs.sim.ai/tools/revenuecat',
   category: 'tools',
+  integrationType: IntegrationType.Ecommerce,
+  tags: ['payments', 'subscriptions'],
   bgColor: '#F25A5A',
   icon: RevenueCatIcon,
   subBlocks: [

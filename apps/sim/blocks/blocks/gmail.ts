@@ -1,7 +1,7 @@
 import { GmailIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { GmailToolResponse } from '@/tools/gmail/types'
 import { getTrigger } from '@/triggers'
@@ -46,6 +46,8 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     'Integrate Gmail into the workflow. Can send, read, search, and move emails. Can be used in trigger mode to trigger a workflow when a new email is received.',
   docsLink: 'https://docs.sim.ai/tools/gmail',
   category: 'tools',
+  integrationType: IntegrationType.Email,
+  tags: ['google-workspace', 'messaging'],
   bgColor: '#E0E0E0',
   icon: GmailIcon,
   hideFromToolbar: true,
@@ -553,6 +555,8 @@ export const GmailV2Block: BlockConfig<GmailToolResponse> = {
   type: 'gmail_v2',
   name: 'Gmail',
   hideFromToolbar: false,
+  integrationType: IntegrationType.Email,
+  tags: ['google-workspace', 'messaging'],
   tools: {
     ...GmailBlock.tools,
     access: [

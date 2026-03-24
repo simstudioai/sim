@@ -50,6 +50,8 @@ Get current air quality data for a location
 | `lat` | number | Yes | Latitude coordinate |
 | `lng` | number | Yes | Longitude coordinate |
 | `languageCode` | string | No | Language code for the response \(e.g., "en", "es"\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -91,6 +93,8 @@ Get directions and route information between two locations
 | `waypoints` | json | No | Array of intermediate waypoints |
 | `units` | string | No | Unit system: metric or imperial |
 | `language` | string | No | Language code for results \(e.g., en, es, fr\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -135,6 +139,8 @@ Calculate travel distance and time between multiple origins and destinations
 | `avoid` | string | No | Features to avoid: tolls, highways, or ferries |
 | `units` | string | No | Unit system: metric or imperial |
 | `language` | string | No | Language code for results \(e.g., en, es, fr\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -163,6 +169,8 @@ Get elevation data for a location
 | `apiKey` | string | Yes | Google Maps API key |
 | `lat` | number | Yes | Latitude coordinate |
 | `lng` | number | Yes | Longitude coordinate |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -185,6 +193,8 @@ Convert an address into geographic coordinates (latitude and longitude)
 | `address` | string | Yes | The address to geocode |
 | `language` | string | No | Language code for results \(e.g., en, es, fr\) |
 | `region` | string | No | Region bias as a ccTLD code \(e.g., us, uk\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -217,6 +227,8 @@ Geolocate a device using WiFi access points, cell towers, or IP address
 | `considerIp` | boolean | No | Whether to use IP address for geolocation \(default: true\) |
 | `cellTowers` | array | No | Array of cell tower objects with cellId, locationAreaCode, mobileCountryCode, mobileNetworkCode |
 | `wifiAccessPoints` | array | No | Array of WiFi access point objects with macAddress \(required\), signalStrength, etc. |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -238,6 +250,8 @@ Get detailed information about a specific place
 | `placeId` | string | Yes | Google Place ID |
 | `fields` | string | No | Comma-separated list of fields to return |
 | `language` | string | No | Language code for results \(e.g., en, es, fr\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -290,6 +304,8 @@ Search for places using a text query
 | `type` | string | No | Place type filter \(e.g., restaurant, cafe, hotel\) |
 | `language` | string | No | Language code for results \(e.g., en, es, fr\) |
 | `region` | string | No | Region bias as a ccTLD code \(e.g., us, uk\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -322,6 +338,8 @@ Convert geographic coordinates (latitude and longitude) into a human-readable ad
 | `lat` | number | Yes | Latitude coordinate |
 | `lng` | number | Yes | Longitude coordinate |
 | `language` | string | No | Language code for results \(e.g., en, es, fr\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -346,6 +364,8 @@ Snap GPS coordinates to the nearest road segment
 | `apiKey` | string | Yes | Google Maps API key with Roads API enabled |
 | `path` | string | Yes | Pipe-separated list of lat,lng coordinates \(e.g., "60.170880,24.942795\|60.170879,24.942796"\) |
 | `interpolate` | boolean | No | Whether to interpolate additional points along the road |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -399,6 +419,8 @@ Get timezone information for a location
 | `lng` | number | Yes | Longitude coordinate |
 | `timestamp` | number | No | Unix timestamp to determine DST offset \(defaults to current time\) |
 | `language` | string | No | Language code for timezone name \(e.g., en, es, fr\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -424,6 +446,8 @@ Validate and standardize a postal address
 | `regionCode` | string | No | ISO 3166-1 alpha-2 country code \(e.g., "US", "CA"\) |
 | `locality` | string | No | City or locality name |
 | `enableUspsCass` | boolean | No | Enable USPS CASS validation for US addresses |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
 
 #### Output
 

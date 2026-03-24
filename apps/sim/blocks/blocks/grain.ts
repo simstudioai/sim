@@ -1,6 +1,6 @@
 import { GrainIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 import { grainTriggerOptions } from '@/triggers/grain/utils'
 
@@ -13,6 +13,8 @@ export const GrainBlock: BlockConfig = {
   longDescription:
     'Integrate Grain into your workflow. Access meeting recordings, transcripts, highlights, and AI-generated summaries. Can also trigger workflows based on Grain webhook events.',
   category: 'tools',
+  integrationType: IntegrationType.Media,
+  tags: ['meeting', 'note-taking'],
   docsLink: 'https://docs.sim.ai/tools/grain',
   icon: GrainIcon,
   bgColor: '#F6FAF9',
@@ -268,15 +270,17 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
       type: 'dropdown',
       mode: 'trigger',
       options: grainTriggerOptions,
-      value: () => 'grain_webhook',
+      value: () => 'grain_item_added',
       required: true,
     },
+    ...getTrigger('grain_item_added').subBlocks,
+    ...getTrigger('grain_item_updated').subBlocks,
+    ...getTrigger('grain_webhook').subBlocks,
     ...getTrigger('grain_recording_created').subBlocks,
     ...getTrigger('grain_recording_updated').subBlocks,
     ...getTrigger('grain_highlight_created').subBlocks,
     ...getTrigger('grain_highlight_updated').subBlocks,
     ...getTrigger('grain_story_created').subBlocks,
-    ...getTrigger('grain_webhook').subBlocks,
   ],
   tools: {
     access: [
@@ -447,12 +451,14 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
   triggers: {
     enabled: true,
     available: [
+      'grain_item_added',
+      'grain_item_updated',
+      'grain_webhook',
       'grain_recording_created',
       'grain_recording_updated',
       'grain_highlight_created',
       'grain_highlight_updated',
       'grain_story_created',
-      'grain_webhook',
     ],
   },
 }

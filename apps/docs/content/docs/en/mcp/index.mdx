@@ -97,10 +97,11 @@ MCP functionality requires specific workspace permissions:
 
 | Action | Required Permission |
 |--------|-------------------|
-| Configure MCP servers in settings | **Admin** |
+| Create or update MCP servers | **Write** or **Admin** |
+| Delete MCP servers | **Admin** |
 | Use MCP tools in agents | **Write** or **Admin** |
 | View available MCP tools | **Read**, **Write**, or **Admin** |
-| Execute MCP Tool blocks | **Write** or **Admin** |
+| Execute MCP Tool blocks | **Read**, **Write**, or **Admin** |
 
 ## Common Use Cases
 
@@ -142,3 +143,14 @@ Fetch live data from external systems during workflow execution.
 - Confirm your workspace permission level
 - Check if the MCP server requires additional authentication
 - Verify the server is properly configured for your workspace
+
+import { FAQ } from '@/components/ui/faq'
+
+<FAQ items={[
+  { question: "What is the difference between using MCP tools in an Agent block vs. the standalone MCP Tool block?", answer: "When you add MCP tools to an Agent block, the AI decides which tools to use based on the conversation context and its reasoning. This is best for dynamic, conversational workflows. The standalone MCP Tool block executes a specific tool with explicit parameters every time, giving you deterministic, predictable execution. Use Agent blocks for flexible reasoning and MCP Tool blocks for structured, repeatable steps." },
+  { question: "Who can configure MCP servers in a workspace?", answer: "Users with Write permission can configure (add and update) MCP servers in workspace settings. Only Admin permission is required to delete MCP servers. Users with Read permission can view available MCP tools and execute them in agents and MCP Tool blocks. This means all workspace members with at least Read access can use MCP tools in their workflows." },
+  { question: "Can I use MCP servers from multiple workspaces?", answer: "MCP servers are configured per workspace. Each workspace maintains its own set of MCP server connections. If you need the same MCP server in multiple workspaces, you need to configure it separately in each workspace's settings." },
+  { question: "How do I update MCP tool schemas after a server changes its available tools?", answer: "Click the Refresh button on the MCP server in your workspace settings. This fetches the latest tool schemas from the server and automatically updates any agent blocks that use those tools with the new parameter definitions." },
+  { question: "Can permission groups restrict access to MCP tools?", answer: "Yes. Organization admins can create permission groups that disable MCP tools for specific members using the disableMcpTools configuration option. When this is enabled, affected users will not be able to add or use MCP tools in their workflows." },
+  { question: "What happens if an MCP server goes offline during workflow execution?", answer: "If the MCP server is unreachable during execution, the tool call will fail and return an error. In an Agent block, the AI may attempt to handle the failure gracefully. In a standalone MCP Tool block, the workflow step will fail. Check MCP server logs and verify the server is running and accessible to troubleshoot connectivity issues." },
+]} />

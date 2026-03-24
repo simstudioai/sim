@@ -236,7 +236,7 @@ describe('backfillCanonicalModes', () => {
     const input: Record<string, BlockState> = {
       b1: makeBlock({
         type: 'knowledge',
-        data: { canonicalModes: { knowledgeBaseId: 'advanced' } },
+        data: { canonicalModes: { knowledgeBaseId: 'advanced', documentId: 'basic' } },
         subBlocks: {
           knowledgeBaseSelector: {
             id: 'knowledgeBaseSelector',

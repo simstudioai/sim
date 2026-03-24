@@ -194,7 +194,7 @@ export const ActionBar = memo(
             <Tooltip.Content side='top'>
               {(() => {
                 if (disabled) return getTooltipMessage('Run from block')
-                if (isExecuting) return 'Execution in progress'
+                if (isExecuting) return 'Running...'
                 if (!dependenciesSatisfied) return 'Run previous blocks first'
                 return 'Run from block'
               })()}

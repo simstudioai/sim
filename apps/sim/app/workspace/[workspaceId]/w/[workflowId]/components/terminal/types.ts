@@ -50,9 +50,9 @@ export interface BlockInfo {
  * Common row styling classes for terminal components
  */
 export const ROW_STYLES = {
-  base: 'group flex cursor-pointer items-center justify-between gap-[8px] rounded-[8px] px-[6px]',
-  selected: 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]',
-  hover: 'hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
+  base: 'group flex cursor-pointer items-center justify-between gap-[8px] rounded-[8px] px-[8px]',
+  selected: 'bg-[var(--surface-active)]',
+  hover: 'hover:bg-[var(--surface-active)]',
   nested:
     'mt-[2px] ml-[3px] flex min-w-0 flex-col gap-[2px] border-[var(--border)] border-l pl-[9px]',
   iconButton: '!p-1.5 -m-1.5',

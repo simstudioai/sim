@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { customTools } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { generateRequestId } from '@/lib/core/utils/request'
 
@@ -106,4 +106,82 @@ export async function upsertCustomTools(params: {
 
     return resultTools
   })
+}
+
+export async function listCustomTools(params: { userId: string; workspaceId?: string }) {
+  const { userId, workspaceId } = params
+  return workspaceId
+    ? db
+        .select()
+        .from(customTools)
+        .where(
+          or(
+            eq(customTools.workspaceId, workspaceId),
+            and(isNull(customTools.workspaceId), eq(customTools.userId, userId))
+          )
+        )
+        .orderBy(desc(customTools.createdAt))
+    : db
+        .select()
+        .from(customTools)
+        .where(and(isNull(customTools.workspaceId), eq(customTools.userId, userId)))
+        .orderBy(desc(customTools.createdAt))
+}
+
+export async function getCustomToolById(params: {
+  toolId: string
+  userId: string
+  workspaceId?: string
+}) {
+  const { toolId, userId, workspaceId } = params
+
+  if (workspaceId) {
+    const workspaceTool = await db
+      .select()
+      .from(customTools)
+      .where(and(eq(customTools.id, toolId), eq(customTools.workspaceId, workspaceId)))
+      .limit(1)
+    if (workspaceTool[0]) return workspaceTool[0]
+  }
+
+  const legacyTool = await db
+    .select()
+    .from(customTools)
+    .where(
+      and(
+        eq(customTools.id, toolId),
+        isNull(customTools.workspaceId),
+        eq(customTools.userId, userId)
+      )
+    )
+    .limit(1)
+  return legacyTool[0] || null
+}
+
+export async function deleteCustomTool(params: {
+  toolId: string
+  userId: string
+  workspaceId?: string
+}): Promise<boolean> {
+  const { toolId, userId, workspaceId } = params
+
+  if (workspaceId) {
+    const workspaceDelete = await db
+      .delete(customTools)
+      .where(and(eq(customTools.id, toolId), eq(customTools.workspaceId, workspaceId)))
+      .returning({ id: customTools.id })
+    if (workspaceDelete.length > 0) return true
+  }
+
+  const legacyDelete = await db
+    .delete(customTools)
+    .where(
+      and(
+        eq(customTools.id, toolId),
+        isNull(customTools.workspaceId),
+        eq(customTools.userId, userId)
+      )
+    )
+    .returning({ id: customTools.id })
+  return legacyDelete.length > 0
 }

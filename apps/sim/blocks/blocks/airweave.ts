@@ -1,6 +1,6 @@
 import { AirweaveIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { AirweaveSearchResponse } from '@/tools/airweave/types'
 
 export const AirweaveBlock: BlockConfig<AirweaveSearchResponse> = {
@@ -12,6 +12,8 @@ export const AirweaveBlock: BlockConfig<AirweaveSearchResponse> = {
     'Search across your synced data sources using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.',
   docsLink: 'https://docs.airweave.ai',
   category: 'tools',
+  integrationType: IntegrationType.Search,
+  tags: ['vector-search', 'knowledge-base'],
   bgColor: '#6366F1',
   icon: AirweaveIcon,
   subBlocks: [

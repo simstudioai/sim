@@ -1,7 +1,7 @@
 import { MicrosoftPlannerIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { MicrosoftPlannerResponse } from '@/tools/microsoft_planner/types'
 
 interface MicrosoftPlannerBlockParams {
@@ -35,6 +35,8 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
     'Integrate Microsoft Planner into the workflow. Manage tasks, plans, buckets, and task details including checklists and references.',
   docsLink: 'https://docs.sim.ai/tools/microsoft_planner',
   category: 'tools',
+  integrationType: IntegrationType.Productivity,
+  tags: ['project-management', 'microsoft-365', 'ticketing'],
   bgColor: '#E0E0E0',
   icon: MicrosoftPlannerIcon,
   subBlocks: [

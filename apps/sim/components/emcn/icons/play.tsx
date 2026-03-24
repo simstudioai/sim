@@ -23,8 +23,7 @@ export function Play(props: SVGProps<SVGSVGElement>) {
 }
 
 /**
- * Play icon component (stroke/outline version, matches lucide style)
- * Uses 24x24 viewBox and strokeWidth 2 for consistency with other icons.
+ * Play icon component (stroke/outline version)
  * @param props - SVG properties including className, stroke, etc.
  */
 export function PlayOutline(props: SVGProps<SVGSVGElement>) {
@@ -32,16 +31,16 @@ export function PlayOutline(props: SVGProps<SVGSVGElement>) {
     <svg
       width='24'
       height='24'
-      viewBox='0 0 24 24'
+      viewBox='-1 -2 24 24'
       fill='none'
       stroke='currentColor'
-      strokeWidth='2'
+      strokeWidth='1.75'
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
       {...props}
     >
-      <path d='M14.7175 4.07175C16.6036 5.37051 18.0001 6.39111 19.0000 7.32600C20.0087 8.26733 20.9617 9.25123 21.3031 10.5484C21.5534 11.4996 21.5534 12.5003 21.3031 13.4515C20.9617 14.7487 20.0087 15.7326 19.0000 16.6739C18.0001 17.6088 16.6037 18.6294 14.7176 19.9281C12.9093 21.1827 11.0470 22.2407 9.6333 22.8420C8.2082 23.4482 6.9090 23.7554 5.6463 23.3976C4.6383 23.1346 3.7940 22.6355 3.1138 21.9492C2.1907 21.0179 1.9001 19.7306 1.7248 18.1814C1.5507 16.6436 1.5507 14.6305 1.5508 12.0701V11.9298C1.5507 9.36936 1.5507 7.35626 1.7248 5.81844C1.9001 4.26926 2.1907 2.982 3.1138 2.05063C3.7940 1.36438 4.6383 0.865267 5.6463 0.602306C6.9090 0.244489 8.2082 0.551707 9.6333 1.15785C11.0470 1.75916 12.9092 2.81712 14.7175 4.07175Z' />
+      <path d='M7.5 3.5C7.5 2.672 8.452 2.18 9.128 2.66L18.128 9.16C18.72 9.58 18.72 10.46 18.128 10.88L9.128 17.38C8.452 17.86 7.5 17.368 7.5 16.54V3.5Z' />
     </svg>
   )
 }

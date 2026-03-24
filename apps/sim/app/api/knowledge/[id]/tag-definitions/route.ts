@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import { createTagDefinition, getTagDefinitions } from '@/lib/knowledge/tags/service'
-import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
+import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,9 +26,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     // For session auth, verify KB access. Internal JWT is trusted.
     if (auth.authType === AuthType.SESSION && auth.userId) {
-      const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, auth.userId)
+      const accessCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, auth.userId)
       if (!accessCheck.hasAccess) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        return NextResponse.json(
+          { error: accessCheck.notFound ? 'Not found' : 'Forbidden' },
+          { status: accessCheck.notFound ? 404 : 403 }
+        )
       }
     }
 
@@ -63,9 +66,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // For session auth, verify KB access. Internal JWT is trusted.
     if (auth.authType === AuthType.SESSION && auth.userId) {
-      const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, auth.userId)
+      const accessCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, auth.userId)
       if (!accessCheck.hasAccess) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        return NextResponse.json(
+          { error: accessCheck.notFound ? 'Not found' : 'Forbidden' },
+          { status: accessCheck.notFound ? 404 : 403 }
+        )
       }
     }
 

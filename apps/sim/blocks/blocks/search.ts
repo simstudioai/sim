@@ -1,5 +1,6 @@
 import { SearchIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 
 export const SearchBlock: BlockConfig = {
   type: 'search',
@@ -9,6 +10,8 @@ export const SearchBlock: BlockConfig = {
   bgColor: '#3B82F6',
   icon: SearchIcon,
   category: 'tools',
+  integrationType: IntegrationType.Search,
+  tags: ['web-scraping', 'seo'],
   docsLink: 'https://docs.sim.ai/tools/search',
   subBlocks: [
     {

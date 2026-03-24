@@ -194,3 +194,17 @@ export async function closeRedisConnection(): Promise<void> {
     }
   }
 }
+
+/**
+ * Reset all module-level state. Only intended for use in tests.
+ */
+export function resetForTesting(): void {
+  if (pingInterval) {
+    clearInterval(pingInterval)
+    pingInterval = null
+  }
+  globalRedisClient = null
+  pingFailures = 0
+  pingInFlight = false
+  reconnectListeners.length = 0
+}

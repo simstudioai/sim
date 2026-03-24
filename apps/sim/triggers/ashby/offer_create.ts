@@ -1,11 +1,5 @@
 import { AshbyIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
-import {
-  ashbySetupInstructions,
-  ashbyTriggerOptions,
-  buildAshbyExtraFields,
-  buildOfferCreateOutputs,
-} from '@/triggers/ashby/utils'
+import { buildAshbySubBlocks, buildOfferCreateOutputs } from '@/triggers/ashby/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
@@ -21,11 +15,9 @@ export const ashbyOfferCreateTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: AshbyIcon,
 
-  subBlocks: buildTriggerSubBlocks({
+  subBlocks: buildAshbySubBlocks({
     triggerId: 'ashby_offer_create',
-    triggerOptions: ashbyTriggerOptions,
-    setupInstructions: ashbySetupInstructions('Offer Created'),
-    extraFields: buildAshbyExtraFields('ashby_offer_create'),
+    eventType: 'Offer Created',
   }),
 
   outputs: buildOfferCreateOutputs(),

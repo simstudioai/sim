@@ -328,11 +328,13 @@ export async function checkUniqueConstraintsDb(
   const conditions = []
 
   for (const column of uniqueColumns) {
+    if (!NAME_PATTERN.test(column.name)) {
+      throw new Error(`Invalid column name: ${column.name}`)
+    }
+
     const value = data[column.name]
     if (value === null || value === undefined) continue
 
-    // Use JSONB operators to check for existing values
-    // For strings, use case-insensitive comparison
     if (typeof value === 'string') {
       conditions.push({
         column,
@@ -440,7 +442,10 @@ export async function checkBatchUniqueConstraintsDb(
   for (const [columnName, { values, column }] of valuesByColumn) {
     if (values.size === 0) continue
 
-    // Build OR conditions for all values of this column
+    if (!NAME_PATTERN.test(columnName)) {
+      throw new Error(`Invalid column name: ${columnName}`)
+    }
+
     const valueArray = Array.from(values)
     const valueConditions = valueArray.map((normalizedValue) => {
       // Check if the original values are strings (normalized values for strings are lowercase)

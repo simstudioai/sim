@@ -1,5 +1,5 @@
 import { ParallelIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 
 export const ParallelBlock: BlockConfig<ToolResponse> = {
@@ -11,6 +11,8 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
     'Integrate Parallel AI into the workflow. Can search the web, extract information from URLs, and conduct deep research.',
   docsLink: 'https://docs.sim.ai/tools/parallel-ai',
   category: 'tools',
+  integrationType: IntegrationType.Search,
+  tags: ['web-scraping', 'llm', 'agentic'],
   bgColor: '#E0E0E0',
   icon: ParallelIcon,
   subBlocks: [
@@ -175,6 +177,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
       placeholder: 'Enter your Parallel AI API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {

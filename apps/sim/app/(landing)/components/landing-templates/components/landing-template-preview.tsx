@@ -1,5 +1,3 @@
-import { inter } from '@/app/_styles/fonts/inter/inter'
-
 interface LandingTemplatePreviewProps {
   previewImage: string
   avatarImage: string
@@ -37,14 +35,8 @@ export default function LandingTemplatePreview({
 
         {/* Title and Author Info */}
         <div className='min-w-0 flex-1'>
-          <h4
-            className={`${inter.className} truncate font-medium text-foreground text-sm leading-none`}
-          >
-            {title}
-          </h4>
-          <p
-            className={`${inter.className} mt-1 flex items-center gap-2 text-muted-foreground text-xs`}
-          >
+          <h4 className='truncate font-medium text-foreground text-sm leading-none'>{title}</h4>
+          <p className='mt-1 flex items-center gap-2 text-muted-foreground text-xs'>
             <span>{authorName}</span>
             <span>{usageCount.toLocaleString()} copies</span>
           </p>

@@ -1,6 +1,11 @@
+import type { Metadata } from 'next'
 import { isRegistrationDisabled } from '@/lib/core/config/feature-flags'
 import { getOAuthProviderStatus } from '@/app/(auth)/components/oauth-provider-checker'
 import SignupForm from '@/app/(auth)/signup/signup-form'
+
+export const metadata: Metadata = {
+  title: 'Sign Up',
+}
 
 export const dynamic = 'force-dynamic'
 

@@ -1,5 +1,5 @@
 import { OnePasswordIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 
 export const OnePasswordBlock: BlockConfig = {
   type: 'onepassword',
@@ -9,6 +9,8 @@ export const OnePasswordBlock: BlockConfig = {
     'Access and manage secrets stored in 1Password vaults using the Connect API or Service Account SDK. List vaults, retrieve items with their fields and secrets, create new items, update existing ones, delete items, and resolve secret references.',
   docsLink: 'https://docs.sim.ai/tools/onepassword',
   category: 'tools',
+  integrationType: IntegrationType.Security,
+  tags: ['secrets-management', 'identity'],
   bgColor: '#E0E0E0',
   icon: OnePasswordIcon,
   authMode: AuthMode.ApiKey,

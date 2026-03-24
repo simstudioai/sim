@@ -11,6 +11,7 @@ import {
   Square,
   X,
 } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Badge,
   Button,
@@ -30,9 +31,11 @@ import {
   extractPathFromOutputId,
   parseOutputContentSafely,
 } from '@/lib/core/utils/response-format'
+import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { START_BLOCK_RESERVED_FIELDS } from '@/lib/workflows/types'
+import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/types'
 import {
   ChatMessage,
   OutputSelect,
@@ -83,17 +86,6 @@ interface ChatFile {
   file: File
 }
 
-/**
- * Represents a processed file attachment with data URL for display
- */
-interface ProcessedAttachment {
-  id: string
-  name: string
-  type: string
-  size: number
-  dataUrl: string
-}
-
 /** Timeout for FileReader operations in milliseconds */
 const FILE_READ_TIMEOUT_MS = 60000
 
@@ -102,13 +94,13 @@ const FILE_READ_TIMEOUT_MS = 60000
  * @param chatFiles - Array of chat files to process
  * @returns Promise resolving to array of files with data URLs for images
  */
-const processFileAttachments = async (chatFiles: ChatFile[]): Promise<ProcessedAttachment[]> => {
+const processFileAttachments = async (chatFiles: ChatFile[]): Promise<ChatMessageAttachment[]> => {
   return Promise.all(
     chatFiles.map(async (file) => {
-      let dataUrl = ''
+      let previewUrl: string | undefined
       if (file.type.startsWith('image/')) {
         try {
-          dataUrl = await new Promise<string>((resolve, reject) => {
+          previewUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader()
             let settled = false
 
@@ -149,10 +141,10 @@ const processFileAttachments = async (chatFiles: ChatFile[]): Promise<ProcessedA
       }
       return {
         id: file.id,
-        name: file.name,
-        type: file.type,
+        filename: file.name,
+        media_type: file.type,
         size: file.size,
-        dataUrl,
+        previewUrl,
       }
     })
   )
@@ -229,7 +221,7 @@ interface StartInputFormatField {
  * position across sessions using the floating chat store.
  */
 export function Chat() {
-  const { activeWorkflowId } = useWorkflowRegistry()
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
   const blocks = useWorkflowStore((state) => state.blocks)
   const triggerWorkflowUpdate = useWorkflowStore((state) => state.triggerUpdate)
   const setSubBlockValue = useSubBlockStore((state) => state.setValue)
@@ -251,7 +243,26 @@ export function Chat() {
     getConversationId,
     clearChat,
     exportChatCSV,
-  } = useChatStore()
+  } = useChatStore(
+    useShallow((s) => ({
+      isChatOpen: s.isChatOpen,
+      chatPosition: s.chatPosition,
+      chatWidth: s.chatWidth,
+      chatHeight: s.chatHeight,
+      setIsChatOpen: s.setIsChatOpen,
+      setChatPosition: s.setChatPosition,
+      setChatDimensions: s.setChatDimensions,
+      messages: s.messages,
+      addMessage: s.addMessage,
+      selectedWorkflowOutputs: s.selectedWorkflowOutputs,
+      setSelectedWorkflowOutput: s.setSelectedWorkflowOutput,
+      appendMessageContent: s.appendMessageContent,
+      finalizeMessageStream: s.finalizeMessageStream,
+      getConversationId: s.getConversationId,
+      clearChat: s.clearChat,
+      exportChatCSV: s.exportChatCSV,
+    }))
+  )
 
   const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
   const entriesFromStore = useTerminalConsoleStore((state) => state.entries)
@@ -522,10 +533,46 @@ export function Chat() {
       let accumulatedContent = ''
       let buffer = ''
 
+      const BATCH_MAX_MS = 50
+      let pendingChunks = ''
+      let batchRAF: number | null = null
+      let batchTimer: ReturnType<typeof setTimeout> | null = null
+      let lastFlush = 0
+
+      const flushChunks = () => {
+        if (batchRAF !== null) {
+          cancelAnimationFrame(batchRAF)
+          batchRAF = null
+        }
+        if (batchTimer !== null) {
+          clearTimeout(batchTimer)
+          batchTimer = null
+        }
+        if (pendingChunks) {
+          appendMessageContent(responseMessageId, pendingChunks)
+          pendingChunks = ''
+        }
+        lastFlush = performance.now()
+      }
+
+      const scheduleFlush = () => {
+        if (batchRAF !== null) return
+        const elapsed = performance.now() - lastFlush
+        if (elapsed >= BATCH_MAX_MS) {
+          flushChunks()
+          return
+        }
+        batchRAF = requestAnimationFrame(flushChunks)
+        if (batchTimer === null) {
+          batchTimer = setTimeout(flushChunks, Math.max(0, BATCH_MAX_MS - elapsed))
+        }
+      }
+
       try {
         while (true) {
           const { done, value } = await reader.read()
           if (done) {
+            flushChunks()
             finalizeMessageStream(responseMessageId)
             break
           }
@@ -558,6 +605,7 @@ export function Chat() {
 
                 if ('success' in result && !result.success) {
                   const errorMessage = result.error || 'Workflow execution failed'
+                  flushChunks()
                   appendMessageContent(
                     responseMessageId,
                     `${accumulatedContent ? '\n\n' : ''}Error: ${errorMessage}`
@@ -566,10 +614,12 @@ export function Chat() {
                   return
                 }
 
+                flushChunks()
                 finalizeMessageStream(responseMessageId)
               } else if (contentChunk) {
                 accumulatedContent += contentChunk
-                appendMessageContent(responseMessageId, contentChunk)
+                pendingChunks += contentChunk
+                scheduleFlush()
               }
             } catch (e) {
               logger.error('Error parsing stream data:', e)
@@ -580,8 +630,11 @@ export function Chat() {
         if ((error as Error)?.name !== 'AbortError') {
           logger.error('Error processing stream:', error)
         }
+        flushChunks()
         finalizeMessageStream(responseMessageId)
       } finally {
+        if (batchRAF !== null) cancelAnimationFrame(batchRAF)
+        if (batchTimer !== null) clearTimeout(batchTimer)
         if (streamReaderRef.current === reader) {
           streamReaderRef.current = null
         }
@@ -1007,7 +1060,7 @@ export function Chat() {
           >
             {/* File thumbnails */}
             {chatFiles.length > 0 && (
-              <div className='mt-[4px] flex gap-[6px] overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+              <div className='mt-[4px] flex flex-wrap gap-[6px]'>
                 {chatFiles.map((file) => {
                   const previewUrl = getFilePreviewUrl(file)
 
@@ -1121,7 +1174,7 @@ export function Chat() {
               id='floating-chat-file-input'
               type='file'
               multiple
-              accept='.pdf,.csv,.doc,.docx,.txt,.md,.xlsx,.xls,.html,.htm,.pptx,.ppt,.json,.xml,.rtf,image/*'
+              accept={CHAT_ACCEPT_ATTRIBUTE}
               onChange={handleFileInputChange}
               className='hidden'
               disabled={!activeWorkflowId || isExecuting}

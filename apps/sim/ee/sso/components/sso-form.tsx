@@ -4,16 +4,13 @@ import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button, Input, Label } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
 import { env, isFalsy } from '@/lib/core/config/env'
+import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
-import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
+import { BrandedButton } from '@/app/(auth)/components/branded-button'
 
 const logger = createLogger('SSOForm')
 
@@ -33,24 +30,6 @@ const validateEmailField = (emailValue: string): string[] => {
   return errors
 }
 
-const validateCallbackUrl = (url: string): boolean => {
-  try {
-    if (url.startsWith('/')) {
-      return true
-    }
-
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
-    if (url.startsWith(currentOrigin)) {
-      return true
-    }
-
-    return false
-  } catch (error) {
-    logger.error('Error validating callback URL:', { error, url })
-    return false
-  }
-}
-
 export default function SSOForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -58,7 +37,6 @@ export default function SSOForm() {
   const [email, setEmail] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
-  const buttonClass = useBrandedButtonClass()
   const [callbackUrl, setCallbackUrl] = useState('/workspace')
 
   useEffect(() => {
@@ -120,7 +98,7 @@ export default function SSOForm() {
     }
 
     try {
-      const safeCallbackUrl = validateCallbackUrl(callbackUrl) ? callbackUrl : '/workspace'
+      const safeCallbackUrl = callbackUrl
 
       await client.signIn.sso({
         email: emailValue,
@@ -156,15 +134,11 @@ export default function SSOForm() {
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
-          Sign in with SSO
-        </h1>
-        <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-          Enter your work email to continue
-        </p>
+        <h1 className={'font-[500] text-[#ECECEC] text-[32px] tracking-tight'}>Sign in with SSO</h1>
+        <p className={'font-[380] text-[#999] text-[16px]'}>Enter your work email to continue</p>
       </div>
 
-      <form onSubmit={onSubmit} className={`${inter.className} mt-8 space-y-8`}>
+      <form onSubmit={onSubmit} className={'mt-8 space-y-8'}>
         <div className='space-y-6'>
           <div className='space-y-2'>
             <div className='flex items-center justify-between'>
@@ -182,10 +156,9 @@ export default function SSOForm() {
               value={email}
               onChange={handleEmailChange}
               className={cn(
-                'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
                 showEmailValidationError &&
                   emailErrors.length > 0 &&
-                  'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                  'border-red-500 focus:border-red-500'
               )}
             />
             {showEmailValidationError && emailErrors.length > 0 && (
@@ -198,36 +171,33 @@ export default function SSOForm() {
           </div>
         </div>
 
-        <Button
+        <BrandedButton
           type='submit'
-          className={`${buttonClass} flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200`}
           disabled={isLoading}
+          loading={isLoading}
+          loadingText='Redirecting to SSO provider'
         >
-          {isLoading ? 'Redirecting to SSO provider...' : 'Continue with SSO'}
-        </Button>
+          Continue with SSO
+        </BrandedButton>
       </form>
 
       {/* Only show divider and email signin button if email/password is enabled */}
       {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
         <>
-          <div className={`${inter.className} relative my-6 font-light`}>
+          <div className='relative my-6 font-light'>
             <div className='absolute inset-0 flex items-center'>
-              <div className='auth-divider w-full border-t' />
+              <div className='w-full border-[#2A2A2A] border-t' />
             </div>
             <div className='relative flex justify-center text-sm'>
-              <span className='bg-white px-4 font-[340] text-muted-foreground'>Or</span>
+              <span className='bg-[#1C1C1C] px-4 font-[340] text-[#999]'>Or</span>
             </div>
           </div>
 
-          <div className={`${inter.className} space-y-3`}>
+          <div className='space-y-3'>
             <Link
               href={`/login${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
             >
-              <Button
-                variant='outline'
-                className='w-full rounded-[10px] shadow-sm hover:bg-gray-50'
-                type='button'
-              >
+              <Button variant='outline' className='w-full rounded-[10px]' type='button'>
                 Sign in with email
               </Button>
             </Link>
@@ -237,26 +207,24 @@ export default function SSOForm() {
 
       {/* Only show signup link if email/password signup is enabled */}
       {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
-        <div className={`${inter.className} pt-6 text-center font-light text-[14px]`}>
+        <div className='pt-6 text-center font-light text-[15px]'>
           <span className='font-normal'>Don't have an account? </span>
           <Link
             href={`/signup${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
-            className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+            className='font-medium text-[#ECECEC] underline-offset-4 transition hover:text-white hover:underline'
           >
             Sign up
           </Link>
         </div>
       )}
 
-      <div
-        className={`${inter.className} auth-text-muted absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[13px] leading-relaxed sm:px-8 md:px-[44px]`}
-      >
+      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[#999] text-[14px] leading-relaxed sm:px-8 md:px-[44px]'>
         By signing in, you agree to our{' '}
         <Link
           href='/terms'
           target='_blank'
           rel='noopener noreferrer'
-          className='auth-link underline-offset-4 transition hover:underline'
+          className='text-[#999] underline-offset-4 transition hover:text-[#ECECEC] hover:underline'
         >
           Terms of Service
         </Link>{' '}
@@ -265,7 +233,7 @@ export default function SSOForm() {
           href='/privacy'
           target='_blank'
           rel='noopener noreferrer'
-          className='auth-link underline-offset-4 transition hover:underline'
+          className='text-[#999] underline-offset-4 transition hover:text-[#ECECEC] hover:underline'
         >
           Privacy Policy
         </Link>

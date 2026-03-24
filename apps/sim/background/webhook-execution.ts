@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
 import { processExecutionFiles } from '@/lib/execution/files'
@@ -12,7 +13,10 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
 import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils.server'
-import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
+import {
+  executeWorkflowCore,
+  wasExecutionFinalizedByCore,
+} from '@/lib/workflows/executor/execution-core'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
@@ -24,6 +28,24 @@ import { safeAssign } from '@/tools/safe-assign'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
 const logger = createLogger('TriggerWebhookExecution')
+
+export function buildWebhookCorrelation(
+  payload: WebhookExecutionPayload
+): AsyncExecutionCorrelation {
+  const executionId = payload.executionId || uuidv4()
+  const requestId = payload.requestId || payload.correlation?.requestId || executionId.slice(0, 8)
+
+  return {
+    executionId,
+    requestId,
+    source: 'webhook',
+    workflowId: payload.workflowId,
+    webhookId: payload.webhookId,
+    path: payload.path,
+    provider: payload.provider,
+    triggerType: payload.correlation?.triggerType || 'webhook',
+  }
+}
 
 /**
  * Process trigger outputs based on their schema definitions
@@ -99,6 +121,9 @@ export type WebhookExecutionPayload = {
   webhookId: string
   workflowId: string
   userId: string
+  executionId?: string
+  requestId?: string
+  correlation?: AsyncExecutionCorrelation
   provider: string
   body: any
   headers: Record<string, string>
@@ -109,8 +134,9 @@ export type WebhookExecutionPayload = {
 }
 
 export async function executeWebhookJob(payload: WebhookExecutionPayload) {
-  const executionId = uuidv4()
-  const requestId = executionId.slice(0, 8)
+  const correlation = buildWebhookCorrelation(payload)
+  const executionId = correlation.executionId
+  const requestId = correlation.requestId
 
   logger.info(`[${requestId}] Starting webhook execution`, {
     webhookId: payload.webhookId,
@@ -128,7 +154,7 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
   )
 
   const runOperation = async () => {
-    return await executeWebhookJobInternal(payload, executionId, requestId)
+    return await executeWebhookJobInternal(payload, correlation)
   }
 
   return await webhookIdempotency.executeWithIdempotency(
@@ -156,9 +182,9 @@ async function resolveCredentialAccountUserId(credentialId: string): Promise<str
 
 async function executeWebhookJobInternal(
   payload: WebhookExecutionPayload,
-  executionId: string,
-  requestId: string
+  correlation: AsyncExecutionCorrelation
 ) {
+  const { executionId, requestId } = correlation
   const loggingSession = new LoggingSession(
     payload.workflowId,
     executionId,
@@ -173,6 +199,7 @@ async function executeWebhookJobInternal(
     triggerType: 'webhook',
     executionId,
     requestId,
+    triggerData: { correlation },
     checkRateLimit: false,
     checkDeployment: false,
     skipUsageLimits: true,
@@ -271,6 +298,7 @@ async function executeWebhookJobInternal(
           startTime: new Date().toISOString(),
           isClientSession: false,
           credentialAccountUserId,
+          correlation,
           workflowStateOverride: {
             blocks,
             edges,
@@ -336,6 +364,8 @@ async function executeWebhookJobInternal(
           await PauseResumeManager.processQueuedResumes(executionId)
         }
 
+        await loggingSession.waitForPostExecution()
+
         logger.info(`[${requestId}] Airtable webhook execution completed`, {
           success: executionResult.success,
           workflowId: payload.workflowId,
@@ -359,6 +389,7 @@ async function executeWebhookJobInternal(
         variables: {},
         triggerData: {
           isTest: false,
+          correlation,
         },
         deploymentVersionId,
       })
@@ -408,6 +439,7 @@ async function executeWebhookJobInternal(
         variables: {},
         triggerData: {
           isTest: false,
+          correlation,
         },
         deploymentVersionId,
       })
@@ -532,6 +564,7 @@ async function executeWebhookJobInternal(
       startTime: new Date().toISOString(),
       isClientSession: false,
       credentialAccountUserId,
+      correlation,
       workflowStateOverride: {
         blocks,
         edges,
@@ -598,6 +631,8 @@ async function executeWebhookJobInternal(
       await PauseResumeManager.processQueuedResumes(executionId)
     }
 
+    await loggingSession.waitForPostExecution()
+
     logger.info(`[${requestId}] Webhook execution completed`, {
       success: executionResult.success,
       workflowId: payload.workflowId,
@@ -623,6 +658,10 @@ async function executeWebhookJobInternal(
       provider: payload.provider,
     })
 
+    if (wasExecutionFinalizedByCore(error, executionId)) {
+      throw error
+    }
+
     try {
       await loggingSession.safeStart({
         userId: payload.userId,
@@ -630,6 +669,7 @@ async function executeWebhookJobInternal(
         variables: {},
         triggerData: {
           isTest: false,
+          correlation,
         },
         deploymentVersionId,
       })

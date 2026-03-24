@@ -2,13 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { v4 as uuidv4 } from 'uuid'
+import { useShallow } from 'zustand/react/shallow'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
-import type {
-  BlockCompletedData,
-  BlockErrorData,
-  BlockStartedData,
-} from '@/lib/workflows/executor/execution-events'
 import {
   extractTriggerMockPayload,
   selectBestTrigger,
@@ -21,21 +17,18 @@ import {
 } from '@/lib/workflows/triggers/triggers'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import {
-  markOutgoingEdgesFromOutput,
-  updateActiveBlockRefCount,
+  addHttpErrorConsoleEntry,
+  type BlockEventHandlerConfig,
+  createBlockEventHandlers,
+  addExecutionErrorConsoleEntry as sharedAddExecutionErrorConsoleEntry,
+  handleExecutionCancelledConsole as sharedHandleExecutionCancelledConsole,
+  handleExecutionErrorConsole as sharedHandleExecutionErrorConsole,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { getBlock } from '@/blocks'
 import type { SerializableExecutionState } from '@/executor/execution/types'
-import type {
-  BlockLog,
-  BlockState,
-  ExecutionResult,
-  NormalizedBlockOutput,
-  StreamingExecution,
-} from '@/executor/types'
+import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { coerceValue } from '@/executor/utils/start-block'
-import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
@@ -61,20 +54,6 @@ const activeReconnections = new Set<string>()
 interface DebugValidationResult {
   isValid: boolean
   error?: string
-}
-
-interface BlockEventHandlerConfig {
-  workflowId?: string
-  executionIdRef: { current: string }
-  workflowEdges: Array<{ id: string; source: string; target: string; sourceHandle?: string | null }>
-  activeBlocksSet: Set<string>
-  activeBlockRefCounts: Map<string, number>
-  accumulatedBlockLogs: BlockLog[]
-  accumulatedBlockStates: Map<string, BlockState>
-  executedBlockIds: Set<string>
-  consoleMode: 'update' | 'add'
-  includeStartConsoleEntry: boolean
-  onBlockCompleteCallback?: (blockId: string, output: unknown) => Promise<void>
 }
 
 const WORKFLOW_EXECUTION_FAILURE_MESSAGE = 'Workflow execution failed'
@@ -119,12 +98,27 @@ function normalizeErrorMessage(error: unknown): string {
 export function useWorkflowExecution() {
   const queryClient = useQueryClient()
   const currentWorkflow = useCurrentWorkflow()
-  const { activeWorkflowId, workflows } = useWorkflowRegistry()
+  const { activeWorkflowId, workflows } = useWorkflowRegistry(
+    useShallow((s) => ({ activeWorkflowId: s.activeWorkflowId, workflows: s.workflows }))
+  )
   const { toggleConsole, addConsole, updateConsole, cancelRunningEntries, clearExecutionEntries } =
-    useTerminalConsoleStore()
+    useTerminalConsoleStore(
+      useShallow((s) => ({
+        toggleConsole: s.toggleConsole,
+        addConsole: s.addConsole,
+        updateConsole: s.updateConsole,
+        cancelRunningEntries: s.cancelRunningEntries,
+        clearExecutionEntries: s.clearExecutionEntries,
+      }))
+    )
   const hasHydrated = useTerminalConsoleStore((s) => s._hasHydrated)
-  const { getAllVariables } = useEnvironmentStore()
-  const { getVariablesByWorkflowId, variables } = useVariablesStore()
+  const getAllVariables = useEnvironmentStore((s) => s.getAllVariables)
+  const { getVariablesByWorkflowId, variables } = useVariablesStore(
+    useShallow((s) => ({
+      getVariablesByWorkflowId: s.getVariablesByWorkflowId,
+      variables: s.variables,
+    }))
+  )
   const { isExecuting, isDebugging, pendingBlocks, executor, debugContext } =
     useCurrentWorkflowExecution()
   const setCurrentExecutionId = useExecutionStore((s) => s.setCurrentExecutionId)
@@ -185,99 +179,6 @@ export function useWorkflowExecution() {
     setActiveBlocks,
   ])
 
-  /**
-   * Builds timing fields for execution-level console entries.
-   */
-  const buildExecutionTiming = useCallback((durationMs?: number) => {
-    const normalizedDuration = durationMs || 0
-    return {
-      durationMs: normalizedDuration,
-      startedAt: new Date(Date.now() - normalizedDuration).toISOString(),
-      endedAt: new Date().toISOString(),
-    }
-  }, [])
-
-  /**
-   * Adds an execution-level error entry to the console when appropriate.
-   */
-  const addExecutionErrorConsoleEntry = useCallback(
-    (params: {
-      workflowId?: string
-      executionId?: string
-      error?: string
-      durationMs?: number
-      blockLogs: BlockLog[]
-      isPreExecutionError?: boolean
-    }) => {
-      if (!params.workflowId) return
-
-      const hasBlockError = params.blockLogs.some((log) => log.error)
-      const isPreExecutionError = params.isPreExecutionError ?? false
-      if (!isPreExecutionError && hasBlockError) {
-        return
-      }
-
-      const errorMessage = params.error || 'Execution failed'
-      const isTimeout = errorMessage.toLowerCase().includes('timed out')
-      const timing = buildExecutionTiming(params.durationMs)
-
-      addConsole({
-        input: {},
-        output: {},
-        success: false,
-        error: errorMessage,
-        durationMs: timing.durationMs,
-        startedAt: timing.startedAt,
-        executionOrder: isPreExecutionError ? 0 : Number.MAX_SAFE_INTEGER,
-        endedAt: timing.endedAt,
-        workflowId: params.workflowId,
-        blockId: isPreExecutionError
-          ? 'validation'
-          : isTimeout
-            ? 'timeout-error'
-            : 'execution-error',
-        executionId: params.executionId,
-        blockName: isPreExecutionError
-          ? 'Workflow Validation'
-          : isTimeout
-            ? 'Timeout Error'
-            : 'Execution Error',
-        blockType: isPreExecutionError ? 'validation' : 'error',
-      })
-    },
-    [addConsole, buildExecutionTiming]
-  )
-
-  /**
-   * Adds an execution-level cancellation entry to the console.
-   */
-  const addExecutionCancelledConsoleEntry = useCallback(
-    (params: { workflowId?: string; executionId?: string; durationMs?: number }) => {
-      if (!params.workflowId) return
-
-      const timing = buildExecutionTiming(params.durationMs)
-      addConsole({
-        input: {},
-        output: {},
-        success: false,
-        error: 'Execution was cancelled',
-        durationMs: timing.durationMs,
-        startedAt: timing.startedAt,
-        executionOrder: Number.MAX_SAFE_INTEGER,
-        endedAt: timing.endedAt,
-        workflowId: params.workflowId,
-        blockId: 'cancelled',
-        executionId: params.executionId,
-        blockName: 'Execution Cancelled',
-        blockType: 'cancelled',
-      })
-    },
-    [addConsole, buildExecutionTiming]
-  )
-
-  /**
-   * Handles workflow-level execution errors for console output.
-   */
   const handleExecutionErrorConsole = useCallback(
     (params: {
       workflowId?: string
@@ -287,301 +188,36 @@ export function useWorkflowExecution() {
       blockLogs: BlockLog[]
       isPreExecutionError?: boolean
     }) => {
-      if (params.workflowId) {
-        cancelRunningEntries(params.workflowId)
-      }
-      addExecutionErrorConsoleEntry(params)
+      if (!params.workflowId) return
+      sharedHandleExecutionErrorConsole(addConsole, cancelRunningEntries, {
+        ...params,
+        workflowId: params.workflowId,
+      })
     },
-    [addExecutionErrorConsoleEntry, cancelRunningEntries]
+    [addConsole, cancelRunningEntries]
   )
 
-  /**
-   * Handles workflow-level execution cancellations for console output.
-   */
   const handleExecutionCancelledConsole = useCallback(
     (params: { workflowId?: string; executionId?: string; durationMs?: number }) => {
-      if (params.workflowId) {
-        cancelRunningEntries(params.workflowId)
-      }
-      addExecutionCancelledConsoleEntry(params)
+      if (!params.workflowId) return
+      sharedHandleExecutionCancelledConsole(addConsole, cancelRunningEntries, {
+        ...params,
+        workflowId: params.workflowId,
+      })
     },
-    [addExecutionCancelledConsoleEntry, cancelRunningEntries]
+    [addConsole, cancelRunningEntries]
   )
 
   const buildBlockEventHandlers = useCallback(
-    (config: BlockEventHandlerConfig) => {
-      const {
-        workflowId,
-        executionIdRef,
-        workflowEdges,
-        activeBlocksSet,
-        activeBlockRefCounts,
-        accumulatedBlockLogs,
-        accumulatedBlockStates,
-        executedBlockIds,
-        consoleMode,
-        includeStartConsoleEntry,
-        onBlockCompleteCallback,
-      } = config
-
-      /** Returns true if this execution was cancelled or superseded by another run. */
-      const isStaleExecution = () =>
-        !!(
-          workflowId &&
-          executionIdRef.current &&
-          useExecutionStore.getState().getCurrentExecutionId(workflowId) !== executionIdRef.current
-        )
-
-      const updateActiveBlocks = (blockId: string, isActive: boolean) => {
-        if (!workflowId) return
-        updateActiveBlockRefCount(activeBlockRefCounts, activeBlocksSet, blockId, isActive)
-        setActiveBlocks(workflowId, new Set(activeBlocksSet))
-      }
-
-      const markOutgoingEdges = (blockId: string, output: Record<string, any> | undefined) => {
-        if (!workflowId) return
-        markOutgoingEdgesFromOutput(blockId, output, workflowEdges, workflowId, setEdgeRunStatus)
-      }
-
-      const isContainerBlockType = (blockType?: string) => {
-        return blockType === 'loop' || blockType === 'parallel'
-      }
-
-      /** Extracts iteration and child-workflow fields shared across console entry call sites. */
-      const extractIterationFields = (
-        data: BlockStartedData | BlockCompletedData | BlockErrorData
-      ) => ({
-        iterationCurrent: data.iterationCurrent,
-        iterationTotal: data.iterationTotal,
-        iterationType: data.iterationType,
-        iterationContainerId: data.iterationContainerId,
-        parentIterations: data.parentIterations,
-        childWorkflowBlockId: data.childWorkflowBlockId,
-        childWorkflowName: data.childWorkflowName,
-        ...('childWorkflowInstanceId' in data && {
-          childWorkflowInstanceId: data.childWorkflowInstanceId,
-        }),
-      })
-
-      const createBlockLogEntry = (
-        data: BlockCompletedData | BlockErrorData,
-        options: { success: boolean; output?: unknown; error?: string }
-      ): BlockLog => ({
-        blockId: data.blockId,
-        blockName: data.blockName || 'Unknown Block',
-        blockType: data.blockType || 'unknown',
-        input: data.input || {},
-        output: options.output ?? {},
-        success: options.success,
-        error: options.error,
-        durationMs: data.durationMs,
-        startedAt: data.startedAt,
-        executionOrder: data.executionOrder,
-        endedAt: data.endedAt,
-      })
-
-      const addConsoleEntry = (data: BlockCompletedData, output: NormalizedBlockOutput) => {
-        if (!workflowId) return
-        addConsole({
-          input: data.input || {},
-          output,
-          success: true,
-          durationMs: data.durationMs,
-          startedAt: data.startedAt,
-          executionOrder: data.executionOrder,
-          endedAt: data.endedAt,
-          workflowId,
-          blockId: data.blockId,
-          executionId: executionIdRef.current,
-          blockName: data.blockName || 'Unknown Block',
-          blockType: data.blockType || 'unknown',
-          ...extractIterationFields(data),
-        })
-      }
-
-      const addConsoleErrorEntry = (data: BlockErrorData) => {
-        if (!workflowId) return
-        addConsole({
-          input: data.input || {},
-          output: {},
-          success: false,
-          error: data.error,
-          durationMs: data.durationMs,
-          startedAt: data.startedAt,
-          executionOrder: data.executionOrder,
-          endedAt: data.endedAt,
-          workflowId,
-          blockId: data.blockId,
-          executionId: executionIdRef.current,
-          blockName: data.blockName || 'Unknown Block',
-          blockType: data.blockType || 'unknown',
-          ...extractIterationFields(data),
-        })
-      }
-
-      const updateConsoleEntry = (data: BlockCompletedData) => {
-        updateConsole(
-          data.blockId,
-          {
-            executionOrder: data.executionOrder,
-            input: data.input || {},
-            replaceOutput: data.output,
-            success: true,
-            durationMs: data.durationMs,
-            startedAt: data.startedAt,
-            endedAt: data.endedAt,
-            isRunning: false,
-            ...extractIterationFields(data),
-          },
-          executionIdRef.current
-        )
-      }
-
-      const updateConsoleErrorEntry = (data: BlockErrorData) => {
-        updateConsole(
-          data.blockId,
-          {
-            executionOrder: data.executionOrder,
-            input: data.input || {},
-            replaceOutput: {},
-            success: false,
-            error: data.error,
-            durationMs: data.durationMs,
-            startedAt: data.startedAt,
-            endedAt: data.endedAt,
-            isRunning: false,
-            ...extractIterationFields(data),
-          },
-          executionIdRef.current
-        )
-      }
-
-      const onBlockStarted = (data: BlockStartedData) => {
-        if (isStaleExecution()) return
-        updateActiveBlocks(data.blockId, true)
-
-        if (!includeStartConsoleEntry || !workflowId) return
-
-        const startedAt = new Date().toISOString()
-        addConsole({
-          input: {},
-          output: undefined,
-          success: undefined,
-          durationMs: undefined,
-          startedAt,
-          executionOrder: data.executionOrder,
-          endedAt: undefined,
-          workflowId,
-          blockId: data.blockId,
-          executionId: executionIdRef.current,
-          blockName: data.blockName || 'Unknown Block',
-          blockType: data.blockType || 'unknown',
-          isRunning: true,
-          ...extractIterationFields(data),
-        })
-      }
-
-      const onBlockCompleted = (data: BlockCompletedData) => {
-        if (isStaleExecution()) return
-        updateActiveBlocks(data.blockId, false)
-        if (workflowId) setBlockRunStatus(workflowId, data.blockId, 'success')
-        markOutgoingEdges(data.blockId, data.output as Record<string, any> | undefined)
-        executedBlockIds.add(data.blockId)
-        accumulatedBlockStates.set(data.blockId, {
-          output: data.output,
-          executed: true,
-          executionTime: data.durationMs,
-        })
-
-        // For nested containers, the SSE blockId may be a cloned ID (e.g. P1__obranch-0).
-        // Also record the original workflow-level ID so the canvas can highlight it.
-        if (isContainerBlockType(data.blockType)) {
-          const originalId = stripCloneSuffixes(data.blockId)
-          if (originalId !== data.blockId) {
-            executedBlockIds.add(originalId)
-            if (workflowId) setBlockRunStatus(workflowId, originalId, 'success')
-          }
-        }
-
-        if (isContainerBlockType(data.blockType) && !data.iterationContainerId) {
-          const output = data.output as Record<string, any> | undefined
-          const isEmptySubflow = Array.isArray(output?.results) && output.results.length === 0
-          if (!isEmptySubflow) return
-        }
-
-        accumulatedBlockLogs.push(createBlockLogEntry(data, { success: true, output: data.output }))
-
-        if (consoleMode === 'update') {
-          updateConsoleEntry(data)
-        } else {
-          addConsoleEntry(data, data.output as NormalizedBlockOutput)
-        }
-
-        if (onBlockCompleteCallback) {
-          onBlockCompleteCallback(data.blockId, data.output).catch((error) => {
-            logger.error('Error in onBlockComplete callback:', error)
-          })
-        }
-      }
-
-      const onBlockError = (data: BlockErrorData) => {
-        if (isStaleExecution()) return
-        updateActiveBlocks(data.blockId, false)
-        if (workflowId) setBlockRunStatus(workflowId, data.blockId, 'error')
-        markOutgoingEdges(data.blockId, { error: data.error })
-
-        executedBlockIds.add(data.blockId)
-        accumulatedBlockStates.set(data.blockId, {
-          output: { error: data.error },
-          executed: true,
-          executionTime: data.durationMs || 0,
-        })
-
-        // For nested containers, also record the original workflow-level ID
-        if (isContainerBlockType(data.blockType)) {
-          const originalId = stripCloneSuffixes(data.blockId)
-          if (originalId !== data.blockId) {
-            executedBlockIds.add(originalId)
-            if (workflowId) setBlockRunStatus(workflowId, originalId, 'error')
-          }
-        }
-
-        accumulatedBlockLogs.push(
-          createBlockLogEntry(data, { success: false, output: {}, error: data.error })
-        )
-
-        if (consoleMode === 'update') {
-          updateConsoleErrorEntry(data)
-        } else {
-          addConsoleErrorEntry(data)
-        }
-      }
-
-      const onBlockChildWorkflowStarted = (data: {
-        blockId: string
-        childWorkflowInstanceId: string
-        iterationCurrent?: number
-        iterationContainerId?: string
-        executionOrder?: number
-      }) => {
-        if (isStaleExecution()) return
-        updateConsole(
-          data.blockId,
-          {
-            childWorkflowInstanceId: data.childWorkflowInstanceId,
-            ...(data.iterationCurrent !== undefined && { iterationCurrent: data.iterationCurrent }),
-            ...(data.iterationContainerId !== undefined && {
-              iterationContainerId: data.iterationContainerId,
-            }),
-            ...(data.executionOrder !== undefined && { executionOrder: data.executionOrder }),
-          },
-          executionIdRef.current
-        )
-      }
-
-      return { onBlockStarted, onBlockCompleted, onBlockError, onBlockChildWorkflowStarted }
-    },
-    [addConsole, setActiveBlocks, setBlockRunStatus, setEdgeRunStatus, updateConsole]
+    (config: BlockEventHandlerConfig) =>
+      createBlockEventHandlers(config, {
+        addConsole,
+        updateConsole,
+        setActiveBlocks,
+        setBlockRunStatus,
+        setEdgeRunStatus,
+      }),
+    [addConsole, updateConsole, setActiveBlocks, setBlockRunStatus, setEdgeRunStatus]
   )
 
   /**
@@ -1609,31 +1245,42 @@ export function useWorkflowExecution() {
     } else {
       if (!executor) {
         try {
-          let blockId = 'serialization'
-          let blockName = 'Workflow'
-          let blockType = 'serializer'
-          if (error instanceof WorkflowValidationError) {
-            blockId = error.blockId || blockId
-            blockName = error.blockName || blockName
-            blockType = error.blockType || blockType
-          }
+          const httpStatus =
+            isRecord(error) && typeof error.httpStatus === 'number' ? error.httpStatus : undefined
+          const storeAddConsole = useTerminalConsoleStore.getState().addConsole
 
-          // Use MAX_SAFE_INTEGER so execution errors appear at the end of the log
-          useTerminalConsoleStore.getState().addConsole({
-            input: {},
-            output: {},
-            success: false,
-            error: normalizedMessage,
-            durationMs: 0,
-            startedAt: new Date().toISOString(),
-            executionOrder: Number.MAX_SAFE_INTEGER,
-            endedAt: new Date().toISOString(),
-            workflowId: activeWorkflowId || '',
-            blockId,
-            executionId: options?.executionId,
-            blockName,
-            blockType,
-          })
+          if (httpStatus && activeWorkflowId) {
+            addHttpErrorConsoleEntry(storeAddConsole, {
+              workflowId: activeWorkflowId,
+              executionId: options?.executionId,
+              error: normalizedMessage,
+              httpStatus,
+            })
+          } else if (error instanceof WorkflowValidationError) {
+            storeAddConsole({
+              input: {},
+              output: {},
+              success: false,
+              error: normalizedMessage,
+              durationMs: 0,
+              startedAt: new Date().toISOString(),
+              executionOrder: Number.MAX_SAFE_INTEGER,
+              endedAt: new Date().toISOString(),
+              workflowId: activeWorkflowId || '',
+              blockId: error.blockId || 'serialization',
+              executionId: options?.executionId,
+              blockName: error.blockName || 'Workflow',
+              blockType: error.blockType || 'serializer',
+            })
+          } else {
+            sharedAddExecutionErrorConsoleEntry(storeAddConsole, {
+              workflowId: activeWorkflowId || '',
+              executionId: options?.executionId,
+              error: normalizedMessage,
+              blockLogs: [],
+              isPreExecutionError: true,
+            })
+          }
         } catch {}
       }
 
@@ -1971,8 +1618,8 @@ export function useWorkflowExecution() {
           accumulatedBlockLogs,
           accumulatedBlockStates,
           executedBlockIds,
-          consoleMode: 'add',
-          includeStartConsoleEntry: false,
+          consoleMode: 'update',
+          includeStartConsoleEntry: true,
         })
 
         await executionStream.executeFromBlock({

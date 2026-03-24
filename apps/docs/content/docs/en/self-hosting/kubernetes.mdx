@@ -5,6 +5,7 @@ description: Deploy Sim with Helm
 
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
 
 ## Prerequisites
 
@@ -125,3 +126,13 @@ helm upgrade sim ./helm/sim --namespace simstudio
 # Uninstall
 helm uninstall sim --namespace simstudio
 ```
+
+<FAQ items={[
+  { question: "What are the default resource limits for the Sim app pod?", answer: "The Helm chart defaults to 8 Gi memory limit / 4 Gi request and 2000m CPU limit / 1000m request per app pod. The pod runs as non-root (UID 1001) with fsGroup 1001 for security." },
+  { question: "Can I use an external database instead of the bundled PostgreSQL?", answer: "Yes. Set postgresql.enabled to false and configure the externalDatabase section with your host, port, username, password, database name, and sslMode. The external database must have the pgvector extension installed." },
+  { question: "How do I manage secrets securely in Kubernetes?", answer: "The Helm chart supports pre-existing Kubernetes secrets via app.secrets.existingSecret. Set enabled to true and provide the secret name. This integrates with External Secrets Operator, HashiCorp Vault, Azure Key Vault, and similar tools. Key mappings can be customized if your secret uses different key names." },
+  { question: "Can I scale the app to multiple replicas?", answer: "Yes. Set app.replicaCount in your values.yaml. The chart supports standard Kubernetes scaling. Ensure your database can handle the additional connections from multiple replicas." },
+  { question: "Are there cloud-specific example configurations?", answer: "Yes. The Helm chart includes example values files for AWS EKS (values-aws.yaml), Azure AKS (values-azure.yaml), GCP GKE (values-gcp.yaml), as well as files for production, development, external databases, external secrets, and whitelabeled deployments." },
+  { question: "What ingress options are supported?", answer: "The chart supports ingress with configurable className (e.g., nginx), TLS termination, and separate host configuration for the app. Enable it with ingress.enabled: true and set your host under ingress.app.host." },
+]} />
+

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
+import { account, credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -28,16 +28,25 @@ export async function GET(request: NextRequest) {
         id: account.id,
         accountId: account.accountId,
         providerId: account.providerId,
+        credentialDisplayName: credential.displayName,
       })
       .from(account)
+      .leftJoin(credential, eq(credential.accountId, account.id))
       .where(and(...whereConditions))
       .orderBy(desc(account.updatedAt))
 
-    const accountsWithDisplayName = accounts.map((acc) => ({
+    const seen = new Map<string, (typeof accounts)[number]>()
+    for (const acc of accounts) {
+      if (!seen.has(acc.id)) {
+        seen.set(acc.id, acc)
+      }
+    }
+
+    const accountsWithDisplayName = Array.from(seen.values()).map((acc) => ({
       id: acc.id,
       accountId: acc.accountId,
       providerId: acc.providerId,
-      displayName: acc.accountId || acc.providerId,
+      displayName: acc.credentialDisplayName || acc.accountId || acc.providerId,
     }))
 
     return NextResponse.json({ accounts: accountsWithDisplayName })

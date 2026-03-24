@@ -86,6 +86,25 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
       description: 'Exa AI API Key',
     },
   },
+  hosting: {
+    envKeyPrefix: 'EXA_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'exa',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        const costDollars = output.__costDollars as { total?: number } | undefined
+        if (costDollars?.total == null) {
+          throw new Error('Exa search response missing costDollars field')
+        }
+        return { cost: costDollars.total, metadata: { costDollars } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 5,
+    },
+  },
 
   request: {
     url: 'https://api.exa.ai/search',
@@ -167,6 +186,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
           highlights: result.highlights,
           score: result.score,
         })),
+        __costDollars: data.costDollars,
       },
     }
   },

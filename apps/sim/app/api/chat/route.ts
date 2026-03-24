@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
@@ -52,7 +52,10 @@ export async function GET(_request: NextRequest) {
     }
 
     // Get the user's chat deployments
-    const deployments = await db.select().from(chat).where(eq(chat.userId, session.user.id))
+    const deployments = await db
+      .select()
+      .from(chat)
+      .where(and(eq(chat.userId, session.user.id), isNull(chat.archivedAt)))
 
     return createSuccessResponse({ deployments })
   } catch (error: any) {
@@ -106,22 +109,19 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Check if identifier is available
-      const existingIdentifier = await db
-        .select()
-        .from(chat)
-        .where(eq(chat.identifier, identifier))
-        .limit(1)
+      // Check identifier availability and workflow access in parallel
+      const [existingIdentifier, { hasAccess, workflow: workflowRecord }] = await Promise.all([
+        db
+          .select()
+          .from(chat)
+          .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
+          .limit(1),
+        checkWorkflowAccessForChatCreation(workflowId, session.user.id),
+      ])
 
       if (existingIdentifier.length > 0) {
         return createErrorResponse('Identifier already in use', 400)
       }
-
-      // Check if user has permission to create chat for this workflow
-      const { hasAccess, workflow: workflowRecord } = await checkWorkflowAccessForChatCreation(
-        workflowId,
-        session.user.id
-      )
 
       if (!hasAccess || !workflowRecord) {
         return createErrorResponse('Workflow not found or access denied', 404)

@@ -310,6 +310,14 @@ export const Toolbar = memo(
     // Search state
     const [isSearchActive, setIsSearchActive] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [prevIsActive, setPrevIsActive] = useState(isActive)
+    if (isActive !== prevIsActive) {
+      setPrevIsActive(isActive)
+      if (!isActive) {
+        setIsSearchActive(false)
+        setSearchQuery('')
+      }
+    }
 
     // Toggle animation state
     const [isToggling, setIsToggling] = useState(false)
@@ -350,14 +358,8 @@ export const Toolbar = memo(
     const isTriggersAtMinimum = toolbarTriggersHeight <= TRIGGERS_MIN_THRESHOLD
 
     /**
-     * Clear search when tab becomes inactive
+     * Filter items based on search query
      */
-    useEffect(() => {
-      if (!isActive) {
-        setIsSearchActive(false)
-        setSearchQuery('')
-      }
-    }, [isActive])
 
     /**
      * Filter items based on search query

@@ -13,7 +13,7 @@ export const DEFAULT_HORIZONTAL_SPACING = 180
 /**
  * Vertical spacing between blocks in the same layer
  */
-export const DEFAULT_VERTICAL_SPACING = 200
+export const DEFAULT_VERTICAL_SPACING = 80
 
 /**
  * Default offset when duplicating blocks
@@ -72,6 +72,24 @@ export const AUTO_LAYOUT_EXCLUDED_TYPES = new Set(['note'])
  * Container block types that can have children
  */
 export const CONTAINER_BLOCK_TYPES = new Set(['loop', 'parallel'])
+
+/**
+ * Estimated height per subblock when no measured height is available.
+ * Used as a heuristic for new blocks that haven't been rendered yet.
+ */
+export const ESTIMATED_SUBBLOCK_HEIGHT = 45
+
+/**
+ * Bottom padding added to estimated block height
+ */
+export const ESTIMATED_BLOCK_BOTTOM_PADDING = 20
+
+/**
+ * Maximum estimated block height when no measurement is available.
+ * Prevents wildly over-estimated heights for blocks with many conditional
+ * subblocks (e.g. agent blocks define ~20 subblocks but only ~5 are visible).
+ */
+export const MAX_ESTIMATED_BLOCK_HEIGHT = 350
 
 /**
  * Default layout options

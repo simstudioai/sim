@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import isEqual from 'lodash/isEqual'
+import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Badge } from '@/components/emcn'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
@@ -14,11 +14,18 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /**
- * Dropdown option type - can be a simple string or an object with label, id, and optional icon
+ * Dropdown option type - can be a simple string or an object with label, id, and optional icon.
+ * Options with `hidden: true` are excluded from the picker but still resolve for label display,
+ * so existing workflows that reference them continue to work.
  */
 type DropdownOption =
   | string
-  | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }
+  | {
+      label: string
+      id: string
+      icon?: React.ComponentType<{ className?: string }>
+      hidden?: boolean
+    }
 
 /**
  * Props for the Dropdown component
@@ -117,7 +124,6 @@ export const Dropdown = memo(function Dropdown({
     isEqual
   )
 
-  const [storeInitialized, setStoreInitialized] = useState(false)
   const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -185,13 +191,12 @@ export const Dropdown = memo(function Dropdown({
     return fetchedOptions.map((opt) => ({ label: opt.label, id: opt.id }))
   }, [fetchedOptions])
 
-  const availableOptions = useMemo(() => {
+  const allOptions = useMemo(() => {
     let opts: DropdownOption[] =
       fetchOptions && normalizedFetchedOptions.length > 0
         ? normalizedFetchedOptions
         : evaluatedOptions
 
-    // Merge hydrated option if not already present
     if (hydratedOption) {
       const alreadyPresent = opts.some((o) =>
         typeof o === 'string' ? o === hydratedOption.id : o.id === hydratedOption.id
@@ -204,11 +209,8 @@ export const Dropdown = memo(function Dropdown({
     return opts
   }, [fetchOptions, normalizedFetchedOptions, evaluatedOptions, hydratedOption])
 
-  /**
-   * Convert dropdown options to Combobox format
-   */
   const comboboxOptions = useMemo((): ComboboxOption[] => {
-    return availableOptions.map((opt) => {
+    return allOptions.map((opt) => {
       if (typeof opt === 'string') {
         return { label: opt.toLowerCase(), value: opt }
       }
@@ -216,9 +218,10 @@ export const Dropdown = memo(function Dropdown({
         label: opt.label.toLowerCase(),
         value: opt.id,
         icon: 'icon' in opt ? opt.icon : undefined,
+        hidden: opt.hidden,
       }
     })
-  }, [availableOptions])
+  }, [allOptions])
 
   const optionMap = useMemo(() => {
     return new Map(comboboxOptions.map((opt) => [opt.value, opt.label]))
@@ -238,17 +241,13 @@ export const Dropdown = memo(function Dropdown({
   }, [defaultValue, comboboxOptions, multiSelect])
 
   useEffect(() => {
-    setStoreInitialized(true)
-  }, [])
-
-  useEffect(() => {
-    if (multiSelect || !storeInitialized || defaultOptionValue === undefined) {
+    if (multiSelect || defaultOptionValue === undefined) {
       return
     }
     if (storeValue === null || storeValue === undefined || storeValue === '') {
       setStoreValue(defaultOptionValue)
     }
-  }, [storeInitialized, storeValue, defaultOptionValue, setStoreValue, multiSelect])
+  }, [storeValue, defaultOptionValue, setStoreValue, multiSelect])
 
   /**
    * Normalizes variable references in JSON strings by wrapping them in quotes

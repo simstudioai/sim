@@ -29,7 +29,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
-import { useCreateKnowledgeBase, useDeleteKnowledgeBase } from '@/hooks/queries/knowledge'
+import { useCreateKnowledgeBase, useDeleteKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 
 type EmbeddingProvider = 'openai' | 'ollama'
 
@@ -109,7 +109,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragCounter, setDragCounter] = useState(0)
-  const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(new Set())
+  const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(() => new Set())
 
   const [embeddingProvider, setEmbeddingProvider] = useState<EmbeddingProvider>('openai')
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState('http://localhost:11434')
@@ -664,7 +664,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                   Cancel
                 </Button>
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   type='submit'
                   disabled={isSubmitting || !nameValue?.trim()}
                 >

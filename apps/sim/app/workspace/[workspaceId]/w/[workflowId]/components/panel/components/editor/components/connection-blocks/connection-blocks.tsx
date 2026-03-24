@@ -135,8 +135,8 @@ function ConnectionItem({
  * Connection blocks component that displays incoming connections with their schemas
  */
 export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBlocksProps) {
-  const [expandedConnections, setExpandedConnections] = useState<Set<string>>(new Set())
-  const [expandedFieldPaths, setExpandedFieldPaths] = useState<Set<string>>(new Set())
+  const [expandedConnections, setExpandedConnections] = useState<Set<string>>(() => new Set())
+  const [expandedFieldPaths, setExpandedFieldPaths] = useState<Set<string>>(() => new Set())
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const connectionRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 

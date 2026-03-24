@@ -24,9 +24,8 @@ import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/kb/use-knowledge-base-tag-definitions'
-import { useNextAvailableSlot } from '@/hooks/kb/use-next-available-slot'
 import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/kb/use-tag-definitions'
-import { useUpdateDocumentTags } from '@/hooks/queries/knowledge'
+import { useNextAvailableSlotMutation, useUpdateDocumentTags } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('DocumentTagsModal')
 
@@ -95,7 +94,7 @@ export function DocumentTagsModal({
 }: DocumentTagsModalProps) {
   const documentTagHook = useTagDefinitions(knowledgeBaseId, documentId)
   const kbTagHook = useKnowledgeBaseTagDefinitions(knowledgeBaseId)
-  const { getNextAvailableSlot: getServerNextSlot } = useNextAvailableSlot(knowledgeBaseId)
+  const { mutateAsync: getServerNextSlot } = useNextAvailableSlotMutation()
   const { mutateAsync: updateDocumentTags } = useUpdateDocumentTags()
 
   const { saveTagDefinitions, tagDefinitions, fetchTagDefinitions } = documentTagHook
@@ -259,11 +258,10 @@ export function DocumentTagsModal({
         if (existingDefinition) {
           targetSlot = existingDefinition.tagSlot
         } else {
-          const serverSlot = await getServerNextSlot(formData.fieldType)
-          if (!serverSlot) {
-            throw new Error(`No available slots for new tag of type '${formData.fieldType}'`)
-          }
-          targetSlot = serverSlot
+          targetSlot = await getServerNextSlot({
+            knowledgeBaseId,
+            fieldType: formData.fieldType,
+          })
         }
       }
 
@@ -556,7 +554,7 @@ export function DocumentTagsModal({
                           Cancel
                         </Button>
                         <Button
-                          variant='tertiary'
+                          variant='primary'
                           onClick={saveDocumentTag}
                           className='flex-1'
                           disabled={!canSaveTag}
@@ -720,7 +718,7 @@ export function DocumentTagsModal({
                       </Button>
                     )}
                     <Button
-                      variant='tertiary'
+                      variant='primary'
                       onClick={saveDocumentTag}
                       className='flex-1'
                       disabled={

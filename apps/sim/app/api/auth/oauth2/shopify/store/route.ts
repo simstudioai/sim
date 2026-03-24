@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('ShopifyStore')
@@ -86,6 +87,28 @@ export async function GET(request: NextRequest) {
         },
         { provider: 'Shopify', identifier: shopDomain }
       )
+    }
+
+    const persisted =
+      existing ??
+      (await db.query.account.findFirst({
+        where: and(
+          eq(account.userId, session.user.id),
+          eq(account.providerId, 'shopify'),
+          eq(account.accountId, stableAccountId)
+        ),
+      }))
+
+    if (persisted) {
+      try {
+        await processCredentialDraft({
+          userId: session.user.id,
+          providerId: 'shopify',
+          accountId: persisted.id,
+        })
+      } catch (error) {
+        logger.error('Failed to process credential draft for Shopify', { error })
+      }
     }
 
     const returnUrl = request.cookies.get('shopify_return_url')?.value

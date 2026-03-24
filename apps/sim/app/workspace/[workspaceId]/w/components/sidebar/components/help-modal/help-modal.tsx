@@ -89,21 +89,25 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
   })
 
   /**
-   * Reset all state when modal opens/closes
+   * Reset all form and UI state to prepare for a fresh modal session
    */
+  const resetModalState = useCallback(() => {
+    setSubmitStatus(null)
+    setImages([])
+    setIsDragging(false)
+    setIsProcessing(false)
+    reset({
+      subject: '',
+      message: '',
+      type: DEFAULT_REQUEST_TYPE,
+    })
+  }, [reset])
+
   useEffect(() => {
     if (open) {
-      setSubmitStatus(null)
-      setImages([])
-      setIsDragging(false)
-      setIsProcessing(false)
-      reset({
-        subject: '',
-        message: '',
-        type: DEFAULT_REQUEST_TYPE,
-      })
+      resetModalState()
     }
-  }, [open, reset])
+  }, [open, resetModalState])
 
   /**
    * Fix z-index for popover/dropdown when inside modal
@@ -539,7 +543,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
             <Button variant='default' onClick={handleClose} type='button' disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type='submit' variant='tertiary' disabled={isSubmitting || isProcessing}>
+            <Button type='submit' variant='primary' disabled={isSubmitting || isProcessing}>
               {isSubmitting
                 ? 'Submitting...'
                 : submitStatus === 'error'

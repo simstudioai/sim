@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { inter } from '@/app/_styles/fonts/inter/inter'
 
 interface Testimonial {
   text: string
@@ -123,7 +122,7 @@ export default function Testimonials() {
   return (
     <section
       id='testimonials'
-      className={`flex hidden h-[150px] items-center sm:block ${inter.variable}`}
+      className='flex hidden h-[150px] items-center sm:block'
       aria-label='Social proof testimonials'
     >
       <div className='relative mx-auto h-full w-full max-w-[1289px] pl-[2px]'>
@@ -180,9 +179,7 @@ export default function Testimonials() {
                     </div>
 
                     {/* Tweet content below with padding */}
-                    <p
-                      className={`${inter.className} mt-2 line-clamp-4 font-[380] text-[#0A0A0A] text-[13px] leading-[1.3] transition-colors duration-300 group-hover:text-white`}
-                    >
+                    <p className='mt-2 line-clamp-4 font-[380] text-[#0A0A0A] text-[13px] leading-[1.3] transition-colors duration-300 group-hover:text-white'>
                       {tweet.text}
                     </p>
                   </div>

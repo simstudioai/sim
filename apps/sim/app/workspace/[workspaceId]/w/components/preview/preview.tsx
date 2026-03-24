@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -161,6 +161,11 @@ export function Preview({
   })
 
   const [workflowStack, setWorkflowStack] = useState<WorkflowStackEntry[]>([])
+  const [prevRootState, setPrevRootState] = useState(rootWorkflowState)
+  if (rootWorkflowState !== prevRootState) {
+    setPrevRootState(rootWorkflowState)
+    setWorkflowStack([])
+  }
 
   const rootBlockExecutions = useMemo(() => {
     if (providedBlockExecutions) return providedBlockExecutions
@@ -192,7 +197,10 @@ export function Preview({
       const childTraceSpans = extractChildTraceSpans(blockExecution)
       const childBlockExecutions = buildBlockExecutions(childTraceSpans)
 
-      const workflowName = childWorkflowState.metadata?.name || 'Nested Workflow'
+      const workflowName =
+        childWorkflowState.metadata?.name ||
+        (blockExecution?.output as { childWorkflowName?: string } | undefined)?.childWorkflowName ||
+        'Nested Workflow'
 
       setWorkflowStack((prev) => [
         ...prev,
@@ -226,10 +234,6 @@ export function Preview({
   const handleEditorClose = useCallback(() => {
     setPinnedBlockId(null)
   }, [])
-
-  useEffect(() => {
-    setWorkflowStack([])
-  }, [rootWorkflowState])
 
   const isNested = workflowStack.length > 0
 

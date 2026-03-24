@@ -1,0 +1,255 @@
+---
+title: Infisical
+description: Manage secrets with Infisical
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="infisical"
+  color="#F7FE62"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Infisical](https://infisical.com/) is an open-source secrets management platform that helps teams centralize and manage application secrets, environment variables, and sensitive configuration data across their infrastructure. This integration brings Infisical's secrets management capabilities directly into Sim workflows.
+
+With Infisical in Sim, you can:
+
+- **List secrets**: Retrieve all secrets from a project environment with filtering by path, tags, and recursive subdirectory support
+- **Get a secret**: Fetch a specific secret by name, with optional version pinning and secret reference expansion
+- **Create secrets**: Add new secrets to any project environment with support for comments, paths, and tag assignments
+- **Update secrets**: Modify existing secret values, comments, names, and tags
+- **Delete secrets**: Remove secrets from a project environment
+
+In Sim, the Infisical integration enables your agents to programmatically manage secrets as part of automated workflows — for example, rotating credentials, syncing environment variables across environments, or auditing secret usage. Simply configure the Infisical block with your API key, select the operation, and provide the project ID and environment slug to get started.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Infisical into your workflow. List, get, create, update, and delete secrets across project environments.
+
+
+
+## Tools
+
+### `infisical_list_secrets`
+
+List all secrets in a project environment. Returns secret keys, values, comments, tags, and metadata.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Infisical API token |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+| `projectId` | string | Yes | The ID of the project to list secrets from |
+| `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
+| `secretPath` | string | No | The path of the secrets \(default: "/"\) |
+| `recursive` | boolean | No | Whether to fetch secrets recursively from subdirectories |
+| `expandSecretReferences` | boolean | No | Whether to expand secret references \(default: true\) |
+| `viewSecretValue` | boolean | No | Whether to include secret values in the response \(default: true\) |
+| `includeImports` | boolean | No | Whether to include imported secrets \(default: true\) |
+| `tagSlugs` | string | No | Comma-separated tag slugs to filter secrets by |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `secrets` | array | Array of secrets |
+|   ↳ `id` | string | Secret ID |
+|   ↳ `workspace` | string | Workspace/project ID |
+|   ↳ `secretKey` | string | Secret name/key |
+|   ↳ `secretValue` | string | Secret value |
+|   ↳ `secretComment` | string | Secret comment |
+|   ↳ `secretPath` | string | Secret path |
+|   ↳ `version` | number | Secret version |
+|   ↳ `type` | string | Secret type \(shared or personal\) |
+|   ↳ `environment` | string | Environment slug |
+|   ↳ `tags` | array | Tags attached to the secret |
+|     ↳ `id` | string | Tag ID |
+|     ↳ `slug` | string | Tag slug |
+|     ↳ `color` | string | Tag color |
+|     ↳ `name` | string | Tag name |
+|   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
+|     ↳ `key` | string | Metadata key |
+|     ↳ `value` | string | Metadata value |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `count` | number | Total number of secrets returned |
+
+### `infisical_get_secret`
+
+Retrieve a single secret by name from a project environment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Infisical API token |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+| `projectId` | string | Yes | The ID of the project |
+| `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
+| `secretName` | string | Yes | The name of the secret to retrieve |
+| `secretPath` | string | No | The path of the secret \(default: "/"\) |
+| `version` | number | No | Specific version of the secret to retrieve |
+| `type` | string | No | Secret type: "shared" or "personal" \(default: "shared"\) |
+| `viewSecretValue` | boolean | No | Whether to include the secret value in the response \(default: true\) |
+| `expandSecretReferences` | boolean | No | Whether to expand secret references \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `secret` | object | The retrieved secret |
+|   ↳ `id` | string | Secret ID |
+|   ↳ `workspace` | string | Workspace/project ID |
+|   ↳ `secretKey` | string | Secret name/key |
+|   ↳ `secretValue` | string | Secret value |
+|   ↳ `secretComment` | string | Secret comment |
+|   ↳ `secretPath` | string | Secret path |
+|   ↳ `version` | number | Secret version |
+|   ↳ `type` | string | Secret type \(shared or personal\) |
+|   ↳ `environment` | string | Environment slug |
+|   ↳ `tags` | array | Tags attached to the secret |
+|     ↳ `id` | string | Tag ID |
+|     ↳ `slug` | string | Tag slug |
+|     ↳ `color` | string | Tag color |
+|     ↳ `name` | string | Tag name |
+|   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
+|     ↳ `key` | string | Metadata key |
+|     ↳ `value` | string | Metadata value |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+
+### `infisical_create_secret`
+
+Create a new secret in a project environment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Infisical API token |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+| `projectId` | string | Yes | The ID of the project |
+| `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
+| `secretName` | string | Yes | The name of the secret to create |
+| `secretValue` | string | Yes | The value of the secret |
+| `secretPath` | string | No | The path for the secret \(default: "/"\) |
+| `secretComment` | string | No | A comment for the secret |
+| `type` | string | No | Secret type: "shared" or "personal" \(default: "shared"\) |
+| `tagIds` | string | No | Comma-separated tag IDs to attach to the secret |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `secret` | object | The created secret |
+|   ↳ `id` | string | Secret ID |
+|   ↳ `workspace` | string | Workspace/project ID |
+|   ↳ `secretKey` | string | Secret name/key |
+|   ↳ `secretValue` | string | Secret value |
+|   ↳ `secretComment` | string | Secret comment |
+|   ↳ `secretPath` | string | Secret path |
+|   ↳ `version` | number | Secret version |
+|   ↳ `type` | string | Secret type \(shared or personal\) |
+|   ↳ `environment` | string | Environment slug |
+|   ↳ `tags` | array | Tags attached to the secret |
+|     ↳ `id` | string | Tag ID |
+|     ↳ `slug` | string | Tag slug |
+|     ↳ `color` | string | Tag color |
+|     ↳ `name` | string | Tag name |
+|   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
+|     ↳ `key` | string | Metadata key |
+|     ↳ `value` | string | Metadata value |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+
+### `infisical_update_secret`
+
+Update an existing secret in a project environment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Infisical API token |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+| `projectId` | string | Yes | The ID of the project |
+| `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
+| `secretName` | string | Yes | The name of the secret to update |
+| `secretValue` | string | No | The new value for the secret |
+| `secretPath` | string | No | The path of the secret \(default: "/"\) |
+| `secretComment` | string | No | A comment for the secret |
+| `newSecretName` | string | No | New name for the secret \(to rename it\) |
+| `type` | string | No | Secret type: "shared" or "personal" \(default: "shared"\) |
+| `tagIds` | string | No | Comma-separated tag IDs to set on the secret |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `secret` | object | The updated secret |
+|   ↳ `id` | string | Secret ID |
+|   ↳ `workspace` | string | Workspace/project ID |
+|   ↳ `secretKey` | string | Secret name/key |
+|   ↳ `secretValue` | string | Secret value |
+|   ↳ `secretComment` | string | Secret comment |
+|   ↳ `secretPath` | string | Secret path |
+|   ↳ `version` | number | Secret version |
+|   ↳ `type` | string | Secret type \(shared or personal\) |
+|   ↳ `environment` | string | Environment slug |
+|   ↳ `tags` | array | Tags attached to the secret |
+|     ↳ `id` | string | Tag ID |
+|     ↳ `slug` | string | Tag slug |
+|     ↳ `color` | string | Tag color |
+|     ↳ `name` | string | Tag name |
+|   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
+|     ↳ `key` | string | Metadata key |
+|     ↳ `value` | string | Metadata value |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+
+### `infisical_delete_secret`
+
+Delete a secret from a project environment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Infisical API token |
+| `baseUrl` | string | No | Infisical instance URL \(default: "https://us.infisical.com"\). Use "https://eu.infisical.com" for EU Cloud or your self-hosted URL. |
+| `projectId` | string | Yes | The ID of the project |
+| `environment` | string | Yes | The environment slug \(e.g., "dev", "staging", "prod"\) |
+| `secretName` | string | Yes | The name of the secret to delete |
+| `secretPath` | string | No | The path of the secret \(default: "/"\) |
+| `type` | string | No | Secret type: "shared" or "personal" \(default: "shared"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `secret` | object | The deleted secret |
+|   ↳ `id` | string | Secret ID |
+|   ↳ `workspace` | string | Workspace/project ID |
+|   ↳ `secretKey` | string | Secret name/key |
+|   ↳ `secretValue` | string | Secret value |
+|   ↳ `secretComment` | string | Secret comment |
+|   ↳ `secretPath` | string | Secret path |
+|   ↳ `version` | number | Secret version |
+|   ↳ `type` | string | Secret type \(shared or personal\) |
+|   ↳ `environment` | string | Environment slug |
+|   ↳ `tags` | array | Tags attached to the secret |
+|     ↳ `id` | string | Tag ID |
+|     ↳ `slug` | string | Tag slug |
+|     ↳ `color` | string | Tag color |
+|     ↳ `name` | string | Tag name |
+|   ↳ `secretMetadata` | array | Custom metadata key-value pairs |
+|     ↳ `key` | string | Metadata key |
+|     ↳ `value` | string | Metadata value |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+
+

@@ -71,6 +71,11 @@ export const isRegistrationDisabled = isTruthy(env.DISABLE_REGISTRATION)
 export const isEmailPasswordEnabled = !isFalsy(env.EMAIL_PASSWORD_SIGNUP_ENABLED)
 
 /**
+ * Is signup email validation enabled (disposable email blocking via better-auth-harmony)
+ */
+export const isSignupEmailValidationEnabled = isTruthy(env.SIGNUP_EMAIL_VALIDATION_ENABLED)
+
+/**
  * Is Trigger.dev enabled for async job processing
  */
 export const isTriggerDevEnabled = isTruthy(env.TRIGGER_DEV_ENABLED)
@@ -99,6 +104,12 @@ export const isAccessControlEnabled = isTruthy(env.ACCESS_CONTROL_ENABLED)
  */
 export const isOrganizationsEnabled =
   isBillingEnabled || isTruthy(env.ORGANIZATIONS_ENABLED) || isAccessControlEnabled
+
+/**
+ * Is inbox (Sim Mailer) enabled via env var override
+ * This bypasses hosted requirements for self-hosted deployments
+ */
+export const isInboxEnabled = isTruthy(env.INBOX_ENABLED)
 
 /**
  * Is E2B enabled for remote code execution

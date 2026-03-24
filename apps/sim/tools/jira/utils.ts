@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 
 const logger = createLogger('JiraUtils')
 
@@ -67,7 +68,7 @@ export async function downloadJiraAttachments(
       continue
     }
     try {
-      const response = await fetch(att.content, {
+      const response = await fetchWithRetry(att.content, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: '*/*',
@@ -97,13 +98,21 @@ export async function downloadJiraAttachments(
 }
 
 export async function getJiraCloudId(domain: string, accessToken: string): Promise<string> {
-  const response = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/json',
-    },
-  })
+  const response = await fetchWithRetry(
+    'https://api.atlassian.com/oauth/token/accessible-resources',
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    }
+  )
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Failed to fetch Jira accessible resources: ${response.status} - ${errorText}`)
+  }
 
   const resources = await response.json()
 

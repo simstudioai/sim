@@ -1,38 +1,56 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { Command } from 'cmdk'
-import { Database, HelpCircle, Layout, Settings } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
-import { Library } from '@/components/emcn'
+import { Blimp, Library } from '@/components/emcn'
+import { Calendar, Database, File, HelpCircle, Settings, Table } from '@/components/emcn/icons'
+import { Search } from '@/components/emcn/icons/search'
 import { cn } from '@/lib/core/utils/cn'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type {
   SearchBlockItem,
   SearchDocItem,
   SearchToolOperationItem,
 } from '@/stores/modals/search/types'
-import { useSettingsModalStore } from '@/stores/modals/settings/store'
 
-function customFilter(value: string, search: string): number {
-  const searchLower = search.toLowerCase()
+function scoreMatch(value: string, search: string): number {
+  if (!search) return 1
   const valueLower = value.toLowerCase()
+  const searchLower = search.toLowerCase()
 
   if (valueLower === searchLower) return 1
   if (valueLower.startsWith(searchLower)) return 0.9
   if (valueLower.includes(searchLower)) return 0.7
 
-  const searchWords = searchLower.split(/\s+/).filter(Boolean)
-  if (searchWords.length > 1) {
-    const allWordsMatch = searchWords.every((word) => valueLower.includes(word))
-    if (allWordsMatch) return 0.5
+  const words = searchLower.split(/\s+/).filter(Boolean)
+  if (words.length > 1) {
+    if (words.every((w) => valueLower.includes(w))) return 0.5
   }
 
   return 0
+}
+
+function filterAndSort<T>(items: T[], toValue: (item: T) => string, search: string): T[] {
+  if (!search) return items
+  const scored: [T, number][] = []
+  for (const item of items) {
+    const s = scoreMatch(toValue(item), search)
+    if (s > 0) scored.push([item, s])
+  }
+  scored.sort((a, b) => b[1] - a[1])
+  return scored.map(([item]) => item)
+}
+
+interface TaskItem {
+  id: string
+  name: string
+  href: string
 }
 
 interface SearchModalProps {
@@ -40,6 +58,7 @@ interface SearchModalProps {
   onOpenChange: (open: boolean) => void
   workflows?: WorkflowItem[]
   workspaces?: WorkspaceItem[]
+  tasks?: TaskItem[]
   isOnWorkflowPage?: boolean
 }
 
@@ -73,6 +92,7 @@ export function SearchModal({
   onOpenChange,
   workflows = [],
   workspaces = [],
+  tasks = [],
   isOnWorkflowPage = false,
 }: SearchModalProps) {
   const params = useParams()
@@ -80,7 +100,7 @@ export function SearchModal({
   const workspaceId = params.workspaceId as string
   const inputRef = useRef<HTMLInputElement>(null)
   const [mounted, setMounted] = useState(false)
-  const openSettingsModal = useSettingsModalStore((state) => state.openModal)
+  const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
 
   useEffect(() => {
@@ -99,18 +119,18 @@ export function SearchModal({
     (): PageItem[] =>
       [
         {
-          id: 'logs',
-          name: 'Logs',
-          icon: Library,
-          href: `/workspace/${workspaceId}/logs`,
-          shortcut: '⌘⇧L',
+          id: 'tables',
+          name: 'Tables',
+          icon: Table,
+          href: `/workspace/${workspaceId}/tables`,
+          hidden: permissionConfig.hideTablesTab,
         },
         {
-          id: 'templates',
-          name: 'Templates',
-          icon: Layout,
-          href: `/workspace/${workspaceId}/templates`,
-          hidden: permissionConfig.hideTemplates,
+          id: 'files',
+          name: 'Files',
+          icon: File,
+          href: `/workspace/${workspaceId}/files`,
+          hidden: permissionConfig.hideFilesTab,
         },
         {
           id: 'knowledge-base',
@@ -119,14 +139,19 @@ export function SearchModal({
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
-        // TODO: Uncomment when working on tables
-        // {
-        //   id: 'tables',
-        //   name: 'Tables',
-        //   icon: Table,
-        //   href: `/workspace/${workspaceId}/tables`,
-        //   hidden: permissionConfig.hideTablesTab,
-        // },
+        {
+          id: 'scheduled-tasks',
+          name: 'Scheduled Tasks',
+          icon: Calendar,
+          href: `/workspace/${workspaceId}/scheduled-tasks`,
+        },
+        {
+          id: 'logs',
+          name: 'Logs',
+          icon: Library,
+          href: `/workspace/${workspaceId}/logs`,
+          shortcut: '⌘⇧L',
+        },
         {
           id: 'help',
           name: 'Help',
@@ -137,33 +162,43 @@ export function SearchModal({
           id: 'settings',
           name: 'Settings',
           icon: Settings,
-          onClick: openSettingsModal,
+          onClick: navigateToSettings,
         },
       ].filter((page) => !page.hidden),
     [
       workspaceId,
       openHelpModal,
-      openSettingsModal,
-      permissionConfig.hideTemplates,
+      navigateToSettings,
       permissionConfig.hideKnowledgeBaseTab,
+      permissionConfig.hideTablesTab,
+      permissionConfig.hideFilesTab,
     ]
   )
 
+  const [search, setSearch] = useState('')
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+    if (open) setSearch('')
+  }
+
   useEffect(() => {
-    if (open && inputRef.current) {
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        'value'
-      )?.set
-      if (nativeInputValueSetter) {
-        nativeInputValueSetter.call(inputRef.current, '')
-        inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
-      }
-      inputRef.current.focus()
+    if (!open || !inputRef.current) return
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value'
+    )?.set
+    if (nativeInputValueSetter) {
+      nativeInputValueSetter.call(inputRef.current, '')
+      inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
     }
+    inputRef.current.focus()
   }, [open])
 
-  const handleSearchChange = useCallback(() => {
+  const deferredSearch = useDeferredValue(search)
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value)
     requestAnimationFrame(() => {
       const list = document.querySelector('[cmdk-list]')
       if (list) {
@@ -259,11 +294,51 @@ export function SearchModal({
     [onOpenChange]
   )
 
-  const showBlocks = isOnWorkflowPage && blocks.length > 0
-  const showTools = isOnWorkflowPage && tools.length > 0
-  const showTriggers = isOnWorkflowPage && triggers.length > 0
-  const showToolOperations = isOnWorkflowPage && toolOperations.length > 0
-  const showDocs = isOnWorkflowPage && docs.length > 0
+  const filteredBlocks = useMemo(() => {
+    if (!isOnWorkflowPage) return []
+    return filterAndSort(blocks, (b) => `${b.name} block-${b.id}`, deferredSearch)
+  }, [isOnWorkflowPage, blocks, deferredSearch])
+
+  const filteredTools = useMemo(() => {
+    if (!isOnWorkflowPage) return []
+    return filterAndSort(tools, (t) => `${t.name} tool-${t.id}`, deferredSearch)
+  }, [isOnWorkflowPage, tools, deferredSearch])
+
+  const filteredTriggers = useMemo(() => {
+    if (!isOnWorkflowPage) return []
+    return filterAndSort(triggers, (t) => `${t.name} trigger-${t.id}`, deferredSearch)
+  }, [isOnWorkflowPage, triggers, deferredSearch])
+
+  const filteredToolOps = useMemo(() => {
+    if (!isOnWorkflowPage) return []
+    return filterAndSort(
+      toolOperations,
+      (op) => `${op.searchValue} operation-${op.id}`,
+      deferredSearch
+    )
+  }, [isOnWorkflowPage, toolOperations, deferredSearch])
+
+  const filteredDocs = useMemo(() => {
+    if (!isOnWorkflowPage) return []
+    return filterAndSort(docs, (d) => `${d.name} docs documentation doc-${d.id}`, deferredSearch)
+  }, [isOnWorkflowPage, docs, deferredSearch])
+
+  const filteredWorkflows = useMemo(
+    () => filterAndSort(workflows, (w) => `${w.name} workflow-${w.id}`, deferredSearch),
+    [workflows, deferredSearch]
+  )
+  const filteredTasks = useMemo(
+    () => filterAndSort(tasks, (t) => `${t.name} task-${t.id}`, deferredSearch),
+    [tasks, deferredSearch]
+  )
+  const filteredWorkspaces = useMemo(
+    () => filterAndSort(workspaces, (w) => `${w.name} workspace-${w.id}`, deferredSearch),
+    [workspaces, deferredSearch]
+  )
+  const filteredPages = useMemo(
+    () => filterAndSort(pages, (p) => `${p.name} page-${p.id}`, deferredSearch),
+    [pages, deferredSearch]
+  )
 
   if (!mounted) return null
 
@@ -272,41 +347,44 @@ export function SearchModal({
       {/* Overlay */}
       <div
         className={cn(
-          'fixed inset-0 z-40 bg-[#E4E4E4]/50 backdrop-blur-[0.75px] transition-opacity duration-100 dark:bg-[#0D0D0D]/50',
+          'fixed inset-0 z-40 transition-opacity duration-100',
           open ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
         onClick={() => onOpenChange(false)}
         aria-hidden={!open}
       />
 
-      {/* Command palette - always rendered for instant opening, hidden with CSS */}
       <div
         role='dialog'
         aria-modal={open}
         aria-hidden={!open}
         aria-label='Search'
         className={cn(
-          '-translate-x-1/2 fixed top-[15%] left-1/2 z-50 w-[500px] overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--surface-4)] shadow-lg',
+          '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] rounded-xl border-[4px] border-black/[0.06] bg-[var(--bg)] shadow-[0_24px_80px_-16px_rgba(0,0,0,0.15)] dark:border-white/[0.06] dark:shadow-[0_24px_80px_-16px_rgba(0,0,0,0.4)]',
           open ? 'visible opacity-100' : 'invisible opacity-0'
         )}
+        style={{ left: '50%' }}
       >
-        <Command label='Search' filter={customFilter}>
-          <Command.Input
-            ref={inputRef}
-            autoFocus
-            onValueChange={handleSearchChange}
-            placeholder='Search anything...'
-            className='w-full border-0 border-[var(--border)] border-b bg-transparent px-[12px] py-[10px] font-base text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none'
-          />
-          <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto p-[8px]'>
-            <Command.Empty className='flex items-center justify-center px-[16px] py-[24px] text-[15px] text-[var(--text-subtle)]'>
+        <Command label='Search' shouldFilter={false}>
+          <div className='mx-[8px] mt-[8px] mb-[4px] flex items-center gap-[6px] rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] dark:bg-[var(--surface-4)]'>
+            <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-muted)]' />
+            <Command.Input
+              ref={inputRef}
+              autoFocus
+              onValueChange={handleSearchChange}
+              placeholder='Search anything...'
+              className='w-full bg-transparent py-[6px] font-base text-[14px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
+            />
+          </div>
+          <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto overflow-x-hidden p-[8px] [&_[cmdk-group]+[cmdk-group]]:mt-[10px]'>
+            <Command.Empty className='flex items-center justify-center px-[16px] py-[24px] text-[14px] text-[var(--text-subtle)]'>
               No results found.
             </Command.Empty>
 
-            {showBlocks && (
+            {filteredBlocks.length > 0 && (
               <Command.Group heading='Blocks' className={groupHeadingClassName}>
-                {blocks.map((block) => (
-                  <CommandItem
+                {filteredBlocks.map((block) => (
+                  <MemoizedCommandItem
                     key={block.id}
                     value={`${block.name} block-${block.id}`}
                     onSelect={() => handleBlockSelect(block, 'block')}
@@ -315,15 +393,15 @@ export function SearchModal({
                     showColoredIcon
                   >
                     {block.name}
-                  </CommandItem>
+                  </MemoizedCommandItem>
                 ))}
               </Command.Group>
             )}
 
-            {showTools && (
+            {filteredTools.length > 0 && (
               <Command.Group heading='Tools' className={groupHeadingClassName}>
-                {tools.map((tool) => (
-                  <CommandItem
+                {filteredTools.map((tool) => (
+                  <MemoizedCommandItem
                     key={tool.id}
                     value={`${tool.name} tool-${tool.id}`}
                     onSelect={() => handleBlockSelect(tool, 'tool')}
@@ -332,15 +410,15 @@ export function SearchModal({
                     showColoredIcon
                   >
                     {tool.name}
-                  </CommandItem>
+                  </MemoizedCommandItem>
                 ))}
               </Command.Group>
             )}
 
-            {showTriggers && (
+            {filteredTriggers.length > 0 && (
               <Command.Group heading='Triggers' className={groupHeadingClassName}>
-                {triggers.map((trigger) => (
-                  <CommandItem
+                {filteredTriggers.map((trigger) => (
+                  <MemoizedCommandItem
                     key={trigger.id}
                     value={`${trigger.name} trigger-${trigger.id}`}
                     onSelect={() => handleBlockSelect(trigger, 'trigger')}
@@ -349,25 +427,29 @@ export function SearchModal({
                     showColoredIcon
                   >
                     {trigger.name}
-                  </CommandItem>
+                  </MemoizedCommandItem>
                 ))}
               </Command.Group>
             )}
 
-            {workflows.length > 0 && (
+            {filteredWorkflows.length > 0 && open && (
               <Command.Group heading='Workflows' className={groupHeadingClassName}>
-                {workflows.map((workflow) => (
+                {filteredWorkflows.map((workflow) => (
                   <Command.Item
                     key={workflow.id}
                     value={`${workflow.name} workflow-${workflow.id}`}
                     onSelect={() => handleWorkflowSelect(workflow)}
-                    className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
+                    className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
                   >
                     <div
-                      className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px]'
-                      style={{ backgroundColor: workflow.color }}
+                      className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px] border-[2px]'
+                      style={{
+                        backgroundColor: workflow.color,
+                        borderColor: `${workflow.color}60`,
+                        backgroundClip: 'padding-box',
+                      }}
                     />
-                    <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                    <span className='truncate font-base text-[var(--text-body)]'>
                       {workflow.name}
                       {workflow.isCurrent && ' (current)'}
                     </span>
@@ -376,10 +458,31 @@ export function SearchModal({
               </Command.Group>
             )}
 
-            {showToolOperations && (
+            {filteredTasks.length > 0 && open && (
+              <Command.Group heading='Tasks' className={groupHeadingClassName}>
+                {filteredTasks.map((task) => (
+                  <Command.Item
+                    key={task.id}
+                    value={`${task.name} task-${task.id}`}
+                    onSelect={() => {
+                      router.push(task.href)
+                      onOpenChange(false)
+                    }}
+                    className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
+                  >
+                    <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+                      <Blimp className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+                    </div>
+                    <span className='truncate font-base text-[var(--text-body)]'>{task.name}</span>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
+
+            {filteredToolOps.length > 0 && (
               <Command.Group heading='Tool Operations' className={groupHeadingClassName}>
-                {toolOperations.map((op) => (
-                  <CommandItem
+                {filteredToolOps.map((op) => (
+                  <MemoizedCommandItem
                     key={op.id}
                     value={`${op.searchValue} operation-${op.id}`}
                     onSelect={() => handleToolOperationSelect(op)}
@@ -388,21 +491,21 @@ export function SearchModal({
                     showColoredIcon
                   >
                     {op.name}
-                  </CommandItem>
+                  </MemoizedCommandItem>
                 ))}
               </Command.Group>
             )}
 
-            {workspaces.length > 0 && (
+            {filteredWorkspaces.length > 0 && open && (
               <Command.Group heading='Workspaces' className={groupHeadingClassName}>
-                {workspaces.map((workspace) => (
+                {filteredWorkspaces.map((workspace) => (
                   <Command.Item
                     key={workspace.id}
                     value={`${workspace.name} workspace-${workspace.id}`}
                     onSelect={() => handleWorkspaceSelect(workspace)}
-                    className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
+                    className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
                   >
-                    <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                    <span className='truncate font-base text-[var(--text-body)]'>
                       {workspace.name}
                       {workspace.isCurrent && ' (current)'}
                     </span>
@@ -411,10 +514,10 @@ export function SearchModal({
               </Command.Group>
             )}
 
-            {showDocs && (
+            {filteredDocs.length > 0 && (
               <Command.Group heading='Docs' className={groupHeadingClassName}>
-                {docs.map((doc) => (
-                  <CommandItem
+                {filteredDocs.map((doc) => (
+                  <MemoizedCommandItem
                     key={doc.id}
                     value={`${doc.name} docs documentation doc-${doc.id}`}
                     onSelect={() => handleDocSelect(doc)}
@@ -423,30 +526,30 @@ export function SearchModal({
                     showColoredIcon
                   >
                     {doc.name}
-                  </CommandItem>
+                  </MemoizedCommandItem>
                 ))}
               </Command.Group>
             )}
 
-            {pages.length > 0 && (
+            {filteredPages.length > 0 && open && (
               <Command.Group heading='Pages' className={groupHeadingClassName}>
-                {pages.map((page) => {
+                {filteredPages.map((page) => {
                   const Icon = page.icon
                   return (
                     <Command.Item
                       key={page.id}
                       value={`${page.name} page-${page.id}`}
                       onSelect={() => handlePageSelect(page)}
-                      className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
+                      className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
                     >
                       <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-                        <Icon className='h-[14px] w-[14px] text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]' />
+                        <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
                       </div>
-                      <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                      <span className='truncate font-base text-[var(--text-body)]'>
                         {page.name}
                       </span>
                       {page.shortcut && (
-                        <span className='ml-auto flex-shrink-0 font-medium text-[13px] text-[var(--text-subtle)]'>
+                        <span className='ml-auto flex-shrink-0 font-base text-[13px] text-[var(--text-subtle)]'>
                           {page.shortcut}
                         </span>
                       )}
@@ -464,7 +567,7 @@ export function SearchModal({
 }
 
 const groupHeadingClassName =
-  '[&_[cmdk-group-heading]]:pt-[2px] [&_[cmdk-group-heading]]:pb-[4px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-[13px] [&_[cmdk-group-heading]]:text-[var(--text-subtle)] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide'
+  '[&_[cmdk-group-heading]]:px-[8px] [&_[cmdk-group-heading]]:pt-[2px] [&_[cmdk-group-heading]]:pb-[6px] [&_[cmdk-group-heading]]:font-base [&_[cmdk-group-heading]]:text-[12px] [&_[cmdk-group-heading]]:text-[var(--text-icon)]'
 
 interface CommandItemProps {
   value: string
@@ -475,36 +578,44 @@ interface CommandItemProps {
   children: React.ReactNode
 }
 
-function CommandItem({
-  value,
-  onSelect,
-  icon: Icon,
-  bgColor,
-  showColoredIcon,
-  children,
-}: CommandItemProps) {
-  return (
-    <Command.Item
-      value={value}
-      onSelect={onSelect}
-      className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
-    >
-      <div
-        className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-        style={{ background: showColoredIcon ? bgColor : 'transparent' }}
+// onSelect is safe to exclude: cmdk stores it in a ref (useAsRef) internally,
+// so the latest closure is always invoked regardless of whether React re-renders.
+const MemoizedCommandItem = memo(
+  function CommandItem({
+    value,
+    onSelect,
+    icon: Icon,
+    bgColor,
+    showColoredIcon,
+    children,
+  }: CommandItemProps) {
+    return (
+      <Command.Item
+        value={value}
+        onSelect={onSelect}
+        className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
       >
-        <Icon
-          className={cn(
-            'transition-transform duration-100 group-hover:scale-110',
-            showColoredIcon
-              ? '!h-[10px] !w-[10px] text-white'
-              : 'h-[14px] w-[14px] text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'
-          )}
-        />
-      </div>
-      <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
-        {children}
-      </span>
-    </Command.Item>
-  )
-}
+        <div
+          className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+          style={{ background: showColoredIcon ? bgColor : 'transparent' }}
+        >
+          <Icon
+            className={cn(
+              'transition-transform duration-100 group-hover:scale-110',
+              showColoredIcon
+                ? '!h-[10px] !w-[10px] text-white'
+                : 'h-[14px] w-[14px] text-[var(--text-icon)]'
+            )}
+          />
+        </div>
+        <span className='truncate font-base text-[var(--text-body)]'>{children}</span>
+      </Command.Item>
+    )
+  },
+  (prev, next) =>
+    prev.value === next.value &&
+    prev.icon === next.icon &&
+    prev.bgColor === next.bgColor &&
+    prev.showColoredIcon === next.showColoredIcon &&
+    prev.children === next.children
+)

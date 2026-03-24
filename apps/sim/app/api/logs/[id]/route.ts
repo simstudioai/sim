@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import {
+  jobExecutionLogs,
   permissions,
   workflow,
   workflowDeploymentVersion,
@@ -74,8 +75,64 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       .limit(1)
 
     const log = rows[0]
+
+    // Fallback: check job_execution_logs
     if (!log) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      const jobRows = await db
+        .select({
+          id: jobExecutionLogs.id,
+          executionId: jobExecutionLogs.executionId,
+          level: jobExecutionLogs.level,
+          status: jobExecutionLogs.status,
+          trigger: jobExecutionLogs.trigger,
+          startedAt: jobExecutionLogs.startedAt,
+          endedAt: jobExecutionLogs.endedAt,
+          totalDurationMs: jobExecutionLogs.totalDurationMs,
+          executionData: jobExecutionLogs.executionData,
+          cost: jobExecutionLogs.cost,
+          createdAt: jobExecutionLogs.createdAt,
+        })
+        .from(jobExecutionLogs)
+        .innerJoin(
+          permissions,
+          and(
+            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityId, jobExecutionLogs.workspaceId),
+            eq(permissions.userId, userId)
+          )
+        )
+        .where(eq(jobExecutionLogs.id, id))
+        .limit(1)
+
+      const jobLog = jobRows[0]
+      if (!jobLog) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      }
+
+      const execData = jobLog.executionData as Record<string, any> | null
+      const response = {
+        id: jobLog.id,
+        workflowId: null,
+        executionId: jobLog.executionId,
+        deploymentVersionId: null,
+        deploymentVersion: null,
+        deploymentVersionName: null,
+        level: jobLog.level,
+        status: jobLog.status,
+        duration: jobLog.totalDurationMs ? `${jobLog.totalDurationMs}ms` : null,
+        trigger: jobLog.trigger,
+        createdAt: jobLog.startedAt.toISOString(),
+        workflow: null,
+        jobTitle: (execData?.trigger?.source as string) || null,
+        executionData: {
+          totalDuration: jobLog.totalDurationMs,
+          ...execData,
+          enhanced: true,
+        },
+        cost: jobLog.cost as any,
+      }
+
+      return NextResponse.json({ data: response })
     }
 
     const workflowSummary = log.workflowId

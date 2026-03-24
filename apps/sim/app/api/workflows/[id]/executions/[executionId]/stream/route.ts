@@ -46,6 +46,16 @@ export async function GET(
       )
     }
 
+    if (
+      auth.apiKeyType === 'workspace' &&
+      workflowAuthorization.workflow?.workspaceId !== auth.workspaceId
+    ) {
+      return NextResponse.json(
+        { error: 'API key is not authorized for this workspace' },
+        { status: 403 }
+      )
+    }
+
     const meta = await getExecutionMeta(executionId)
     if (!meta) {
       return NextResponse.json({ error: 'Execution buffer not found or expired' }, { status: 404 })

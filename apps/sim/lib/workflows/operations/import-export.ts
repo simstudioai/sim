@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import JSZip from 'jszip'
 import {
   type ExportWorkflowState,
   sanitizeForExport,
@@ -8,6 +7,11 @@ import { regenerateWorkflowIds } from '@/stores/workflows/utils'
 import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowImportExport')
+
+async function getJSZip() {
+  const { default: JSZip } = await import('jszip')
+  return JSZip
+}
 
 export interface WorkflowExportData {
   workflow: {
@@ -32,6 +36,7 @@ export interface FolderExportData {
 export interface WorkspaceExportStructure {
   workspace: {
     name: string
+    color?: string
     exportedAt: string
   }
   workflows: WorkflowExportData[]
@@ -137,6 +142,7 @@ export function exportWorkflowToJson(workflowData: WorkflowExportData): string {
  * Workflows are placed at the root level (no folder structure).
  */
 export async function exportWorkflowsToZip(workflows: WorkflowExportData[]): Promise<Blob> {
+  const JSZip = await getJSZip()
   const zip = new JSZip()
   const seenFilenames = new Set<string>()
 
@@ -178,14 +184,17 @@ function buildFolderPath(
 export async function exportWorkspaceToZip(
   workspaceName: string,
   workflows: WorkflowExportData[],
-  folders: FolderExportData[]
+  folders: FolderExportData[],
+  workspaceColor?: string
 ): Promise<Blob> {
+  const JSZip = await getJSZip()
   const zip = new JSZip()
   const foldersMap = new Map(folders.map((f) => [f.id, f]))
 
   const metadata = {
     workspace: {
       name: workspaceName,
+      ...(workspaceColor && { color: workspaceColor }),
       exportedAt: new Date().toISOString(),
     },
     folders: folders.map((f) => ({
@@ -241,6 +250,7 @@ export async function exportFolderToZip(
   workflows: WorkflowExportData[],
   folders: FolderExportData[]
 ): Promise<Blob> {
+  const JSZip = await getJSZip()
   const zip = new JSZip()
   const foldersMap = new Map(folders.map((f) => [f.id, f]))
 
@@ -292,6 +302,7 @@ export interface ImportedWorkflow {
 
 export interface WorkspaceImportMetadata {
   workspaceName: string
+  workspaceColor?: string
   exportedAt?: string
   folders?: Array<{
     id: string
@@ -313,6 +324,7 @@ function extractSortOrder(content: string): number | undefined {
 export async function extractWorkflowsFromZip(
   zipFile: File
 ): Promise<{ workflows: ImportedWorkflow[]; metadata?: WorkspaceImportMetadata }> {
+  const JSZip = await getJSZip()
   const zip = await JSZip.loadAsync(await zipFile.arrayBuffer())
   const workflows: ImportedWorkflow[] = []
   let metadata: WorkspaceImportMetadata | undefined
@@ -326,6 +338,7 @@ export async function extractWorkflowsFromZip(
         const parsed = JSON.parse(content)
         metadata = {
           workspaceName: parsed.workspace?.name || 'Imported Workspace',
+          workspaceColor: parsed.workspace?.color,
           exportedAt: parsed.workspace?.exportedAt,
           folders: parsed.folders,
         }
@@ -614,6 +627,114 @@ export function parseWorkflowJson(
     errors.push(`Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     return { data: null, errors }
   }
+}
+
+interface CreateImportedWorkflowInput {
+  name: string
+  description: string
+  color: string
+  workspaceId: string
+  folderId?: string
+  sortOrder?: number
+}
+
+interface CreatedImportedWorkflow {
+  id: string
+}
+
+interface PersistImportedWorkflowOptions {
+  content: string
+  filename: string
+  workspaceId: string
+  folderId?: string
+  sortOrder?: number
+  nameOverride?: string
+  descriptionOverride?: string
+  colorOverride?: string
+  createWorkflow: (input: CreateImportedWorkflowInput) => Promise<CreatedImportedWorkflow>
+}
+
+export async function persistImportedWorkflow({
+  content,
+  filename,
+  workspaceId,
+  folderId,
+  sortOrder,
+  nameOverride,
+  descriptionOverride,
+  colorOverride,
+  createWorkflow,
+}: PersistImportedWorkflowOptions): Promise<{ workflowId: string; workflowName: string } | null> {
+  const { data: workflowData, errors: parseErrors } = parseWorkflowJson(content)
+
+  if (!workflowData || parseErrors.length > 0) {
+    logger.warn(`Failed to parse imported workflow ${filename}:`, parseErrors)
+    return null
+  }
+
+  const workflowName = nameOverride || extractWorkflowName(content, filename)
+  const workflowColor =
+    colorOverride || (workflowData.metadata as { color?: string } | undefined)?.color || '#3972F6'
+
+  const createdWorkflow = await createWorkflow({
+    name: workflowName,
+    description: descriptionOverride || workflowData.metadata?.description || 'Imported from JSON',
+    workspaceId,
+    folderId,
+    sortOrder,
+    color: workflowColor,
+  })
+
+  const newWorkflowId = createdWorkflow.id
+
+  const stateResponse = await fetch(`/api/workflows/${newWorkflowId}/state`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(workflowData),
+  })
+
+  if (!stateResponse.ok) {
+    throw new Error(`Failed to save workflow state for ${newWorkflowId}`)
+  }
+
+  if (workflowData.variables) {
+    const variablesArray = Array.isArray(workflowData.variables)
+      ? workflowData.variables
+      : Object.values(workflowData.variables)
+
+    if (variablesArray.length > 0) {
+      const variablesRecord: Record<
+        string,
+        { id: string; workflowId: string; name: string; type: string; value: unknown }
+      > = {}
+
+      for (const variable of variablesArray) {
+        const id =
+          typeof variable.id === 'string' && variable.id.trim() ? variable.id : crypto.randomUUID()
+
+        variablesRecord[id] = {
+          id,
+          workflowId: newWorkflowId,
+          name: variable.name,
+          type: variable.type,
+          value: variable.value,
+        }
+      }
+
+      const variablesResponse = await fetch(`/api/workflows/${newWorkflowId}/variables`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variables: variablesRecord }),
+      })
+
+      if (!variablesResponse.ok) {
+        throw new Error(`Failed to save variables for ${newWorkflowId}`)
+      }
+    }
+  }
+
+  logger.info(`Imported workflow: ${workflowName}`)
+  return { workflowId: newWorkflowId, workflowName }
 }
 
 export interface GenerateWorkflowJsonOptions {

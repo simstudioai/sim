@@ -1,9 +1,30 @@
 import crypto, { randomUUID } from 'crypto'
 import { db } from '@sim/db'
-import { document, embedding, knowledgeBase, knowledgeBaseTagDefinitions } from '@sim/db/schema'
+import {
+  document,
+  embedding,
+  knowledgeBase,
+  knowledgeBaseTagDefinitions,
+  knowledgeConnector,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { getStorageMethod, isRedisStorage } from '@/lib/core/storage'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
@@ -23,13 +44,14 @@ import {
   validateTagValue,
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
+import { deleteFile } from '@/lib/uploads/core/storage-service'
+import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
 
 const logger = createLogger('DocumentService')
 
 const TIMEOUTS = {
   OVERALL_PROCESSING: (env.KB_CONFIG_MAX_DURATION || 600) * 1000, // Default 10 minutes for KB document processing
-  EMBEDDINGS_API: (env.KB_CONFIG_MAX_TIMEOUT || 10000) * 18,
 } as const
 
 // Configuration for handling large documents
@@ -419,7 +441,7 @@ export async function processDocumentAsync(
         embeddingDimension: knowledgeBase.embeddingDimension,
       })
       .from(knowledgeBase)
-      .where(eq(knowledgeBase.id, knowledgeBaseId))
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
       .limit(1)
 
     if (kb.length === 0) {
@@ -433,7 +455,9 @@ export async function processDocumentAsync(
         processingStartedAt: new Date(),
         processingError: null,
       })
-      .where(eq(document.id, documentId))
+      .where(
+        and(eq(document.id, documentId), isNull(document.archivedAt), isNull(document.deletedAt))
+      )
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
@@ -560,7 +584,13 @@ export async function processDocumentAsync(
             boolean3: document.boolean3,
           })
           .from(document)
-          .where(eq(document.id, documentId))
+          .where(
+            and(
+              eq(document.id, documentId),
+              isNull(document.archivedAt),
+              isNull(document.deletedAt)
+            )
+          )
           .limit(1)
 
         const documentTags = documentRecord[0] || {}
@@ -606,12 +636,28 @@ export async function processDocumentAsync(
           updatedAt: now,
         }))
 
-        if (embeddingRecords.length > 0) {
-          logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
+        await db.transaction(async (tx) => {
+          const activeDocument = await tx
+            .select({ id: document.id })
+            .from(document)
+            .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+            .where(
+              and(
+                eq(document.id, documentId),
+                isNull(document.archivedAt),
+                isNull(document.deletedAt),
+                isNull(knowledgeBase.deletedAt)
+              )
+            )
+            .limit(1)
 
-          if (embeddingProvider === 'ollama') {
-            // Per-KB table: delete + insert + status update inside a transaction
-            await db.transaction(async (tx) => {
+          if (activeDocument.length === 0) {
+            return
+          }
+
+          if (embeddingRecords.length > 0) {
+            if (embeddingProvider === 'ollama') {
+              // Per-KB table: delete + insert
               await deleteKBDocumentEmbeddings(knowledgeBaseId, documentId, tx)
               await insertKBEmbeddings(
                 knowledgeBaseId,
@@ -619,44 +665,18 @@ export async function processDocumentAsync(
                 kb[0].embeddingDimension,
                 tx
               )
-              await tx
-                .update(document)
-                .set({
-                  chunkCount: processed.metadata.chunkCount,
-                  tokenCount: processed.metadata.tokenCount,
-                  characterCount: processed.metadata.characterCount,
-                  processingStatus: 'completed',
-                  processingCompletedAt: now,
-                  processingError: null,
-                })
-                .where(eq(document.id, documentId))
-            })
-          } else {
-            // Shared embedding table: delete + insert + status update inside a transaction
-            await db.transaction(async (tx) => {
+            } else {
+              // Shared embedding table: delete + insert
               await tx.delete(embedding).where(eq(embedding.documentId, documentId))
 
               const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
               for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
                 await tx.insert(embedding).values(embeddingRecords.slice(i, i + insertBatchSize))
               }
-
-              await tx
-                .update(document)
-                .set({
-                  chunkCount: processed.metadata.chunkCount,
-                  tokenCount: processed.metadata.tokenCount,
-                  characterCount: processed.metadata.characterCount,
-                  processingStatus: 'completed',
-                  processingCompletedAt: now,
-                  processingError: null,
-                })
-                .where(eq(document.id, documentId))
-            })
+            }
           }
-        } else {
-          // No embeddings to insert — still update status
-          await db
+
+          await tx
             .update(document)
             .set({
               chunkCount: processed.metadata.chunkCount,
@@ -667,7 +687,7 @@ export async function processDocumentAsync(
               processingError: null,
             })
             .where(eq(document.id, documentId))
-        }
+        })
       })(),
       TIMEOUTS.OVERALL_PROCESSING,
       'Document processing'
@@ -762,17 +782,19 @@ export async function createDocumentRecords(
   knowledgeBaseId: string,
   requestId: string
 ): Promise<DocumentData[]> {
-  const kb = await db
-    .select({ userId: knowledgeBase.userId })
-    .from(knowledgeBase)
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
-    .limit(1)
-
-  if (kb.length === 0) {
-    throw new Error('Knowledge base not found')
-  }
-
   return await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+
+    const kb = await tx
+      .select({ id: knowledgeBase.id })
+      .from(knowledgeBase)
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .limit(1)
+
+    if (kb.length === 0) {
+      throw new Error('Knowledge base not found')
+    }
+
     const now = new Date()
     const documentRecords = []
     const returnData: DocumentData[] = []
@@ -860,6 +882,148 @@ export async function createDocumentRecords(
 }
 
 /**
+ * A single tag filter condition passed from the API layer.
+ */
+export interface TagFilterCondition {
+  tagSlot: string
+  fieldType: 'text' | 'number' | 'date' | 'boolean'
+  operator: string
+  value: string
+  valueTo?: string
+}
+
+/**
+ * Builds a Drizzle SQL condition from a tag filter.
+ */
+const ALLOWED_TAG_SLOTS = new Set([
+  'tag1',
+  'tag2',
+  'tag3',
+  'tag4',
+  'tag5',
+  'tag6',
+  'tag7',
+  'number1',
+  'number2',
+  'number3',
+  'number4',
+  'number5',
+  'date1',
+  'date2',
+  'boolean1',
+  'boolean2',
+  'boolean3',
+])
+
+function escapeLikePattern(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+}
+
+function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
+  if (!ALLOWED_TAG_SLOTS.has(filter.tagSlot)) return undefined
+
+  const col = document[filter.tagSlot as keyof typeof document]
+
+  if (filter.fieldType === 'text') {
+    const v = filter.value
+    switch (filter.operator) {
+      case 'eq':
+        return eq(col as typeof document.tag1, v)
+      case 'neq':
+        return ne(col as typeof document.tag1, v)
+      case 'contains': {
+        const escaped = escapeLikePattern(v)
+        return sql`LOWER(${col}) LIKE LOWER(${`%${escaped}%`}) ESCAPE '\\'`
+      }
+      case 'not_contains': {
+        const escaped = escapeLikePattern(v)
+        return sql`LOWER(${col}) NOT LIKE LOWER(${`%${escaped}%`}) ESCAPE '\\'`
+      }
+      case 'starts_with': {
+        const escaped = escapeLikePattern(v)
+        return sql`LOWER(${col}) LIKE LOWER(${`${escaped}%`}) ESCAPE '\\'`
+      }
+      case 'ends_with': {
+        const escaped = escapeLikePattern(v)
+        return sql`LOWER(${col}) LIKE LOWER(${`%${escaped}`}) ESCAPE '\\'`
+      }
+      default:
+        return undefined
+    }
+  }
+
+  if (filter.fieldType === 'number') {
+    const num = Number(filter.value)
+    if (Number.isNaN(num)) return undefined
+    switch (filter.operator) {
+      case 'eq':
+        return eq(col as typeof document.number1, num)
+      case 'neq':
+        return ne(col as typeof document.number1, num)
+      case 'gt':
+        return gt(col as typeof document.number1, num)
+      case 'gte':
+        return gte(col as typeof document.number1, num)
+      case 'lt':
+        return lt(col as typeof document.number1, num)
+      case 'lte':
+        return lte(col as typeof document.number1, num)
+      case 'between': {
+        const numTo = Number(filter.valueTo)
+        if (Number.isNaN(numTo)) return undefined
+        return and(
+          gte(col as typeof document.number1, num),
+          lte(col as typeof document.number1, numTo)
+        )
+      }
+      default:
+        return undefined
+    }
+  }
+
+  if (filter.fieldType === 'date') {
+    const v = filter.value
+    switch (filter.operator) {
+      case 'eq':
+        return eq(col as typeof document.date1, new Date(v))
+      case 'neq':
+        return ne(col as typeof document.date1, new Date(v))
+      case 'gt':
+        return gt(col as typeof document.date1, new Date(v))
+      case 'gte':
+        return gte(col as typeof document.date1, new Date(v))
+      case 'lt':
+        return lt(col as typeof document.date1, new Date(v))
+      case 'lte':
+        return lte(col as typeof document.date1, new Date(v))
+      case 'between': {
+        if (!filter.valueTo) return undefined
+        return and(
+          gte(col as typeof document.date1, new Date(v)),
+          lte(col as typeof document.date1, new Date(filter.valueTo))
+        )
+      }
+      default:
+        return undefined
+    }
+  }
+
+  if (filter.fieldType === 'boolean') {
+    const boolVal = filter.value === 'true'
+    switch (filter.operator) {
+      case 'eq':
+        return eq(col as typeof document.boolean1, boolVal)
+      case 'neq':
+        return ne(col as typeof document.boolean1, boolVal)
+      default:
+        return undefined
+    }
+  }
+
+  return undefined
+}
+
+/**
  * Get documents for a knowledge base with filtering and pagination
  */
 export async function getDocuments(
@@ -871,6 +1035,7 @@ export async function getDocuments(
     offset?: number
     sortBy?: DocumentSortField
     sortOrder?: SortOrder
+    tagFilters?: TagFilterCondition[]
   },
   requestId: string
 ): Promise<{
@@ -910,6 +1075,10 @@ export async function getDocuments(
     boolean1: boolean | null
     boolean2: boolean | null
     boolean3: boolean | null
+    // Connector fields
+    connectorId: string | null
+    connectorType: string | null
+    sourceUrl: string | null
   }>
   pagination: {
     total: number
@@ -925,10 +1094,13 @@ export async function getDocuments(
     offset = 0,
     sortBy = 'filename',
     sortOrder = 'asc',
+    tagFilters,
   } = options
 
-  const whereConditions = [
+  const whereConditions: (SQL | undefined)[] = [
     eq(document.knowledgeBaseId, knowledgeBaseId),
+    eq(document.userExcluded, false),
+    isNull(document.archivedAt),
     isNull(document.deletedAt),
   ]
 
@@ -940,6 +1112,15 @@ export async function getDocuments(
 
   if (search) {
     whereConditions.push(sql`LOWER(${document.filename}) LIKE LOWER(${`%${search}%`})`)
+  }
+
+  if (tagFilters && tagFilters.length > 0) {
+    for (const filter of tagFilters) {
+      const condition = buildTagFilterCondition(filter)
+      if (condition) {
+        whereConditions.push(condition)
+      }
+    }
   }
 
   const totalResult = await db
@@ -1012,8 +1193,13 @@ export async function getDocuments(
       boolean1: document.boolean1,
       boolean2: document.boolean2,
       boolean3: document.boolean3,
+      // Connector fields
+      connectorId: document.connectorId,
+      connectorType: knowledgeConnector.connectorType,
+      sourceUrl: document.sourceUrl,
     })
     .from(document)
+    .leftJoin(knowledgeConnector, eq(document.connectorId, knowledgeConnector.id))
     .where(and(...whereConditions))
     .orderBy(primaryOrderBy, secondaryOrderBy)
     .limit(limit)
@@ -1060,6 +1246,10 @@ export async function getDocuments(
       boolean1: doc.boolean1,
       boolean2: doc.boolean2,
       boolean3: doc.boolean3,
+      // Connector fields
+      connectorId: doc.connectorId,
+      connectorType: doc.connectorType ?? null,
+      sourceUrl: doc.sourceUrl,
     })),
     pagination: {
       total,
@@ -1110,16 +1300,6 @@ export async function createSingleDocument(
   tag6: string | null
   tag7: string | null
 }> {
-  const kb = await db
-    .select({ userId: knowledgeBase.userId })
-    .from(knowledgeBase)
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
-    .limit(1)
-
-  if (kb.length === 0) {
-    throw new Error('Knowledge base not found')
-  }
-
   const documentId = randomUUID()
   const now = new Date()
 
@@ -1177,13 +1357,26 @@ export async function createSingleDocument(
     ...processedTags,
   }
 
-  await db.insert(document).values(newDocument)
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
 
-  await db
-    .update(knowledgeBase)
-    .set({ updatedAt: now })
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
+    const kb = await tx
+      .select({ id: knowledgeBase.id })
+      .from(knowledgeBase)
+      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .limit(1)
 
+    if (kb.length === 0) {
+      throw new Error('Knowledge base not found')
+    }
+
+    await tx.insert(document).values(newDocument)
+
+    await tx
+      .update(knowledgeBase)
+      .set({ updatedAt: now })
+      .where(eq(knowledgeBase.id, knowledgeBaseId))
+  })
   logger.info(`[${requestId}] Document created: ${documentId} in knowledge base ${knowledgeBaseId}`)
 
   return newDocument as {
@@ -1240,6 +1433,8 @@ export async function bulkDocumentOperation(
       and(
         eq(document.knowledgeBaseId, knowledgeBaseId),
         inArray(document.id, documentIds),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
         isNull(document.deletedAt)
       )
     )
@@ -1262,19 +1457,9 @@ export async function bulkDocumentOperation(
   }>
 
   if (operation === 'delete') {
-    updateResult = await db
-      .update(document)
-      .set({
-        deletedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(document.knowledgeBaseId, knowledgeBaseId),
-          inArray(document.id, documentIds),
-          isNull(document.deletedAt)
-        )
-      )
-      .returning({ id: document.id, deletedAt: document.deletedAt })
+    const deletedIds = documentsToUpdate.map((doc) => doc.id)
+    const deletedCount = await deleteDocumentsByLifecyclePolicy(deletedIds, requestId)
+    updateResult = deletedIds.slice(0, deletedCount).map((id) => ({ id }))
   } else {
     const enabled = operation === 'enable'
 
@@ -1287,6 +1472,8 @@ export async function bulkDocumentOperation(
         and(
           eq(document.knowledgeBaseId, knowledgeBaseId),
           inArray(document.id, documentIds),
+          eq(document.userExcluded, false),
+          isNull(document.archivedAt),
           isNull(document.deletedAt)
         )
       )
@@ -1329,6 +1516,8 @@ export async function bulkDocumentOperationByFilter(
 
   const whereConditions = [
     eq(document.knowledgeBaseId, knowledgeBaseId),
+    eq(document.userExcluded, false),
+    isNull(document.archivedAt),
     isNull(document.deletedAt),
   ]
 
@@ -1345,13 +1534,14 @@ export async function bulkDocumentOperationByFilter(
   }>
 
   if (operation === 'delete') {
-    updateResult = await db
-      .update(document)
-      .set({
-        deletedAt: new Date(),
-      })
+    const matchingDocs = await db
+      .select({ id: document.id })
+      .from(document)
       .where(and(...whereConditions))
-      .returning({ id: document.id, deletedAt: document.deletedAt })
+
+    const deletedIds = matchingDocs.map((doc) => doc.id)
+    const deletedCount = await deleteDocumentsByLifecyclePolicy(deletedIds, requestId)
+    updateResult = deletedIds.slice(0, deletedCount).map((id) => ({ id }))
   } else {
     const enabled = operation === 'enable'
 
@@ -1718,21 +1908,143 @@ export async function updateDocument(
   }
 }
 
+function getKnowledgeBaseStorageKey(fileUrl: string | null): string | null {
+  if (!fileUrl) {
+    return null
+  }
+
+  try {
+    const urlPath = new URL(fileUrl, 'http://localhost').pathname
+    const storageKey = extractStorageKey(urlPath)
+    return storageKey !== urlPath ? storageKey : null
+  } catch {
+    return null
+  }
+}
+
+export async function deleteDocumentStorageFiles(
+  documentsToDelete: Array<{ id: string; fileUrl: string | null }>,
+  requestId: string
+): Promise<void> {
+  await Promise.allSettled(
+    documentsToDelete.map(async (doc) => {
+      const storageKey = getKnowledgeBaseStorageKey(doc.fileUrl)
+      if (!storageKey) {
+        return
+      }
+
+      try {
+        await deleteFile({ key: storageKey, context: 'knowledge-base' })
+      } catch (error) {
+        logger.warn(`[${requestId}] Failed to delete document storage file`, {
+          documentId: doc.id,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    })
+  )
+}
+
+async function excludeConnectorDocuments(
+  documentIds: string[],
+  requestId: string
+): Promise<number> {
+  const ids = [...new Set(documentIds)]
+  if (ids.length === 0) {
+    return 0
+  }
+
+  const updated = await db
+    .update(document)
+    .set({
+      userExcluded: true,
+      enabled: false,
+    })
+    .where(and(inArray(document.id, ids), isNotNull(document.connectorId)))
+    .returning({ id: document.id })
+
+  if (updated.length > 0) {
+    logger.info(`[${requestId}] Excluded ${updated.length} connector-backed document(s)`, {
+      documentIds: updated.map((doc) => doc.id),
+    })
+  }
+
+  return updated.length
+}
+
+export async function deleteDocumentsByLifecyclePolicy(
+  documentIds: string[],
+  requestId: string
+): Promise<number> {
+  const ids = [...new Set(documentIds)]
+  if (ids.length === 0) {
+    return 0
+  }
+
+  const docs = await db
+    .select({
+      id: document.id,
+      connectorId: document.connectorId,
+    })
+    .from(document)
+    .where(inArray(document.id, ids))
+
+  const connectorBackedIds = docs.filter((doc) => doc.connectorId !== null).map((doc) => doc.id)
+  const hardDeleteIds = docs.filter((doc) => doc.connectorId === null).map((doc) => doc.id)
+
+  const [excludedCount, hardDeletedCount] = await Promise.all([
+    excludeConnectorDocuments(connectorBackedIds, requestId),
+    hardDeleteDocuments(hardDeleteIds, requestId),
+  ])
+
+  return excludedCount + hardDeletedCount
+}
+
+export async function hardDeleteDocuments(
+  documentIds: string[],
+  requestId: string
+): Promise<number> {
+  const ids = [...new Set(documentIds)]
+  if (ids.length === 0) {
+    return 0
+  }
+
+  const documentsToDelete = await db
+    .select({
+      id: document.id,
+      fileUrl: document.fileUrl,
+    })
+    .from(document)
+    .where(inArray(document.id, ids))
+
+  if (documentsToDelete.length === 0) {
+    return 0
+  }
+
+  const existingIds = documentsToDelete.map((doc) => doc.id)
+
+  await db.transaction(async (tx) => {
+    await tx.delete(embedding).where(inArray(embedding.documentId, existingIds))
+    await tx.delete(document).where(inArray(document.id, existingIds))
+  })
+
+  await deleteDocumentStorageFiles(documentsToDelete, requestId)
+
+  logger.info(`[${requestId}] Hard deleted ${existingIds.length} documents`, {
+    documentIds: existingIds,
+  })
+
+  return existingIds.length
+}
+
 /**
- * Soft delete a document
+ * Hard delete a document.
  */
 export async function deleteDocument(
   documentId: string,
   requestId: string
 ): Promise<{ success: boolean; message: string }> {
-  await db
-    .update(document)
-    .set({
-      deletedAt: new Date(),
-    })
-    .where(eq(document.id, documentId))
-
-  logger.info(`[${requestId}] Document deleted: ${documentId}`)
+  await deleteDocumentsByLifecyclePolicy([documentId], requestId)
 
   return {
     success: true,

@@ -77,6 +77,7 @@ export function useDuplicateWorkflow({ workspaceId, onSuccess }: UseDuplicateWor
             description: sourceWorkflow.description,
             color: getNextWorkflowColor(),
             folderId: sourceWorkflow.folderId,
+            newId: crypto.randomUUID(),
           })
 
           duplicatedIds.push(result.id)

@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import {
+  jobExecutionLogs,
   pausedExecutions,
   permissions,
   workflow,
@@ -7,7 +8,22 @@ import {
   workflowExecutionLogs,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -177,13 +193,29 @@ export async function GET(request: NextRequest) {
         conditions = and(conditions, commonFilters)
       }
 
-      const logs = await baseQuery
+      // Workflow-specific filters exclude job logs entirely
+      const hasWorkflowSpecificFilters = !!(
+        params.workflowIds ||
+        params.folderIds ||
+        params.workflowName ||
+        params.folderName
+      )
+      // If triggers filter is set and doesn't include 'mothership', skip job logs
+      const triggersList = params.triggers?.split(',').filter(Boolean) || []
+      const triggersExcludeJobs =
+        triggersList.length > 0 &&
+        !triggersList.includes('all') &&
+        !triggersList.includes('mothership')
+      const includeJobLogs = !hasWorkflowSpecificFilters && !triggersExcludeJobs
+
+      const fetchSize = params.limit + params.offset
+
+      const workflowLogs = await baseQuery
         .where(and(workspaceFilter, conditions))
         .orderBy(desc(workflowExecutionLogs.startedAt))
-        .limit(params.limit)
-        .offset(params.offset)
+        .limit(fetchSize)
 
-      const countQuery = db
+      const workflowCountQuery = db
         .select({ count: sql<number>`count(*)` })
         .from(workflowExecutionLogs)
         .leftJoin(
@@ -201,10 +233,141 @@ export async function GET(request: NextRequest) {
         )
         .where(and(eq(workflowExecutionLogs.workspaceId, params.workspaceId), conditions))
 
-      const countResult = await countQuery
+      // Build job log filters (subset of filters that apply to job logs)
+      let jobLogs: Array<{
+        id: string
+        executionId: string
+        level: string
+        status: string
+        trigger: string
+        startedAt: Date
+        endedAt: Date | null
+        totalDurationMs: number | null
+        executionData: unknown
+        cost: unknown
+        createdAt: Date
+        jobTitle: string | null
+      }> = []
+      let jobCount = 0
 
-      const count = countResult[0]?.count || 0
+      if (includeJobLogs) {
+        const jobConditions: SQL[] = [eq(jobExecutionLogs.workspaceId, params.workspaceId)]
 
+        // Permission check
+        jobConditions.push(
+          sql`EXISTS (SELECT 1 FROM ${permissions} WHERE ${permissions.entityType} = 'workspace' AND ${permissions.entityId} = ${jobExecutionLogs.workspaceId} AND ${permissions.userId} = ${userId})`
+        )
+
+        // Level filter
+        if (params.level && params.level !== 'all') {
+          const levels = params.level.split(',').filter(Boolean)
+          const jobLevelConditions: SQL[] = []
+          for (const level of levels) {
+            if (level === 'error') {
+              jobLevelConditions.push(eq(jobExecutionLogs.level, 'error'))
+            } else if (level === 'info') {
+              const c = and(eq(jobExecutionLogs.level, 'info'), isNotNull(jobExecutionLogs.endedAt))
+              if (c) jobLevelConditions.push(c)
+            }
+            // 'running' and 'pending' don't apply to job logs (they complete synchronously)
+          }
+          if (jobLevelConditions.length > 0) {
+            jobConditions.push(
+              jobLevelConditions.length === 1 ? jobLevelConditions[0] : or(...jobLevelConditions)!
+            )
+          }
+        }
+
+        // Trigger filter
+        if (triggersList.length > 0 && !triggersList.includes('all')) {
+          jobConditions.push(inArray(jobExecutionLogs.trigger, triggersList))
+        }
+
+        // Date filters
+        if (params.startDate) {
+          jobConditions.push(gte(jobExecutionLogs.startedAt, new Date(params.startDate)))
+        }
+        if (params.endDate) {
+          jobConditions.push(lte(jobExecutionLogs.startedAt, new Date(params.endDate)))
+        }
+
+        // Search by executionId
+        if (params.search) {
+          jobConditions.push(sql`${jobExecutionLogs.executionId} ILIKE ${`%${params.search}%`}`)
+        }
+        if (params.executionId) {
+          jobConditions.push(eq(jobExecutionLogs.executionId, params.executionId))
+        }
+
+        // Cost filter
+        if (params.costOperator && params.costValue !== undefined) {
+          const costField = sql`(${jobExecutionLogs.cost}->>'total')::numeric`
+          const ops = {
+            '=': sql`=`,
+            '>': sql`>`,
+            '<': sql`<`,
+            '>=': sql`>=`,
+            '<=': sql`<=`,
+            '!=': sql`!=`,
+          } as const
+          jobConditions.push(sql`${costField} ${ops[params.costOperator]} ${params.costValue}`)
+        }
+
+        // Duration filter
+        if (params.durationOperator && params.durationValue !== undefined) {
+          const durationOps: Record<
+            string,
+            (field: typeof jobExecutionLogs.totalDurationMs, val: number) => SQL | undefined
+          > = {
+            '=': (f, v) => eq(f, v),
+            '>': (f, v) => gt(f, v),
+            '<': (f, v) => lt(f, v),
+            '>=': (f, v) => gte(f, v),
+            '<=': (f, v) => lte(f, v),
+            '!=': (f, v) => ne(f, v),
+          }
+          const durationCond = durationOps[params.durationOperator]?.(
+            jobExecutionLogs.totalDurationMs,
+            params.durationValue
+          )
+          if (durationCond) jobConditions.push(durationCond)
+        }
+
+        const jobWhere = and(...jobConditions)
+
+        const [jobLogResults, jobCountResult] = await Promise.all([
+          db
+            .select({
+              id: jobExecutionLogs.id,
+              executionId: jobExecutionLogs.executionId,
+              level: jobExecutionLogs.level,
+              status: jobExecutionLogs.status,
+              trigger: jobExecutionLogs.trigger,
+              startedAt: jobExecutionLogs.startedAt,
+              endedAt: jobExecutionLogs.endedAt,
+              totalDurationMs: jobExecutionLogs.totalDurationMs,
+              executionData:
+                params.details === 'full' ? jobExecutionLogs.executionData : sql<null>`NULL`,
+              cost: jobExecutionLogs.cost,
+              createdAt: jobExecutionLogs.createdAt,
+              jobTitle: sql<string | null>`${jobExecutionLogs.executionData}->'trigger'->>'source'`,
+            })
+            .from(jobExecutionLogs)
+            .where(jobWhere)
+            .orderBy(desc(jobExecutionLogs.startedAt))
+            .limit(fetchSize),
+          db.select({ count: sql<number>`count(*)` }).from(jobExecutionLogs).where(jobWhere),
+        ])
+
+        jobLogs = jobLogResults as typeof jobLogs
+        jobCount = Number(jobCountResult[0]?.count || 0)
+      }
+
+      const workflowCountResult = await workflowCountQuery
+      const workflowCount = Number(workflowCountResult[0]?.count || 0)
+      const totalCount = workflowCount + jobCount
+
+      // Transform workflow logs to the unified shape
       const blockExecutionsByExecution: Record<string, any[]> = {}
 
       const createTraceSpans = (blockExecutions: any[]) => {
@@ -289,7 +452,7 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      const enhancedLogs = logs.map((log) => {
+      const transformedWorkflowLogs = workflowLogs.map((log) => {
         const blockExecutions = blockExecutionsByExecution[log.executionId] || []
 
         let traceSpans = []
@@ -367,13 +530,60 @@ export async function GET(request: NextRequest) {
             (log.pausedStatus && log.pausedStatus !== 'fully_resumed'),
         }
       })
+
+      // Transform job logs to the same shape
+      const transformedJobLogs = jobLogs.map((log) => {
+        const execData = log.executionData as any
+        const costSummary = (log.cost as any) || { total: 0 }
+
+        return {
+          id: log.id,
+          workflowId: null as string | null,
+          executionId: log.executionId,
+          deploymentVersionId: null as string | null,
+          deploymentVersion: null as number | null,
+          deploymentVersionName: null as string | null,
+          level: log.level,
+          status: log.status,
+          duration: log.totalDurationMs ? `${log.totalDurationMs}ms` : null,
+          trigger: log.trigger,
+          createdAt: log.startedAt.toISOString(),
+          files: undefined as any,
+          workflow: null as any,
+          jobTitle: log.jobTitle,
+          pauseSummary: {
+            status: null as string | null,
+            total: 0,
+            resumed: 0,
+          },
+          executionData:
+            params.details === 'full' && execData
+              ? {
+                  totalDuration: log.totalDurationMs,
+                  traceSpans: execData.traceSpans || [],
+                  blockExecutions: [],
+                  finalOutput: execData.finalOutput,
+                  enhanced: true,
+                  trigger: execData.trigger,
+                }
+              : undefined,
+          cost: params.details === 'full' ? costSummary : { total: costSummary?.total || 0 },
+          hasPendingPause: false,
+        }
+      })
+
+      // Merge, sort by createdAt (which is startedAt ISO string) desc, paginate
+      const allLogs = [...transformedWorkflowLogs, ...transformedJobLogs]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(params.offset, params.offset + params.limit)
+
       return NextResponse.json(
         {
-          data: enhancedLogs,
-          total: Number(count),
+          data: allLogs,
+          total: totalCount,
           page: Math.floor(params.offset / params.limit) + 1,
           pageSize: params.limit,
-          totalPages: Math.ceil(Number(count) / params.limit),
+          totalPages: Math.ceil(totalCount / params.limit),
         },
         { status: 200 }
       )

@@ -71,6 +71,7 @@ vi.mock('@/lib/core/async-jobs', () => ({
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
   eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
+  ne: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'ne' })),
   lte: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'lte' })),
   lt: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'lt' })),
   not: vi.fn((condition: unknown) => ({ type: 'not', condition })),
@@ -94,6 +95,7 @@ vi.mock('@sim/db', () => ({
     nextRunAt: 'nextRunAt',
     lastQueuedAt: 'lastQueuedAt',
     deploymentVersionId: 'deploymentVersionId',
+    sourceType: 'sourceType',
   },
   workflowDeploymentVersion: {
     id: 'id',
@@ -107,7 +109,11 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-import { GET } from '@/app/api/schedules/execute/route'
+vi.mock('uuid', () => ({
+  v4: vi.fn().mockReturnValue('schedule-execution-1'),
+}))
+
+import { GET } from './route'
 
 const SINGLE_SCHEDULE = [
   {
@@ -161,7 +167,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should execute scheduled workflows with Trigger.dev disabled', async () => {
-    mockDbReturning.mockReturnValue(SINGLE_SCHEDULE)
+    mockDbReturning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
@@ -174,7 +180,7 @@ describe('Scheduled Workflow Execution API Route', () => {
 
   it('should queue schedules to Trigger.dev when enabled', async () => {
     mockFeatureFlags.isTriggerDevEnabled = true
-    mockDbReturning.mockReturnValue(SINGLE_SCHEDULE)
+    mockDbReturning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
@@ -185,7 +191,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should handle case with no due schedules', async () => {
-    mockDbReturning.mockReturnValue([])
+    mockDbReturning.mockReturnValueOnce([]).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
@@ -196,12 +202,52 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should execute multiple schedules in parallel', async () => {
-    mockDbReturning.mockReturnValue(MULTIPLE_SCHEDULES)
+    mockDbReturning.mockReturnValueOnce(MULTIPLE_SCHEDULES).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data).toHaveProperty('executedCount', 2)
+  })
+
+  it('should enqueue preassigned correlation metadata for schedules', async () => {
+    mockDbReturning.mockReturnValue(SINGLE_SCHEDULE)
+
+    const response = await GET(createMockRequest())
+
+    expect(response.status).toBe(200)
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'schedule-execution',
+      expect.objectContaining({
+        scheduleId: 'schedule-1',
+        workflowId: 'workflow-1',
+        executionId: 'schedule-execution-1',
+        requestId: 'test-request-id',
+        correlation: {
+          executionId: 'schedule-execution-1',
+          requestId: 'test-request-id',
+          source: 'schedule',
+          workflowId: 'workflow-1',
+          scheduleId: 'schedule-1',
+          triggerType: 'schedule',
+          scheduledFor: '2025-01-01T00:00:00.000Z',
+        },
+      }),
+      {
+        metadata: {
+          workflowId: 'workflow-1',
+          correlation: {
+            executionId: 'schedule-execution-1',
+            requestId: 'test-request-id',
+            source: 'schedule',
+            workflowId: 'workflow-1',
+            scheduleId: 'schedule-1',
+            triggerType: 'schedule',
+            scheduledFor: '2025-01-01T00:00:00.000Z',
+          },
+        },
+      }
+    )
   })
 })

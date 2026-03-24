@@ -97,10 +97,11 @@ function buildQueryParams(workspaceId: string, filters: LogFilters, page: number
 async function fetchLogsPage(
   workspaceId: string,
   filters: LogFilters,
-  page: number
+  page: number,
+  signal?: AbortSignal
 ): Promise<{ logs: WorkflowLog[]; hasMore: boolean; nextPage: number | undefined }> {
   const queryParams = buildQueryParams(workspaceId, filters, page)
-  const response = await fetch(`/api/logs?${queryParams}`)
+  const response = await fetch(`/api/logs?${queryParams}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch logs')
@@ -116,8 +117,8 @@ async function fetchLogsPage(
   }
 }
 
-async function fetchLogDetail(logId: string): Promise<WorkflowLog> {
-  const response = await fetch(`/api/logs/${logId}`)
+async function fetchLogDetail(logId: string, signal?: AbortSignal): Promise<WorkflowLog> {
+  const response = await fetch(`/api/logs/${logId}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch log details')
@@ -139,7 +140,8 @@ export function useLogsList(
 ) {
   return useInfiniteQuery({
     queryKey: logKeys.list(workspaceId, filters),
-    queryFn: ({ pageParam }) => fetchLogsPage(workspaceId as string, filters, pageParam),
+    queryFn: ({ pageParam, signal }) =>
+      fetchLogsPage(workspaceId as string, filters, pageParam, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
     staleTime: 0,
@@ -160,7 +162,7 @@ interface UseLogDetailOptions {
 export function useLogDetail(logId: string | undefined, options?: UseLogDetailOptions) {
   return useQuery({
     queryKey: logKeys.detail(logId),
-    queryFn: () => fetchLogDetail(logId as string),
+    queryFn: ({ signal }) => fetchLogDetail(logId as string, signal),
     enabled: Boolean(logId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
     staleTime: 30 * 1000,
@@ -185,14 +187,15 @@ export function prefetchLogDetail(queryClient: QueryClient, logId: string) {
  */
 async function fetchDashboardStats(
   workspaceId: string,
-  filters: Omit<LogFilters, 'limit'>
+  filters: Omit<LogFilters, 'limit'>,
+  signal?: AbortSignal
 ): Promise<DashboardStatsResponse> {
   const params = new URLSearchParams()
   params.set('workspaceId', workspaceId)
 
   applyFilterParams(params, filters)
 
-  const response = await fetch(`/api/logs/stats?${params.toString()}`)
+  const response = await fetch(`/api/logs/stats?${params.toString()}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch dashboard stats')
@@ -217,7 +220,7 @@ export function useDashboardStats(
 ) {
   return useQuery({
     queryKey: logKeys.stats(workspaceId, filters),
-    queryFn: () => fetchDashboardStats(workspaceId as string, filters),
+    queryFn: ({ signal }) => fetchDashboardStats(workspaceId as string, filters, signal),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval ?? false,
     staleTime: 0,
@@ -244,8 +247,11 @@ export interface ExecutionSnapshotData {
   }
 }
 
-async function fetchExecutionSnapshot(executionId: string): Promise<ExecutionSnapshotData> {
-  const response = await fetch(`/api/logs/execution/${executionId}`)
+async function fetchExecutionSnapshot(
+  executionId: string,
+  signal?: AbortSignal
+): Promise<ExecutionSnapshotData> {
+  const response = await fetch(`/api/logs/execution/${executionId}`, { signal })
 
   if (!response.ok) {
     throw new Error(`Failed to fetch execution snapshot: ${response.statusText}`)
@@ -262,7 +268,7 @@ async function fetchExecutionSnapshot(executionId: string): Promise<ExecutionSna
 export function useExecutionSnapshot(executionId: string | undefined) {
   return useQuery({
     queryKey: logKeys.executionSnapshot(executionId),
-    queryFn: () => fetchExecutionSnapshot(executionId as string),
+    queryFn: ({ signal }) => fetchExecutionSnapshot(executionId as string, signal),
     enabled: Boolean(executionId),
     staleTime: 5 * 60 * 1000, // 5 minutes - execution snapshots don't change
   })

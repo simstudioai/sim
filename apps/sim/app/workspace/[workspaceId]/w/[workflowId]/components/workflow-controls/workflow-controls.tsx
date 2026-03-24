@@ -2,9 +2,9 @@
 
 import { memo, useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import clsx from 'clsx'
 import { Scan } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Button,
   ChevronDown,
@@ -26,7 +26,6 @@ import { useShowActionBar, useUpdateGeneralSetting } from '@/hooks/queries/gener
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
-import { useTerminalStore } from '@/stores/terminal'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -38,12 +37,12 @@ const logger = createLogger('WorkflowControls')
 export const WorkflowControls = memo(function WorkflowControls() {
   const reactFlowInstance = useReactFlow()
   const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
-  const { mode, setMode } = useCanvasModeStore()
+  const { mode, setMode } = useCanvasModeStore(
+    useShallow((s) => ({ mode: s.mode, setMode: s.setMode }))
+  )
   const { undo, redo } = useCollaborativeWorkflow()
   const showWorkflowControls = useShowActionBar()
   const updateSetting = useUpdateGeneralSetting()
-  const isTerminalResizing = useTerminalStore((state) => state.isResizing)
-
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const { data: session } = useSession()
   const userId = session?.user?.id || 'unknown'
@@ -84,20 +83,14 @@ export const WorkflowControls = memo(function WorkflowControls() {
   }
 
   if (!showWorkflowControls) {
-    return null
+    return <div data-tour='workflow-controls' className='hidden' />
   }
 
   return (
     <>
       <div
-        className={clsx(
-          'fixed z-10 flex h-[36px] items-center gap-[2px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] p-[4px]',
-          !isTerminalResizing && 'transition-[bottom] duration-100 ease-out'
-        )}
-        style={{
-          bottom: 'calc(var(--terminal-height) + 16px)',
-          left: 'calc(var(--sidebar-width) + 16px)',
-        }}
+        className='absolute bottom-[16px] left-[16px] z-10 flex h-[36px] items-center gap-[2px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] p-[4px]'
+        data-tour='workflow-controls'
         onContextMenu={handleContextMenu}
       >
         {/* Canvas Mode Selector */}

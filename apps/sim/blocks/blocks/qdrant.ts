@@ -1,6 +1,6 @@
 import { QdrantIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { QdrantResponse } from '@/tools/qdrant/types'
 
 export const QdrantBlock: BlockConfig<QdrantResponse> = {
@@ -11,6 +11,8 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
   longDescription: 'Integrate Qdrant into the workflow. Can upsert, search, and fetch points.',
   docsLink: 'https://qdrant.tech/documentation/',
   category: 'tools',
+  integrationType: IntegrationType.Databases,
+  tags: ['vector-search', 'knowledge-base'],
   bgColor: '#1A223F',
   icon: QdrantIcon,
 

@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
+import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
@@ -238,8 +237,8 @@ export default function Form({ identifier }: { identifier: string }) {
 
   if (isSubmitted && thankYouData) {
     return (
-      <AuthBackground>
-        <main className='relative flex min-h-screen flex-col text-foreground'>
+      <AuthBackground className={`${martianMono.variable} dark font-[430] font-season`}>
+        <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
           <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
             <ThankYouScreen
               title={thankYouData.title}
@@ -270,29 +269,23 @@ export default function Form({ identifier }: { identifier: string }) {
   )
 
   return (
-    <AuthBackground>
-      <main className='relative flex min-h-screen flex-col text-foreground'>
+    <AuthBackground className={`${martianMono.variable} dark font-[430] font-season`}>
+      <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
         <div className='relative z-30 flex flex-1 justify-center px-4 pt-16 pb-24'>
           <div className='w-full max-w-[410px]'>
             {/* Form title */}
             <div className='mb-8 text-center'>
-              <h1
-                className={`${soehne.className} font-medium text-[28px] text-foreground tracking-tight`}
-              >
+              <h1 className='font-[500] text-[#ECECEC] text-[28px] tracking-tight'>
                 {formConfig.title}
               </h1>
               {formConfig.description && (
-                <p
-                  className={`${inter.className} mt-2 font-[380] text-[15px] text-muted-foreground`}
-                >
-                  {formConfig.description}
-                </p>
+                <p className='mt-2 font-[380] text-[#999] text-[15px]'>{formConfig.description}</p>
               )}
             </div>
 
-            <form onSubmit={handleSubmit} className={`${inter.className} space-y-6`}>
+            <form onSubmit={handleSubmit} className='space-y-6'>
               {fields.length === 0 ? (
-                <div className='rounded-[10px] border border-border bg-muted/50 p-6 text-center text-muted-foreground'>
+                <div className='rounded-[10px] border border-[#2A2A2A] bg-[#2A2A2A] p-6 text-center text-[#999]'>
                   This form has no fields configured.
                 </div>
               ) : (

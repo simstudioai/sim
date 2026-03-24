@@ -36,8 +36,8 @@ interface UseCanDeleteReturn {
  * @returns Functions to check deletion eligibility
  */
 export function useCanDelete({ workspaceId }: UseCanDeleteProps): UseCanDeleteReturn {
-  const { workflows } = useWorkflowRegistry()
-  const { folders } = useFolderStore()
+  const workflows = useWorkflowRegistry((s) => s.workflows)
+  const folders = useFolderStore((s) => s.folders)
 
   /**
    * Pre-computed data structures for efficient lookups

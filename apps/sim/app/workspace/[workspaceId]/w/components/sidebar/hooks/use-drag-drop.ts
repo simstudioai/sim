@@ -47,7 +47,8 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
   const workspaceId = params.workspaceId as string | undefined
   const reorderWorkflowsMutation = useReorderWorkflows()
   const reorderFoldersMutation = useReorderFolders()
-  const { setExpanded, expandedFolders } = useFolderStore()
+  const setExpanded = useFolderStore((s) => s.setExpanded)
+  const expandedFolders = useFolderStore((s) => s.expandedFolders)
 
   const handleAutoScroll = useCallback(() => {
     if (!scrollContainerRef.current) {
@@ -123,13 +124,6 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       }
     }
   }, [hoverFolderId, isDragging, expandedFolders, setExpanded])
-
-  useEffect(() => {
-    if (!isDragging) {
-      setHoverFolderId(null)
-      setDropIndicator(null)
-    }
-  }, [isDragging])
 
   const calculateDropPosition = useCallback(
     (e: React.DragEvent, element: HTMLElement): 'before' | 'after' => {
@@ -452,12 +446,10 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
           })
         }
       },
-      onDragLeave: (e: React.DragEvent<HTMLElement>) => {
-        if (isLeavingElement(e)) setNormalizedDropIndicator(null)
-      },
+      onDragLeave: () => {},
       onDrop: handleDrop,
     }),
-    [initDragOver, calculateDropPosition, setNormalizedDropIndicator, isLeavingElement, handleDrop]
+    [initDragOver, calculateDropPosition, setNormalizedDropIndicator, handleDrop]
   )
 
   const createFolderDragHandlers = useCallback(
@@ -502,12 +494,10 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
         if (!initDragOver(e)) return
         setNormalizedDropIndicator({ targetId: folderId, position: 'inside', folderId })
       },
-      onDragLeave: (e: React.DragEvent<HTMLElement>) => {
-        if (isLeavingElement(e)) setNormalizedDropIndicator(null)
-      },
+      onDragLeave: () => {},
       onDrop: handleDrop,
     }),
-    [initDragOver, setNormalizedDropIndicator, isLeavingElement, handleDrop]
+    [initDragOver, setNormalizedDropIndicator, handleDrop]
   )
 
   const createFolderContentDropZone = useCallback(
@@ -518,12 +508,10 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
           setNormalizedDropIndicator({ targetId: folderId, position: 'inside', folderId: null })
         }
       },
-      onDragLeave: (e: React.DragEvent<HTMLElement>) => {
-        if (isLeavingElement(e)) setNormalizedDropIndicator(null)
-      },
+      onDragLeave: () => {},
       onDrop: handleDrop,
     }),
-    [initDragOver, setNormalizedDropIndicator, isLeavingElement, handleDrop]
+    [initDragOver, setNormalizedDropIndicator, handleDrop]
   )
 
   const createRootDropZone = useCallback(
@@ -552,12 +540,10 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
           setNormalizedDropIndicator({ targetId: 'root', position: 'inside', folderId: null })
         }
       },
-      onDragLeave: (e: React.DragEvent<HTMLElement>) => {
-        if (isLeavingElement(e)) setDropIndicator(null)
-      },
+      onDragLeave: () => {},
       onDrop: handleDrop,
     }),
-    [initDragOver, setNormalizedDropIndicator, isLeavingElement, handleDrop]
+    [initDragOver, setNormalizedDropIndicator, handleDrop]
   )
 
   const handleDragStart = useCallback((sourceFolderId: string | null) => {

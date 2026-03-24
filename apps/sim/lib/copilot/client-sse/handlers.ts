@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
-import { COPILOT_CONFIRM_API_PATH, STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
-import { asRecord } from '@/lib/copilot/orchestrator/sse-utils'
+import {
+  appendTextBlock,
+  beginThinkingBlock,
+  finalizeThinkingBlock,
+} from '@/lib/copilot/client-sse/content-blocks'
+import { STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
+import { asRecord } from '@/lib/copilot/orchestrator/sse/utils'
 import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import {
   isBackgroundState,
@@ -13,10 +18,10 @@ import type { CopilotStore, CopilotStreamInfo, CopilotToolCall } from '@/stores/
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { captureBaselineSnapshot } from '@/stores/workflow-diff/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { appendTextBlock, beginThinkingBlock, finalizeThinkingBlock } from './content-blocks'
-import { CLIENT_EXECUTABLE_RUN_TOOLS, executeRunToolOnClient } from './run-tool-execution'
+import { executeRunToolOnClient } from './run-tool-execution'
 import type { ClientContentBlock, ClientStreamingContext } from './types'
 
 const logger = createLogger('CopilotClientSseHandlers')
@@ -26,21 +31,79 @@ const MAX_BATCH_INTERVAL = 50
 const MIN_BATCH_INTERVAL = 16
 const MAX_QUEUE_SIZE = 5
 
-/**
- * Send an auto-accept confirmation to the server for auto-allowed tools.
- * The server-side orchestrator polls Redis for this decision.
- */
-export function sendAutoAcceptConfirmation(toolCallId: string): void {
-  fetch(COPILOT_CONFIRM_API_PATH, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ toolCallId, status: 'accepted' }),
-  }).catch((error) => {
-    logger.warn('Failed to send auto-accept confirmation', {
-      toolCallId,
-      error: error instanceof Error ? error.message : String(error),
+interface StreamMessage extends Record<string, unknown> {
+  id: string
+  requestId?: string
+  content?: string
+  contentBlocks?: ClientContentBlock[]
+  error?: string
+}
+
+interface ChatSummary extends Record<string, unknown> {
+  id: string
+  title?: string
+}
+
+function isStreamMessage(value: Record<string, unknown>): value is StreamMessage {
+  return typeof value.id === 'string'
+}
+
+function getStreamMessages(store: CopilotStore): StreamMessage[] {
+  return store.messages.filter(isStreamMessage)
+}
+
+function getChatState(store: CopilotStore): {
+  currentChat?: ChatSummary
+  chats: ChatSummary[]
+} {
+  const currentChat = asRecord(store.currentChat)
+  const rawChats = Array.isArray(store.chats) ? store.chats : []
+
+  return {
+    currentChat:
+      typeof currentChat.id === 'string'
+        ? { ...currentChat, id: currentChat.id, title: currentChat.title as string | undefined }
+        : undefined,
+    chats: rawChats
+      .map((chat) => asRecord(chat))
+      .filter(
+        (chat): chat is Record<string, unknown> & { id: string } => typeof chat.id === 'string'
+      )
+      .map((chat) => ({ ...chat, id: chat.id, title: chat.title as string | undefined })),
+  }
+}
+
+function abortInProgressTools(set: StoreSet, get: () => CopilotStore): void {
+  const { toolCallsById } = get()
+  const updatedToolCalls = Object.fromEntries(
+    Object.entries(toolCallsById).map(([toolCallId, toolCall]) => {
+      if (
+        toolCall.state === ClientToolCallState.executing ||
+        toolCall.state === ClientToolCallState.generating ||
+        toolCall.state === ClientToolCallState.pending
+      ) {
+        const state = ClientToolCallState.aborted
+        return [
+          toolCallId,
+          {
+            ...toolCall,
+            state,
+            display: resolveToolDisplay(
+              toolCall.name,
+              state,
+              toolCall.id,
+              toolCall.params,
+              toolCall.serverUI
+            ),
+          },
+        ]
+      }
+
+      return [toolCallId, toolCall]
     })
-  })
+  )
+
+  set({ toolCallsById: updatedToolCalls })
 }
 
 function writeActiveStreamToStorage(info: CopilotStreamInfo | null): void {
@@ -103,11 +166,12 @@ export function flushStreamingUpdates(set: StoreSet) {
   set((state: CopilotStore) => {
     if (updates.size === 0) return state
     return {
-      messages: state.messages.map((msg) => {
+      messages: getStreamMessages(state).map((msg) => {
         const update = updates.get(msg.id)
         if (update) {
           return {
             ...msg,
+            requestId: update.requestId ?? msg.requestId,
             content: '',
             contentBlocks:
               update.contentBlocks.length > 0
@@ -138,13 +202,14 @@ export function updateStreamingMessage(set: StoreSet, context: ClientStreamingCo
         lastBatchTime = performance.now()
         set((state: CopilotStore) => {
           if (updates.size === 0) return state
-          const messages = state.messages
+          const messages = getStreamMessages(state)
           const lastMessage = messages[messages.length - 1]
           const lastMessageUpdate = lastMessage ? updates.get(lastMessage.id) : null
           if (updates.size === 1 && lastMessageUpdate) {
             const newMessages = [...messages]
             newMessages[messages.length - 1] = {
               ...lastMessage,
+              requestId: lastMessageUpdate.requestId ?? lastMessage.requestId,
               content: '',
               contentBlocks:
                 lastMessageUpdate.contentBlocks.length > 0
@@ -159,6 +224,7 @@ export function updateStreamingMessage(set: StoreSet, context: ClientStreamingCo
               if (update) {
                 return {
                   ...msg,
+                  requestId: update.requestId ?? msg.requestId,
                   content: '',
                   contentBlocks:
                     update.contentBlocks.length > 0
@@ -216,6 +282,222 @@ function appendThinkingContent(context: ClientStreamingContext, text: string) {
   context.currentTextBlock = null
 }
 
+function processContentBuffer(
+  context: ClientStreamingContext,
+  get: () => CopilotStore,
+  set: StoreSet
+) {
+  let contentToProcess = context.pendingContent
+  let hasProcessedContent = false
+
+  const thinkingStartRegex = /<thinking>/
+  const thinkingEndRegex = /<\/thinking>/
+  const designWorkflowStartRegex = /<design_workflow>/
+  const designWorkflowEndRegex = /<\/design_workflow>/
+
+  const splitTrailingPartialTag = (
+    text: string,
+    tags: string[]
+  ): { text: string; remaining: string } => {
+    const partialIndex = text.lastIndexOf('<')
+    if (partialIndex < 0) {
+      return { text, remaining: '' }
+    }
+    const possibleTag = text.substring(partialIndex)
+    const matchesTagStart = tags.some((tag) => tag.startsWith(possibleTag))
+    if (!matchesTagStart) {
+      return { text, remaining: '' }
+    }
+    return {
+      text: text.substring(0, partialIndex),
+      remaining: possibleTag,
+    }
+  }
+
+  while (contentToProcess.length > 0) {
+    if (context.isInDesignWorkflowBlock) {
+      const endMatch = designWorkflowEndRegex.exec(contentToProcess)
+      if (endMatch) {
+        const designContent = contentToProcess.substring(0, endMatch.index)
+        context.designWorkflowContent += designContent
+        context.isInDesignWorkflowBlock = false
+
+        logger.info('[design_workflow] Tag complete, setting plan content', {
+          contentLength: context.designWorkflowContent.length,
+        })
+        set({ streamingPlanContent: context.designWorkflowContent })
+
+        contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
+        hasProcessedContent = true
+      } else {
+        const { text, remaining } = splitTrailingPartialTag(contentToProcess, [
+          '</design_workflow>',
+        ])
+        context.designWorkflowContent += text
+
+        set({ streamingPlanContent: context.designWorkflowContent })
+
+        contentToProcess = remaining
+        hasProcessedContent = true
+        if (remaining) {
+          break
+        }
+      }
+      continue
+    }
+
+    if (!context.isInThinkingBlock && !context.isInDesignWorkflowBlock) {
+      const designStartMatch = designWorkflowStartRegex.exec(contentToProcess)
+      if (designStartMatch) {
+        const textBeforeDesign = contentToProcess.substring(0, designStartMatch.index)
+        if (textBeforeDesign) {
+          appendTextBlock(context, textBeforeDesign)
+          hasProcessedContent = true
+        }
+        context.isInDesignWorkflowBlock = true
+        context.designWorkflowContent = ''
+        contentToProcess = contentToProcess.substring(
+          designStartMatch.index + designStartMatch[0].length
+        )
+        hasProcessedContent = true
+        continue
+      }
+
+      const nextMarkIndex = contentToProcess.indexOf('<marktodo>')
+      const nextCheckIndex = contentToProcess.indexOf('<checkofftodo>')
+      const hasMark = nextMarkIndex >= 0
+      const hasCheck = nextCheckIndex >= 0
+
+      const nextTagIndex =
+        hasMark && hasCheck
+          ? Math.min(nextMarkIndex, nextCheckIndex)
+          : hasMark
+            ? nextMarkIndex
+            : hasCheck
+              ? nextCheckIndex
+              : -1
+
+      if (nextTagIndex >= 0) {
+        const isMarkTodo = hasMark && nextMarkIndex === nextTagIndex
+        const tagStart = isMarkTodo ? '<marktodo>' : '<checkofftodo>'
+        const tagEnd = isMarkTodo ? '</marktodo>' : '</checkofftodo>'
+        const closingIndex = contentToProcess.indexOf(tagEnd, nextTagIndex + tagStart.length)
+
+        if (closingIndex === -1) {
+          break
+        }
+
+        const todoId = contentToProcess
+          .substring(nextTagIndex + tagStart.length, closingIndex)
+          .trim()
+        logger.info(
+          isMarkTodo ? '[TODO] Detected marktodo tag' : '[TODO] Detected checkofftodo tag',
+          { todoId }
+        )
+
+        if (todoId) {
+          try {
+            get().updatePlanTodoStatus(todoId, isMarkTodo ? 'executing' : 'completed')
+            logger.info(
+              isMarkTodo
+                ? '[TODO] Successfully marked todo in progress'
+                : '[TODO] Successfully checked off todo',
+              { todoId }
+            )
+          } catch (e) {
+            logger.error(
+              isMarkTodo
+                ? '[TODO] Failed to mark todo in progress'
+                : '[TODO] Failed to checkoff todo',
+              { todoId, error: e }
+            )
+          }
+        } else {
+          logger.warn('[TODO] Empty todoId extracted from todo tag', { tagType: tagStart })
+        }
+
+        let beforeTag = contentToProcess.substring(0, nextTagIndex)
+        let afterTag = contentToProcess.substring(closingIndex + tagEnd.length)
+
+        const hadNewlineBefore = /(\r?\n)+$/.test(beforeTag)
+        const hadNewlineAfter = /^(\r?\n)+/.test(afterTag)
+
+        beforeTag = beforeTag.replace(/(\r?\n)+$/, '')
+        afterTag = afterTag.replace(/^(\r?\n)+/, '')
+
+        contentToProcess = beforeTag + (hadNewlineBefore && hadNewlineAfter ? '\n' : '') + afterTag
+        context.currentTextBlock = null
+        hasProcessedContent = true
+        continue
+      }
+    }
+
+    if (context.isInThinkingBlock) {
+      const endMatch = thinkingEndRegex.exec(contentToProcess)
+      if (endMatch) {
+        const thinkingContent = contentToProcess.substring(0, endMatch.index)
+        appendThinkingContent(context, thinkingContent)
+        finalizeThinkingBlock(context)
+        contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
+        hasProcessedContent = true
+      } else {
+        const { text, remaining } = splitTrailingPartialTag(contentToProcess, ['</thinking>'])
+        if (text) {
+          appendThinkingContent(context, text)
+          hasProcessedContent = true
+        }
+        contentToProcess = remaining
+        if (remaining) {
+          break
+        }
+      }
+    } else {
+      const startMatch = thinkingStartRegex.exec(contentToProcess)
+      if (startMatch) {
+        const textBeforeThinking = contentToProcess.substring(0, startMatch.index)
+        if (textBeforeThinking) {
+          appendTextBlock(context, textBeforeThinking)
+          hasProcessedContent = true
+        }
+        context.isInThinkingBlock = true
+        context.currentTextBlock = null
+        contentToProcess = contentToProcess.substring(startMatch.index + startMatch[0].length)
+        hasProcessedContent = true
+      } else {
+        let partialTagIndex = contentToProcess.lastIndexOf('<')
+
+        const partialMarkTodo = contentToProcess.lastIndexOf('<marktodo')
+        const partialCheckoffTodo = contentToProcess.lastIndexOf('<checkofftodo')
+
+        if (partialMarkTodo > partialTagIndex) {
+          partialTagIndex = partialMarkTodo
+        }
+        if (partialCheckoffTodo > partialTagIndex) {
+          partialTagIndex = partialCheckoffTodo
+        }
+
+        let textToAdd = contentToProcess
+        let remaining = ''
+        if (partialTagIndex >= 0 && partialTagIndex > contentToProcess.length - 50) {
+          textToAdd = contentToProcess.substring(0, partialTagIndex)
+          remaining = contentToProcess.substring(partialTagIndex)
+        }
+        if (textToAdd) {
+          appendTextBlock(context, textToAdd)
+          hasProcessedContent = true
+        }
+        contentToProcess = remaining
+        break
+      }
+    }
+  }
+
+  context.pendingContent = contentToProcess
+  if (hasProcessedContent) {
+    updateStreamingMessage(set, context)
+  }
+}
+
 export const sseHandlers: Record<string, SSEHandler> = {
   chat_id: async (data, context, get, set) => {
     context.newChatId = data.chatId
@@ -229,10 +511,16 @@ export const sseHandlers: Record<string, SSEHandler> = {
       writeActiveStreamToStorage(updatedStream)
     }
   },
+  request_id: (data, context) => {
+    const requestId = typeof data.data === 'string' ? data.data : undefined
+    if (requestId) {
+      context.requestId = requestId
+    }
+  },
   title_updated: (_data, _context, get, set) => {
     const title = _data.title
     if (!title) return
-    const { currentChat, chats } = get()
+    const { currentChat, chats } = getChatState(get())
     if (currentChat) {
       set({
         currentChat: { ...currentChat, title },
@@ -245,10 +533,6 @@ export const sseHandlers: Record<string, SSEHandler> = {
       const eventData = asRecord(data?.data)
       const toolCallId: string | undefined =
         data?.toolCallId || (eventData.id as string | undefined)
-      const success: boolean | undefined = data?.success
-      const failedDependency: boolean = data?.failedDependency === true
-      const resultObj = asRecord(data?.result)
-      const skipped: boolean = resultObj.skipped === true
       if (!toolCallId) return
       const { toolCallsById } = get()
       const current = toolCallsById[toolCallId]
@@ -260,16 +544,25 @@ export const sseHandlers: Record<string, SSEHandler> = {
         ) {
           return
         }
-        const targetState = success
-          ? ClientToolCallState.success
-          : failedDependency || skipped
-            ? ClientToolCallState.rejected
-            : ClientToolCallState.error
+        const targetState =
+          (data?.state as ClientToolCallState) ||
+          (data?.success ? ClientToolCallState.success : ClientToolCallState.error)
         const updatedMap = { ...toolCallsById }
         updatedMap[toolCallId] = {
           ...current,
           state: targetState,
-          display: resolveToolDisplay(current.name, targetState, current.id, current.params),
+          result: {
+            success: !!data?.success,
+            output: data?.result ?? undefined,
+            error: (data?.error as string) ?? undefined,
+          },
+          display: resolveToolDisplay(
+            current.name,
+            targetState,
+            current.id,
+            current.params,
+            current.serverUI
+          ),
         }
         set({ toolCallsById: updatedMap })
 
@@ -317,21 +610,47 @@ export const sseHandlers: Record<string, SSEHandler> = {
             const resultPayload = asRecord(
               data?.result || eventData.result || eventData.data || data?.data
             )
-            const workflowState = asRecord(resultPayload?.workflowState)
-            const hasWorkflowState = !!resultPayload?.workflowState
-            logger.info('[SSE] edit_workflow result received', {
-              hasWorkflowState,
-              blockCount: hasWorkflowState ? Object.keys(workflowState.blocks ?? {}).length : 0,
-              edgeCount: Array.isArray(workflowState.edges) ? workflowState.edges.length : 0,
-            })
-            if (hasWorkflowState) {
-              const diffStore = useWorkflowDiffStore.getState()
-              diffStore
-                .setProposedChanges(resultPayload.workflowState as WorkflowState)
-                .catch((err) => {
-                  logger.error('[SSE] Failed to apply edit_workflow diff', {
-                    error: err instanceof Error ? err.message : String(err),
+            const input = asRecord(current.params || current.input)
+            const workflowId =
+              (input?.workflowId as string) || useWorkflowRegistry.getState().activeWorkflowId
+
+            if (!workflowId) {
+              logger.warn('[SSE] edit_workflow result has no workflowId, skipping diff')
+            } else {
+              const baselineWorkflow = captureBaselineSnapshot(workflowId)
+
+              // Re-fetch the state the server just wrote to DB.
+              // Never use the response's workflowState directly — that would
+              // mean client and server independently track state, creating
+              // race conditions when the build agent makes sequential calls.
+              logger.info('[SSE] edit_workflow success, fetching state from DB', { workflowId })
+              fetch(`/api/workflows/${workflowId}/state`)
+                .then((res) => {
+                  if (!res.ok) throw new Error(`State fetch failed: ${res.status}`)
+                  return res.json()
+                })
+                .then((freshState) => {
+                  const diffStore = useWorkflowDiffStore.getState()
+                  return diffStore.setProposedChanges(freshState as WorkflowState, undefined, {
+                    baselineWorkflow,
+                    skipPersist: true,
                   })
+                })
+                .catch((err) => {
+                  logger.error('[SSE] Failed to fetch/apply edit_workflow state', {
+                    error: err instanceof Error ? err.message : String(err),
+                    workflowId,
+                  })
+                  // Fallback: use the response's workflowState if DB fetch failed
+                  if (resultPayload?.workflowState) {
+                    const diffStore = useWorkflowDiffStore.getState()
+                    diffStore
+                      .setProposedChanges(resultPayload.workflowState as WorkflowState, undefined, {
+                        baselineWorkflow,
+                        skipPersist: true,
+                      })
+                      .catch(() => {})
+                  }
                 })
             }
           } catch (err) {
@@ -341,7 +660,6 @@ export const sseHandlers: Record<string, SSEHandler> = {
           }
         }
 
-        // Deploy tools: update deployment status in workflow registry
         if (
           targetState === ClientToolCallState.success &&
           (current.name === 'deploy_api' ||
@@ -353,21 +671,30 @@ export const sseHandlers: Record<string, SSEHandler> = {
             const resultPayload = asRecord(
               data?.result || eventData.result || eventData.data || data?.data
             )
-            const input = asRecord(current.params)
-            const workflowId =
-              (resultPayload?.workflowId as string) ||
-              (input?.workflowId as string) ||
-              useWorkflowRegistry.getState().activeWorkflowId
-            const isDeployed = resultPayload?.isDeployed !== false
-            if (workflowId) {
-              useWorkflowRegistry
-                .getState()
-                .setDeploymentStatus(workflowId, isDeployed, isDeployed ? new Date() : undefined)
-              logger.info('[SSE] Updated deployment status from tool result', {
-                toolName: current.name,
-                workflowId,
-                isDeployed,
-              })
+            if (typeof resultPayload?.isDeployed === 'boolean') {
+              const input = asRecord(current.params)
+              const workflowId =
+                (resultPayload?.workflowId as string) ||
+                (input?.workflowId as string) ||
+                useWorkflowRegistry.getState().activeWorkflowId
+              const isDeployed = resultPayload.isDeployed as boolean
+              const serverDeployedAt = resultPayload.deployedAt
+                ? new Date(resultPayload.deployedAt as string)
+                : undefined
+              if (workflowId) {
+                useWorkflowRegistry
+                  .getState()
+                  .setDeploymentStatus(
+                    workflowId,
+                    isDeployed,
+                    isDeployed ? (serverDeployedAt ?? new Date()) : undefined
+                  )
+                logger.info('[SSE] Updated deployment status from tool result', {
+                  toolName: current.name,
+                  workflowId,
+                  isDeployed,
+                })
+              }
             }
           } catch (err) {
             logger.warn('[SSE] Failed to hydrate deployment status', {
@@ -446,6 +773,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
         }
       }
 
+      const blockState =
+        (data?.state as ClientToolCallState) ||
+        (data?.success ? ClientToolCallState.success : ClientToolCallState.error)
       for (let i = 0; i < context.contentBlocks.length; i++) {
         const b = context.contentBlocks[i]
         if (b?.type === 'tool_call' && b?.toolCall?.id === toolCallId) {
@@ -455,21 +785,17 @@ export const sseHandlers: Record<string, SSEHandler> = {
             isBackgroundState(b.toolCall?.state)
           )
             break
-          const targetState = success
-            ? ClientToolCallState.success
-            : failedDependency || skipped
-              ? ClientToolCallState.rejected
-              : ClientToolCallState.error
           context.contentBlocks[i] = {
             ...b,
             toolCall: {
               ...b.toolCall,
-              state: targetState,
+              state: blockState,
               display: resolveToolDisplay(
                 b.toolCall?.name,
-                targetState,
+                blockState,
                 toolCallId,
-                b.toolCall?.params
+                b.toolCall?.params,
+                b.toolCall?.serverUI
               ),
             },
           }
@@ -488,8 +814,8 @@ export const sseHandlers: Record<string, SSEHandler> = {
       const errorData = asRecord(data?.data)
       const toolCallId: string | undefined =
         data?.toolCallId || (errorData.id as string | undefined)
-      const failedDependency: boolean = data?.failedDependency === true
       if (!toolCallId) return
+      const targetState = (data?.state as ClientToolCallState) || ClientToolCallState.error
       const { toolCallsById } = get()
       const current = toolCallsById[toolCallId]
       if (current) {
@@ -500,14 +826,17 @@ export const sseHandlers: Record<string, SSEHandler> = {
         ) {
           return
         }
-        const targetState = failedDependency
-          ? ClientToolCallState.rejected
-          : ClientToolCallState.error
         const updatedMap = { ...toolCallsById }
         updatedMap[toolCallId] = {
           ...current,
           state: targetState,
-          display: resolveToolDisplay(current.name, targetState, current.id, current.params),
+          display: resolveToolDisplay(
+            current.name,
+            targetState,
+            current.id,
+            current.params,
+            current.serverUI
+          ),
         }
         set({ toolCallsById: updatedMap })
       }
@@ -520,9 +849,6 @@ export const sseHandlers: Record<string, SSEHandler> = {
             isBackgroundState(b.toolCall?.state)
           )
             break
-          const targetState = failedDependency
-            ? ClientToolCallState.rejected
-            : ClientToolCallState.error
           context.contentBlocks[i] = {
             ...b,
             toolCall: {
@@ -532,7 +858,8 @@ export const sseHandlers: Record<string, SSEHandler> = {
                 b.toolCall?.name,
                 targetState,
                 toolCallId,
-                b.toolCall?.params
+                b.toolCall?.params,
+                b.toolCall?.serverUI
               ),
             },
           }
@@ -546,21 +873,36 @@ export const sseHandlers: Record<string, SSEHandler> = {
       })
     }
   },
+  tool_call_delta: (data, context, get, set) => {
+    const toolCallId = data?.toolCallId
+    if (!toolCallId) return
+
+    const delta = typeof data?.data === 'string' ? data.data : ''
+    if (!delta) return
+
+    const { toolCallsById } = get()
+    const existing = toolCallsById[toolCallId]
+    if (!existing) return
+
+    const updated: CopilotToolCall = {
+      ...existing,
+      streamingArgs: (existing.streamingArgs ?? '') + delta,
+    }
+    set({ toolCallsById: { ...toolCallsById, [toolCallId]: updated } })
+    upsertToolCallBlock(context, updated)
+    updateStreamingMessage(set, context)
+  },
   tool_generating: (data, context, get, set) => {
     const { toolCallId, toolName } = data
     if (!toolCallId || !toolName) return
     const { toolCallsById } = get()
 
     if (!toolCallsById[toolCallId]) {
-      const isAutoAllowed = get().isToolAutoAllowed(toolName)
-      const initialState = isAutoAllowed
-        ? ClientToolCallState.executing
-        : ClientToolCallState.pending
       const tc: CopilotToolCall = {
         id: toolCallId,
         name: toolName,
-        state: initialState,
-        display: resolveToolDisplay(toolName, initialState, toolCallId),
+        state: ClientToolCallState.generating,
+        display: resolveToolDisplay(toolName, ClientToolCallState.generating, toolCallId),
       }
       const updated = { ...toolCallsById, [toolCallId]: tc }
       set({ toolCallsById: updated })
@@ -579,12 +921,27 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const isPartial = toolData.partial === true
     const { toolCallsById } = get()
 
+    const rawUI = (toolData.ui || data?.ui) as Record<string, unknown> | undefined
+    const serverUI = rawUI
+      ? {
+          title: rawUI.title as string | undefined,
+          phaseLabel: rawUI.phaseLabel as string | undefined,
+          icon: rawUI.icon as string | undefined,
+        }
+      : undefined
+
     const existing = toolCallsById[id]
     const toolName = name || existing?.name || 'unknown_tool'
-    const isAutoAllowed = get().isToolAutoAllowed(toolName)
-    let initialState = isAutoAllowed ? ClientToolCallState.executing : ClientToolCallState.pending
 
-    // Avoid flickering back to pending on partial/duplicate events once a tool is executing.
+    const clientExecutable = rawUI?.clientExecutable === true
+
+    let initialState: ClientToolCallState
+    if (isPartial) {
+      initialState = existing?.state || ClientToolCallState.generating
+    } else {
+      initialState = (data?.state as ClientToolCallState) || ClientToolCallState.executing
+    }
+
     if (
       existing?.state === ClientToolCallState.executing &&
       initialState === ClientToolCallState.pending
@@ -592,20 +949,33 @@ export const sseHandlers: Record<string, SSEHandler> = {
       initialState = ClientToolCallState.executing
     }
 
+    const effectiveServerUI = serverUI || existing?.serverUI
+
     const next: CopilotToolCall = existing
       ? {
           ...existing,
           name: toolName,
           state: initialState,
           ...(args ? { params: args } : {}),
-          display: resolveToolDisplay(toolName, initialState, id, args || existing.params),
+          ...(effectiveServerUI ? { serverUI: effectiveServerUI } : {}),
+          ...(clientExecutable ? { clientExecutable: true } : {}),
+          ...(!isPartial ? { streamingArgs: undefined } : {}),
+          display: resolveToolDisplay(
+            toolName,
+            initialState,
+            id,
+            args || existing.params,
+            effectiveServerUI
+          ),
         }
       : {
           id,
           name: toolName,
           state: initialState,
           ...(args ? { params: args } : {}),
-          display: resolveToolDisplay(toolName, initialState, id, args),
+          ...(serverUI ? { serverUI } : {}),
+          ...(clientExecutable ? { clientExecutable: true } : {}),
+          display: resolveToolDisplay(toolName, initialState, id, args, serverUI),
         }
     const updated = { ...toolCallsById, [id]: next }
     set({ toolCallsById: updated })
@@ -618,23 +988,10 @@ export const sseHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    // Auto-allowed tools: send confirmation to the server so it can proceed
-    // without waiting for the user to click "Allow".
-    if (isAutoAllowed) {
-      sendAutoAcceptConfirmation(id)
-    }
-
-    // Client-executable run tools: execute on the client for real-time feedback
-    // (block pulsing, console logs, stop button). The server defers execution
-    // for these tools in interactive mode; the client reports back via mark-complete.
-    if (
-      CLIENT_EXECUTABLE_RUN_TOOLS.has(toolName) &&
-      initialState === ClientToolCallState.executing
-    ) {
+    if (clientExecutable && initialState === ClientToolCallState.executing) {
       executeRunToolOnClient(id, toolName, args || existing?.params || {})
     }
 
-    // OAuth: dispatch event to open the OAuth connect modal
     if (toolName === 'oauth_request_access' && args && typeof window !== 'undefined') {
       try {
         window.dispatchEvent(
@@ -678,220 +1035,47 @@ export const sseHandlers: Record<string, SSEHandler> = {
     appendThinkingContent(context, chunk)
     updateStreamingMessage(set, context)
   },
+  context_compaction_start: (_data, context, get, set) => {
+    const id = `compaction_${Date.now()}`
+    context.activeCompactionId = id
+    const toolName = 'context_compaction'
+    const state = ClientToolCallState.executing
+    const tc: CopilotToolCall = {
+      id,
+      name: toolName,
+      state,
+      params: {},
+      display: resolveToolDisplay(toolName, state, id, {}),
+    }
+    const { toolCallsById } = get()
+    set({ toolCallsById: { ...toolCallsById, [id]: tc } })
+    upsertToolCallBlock(context, tc)
+    updateStreamingMessage(set, context)
+  },
+  context_compaction: (data, context, get, set) => {
+    const eventData = asRecord(data?.data)
+    const summaryChars = (eventData.summary_chars as number) || 0
+    const id = context.activeCompactionId || `compaction_${Date.now()}`
+    context.activeCompactionId = undefined
+    const toolName = 'context_compaction'
+    const state = ClientToolCallState.success
+    const params = { summary_chars: summaryChars }
+    const tc: CopilotToolCall = {
+      id,
+      name: toolName,
+      state,
+      params,
+      display: resolveToolDisplay(toolName, state, id, params),
+    }
+    const { toolCallsById } = get()
+    set({ toolCallsById: { ...toolCallsById, [id]: tc } })
+    upsertToolCallBlock(context, tc)
+    updateStreamingMessage(set, context)
+  },
   content: (data, context, get, set) => {
-    if (!data.data) return
+    if (typeof data.data !== 'string') return
     context.pendingContent += data.data
-
-    let contentToProcess = context.pendingContent
-    let hasProcessedContent = false
-
-    const thinkingStartRegex = /<thinking>/
-    const thinkingEndRegex = /<\/thinking>/
-    const designWorkflowStartRegex = /<design_workflow>/
-    const designWorkflowEndRegex = /<\/design_workflow>/
-
-    const splitTrailingPartialTag = (
-      text: string,
-      tags: string[]
-    ): { text: string; remaining: string } => {
-      const partialIndex = text.lastIndexOf('<')
-      if (partialIndex < 0) {
-        return { text, remaining: '' }
-      }
-      const possibleTag = text.substring(partialIndex)
-      const matchesTagStart = tags.some((tag) => tag.startsWith(possibleTag))
-      if (!matchesTagStart) {
-        return { text, remaining: '' }
-      }
-      return {
-        text: text.substring(0, partialIndex),
-        remaining: possibleTag,
-      }
-    }
-
-    while (contentToProcess.length > 0) {
-      if (context.isInDesignWorkflowBlock) {
-        const endMatch = designWorkflowEndRegex.exec(contentToProcess)
-        if (endMatch) {
-          const designContent = contentToProcess.substring(0, endMatch.index)
-          context.designWorkflowContent += designContent
-          context.isInDesignWorkflowBlock = false
-
-          logger.info('[design_workflow] Tag complete, setting plan content', {
-            contentLength: context.designWorkflowContent.length,
-          })
-          set({ streamingPlanContent: context.designWorkflowContent })
-
-          contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
-          hasProcessedContent = true
-        } else {
-          const { text, remaining } = splitTrailingPartialTag(contentToProcess, [
-            '</design_workflow>',
-          ])
-          context.designWorkflowContent += text
-
-          set({ streamingPlanContent: context.designWorkflowContent })
-
-          contentToProcess = remaining
-          hasProcessedContent = true
-          if (remaining) {
-            break
-          }
-        }
-        continue
-      }
-
-      if (!context.isInThinkingBlock && !context.isInDesignWorkflowBlock) {
-        const designStartMatch = designWorkflowStartRegex.exec(contentToProcess)
-        if (designStartMatch) {
-          const textBeforeDesign = contentToProcess.substring(0, designStartMatch.index)
-          if (textBeforeDesign) {
-            appendTextBlock(context, textBeforeDesign)
-            hasProcessedContent = true
-          }
-          context.isInDesignWorkflowBlock = true
-          context.designWorkflowContent = ''
-          contentToProcess = contentToProcess.substring(
-            designStartMatch.index + designStartMatch[0].length
-          )
-          hasProcessedContent = true
-          continue
-        }
-
-        const nextMarkIndex = contentToProcess.indexOf('<marktodo>')
-        const nextCheckIndex = contentToProcess.indexOf('<checkofftodo>')
-        const hasMark = nextMarkIndex >= 0
-        const hasCheck = nextCheckIndex >= 0
-
-        const nextTagIndex =
-          hasMark && hasCheck
-            ? Math.min(nextMarkIndex, nextCheckIndex)
-            : hasMark
-              ? nextMarkIndex
-              : hasCheck
-                ? nextCheckIndex
-                : -1
-
-        if (nextTagIndex >= 0) {
-          const isMarkTodo = hasMark && nextMarkIndex === nextTagIndex
-          const tagStart = isMarkTodo ? '<marktodo>' : '<checkofftodo>'
-          const tagEnd = isMarkTodo ? '</marktodo>' : '</checkofftodo>'
-          const closingIndex = contentToProcess.indexOf(tagEnd, nextTagIndex + tagStart.length)
-
-          if (closingIndex === -1) {
-            break
-          }
-
-          const todoId = contentToProcess
-            .substring(nextTagIndex + tagStart.length, closingIndex)
-            .trim()
-          logger.info(
-            isMarkTodo ? '[TODO] Detected marktodo tag' : '[TODO] Detected checkofftodo tag',
-            { todoId }
-          )
-
-          if (todoId) {
-            try {
-              get().updatePlanTodoStatus(todoId, isMarkTodo ? 'executing' : 'completed')
-              logger.info(
-                isMarkTodo
-                  ? '[TODO] Successfully marked todo in progress'
-                  : '[TODO] Successfully checked off todo',
-                { todoId }
-              )
-            } catch (e) {
-              logger.error(
-                isMarkTodo
-                  ? '[TODO] Failed to mark todo in progress'
-                  : '[TODO] Failed to checkoff todo',
-                { todoId, error: e }
-              )
-            }
-          } else {
-            logger.warn('[TODO] Empty todoId extracted from todo tag', { tagType: tagStart })
-          }
-
-          let beforeTag = contentToProcess.substring(0, nextTagIndex)
-          let afterTag = contentToProcess.substring(closingIndex + tagEnd.length)
-
-          const hadNewlineBefore = /(\r?\n)+$/.test(beforeTag)
-          const hadNewlineAfter = /^(\r?\n)+/.test(afterTag)
-
-          beforeTag = beforeTag.replace(/(\r?\n)+$/, '')
-          afterTag = afterTag.replace(/^(\r?\n)+/, '')
-
-          contentToProcess =
-            beforeTag + (hadNewlineBefore && hadNewlineAfter ? '\n' : '') + afterTag
-          context.currentTextBlock = null
-          hasProcessedContent = true
-          continue
-        }
-      }
-
-      if (context.isInThinkingBlock) {
-        const endMatch = thinkingEndRegex.exec(contentToProcess)
-        if (endMatch) {
-          const thinkingContent = contentToProcess.substring(0, endMatch.index)
-          appendThinkingContent(context, thinkingContent)
-          finalizeThinkingBlock(context)
-          contentToProcess = contentToProcess.substring(endMatch.index + endMatch[0].length)
-          hasProcessedContent = true
-        } else {
-          const { text, remaining } = splitTrailingPartialTag(contentToProcess, ['</thinking>'])
-          if (text) {
-            appendThinkingContent(context, text)
-            hasProcessedContent = true
-          }
-          contentToProcess = remaining
-          if (remaining) {
-            break
-          }
-        }
-      } else {
-        const startMatch = thinkingStartRegex.exec(contentToProcess)
-        if (startMatch) {
-          const textBeforeThinking = contentToProcess.substring(0, startMatch.index)
-          if (textBeforeThinking) {
-            appendTextBlock(context, textBeforeThinking)
-            hasProcessedContent = true
-          }
-          context.isInThinkingBlock = true
-          context.currentTextBlock = null
-          contentToProcess = contentToProcess.substring(startMatch.index + startMatch[0].length)
-          hasProcessedContent = true
-        } else {
-          let partialTagIndex = contentToProcess.lastIndexOf('<')
-
-          const partialMarkTodo = contentToProcess.lastIndexOf('<marktodo')
-          const partialCheckoffTodo = contentToProcess.lastIndexOf('<checkofftodo')
-
-          if (partialMarkTodo > partialTagIndex) {
-            partialTagIndex = partialMarkTodo
-          }
-          if (partialCheckoffTodo > partialTagIndex) {
-            partialTagIndex = partialCheckoffTodo
-          }
-
-          let textToAdd = contentToProcess
-          let remaining = ''
-          if (partialTagIndex >= 0 && partialTagIndex > contentToProcess.length - 50) {
-            textToAdd = contentToProcess.substring(0, partialTagIndex)
-            remaining = contentToProcess.substring(partialTagIndex)
-          }
-          if (textToAdd) {
-            appendTextBlock(context, textToAdd)
-            hasProcessedContent = true
-          }
-          contentToProcess = remaining
-          break
-        }
-      }
-    }
-
-    context.pendingContent = contentToProcess
-    if (hasProcessedContent) {
-      updateStreamingMessage(set, context)
-    }
+    processContentBuffer(context, get, set)
   },
   done: (_data, context) => {
     logger.info('[SSE] DONE EVENT RECEIVED', {
@@ -907,7 +1091,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
   error: (data, context, _get, set) => {
     logger.error('Stream error:', data.error)
     set((state: CopilotStore) => ({
-      messages: state.messages.map((msg) =>
+      messages: getStreamMessages(state).map((msg) =>
         msg.id === context.messageId
           ? {
               ...msg,
@@ -919,7 +1103,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }))
     context.streamComplete = true
   },
-  stream_end: (_data, context, _get, set) => {
+  stream_end: (_data, context, get, set) => {
     if (context.pendingContent) {
       if (context.isInThinkingBlock && context.currentThinkingBlock) {
         appendThinkingContent(context, context.pendingContent)
@@ -930,6 +1114,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
     finalizeThinkingBlock(context)
     updateStreamingMessage(set, context)
+    abortInProgressTools(set, get)
   },
   default: () => {},
 }

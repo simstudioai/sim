@@ -3,7 +3,7 @@ import type { SelectorKey } from '@/hooks/selectors/types'
 import type { ToolResponse } from '@/tools/types'
 
 export type BlockIcon = (props: SVGProps<SVGSVGElement>) => JSX.Element
-export type ParamType = 'string' | 'number' | 'boolean' | 'json' | 'array'
+export type ParamType = 'string' | 'number' | 'boolean' | 'json' | 'array' | 'file'
 export type PrimitiveValueType =
   | 'string'
   | 'number'
@@ -15,6 +15,80 @@ export type PrimitiveValueType =
   | 'any'
 
 export type BlockCategory = 'blocks' | 'tools' | 'triggers'
+
+export enum IntegrationType {
+  AI = 'ai',
+  Analytics = 'analytics',
+  Automation = 'automation',
+  Communication = 'communication',
+  CRM = 'crm',
+  CustomerSupport = 'customer-support',
+  Databases = 'databases',
+  Design = 'design',
+  DeveloperTools = 'developer-tools',
+  Documents = 'documents',
+  Ecommerce = 'ecommerce',
+  Email = 'email',
+  FileStorage = 'file-storage',
+  HR = 'hr',
+  Media = 'media',
+  Other = 'other',
+  Productivity = 'productivity',
+  SalesIntelligence = 'sales-intelligence',
+  Search = 'search',
+  Security = 'security',
+  Social = 'social',
+}
+
+export type IntegrationTag =
+  | 'marketing'
+  | 'automation'
+  | 'webhooks'
+  | 'vector-search'
+  | 'meeting'
+  | 'calendar'
+  | 'scheduling'
+  | 'incident-management'
+  | 'monitoring'
+  | 'error-tracking'
+  | 'prediction-markets'
+  | 'document-processing'
+  | 'ocr'
+  | 'text-to-speech'
+  | 'speech-to-text'
+  | 'image-generation'
+  | 'video-generation'
+  | 'cloud'
+  | 'google-workspace'
+  | 'microsoft-365'
+  | 'data-warehouse'
+  | 'data-analytics'
+  | 'customer-support'
+  | 'project-management'
+  | 'ticketing'
+  | 'payments'
+  | 'subscriptions'
+  | 'enrichment'
+  | 'web-scraping'
+  | 'llm'
+  | 'messaging'
+  | 'version-control'
+  | 'ci-cd'
+  | 'note-taking'
+  | 'spreadsheet'
+  | 'seo'
+  | 'email-marketing'
+  | 'e-signatures'
+  | 'identity'
+  | 'secrets-management'
+  | 'hiring'
+  | 'sales-engagement'
+  | 'agentic'
+  | 'knowledge-base'
+  | 'content-management'
+  | 'forms'
+  | 'link-management'
+  | 'events'
 
 // Authentication modes for sub-blocks and summaries
 export enum AuthMode {
@@ -132,9 +206,7 @@ export type ToolOutputToValueType<T> = T extends Record<string, any>
     }
   : never
 
-export type BlockOutput =
-  | PrimitiveValueType
-  | { [key: string]: PrimitiveValueType | Record<string, any> }
+export type BlockOutput = PrimitiveValueType | { [key: string]: any }
 
 /**
  * Condition for showing an output field.
@@ -235,12 +307,14 @@ export interface SubBlockConfig {
         id: string
         icon?: React.ComponentType<{ className?: string }>
         group?: string
+        hidden?: boolean
       }[]
     | (() => {
         label: string
         id: string
         icon?: React.ComponentType<{ className?: string }>
         group?: string
+        hidden?: boolean
       }[])
   min?: number
   max?: number
@@ -253,6 +327,7 @@ export interface SubBlockConfig {
   hidden?: boolean
   hideFromPreview?: boolean // Hide this subblock from the workflow block preview
   requiresFeature?: string // Environment variable name that must be truthy for this subblock to be visible
+  hideWhenHosted?: boolean // Hide this subblock when running on hosted sim
   description?: string
   tooltip?: string // Tooltip text displayed via info icon next to the title
   value?: (params: Record<string, any>) => string
@@ -350,6 +425,8 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
   name: string
   description: string
   category: BlockCategory
+  integrationType?: IntegrationType
+  tags?: IntegrationTag[]
   longDescription?: string
   bestPractices?: string
   docsLink?: string

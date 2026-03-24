@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
-import { processFileAttachments } from '@/lib/copilot/chat-context'
-import { SIM_AGENT_VERSION } from '@/lib/copilot/constants'
-import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
+import { getUserSubscriptionState } from '@/lib/billing/core/subscription'
+import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
+import { isHosted } from '@/lib/core/config/feature-flags'
+import { createMcpToolId } from '@/lib/mcp/utils'
+import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getWorkflowById } from '@/lib/workflows/utils'
 import { tools } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 
@@ -9,23 +12,26 @@ const logger = createLogger('CopilotChatPayload')
 
 export interface BuildPayloadParams {
   message: string
-  workflowId: string
+  workflowId?: string
+  workflowName?: string
+  workspaceId?: string
   userId: string
   userMessageId: string
   mode: string
   model: string
   provider?: string
-  conversationHistory?: unknown[]
   contexts?: Array<{ type: string; content: string }>
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
   commands?: string[]
   chatId?: string
-  conversationId?: string
   prefetch?: boolean
   implicitFeedback?: string
+  workspaceContext?: string
+  userPermission?: string
+  userTimezone?: string
 }
 
-interface ToolSchema {
+export interface ToolSchema {
   name: string
   description: string
   input_schema: Record<string, unknown>
@@ -34,16 +40,61 @@ interface ToolSchema {
   oauth?: { required: boolean; provider: string }
 }
 
-interface CredentialsPayload {
-  oauth: Record<
-    string,
-    { accessToken: string; accountId: string; name: string; expiresAt?: string }
-  >
-  apiKeys: string[]
-  metadata?: {
-    connectedOAuth: Array<{ provider: string; name: string; scopes?: string[] }>
-    configuredApiKeys: string[]
+/**
+ * Build deferred integration tool schemas from the Sim tool registry.
+ * Shared by the interactive chat payload builder and the non-interactive
+ * block execution route so both paths send the same tool definitions to Go.
+ */
+export async function buildIntegrationToolSchemas(userId: string): Promise<ToolSchema[]> {
+  const integrationTools: ToolSchema[] = []
+  try {
+    const { createUserToolSchema } = await import('@/tools/params')
+    const latestTools = getLatestVersionTools(tools)
+    let shouldAppendEmailTagline = false
+
+    try {
+      const subscriptionState = await getUserSubscriptionState(userId)
+      shouldAppendEmailTagline = subscriptionState.isFree
+    } catch (error) {
+      logger.warn('Failed to load subscription state for copilot tool descriptions', {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+
+    for (const [toolId, toolConfig] of Object.entries(latestTools)) {
+      try {
+        const userSchema = createUserToolSchema(toolConfig)
+        const strippedName = stripVersionSuffix(toolId)
+        integrationTools.push({
+          name: strippedName,
+          description: getCopilotToolDescription(toolConfig, {
+            isHosted,
+            fallbackName: strippedName,
+            appendEmailTagline: shouldAppendEmailTagline,
+          }),
+          input_schema: userSchema as unknown as Record<string, unknown>,
+          defer_loading: true,
+          ...(toolConfig.oauth?.required && {
+            oauth: {
+              required: true,
+              provider: toolConfig.oauth.provider,
+            },
+          }),
+        })
+      } catch (toolError) {
+        logger.warn('Failed to build schema for tool, skipping', {
+          toolId,
+          error: toolError instanceof Error ? toolError.message : String(toolError),
+        })
+      }
+    }
+  } catch (error) {
+    logger.warn('Failed to build tool schemas', {
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
+  return integrationTools
 }
 
 /**
@@ -66,9 +117,7 @@ export async function buildCopilotRequestPayload(
     fileAttachments,
     commands,
     chatId,
-    conversationId,
     prefetch,
-    conversationHistory,
     implicitFeedback,
   } = params
 
@@ -77,98 +126,99 @@ export async function buildCopilotRequestPayload(
   const effectiveMode = mode === 'agent' ? 'build' : mode
   const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
 
-  const processedFileContents = await processFileAttachments(fileAttachments ?? [], userId)
+  // Track uploaded files in the DB and build context tags instead of base64 inlining
+  const uploadContexts: Array<{ type: string; content: string }> = []
+  if (chatId && params.workspaceId && fileAttachments && fileAttachments.length > 0) {
+    for (const f of fileAttachments) {
+      const filename = (f.filename ?? f.name ?? 'file') as string
+      const mediaType = (f.media_type ?? f.mimeType ?? 'application/octet-stream') as string
+      try {
+        await trackChatUpload(
+          params.workspaceId,
+          userId,
+          chatId,
+          f.key,
+          filename,
+          mediaType,
+          f.size
+        )
+        const lines = [
+          `File "${filename}" (${mediaType}, ${f.size} bytes) uploaded.`,
+          `Read with: read("uploads/${filename}")`,
+          `To save permanently: materialize_file(fileName: "${filename}")`,
+        ]
+        if (filename.endsWith('.json')) {
+          lines.push(
+            `To import as a workflow: materialize_file(fileName: "${filename}", operation: "import")`
+          )
+        }
+        uploadContexts.push({
+          type: 'uploaded_file',
+          content: lines.join('\n'),
+        })
+      } catch (err) {
+        logger.warn('Failed to track chat upload', {
+          filename,
+          chatId,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+  }
 
-  const integrationTools: ToolSchema[] = []
-  let credentials: CredentialsPayload | null = null
+  const allContexts = [...(contexts ?? []), ...uploadContexts]
+
+  let integrationTools: ToolSchema[] = []
 
   if (effectiveMode === 'build') {
-    // function_execute sandbox tool is now defined in Go — no need to send it
+    integrationTools = await buildIntegrationToolSchemas(userId)
 
-    try {
-      const rawCredentials = await getCredentialsServerTool.execute({ workflowId }, { userId })
-
-      const oauthMap: CredentialsPayload['oauth'] = {}
-      const connectedOAuth: Array<{ provider: string; name: string; scopes?: string[] }> = []
-      for (const cred of rawCredentials?.oauth?.connected?.credentials ?? []) {
-        if (cred.accessToken) {
-          oauthMap[cred.provider] = {
-            accessToken: cred.accessToken,
-            accountId: cred.id,
-            name: cred.name,
+    // Discover MCP tools from workspace servers and include as deferred tools
+    if (workflowId) {
+      try {
+        const wf = await getWorkflowById(workflowId)
+        if (wf?.workspaceId) {
+          const { mcpService } = await import('@/lib/mcp/service')
+          const mcpTools = await mcpService.discoverTools(userId, wf.workspaceId)
+          for (const mcpTool of mcpTools) {
+            integrationTools.push({
+              name: createMcpToolId(mcpTool.serverId, mcpTool.name),
+              description:
+                mcpTool.description || `MCP tool: ${mcpTool.name} (${mcpTool.serverName})`,
+              input_schema: mcpTool.inputSchema as unknown as Record<string, unknown>,
+            })
           }
-          connectedOAuth.push({ provider: cred.provider, name: cred.name })
+          if (mcpTools.length > 0) {
+            logger.info('Added MCP tools to copilot payload', { count: mcpTools.length })
+          }
         }
+      } catch (error) {
+        logger.warn('Failed to discover MCP tools for copilot', {
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
-
-      credentials = {
-        oauth: oauthMap,
-        apiKeys: rawCredentials?.environment?.variableNames ?? [],
-        metadata: {
-          connectedOAuth,
-          configuredApiKeys: rawCredentials?.environment?.variableNames ?? [],
-        },
-      }
-    } catch (error) {
-      logger.warn('Failed to fetch credentials for build payload', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
-
-    try {
-      const { createUserToolSchema } = await import('@/tools/params')
-      const latestTools = getLatestVersionTools(tools)
-
-      for (const [toolId, toolConfig] of Object.entries(latestTools)) {
-        try {
-          const userSchema = createUserToolSchema(toolConfig)
-          const strippedName = stripVersionSuffix(toolId)
-          integrationTools.push({
-            name: strippedName,
-            description: toolConfig.description || toolConfig.name || strippedName,
-            input_schema: userSchema as unknown as Record<string, unknown>,
-            defer_loading: true,
-            ...(toolConfig.oauth?.required && {
-              oauth: {
-                required: true,
-                provider: toolConfig.oauth.provider,
-              },
-            }),
-          })
-        } catch (toolError) {
-          logger.warn('Failed to build schema for tool, skipping', {
-            toolId,
-            error: toolError instanceof Error ? toolError.message : String(toolError),
-          })
-        }
-      }
-    } catch (error) {
-      logger.warn('Failed to build tool schemas for payload', {
-        error: error instanceof Error ? error.message : String(error),
-      })
     }
   }
 
   return {
     message,
-    workflowId,
+    ...(workflowId ? { workflowId } : {}),
+    ...(params.workflowName ? { workflowName: params.workflowName } : {}),
+    ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
     userId,
-    model: selectedModel,
+    ...(selectedModel ? { model: selectedModel } : {}),
     ...(provider ? { provider } : {}),
     mode: transportMode,
     messageId: userMessageId,
-    version: SIM_AGENT_VERSION,
-    ...(contexts && contexts.length > 0 ? { context: contexts } : {}),
+    ...(allContexts.length > 0 ? { context: allContexts } : {}),
     ...(chatId ? { chatId } : {}),
-    ...(conversationId ? { conversationId } : {}),
-    ...(Array.isArray(conversationHistory) && conversationHistory.length > 0
-      ? { conversationHistory }
-      : {}),
     ...(typeof prefetch === 'boolean' ? { prefetch } : {}),
     ...(implicitFeedback ? { implicitFeedback } : {}),
-    ...(processedFileContents.length > 0 ? { fileAttachments: processedFileContents } : {}),
     ...(integrationTools.length > 0 ? { integrationTools } : {}),
-    ...(credentials ? { credentials } : {}),
     ...(commands && commands.length > 0 ? { commands } : {}),
+    ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),
+    ...(params.userPermission ? { userPermission: params.userPermission } : {}),
+    ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
+    isHosted,
   }
 }

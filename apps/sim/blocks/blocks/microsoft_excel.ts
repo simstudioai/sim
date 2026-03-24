@@ -1,7 +1,7 @@
 import { MicrosoftExcelIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 import type {
   MicrosoftExcelResponse,
@@ -18,6 +18,8 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
     'Integrate Microsoft Excel into the workflow. Can read, write, update, add to table, and create new worksheets.',
   docsLink: 'https://docs.sim.ai/tools/microsoft_excel',
   category: 'tools',
+  integrationType: IntegrationType.Documents,
+  tags: ['spreadsheet', 'microsoft-365'],
   bgColor: '#E0E0E0',
   icon: MicrosoftExcelIcon,
   subBlocks: [
@@ -338,6 +340,8 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
     'Integrate Microsoft Excel into the workflow with explicit sheet selection. Can read and write data in specific sheets.',
   docsLink: 'https://docs.sim.ai/tools/microsoft_excel',
   category: 'tools',
+  integrationType: IntegrationType.Documents,
+  tags: ['spreadsheet', 'microsoft-365'],
   bgColor: '#E0E0E0',
   icon: MicrosoftExcelIcon,
   subBlocks: [

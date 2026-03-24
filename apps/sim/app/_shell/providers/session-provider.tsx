@@ -3,7 +3,6 @@
 import type React from 'react'
 import { createContext, useCallback, useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import posthog from 'posthog-js'
 import { client } from '@/lib/auth/auth-client'
 import { extractSessionDataFromAuthClientResult } from '@/lib/auth/session-response'
 
@@ -14,6 +13,7 @@ export type AppSession = {
     emailVerified?: boolean
     name?: string | null
     image?: string | null
+    role?: string
     createdAt?: Date
     updatedAt?: Date
   } | null
@@ -77,22 +77,26 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [loadSession, queryClient])
 
   useEffect(() => {
-    if (isPending || typeof posthog.identify !== 'function') {
-      return
-    }
+    if (isPending) return
 
-    try {
-      if (data?.user) {
-        posthog.identify(data.user.id, {
-          email: data.user.email,
-          name: data.user.name,
-          email_verified: data.user.emailVerified,
-          created_at: data.user.createdAt,
-        })
-      } else {
-        posthog.reset()
-      }
-    } catch {}
+    import('posthog-js')
+      .then(({ default: posthog }) => {
+        try {
+          if (typeof posthog.identify !== 'function') return
+
+          if (data?.user) {
+            posthog.identify(data.user.id, {
+              email: data.user.email,
+              name: data.user.name,
+              email_verified: data.user.emailVerified,
+              created_at: data.user.createdAt,
+            })
+          } else {
+            posthog.reset()
+          }
+        } catch {}
+      })
+      .catch(() => {})
   }, [data, isPending])
 
   const value = useMemo<SessionHookResult>(

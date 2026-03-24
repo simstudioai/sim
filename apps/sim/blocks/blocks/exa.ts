@@ -1,6 +1,6 @@
 import { ExaAIIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ExaResponse } from '@/tools/exa/types'
 
 export const ExaBlock: BlockConfig<ExaResponse> = {
@@ -12,6 +12,8 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     'Integrate Exa into the workflow. Can search, get contents, find similar links, answer a question, and perform research.',
   docsLink: 'https://docs.sim.ai/tools/exa',
   category: 'tools',
+  integrationType: IntegrationType.Search,
+  tags: ['web-scraping', 'enrichment'],
   bgColor: '#1F40ED',
   icon: ExaAIIcon,
   subBlocks: [
@@ -309,7 +311,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       value: () => 'exa-research',
       condition: { field: 'operation', value: 'exa_research' },
     },
-    // API Key (common)
+    // API Key — hidden when hosted for operations with hosted key support
     {
       id: 'apiKey',
       title: 'API Key',
@@ -317,6 +319,18 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       placeholder: 'Enter your Exa API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
+      condition: { field: 'operation', value: 'exa_research', not: true },
+    },
+    // API Key — always visible for research (no hosted key support)
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      placeholder: 'Enter your Exa API key',
+      password: true,
+      required: true,
+      condition: { field: 'operation', value: 'exa_research' },
     },
   ],
   tools: {

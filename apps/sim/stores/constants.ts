@@ -20,8 +20,10 @@ export const API_ENDPOINTS = {
 
 /** Sidebar width constraints */
 export const SIDEBAR_WIDTH = {
-  DEFAULT: 232,
-  MIN: 232,
+  DEFAULT: 248,
+  MIN: 248,
+  /** Width when sidebar is collapsed to icon-only mode */
+  COLLAPSED: 51,
   /** Maximum is 30% of viewport, enforced dynamically */
   MAX_PERCENTAGE: 0.3,
 } as const
@@ -60,6 +62,13 @@ export const EDITOR_CONNECTIONS_HEIGHT = {
 export const OUTPUT_PANEL_WIDTH = {
   DEFAULT: 560,
   MIN: 280,
+} as const
+
+/** Home chat resource panel (MothershipView) width constraints */
+export const MOTHERSHIP_WIDTH = {
+  MIN: 280,
+  /** Maximum is 65% of viewport, enforced dynamically */
+  MAX_PERCENTAGE: 0.65,
 } as const
 
 /** Terminal block column width - minimum width for the logs column */
