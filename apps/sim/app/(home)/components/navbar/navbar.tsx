@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { GithubOutlineIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
@@ -41,9 +42,12 @@ interface NavbarProps {
 
 export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps) {
   const brand = getBrandConfig()
+  const searchParams = useSearchParams()
   const { data: session, isPending: isSessionPending } = useSession()
   const isAuthenticated = Boolean(session?.user?.id)
-  const logoHref = isAuthenticated ? '/?home' : '/'
+  const isBrowsingHome = searchParams.has('home')
+  const useHomeLinks = isAuthenticated || isBrowsingHome
+  const logoHref = useHomeLinks ? '/?home' : '/'
   const [activeDropdown, setActiveDropdown] = useState<DropdownId>(null)
   const [hoveredLink, setHoveredLink] = useState<string | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -127,7 +131,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
           <ul className='mt-[0.75px] hidden lg:flex'>
             {NAV_LINKS.map(({ label, href: rawHref, external, icon, dropdown }) => {
               const href =
-                isAuthenticated && rawHref.startsWith('/#') ? `/?home${rawHref.slice(1)}` : rawHref
+                useHomeLinks && rawHref.startsWith('/#') ? `/?home${rawHref.slice(1)}` : rawHref
               const hasDropdown = !!dropdown
               const isActive = hasDropdown && activeDropdown === dropdown
               const isThisHovered = hoveredLink === label
@@ -267,7 +271,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
             <ul className='flex flex-col'>
               {NAV_LINKS.map(({ label, href: rawHref, external }) => {
                 const href =
-                  isAuthenticated && rawHref.startsWith('/#')
+                  useHomeLinks && rawHref.startsWith('/#')
                     ? `/?home${rawHref.slice(1)}`
                     : rawHref
                 return (

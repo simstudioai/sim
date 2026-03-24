@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { ArrowRight, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { GithubIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -27,9 +27,12 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
   const router = useRouter()
   const brand = useBrandConfig()
   const buttonClass = useBrandedButtonClass()
+  const searchParams = useSearchParams()
   const { data: session, isPending: isSessionPending } = useSession()
   const isAuthenticated = Boolean(session?.user?.id)
-  const logoHref = isAuthenticated ? '/?home' : '/'
+  const isBrowsingHome = searchParams.has('home')
+  const useHomeLinks = isAuthenticated || isBrowsingHome
+  const logoHref = useHomeLinks ? '/?home' : '/'
 
   useEffect(() => {
     if (variant !== 'landing') return
@@ -76,7 +79,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
       </li>
       <li>
         <Link
-          href={isAuthenticated ? '/?home#pricing' : '/#pricing'}
+          href={useHomeLinks ? '/?home#pricing' : '/#pricing'}
           className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
           scroll={true}
         >
