@@ -1195,7 +1195,7 @@ export function useChat(
 
     const persistedContent =
       content && !content.includes('<options>')
-        ? content + '\n\n' + CONTINUE_OPTIONS_CONTENT
+        ? `${content}\n\n${CONTINUE_OPTIONS_CONTENT}`
         : content
 
     try {
@@ -1262,7 +1262,10 @@ export function useChat(
         if (isLastAssistant && !blocks.some((b) => b.type === 'stopped')) {
           blocks.push({ type: 'stopped' as const })
         }
-        if (isLastAssistant && !blocks.some((b) => b.type === 'text' && b.content?.includes('<options>'))) {
+        if (
+          isLastAssistant &&
+          !blocks.some((b) => b.type === 'text' && b.content?.includes('<options>'))
+        ) {
           blocks.push({ type: 'text', content: CONTINUE_OPTIONS_CONTENT })
         }
         return { ...msg, contentBlocks: blocks.length > 0 ? blocks : msg.contentBlocks }
