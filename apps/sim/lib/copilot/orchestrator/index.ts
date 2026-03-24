@@ -240,11 +240,12 @@ export async function orchestrateCopilotStream(
           })
         }
 
+        if (localPendingPromises.length > 0) {
+          await Promise.allSettled(localPendingPromises)
+          continue
+        }
+
         if (claimableToolCallIds.length === 0) {
-          if (localPendingPromises.length > 0) {
-            await Promise.allSettled(localPendingPromises)
-            continue
-          }
           logger.warn('Skipping async resume because no tool calls were claimable', {
             checkpointId: continuation.checkpointId,
             runId: continuation.runId,
