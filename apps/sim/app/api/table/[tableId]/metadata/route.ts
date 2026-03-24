@@ -13,6 +13,7 @@ const MetadataSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   metadata: z.object({
     columnWidths: z.record(z.number().positive()).optional(),
+    columnOrder: z.array(z.string()).optional(),
   }),
 })
 
