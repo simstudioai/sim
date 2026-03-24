@@ -818,7 +818,7 @@ export const Panel = memo(function Panel() {
                   userId={session?.user?.id}
                   editValue={copilotEditingInputValue}
                   onEditValueConsumed={clearCopilotEditingValue}
-                  layout='copilot-view'
+                  layout='mothership-view'
                 />
               </div>
             )}
