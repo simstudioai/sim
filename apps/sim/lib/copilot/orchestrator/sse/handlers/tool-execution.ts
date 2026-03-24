@@ -29,6 +29,7 @@ import { getTableById } from '@/lib/table/service'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('CopilotSseToolExecution')
+const ASYNC_RESUME_DIAG_TAG = '[ASYNC_RESUME_DIAG]'
 
 const OUTPUT_PATH_TOOLS = new Set(['function_execute', 'user_table'])
 
@@ -247,18 +248,42 @@ function cancelledCompletion(message: string): AsyncToolCompletion {
   }
 }
 
-function reportCancelledTool(
+async function waitForMarkComplete(
+  toolCallId: string,
+  toolName: string,
+  status: number,
+  message?: unknown,
+  data?: unknown
+): Promise<void> {
+  try {
+    logger.warn(ASYNC_RESUME_DIAG_TAG, {
+      phase: 'mark_complete_start',
+      toolCallId,
+      toolName,
+      status,
+    })
+    await markToolComplete(toolCallId, toolName, status, message, data)
+    logger.warn(ASYNC_RESUME_DIAG_TAG, {
+      phase: 'mark_complete_finished',
+      toolCallId,
+      toolName,
+      status,
+    })
+  } catch (err) {
+    logger.error('markToolComplete failed', {
+      toolCallId,
+      toolName,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
+async function reportCancelledTool(
   toolCall: { id: string; name: string },
   message: string,
   data: Record<string, unknown> = { cancelled: true }
-): void {
-  markToolComplete(toolCall.id, toolCall.name, 499, message, data).catch((err) => {
-    logger.error('markToolComplete failed (cancelled)', {
-      toolCallId: toolCall.id,
-      toolName: toolCall.name,
-      error: err instanceof Error ? err.message : String(err),
-    })
-  })
+): Promise<void> {
+  await waitForMarkComplete(toolCall.id, toolCall.name, 499, message, data)
 }
 
 async function maybeWriteOutputToTable(
@@ -523,7 +548,7 @@ export async function executeToolAndReport(
       result: { cancelled: true },
       error: 'Request aborted before tool execution',
     }).catch(() => {})
-    reportCancelledTool(toolCall, 'Request aborted before tool execution')
+    await reportCancelledTool(toolCall, 'Request aborted before tool execution')
     return cancelledCompletion('Request aborted before tool execution')
   }
 
@@ -548,7 +573,7 @@ export async function executeToolAndReport(
         result: { cancelled: true },
         error: 'Request aborted during tool execution',
       }).catch(() => {})
-      reportCancelledTool(toolCall, 'Request aborted during tool execution')
+      await reportCancelledTool(toolCall, 'Request aborted during tool execution')
       return cancelledCompletion('Request aborted during tool execution')
     }
     result = await maybeWriteOutputToFile(toolCall.name, toolCall.params, result, execContext)
@@ -562,7 +587,7 @@ export async function executeToolAndReport(
         result: { cancelled: true },
         error: 'Request aborted during tool post-processing',
       }).catch(() => {})
-      reportCancelledTool(toolCall, 'Request aborted during tool post-processing')
+      await reportCancelledTool(toolCall, 'Request aborted during tool post-processing')
       return cancelledCompletion('Request aborted during tool post-processing')
     }
     result = await maybeWriteOutputToTable(toolCall.name, toolCall.params, result, execContext)
@@ -576,7 +601,7 @@ export async function executeToolAndReport(
         result: { cancelled: true },
         error: 'Request aborted during tool post-processing',
       }).catch(() => {})
-      reportCancelledTool(toolCall, 'Request aborted during tool post-processing')
+      await reportCancelledTool(toolCall, 'Request aborted during tool post-processing')
       return cancelledCompletion('Request aborted during tool post-processing')
     }
     result = await maybeWriteReadCsvToTable(toolCall.name, toolCall.params, result, execContext)
@@ -590,7 +615,7 @@ export async function executeToolAndReport(
         result: { cancelled: true },
         error: 'Request aborted during tool post-processing',
       }).catch(() => {})
-      reportCancelledTool(toolCall, 'Request aborted during tool post-processing')
+      await reportCancelledTool(toolCall, 'Request aborted during tool post-processing')
       return cancelledCompletion('Request aborted during tool post-processing')
     }
     toolCall.status = result.success ? 'success' : 'error'
@@ -642,32 +667,18 @@ export async function executeToolAndReport(
       result: result.success ? asRecord(result.output) : { error: result.error || 'Tool failed' },
       error: result.success ? null : result.error || 'Tool failed',
     }).catch(() => {})
+    logger.warn(ASYNC_RESUME_DIAG_TAG, {
+      phase: 'local_async_tool_completion_persisted',
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      status: result.success ? 'completed' : 'failed',
+    })
 
     if (abortRequested(context, execContext, options)) {
       toolCall.status = 'cancelled'
       reportCancelledTool(toolCall, 'Request aborted before tool result delivery')
       return cancelledCompletion('Request aborted before tool result delivery')
     }
-
-    // Fire-and-forget: notify the copilot backend that the tool completed.
-    // IMPORTANT: We must NOT await this — the Go backend may block on the
-    // mark-complete handler until it can write back on the SSE stream, but
-    // the SSE reader (our for-await loop) is paused while we're in this
-    // handler.  Awaiting here would deadlock: sim waits for Go's response,
-    // Go waits for sim to drain the SSE stream.
-    markToolComplete(
-      toolCall.id,
-      toolCall.name,
-      result.success ? 200 : 500,
-      result.error || (result.success ? 'Tool completed' : 'Tool failed'),
-      result.output
-    ).catch((err) => {
-      logger.error('markToolComplete fire-and-forget failed', {
-        toolCallId: toolCall.id,
-        toolName: toolCall.name,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    })
 
     const resultEvent: SSEEvent = {
       type: 'tool_result',
@@ -683,6 +694,19 @@ export async function executeToolAndReport(
       },
     }
     await options?.onEvent?.(resultEvent)
+    logger.warn(ASYNC_RESUME_DIAG_TAG, {
+      phase: 'tool_result_event_forwarded',
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      success: result.success,
+    })
+    await waitForMarkComplete(
+      toolCall.id,
+      toolCall.name,
+      result.success ? 200 : 500,
+      result.error || (result.success ? 'Tool completed' : 'Tool failed'),
+      result.output
+    )
 
     if (abortRequested(context, execContext, options)) {
       toolCall.status = 'cancelled'
@@ -759,7 +783,7 @@ export async function executeToolAndReport(
         result: { cancelled: true },
         error: 'Request aborted during tool execution',
       }).catch(() => {})
-      reportCancelledTool(toolCall, 'Request aborted during tool execution')
+      await reportCancelledTool(toolCall, 'Request aborted during tool execution')
       return cancelledCompletion('Request aborted during tool execution')
     }
     toolCall.status = 'error'
@@ -781,18 +805,6 @@ export async function executeToolAndReport(
       error: toolCall.error,
     }).catch(() => {})
 
-    // Fire-and-forget (same reasoning as above).
-    // Pass error as structured data so the Go side can surface it to the LLM.
-    markToolComplete(toolCall.id, toolCall.name, 500, toolCall.error, {
-      error: toolCall.error,
-    }).catch((err) => {
-      logger.error('markToolComplete fire-and-forget failed', {
-        toolCallId: toolCall.id,
-        toolName: toolCall.name,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    })
-
     const errorEvent: SSEEvent = {
       type: 'tool_error',
       state: 'error',
@@ -804,6 +816,9 @@ export async function executeToolAndReport(
       },
     }
     await options?.onEvent?.(errorEvent)
+    await waitForMarkComplete(toolCall.id, toolCall.name, 500, toolCall.error, {
+      error: toolCall.error,
+    })
     return {
       status: 'error',
       message: toolCall.error,

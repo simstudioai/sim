@@ -188,6 +188,35 @@ describe('sse-handlers tool lifecycle', () => {
     expect(markToolComplete).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps the pending promise until mark-complete finishes', async () => {
+    let resolveMarkComplete: ((value: boolean) => void) | undefined
+    executeToolServerSide.mockResolvedValueOnce({ success: true, output: { ok: true } })
+    markToolComplete.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveMarkComplete = resolve
+        })
+    )
+
+    await sseHandlers.tool_call(
+      {
+        type: 'tool_call',
+        data: { id: 'tool-mark-complete', name: 'workspace_file', arguments: { operation: 'write' } },
+      } as any,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(context.pendingToolPromises.has('tool-mark-complete')).toBe(true)
+
+    resolveMarkComplete?.(true)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(context.pendingToolPromises.has('tool-mark-complete')).toBe(false)
+  })
+
   it('still executes the tool when async row upsert fails', async () => {
     upsertAsyncToolCall.mockRejectedValueOnce(new Error('db down'))
     executeToolServerSide.mockResolvedValueOnce({ success: true, output: { ok: true } })

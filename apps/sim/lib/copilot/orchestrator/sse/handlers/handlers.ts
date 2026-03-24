@@ -23,6 +23,7 @@ import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { executeToolAndReport, waitForToolCompletion } from './tool-execution'
 
 const logger = createLogger('CopilotSseHandlers')
+const ASYNC_RESUME_DIAG_TAG = '[ASYNC_RESUME_DIAG]'
 
 function registerPendingToolPromise(
   context: StreamingContext,
@@ -488,6 +489,16 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const response = asRecord(d.response)
     const asyncPause = asRecord(response.async_pause)
     if (asyncPause.checkpointId) {
+      logger.warn(ASYNC_RESUME_DIAG_TAG, {
+        phase: 'async_pause_received',
+        checkpointId: String(asyncPause.checkpointId),
+        runId: typeof asyncPause.runId === 'string' ? asyncPause.runId : context.runId,
+        executionId:
+          typeof asyncPause.executionId === 'string' ? asyncPause.executionId : context.executionId,
+        pendingToolCallIds: Array.isArray(asyncPause.pendingToolCallIds)
+          ? asyncPause.pendingToolCallIds.map((id) => String(id))
+          : [],
+      })
       context.awaitingAsyncContinuation = {
         checkpointId: String(asyncPause.checkpointId),
         executionId:
