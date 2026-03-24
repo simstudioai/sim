@@ -87,7 +87,7 @@ import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
  * This avoids 403 errors for external tenant users whose admin hasn't consented to Graph API scopes.
  * The ID token is always returned when the openid scope is requested.
  */
-function getMicrosoftUserInfoFromIdToken(tokens: { accessToken: string }, providerId: string) {
+function getMicrosoftUserInfoFromIdToken(tokens: { accessToken?: string }, providerId: string) {
   const idToken = (tokens as Record<string, unknown>).idToken as string | undefined
   if (!idToken) {
     logger.error(
