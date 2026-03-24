@@ -133,3 +133,27 @@ export function useUnbanUser() {
     },
   })
 }
+
+export function useImpersonateUser() {
+  return useMutation({
+    mutationFn: async ({ userId }: { userId: string }) => {
+      const result = await client.admin.impersonateUser({ userId })
+      return result
+    },
+    onError: (err) => {
+      logger.error('Failed to impersonate user', err)
+    },
+  })
+}
+
+export function useStopImpersonating() {
+  return useMutation({
+    mutationFn: async () => {
+      const result = await client.admin.stopImpersonating()
+      return result
+    },
+    onError: (err) => {
+      logger.error('Failed to stop impersonating', err)
+    },
+  })
+}
