@@ -110,16 +110,18 @@ export async function POST(request: NextRequest) {
 
     const svgContent = result.data[0].svg
     const svgBuffer = Buffer.from(svgContent, 'utf-8')
+    const file = {
+      name: 'vectorized.svg',
+      mimeType: 'image/svg+xml',
+      data: svgBuffer.toString('base64'),
+      size: svgBuffer.length,
+    }
 
     return NextResponse.json({
       success: true,
       output: {
-        file: {
-          name: 'vectorized.svg',
-          mimeType: 'image/svg+xml',
-          data: svgBuffer.toString('base64'),
-          size: svgBuffer.length,
-        },
+        file,
+        files: [file],
         svgContent,
         id: result.id ?? null,
         usage: result.usage

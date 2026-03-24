@@ -175,7 +175,16 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
     config: {
       tool: (params: Record<string, string>) => `quiver_${params.operation}`,
       params: (params: Record<string, unknown>) => {
-        const { references, image, ...rest } = params
+        const {
+          references,
+          image,
+          topP,
+          maxOutputTokens,
+          presencePenalty,
+          targetSize,
+          autoCrop,
+          ...rest
+        } = params
 
         const normalizedRefs = normalizeFileInput(references)
         const normalizedImage = normalizeFileInput(image, { single: true })
@@ -186,11 +195,11 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
           ...(normalizedImage && { image: normalizedImage }),
           ...(rest.n && { n: Number(rest.n) }),
           ...(rest.temperature && { temperature: Number(rest.temperature) }),
-          ...(rest.topP && { top_p: Number(rest.topP) }),
-          ...(rest.maxOutputTokens && { max_output_tokens: Number(rest.maxOutputTokens) }),
-          ...(rest.presencePenalty && { presence_penalty: Number(rest.presencePenalty) }),
-          ...(rest.targetSize && { target_size: Number(rest.targetSize) }),
-          ...(rest.autoCrop === 'true' && { auto_crop: true }),
+          ...(topP && { top_p: Number(topP) }),
+          ...(maxOutputTokens && { max_output_tokens: Number(maxOutputTokens) }),
+          ...(presencePenalty && { presence_penalty: Number(presencePenalty) }),
+          ...(targetSize && { target_size: Number(targetSize) }),
+          ...(autoCrop === 'true' && { auto_crop: true }),
         }
       },
     },
