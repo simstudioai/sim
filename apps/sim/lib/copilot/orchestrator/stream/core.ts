@@ -247,6 +247,7 @@ export function buildToolCallSummaries(context: StreamingContext): ToolCallSumma
     } else if ((status === 'pending' || status === 'executing') && toolCall.error) {
       status = 'error'
     }
+
     return {
       id: toolCall.id,
       name: toolCall.name,
