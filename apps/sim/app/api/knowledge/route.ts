@@ -62,20 +62,25 @@ const CreateKnowledgeBaseSchema = z.object({
           if (hostname.startsWith('[') && hostname !== '[::1]') {
             return false
           }
-          // Allow localhost, loopback, and private network ranges
-          if (
-            hostname === 'localhost' ||
-            hostname === '[::1]' ||
-            hostname.startsWith('127.') ||
-            hostname.startsWith('10.') ||
-            hostname.startsWith('192.168.')
-          ) {
+          // Allow localhost and IPv6 loopback
+          if (hostname === 'localhost' || hostname === '[::1]') {
             return true
           }
-          // Allow 172.16.0.0 – 172.31.255.255
-          if (hostname.startsWith('172.')) {
-            const second = Number.parseInt(hostname.split('.')[1], 10)
-            if (second >= 16 && second <= 31) return true
+          // Allow private IPv4 ranges — only match actual IPs, not domains like "10.evil.com"
+          const ipv4 = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/
+          if (ipv4.test(hostname)) {
+            if (
+              hostname.startsWith('127.') ||
+              hostname.startsWith('10.') ||
+              hostname.startsWith('192.168.')
+            ) {
+              return true
+            }
+            if (hostname.startsWith('172.')) {
+              const second = Number.parseInt(hostname.split('.')[1], 10)
+              if (second >= 16 && second <= 31) return true
+            }
+            return false
           }
           // Allow Docker service hostnames (no dots = not a public domain)
           // e.g. "ollama", "host.docker.internal"
