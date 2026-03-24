@@ -438,10 +438,7 @@ describe.concurrent('Blocks Module', () => {
       const validTypes = ['string', 'number', 'boolean', 'json', 'array', 'file']
       const blocks = getAllBlocks()
       for (const block of blocks) {
-        for (const [_, inputConfig] of Object.entries(block.inputs) as [
-          string,
-          { type: string },
-        ][]) {
+        for (const [_, inputConfig] of Object.entries(block.inputs)) {
           expect(validTypes).toContain(inputConfig.type)
         }
       }
