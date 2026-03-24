@@ -116,7 +116,8 @@ const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg', '.mov'] as const
  * ```
  */
 const Preview = ({ src, alt = '', width = 240, height, className }: PreviewProps) => {
-  const isVideo = VIDEO_EXTENSIONS.some((ext) => src.toLowerCase().endsWith(ext))
+  const pathname = src.toLowerCase().split('?')[0].split('#')[0]
+  const isVideo = VIDEO_EXTENSIONS.some((ext) => pathname.endsWith(ext))
 
   return (
     <div className={cn('mt-[4px] overflow-hidden rounded-[3px]', className)}>
@@ -130,6 +131,7 @@ const Preview = ({ src, alt = '', width = 240, height, className }: PreviewProps
           loop
           muted
           playsInline
+          preload='none'
           aria-label={alt}
         />
       ) : (
