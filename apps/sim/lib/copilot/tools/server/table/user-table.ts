@@ -41,6 +41,45 @@ const SCHEMA_SAMPLE_SIZE = 100
 
 type ColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
 
+function sanitizeColumnName(raw: string): string {
+  let name = raw
+    .trim()
+    .replace(/[^a-zA-Z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+  if (!name || /^\d/.test(name)) name = `col_${name}`
+  return name
+}
+
+function sanitizeHeaders(
+  headers: string[],
+  rows: Record<string, unknown>[]
+): { headers: string[]; rows: Record<string, unknown>[] } {
+  const renamed = new Map<string, string>()
+  const seen = new Set<string>()
+
+  for (const raw of headers) {
+    let safe = sanitizeColumnName(raw)
+    while (seen.has(safe)) safe = `${safe}_`
+    seen.add(safe)
+    renamed.set(raw, safe)
+  }
+
+  const noChange = headers.every((h) => renamed.get(h) === h)
+  if (noChange) return { headers, rows }
+
+  return {
+    headers: headers.map((h) => renamed.get(h)!),
+    rows: rows.map((row) => {
+      const out: Record<string, unknown> = {}
+      for (const [raw, safe] of renamed) {
+        if (raw in row) out[safe] = row[raw]
+      }
+      return out
+    }),
+  }
+}
+
 async function resolveWorkspaceFile(
   fileReference: string,
   workspaceId: string
@@ -87,7 +126,7 @@ async function parseJsonRows(
     }
     for (const key of Object.keys(row)) headerSet.add(key)
   }
-  return { headers: [...headerSet], rows: parsed }
+  return sanitizeHeaders([...headerSet], parsed)
 }
 
 async function parseCsvRows(
@@ -110,7 +149,7 @@ async function parseCsvRows(
   if (headers.length === 0) {
     throw new Error('CSV file has no headers')
   }
-  return { headers, rows: parsed }
+  return sanitizeHeaders(headers, parsed)
 }
 
 function inferColumnType(values: unknown[]): ColumnType {

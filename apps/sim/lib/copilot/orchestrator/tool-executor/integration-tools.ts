@@ -212,9 +212,14 @@ export async function executeIntegrationToolDirect(
           }
           const buffer = await downloadWorkspaceFile(record)
           totalSize += buffer.length
+          const textContent = buffer.toString('utf-8')
           sandboxFiles.push({
             path: getSandboxWorkspaceFilePath(record),
-            content: buffer.toString('utf-8'),
+            content: textContent,
+          })
+          sandboxFiles.push({
+            path: `/home/user/${record.name}`,
+            content: textContent,
           })
         }
       }
