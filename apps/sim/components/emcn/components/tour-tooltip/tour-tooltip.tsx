@@ -208,9 +208,10 @@ function TourTooltip({
               height={7}
               viewBox='0 0 14 7'
               preserveAspectRatio='none'
-              className='-mt-px fill-[var(--bg)]'
+              className='-mt-px fill-[var(--bg)] stroke-[var(--border)]'
             >
-              <polygon points='0,0 14,0 7,7' />
+              <polygon points='0,0 14,0 7,7' className='stroke-none' />
+              <polyline points='0,0 7,7 14,0' fill='none' strokeWidth={1} />
             </svg>
           </PopoverPrimitive.Arrow>
         </PopoverPrimitive.Content>

@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo } from 'react'
-import { createLogger } from '@sim/logger'
 import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
 import { navTourSteps } from '@/app/workspace/[workspaceId]/components/product-tour/nav-tour-steps'
@@ -11,8 +10,6 @@ import {
   TourTooltipAdapter,
 } from '@/app/workspace/[workspaceId]/components/product-tour/tour-shared'
 import { useTour } from '@/app/workspace/[workspaceId]/components/product-tour/use-tour'
-
-const logger = createLogger('NavTour')
 
 const Joyride = dynamic(() => import('react-joyride'), {
   ssr: false,
