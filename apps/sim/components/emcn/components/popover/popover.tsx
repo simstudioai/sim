@@ -414,6 +414,18 @@ export interface PopoverContentProps
    * @default true
    */
   avoidCollisions?: boolean
+  /**
+   * Show an arrow pointing toward the anchor element.
+   * The arrow color matches the popover background based on the current color scheme.
+   * @default false
+   */
+  showArrow?: boolean
+  /**
+   * Custom className for the arrow element.
+   * Overrides the default color-scheme-based fill when provided.
+   * Useful when the popover background is overridden via className.
+   */
+  arrowClassName?: string
 }
 
 /**
@@ -438,6 +450,8 @@ const PopoverContent = React.forwardRef<
       collisionPadding = 8,
       border = false,
       avoidCollisions = true,
+      showArrow = false,
+      arrowClassName,
       onOpenAutoFocus,
       onCloseAutoFocus,
       ...restProps
@@ -592,10 +606,12 @@ const PopoverContent = React.forwardRef<
         onCloseAutoFocus={handleCloseAutoFocus}
         {...restProps}
         className={cn(
-          'z-[10000200] flex flex-col overflow-auto outline-none will-change-transform',
+          'z-[10000200] flex flex-col outline-none will-change-transform',
+          showArrow ? 'overflow-visible' : 'overflow-auto',
           STYLES.colorScheme[colorScheme].content,
           STYLES.content,
-          hasUserWidthConstraint && '[&_.flex-1]:truncate [&_[data-popover-section]]:truncate',
+          hasUserWidthConstraint &&
+            '[&_.flex-1:not([data-popover-scroll])]:truncate [&_[data-popover-section]]:truncate',
           border && 'border border-[var(--border-1)]',
           className
         )}
@@ -613,7 +629,34 @@ const PopoverContent = React.forwardRef<
           ...style,
         }}
       >
-        {children}
+        {showArrow ? (
+          <div data-popover-scroll className='min-h-0 flex-1 overflow-auto'>
+            {children}
+          </div>
+        ) : (
+          children
+        )}
+        {showArrow && (
+          <PopoverPrimitive.Arrow width={14} height={7} asChild>
+            <svg
+              width={14}
+              height={7}
+              viewBox='0 0 14 7'
+              preserveAspectRatio='none'
+              className={
+                arrowClassName ??
+                cn(
+                  colorScheme === 'inverted'
+                    ? 'fill-[#242424] stroke-[#363636] dark:fill-[var(--surface-3)] dark:stroke-[var(--border-1)]'
+                    : 'fill-[var(--surface-3)] stroke-[var(--border-1)] dark:fill-[var(--surface-3)]'
+                )
+              }
+            >
+              <polygon points='0,0 14,0 7,7' className='stroke-none' />
+              <polyline points='0,0 7,7 14,0' fill='none' strokeWidth={1} />
+            </svg>
+          </PopoverPrimitive.Arrow>
+        )}
       </PopoverPrimitive.Content>
     )
 

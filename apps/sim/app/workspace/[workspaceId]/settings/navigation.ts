@@ -1,5 +1,4 @@
 import {
-  BookOpen,
   Card,
   Connections,
   HexSimple,
@@ -38,7 +37,6 @@ export type SettingsSection =
   | 'skills'
   | 'workflow-mcp-servers'
   | 'inbox'
-  | 'docs'
   | 'admin'
   | 'recently-deleted'
 
@@ -155,14 +153,6 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isSSOEnabled,
-  },
-  {
-    id: 'docs',
-    label: 'Docs',
-    icon: BookOpen,
-    section: 'system',
-    requiresHosted: true,
-    externalUrl: 'https://docs.sim.ai',
   },
   {
     id: 'admin',

@@ -322,11 +322,14 @@ export function Home({ chatId }: HomeProps = {}) {
     return (
       <div className='h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable]'>
         <div className='flex min-h-full flex-col items-center justify-center px-[24px] pb-[2vh]'>
-          <h1 className='mb-[24px] max-w-[42rem] font-[430] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'>
+          <h1
+            data-tour='home-greeting'
+            className='mb-[24px] max-w-[42rem] font-[430] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'
+          >
             What should we get done
             {session?.user?.name ? `, ${session.user.name.split(' ')[0]}` : ''}?
           </h1>
-          <div ref={initialViewInputRef} className='w-full'>
+          <div ref={initialViewInputRef} className='w-full' data-tour='home-chat-input'>
             <UserInput
               defaultValue={initialPrompt}
               onSubmit={handleSubmit}
@@ -339,6 +342,7 @@ export function Home({ chatId }: HomeProps = {}) {
         </div>
         <div
           ref={templateRef}
+          data-tour='home-templates'
           className='-mt-[30vh] mx-auto w-full max-w-[68rem] px-[16px] pb-[32px] sm:px-[24px] lg:px-[40px]'
         >
           <TemplatePrompts onSelect={handleSubmit} />

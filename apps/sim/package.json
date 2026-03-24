@@ -154,6 +154,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.54.2",
+    "react-joyride": "2.9.3",
     "react-markdown": "^10.1.0",
     "react-simple-code-editor": "^0.14.1",
     "react-window": "2.2.3",
@@ -226,6 +227,10 @@
     "next": "16.1.6",
     "@next/env": "16.1.6",
     "drizzle-orm": "^0.44.5",
-    "postgres": "^3.4.5"
+    "postgres": "^3.4.5",
+    "react-floater": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
   }
 }

@@ -179,6 +179,7 @@ export function CommandList() {
       )}
     >
       <div
+        data-tour='command-list'
         className='pointer-events-auto flex flex-col gap-[8px]'
         onDragOver={handleDragOver}
         onDrop={handleDrop}

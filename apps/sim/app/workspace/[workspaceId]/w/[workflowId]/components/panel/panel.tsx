@@ -608,7 +608,7 @@ export const Panel = memo(function Panel() {
             <div className='flex gap-[6px]'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  <Button className='h-[30px] w-[30px] rounded-[5px]'>
+                  <Button className='h-[30px] w-[30px] rounded-[5px]' data-tour='panel-menu'>
                     <MoreHorizontal />
                   </Button>
                 </DropdownMenuTrigger>
@@ -668,10 +668,11 @@ export const Panel = memo(function Panel() {
             </div>
 
             {/* Deploy and Run */}
-            <div className='flex gap-[6px]'>
+            <div className='flex gap-[6px]' data-tour='deploy-run'>
               <Deploy activeWorkflowId={activeWorkflowId} userPermissions={userPermissions} />
               <Button
                 className='h-[30px] gap-[8px] px-[10px]'
+                data-tour='run-button'
                 variant={isExecuting ? 'active' : 'tertiary'}
                 onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
                 disabled={!isExecuting && isButtonDisabled}
