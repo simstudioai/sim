@@ -8519,6 +8519,37 @@
     "tags": ["vector-search", "knowledge-base"]
   },
   {
+    "type": "quiver",
+    "slug": "quiver",
+    "name": "Quiver",
+    "description": "Generate and vectorize SVGs",
+    "longDescription": "Generate SVG images from text prompts or vectorize raster images into SVGs using QuiverAI. Supports reference images, style instructions, and multiple output generation.",
+    "bgColor": "#000000",
+    "iconName": "QuiverIcon",
+    "docsUrl": "https://docs.sim.ai/tools/quiver",
+    "operations": [
+      {
+        "name": "Text to SVG",
+        "description": "Generate SVG images from text prompts using QuiverAI"
+      },
+      {
+        "name": "Image to SVG",
+        "description": "Convert raster images into vector SVG format using QuiverAI"
+      },
+      {
+        "name": "List Models",
+        "description": "List all available QuiverAI models"
+      }
+    ],
+    "operationCount": 3,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "design",
+    "tags": ["image-generation"]
+  },
+  {
     "type": "reddit",
     "slug": "reddit",
     "name": "Reddit",
