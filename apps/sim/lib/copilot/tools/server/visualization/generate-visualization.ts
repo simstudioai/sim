@@ -1,5 +1,9 @@
 import { createLogger } from '@sim/logger'
-import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import {
+  assertServerToolNotAborted,
+  type BaseServerTool,
+  type ServerToolContext,
+} from '@/lib/copilot/tools/server/base-tool'
 import { executeInE2B, type SandboxFile } from '@/lib/execution/e2b'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { getTableById, queryRows } from '@/lib/table/service'
@@ -186,8 +190,12 @@ export const generateVisualizationServerTool: BaseServerTool<
       if (params.overwriteFileId) {
         const existing = await getWorkspaceFile(workspaceId, params.overwriteFileId)
         if (!existing) {
-          return { success: false, message: `File not found for overwrite: ${params.overwriteFileId}` }
+          return {
+            success: false,
+            message: `File not found for overwrite: ${params.overwriteFileId}`,
+          }
         }
+        assertServerToolNotAborted(context)
         const updated = await updateWorkspaceFileContent(
           workspaceId,
           params.overwriteFileId,
@@ -210,6 +218,7 @@ export const generateVisualizationServerTool: BaseServerTool<
         }
       }
 
+      assertServerToolNotAborted(context)
       const uploaded = await uploadWorkspaceFile(
         workspaceId,
         context.userId,

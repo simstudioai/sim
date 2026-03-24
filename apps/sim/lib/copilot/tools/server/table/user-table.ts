@@ -1,5 +1,9 @@
 import { createLogger } from '@sim/logger'
-import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import {
+  assertServerToolNotAborted,
+  type BaseServerTool,
+  type ServerToolContext,
+} from '@/lib/copilot/tools/server/base-tool'
 import type { UserTableArgs, UserTableResult } from '@/lib/copilot/tools/shared/schemas'
 import { COLUMN_TYPES } from '@/lib/table/constants'
 import {
@@ -181,10 +185,12 @@ async function batchInsertAll(
   tableId: string,
   rows: RowData[],
   table: TableDefinition,
-  workspaceId: string
+  workspaceId: string,
+  context?: ServerToolContext
 ): Promise<number> {
   let inserted = 0
   for (let i = 0; i < rows.length; i += MAX_BATCH_SIZE) {
+    assertServerToolNotAborted(context, 'Request aborted before table mutation could be applied.')
     const batch = rows.slice(i, i + MAX_BATCH_SIZE)
     const requestId = crypto.randomUUID().slice(0, 8)
     const result = await batchInsertRows({ tableId, rows: batch, workspaceId }, table, requestId)
@@ -204,6 +210,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
     const { operation, args = {} } = params
     const workspaceId =
       context.workspaceId || ((args as Record<string, unknown>).workspaceId as string | undefined)
+    const assertNotAborted = () =>
+      assertServerToolNotAborted(context, 'Request aborted before table mutation could be applied.')
 
     try {
       switch (operation) {
@@ -219,6 +227,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const table = await createTable(
             {
               name: args.name,
@@ -288,6 +297,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           await deleteTable(args.tableId, requestId)
 
           return {
@@ -313,6 +323,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const row = await insertRow(
             { tableId: args.tableId, data: args.data, workspaceId },
             table,
@@ -343,6 +354,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const rows = await batchInsertRows(
             { tableId: args.tableId, rows: args.rows, workspaceId },
             table,
@@ -427,6 +439,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const updatedRow = await updateRow(
             { tableId: args.tableId, rowId: args.rowId, data: args.data, workspaceId },
             table,
@@ -452,6 +465,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           await deleteRow(args.tableId, args.rowId, workspaceId, requestId)
 
           return {
@@ -480,6 +494,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const result = await updateRowsByFilter(
             {
               tableId: args.tableId,
@@ -511,6 +526,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const result = await deleteRowsByFilter(
             {
               tableId: args.tableId,
@@ -573,6 +589,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const result = await batchUpdateRows(
             {
               tableId: args.tableId,
@@ -611,6 +628,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const result = await deleteRowsByIds(
             { tableId: args.tableId, rowIds, workspaceId },
             requestId
@@ -644,6 +662,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const columns = inferSchema(headers, rows)
           const tableName = args.name || file.name.replace(/\.[^.]+$/, '')
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const table = await createTable(
             {
               name: tableName,
@@ -657,7 +676,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const columnMap = new Map(columns.map((c) => [c.name, c]))
           const coerced = coerceRows(rows, columns, columnMap)
-          const inserted = await batchInsertAll(table.id, coerced, table, workspaceId)
+          const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
 
           logger.info('Table created from file', {
             tableId: table.id,
@@ -727,7 +746,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const columnMap = new Map(tableColumns.map((c) => [c.name, c]))
           const matchedColumns = tableColumns.filter((c) => headers.includes(c.name))
           const coerced = coerceRows(rows, matchedColumns, columnMap)
-          const inserted = await batchInsertAll(table.id, coerced, table, workspaceId)
+          const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
 
           logger.info('Rows imported from file', {
             tableId: table.id,
@@ -770,6 +789,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
           }
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const updated = await addTableColumn(args.tableId, col, requestId)
           return {
             success: true,
@@ -788,6 +808,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'columnName and newName are required' }
           }
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const updated = await renameColumn(
             { tableId: args.tableId, oldName: colName, newName: newColName },
             requestId
@@ -811,6 +832,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const requestId = crypto.randomUUID().slice(0, 8)
           if (names.length === 1) {
+            assertNotAborted()
             const updated = await deleteColumn(
               { tableId: args.tableId, columnName: names[0] },
               requestId
@@ -821,6 +843,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               data: { schema: updated.schema },
             }
           }
+          assertNotAborted()
           const updated = await deleteColumns(
             { tableId: args.tableId, columnNames: names },
             requestId
@@ -857,6 +880,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 message: `Invalid column type "${newType}". Must be one of: ${COLUMN_TYPES.join(', ')}`,
               }
             }
+            assertNotAborted()
             result = await updateColumnType(
               {
                 tableId: args.tableId,
@@ -867,6 +891,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             )
           }
           if (uniqFlag !== undefined) {
+            assertNotAborted()
             result = await updateColumnConstraints(
               { tableId: args.tableId, columnName: colName, unique: uniqFlag },
               requestId
@@ -900,6 +925,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const renamed = await renameTable(args.tableId, newName, requestId)
 
           return {

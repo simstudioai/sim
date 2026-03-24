@@ -1,6 +1,10 @@
 import { GoogleGenAI, type Part } from '@google/genai'
 import { createLogger } from '@sim/logger'
-import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import {
+  assertServerToolNotAborted,
+  type BaseServerTool,
+  type ServerToolContext,
+} from '@/lib/copilot/tools/server/base-tool'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
@@ -152,8 +156,12 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
       if (params.overwriteFileId) {
         const existing = await getWorkspaceFile(workspaceId, params.overwriteFileId)
         if (!existing) {
-          return { success: false, message: `File not found for overwrite: ${params.overwriteFileId}` }
+          return {
+            success: false,
+            message: `File not found for overwrite: ${params.overwriteFileId}`,
+          }
         }
+        assertServerToolNotAborted(context)
         const updated = await updateWorkspaceFileContent(
           workspaceId,
           params.overwriteFileId,
@@ -178,6 +186,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
         }
       }
 
+      assertServerToolNotAborted(context)
       const uploaded = await uploadWorkspaceFile(
         workspaceId,
         context.userId,

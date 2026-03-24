@@ -165,6 +165,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
         return { success: false, message: 'Downloaded file is empty' }
       }
 
+      assertServerToolNotAborted(context)
       const uploaded = await uploadWorkspaceFile(
         workspaceId,
         context.userId,

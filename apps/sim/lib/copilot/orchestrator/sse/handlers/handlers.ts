@@ -24,6 +24,19 @@ import { executeToolAndReport, waitForToolCompletion } from './tool-execution'
 
 const logger = createLogger('CopilotSseHandlers')
 
+function registerPendingToolPromise(
+  context: StreamingContext,
+  toolCallId: string,
+  pendingPromise: Promise<{ status: string; message?: string; data?: Record<string, unknown> }>
+) {
+  context.pendingToolPromises.set(toolCallId, pendingPromise)
+  pendingPromise.finally(() => {
+    if (context.pendingToolPromises.get(toolCallId) === pendingPromise) {
+      context.pendingToolPromises.delete(toolCallId)
+    }
+  })
+}
+
 /**
  * When the Sim→Go stream is aborted, avoid starting server-side tool work and
  * unblock the Go async waiter with a terminal 499 completion.
@@ -327,6 +340,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     if (isPartial) return
     if (wasToolResultSeen(toolCallId)) return
+    if (context.pendingToolPromises.has(toolCallId) || existing?.status === 'executing') {
+      return
+    }
 
     const toolCall = context.toolCalls.get(toolCallId)
     if (!toolCall) return
@@ -375,10 +391,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
           data: { error: err instanceof Error ? err.message : String(err) },
         }
       })
-      context.pendingToolPromises.set(toolCallId, pendingPromise)
-      pendingPromise.finally(() => {
-        context.pendingToolPromises.delete(toolCallId)
-      })
+      registerPendingToolPromise(context, toolCallId, pendingPromise)
     }
 
     if (options.interactive === false) {
@@ -574,6 +587,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     }
 
     if (isPartial) return
+    if (context.pendingToolPromises.has(toolCallId) || existing?.status === 'executing') {
+      return
+    }
 
     const { clientExecutable, internal } = getEventUI(event)
 
@@ -614,10 +630,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
           data: { error: err instanceof Error ? err.message : String(err) },
         }
       })
-      context.pendingToolPromises.set(toolCallId, pendingPromise)
-      pendingPromise.finally(() => {
-        context.pendingToolPromises.delete(toolCallId)
-      })
+      registerPendingToolPromise(context, toolCallId, pendingPromise)
     }
 
     if (options.interactive === false) {
