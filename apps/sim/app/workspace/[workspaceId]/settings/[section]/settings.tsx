@@ -161,11 +161,10 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const { data: session, isPending: sessionLoading } = useSession()
 
   const isAdminRole = session?.user?.role === 'admin'
-  const isImpersonating = Boolean(session?.session?.impersonatedBy)
   const effectiveSection =
     !isBillingEnabled && (section === 'subscription' || section === 'team')
       ? 'general'
-      : section === 'admin' && !sessionLoading && !isAdminRole && !isImpersonating
+      : section === 'admin' && !sessionLoading && !isAdminRole
         ? 'general'
         : section
 
