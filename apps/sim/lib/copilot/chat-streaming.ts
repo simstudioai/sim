@@ -49,19 +49,40 @@ function resolvePendingChatStream(chatId: string, streamId: string): void {
 }
 
 /**
- * Abort any in-flight stream on `chatId` and wait for it to fully settle
- * (including onComplete and Go-side persistence). Returns immediately if
- * no stream is active. Gives up after `timeoutMs`.
+ * Wait for any in-flight stream on `chatId` to settle without force-aborting it.
+ * Returns true when no stream is active (or it settles in time), false on timeout.
  */
-export async function waitForPendingChatStream(chatId: string, timeoutMs = 5_000): Promise<void> {
+export async function waitForPendingChatStream(
+  chatId: string,
+  timeoutMs = 5_000
+): Promise<boolean> {
   const entry = pendingChatStreams.get(chatId)
-  if (!entry) return
+  if (!entry) return true
 
-  // Force-abort the previous stream so we don't passively wait for it to
-  // finish naturally (which could take tens of seconds for a subagent).
-  abortActiveStream(entry.streamId)
+  return await Promise.race([
+    entry.promise.then(() => true),
+    new Promise<boolean>((r) => setTimeout(() => r(false), timeoutMs)),
+  ])
+}
 
-  await Promise.race([entry.promise, new Promise<void>((r) => setTimeout(r, timeoutMs))])
+export async function acquirePendingChatStream(
+  chatId: string,
+  streamId: string,
+  timeoutMs = 5_000
+): Promise<boolean> {
+  for (;;) {
+    const existing = pendingChatStreams.get(chatId)
+    if (!existing) {
+      registerPendingChatStream(chatId, streamId)
+      return true
+    }
+
+    const settled = await Promise.race([
+      existing.promise.then(() => true),
+      new Promise<boolean>((r) => setTimeout(() => r(false), timeoutMs)),
+    ])
+    if (!settled) return false
+  }
 }
 
 export function abortActiveStream(streamId: string): boolean {
@@ -135,6 +156,7 @@ export interface StreamingOrchestrationParams {
   requestId: string
   workspaceId?: string
   orchestrateOptions: Omit<OrchestrateStreamOptions, 'onEvent'>
+  pendingChatStreamAlreadyRegistered?: boolean
 }
 
 export function createSSEStream(params: StreamingOrchestrationParams): ReadableStream {
@@ -153,6 +175,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     requestId,
     workspaceId,
     orchestrateOptions,
+    pendingChatStreamAlreadyRegistered = false,
   } = params
 
   let eventWriter: ReturnType<typeof createStreamEventWriter> | null = null
@@ -160,7 +183,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   const abortController = new AbortController()
   activeStreams.set(streamId, abortController)
 
-  if (chatId) {
+  if (chatId && !pendingChatStreamAlreadyRegistered) {
     registerPendingChatStream(chatId, streamId)
   }
 
@@ -197,8 +220,20 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 
         const eventId = ++localSeq
 
-        // Enqueue to client stream FIRST for minimal latency.
-        // Redis persistence happens after so the client never waits on I/O.
+        try {
+          await eventWriter.write(event)
+          if (FLUSH_EVENT_TYPES.has(event.type)) {
+            await eventWriter.flush()
+          }
+        } catch (error) {
+          logger.error(`[${requestId}] Failed to persist stream event`, {
+            eventType: event.type,
+            eventId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+          throw error
+        }
+
         try {
           if (!clientDisconnected) {
             controller.enqueue(
@@ -207,17 +242,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           }
         } catch {
           clientDisconnected = true
-        }
-
-        try {
-          await eventWriter.write(event)
-          if (FLUSH_EVENT_TYPES.has(event.type)) {
-            await eventWriter.flush()
-          }
-        } catch {
-          if (clientDisconnected) {
-            await eventWriter.flush().catch(() => {})
-          }
         }
       }
 
