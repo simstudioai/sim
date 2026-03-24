@@ -4,18 +4,15 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { completeAsyncToolCall, markAsyncToolRunning } from '@/lib/copilot/async-runs/repository'
 import { waitForToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
-import {
-  asRecord,
-  markToolResultSeen,
-  wasToolResultSeen,
-} from '@/lib/copilot/orchestrator/sse/utils'
+import { asRecord, markToolResultSeen } from '@/lib/copilot/orchestrator/sse/utils'
 import { executeToolServerSide, markToolComplete } from '@/lib/copilot/orchestrator/tool-executor'
-import type {
-  ExecutionContext,
-  OrchestratorOptions,
-  SSEEvent,
-  StreamingContext,
-  ToolCallResult,
+import {
+  type ExecutionContext,
+  isTerminalToolCallStatus,
+  type OrchestratorOptions,
+  type SSEEvent,
+  type StreamingContext,
+  type ToolCallResult,
 } from '@/lib/copilot/orchestrator/types'
 import {
   extractDeletedResourcesFromToolResult,
@@ -248,6 +245,7 @@ function cancelledCompletion(message: string): AsyncToolCompletion {
   }
 }
 
+<<<<<<< HEAD
 async function waitForMarkComplete(
   toolCallId: string,
   toolName: string,
@@ -279,6 +277,51 @@ async function waitForMarkComplete(
 }
 
 async function reportCancelledTool(
+=======
+function terminalCompletionFromToolCall(toolCall: {
+  status: string
+  error?: string
+  result?: { output?: unknown; error?: string }
+}): AsyncToolCompletion {
+  if (toolCall.status === 'cancelled') {
+    return cancelledCompletion(toolCall.error || 'Tool execution cancelled')
+  }
+
+  if (toolCall.status === 'success') {
+    return {
+      status: 'success',
+      message: 'Tool completed',
+      data:
+        toolCall.result?.output &&
+        typeof toolCall.result.output === 'object' &&
+        !Array.isArray(toolCall.result.output)
+          ? (toolCall.result.output as Record<string, unknown>)
+          : undefined,
+    }
+  }
+
+  if (toolCall.status === 'skipped') {
+    return {
+      status: 'success',
+      message: 'Tool skipped',
+      data:
+        toolCall.result?.output &&
+        typeof toolCall.result.output === 'object' &&
+        !Array.isArray(toolCall.result.output)
+          ? (toolCall.result.output as Record<string, unknown>)
+          : undefined,
+    }
+  }
+
+  return {
+    status: toolCall.status === 'rejected' ? 'rejected' : 'error',
+    message: toolCall.error || toolCall.result?.error || 'Tool failed',
+    data: { error: toolCall.error || toolCall.result?.error || 'Tool failed' },
+  }
+}
+
+function reportCancelledTool(
+>>>>>>> 0c80438ed (fix(mothership): async resume and tool result ordering (#3735))
   toolCall: { id: string; name: string },
   message: string,
   data: Record<string, unknown> = { cancelled: true }
@@ -534,8 +577,8 @@ export async function executeToolAndReport(
   if (toolCall.status === 'executing') {
     return { status: 'running', message: 'Tool already executing' }
   }
-  if (wasToolResultSeen(toolCall.id)) {
-    return { status: 'success', message: 'Tool result already processed' }
+  if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
+    return terminalCompletionFromToolCall(toolCall)
   }
 
   if (abortRequested(context, execContext, options)) {
@@ -563,6 +606,9 @@ export async function executeToolAndReport(
 
   try {
     let result = await executeToolServerSide(toolCall, execContext)
+    if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
+      return terminalCompletionFromToolCall(toolCall)
+    }
     if (abortRequested(context, execContext, options)) {
       toolCall.status = 'cancelled'
       toolCall.endTime = Date.now()
