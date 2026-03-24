@@ -1738,6 +1738,7 @@ import {
 } from '@/tools/posthog'
 import { pulseParserTool, pulseParserV2Tool } from '@/tools/pulse'
 import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdrant'
+import { quiverImageToSvgTool, quiverListModelsTool, quiverTextToSvgTool } from '@/tools/quiver'
 import {
   rdsDeleteTool,
   rdsExecuteTool,
@@ -3542,6 +3543,9 @@ export const tools: Record<string, ToolConfig> = {
   perplexity_search: perplexitySearchTool,
   pulse_parser: pulseParserTool,
   pulse_parser_v2: pulseParserV2Tool,
+  quiver_image_to_svg: quiverImageToSvgTool,
+  quiver_list_models: quiverListModelsTool,
+  quiver_text_to_svg: quiverTextToSvgTool,
   posthog_capture_event: posthogCaptureEventTool,
   posthog_batch_events: posthogBatchEventsTool,
   posthog_list_persons: posthogListPersonsTool,

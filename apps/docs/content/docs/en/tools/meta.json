@@ -121,6 +121,7 @@
     "posthog",
     "pulse",
     "qdrant",
+    "quiver",
     "rds",
     "reddit",
     "redis",
