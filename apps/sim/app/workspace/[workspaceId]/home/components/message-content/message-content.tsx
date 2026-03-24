@@ -170,7 +170,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[key]
       let inheritedDelegation = false
       if (group && dispatchToolName) {
-        const last = group.items[group.items.length - 1]
+        const last: AgentGroupItem | undefined = group.items[group.items.length - 1]
         if (last?.type === 'tool' && last.data.toolName === dispatchToolName) {
           inheritedDelegation = !isToolDone(last.data.status) && Boolean(last.data.streamingArgs)
           group.items.pop()
