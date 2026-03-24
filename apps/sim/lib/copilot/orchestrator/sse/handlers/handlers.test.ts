@@ -201,11 +201,15 @@ describe('sse-handlers tool lifecycle', () => {
     await sseHandlers.tool_call(
       {
         type: 'tool_call',
+<<<<<<< HEAD
         data: {
           id: 'tool-mark-complete',
           name: 'workspace_file',
           arguments: { operation: 'write' },
         },
+=======
+        data: { id: 'tool-mark-complete', name: 'workspace_file', arguments: { operation: 'write' } },
+>>>>>>> 49f303061 (Fix mothership boundary)
       } as any,
       context,
       execContext,

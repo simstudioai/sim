@@ -1,17 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
-import {
-  isToolAvailableOnSimSide,
-  prepareExecutionContext,
-} from '@/lib/copilot/orchestrator/tool-executor'
+import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
 import {
   type ExecutionContext,
-  isTerminalToolCallStatus,
   type OrchestratorOptions,
   type OrchestratorResult,
   type SSEEvent,
-  type ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
 import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
@@ -25,6 +20,9 @@ const RESUME_UPSTREAM_RETRY_MS = 500
 const ASYNC_RESUME_DIAG_TAG = '[ASYNC_RESUME_DIAG]'
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 49f303061 (Fix mothership boundary)
 interface CheckpointReadyResponse {
   success?: boolean
   checkpointId?: string
@@ -36,6 +34,7 @@ interface CheckpointReadyResponse {
   error?: string
   code?: string
   retryable?: boolean
+<<<<<<< HEAD
 }
 =======
 function didAsyncToolSucceed(input: {
@@ -158,6 +157,106 @@ interface ReadyContinuationTool {
   needsDurableClaim: boolean
   alreadyClaimedByWorker: boolean
 >>>>>>> 0c80438ed (fix(mothership): async resume and tool result ordering (#3735))
+=======
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isRetryableResumeUpstreamError(route: string, error: unknown): boolean {
+  if (route !== '/api/tools/resume') return false
+  const message = error instanceof Error ? error.message : String(error)
+  return (
+    message.includes('Copilot backend error (502)') ||
+    message.includes('Copilot backend error (503)') ||
+    message.includes('Copilot backend error (504)') ||
+    message.includes('fetch failed')
+  )
+}
+
+async function waitForCheckpointReady(
+  checkpointId: string,
+  abortSignal?: AbortSignal
+): Promise<CheckpointReadyResponse> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (env.COPILOT_API_KEY) {
+    headers['x-api-key'] = env.COPILOT_API_KEY
+  }
+
+  for (let attempt = 1; attempt <= CHECKPOINT_READY_MAX_ATTEMPTS; attempt++) {
+    if (abortSignal?.aborted) {
+      return {
+        checkpointId,
+        ready: false,
+        error: 'Request aborted while waiting for checkpoint readiness',
+        retryable: true,
+      }
+    }
+    try {
+      const response = await fetch(
+        `${SIM_AGENT_API_URL}/api/tools/checkpoint-status?checkpointId=${encodeURIComponent(checkpointId)}`,
+        {
+          method: 'GET',
+          headers,
+          signal: abortSignal,
+        }
+      )
+      const body = (await response.json().catch(() => ({}))) as CheckpointReadyResponse
+      if (!response.ok) {
+        return {
+          checkpointId,
+          ready: false,
+          error: body.error || `Checkpoint readiness request failed: ${response.status}`,
+          code: body.code,
+          retryable: body.retryable ?? response.status >= 500,
+          missingCallIds: body.missingCallIds,
+        }
+      }
+      if (body.ready) {
+        logger.warn(ASYNC_RESUME_DIAG_TAG, {
+          phase: 'checkpoint_ready',
+          checkpointId,
+          attempt,
+          runId: body.runId,
+          pendingCallIds: body.pendingCallIds,
+        })
+        return body
+      }
+      if (attempt < CHECKPOINT_READY_MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, CHECKPOINT_READY_RETRY_MS * attempt))
+        continue
+      }
+      return body
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return {
+          checkpointId,
+          ready: false,
+          error: 'Request aborted while waiting for checkpoint readiness',
+          retryable: true,
+        }
+      }
+      if (attempt < CHECKPOINT_READY_MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, CHECKPOINT_READY_RETRY_MS * attempt))
+        continue
+      }
+      return {
+        checkpointId,
+        ready: false,
+        error: error instanceof Error ? error.message : 'Checkpoint readiness request failed',
+        retryable: true,
+      }
+    }
+  }
+
+  return {
+    checkpointId,
+    ready: false,
+    error: 'Checkpoint did not become ready in time',
+    retryable: true,
+  }
+>>>>>>> 49f303061 (Fix mothership boundary)
 }
 
 export interface OrchestrateStreamOptions extends OrchestratorOptions {
@@ -308,6 +407,9 @@ export async function orchestrateCopilotStream(
 
       let resumeReady = false
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 49f303061 (Fix mothership boundary)
       const localPendingPromises = continuation.pendingToolCallIds
         .map((toolCallId) => context.pendingToolPromises.get(toolCallId))
         .filter(
@@ -322,6 +424,7 @@ export async function orchestrateCopilotStream(
       if (localPendingPromises.length > 0) {
         logger.warn(ASYNC_RESUME_DIAG_TAG, {
           phase: 'waiting_local_async_tools',
+<<<<<<< HEAD
           checkpointId: continuation.checkpointId,
           runId: continuation.runId,
           pendingToolCallIds: continuation.pendingToolCallIds,
@@ -493,10 +596,13 @@ export async function orchestrateCopilotStream(
         claimedByWorkerId = claimedToolCallIds.length > 0 ? resumeWorkerId : null
 
         logger.info('Resuming async tool continuation', {
+=======
+>>>>>>> 49f303061 (Fix mothership boundary)
           checkpointId: continuation.checkpointId,
           runId: continuation.runId,
-          toolCallIds: readyTools.map((tool) => tool.toolCallId),
+          pendingToolCallIds: continuation.pendingToolCallIds,
         })
+<<<<<<< HEAD
 
         const durableRows = await getAsyncToolCalls(
           readyTools.map((tool) => tool.toolCallId)
@@ -550,6 +656,11 @@ export async function orchestrateCopilotStream(
         route = '/api/tools/resume'
         payload = {
 >>>>>>> 0c80438ed (fix(mothership): async resume and tool result ordering (#3735))
+=======
+        await Promise.allSettled(localPendingPromises)
+        logger.warn(ASYNC_RESUME_DIAG_TAG, {
+          phase: 'local_async_tools_settled',
+>>>>>>> 49f303061 (Fix mothership boundary)
           checkpointId: continuation.checkpointId,
           runId: continuation.runId,
           pendingToolCallIds: continuation.pendingToolCallIds,
