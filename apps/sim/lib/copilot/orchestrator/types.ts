@@ -59,6 +59,18 @@ export type ToolCallStatus =
   | 'rejected'
   | 'cancelled'
 
+const TERMINAL_TOOL_STATUSES: ReadonlySet<ToolCallStatus> = new Set([
+  'success',
+  'error',
+  'cancelled',
+  'skipped',
+  'rejected',
+])
+
+export function isTerminalToolCallStatus(status?: string): boolean {
+  return TERMINAL_TOOL_STATUSES.has(status as ToolCallStatus)
+}
+
 export interface ToolCallState {
   id: string
   name: string

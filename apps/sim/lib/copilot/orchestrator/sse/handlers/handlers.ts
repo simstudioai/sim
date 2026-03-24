@@ -213,6 +213,27 @@ function inferToolSuccess(data: Record<string, unknown> | undefined): {
   return { success, hasResultData, hasError }
 }
 
+function ensureTerminalToolCallState(
+  context: StreamingContext,
+  toolCallId: string,
+  toolName: string
+): ToolCallState {
+  const existing = context.toolCalls.get(toolCallId)
+  if (existing) {
+    return existing
+  }
+
+  const toolCall: ToolCallState = {
+    id: toolCallId,
+    name: toolName || 'unknown_tool',
+    status: 'pending',
+    startTime: Date.now(),
+  }
+  context.toolCalls.set(toolCallId, toolCall)
+  addContentBlock(context, { type: 'tool_call', toolCall })
+  return toolCall
+}
+
 export type SSEHandler = (
   event: SSEEvent,
   context: StreamingContext,
@@ -246,8 +267,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const data = getEventData(event)
     const toolCallId = event.toolCallId || (data?.id as string | undefined)
     if (!toolCallId) return
-    const current = context.toolCalls.get(toolCallId)
-    if (!current) return
+    const toolName =
+      event.toolName ||
+      (data?.name as string | undefined) ||
+      context.toolCalls.get(toolCallId)?.name ||
+      ''
+    const current = ensureTerminalToolCallState(context, toolCallId, toolName)
 
     const { success, hasResultData, hasError } = inferToolSuccess(data)
 
@@ -263,16 +288,22 @@ export const sseHandlers: Record<string, SSEHandler> = {
       const resultObj = asRecord(data?.result)
       current.error = (data?.error || resultObj.error) as string | undefined
     }
+    markToolResultSeen(toolCallId)
   },
   tool_error: (event, context) => {
     const data = getEventData(event)
     const toolCallId = event.toolCallId || (data?.id as string | undefined)
     if (!toolCallId) return
-    const current = context.toolCalls.get(toolCallId)
-    if (!current) return
+    const toolName =
+      event.toolName ||
+      (data?.name as string | undefined) ||
+      context.toolCalls.get(toolCallId)?.name ||
+      ''
+    const current = ensureTerminalToolCallState(context, toolCallId, toolName)
     current.status = 'error'
     current.error = (data?.error as string | undefined) || 'Tool execution failed'
     current.endTime = Date.now()
+    markToolResultSeen(toolCallId)
   },
   tool_call_delta: () => {
     // Argument streaming delta — no action needed on orchestrator side
@@ -313,6 +344,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
       existing?.endTime ||
       (existing && existing.status !== 'pending' && existing.status !== 'executing')
     ) {
+      if (!existing.name && toolName) {
+        existing.name = toolName
+      }
       if (!existing.params && args) {
         existing.params = args
       }
@@ -558,6 +592,12 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     const existing = context.toolCalls.get(toolCallId)
     // Ignore late/duplicate tool_call events once we already have a result.
     if (wasToolResultSeen(toolCallId) || existing?.endTime) {
+      if (existing && !existing.name && toolName) {
+        existing.name = toolName
+      }
+      if (existing && !existing.params && args) {
+        existing.params = args
+      }
       return
     }
 
@@ -686,13 +726,14 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     const data = getEventData(event)
     const toolCallId = event.toolCallId || (data?.id as string | undefined)
     if (!toolCallId) return
+    const toolName = event.toolName || (data?.name as string | undefined) || ''
 
     // Update in subAgentToolCalls.
     const toolCalls = context.subAgentToolCalls[parentToolCallId] || []
     const subAgentToolCall = toolCalls.find((tc) => tc.id === toolCallId)
 
     // Also update in main toolCalls (where we added it for execution).
-    const mainToolCall = context.toolCalls.get(toolCallId)
+    const mainToolCall = ensureTerminalToolCallState(context, toolCallId, toolName)
 
     const { success, hasResultData, hasError } = inferToolSuccess(data)
 
@@ -718,6 +759,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
         const resultObj = asRecord(data?.result)
         mainToolCall.error = (data?.error || resultObj.error) as string | undefined
       }
+    }
+    if (subAgentToolCall || mainToolCall) {
+      markToolResultSeen(toolCallId)
     }
   },
 }

@@ -14,12 +14,17 @@ import {
   updateRunStatus,
 } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
-import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
-import type {
-  ExecutionContext,
-  OrchestratorOptions,
-  OrchestratorResult,
-  SSEEvent,
+import {
+  isToolAvailableOnSimSide,
+  prepareExecutionContext,
+} from '@/lib/copilot/orchestrator/tool-executor'
+import {
+  type ExecutionContext,
+  isTerminalToolCallStatus,
+  type OrchestratorOptions,
+  type OrchestratorResult,
+  type SSEEvent,
+  type ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
 import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
@@ -31,18 +36,9 @@ function didAsyncToolSucceed(input: {
   durableStatus?: string | null
   durableResult?: Record<string, unknown>
   durableError?: string | null
-  completion?: { status: string } | undefined
-  toolStateSuccess?: boolean | undefined
   toolStateStatus?: string | undefined
 }) {
-  const {
-    durableStatus,
-    durableResult,
-    durableError,
-    completion,
-    toolStateSuccess,
-    toolStateStatus,
-  } = input
+  const { durableStatus, durableResult, durableError, toolStateStatus } = input
 
   if (durableStatus === ASYNC_TOOL_STATUS.completed) {
     return true
@@ -61,7 +57,15 @@ function didAsyncToolSucceed(input: {
   if (toolStateStatus === 'success') return true
   if (toolStateStatus === 'error' || toolStateStatus === 'cancelled') return false
 
-  return completion?.status === 'success' || toolStateSuccess === true
+  return false
+}
+
+interface ReadyContinuationTool {
+  toolCallId: string
+  toolState?: ToolCallState
+  durableRow?: Awaited<ReturnType<typeof getAsyncToolCall>>
+  needsDurableClaim: boolean
+  alreadyClaimedByWorker: boolean
 }
 
 export interface OrchestrateStreamOptions extends OrchestratorOptions {
@@ -190,33 +194,21 @@ export async function orchestrateCopilotStream(
       if (!continuation) break
 
       let resumeReady = false
-      let emptyClaimRetries = 0
+      let resumeRetries = 0
       for (;;) {
         claimedToolCallIds = []
+        claimedByWorkerId = null
         const resumeWorkerId = continuation.runId || context.runId || context.messageId
-        claimedByWorkerId = resumeWorkerId
-        const claimableToolCallIds: string[] = []
+        const readyTools: ReadyContinuationTool[] = []
         const localPendingPromises: Promise<unknown>[] = []
+        const missingToolCallIds: string[] = []
+
         for (const toolCallId of continuation.pendingToolCallIds) {
-          const claimed = await claimCompletedAsyncToolCall(toolCallId, resumeWorkerId).catch(
-            () => null
-          )
-          if (claimed) {
-            claimableToolCallIds.push(toolCallId)
-            claimedToolCallIds.push(toolCallId)
-            continue
-          }
           const durableRow = await getAsyncToolCall(toolCallId).catch(() => null)
           const localPendingPromise = context.pendingToolPromises.get(toolCallId)
-          if (!durableRow && localPendingPromise) {
-            claimableToolCallIds.push(toolCallId)
-            continue
-          }
-          if (
-            durableRow &&
-            durableRow.status === ASYNC_TOOL_STATUS.running &&
-            localPendingPromise
-          ) {
+          const toolState = context.toolCalls.get(toolCallId)
+
+          if (localPendingPromise) {
             localPendingPromises.push(localPendingPromise)
             logger.info('Waiting for local async tool completion before retrying resume claim', {
               toolCallId,
@@ -224,21 +216,55 @@ export async function orchestrateCopilotStream(
             })
             continue
           }
-          const toolState = context.toolCalls.get(toolCallId)
-          if (!durableRow && !localPendingPromise && toolState) {
+
+          if (durableRow && isTerminalAsyncStatus(durableRow.status)) {
+            if (durableRow.claimedBy && durableRow.claimedBy !== resumeWorkerId) {
+              missingToolCallIds.push(toolCallId)
+              logger.warn('Async tool continuation is waiting on a claim held by another worker', {
+                toolCallId,
+                runId: continuation.runId,
+                claimedBy: durableRow.claimedBy,
+              })
+              continue
+            }
+            readyTools.push({
+              toolCallId,
+              toolState,
+              durableRow,
+              needsDurableClaim: durableRow.claimedBy !== resumeWorkerId,
+              alreadyClaimedByWorker: durableRow.claimedBy === resumeWorkerId,
+            })
+            continue
+          }
+
+          if (
+            !durableRow &&
+            toolState &&
+            isTerminalToolCallStatus(toolState.status) &&
+            !isToolAvailableOnSimSide(toolState.name)
+          ) {
             logger.info('Including Go-handled tool in resume payload (no Sim-side row)', {
               toolCallId,
               toolName: toolState.name,
               status: toolState.status,
               runId: continuation.runId,
             })
-            claimableToolCallIds.push(toolCallId)
+            readyTools.push({
+              toolCallId,
+              toolState,
+              needsDurableClaim: false,
+              alreadyClaimedByWorker: false,
+            })
             continue
           }
+
           logger.warn('Skipping already-claimed or missing async tool resume', {
             toolCallId,
             runId: continuation.runId,
+            durableStatus: durableRow?.status,
+            toolStateStatus: toolState?.status,
           })
+          missingToolCallIds.push(toolCallId)
         }
 
         if (localPendingPromises.length > 0) {
@@ -246,83 +272,104 @@ export async function orchestrateCopilotStream(
           continue
         }
 
-        const missingToolCallIds = continuation.pendingToolCallIds.filter(
-          (toolCallId) => !claimableToolCallIds.includes(toolCallId)
-        )
         if (missingToolCallIds.length > 0) {
-          if (claimedToolCallIds.length > 0 && claimedByWorkerId) {
-            logger.info('Releasing partial async tool claims before retrying resume', {
+          if (resumeRetries < 3) {
+            resumeRetries++
+            logger.info('Retrying async resume after some tool calls were not yet ready', {
               checkpointId: continuation.checkpointId,
               runId: continuation.runId,
-              claimedToolCallIds,
+              retry: resumeRetries,
               missingToolCallIds,
             })
-            await Promise.all(
-              claimedToolCallIds.map((toolCallId) =>
-                releaseCompletedAsyncToolClaim(toolCallId, claimedByWorkerId!).catch(() => null)
-              )
-            )
-            claimedToolCallIds = []
-            claimedByWorkerId = null
-          }
-          if (emptyClaimRetries < 3) {
-            emptyClaimRetries++
-            logger.info(
-              'Retrying async resume claim after only a subset of tool calls were claimable',
-              {
-                checkpointId: continuation.checkpointId,
-                runId: continuation.runId,
-                retry: emptyClaimRetries,
-                missingToolCallIds,
-              }
-            )
-            await new Promise((resolve) => setTimeout(resolve, 250 * emptyClaimRetries))
+            await new Promise((resolve) => setTimeout(resolve, 250 * resumeRetries))
             continue
           }
-          logger.warn('Skipping async resume because not all tool calls were claimable', {
-            checkpointId: continuation.checkpointId,
-            runId: continuation.runId,
-            claimableToolCallIds,
-            missingToolCallIds,
-          })
-          context.awaitingAsyncContinuation = undefined
-          break
+          throw new Error(
+            `Failed to resume async tool continuation: pending tool calls were not ready (${missingToolCallIds.join(', ')})`
+          )
         }
 
-        if (claimableToolCallIds.length === 0) {
-          if (emptyClaimRetries < 3 && continuation.pendingToolCallIds.length > 0) {
-            emptyClaimRetries++
-            logger.info('Retrying async resume claim after no tool calls were claimable', {
+        if (readyTools.length === 0) {
+          if (resumeRetries < 3 && continuation.pendingToolCallIds.length > 0) {
+            resumeRetries++
+            logger.info('Retrying async resume because no tool calls were ready yet', {
               checkpointId: continuation.checkpointId,
               runId: continuation.runId,
-              retry: emptyClaimRetries,
+              retry: resumeRetries,
             })
-            await new Promise((resolve) => setTimeout(resolve, 250 * emptyClaimRetries))
+            await new Promise((resolve) => setTimeout(resolve, 250 * resumeRetries))
             continue
           }
-          logger.warn('Skipping async resume because no tool calls were claimable', {
-            checkpointId: continuation.checkpointId,
-            runId: continuation.runId,
-          })
-          context.awaitingAsyncContinuation = undefined
-          break
+          throw new Error('Failed to resume async tool continuation: no tool calls were ready')
         }
+
+        const claimCandidates = readyTools.filter((tool) => tool.needsDurableClaim)
+        const newlyClaimedToolCallIds: string[] = []
+        const claimFailures: string[] = []
+
+        for (const tool of claimCandidates) {
+          const claimed = await claimCompletedAsyncToolCall(tool.toolCallId, resumeWorkerId).catch(
+            () => null
+          )
+          if (!claimed) {
+            claimFailures.push(tool.toolCallId)
+            continue
+          }
+          newlyClaimedToolCallIds.push(tool.toolCallId)
+        }
+
+        if (claimFailures.length > 0) {
+          if (newlyClaimedToolCallIds.length > 0) {
+            logger.info('Releasing async tool claims after claim contention during resume', {
+              checkpointId: continuation.checkpointId,
+              runId: continuation.runId,
+              newlyClaimedToolCallIds,
+              claimFailures,
+            })
+            await Promise.all(
+              newlyClaimedToolCallIds.map((toolCallId) =>
+                releaseCompletedAsyncToolClaim(toolCallId, resumeWorkerId).catch(() => null)
+              )
+            )
+          }
+          if (resumeRetries < 3) {
+            resumeRetries++
+            logger.info('Retrying async resume after claim contention', {
+              checkpointId: continuation.checkpointId,
+              runId: continuation.runId,
+              retry: resumeRetries,
+              claimFailures,
+            })
+            await new Promise((resolve) => setTimeout(resolve, 250 * resumeRetries))
+            continue
+          }
+          throw new Error(
+            `Failed to resume async tool continuation: unable to claim tool calls (${claimFailures.join(', ')})`
+          )
+        }
+
+        claimedToolCallIds = [
+          ...readyTools
+            .filter((tool) => tool.alreadyClaimedByWorker)
+            .map((tool) => tool.toolCallId),
+          ...newlyClaimedToolCallIds,
+        ]
+        claimedByWorkerId = claimedToolCallIds.length > 0 ? resumeWorkerId : null
 
         logger.info('Resuming async tool continuation', {
           checkpointId: continuation.checkpointId,
           runId: continuation.runId,
-          toolCallIds: claimableToolCallIds,
+          toolCallIds: readyTools.map((tool) => tool.toolCallId),
         })
 
-        const durableRows = await getAsyncToolCalls(claimableToolCallIds).catch(() => [])
+        const durableRows = await getAsyncToolCalls(
+          readyTools.map((tool) => tool.toolCallId)
+        ).catch(() => [])
         const durableByToolCallId = new Map(durableRows.map((row) => [row.toolCallId, row]))
 
         const results = await Promise.all(
-          claimableToolCallIds.map(async (toolCallId) => {
-            const completion = await context.pendingToolPromises.get(toolCallId)
-            const toolState = context.toolCalls.get(toolCallId)
-
-            const durable = durableByToolCallId.get(toolCallId)
+          readyTools.map(async (tool) => {
+            const durable = durableByToolCallId.get(tool.toolCallId) || tool.durableRow
             const durableStatus = durable?.status
             const durableResult =
               durable?.result && typeof durable.result === 'object'
@@ -332,19 +379,15 @@ export async function orchestrateCopilotStream(
               durableStatus,
               durableResult,
               durableError: durable?.error,
-              completion,
-              toolStateSuccess: toolState?.result?.success,
-              toolStateStatus: toolState?.status,
+              toolStateStatus: tool.toolState?.status,
             })
             const data =
               durableResult ||
-              completion?.data ||
-              (toolState?.result?.output as Record<string, unknown> | undefined) ||
+              (tool.toolState?.result?.output as Record<string, unknown> | undefined) ||
               (success
-                ? { message: completion?.message || 'Tool completed' }
+                ? { message: 'Tool completed' }
                 : {
-                    error:
-                      completion?.message || durable?.error || toolState?.error || 'Tool failed',
+                    error: durable?.error || tool.toolState?.error || 'Tool failed',
                   })
 
             if (
@@ -353,14 +396,14 @@ export async function orchestrateCopilotStream(
               !isDeliveredAsyncStatus(durableStatus)
             ) {
               logger.warn('Async tool row was claimed for resume without terminal durable state', {
-                toolCallId,
+                toolCallId: tool.toolCallId,
                 status: durableStatus,
               })
             }
 
             return {
-              callId: toolCallId,
-              name: durable?.toolName || toolState?.name || '',
+              callId: tool.toolCallId,
+              name: durable?.toolName || tool.toolState?.name || '',
               data,
               success,
             }

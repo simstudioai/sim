@@ -209,4 +209,76 @@ describe('sse-handlers tool lifecycle', () => {
     expect(markToolComplete).toHaveBeenCalledTimes(1)
     expect(context.toolCalls.get('tool-upsert-fail')?.status).toBe('success')
   })
+
+  it('does not execute a tool if a terminal tool_result arrives before local execution starts', async () => {
+    let resolveUpsert: ((value: null) => void) | undefined
+    upsertAsyncToolCall.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveUpsert = resolve
+        })
+    )
+    const onEvent = vi.fn()
+
+    await sseHandlers.tool_call(
+      {
+        type: 'tool_call',
+        data: { id: 'tool-race', name: 'read', arguments: { workflowId: 'workflow-1' } },
+      } as any,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    await sseHandlers.tool_result(
+      {
+        type: 'tool_result',
+        toolCallId: 'tool-race',
+        data: { id: 'tool-race', success: true, result: { ok: true } },
+      } as any,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    resolveUpsert?.(null)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(executeToolServerSide).not.toHaveBeenCalled()
+    expect(markToolComplete).not.toHaveBeenCalled()
+    expect(context.toolCalls.get('tool-race')?.status).toBe('success')
+    expect(context.toolCalls.get('tool-race')?.result?.output).toEqual({ ok: true })
+  })
+
+  it('does not execute a tool if a tool_result arrives before the tool_call event', async () => {
+    const onEvent = vi.fn()
+
+    await sseHandlers.tool_result(
+      {
+        type: 'tool_result',
+        toolCallId: 'tool-early-result',
+        toolName: 'read',
+        data: { id: 'tool-early-result', name: 'read', success: true, result: { ok: true } },
+      } as any,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    await sseHandlers.tool_call(
+      {
+        type: 'tool_call',
+        data: { id: 'tool-early-result', name: 'read', arguments: { workflowId: 'workflow-1' } },
+      } as any,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(executeToolServerSide).not.toHaveBeenCalled()
+    expect(markToolComplete).not.toHaveBeenCalled()
+    expect(context.toolCalls.get('tool-early-result')?.status).toBe('success')
+  })
 })
