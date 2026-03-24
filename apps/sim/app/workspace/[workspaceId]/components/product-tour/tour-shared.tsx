@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import type { TooltipRenderProps } from 'react-joyride'
 import { TourTooltip } from '@/components/emcn'
 
@@ -60,10 +60,8 @@ export function TourTooltipAdapter({
 }: TooltipRenderProps) {
   const { isTooltipVisible, isEntrance, totalSteps } = useContext(TourStateContext)
   const [targetEl, setTargetEl] = useState<HTMLElement | null>(null)
-  const hasSetRef = useRef(false)
 
   useEffect(() => {
-    hasSetRef.current = false
     const { target } = step
     if (typeof target === 'string') {
       setTargetEl(document.querySelector<HTMLElement>(target))
@@ -76,9 +74,8 @@ export function TourTooltipAdapter({
 
   const refCallback = useCallback(
     (node: HTMLDivElement | null) => {
-      if (!hasSetRef.current && tooltipProps.ref) {
+      if (tooltipProps.ref) {
         ;(tooltipProps.ref as React.RefCallback<HTMLDivElement>)(node)
-        hasSetRef.current = true
       }
     },
     [tooltipProps.ref]

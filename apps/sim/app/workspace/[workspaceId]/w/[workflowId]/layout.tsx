@@ -1,5 +1,3 @@
-'use client'
-
 import { WorkflowTour } from '@/app/workspace/[workspaceId]/components/product-tour'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error'
 
