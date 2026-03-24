@@ -252,7 +252,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0 && resolvedWorkspaceId) {
+    if (
+      Array.isArray(resourceAttachments) &&
+      resourceAttachments.length > 0 &&
+      resolvedWorkspaceId
+    ) {
       const results = await Promise.allSettled(
         resourceAttachments.map(async (r) => {
           const ctx = await resolveActiveResourceContext(
