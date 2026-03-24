@@ -7,6 +7,7 @@ import type { OrchestratorOptions } from './types'
 
 const {
   prepareExecutionContext,
+  isToolAvailableOnSimSide,
   getEffectiveDecryptedEnv,
   runStreamLoop,
   claimCompletedAsyncToolCall,
@@ -17,6 +18,7 @@ const {
   updateRunStatus,
 } = vi.hoisted(() => ({
   prepareExecutionContext: vi.fn(),
+  isToolAvailableOnSimSide: vi.fn().mockReturnValue(true),
   getEffectiveDecryptedEnv: vi.fn(),
   runStreamLoop: vi.fn(),
   claimCompletedAsyncToolCall: vi.fn(),
@@ -29,6 +31,7 @@ const {
 
 vi.mock('@/lib/copilot/orchestrator/tool-executor', () => ({
   prepareExecutionContext,
+  isToolAvailableOnSimSide,
 }))
 
 vi.mock('@/lib/environment/utils', () => ({
@@ -58,6 +61,7 @@ import { orchestrateCopilotStream } from './index'
 describe('orchestrateCopilotStream async continuation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    isToolAvailableOnSimSide.mockReturnValue(true)
     prepareExecutionContext.mockResolvedValue({
       userId: 'user-1',
       workflowId: 'workflow-1',
