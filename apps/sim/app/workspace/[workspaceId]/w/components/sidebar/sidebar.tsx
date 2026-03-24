@@ -22,6 +22,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import {
+  BookOpen,
   Calendar,
   Database,
   File,
@@ -1418,6 +1419,14 @@ export const Sidebar = memo(function Sidebar() {
                     )}
                   </Tooltip.Root>
                   <DropdownMenuContent align='start' side='top' sideOffset={4}>
+                    <DropdownMenuItem
+                      onSelect={() =>
+                        window.open('https://docs.sim.ai', '_blank', 'noopener,noreferrer')
+                      }
+                    >
+                      <BookOpen className='h-[14px] w-[14px]' />
+                      Docs
+                    </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setIsHelpModalOpen(true)}>
                       <HelpCircle className='h-[14px] w-[14px]' />
                       Report an issue
