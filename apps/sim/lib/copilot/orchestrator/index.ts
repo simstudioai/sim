@@ -2,11 +2,11 @@ import { createLogger } from '@sim/logger'
 import { updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
-import {
-  type ExecutionContext,
-  type OrchestratorOptions,
-  type OrchestratorResult,
-  type SSEEvent,
+import type {
+  ExecutionContext,
+  OrchestratorOptions,
+  OrchestratorResult,
+  SSEEvent,
 } from '@/lib/copilot/orchestrator/types'
 import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
@@ -19,10 +19,6 @@ const RESUME_UPSTREAM_MAX_ATTEMPTS = 3
 const RESUME_UPSTREAM_RETRY_MS = 500
 const ASYNC_RESUME_DIAG_TAG = '[ASYNC_RESUME_DIAG]'
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 49f303061 (Fix mothership boundary)
 interface CheckpointReadyResponse {
   success?: boolean
   checkpointId?: string
@@ -34,130 +30,6 @@ interface CheckpointReadyResponse {
   error?: string
   code?: string
   retryable?: boolean
-<<<<<<< HEAD
-}
-=======
-function didAsyncToolSucceed(input: {
-  durableStatus?: string | null
-  durableResult?: Record<string, unknown>
-  durableError?: string | null
-  toolStateStatus?: string | undefined
-}) {
-  const { durableStatus, durableResult, durableError, toolStateStatus } = input
->>>>>>> 0c80438ed (fix(mothership): async resume and tool result ordering (#3735))
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function isRetryableResumeUpstreamError(route: string, error: unknown): boolean {
-  if (route !== '/api/tools/resume') return false
-  const message = error instanceof Error ? error.message : String(error)
-  return (
-    message.includes('Copilot backend error (502)') ||
-    message.includes('Copilot backend error (503)') ||
-    message.includes('Copilot backend error (504)') ||
-    message.includes('fetch failed')
-  )
-}
-
-async function waitForCheckpointReady(
-  checkpointId: string,
-  abortSignal?: AbortSignal
-): Promise<CheckpointReadyResponse> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (env.COPILOT_API_KEY) {
-    headers['x-api-key'] = env.COPILOT_API_KEY
-  }
-
-  for (let attempt = 1; attempt <= CHECKPOINT_READY_MAX_ATTEMPTS; attempt++) {
-    if (abortSignal?.aborted) {
-      return {
-        checkpointId,
-        ready: false,
-        error: 'Request aborted while waiting for checkpoint readiness',
-        retryable: true,
-      }
-    }
-    try {
-      const response = await fetch(
-        `${SIM_AGENT_API_URL}/api/tools/checkpoint-status?checkpointId=${encodeURIComponent(checkpointId)}`,
-        {
-          method: 'GET',
-          headers,
-          signal: abortSignal,
-        }
-      )
-      const body = (await response.json().catch(() => ({}))) as CheckpointReadyResponse
-      if (!response.ok) {
-        return {
-          checkpointId,
-          ready: false,
-          error: body.error || `Checkpoint readiness request failed: ${response.status}`,
-          code: body.code,
-          retryable: body.retryable ?? response.status >= 500,
-          missingCallIds: body.missingCallIds,
-        }
-      }
-      if (body.ready) {
-        logger.warn(ASYNC_RESUME_DIAG_TAG, {
-          phase: 'checkpoint_ready',
-          checkpointId,
-          attempt,
-          runId: body.runId,
-          pendingCallIds: body.pendingCallIds,
-        })
-        return body
-      }
-      if (attempt < CHECKPOINT_READY_MAX_ATTEMPTS) {
-        await new Promise((resolve) => setTimeout(resolve, CHECKPOINT_READY_RETRY_MS * attempt))
-        continue
-      }
-      return body
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return {
-          checkpointId,
-          ready: false,
-          error: 'Request aborted while waiting for checkpoint readiness',
-          retryable: true,
-        }
-      }
-      if (attempt < CHECKPOINT_READY_MAX_ATTEMPTS) {
-        await new Promise((resolve) => setTimeout(resolve, CHECKPOINT_READY_RETRY_MS * attempt))
-        continue
-      }
-      return {
-        checkpointId,
-        ready: false,
-        error: error instanceof Error ? error.message : 'Checkpoint readiness request failed',
-        retryable: true,
-      }
-    }
-  }
-
-<<<<<<< HEAD
-  return {
-    checkpointId,
-    ready: false,
-    error: 'Checkpoint did not become ready in time',
-    retryable: true,
-  }
-=======
-  if (toolStateStatus === 'success') return true
-  if (toolStateStatus === 'error' || toolStateStatus === 'cancelled') return false
-
-  return false
-}
-
-interface ReadyContinuationTool {
-  toolCallId: string
-  toolState?: ToolCallState
-  durableRow?: Awaited<ReturnType<typeof getAsyncToolCall>>
-  needsDurableClaim: boolean
-  alreadyClaimedByWorker: boolean
->>>>>>> 0c80438ed (fix(mothership): async resume and tool result ordering (#3735))
-=======
 }
 
 function sleep(ms: number): Promise<void> {
@@ -224,7 +96,7 @@ async function waitForCheckpointReady(
         return body
       }
       if (attempt < CHECKPOINT_READY_MAX_ATTEMPTS) {
-        await new Promise((resolve) => setTimeout(resolve, CHECKPOINT_READY_RETRY_MS * attempt))
+        await sleep(CHECKPOINT_READY_RETRY_MS * attempt)
         continue
       }
       return body
@@ -238,7 +110,7 @@ async function waitForCheckpointReady(
         }
       }
       if (attempt < CHECKPOINT_READY_MAX_ATTEMPTS) {
-        await new Promise((resolve) => setTimeout(resolve, CHECKPOINT_READY_RETRY_MS * attempt))
+        await sleep(CHECKPOINT_READY_RETRY_MS * attempt)
         continue
       }
       return {
@@ -256,7 +128,6 @@ async function waitForCheckpointReady(
     error: 'Checkpoint did not become ready in time',
     retryable: true,
   }
->>>>>>> 49f303061 (Fix mothership boundary)
 }
 
 export interface OrchestrateStreamOptions extends OrchestratorOptions {
@@ -266,7 +137,6 @@ export interface OrchestrateStreamOptions extends OrchestratorOptions {
   chatId?: string
   executionId?: string
   runId?: string
-  /** Go-side route to proxy to. Defaults to '/api/copilot'. */
   goRoute?: string
 }
 
@@ -330,10 +200,8 @@ export async function orchestrateCopilotStream(
           if (event.type === 'done') {
             const d = (event.data ?? {}) as Record<string, unknown>
             const response = (d.response ?? {}) as Record<string, unknown>
-            if (response.async_pause) {
-              if (runId) {
-                await updateRunStatus(runId, 'paused_waiting_for_tool').catch(() => {})
-              }
+            if (response.async_pause && runId) {
+              await updateRunStatus(runId, 'paused_waiting_for_tool').catch(() => {})
             }
           }
           await callerOnEvent?.(event)
@@ -406,10 +274,6 @@ export async function orchestrateCopilotStream(
       if (!continuation) break
 
       let resumeReady = false
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 49f303061 (Fix mothership boundary)
       const localPendingPromises = continuation.pendingToolCallIds
         .map((toolCallId) => context.pendingToolPromises.get(toolCallId))
         .filter(
@@ -424,7 +288,6 @@ export async function orchestrateCopilotStream(
       if (localPendingPromises.length > 0) {
         logger.warn(ASYNC_RESUME_DIAG_TAG, {
           phase: 'waiting_local_async_tools',
-<<<<<<< HEAD
           checkpointId: continuation.checkpointId,
           runId: continuation.runId,
           pendingToolCallIds: continuation.pendingToolCallIds,
@@ -432,235 +295,6 @@ export async function orchestrateCopilotStream(
         await Promise.allSettled(localPendingPromises)
         logger.warn(ASYNC_RESUME_DIAG_TAG, {
           phase: 'local_async_tools_settled',
-=======
-      let resumeRetries = 0
-      for (;;) {
-        claimedToolCallIds = []
-        claimedByWorkerId = null
-        const resumeWorkerId = continuation.runId || context.runId || context.messageId
-        const readyTools: ReadyContinuationTool[] = []
-        const localPendingPromises: Promise<unknown>[] = []
-        const missingToolCallIds: string[] = []
-
-        for (const toolCallId of continuation.pendingToolCallIds) {
-          const durableRow = await getAsyncToolCall(toolCallId).catch(() => null)
-          const localPendingPromise = context.pendingToolPromises.get(toolCallId)
-          const toolState = context.toolCalls.get(toolCallId)
-
-          if (localPendingPromise) {
-            localPendingPromises.push(localPendingPromise)
-            logger.info('Waiting for local async tool completion before retrying resume claim', {
-              toolCallId,
-              runId: continuation.runId,
-            })
-            continue
-          }
-
-          if (durableRow && isTerminalAsyncStatus(durableRow.status)) {
-            if (durableRow.claimedBy && durableRow.claimedBy !== resumeWorkerId) {
-              missingToolCallIds.push(toolCallId)
-              logger.warn('Async tool continuation is waiting on a claim held by another worker', {
-                toolCallId,
-                runId: continuation.runId,
-                claimedBy: durableRow.claimedBy,
-              })
-              continue
-            }
-            readyTools.push({
-              toolCallId,
-              toolState,
-              durableRow,
-              needsDurableClaim: durableRow.claimedBy !== resumeWorkerId,
-              alreadyClaimedByWorker: durableRow.claimedBy === resumeWorkerId,
-            })
-            continue
-          }
-
-          if (
-            !durableRow &&
-            toolState &&
-            isTerminalToolCallStatus(toolState.status) &&
-            !isToolAvailableOnSimSide(toolState.name)
-          ) {
-            logger.info('Including Go-handled tool in resume payload (no Sim-side row)', {
-              toolCallId,
-              toolName: toolState.name,
-              status: toolState.status,
-              runId: continuation.runId,
-            })
-            readyTools.push({
-              toolCallId,
-              toolState,
-              needsDurableClaim: false,
-              alreadyClaimedByWorker: false,
-            })
-            continue
-          }
-
-          logger.warn('Skipping already-claimed or missing async tool resume', {
-            toolCallId,
-            runId: continuation.runId,
-            durableStatus: durableRow?.status,
-            toolStateStatus: toolState?.status,
-          })
-          missingToolCallIds.push(toolCallId)
-        }
-
-        if (localPendingPromises.length > 0) {
-          await Promise.allSettled(localPendingPromises)
-          continue
-        }
-
-        if (missingToolCallIds.length > 0) {
-          if (resumeRetries < 3) {
-            resumeRetries++
-            logger.info('Retrying async resume after some tool calls were not yet ready', {
-              checkpointId: continuation.checkpointId,
-              runId: continuation.runId,
-              retry: resumeRetries,
-              missingToolCallIds,
-            })
-            await new Promise((resolve) => setTimeout(resolve, 250 * resumeRetries))
-            continue
-          }
-          throw new Error(
-            `Failed to resume async tool continuation: pending tool calls were not ready (${missingToolCallIds.join(', ')})`
-          )
-        }
-
-        if (readyTools.length === 0) {
-          if (resumeRetries < 3 && continuation.pendingToolCallIds.length > 0) {
-            resumeRetries++
-            logger.info('Retrying async resume because no tool calls were ready yet', {
-              checkpointId: continuation.checkpointId,
-              runId: continuation.runId,
-              retry: resumeRetries,
-            })
-            await new Promise((resolve) => setTimeout(resolve, 250 * resumeRetries))
-            continue
-          }
-          throw new Error('Failed to resume async tool continuation: no tool calls were ready')
-        }
-
-        const claimCandidates = readyTools.filter((tool) => tool.needsDurableClaim)
-        const newlyClaimedToolCallIds: string[] = []
-        const claimFailures: string[] = []
-
-        for (const tool of claimCandidates) {
-          const claimed = await claimCompletedAsyncToolCall(tool.toolCallId, resumeWorkerId).catch(
-            () => null
-          )
-          if (!claimed) {
-            claimFailures.push(tool.toolCallId)
-            continue
-          }
-          newlyClaimedToolCallIds.push(tool.toolCallId)
-        }
-
-        if (claimFailures.length > 0) {
-          if (newlyClaimedToolCallIds.length > 0) {
-            logger.info('Releasing async tool claims after claim contention during resume', {
-              checkpointId: continuation.checkpointId,
-              runId: continuation.runId,
-              newlyClaimedToolCallIds,
-              claimFailures,
-            })
-            await Promise.all(
-              newlyClaimedToolCallIds.map((toolCallId) =>
-                releaseCompletedAsyncToolClaim(toolCallId, resumeWorkerId).catch(() => null)
-              )
-            )
-          }
-          if (resumeRetries < 3) {
-            resumeRetries++
-            logger.info('Retrying async resume after claim contention', {
-              checkpointId: continuation.checkpointId,
-              runId: continuation.runId,
-              retry: resumeRetries,
-              claimFailures,
-            })
-            await new Promise((resolve) => setTimeout(resolve, 250 * resumeRetries))
-            continue
-          }
-          throw new Error(
-            `Failed to resume async tool continuation: unable to claim tool calls (${claimFailures.join(', ')})`
-          )
-        }
-
-        claimedToolCallIds = [
-          ...readyTools
-            .filter((tool) => tool.alreadyClaimedByWorker)
-            .map((tool) => tool.toolCallId),
-          ...newlyClaimedToolCallIds,
-        ]
-        claimedByWorkerId = claimedToolCallIds.length > 0 ? resumeWorkerId : null
-
-        logger.info('Resuming async tool continuation', {
-=======
->>>>>>> 49f303061 (Fix mothership boundary)
-          checkpointId: continuation.checkpointId,
-          runId: continuation.runId,
-          pendingToolCallIds: continuation.pendingToolCallIds,
-        })
-<<<<<<< HEAD
-
-        const durableRows = await getAsyncToolCalls(
-          readyTools.map((tool) => tool.toolCallId)
-        ).catch(() => [])
-        const durableByToolCallId = new Map(durableRows.map((row) => [row.toolCallId, row]))
-
-        const results = await Promise.all(
-          readyTools.map(async (tool) => {
-            const durable = durableByToolCallId.get(tool.toolCallId) || tool.durableRow
-            const durableStatus = durable?.status
-            const durableResult =
-              durable?.result && typeof durable.result === 'object'
-                ? (durable.result as Record<string, unknown>)
-                : undefined
-            const success = didAsyncToolSucceed({
-              durableStatus,
-              durableResult,
-              durableError: durable?.error,
-              toolStateStatus: tool.toolState?.status,
-            })
-            const data =
-              durableResult ||
-              (tool.toolState?.result?.output as Record<string, unknown> | undefined) ||
-              (success
-                ? { message: 'Tool completed' }
-                : {
-                    error: durable?.error || tool.toolState?.error || 'Tool failed',
-                  })
-
-            if (
-              durableStatus &&
-              !isTerminalAsyncStatus(durableStatus) &&
-              !isDeliveredAsyncStatus(durableStatus)
-            ) {
-              logger.warn('Async tool row was claimed for resume without terminal durable state', {
-                toolCallId: tool.toolCallId,
-                status: durableStatus,
-              })
-            }
-
-            return {
-              callId: tool.toolCallId,
-              name: durable?.toolName || tool.toolState?.name || '',
-              data,
-              success,
-            }
-          })
-        )
-
-        context.awaitingAsyncContinuation = undefined
-        route = '/api/tools/resume'
-        payload = {
->>>>>>> 0c80438ed (fix(mothership): async resume and tool result ordering (#3735))
-=======
-        await Promise.allSettled(localPendingPromises)
-        logger.warn(ASYNC_RESUME_DIAG_TAG, {
-          phase: 'local_async_tools_settled',
->>>>>>> 49f303061 (Fix mothership boundary)
           checkpointId: continuation.checkpointId,
           runId: continuation.runId,
           pendingToolCallIds: continuation.pendingToolCallIds,

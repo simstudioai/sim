@@ -245,39 +245,6 @@ function cancelledCompletion(message: string): AsyncToolCompletion {
   }
 }
 
-<<<<<<< HEAD
-async function waitForMarkComplete(
-  toolCallId: string,
-  toolName: string,
-  status: number,
-  message?: unknown,
-  data?: unknown
-): Promise<void> {
-  try {
-    logger.warn(ASYNC_RESUME_DIAG_TAG, {
-      phase: 'mark_complete_start',
-      toolCallId,
-      toolName,
-      status,
-    })
-    await markToolComplete(toolCallId, toolName, status, message, data)
-    logger.warn(ASYNC_RESUME_DIAG_TAG, {
-      phase: 'mark_complete_finished',
-      toolCallId,
-      toolName,
-      status,
-    })
-  } catch (err) {
-    logger.error('markToolComplete failed', {
-      toolCallId,
-      toolName,
-      error: err instanceof Error ? err.message : String(err),
-    })
-  }
-}
-
-async function reportCancelledTool(
-=======
 function terminalCompletionFromToolCall(toolCall: {
   status: string
   error?: string
@@ -319,6 +286,7 @@ function terminalCompletionFromToolCall(toolCall: {
     data: { error: toolCall.error || toolCall.result?.error || 'Tool failed' },
   }
 }
+
 async function waitForMarkComplete(
   toolCallId: string,
   toolName: string,
@@ -349,12 +317,7 @@ async function waitForMarkComplete(
   }
 }
 
-<<<<<<< HEAD
-function reportCancelledTool(
->>>>>>> 0c80438ed (fix(mothership): async resume and tool result ordering (#3735))
-=======
 async function reportCancelledTool(
->>>>>>> 49f303061 (Fix mothership boundary)
   toolCall: { id: string; name: string },
   message: string,
   data: Record<string, unknown> = { cancelled: true }

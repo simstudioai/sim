@@ -5,15 +5,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OrchestratorOptions } from './types'
 
-<<<<<<< HEAD
-const { prepareExecutionContext, getEffectiveDecryptedEnv, runStreamLoop, updateRunStatus } =
-  vi.hoisted(() => ({
-    prepareExecutionContext: vi.fn(),
-    getEffectiveDecryptedEnv: vi.fn(),
-    runStreamLoop: vi.fn(),
-    updateRunStatus: vi.fn(),
-  }))
-=======
 const {
   prepareExecutionContext,
   getEffectiveDecryptedEnv,
@@ -25,7 +16,6 @@ const {
   runStreamLoop: vi.fn(),
   updateRunStatus: vi.fn(),
 }))
->>>>>>> 49f303061 (Fix mothership boundary)
 
 vi.mock('@/lib/copilot/orchestrator/tool-executor', () => ({
   prepareExecutionContext,
@@ -128,15 +118,6 @@ describe('orchestrateCopilotStream async continuation', () => {
       }),
     })
 
-<<<<<<< HEAD
-    runStreamLoop.mockImplementationOnce(async (_url: string, _opts: RequestInit, context: any) => {
-      context.awaitingAsyncContinuation = {
-        checkpointId: 'checkpoint-1',
-        runId: 'run-1',
-        pendingToolCallIds: ['tool-1'],
-      }
-    })
-=======
     runStreamLoop
       .mockImplementationOnce(async (_url: string, _opts: RequestInit, context: any) => {
         context.awaitingAsyncContinuation = {
@@ -145,7 +126,6 @@ describe('orchestrateCopilotStream async continuation', () => {
           pendingToolCallIds: ['tool-1'],
         }
       })
->>>>>>> 49f303061 (Fix mothership boundary)
 
     const result = await orchestrateCopilotStream(
       { message: 'hello' },
