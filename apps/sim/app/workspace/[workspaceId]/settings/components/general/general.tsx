@@ -461,7 +461,7 @@ export function General() {
         )}
         {isHosted && (
           <Button
-            onClick={() => window.open('/?from=settings', '_blank', 'noopener,noreferrer')}
+            onClick={() => window.open('/?home', '_blank', 'noopener,noreferrer')}
             variant='active'
             className='ml-auto'
           >
