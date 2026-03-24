@@ -1,5 +1,4 @@
-import isEqual from 'lodash/isEqual'
-import omit from 'lodash/omit'
+import { isEqual, omit } from 'es-toolkit'
 import type { McpToolSchema, StoredMcpToolReference } from '@/lib/mcp/types'
 
 export type McpToolIssueType =
@@ -33,8 +32,8 @@ export function hasSchemaChanged(
 ): boolean {
   if (!storedSchema || !serverSchema) return false
 
-  const storedWithoutDesc = omit(storedSchema, 'description')
-  const serverWithoutDesc = omit(serverSchema, 'description')
+  const storedWithoutDesc = omit(storedSchema, ['description'])
+  const serverWithoutDesc = omit(serverSchema, ['description'])
 
   return !isEqual(storedWithoutDesc, serverWithoutDesc)
 }
