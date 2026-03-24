@@ -551,7 +551,9 @@ export function UserInput({
       prefixRef.current = newPrefix
       recognitionRef.current.abort()
       recognitionRef.current = null
-      startRecognition()
+      if (!startRecognition()) {
+        setIsListening(false)
+      }
     },
     [startRecognition]
   )
