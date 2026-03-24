@@ -7,8 +7,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { GithubIcon } from '@/components/icons'
-import { isHosted } from '@/lib/core/config/feature-flags'
 import { useSession } from '@/lib/auth/auth-client'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 import { useBrandConfig } from '@/ee/whitelabeling'
 import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
@@ -166,7 +166,9 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
 
       {/* Auth Buttons - show only when hosted, regardless of variant */}
       {!hideAuthButtons && isHosted && (
-        <div className={`flex items-center justify-center gap-[16px] pt-[1.5px]${isSessionPending ? ' invisible' : ''}`}>
+        <div
+          className={`flex items-center justify-center gap-[16px] pt-[1.5px]${isSessionPending ? ' invisible' : ''}`}
+        >
           {isAuthenticated ? (
             <Link
               href='/workspace'

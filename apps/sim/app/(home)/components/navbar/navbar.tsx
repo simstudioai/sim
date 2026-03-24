@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { GithubOutlineIcon } from '@/components/icons'
-import { cn } from '@/lib/core/utils/cn'
 import { useSession } from '@/lib/auth/auth-client'
+import { cn } from '@/lib/core/utils/cn'
 import {
   BlogDropdown,
   type NavBlogPost,
@@ -127,9 +127,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
           <ul className='mt-[0.75px] hidden lg:flex'>
             {NAV_LINKS.map(({ label, href: rawHref, external, icon, dropdown }) => {
               const href =
-                isAuthenticated && rawHref.startsWith('/#')
-                  ? `/?home${rawHref.slice(1)}`
-                  : rawHref
+                isAuthenticated && rawHref.startsWith('/#') ? `/?home${rawHref.slice(1)}` : rawHref
               const hasDropdown = !!dropdown
               const isActive = hasDropdown && activeDropdown === dropdown
               const isThisHovered = hoveredLink === label
@@ -273,28 +271,28 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                     ? `/?home${rawHref.slice(1)}`
                     : rawHref
                 return (
-                <li key={label} className='border-[#2A2A2A] border-b'>
-                  {external ? (
-                    <a
-                      href={href}
-                      target='_blank'
-                      rel='noopener noreferrer'
-                      className='flex items-center justify-between px-[20px] py-[14px] text-[#ECECEC] transition-colors active:bg-[#2A2A2A]'
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      {label}
-                      <ExternalArrowIcon />
-                    </a>
-                  ) : (
-                    <Link
-                      href={href}
-                      className='flex items-center px-[20px] py-[14px] text-[#ECECEC] transition-colors active:bg-[#2A2A2A]'
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      {label}
-                    </Link>
-                  )}
-                </li>
+                  <li key={label} className='border-[#2A2A2A] border-b'>
+                    {external ? (
+                      <a
+                        href={href}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className='flex items-center justify-between px-[20px] py-[14px] text-[#ECECEC] transition-colors active:bg-[#2A2A2A]'
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        {label}
+                        <ExternalArrowIcon />
+                      </a>
+                    ) : (
+                      <Link
+                        href={href}
+                        className='flex items-center px-[20px] py-[14px] text-[#ECECEC] transition-colors active:bg-[#2A2A2A]'
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        {label}
+                      </Link>
+                    )}
+                  </li>
                 )
               })}
               <li className='border-[#2A2A2A] border-b'>
@@ -311,7 +309,12 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
               </li>
             </ul>
 
-            <div className={cn('mt-auto flex flex-col gap-[10px] p-[20px]', isSessionPending && 'invisible')}>
+            <div
+              className={cn(
+                'mt-auto flex flex-col gap-[10px] p-[20px]',
+                isSessionPending && 'invisible'
+              )}
+            >
               {isAuthenticated ? (
                 <Link
                   href='/workspace'
