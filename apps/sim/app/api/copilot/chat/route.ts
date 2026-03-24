@@ -17,6 +17,7 @@ import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { getStreamMeta, readStreamEvents } from '@/lib/copilot/orchestrator/stream/buffer'
 import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
+import { resolveActiveResourceContext } from '@/lib/copilot/process-contents'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -45,6 +46,13 @@ const FileAttachmentSchema = z.object({
   size: z.number(),
 })
 
+const ResourceAttachmentSchema = z.object({
+  type: z.enum(['workflow', 'table', 'file', 'knowledgebase']),
+  id: z.string().min(1),
+  title: z.string().optional(),
+  active: z.boolean().optional(),
+})
+
 const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   userMessageId: z.string().optional(),
@@ -59,6 +67,7 @@ const ChatMessageSchema = z.object({
   stream: z.boolean().optional().default(true),
   implicitFeedback: z.string().optional(),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
+  resourceAttachments: z.array(ResourceAttachmentSchema).optional(),
   provider: z.string().optional(),
   contexts: z
     .array(
@@ -125,6 +134,7 @@ export async function POST(req: NextRequest) {
       stream,
       implicitFeedback,
       fileAttachments,
+      resourceAttachments,
       provider,
       contexts,
       commands,
@@ -242,6 +252,35 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0 && resolvedWorkspaceId) {
+      const results = await Promise.allSettled(
+        resourceAttachments.map(async (r) => {
+          const ctx = await resolveActiveResourceContext(
+            r.type,
+            r.id,
+            resolvedWorkspaceId!,
+            authenticatedUserId,
+            actualChatId
+          )
+          if (!ctx) return null
+          return {
+            ...ctx,
+            tag: r.active ? '@active_tab' : '@open_tab',
+          }
+        })
+      )
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value) {
+          agentContexts.push(result.value)
+        } else if (result.status === 'rejected') {
+          logger.error(
+            `[${tracker.requestId}] Failed to resolve resource attachment`,
+            result.reason
+          )
+        }
+      }
+    }
+
     const effectiveMode = mode === 'agent' ? 'build' : mode
 
     const userPermission = resolvedWorkspaceId
@@ -321,7 +360,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (actualChatId) {
+    if (stream && actualChatId) {
       const acquired = await acquirePendingChatStream(actualChatId, userMessageIdToUse)
       if (!acquired) {
         return NextResponse.json(
@@ -351,7 +390,7 @@ export async function POST(req: NextRequest) {
         titleProvider: provider,
         requestId: tracker.requestId,
         workspaceId: resolvedWorkspaceId,
-        pendingChatStreamAlreadyRegistered: Boolean(actualChatId),
+        pendingChatStreamAlreadyRegistered: Boolean(actualChatId && stream),
         orchestrateOptions: {
           userId: authenticatedUserId,
           workflowId,

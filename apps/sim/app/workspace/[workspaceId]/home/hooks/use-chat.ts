@@ -447,6 +447,8 @@ export function useChat(
     const snapshot = chatHistory.streamSnapshot
 
     if (activeStreamId && !snapshot && !sendingRef.current) {
+      appliedChatIdRef.current = chatHistory.id
+      setError(RECONNECT_TAIL_ERROR)
       queryClient.invalidateQueries({ queryKey: taskKeys.detail(chatHistory.id) })
       return
     }
