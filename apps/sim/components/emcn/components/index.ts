@@ -6,6 +6,7 @@ export {
   avatarStatusVariants,
   avatarVariants,
 } from './avatar/avatar'
+export { Banner, type BannerProps } from './banner/banner'
 export { Badge } from './badge/badge'
 export { Breadcrumb, type BreadcrumbItem, type BreadcrumbProps } from './breadcrumb/breadcrumb'
 export { Button, type ButtonProps, buttonVariants } from './button/button'

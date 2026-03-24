@@ -64,6 +64,7 @@ export function SettingsSidebar({
   const hasEnterprisePlan = subscriptionStatus.isEnterprise
 
   const isSuperUser = session?.user?.role === 'admin'
+  const isImpersonating = Boolean(session?.session?.impersonatedBy)
 
   const isSSOProviderOwner = useMemo(() => {
     if (isHosted) return null
@@ -121,7 +122,7 @@ export function SettingsSidebar({
         return false
       }
 
-      if (item.requiresAdminRole && !isSuperUser) {
+      if (item.requiresAdminRole && !isSuperUser && !isImpersonating) {
         return false
       }
 
@@ -135,6 +136,7 @@ export function SettingsSidebar({
     ssoProvidersData?.providers?.length,
     permissionConfig,
     isSuperUser,
+    isImpersonating,
     generalSettings?.superUserModeEnabled,
   ])
 

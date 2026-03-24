@@ -8,6 +8,7 @@ import { cn } from '@/lib/core/utils/cn'
 import {
   useAdminUsers,
   useBanUser,
+  useImpersonateUser,
   useSetUserRole,
   useUnbanUser,
 } from '@/hooks/queries/admin-users'
@@ -28,6 +29,7 @@ export function Admin() {
   const setUserRole = useSetUserRole()
   const banUser = useBanUser()
   const unbanUser = useUnbanUser()
+  const impersonateUser = useImpersonateUser()
 
   const [workflowId, setWorkflowId] = useState('')
   const [usersOffset, setUsersOffset] = useState(0)
@@ -67,6 +69,18 @@ export function Admin() {
     )
   }
 
+  const handleImpersonate = (userId: string) => {
+    impersonateUser.reset()
+    impersonateUser.mutate(
+      { userId },
+      {
+        onSuccess: () => {
+          window.location.assign('/workspace')
+        },
+      }
+    )
+  }
+
   const pendingUserIds = useMemo(() => {
     const ids = new Set<string>()
     if (setUserRole.isPending && (setUserRole.variables as { userId?: string })?.userId)
@@ -75,6 +89,8 @@ export function Admin() {
       ids.add((banUser.variables as { userId: string }).userId)
     if (unbanUser.isPending && (unbanUser.variables as { userId?: string })?.userId)
       ids.add((unbanUser.variables as { userId: string }).userId)
+    if (impersonateUser.isPending && (impersonateUser.variables as { userId?: string })?.userId)
+      ids.add((impersonateUser.variables as { userId: string }).userId)
     return ids
   }, [
     setUserRole.isPending,
@@ -83,6 +99,8 @@ export function Admin() {
     banUser.variables,
     unbanUser.isPending,
     unbanUser.variables,
+    impersonateUser.isPending,
+    impersonateUser.variables,
   ])
   return (
     <div className='flex h-full flex-col gap-[24px]'>
@@ -152,9 +170,10 @@ export function Admin() {
           </p>
         )}
 
-        {(setUserRole.error || banUser.error || unbanUser.error) && (
+        {(setUserRole.error || banUser.error || unbanUser.error || impersonateUser.error) && (
           <p className='text-[13px] text-[var(--text-error)]'>
-            {(setUserRole.error || banUser.error || unbanUser.error)?.message ??
+            {(setUserRole.error || banUser.error || unbanUser.error || impersonateUser.error)
+              ?.message ??
               'Action failed. Please try again.'}
           </p>
         )}
@@ -175,7 +194,7 @@ export function Admin() {
                 <span className='flex-1'>Email</span>
                 <span className='w-[80px]'>Role</span>
                 <span className='w-[80px]'>Status</span>
-                <span className='w-[180px] text-right'>Actions</span>
+                <span className='w-[250px] text-right'>Actions</span>
               </div>
 
               {usersData.users.length === 0 && (
@@ -206,9 +225,21 @@ export function Admin() {
                       <Badge variant='green'>Active</Badge>
                     )}
                   </span>
-                  <span className='flex w-[180px] justify-end gap-[4px]'>
+                  <span className='flex w-[250px] justify-end gap-[4px]'>
                     {u.id !== session?.user?.id && (
                       <>
+                        <Button
+                          variant='active'
+                          className='h-[28px] px-[8px] text-[12px]'
+                          onClick={() => handleImpersonate(u.id)}
+                          disabled={pendingUserIds.has(u.id)}
+                        >
+                          {impersonateUser.isPending &&
+                          (impersonateUser.variables as { userId?: string } | undefined)?.userId ===
+                            u.id
+                            ? 'Switching...'
+                            : 'Impersonate'}
+                        </Button>
                         <Button
                           variant='active'
                           className='h-[28px] px-[8px] text-[12px]'
