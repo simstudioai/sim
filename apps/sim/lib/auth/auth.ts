@@ -109,9 +109,7 @@ function getMicrosoftUserInfoFromIdToken(tokens: { accessToken?: string }, provi
   }
 
   const email =
-    (payload.email as string) ||
-    (payload.preferred_username as string) ||
-    (payload.upn as string)
+    (payload.email as string) || (payload.preferred_username as string) || (payload.upn as string)
   if (!email) {
     throw new Error(
       `Microsoft ${providerId} OAuth: ID token contains no email, preferred_username, or upn claim`
