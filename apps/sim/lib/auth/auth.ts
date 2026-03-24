@@ -101,12 +101,28 @@ function getMicrosoftUserInfoFromIdToken(tokens: { accessToken?: string }, provi
     throw new Error(`Microsoft ${providerId} OAuth: malformed ID token`)
   }
 
-  const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'))
+  let payload: Record<string, unknown>
+  try {
+    payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'))
+  } catch {
+    throw new Error(`Microsoft ${providerId} OAuth: failed to decode ID token payload`)
+  }
+
+  const email =
+    (payload.email as string) ||
+    (payload.preferred_username as string) ||
+    (payload.upn as string)
+  if (!email) {
+    throw new Error(
+      `Microsoft ${providerId} OAuth: ID token contains no email, preferred_username, or upn claim`
+    )
+  }
+
   const now = new Date()
   return {
     id: `${payload.oid || payload.sub}-${crypto.randomUUID()}`,
-    name: payload.name || 'Microsoft User',
-    email: payload.preferred_username || payload.email || payload.upn,
+    name: (payload.name as string) || 'Microsoft User',
+    email,
     emailVerified: true,
     createdAt: now,
     updatedAt: now,
