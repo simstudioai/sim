@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
-import { generatePptxFromCode } from '@/lib/execution/pptx-vm'
 import type { WorkspaceFileArgs, WorkspaceFileResult } from '@/lib/copilot/tools/shared/schemas'
+import { generatePptxFromCode } from '@/lib/execution/pptx-vm'
 import {
   deleteWorkspaceFile,
   downloadWorkspaceFile as downloadWsFile,
