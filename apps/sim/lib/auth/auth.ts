@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
@@ -3023,7 +3024,7 @@ export const auth = betterAuth({
   },
 })
 
-export async function getSession() {
+async function getSessionImpl() {
   if (isAuthDisabled) {
     await ensureAnonymousUserExists()
     return createAnonymousSession()
@@ -3034,6 +3035,8 @@ export async function getSession() {
     headers: hdrs,
   })
 }
+
+export const getSession = cache(getSessionImpl)
 
 export const signIn = auth.api.signInEmail
 export const signUp = auth.api.signUpEmail

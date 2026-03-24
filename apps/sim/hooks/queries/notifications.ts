@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('NotificationQueries')
@@ -97,6 +97,7 @@ export function useNotifications(workspaceId?: string) {
     queryFn: ({ signal }) => fetchNotifications(workspaceId!, signal),
     enabled: Boolean(workspaceId),
     staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
   })
 }
 
