@@ -971,6 +971,7 @@ export function Subscription() {
                         onError: (error) => {
                           portalWindow?.close()
                           logger.error('Failed to open billing portal', { error })
+                          alert(error.message)
                         },
                       }
                     )
