@@ -108,12 +108,18 @@ export function Variables() {
       }))
     )
 
-  const getVariablesByWorkflowId = usePanelVariablesStore((s) => s.getVariablesByWorkflowId)
+  const variables = usePanelVariablesStore((s) => s.variables)
 
   const { collaborativeUpdateVariable, collaborativeAddVariable, collaborativeDeleteVariable } =
     useCollaborativeWorkflow()
 
-  const workflowVariables = activeWorkflowId ? getVariablesByWorkflowId(activeWorkflowId) : []
+  const workflowVariables = useMemo(
+    () =>
+      activeWorkflowId
+        ? Object.values(variables).filter((v) => v.workflowId === activeWorkflowId)
+        : [],
+    [variables, activeWorkflowId]
+  )
 
   const actualPosition = useMemo(
     () => getVariablesPosition(position, width, height),

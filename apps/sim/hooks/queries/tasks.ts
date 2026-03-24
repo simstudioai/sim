@@ -79,7 +79,8 @@ export const taskKeys = {
   all: ['tasks'] as const,
   lists: () => [...taskKeys.all, 'list'] as const,
   list: (workspaceId: string | undefined) => [...taskKeys.lists(), workspaceId ?? ''] as const,
-  detail: (chatId: string | undefined) => [...taskKeys.all, 'detail', chatId ?? ''] as const,
+  details: () => [...taskKeys.all, 'detail'] as const,
+  detail: (chatId: string | undefined) => [...taskKeys.details(), chatId ?? ''] as const,
 }
 
 interface TaskResponse {
@@ -177,8 +178,9 @@ export function useDeleteTask(workspaceId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: deleteTask,
-    onSettled: () => {
+    onSettled: (_data, _error, chatId) => {
       queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+      queryClient.removeQueries({ queryKey: taskKeys.detail(chatId) })
     },
   })
 }
@@ -192,8 +194,11 @@ export function useDeleteTasks(workspaceId?: string) {
     mutationFn: async (chatIds: string[]) => {
       await Promise.all(chatIds.map(deleteTask))
     },
-    onSettled: () => {
+    onSettled: (_data, _error, chatIds) => {
       queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+      for (const chatId of chatIds) {
+        queryClient.removeQueries({ queryKey: taskKeys.detail(chatId) })
+      }
     },
   })
 }
@@ -232,8 +237,9 @@ export function useRenameTask(workspaceId?: string) {
         queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
       }
     },
-    onSettled: () => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(variables.chatId) })
     },
   })
 }

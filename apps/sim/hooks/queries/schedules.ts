@@ -236,6 +236,7 @@ export function useDisableSchedule() {
     },
     onSuccess: ({ workspaceId }) => {
       queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.details() })
     },
     onError: (error) => {
       logger.error('Failed to disable schedule', { error })
@@ -270,6 +271,7 @@ export function useDeleteSchedule() {
     },
     onSuccess: ({ workspaceId }) => {
       queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.details() })
     },
     onError: (error) => {
       logger.error('Failed to delete schedule', { error })
@@ -313,6 +315,7 @@ export function useUpdateSchedule() {
     },
     onSuccess: ({ workspaceId }) => {
       queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.details() })
     },
     onError: (error) => {
       logger.error('Failed to update schedule', { error })

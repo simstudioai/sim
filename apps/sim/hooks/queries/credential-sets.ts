@@ -318,6 +318,9 @@ export function useDeleteCredentialSet() {
         queryKey: credentialSetKeys.list(variables.organizationId),
       })
       queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() })
+      queryClient.invalidateQueries({
+        queryKey: credentialSetKeys.detail(variables.credentialSetId),
+      })
     },
   })
 }
