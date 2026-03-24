@@ -67,6 +67,7 @@ export const quiverImageToSvgTool: ToolConfig<QuiverImageToSvgParams, QuiverSvgR
   request: {
     url: '/api/tools/quiver/image-to-svg',
     method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({
       apiKey: params.apiKey,
       model: params.model,

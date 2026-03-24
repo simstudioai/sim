@@ -3,7 +3,7 @@ import type { SelectorKey } from '@/hooks/selectors/types'
 import type { ToolResponse } from '@/tools/types'
 
 export type BlockIcon = (props: SVGProps<SVGSVGElement>) => JSX.Element
-export type ParamType = 'string' | 'number' | 'boolean' | 'json' | 'array'
+export type ParamType = 'string' | 'number' | 'boolean' | 'json' | 'array' | 'file'
 export type PrimitiveValueType =
   | 'string'
   | 'number'

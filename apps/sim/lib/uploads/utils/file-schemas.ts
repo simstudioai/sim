@@ -47,6 +47,8 @@ export const RawFileInputSchema = z
     { message: 'File path must reference an uploaded file' }
   )
 
+export type RawFileInput = z.infer<typeof RawFileInputSchema>
+
 export const RawFileInputArraySchema = z.array(RawFileInputSchema)
 
 export const FileInputSchema = z.union([RawFileInputSchema, z.string()])
