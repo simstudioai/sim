@@ -212,6 +212,17 @@ export async function orchestrateCopilotStream(
             })
             continue
           }
+          const toolState = context.toolCalls.get(toolCallId)
+          if (!durableRow && !localPendingPromise && toolState) {
+            logger.info('Including Go-handled tool in resume payload (no Sim-side row)', {
+              toolCallId,
+              toolName: toolState.name,
+              status: toolState.status,
+              runId: continuation.runId,
+            })
+            claimableToolCallIds.push(toolCallId)
+            continue
+          }
           logger.warn('Skipping already-claimed or missing async tool resume', {
             toolCallId,
             runId: continuation.runId,
