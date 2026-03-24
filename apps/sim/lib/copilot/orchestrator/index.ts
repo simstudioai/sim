@@ -33,8 +33,16 @@ function didAsyncToolSucceed(input: {
   durableError?: string | null
   completion?: { status: string } | undefined
   toolStateSuccess?: boolean | undefined
+  toolStateStatus?: string | undefined
 }) {
-  const { durableStatus, durableResult, durableError, completion, toolStateSuccess } = input
+  const {
+    durableStatus,
+    durableResult,
+    durableError,
+    completion,
+    toolStateSuccess,
+    toolStateStatus,
+  } = input
 
   if (durableStatus === ASYNC_TOOL_STATUS.completed) {
     return true
@@ -49,6 +57,9 @@ function didAsyncToolSucceed(input: {
       error: durableError,
     })
   }
+
+  if (toolStateStatus === 'success') return true
+  if (toolStateStatus === 'error' || toolStateStatus === 'cancelled') return false
 
   return completion?.status === 'success' || toolStateSuccess === true
 }
@@ -268,6 +279,7 @@ export async function orchestrateCopilotStream(
               durableError: durable?.error,
               completion,
               toolStateSuccess: toolState?.result?.success,
+              toolStateStatus: toolState?.status,
             })
             const data =
               durableResult ||
