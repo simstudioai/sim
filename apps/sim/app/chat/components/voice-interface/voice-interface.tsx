@@ -3,9 +3,17 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Mic, MicOff, Phone } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
-import { ParticlesVisualization } from '@/app/chat/components/voice-interface/components/particles'
+
+const ParticlesVisualization = dynamic(
+  () =>
+    import('@/app/chat/components/voice-interface/components/particles').then(
+      (mod) => mod.ParticlesVisualization
+    ),
+  { ssr: false }
+)
 
 const logger = createLogger('VoiceInterface')
 

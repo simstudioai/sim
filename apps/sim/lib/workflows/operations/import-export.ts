@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import JSZip from 'jszip'
 import {
   type ExportWorkflowState,
   sanitizeForExport,
@@ -8,6 +7,11 @@ import { regenerateWorkflowIds } from '@/stores/workflows/utils'
 import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowImportExport')
+
+async function getJSZip() {
+  const { default: JSZip } = await import('jszip')
+  return JSZip
+}
 
 export interface WorkflowExportData {
   workflow: {
@@ -138,6 +142,7 @@ export function exportWorkflowToJson(workflowData: WorkflowExportData): string {
  * Workflows are placed at the root level (no folder structure).
  */
 export async function exportWorkflowsToZip(workflows: WorkflowExportData[]): Promise<Blob> {
+  const JSZip = await getJSZip()
   const zip = new JSZip()
   const seenFilenames = new Set<string>()
 
@@ -182,6 +187,7 @@ export async function exportWorkspaceToZip(
   folders: FolderExportData[],
   workspaceColor?: string
 ): Promise<Blob> {
+  const JSZip = await getJSZip()
   const zip = new JSZip()
   const foldersMap = new Map(folders.map((f) => [f.id, f]))
 
@@ -244,6 +250,7 @@ export async function exportFolderToZip(
   workflows: WorkflowExportData[],
   folders: FolderExportData[]
 ): Promise<Blob> {
+  const JSZip = await getJSZip()
   const zip = new JSZip()
   const foldersMap = new Map(folders.map((f) => [f.id, f]))
 
@@ -317,6 +324,7 @@ function extractSortOrder(content: string): number | undefined {
 export async function extractWorkflowsFromZip(
   zipFile: File
 ): Promise<{ workflows: ImportedWorkflow[]; metadata?: WorkspaceImportMetadata }> {
+  const JSZip = await getJSZip()
   const zip = await JSZip.loadAsync(await zipFile.arrayBuffer())
   const workflows: ImportedWorkflow[] = []
   let metadata: WorkspaceImportMetadata | undefined

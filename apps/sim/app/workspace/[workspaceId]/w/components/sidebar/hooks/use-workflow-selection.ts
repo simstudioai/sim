@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useFolderStore } from '@/stores/folders/store'
 
 interface UseWorkflowSelectionProps {
@@ -30,7 +31,14 @@ export function useWorkflowSelection({
   activeWorkflowId,
   workflowAncestorFolderIds,
 }: UseWorkflowSelectionProps) {
-  const { selectedWorkflows, selectOnly, selectRange, toggleWorkflowSelection } = useFolderStore()
+  const { selectedWorkflows, selectOnly, selectRange, toggleWorkflowSelection } = useFolderStore(
+    useShallow((s) => ({
+      selectedWorkflows: s.selectedWorkflows,
+      selectOnly: s.selectOnly,
+      selectRange: s.selectRange,
+      toggleWorkflowSelection: s.toggleWorkflowSelection,
+    }))
+  )
 
   /**
    * After a workflow selection change, deselect any folder that is an ancestor of a selected

@@ -47,7 +47,8 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
   const workspaceId = params.workspaceId as string | undefined
   const reorderWorkflowsMutation = useReorderWorkflows()
   const reorderFoldersMutation = useReorderFolders()
-  const { setExpanded, expandedFolders } = useFolderStore()
+  const setExpanded = useFolderStore((s) => s.setExpanded)
+  const expandedFolders = useFolderStore((s) => s.expandedFolders)
 
   const handleAutoScroll = useCallback(() => {
     if (!scrollContainerRef.current) {

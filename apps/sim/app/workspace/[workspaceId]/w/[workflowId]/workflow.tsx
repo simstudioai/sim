@@ -3909,7 +3909,11 @@ const WorkflowContent = React.memo(
     return (
       <div className='flex h-full w-full overflow-hidden'>
         <div className='flex min-w-0 flex-1 flex-col'>
-          <div ref={canvasContainerRef} className='relative flex-1 overflow-hidden'>
+          <div
+            ref={canvasContainerRef}
+            className='relative flex-1 overflow-hidden'
+            data-tour='canvas'
+          >
             {!isWorkflowReady && (
               <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
                 <div
