@@ -2,8 +2,8 @@
 
 import type { HTMLAttributes, ReactNode } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { cn } from '@/lib/core/utils/cn'
 import { Button, type ButtonProps } from '@/components/emcn/components/button/button'
+import { cn } from '@/lib/core/utils/cn'
 
 const bannerVariants = cva('shrink-0 px-[24px] py-[10px]', {
   variants: {
@@ -50,7 +50,12 @@ export function Banner({
   return (
     <div className={cn(bannerVariants({ variant }), className)} {...props}>
       {children ?? (
-        <div className={cn('mx-auto flex max-w-[1400px] items-center justify-between gap-[12px]', contentClassName)}>
+        <div
+          className={cn(
+            'mx-auto flex max-w-[1400px] items-center justify-between gap-[12px]',
+            contentClassName
+          )}
+        >
           <p className={cn('text-[13px]', textClassName)}>{text}</p>
           {actionLabel ? (
             <Button

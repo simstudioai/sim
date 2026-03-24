@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { Banner } from '@/components/emcn'
-import { useStopImpersonating } from '@/hooks/queries/admin-users'
 import { useSession } from '@/lib/auth/auth-client'
+import { useStopImpersonating } from '@/hooks/queries/admin-users'
 
 function getImpersonationBannerText(userLabel: string, userEmail?: string) {
   return `Impersonating ${userLabel}${userEmail ? ` (${userEmail})` : ''}. Changes will apply to this account until you switch back.`
@@ -25,7 +25,9 @@ export function ImpersonationBanner() {
       variant='destructive'
       text={getImpersonationBannerText(userLabel, userEmail)}
       textClassName='text-red-700 dark:text-red-300'
-      actionLabel={stopImpersonating.isPending || isRedirecting ? 'Returning...' : 'Stop impersonating'}
+      actionLabel={
+        stopImpersonating.isPending || isRedirecting ? 'Returning...' : 'Stop impersonating'
+      }
       actionVariant='destructive'
       actionDisabled={stopImpersonating.isPending || isRedirecting}
       onAction={() =>

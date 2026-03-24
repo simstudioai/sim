@@ -254,10 +254,10 @@ export function Admin() {
                           onClick={() => handleImpersonate(u.id)}
                           disabled={pendingUserIds.has(u.id)}
                         >
-                          {(impersonatingUserId === u.id ||
-                            (impersonateUser.isPending &&
-                              (impersonateUser.variables as { userId?: string } | undefined)
-                                ?.userId === u.id))
+                          {impersonatingUserId === u.id ||
+                          (impersonateUser.isPending &&
+                            (impersonateUser.variables as { userId?: string } | undefined)
+                              ?.userId === u.id)
                             ? 'Switching...'
                             : 'Impersonate'}
                         </Button>
