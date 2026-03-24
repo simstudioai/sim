@@ -815,9 +815,12 @@ export function useDeleteKnowledgeBase(workspaceId?: string) {
 
   return useMutation({
     mutationFn: deleteKnowledgeBase,
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.detail(variables.knowledgeBaseId),
       })
     },
   })
