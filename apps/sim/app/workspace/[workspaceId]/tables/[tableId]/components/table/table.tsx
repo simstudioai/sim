@@ -360,15 +360,17 @@ export function Table({
   const columnRename = useInlineRename({
     onSave: (columnName, newName) => {
       pushUndoRef.current({ type: 'rename-column', oldName: columnName, newName })
-      setColumnWidths((prev) => {
-        if (!(columnName in prev)) return prev
-        return { ...prev, [newName]: prev[columnName] }
-      })
+      let updatedWidths = columnWidthsRef.current
+      if (columnName in updatedWidths) {
+        const { [columnName]: width, ...rest } = updatedWidths
+        updatedWidths = { ...rest, [newName]: width }
+        setColumnWidths(updatedWidths)
+      }
       const updatedOrder = columnOrderRef.current?.map((n) => (n === columnName ? newName : n))
       if (updatedOrder) {
         setColumnOrder(updatedOrder)
         updateMetadataRef.current({
-          columnWidths: columnWidthsRef.current,
+          columnWidths: updatedWidths,
           columnOrder: updatedOrder,
         })
       }
@@ -683,6 +685,7 @@ export function Table({
   }, [])
 
   const handleColumnDragLeave = useCallback(() => {
+    dropTargetColumnNameRef.current = null
     setDropTargetColumnName(null)
   }, [])
 
