@@ -33,6 +33,6 @@ export async function POST(request: Request) {
     // best effort: local abort should still proceed even if Go marker fails
   }
 
-  const aborted = abortActiveStream(streamId)
+  const aborted = await abortActiveStream(streamId)
   return NextResponse.json({ aborted })
 }

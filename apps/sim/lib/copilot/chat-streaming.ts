@@ -13,9 +13,13 @@ import {
 } from '@/lib/copilot/orchestrator/stream/buffer'
 import { taskPubSub } from '@/lib/copilot/task-events'
 import { env } from '@/lib/core/config/env'
+import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 
 const logger = createLogger('CopilotChatStreaming')
+const CHAT_STREAM_LOCK_TTL_SECONDS = 2 * 60 * 60
+const STREAM_ABORT_TTL_SECONDS = 10 * 60
+const STREAM_ABORT_POLL_MS = 1000
 
 // Registry of in-flight Sim→Go streams so the explicit abort endpoint can
 // reach them. Keyed by streamId, cleaned up when the stream completes.
@@ -48,6 +52,14 @@ function resolvePendingChatStream(chatId: string, streamId: string): void {
   }
 }
 
+function getChatStreamLockKey(chatId: string): string {
+  return `copilot:chat-stream-lock:${chatId}`
+}
+
+function getStreamAbortKey(streamId: string): string {
+  return `copilot:stream-abort:${streamId}`
+}
+
 /**
  * Wait for any in-flight stream on `chatId` to settle without force-aborting it.
  * Returns true when no stream is active (or it settles in time), false on timeout.
@@ -70,6 +82,24 @@ export async function acquirePendingChatStream(
   streamId: string,
   timeoutMs = 5_000
 ): Promise<boolean> {
+  const redis = getRedisClient()
+  if (redis) {
+    const deadline = Date.now() + timeoutMs
+    for (;;) {
+      const acquired = await acquireLock(
+        getChatStreamLockKey(chatId),
+        streamId,
+        CHAT_STREAM_LOCK_TTL_SECONDS
+      )
+      if (acquired) {
+        registerPendingChatStream(chatId, streamId)
+        return true
+      }
+      if (Date.now() >= deadline) return false
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
+  }
+
   for (;;) {
     const existing = pendingChatStreams.get(chatId)
     if (!existing) {
@@ -85,9 +115,22 @@ export async function acquirePendingChatStream(
   }
 }
 
-export function abortActiveStream(streamId: string): boolean {
+export async function abortActiveStream(streamId: string): Promise<boolean> {
+  const redis = getRedisClient()
+  let published = false
+  if (redis) {
+    try {
+      await redis.set(getStreamAbortKey(streamId), '1', 'EX', STREAM_ABORT_TTL_SECONDS)
+      published = true
+    } catch (error) {
+      logger.warn('Failed to publish distributed stream abort', {
+        streamId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
   const controller = activeStreams.get(streamId)
-  if (!controller) return false
+  if (!controller) return published
   controller.abort()
   activeStreams.delete(streamId)
   return true
@@ -214,6 +257,27 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       eventWriter = createStreamEventWriter(streamId)
 
       let localSeq = 0
+      let abortPoller: ReturnType<typeof setInterval> | null = null
+
+      const redis = getRedisClient()
+      if (redis) {
+        abortPoller = setInterval(() => {
+          void (async () => {
+            try {
+              const shouldAbort = await redis.get(getStreamAbortKey(streamId))
+              if (shouldAbort && !abortController.signal.aborted) {
+                abortController.abort()
+                await redis.del(getStreamAbortKey(streamId))
+              }
+            } catch (error) {
+              logger.warn(`[${requestId}] Failed to poll distributed stream abort`, {
+                streamId,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+          })()
+        }, STREAM_ABORT_POLL_MS)
+      }
 
       const pushEvent = async (event: Record<string, any>) => {
         if (!eventWriter) return
@@ -380,9 +444,18 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         }).catch(() => {})
       } finally {
         clearInterval(keepaliveInterval)
+        if (abortPoller) {
+          clearInterval(abortPoller)
+        }
         activeStreams.delete(streamId)
         if (chatId) {
+          if (redis) {
+            await releaseLock(getChatStreamLockKey(chatId), streamId).catch(() => false)
+          }
           resolvePendingChatStream(chatId, streamId)
+        }
+        if (redis) {
+          await redis.del(getStreamAbortKey(streamId)).catch(() => {})
         }
         try {
           controller.close()

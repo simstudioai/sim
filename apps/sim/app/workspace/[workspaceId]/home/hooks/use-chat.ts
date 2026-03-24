@@ -323,8 +323,8 @@ export function useChat(
       reader: ReadableStreamDefaultReader<Uint8Array>,
       assistantId: string,
       expectedGen?: number
-    ) => Promise<void>
-  >(async () => {})
+    ) => Promise<boolean>
+  >(async () => false)
   const finalizeRef = useRef<(options?: { error?: boolean }) => void>(() => {})
 
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -575,7 +575,14 @@ export function useChat(
             },
           })
 
-          await processSSEStreamRef.current(combinedStream.getReader(), assistantId, gen)
+          const hadStreamError = await processSSEStreamRef.current(
+            combinedStream.getReader(),
+            assistantId,
+            gen
+          )
+          if (hadStreamError) {
+            reconnectFailed = true
+          }
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') return
           reconnectFailed = true
@@ -647,6 +654,7 @@ export function useChat(
       }
 
       const isStale = () => expectedGen !== undefined && streamGenRef.current !== expectedGen
+      let sawStreamError = false
 
       const flush = () => {
         if (isStale()) return
@@ -1137,6 +1145,7 @@ export function useChat(
                 break
               }
               case 'error': {
+                sawStreamError = true
                 setError(parsed.error || 'An error occurred')
                 appendInlineErrorTag(buildInlineErrorTag(parsed))
                 break
@@ -1149,6 +1158,7 @@ export function useChat(
           streamReaderRef.current = null
         }
       }
+      return sawStreamError
     },
     [workspaceId, queryClient, addResource, removeResource]
   )
@@ -1375,7 +1385,10 @@ export function useChat(
 
         if (!response.body) throw new Error('No response body')
 
-        await processSSEStream(response.body.getReader(), assistantId, gen)
+        const hadStreamError = await processSSEStream(response.body.getReader(), assistantId, gen)
+        if (streamGenRef.current === gen) {
+          finalize(hadStreamError ? { error: true } : undefined)
+        }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return
         setError(err instanceof Error ? err.message : 'Failed to send message')
@@ -1383,9 +1396,6 @@ export function useChat(
           finalize({ error: true })
         }
         return
-      }
-      if (streamGenRef.current === gen) {
-        finalize()
       }
     },
     [workspaceId, queryClient, processSSEStream, finalize]
