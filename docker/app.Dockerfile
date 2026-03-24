@@ -108,8 +108,14 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/static ./apps/sim/
 # Copy isolated-vm native module (compiled for Node.js in deps stage)
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modules/isolated-vm
 
+# Copy PPTX runtime dependency
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/pptxgenjs ./node_modules/pptxgenjs
+
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
+
+# Copy the PPTX worker script
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/pptx-worker.cjs ./apps/sim/lib/execution/pptx-worker.cjs
 
 # Guardrails setup with pip caching
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/requirements.txt ./apps/sim/lib/guardrails/requirements.txt
