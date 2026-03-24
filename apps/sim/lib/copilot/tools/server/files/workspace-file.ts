@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
-import PptxGenJS from 'pptxgenjs'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import { generatePptxFromCode } from '@/lib/execution/pptx-vm'
 import type { WorkspaceFileArgs, WorkspaceFileResult } from '@/lib/copilot/tools/shared/schemas'
 import {
   deleteWorkspaceFile,
@@ -23,23 +23,6 @@ const EXT_TO_MIME: Record<string, string> = {
   '.json': 'application/json',
   '.csv': 'text/csv',
   '.pptx': PPTX_MIME,
-}
-
-export async function generatePptxFromCode(code: string, workspaceId: string): Promise<Buffer> {
-  const pptx = new PptxGenJS()
-
-  async function getFileBase64(fileId: string): Promise<string> {
-    const record = await getWorkspaceFile(workspaceId, fileId)
-    if (!record) throw new Error(`File not found: ${fileId}`)
-    const buffer = await downloadWsFile(record)
-    const mime = record.type || 'image/png'
-    return `data:${mime};base64,${buffer.toString('base64')}`
-  }
-
-  const fn = new Function('pptx', 'getFileBase64', `return (async () => { ${code} })()`)
-  await fn(pptx, getFileBase64)
-  const output = await pptx.write({ outputType: 'nodebuffer' })
-  return output as Buffer
 }
 
 function inferContentType(fileName: string, explicitType?: string): string {
