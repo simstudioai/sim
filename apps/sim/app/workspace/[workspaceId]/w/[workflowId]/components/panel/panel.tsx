@@ -72,6 +72,7 @@ import type { ChatContext, PanelTab } from '@/stores/panel'
 import { usePanelStore, useVariablesStore as usePanelVariablesStore } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { captureBaselineSnapshot } from '@/stores/workflow-diff/utils'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -297,6 +298,8 @@ export const Panel = memo(function Panel() {
       const workflowId = activeWorkflowId || useWorkflowRegistry.getState().activeWorkflowId
       if (!workflowId) return
 
+      const baselineWorkflow = captureBaselineSnapshot(workflowId)
+
       fetch(`/api/workflows/${workflowId}/state`)
         .then((res) => {
           if (!res.ok) throw new Error(`State fetch failed: ${res.status}`)
@@ -305,6 +308,7 @@ export const Panel = memo(function Panel() {
         .then((freshState) => {
           const diffStore = useWorkflowDiffStore.getState()
           return diffStore.setProposedChanges(freshState as WorkflowState, undefined, {
+            baselineWorkflow,
             skipPersist: true,
           })
         })

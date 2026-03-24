@@ -276,15 +276,20 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             'An unexpected error occurred while processing the response.'
 
           if (clientDisconnected) {
-            logger.info(`[${requestId}] Stream ended after client disconnect`)
-            await eventWriter.close().catch(() => {})
-            await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
-            await updateRunStatus(runId, 'cancelled', { completedAt: new Date() }).catch(() => {})
-            return
+            logger.info(`[${requestId}] Stream failed after client disconnect`, {
+              error: errorMessage,
+            })
           }
 
           logger.error(`[${requestId}] Orchestration returned failure`, {
             error: errorMessage,
+          })
+          await pushEvent({
+            type: 'error',
+            error: errorMessage,
+            data: {
+              displayMessage: errorMessage,
+            },
           })
           await eventWriter.close()
           await setStreamMeta(streamId, {
@@ -313,31 +318,31 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           return
         }
         if (clientDisconnected) {
-          logger.info(`[${requestId}] Stream ended after client disconnect`)
-          await eventWriter.close().catch(() => {})
-          await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
-          await updateRunStatus(runId, 'cancelled', { completedAt: new Date() }).catch(() => {})
-          return
+          logger.info(`[${requestId}] Stream errored after client disconnect`, {
+            error: error instanceof Error ? error.message : 'Stream error',
+          })
         }
         logger.error(`[${requestId}] Orchestration error:`, error)
+        const errorMessage = error instanceof Error ? error.message : 'Stream error'
+        await pushEvent({
+          type: 'error',
+          error: errorMessage,
+          data: {
+            displayMessage: 'An unexpected error occurred while processing the response.',
+          },
+        })
         await eventWriter.close()
         await setStreamMeta(streamId, {
           status: 'error',
           userId,
           executionId,
           runId,
-          error: error instanceof Error ? error.message : 'Stream error',
+          error: errorMessage,
         })
         await updateRunStatus(runId, 'error', {
           completedAt: new Date(),
-          error: error instanceof Error ? error.message : 'Stream error',
+          error: errorMessage,
         }).catch(() => {})
-        await pushEvent({
-          type: 'error',
-          data: {
-            displayMessage: 'An unexpected error occurred while processing the response.',
-          },
-        })
       } finally {
         clearInterval(keepaliveInterval)
         activeStreams.delete(streamId)

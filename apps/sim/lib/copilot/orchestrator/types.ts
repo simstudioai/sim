@@ -153,13 +153,6 @@ export interface OrchestratorOptions {
   onError?: (error: Error) => void | Promise<void>
   abortSignal?: AbortSignal
   interactive?: boolean
-  /**
-   * When true, tools with `requiresConfirmation` will block until the client
-   * explicitly approves or rejects. When false (e.g. Mothership chat), those
-   * tools are auto-executed without waiting for user approval.
-   * Defaults to false.
-   */
-  promptForToolApproval?: boolean
 }
 
 export interface OrchestratorResult {

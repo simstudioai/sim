@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname } from 'next/navigation'
 import {
+  cancelRunToolExecution,
   executeRunToolOnClient,
   markRunToolManuallyStopped,
   reportManualRunToolStop,
@@ -82,6 +83,8 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
 } as const
 
 const DEPLOY_TOOL_NAMES = new Set(['deploy_api', 'deploy_chat', 'deploy_mcp', 'redeploy'])
+const RECONNECT_TAIL_ERROR =
+  'Live reconnect failed before the stream finished. The latest response may be incomplete.'
 
 function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
   const mapped: ContentBlock = {
@@ -528,7 +531,8 @@ export function useChat(
 
           const lastEventId =
             batchEvents.length > 0 ? batchEvents[batchEvents.length - 1].eventId : 0
-          const isStreamDone = streamStatus === 'complete' || streamStatus === 'error'
+          const isStreamDone =
+            streamStatus === 'complete' || streamStatus === 'error' || streamStatus === 'cancelled'
 
           const combinedStream = new ReadableStream<Uint8Array>({
             async start(controller) {
@@ -545,7 +549,13 @@ export function useChat(
                     `/api/copilot/chat/stream?streamId=${activeStreamId}&from=${lastEventId}`,
                     { signal: abortController.signal }
                   )
-                  if (sseRes.ok && sseRes.body) {
+                  if (!sseRes.ok || !sseRes.body) {
+                    logger.warn('SSE tail reconnect returned no readable body', {
+                      status: sseRes.status,
+                      streamId: activeStreamId,
+                    })
+                    setError(RECONNECT_TAIL_ERROR)
+                  } else {
                     const reader = sseRes.body.getReader()
                     while (true) {
                       const { done, value } = await reader.read()
@@ -556,6 +566,7 @@ export function useChat(
                 } catch (err) {
                   if (!(err instanceof Error && err.name === 'AbortError')) {
                     logger.warn('SSE tail failed during reconnect', err)
+                    setError(RECONNECT_TAIL_ERROR)
                   }
                 }
               }
@@ -1063,6 +1074,11 @@ export function useChat(
                 const idx = toolMap.get(id)
                 if (idx !== undefined && blocks[idx].toolCall) {
                   blocks[idx].toolCall!.status = 'error'
+                  if (blocks[idx].toolCall?.name === 'workspace_file') {
+                    setStreamingFile(null)
+                    streamingFileRef.current = null
+                    setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
+                  }
                   flush()
                 }
                 break
@@ -1084,11 +1100,6 @@ export function useChat(
                 break
               }
               case 'subagent_end': {
-                if (activeSubagent === 'file_write') {
-                  setStreamingFile(null)
-                  streamingFileRef.current = null
-                  setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
-                }
                 activeSubagent = undefined
                 blocks.push({ type: 'subagent_end' })
                 flush()
@@ -1423,7 +1434,8 @@ export function useChat(
     for (const [workflowId, wfExec] of execState.workflowExecutions) {
       if (!wfExec.isExecuting) continue
 
-      markRunToolManuallyStopped(workflowId)
+      const toolCallId = markRunToolManuallyStopped(workflowId)
+      cancelRunToolExecution(workflowId)
 
       const executionId = execState.getCurrentExecutionId(workflowId)
       if (executionId) {
@@ -1456,7 +1468,7 @@ export function useChat(
       execState.setIsDebugging(workflowId, false)
       execState.setActiveBlocks(workflowId, new Set())
 
-      reportManualRunToolStop(workflowId).catch(() => {})
+      reportManualRunToolStop(workflowId, toolCallId).catch(() => {})
     }
   }, [invalidateChatQueries, persistPartialResponse, executionStream])
 

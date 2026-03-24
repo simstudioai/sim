@@ -80,6 +80,33 @@ export async function GET(request: NextRequest) {
     async start(controller) {
       let lastEventId = Number.isFinite(fromEventId) ? fromEventId : 0
       let latestMeta = meta
+      let controllerClosed = false
+
+      const closeController = () => {
+        if (controllerClosed) return
+        controllerClosed = true
+        try {
+          controller.close()
+        } catch {
+          // Controller already closed by runtime/client - treat as normal.
+        }
+      }
+
+      const enqueueEvent = (payload: Record<string, any>) => {
+        if (controllerClosed) return false
+        try {
+          controller.enqueue(encodeEvent(payload))
+          return true
+        } catch {
+          controllerClosed = true
+          return false
+        }
+      }
+
+      const abortListener = () => {
+        controllerClosed = true
+      }
+      request.signal.addEventListener('abort', abortListener, { once: true })
 
       const flushEvents = async () => {
         const events = await readStreamEvents(streamId, lastEventId)
@@ -99,37 +126,50 @@ export async function GET(request: NextRequest) {
             executionId: latestMeta?.executionId,
             runId: latestMeta?.runId,
           }
-          controller.enqueue(encodeEvent(payload))
+          if (!enqueueEvent(payload)) {
+            break
+          }
         }
       }
 
       try {
         await flushEvents()
 
-        while (Date.now() - startTime < MAX_STREAM_MS) {
+        while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
           const currentMeta = await getStreamMeta(streamId)
           if (!currentMeta) break
           latestMeta = currentMeta
 
           await flushEvents()
 
-          if (currentMeta.status === 'complete' || currentMeta.status === 'error') {
+          if (controllerClosed) {
+            break
+          }
+          if (
+            currentMeta.status === 'complete' ||
+            currentMeta.status === 'error' ||
+            currentMeta.status === 'cancelled'
+          ) {
             break
           }
 
           if (request.signal.aborted) {
+            controllerClosed = true
             break
           }
 
           await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
         }
       } catch (error) {
-        logger.warn('Stream replay failed', {
-          streamId,
-          error: error instanceof Error ? error.message : String(error),
-        })
+        if (!controllerClosed && !request.signal.aborted) {
+          logger.warn('Stream replay failed', {
+            streamId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
       } finally {
-        controller.close()
+        request.signal.removeEventListener('abort', abortListener)
+        closeController()
       }
     },
   })

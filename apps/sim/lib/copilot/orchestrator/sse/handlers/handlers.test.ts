@@ -13,11 +13,25 @@ const { executeToolServerSide, markToolComplete, isToolAvailableOnSimSide } = vi
   isToolAvailableOnSimSide: vi.fn().mockReturnValue(true),
 }))
 
+const { upsertAsyncToolCall } = vi.hoisted(() => ({
+  upsertAsyncToolCall: vi.fn(),
+}))
+
 vi.mock('@/lib/copilot/orchestrator/tool-executor', () => ({
   executeToolServerSide,
   markToolComplete,
   isToolAvailableOnSimSide,
 }))
+
+vi.mock('@/lib/copilot/async-runs/repository', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/copilot/async-runs/repository')>(
+    '@/lib/copilot/async-runs/repository'
+  )
+  return {
+    ...actual,
+    upsertAsyncToolCall,
+  }
+})
 
 import { sseHandlers } from '@/lib/copilot/orchestrator/sse/handlers'
 import type { ExecutionContext, StreamingContext } from '@/lib/copilot/orchestrator/types'
@@ -28,6 +42,7 @@ describe('sse-handlers tool lifecycle', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    upsertAsyncToolCall.mockResolvedValue(null)
     context = {
       chatId: undefined,
       messageId: 'msg-1',
@@ -138,5 +153,27 @@ describe('sse-handlers tool lifecycle', () => {
 
     const updated = context.toolCalls.get('tool-cancel')
     expect(updated?.status).toBe('cancelled')
+  })
+
+  it('still executes the tool when async row upsert fails', async () => {
+    upsertAsyncToolCall.mockRejectedValueOnce(new Error('db down'))
+    executeToolServerSide.mockResolvedValueOnce({ success: true, output: { ok: true } })
+    markToolComplete.mockResolvedValueOnce(true)
+
+    await sseHandlers.tool_call(
+      {
+        type: 'tool_call',
+        data: { id: 'tool-upsert-fail', name: 'read', arguments: { workflowId: 'workflow-1' } },
+      } as any,
+      context,
+      execContext,
+      { onEvent: vi.fn(), interactive: false, timeout: 1000 }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(executeToolServerSide).toHaveBeenCalledTimes(1)
+    expect(markToolComplete).toHaveBeenCalledTimes(1)
+    expect(context.toolCalls.get('tool-upsert-fail')?.status).toBe('success')
   })
 })

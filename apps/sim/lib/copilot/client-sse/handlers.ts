@@ -18,6 +18,7 @@ import type { CopilotStore, CopilotStreamInfo, CopilotToolCall } from '@/stores/
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { captureBaselineSnapshot } from '@/stores/workflow-diff/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { executeRunToolOnClient } from './run-tool-execution'
@@ -616,6 +617,8 @@ export const sseHandlers: Record<string, SSEHandler> = {
             if (!workflowId) {
               logger.warn('[SSE] edit_workflow result has no workflowId, skipping diff')
             } else {
+              const baselineWorkflow = captureBaselineSnapshot(workflowId)
+
               // Re-fetch the state the server just wrote to DB.
               // Never use the response's workflowState directly — that would
               // mean client and server independently track state, creating
@@ -629,6 +632,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
                 .then((freshState) => {
                   const diffStore = useWorkflowDiffStore.getState()
                   return diffStore.setProposedChanges(freshState as WorkflowState, undefined, {
+                    baselineWorkflow,
                     skipPersist: true,
                   })
                 })
@@ -642,6 +646,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
                     const diffStore = useWorkflowDiffStore.getState()
                     diffStore
                       .setProposedChanges(resultPayload.workflowState as WorkflowState, undefined, {
+                        baselineWorkflow,
                         skipPersist: true,
                       })
                       .catch(() => {})

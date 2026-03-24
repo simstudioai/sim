@@ -16,7 +16,6 @@ import {
 const logger = createLogger('DownloadToWorkspaceFileTool')
 
 const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024 // 50 MB
-
 const DownloadToWorkspaceFileArgsSchema = z.object({
   url: z.string().url(),
   fileName: z.string().min(1).optional(),
