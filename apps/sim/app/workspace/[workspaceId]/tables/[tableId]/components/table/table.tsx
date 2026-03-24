@@ -1342,9 +1342,13 @@ export function Table({
     (anchorColumn: string, newColumn: string, side: 'left' | 'right') => {
       const order = columnOrderRef.current
       if (!order) return
-      const displayIdx = order.indexOf(anchorColumn)
       const newOrder = [...order]
-      const insertIdx = displayIdx === -1 ? order.length : displayIdx + (side === 'right' ? 1 : 0)
+      let anchorIdx = newOrder.indexOf(anchorColumn)
+      if (anchorIdx === -1) {
+        newOrder.push(anchorColumn)
+        anchorIdx = newOrder.length - 1
+      }
+      const insertIdx = anchorIdx + (side === 'right' ? 1 : 0)
       newOrder.splice(insertIdx, 0, newColumn)
       setColumnOrder(newOrder)
       updateMetadataRef.current({
