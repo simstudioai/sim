@@ -364,10 +364,14 @@ export function Table({
         if (!(columnName in prev)) return prev
         return { ...prev, [newName]: prev[columnName] }
       })
-      setColumnOrder((prev) => {
-        if (!prev) return prev
-        return prev.map((n) => (n === columnName ? newName : n))
-      })
+      const updatedOrder = columnOrderRef.current?.map((n) => (n === columnName ? newName : n))
+      if (updatedOrder) {
+        setColumnOrder(updatedOrder)
+        updateMetadataRef.current({
+          columnWidths: columnWidthsRef.current,
+          columnOrder: updatedOrder,
+        })
+      }
       updateColumnMutation.mutate({ columnName, updates: { name: newName } })
     },
   })
@@ -1410,12 +1414,20 @@ export function Table({
 
   const handleDeleteColumnConfirm = useCallback(() => {
     if (!deletingColumn) return
-    deleteColumnMutation.mutate(deletingColumn)
-    setColumnOrder((prev) => {
-      if (!prev) return prev
-      return prev.filter((n) => n !== deletingColumn)
-    })
+    const columnToDelete = deletingColumn
     setDeletingColumn(null)
+    deleteColumnMutation.mutate(columnToDelete, {
+      onSuccess: () => {
+        const order = columnOrderRef.current
+        if (!order) return
+        const newOrder = order.filter((n) => n !== columnToDelete)
+        setColumnOrder(newOrder)
+        updateMetadataRef.current({
+          columnWidths: columnWidthsRef.current,
+          columnOrder: newOrder,
+        })
+      },
+    })
   }, [deletingColumn])
 
   const handleSortChange = useCallback((column: string, direction: SortDirection) => {
