@@ -10,6 +10,7 @@ import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
 import {
   acquirePendingChatStream,
   createSSEStream,
+  releasePendingChatStream,
   requestChatTitle,
   SSE_RESPONSE_HEADERS,
 } from '@/lib/copilot/chat-streaming'
@@ -108,6 +109,10 @@ const ChatMessageSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
+  let actualChatId: string | undefined
+  let pendingChatStreamAcquired = false
+  let pendingChatStreamHandedOff = false
+  let pendingChatStreamID: string | undefined
 
   try {
     // Get session to access user information including name
@@ -200,7 +205,7 @@ export async function POST(req: NextRequest) {
 
     let currentChat: any = null
     let conversationHistory: any[] = []
-    let actualChatId = chatId
+    actualChatId = chatId
     const selectedModel = model || 'claude-opus-4-6'
 
     if (chatId || createNewChat) {
@@ -335,6 +340,21 @@ export async function POST(req: NextRequest) {
       })
     } catch {}
 
+    if (stream && actualChatId) {
+      const acquired = await acquirePendingChatStream(actualChatId, userMessageIdToUse)
+      if (!acquired) {
+        return NextResponse.json(
+          {
+            error:
+              'A response is already in progress for this chat. Wait for it to finish or use Stop.',
+          },
+          { status: 409 }
+        )
+      }
+      pendingChatStreamAcquired = true
+      pendingChatStreamID = userMessageIdToUse
+    }
+
     if (actualChatId) {
       const userMsg = {
         id: userMessageIdToUse,
@@ -361,19 +381,6 @@ export async function POST(req: NextRequest) {
       if (updated) {
         const freshMessages: any[] = Array.isArray(updated.messages) ? updated.messages : []
         conversationHistory = freshMessages.filter((m: any) => m.id !== userMessageIdToUse)
-      }
-    }
-
-    if (stream && actualChatId) {
-      const acquired = await acquirePendingChatStream(actualChatId, userMessageIdToUse)
-      if (!acquired) {
-        return NextResponse.json(
-          {
-            error:
-              'A response is already in progress for this chat. Wait for it to finish or use Stop.',
-          },
-          { status: 409 }
-        )
       }
     }
 
@@ -482,6 +489,7 @@ export async function POST(req: NextRequest) {
           },
         },
       })
+      pendingChatStreamHandedOff = true
 
       return new Response(sseStream, { headers: SSE_RESPONSE_HEADERS })
     }
@@ -587,6 +595,14 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (error) {
+    if (
+      actualChatId &&
+      pendingChatStreamAcquired &&
+      !pendingChatStreamHandedOff &&
+      pendingChatStreamID
+    ) {
+      await releasePendingChatStream(actualChatId, pendingChatStreamID).catch(() => {})
+    }
     const duration = tracker.getDuration()
 
     if (error instanceof z.ZodError) {

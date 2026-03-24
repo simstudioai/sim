@@ -441,17 +441,33 @@ export function useChat(
   }, [isHomePage])
 
   useEffect(() => {
-    if (!chatHistory || appliedChatIdRef.current === chatHistory.id) return
+    if (!chatHistory) return
 
     const activeStreamId = chatHistory.activeStreamId
     const snapshot = chatHistory.streamSnapshot
+    const staleKey = `${chatHistory.id}:stale-stream`
 
     if (activeStreamId && !snapshot && !sendingRef.current) {
-      appliedChatIdRef.current = chatHistory.id
+      if (appliedChatIdRef.current === staleKey) return
+      appliedChatIdRef.current = staleKey
+      setMessages(chatHistory.messages.map(mapStoredMessage))
+
+      const persistedResources = chatHistory.resources.filter((r) => r.id !== 'streaming-file')
+      if (persistedResources.length > 0) {
+        setResources(persistedResources)
+        setActiveResourceId(persistedResources[persistedResources.length - 1].id)
+        for (const resource of persistedResources) {
+          if (resource.type !== 'workflow') continue
+          ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
+        }
+      }
+
       setError(RECONNECT_TAIL_ERROR)
       queryClient.invalidateQueries({ queryKey: taskKeys.detail(chatHistory.id) })
       return
     }
+
+    if (appliedChatIdRef.current === chatHistory.id) return
 
     appliedChatIdRef.current = chatHistory.id
     const mappedMessages = chatHistory.messages.map(mapStoredMessage)

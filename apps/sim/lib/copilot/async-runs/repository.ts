@@ -86,6 +86,20 @@ export async function getLatestRunForExecution(executionId: string) {
   return run ?? null
 }
 
+export async function getLatestRunForStream(streamId: string, userId?: string) {
+  const conditions = userId
+    ? and(eq(copilotRuns.streamId, streamId), eq(copilotRuns.userId, userId))
+    : eq(copilotRuns.streamId, streamId)
+  const [run] = await db
+    .select()
+    .from(copilotRuns)
+    .where(conditions)
+    .orderBy(desc(copilotRuns.startedAt))
+    .limit(1)
+
+  return run ?? null
+}
+
 export async function getRunSegment(runId: string) {
   const [run] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId)).limit(1)
   return run ?? null

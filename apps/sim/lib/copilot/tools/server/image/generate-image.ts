@@ -27,6 +27,15 @@ const ASPECT_RATIO_TO_SIZE: Record<string, string> = {
   '3:4': '768x1024',
 }
 
+function validateGeneratedWorkspaceFileName(fileName: string): string | null {
+  const trimmed = fileName.trim()
+  if (!trimmed) return 'File name cannot be empty'
+  if (trimmed.includes('/')) {
+    return 'Workspace files use a flat namespace. Use a plain file name like "generated-image.png", not a path like "images/generated-image.png".'
+  }
+  return null
+}
+
 interface GenerateImageArgs {
   prompt: string
   referenceFileIds?: string[]
@@ -151,6 +160,10 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
 
       const ext = mimeType.includes('jpeg') || mimeType.includes('jpg') ? '.jpg' : '.png'
       const fileName = params.fileName || `generated-image${ext}`
+      const fileNameValidationError = validateGeneratedWorkspaceFileName(fileName)
+      if (fileNameValidationError) {
+        return { success: false, message: fileNameValidationError }
+      }
       const imageBuffer = Buffer.from(imageBase64, 'base64')
 
       if (params.overwriteFileId) {

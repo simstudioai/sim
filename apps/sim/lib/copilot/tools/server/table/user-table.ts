@@ -42,13 +42,13 @@ const SCHEMA_SAMPLE_SIZE = 100
 type ColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
 
 async function resolveWorkspaceFile(
-  filePath: string,
+  fileReference: string,
   workspaceId: string
 ): Promise<{ buffer: Buffer; name: string; type: string }> {
-  const record = await resolveWorkspaceFileReference(workspaceId, filePath)
+  const record = await resolveWorkspaceFileReference(workspaceId, fileReference)
   if (!record) {
     throw new Error(
-      `File not found: "${filePath}". Use glob("files/*/meta.json") to list available files.`
+      `File not found: "${fileReference}". Use glob("files/by-id/*/meta.json") to list canonical file IDs.`
     )
   }
   const buffer = await downloadWorkspaceFile(record)
@@ -645,15 +645,21 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
         }
 
         case 'create_from_file': {
+          const fileId = (args as Record<string, unknown>).fileId as string | undefined
           const filePath = (args as Record<string, unknown>).filePath as string | undefined
-          if (!filePath) {
-            return { success: false, message: 'filePath is required (e.g. "files/data.csv")' }
+          const fileReference = fileId || filePath
+          if (!fileReference) {
+            return {
+              success: false,
+              message:
+                'fileId is required for create_from_file. Read files/{name}/meta.json or files/by-id/*/meta.json to get the canonical file ID.',
+            }
           }
           if (!workspaceId) {
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const file = await resolveWorkspaceFile(filePath, workspaceId)
+          const file = await resolveWorkspaceFile(fileReference, workspaceId)
           const { headers, rows } = await parseFileRows(file.buffer, file.name, file.type)
           if (rows.length === 0) {
             return { success: false, message: 'File contains no data rows' }
@@ -700,10 +706,16 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
         }
 
         case 'import_file': {
+          const fileId = (args as Record<string, unknown>).fileId as string | undefined
           const filePath = (args as Record<string, unknown>).filePath as string | undefined
           const tableId = (args as Record<string, unknown>).tableId as string | undefined
-          if (!filePath) {
-            return { success: false, message: 'filePath is required (e.g. "files/data.csv")' }
+          const fileReference = fileId || filePath
+          if (!fileReference) {
+            return {
+              success: false,
+              message:
+                'fileId is required for import_file. Read files/{name}/meta.json or files/by-id/*/meta.json to get the canonical file ID.',
+            }
           }
           if (!tableId) {
             return { success: false, message: 'tableId is required for import_file' }
@@ -717,7 +729,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: `Table not found: ${tableId}` }
           }
 
-          const file = await resolveWorkspaceFile(filePath, workspaceId)
+          const file = await resolveWorkspaceFile(fileReference, workspaceId)
           const { headers, rows } = await parseFileRows(file.buffer, file.name, file.type)
           if (rows.length === 0) {
             return { success: false, message: 'File contains no data rows' }

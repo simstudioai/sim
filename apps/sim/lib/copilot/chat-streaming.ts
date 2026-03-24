@@ -8,6 +8,7 @@ import type { OrchestrateStreamOptions } from '@/lib/copilot/orchestrator'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import {
   createStreamEventWriter,
+  getStreamMeta,
   resetStreamBuffer,
   setStreamMeta,
 } from '@/lib/copilot/orchestrator/stream/buffer'
@@ -66,15 +67,46 @@ function getStreamAbortKey(streamId: string): string {
  */
 export async function waitForPendingChatStream(
   chatId: string,
-  timeoutMs = 5_000
+  timeoutMs = 5_000,
+  expectedStreamId?: string
 ): Promise<boolean> {
-  const entry = pendingChatStreams.get(chatId)
-  if (!entry) return true
+  const redis = getRedisClient()
+  const deadline = Date.now() + timeoutMs
 
-  return await Promise.race([
-    entry.promise.then(() => true),
-    new Promise<boolean>((r) => setTimeout(() => r(false), timeoutMs)),
-  ])
+  for (;;) {
+    const entry = pendingChatStreams.get(chatId)
+    const localPending = !!entry && (!expectedStreamId || entry.streamId === expectedStreamId)
+
+    if (redis) {
+      try {
+        const ownerStreamId = await redis.get(getChatStreamLockKey(chatId))
+        const lockReleased =
+          !ownerStreamId || (expectedStreamId !== undefined && ownerStreamId !== expectedStreamId)
+        if (!localPending && lockReleased) {
+          return true
+        }
+      } catch (error) {
+        logger.warn('Failed to check distributed chat stream lock while waiting', {
+          chatId,
+          expectedStreamId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    } else if (!localPending) {
+      return true
+    }
+
+    if (Date.now() >= deadline) return false
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+}
+
+export async function releasePendingChatStream(chatId: string, streamId: string): Promise<void> {
+  const redis = getRedisClient()
+  if (redis) {
+    await releaseLock(getChatStreamLockKey(chatId), streamId).catch(() => false)
+  }
+  resolvePendingChatStream(chatId, streamId)
 }
 
 export async function acquirePendingChatStream(
@@ -86,14 +118,36 @@ export async function acquirePendingChatStream(
   if (redis) {
     const deadline = Date.now() + timeoutMs
     for (;;) {
-      const acquired = await acquireLock(
-        getChatStreamLockKey(chatId),
-        streamId,
-        CHAT_STREAM_LOCK_TTL_SECONDS
-      )
-      if (acquired) {
-        registerPendingChatStream(chatId, streamId)
-        return true
+      try {
+        const acquired = await acquireLock(
+          getChatStreamLockKey(chatId),
+          streamId,
+          CHAT_STREAM_LOCK_TTL_SECONDS
+        )
+        if (acquired) {
+          registerPendingChatStream(chatId, streamId)
+          return true
+        }
+        if (!pendingChatStreams.has(chatId)) {
+          const ownerStreamId = await redis.get(getChatStreamLockKey(chatId))
+          if (ownerStreamId) {
+            const ownerMeta = await getStreamMeta(ownerStreamId)
+            const ownerTerminal =
+              ownerMeta?.status === 'complete' ||
+              ownerMeta?.status === 'error' ||
+              ownerMeta?.status === 'cancelled'
+            if (ownerTerminal) {
+              await releaseLock(getChatStreamLockKey(chatId), ownerStreamId).catch(() => false)
+              continue
+            }
+          }
+        }
+      } catch (error) {
+        logger.warn('Distributed chat stream lock failed; retrying distributed coordination', {
+          chatId,
+          streamId,
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
       if (Date.now() >= deadline) return false
       await new Promise((resolve) => setTimeout(resolve, 200))
