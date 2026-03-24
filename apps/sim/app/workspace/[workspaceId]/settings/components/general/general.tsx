@@ -16,6 +16,7 @@ import {
   ModalFooter,
   ModalHeader,
   Switch,
+  Tooltip,
 } from '@/components/emcn'
 import { signOut, useSession } from '@/lib/auth/auth-client'
 import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
@@ -375,7 +376,20 @@ export function General() {
       </div>
 
       <div className='flex items-center justify-between'>
-        <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Label htmlFor='auto-connect' className='cursor-help'>
+              Auto-connect on drop
+            </Label>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom' align='start'>
+            <p>Automatically connect blocks when dropped near each other</p>
+            <Tooltip.Preview
+              src='/tooltips/auto-connect-on-drop.mp4'
+              alt='Auto-connect on drop example'
+            />
+          </Tooltip.Content>
+        </Tooltip.Root>
         <Switch
           id='auto-connect'
           checked={settings?.autoConnect ?? true}
@@ -384,7 +398,20 @@ export function General() {
       </div>
 
       <div className='flex items-center justify-between'>
-        <Label htmlFor='error-notifications'>Workflow error notifications</Label>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Label htmlFor='error-notifications' className='cursor-help'>
+              Canvas error notifications
+            </Label>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom' align='start'>
+            <p>Show error popups on blocks when a workflow run fails</p>
+            <Tooltip.Preview
+              src='/tooltips/canvas-error-notification.mp4'
+              alt='Canvas error notification example'
+            />
+          </Tooltip.Content>
+        </Tooltip.Root>
         <Switch
           id='error-notifications'
           checked={settings?.errorNotificationsEnabled ?? true}
