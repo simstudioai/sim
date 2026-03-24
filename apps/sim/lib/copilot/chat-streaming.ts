@@ -245,6 +245,17 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         }
       }
 
+      const pushEventBestEffort = async (event: Record<string, any>) => {
+        try {
+          await pushEvent(event)
+        } catch (error) {
+          logger.error(`[${requestId}] Failed to push event`, {
+            eventType: event.type,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
+
       if (chatId) {
         await pushEvent({ type: 'chat_id', chatId })
       }
@@ -308,7 +319,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           logger.error(`[${requestId}] Orchestration returned failure`, {
             error: errorMessage,
           })
-          await pushEvent({
+          await pushEventBestEffort({
             type: 'error',
             error: errorMessage,
             data: {
@@ -348,7 +359,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         }
         logger.error(`[${requestId}] Orchestration error:`, error)
         const errorMessage = error instanceof Error ? error.message : 'Stream error'
-        await pushEvent({
+        await pushEventBestEffort({
           type: 'error',
           error: errorMessage,
           data: {
