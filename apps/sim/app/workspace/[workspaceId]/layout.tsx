@@ -1,6 +1,6 @@
 import { ToastProvider } from '@/components/emcn'
-import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/impersonation-banner'
 import { NavTour } from '@/app/workspace/[workspaceId]/components/product-tour'
+import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/impersonation-banner'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
 import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
