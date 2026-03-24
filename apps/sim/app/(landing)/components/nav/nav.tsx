@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { GithubIcon } from '@/components/icons'
 import { isHosted } from '@/lib/core/config/feature-flags'
+import { useSession } from '@/lib/auth/auth-client'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 import { useBrandConfig } from '@/ee/whitelabeling'
 import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
@@ -26,6 +27,9 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
   const router = useRouter()
   const brand = useBrandConfig()
   const buttonClass = useBrandedButtonClass()
+  const { data: session, isPending: isSessionPending } = useSession()
+  const isAuthenticated = Boolean(session?.user?.id)
+  const logoHref = isAuthenticated ? '/?home' : '/?from=nav'
 
   useEffect(() => {
     if (variant !== 'landing') return
@@ -72,7 +76,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
       </li>
       <li>
         <Link
-          href='/?from=nav#pricing'
+          href={isAuthenticated ? '/?home#pricing' : '/?from=nav#pricing'}
           className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
           scroll={true}
         >
@@ -124,7 +128,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
       itemType='https://schema.org/SiteNavigationElement'
     >
       <div className='flex items-center gap-[34px]'>
-        <Link href='/?from=nav' aria-label={`${brand.name} home`} itemProp='url'>
+        <Link href={logoHref} aria-label={`${brand.name} home`} itemProp='url'>
           <span itemProp='name' className='sr-only'>
             {brand.name} Home
           </span>
@@ -162,45 +166,68 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
 
       {/* Auth Buttons - show only when hosted, regardless of variant */}
       {!hideAuthButtons && isHosted && (
-        <div className='flex items-center justify-center gap-[16px] pt-[1.5px]'>
-          <button
-            onClick={handleLoginClick}
-            onMouseEnter={() => setIsLoginHovered(true)}
-            onMouseLeave={() => setIsLoginHovered(false)}
-            className='group hidden text-[#2E2E2E] text-[16px] transition-colors hover:text-foreground md:block'
-            type='button'
-            aria-label='Log in to your account'
-          >
-            <span className='flex items-center gap-1'>
-              Log in
-              <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
-                {isLoginHovered ? (
-                  <ArrowRight className='h-4 w-4' aria-hidden='true' />
-                ) : (
-                  <ChevronRight className='h-4 w-4' aria-hidden='true' />
-                )}
+        <div className={`flex items-center justify-center gap-[16px] pt-[1.5px]${isSessionPending ? ' invisible' : ''}`}>
+          {isAuthenticated ? (
+            <Link
+              href='/workspace'
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
+              className={`${buttonClass} group inline-flex items-center justify-center gap-2 rounded-[10px] py-[6px] pr-[10px] pl-[12px] text-[15px] text-white transition-all`}
+              aria-label='Go to app'
+            >
+              <span className='flex items-center gap-1'>
+                Go to App
+                <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                  {isHovered ? (
+                    <ArrowRight className='h-4 w-4' aria-hidden='true' />
+                  ) : (
+                    <ChevronRight className='h-4 w-4' aria-hidden='true' />
+                  )}
+                </span>
               </span>
-            </span>
-          </button>
-          <Link
-            href='/signup'
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-            className={`${buttonClass} group inline-flex items-center justify-center gap-2 rounded-[10px] py-[6px] pr-[10px] pl-[12px] text-[15px] text-white transition-all`}
-            aria-label='Get started with Sim - Sign up for free'
-            prefetch={true}
-          >
-            <span className='flex items-center gap-1'>
-              Get started
-              <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
-                {isHovered ? (
-                  <ArrowRight className='h-4 w-4' aria-hidden='true' />
-                ) : (
-                  <ChevronRight className='h-4 w-4' aria-hidden='true' />
-                )}
-              </span>
-            </span>
-          </Link>
+            </Link>
+          ) : (
+            <>
+              <button
+                onClick={handleLoginClick}
+                onMouseEnter={() => setIsLoginHovered(true)}
+                onMouseLeave={() => setIsLoginHovered(false)}
+                className='group hidden text-[#2E2E2E] text-[16px] transition-colors hover:text-foreground md:block'
+                type='button'
+                aria-label='Log in to your account'
+              >
+                <span className='flex items-center gap-1'>
+                  Log in
+                  <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                    {isLoginHovered ? (
+                      <ArrowRight className='h-4 w-4' aria-hidden='true' />
+                    ) : (
+                      <ChevronRight className='h-4 w-4' aria-hidden='true' />
+                    )}
+                  </span>
+                </span>
+              </button>
+              <Link
+                href='/signup'
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+                className={`${buttonClass} group inline-flex items-center justify-center gap-2 rounded-[10px] py-[6px] pr-[10px] pl-[12px] text-[15px] text-white transition-all`}
+                aria-label='Get started with Sim - Sign up for free'
+                prefetch={true}
+              >
+                <span className='flex items-center gap-1'>
+                  Get started
+                  <span className='inline-flex transition-transform duration-200 group-hover:translate-x-0.5'>
+                    {isHovered ? (
+                      <ArrowRight className='h-4 w-4' aria-hidden='true' />
+                    ) : (
+                      <ChevronRight className='h-4 w-4' aria-hidden='true' />
+                    )}
+                  </span>
+                </span>
+              </Link>
+            </>
+          )}
         </div>
       )}
     </nav>

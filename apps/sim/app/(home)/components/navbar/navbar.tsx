@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { GithubOutlineIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { useSession } from '@/lib/auth/auth-client'
 import {
   BlogDropdown,
   type NavBlogPost,
@@ -40,6 +41,9 @@ interface NavbarProps {
 
 export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps) {
   const brand = getBrandConfig()
+  const { data: session, isPending: isSessionPending } = useSession()
+  const isAuthenticated = Boolean(session?.user?.id)
+  const logoHref = isAuthenticated ? '/?home' : '/'
   const [activeDropdown, setActiveDropdown] = useState<DropdownId>(null)
   const [hoveredLink, setHoveredLink] = useState<string | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -92,7 +96,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
       itemScope
       itemType='https://schema.org/SiteNavigationElement'
     >
-      <Link href='/' className={LOGO_CELL} aria-label={`${brand.name} home`} itemProp='url'>
+      <Link href={logoHref} className={LOGO_CELL} aria-label={`${brand.name} home`} itemProp='url'>
         <span itemProp='name' className='sr-only'>
           {brand.name}
         </span>
@@ -121,7 +125,11 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
       {!logoOnly && (
         <>
           <ul className='mt-[0.75px] hidden lg:flex'>
-            {NAV_LINKS.map(({ label, href, external, icon, dropdown }) => {
+            {NAV_LINKS.map(({ label, href: rawHref, external, icon, dropdown }) => {
+              const href =
+                isAuthenticated && rawHref.startsWith('/#')
+                  ? `/?home${rawHref.slice(1)}`
+                  : rawHref
               const hasDropdown = !!dropdown
               const isActive = hasDropdown && activeDropdown === dropdown
               const isThisHovered = hoveredLink === label
@@ -206,21 +214,38 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
 
           <div className='hidden flex-1 lg:block' />
 
-          <div className='hidden items-center gap-[8px] pr-[80px] pl-[20px] lg:flex'>
-            <Link
-              href='/login'
-              className='inline-flex h-[30px] items-center rounded-[5px] border border-[#3d3d3d] px-[9px] text-[#ECECEC] text-[13.5px] transition-colors hover:bg-[#2A2A2A]'
-              aria-label='Log in'
-            >
-              Log in
-            </Link>
-            <Link
-              href='/signup'
-              className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[9px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-              aria-label='Get started with Sim'
-            >
-              Get started
-            </Link>
+          <div
+            className={cn(
+              'hidden items-center gap-[8px] pr-[80px] pl-[20px] lg:flex',
+              isSessionPending && 'invisible'
+            )}
+          >
+            {isAuthenticated ? (
+              <Link
+                href='/workspace'
+                className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[9px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                aria-label='Go to app'
+              >
+                Go to App
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href='/login'
+                  className='inline-flex h-[30px] items-center rounded-[5px] border border-[#3d3d3d] px-[9px] text-[#ECECEC] text-[13.5px] transition-colors hover:bg-[#2A2A2A]'
+                  aria-label='Log in'
+                >
+                  Log in
+                </Link>
+                <Link
+                  href='/signup'
+                  className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[9px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                  aria-label='Get started with Sim'
+                >
+                  Get started
+                </Link>
+              </>
+            )}
           </div>
 
           <div className='flex flex-1 items-center justify-end pr-[20px] lg:hidden'>
@@ -242,7 +267,12 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
             )}
           >
             <ul className='flex flex-col'>
-              {NAV_LINKS.map(({ label, href, external }) => (
+              {NAV_LINKS.map(({ label, href: rawHref, external }) => {
+                const href =
+                  isAuthenticated && rawHref.startsWith('/#')
+                    ? `/?home${rawHref.slice(1)}`
+                    : rawHref
+                return (
                 <li key={label} className='border-[#2A2A2A] border-b'>
                   {external ? (
                     <a
@@ -265,7 +295,8 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                     </Link>
                   )}
                 </li>
-              ))}
+                )
+              })}
               <li className='border-[#2A2A2A] border-b'>
                 <a
                   href='https://github.com/simstudioai/sim'
@@ -280,23 +311,36 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
               </li>
             </ul>
 
-            <div className='mt-auto flex flex-col gap-[10px] p-[20px]'>
-              <Link
-                href='/login'
-                className='flex h-[32px] items-center justify-center rounded-[5px] border border-[#3d3d3d] text-[#ECECEC] text-[14px] transition-colors active:bg-[#2A2A2A]'
-                onClick={() => setMobileMenuOpen(false)}
-                aria-label='Log in'
-              >
-                Log in
-              </Link>
-              <Link
-                href='/signup'
-                className='flex h-[32px] items-center justify-center rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
-                onClick={() => setMobileMenuOpen(false)}
-                aria-label='Get started with Sim'
-              >
-                Get started
-              </Link>
+            <div className={cn('mt-auto flex flex-col gap-[10px] p-[20px]', isSessionPending && 'invisible')}>
+              {isAuthenticated ? (
+                <Link
+                  href='/workspace'
+                  className='flex h-[32px] items-center justify-center rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
+                  onClick={() => setMobileMenuOpen(false)}
+                  aria-label='Go to app'
+                >
+                  Go to App
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href='/login'
+                    className='flex h-[32px] items-center justify-center rounded-[5px] border border-[#3d3d3d] text-[#ECECEC] text-[14px] transition-colors active:bg-[#2A2A2A]'
+                    onClick={() => setMobileMenuOpen(false)}
+                    aria-label='Log in'
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    href='/signup'
+                    className='flex h-[32px] items-center justify-center rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
+                    onClick={() => setMobileMenuOpen(false)}
+                    aria-label='Get started with Sim'
+                  >
+                    Get started
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </>
