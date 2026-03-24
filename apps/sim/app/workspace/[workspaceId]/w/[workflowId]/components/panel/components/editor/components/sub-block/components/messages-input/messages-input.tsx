@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import isEqual from 'lodash/isEqual'
+import { isEqual } from 'es-toolkit'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { Button, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
