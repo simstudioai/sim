@@ -85,6 +85,8 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
 const DEPLOY_TOOL_NAMES = new Set(['deploy_api', 'deploy_chat', 'deploy_mcp', 'redeploy'])
 const RECONNECT_TAIL_ERROR =
   'Live reconnect failed before the stream finished. The latest response may be incomplete.'
+const CONTINUE_OPTIONS_CONTENT =
+  '<options>{"continue":{"title":"Continue","description":"Pick up where we left off"}}</options>'
 
 function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
   const mapped: ContentBlock = {
@@ -1231,11 +1233,13 @@ export function useChat(
   const messagesRef = useRef(messages)
   messagesRef.current = messages
 
-  const CONTINUE_OPTIONS_CONTENT =
-    '<options>{"continue":{"title":"Continue","description":"Pick up where we left off"}}</options>'
-
   const resolveInterruptedToolCalls = useCallback(() => {
     setMessages((prev) => {
+      const hasAnyExecuting = prev.some((m) =>
+        m.contentBlocks?.some((b) => b.toolCall?.status === 'executing')
+      )
+      if (!hasAnyExecuting) return prev
+
       let lastAssistantIdx = -1
       for (let i = prev.length - 1; i >= 0; i--) {
         if (prev[i].role === 'assistant') {
