@@ -435,10 +435,13 @@ describe.concurrent('Blocks Module', () => {
 
   describe('Input/Output Validation', () => {
     it('should have valid input types', () => {
-      const validTypes = ['string', 'number', 'boolean', 'json', 'array']
+      const validTypes = ['string', 'number', 'boolean', 'json', 'array', 'file']
       const blocks = getAllBlocks()
       for (const block of blocks) {
-        for (const [_, inputConfig] of Object.entries(block.inputs)) {
+        for (const [_, inputConfig] of Object.entries(block.inputs) as [
+          string,
+          { type: string },
+        ][]) {
           expect(validTypes).toContain(inputConfig.type)
         }
       }
