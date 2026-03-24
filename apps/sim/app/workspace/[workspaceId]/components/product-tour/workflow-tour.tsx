@@ -4,9 +4,9 @@ import { useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import type { TourState } from '@/app/workspace/[workspaceId]/components/product-tour/tour-shared'
 import {
+  getSharedJoyrideProps,
   TourStateContext,
   TourTooltipAdapter,
-  getSharedJoyrideProps,
 } from '@/app/workspace/[workspaceId]/components/product-tour/tour-shared'
 import { useTour } from '@/app/workspace/[workspaceId]/components/product-tour/use-tour'
 import { workflowTourSteps } from '@/app/workspace/[workspaceId]/components/product-tour/workflow-tour-steps'

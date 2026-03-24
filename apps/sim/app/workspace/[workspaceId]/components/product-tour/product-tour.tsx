@@ -6,9 +6,9 @@ import { usePathname } from 'next/navigation'
 import { navTourSteps } from '@/app/workspace/[workspaceId]/components/product-tour/nav-tour-steps'
 import type { TourState } from '@/app/workspace/[workspaceId]/components/product-tour/tour-shared'
 import {
+  getSharedJoyrideProps,
   TourStateContext,
   TourTooltipAdapter,
-  getSharedJoyrideProps,
 } from '@/app/workspace/[workspaceId]/components/product-tour/tour-shared'
 import { useTour } from '@/app/workspace/[workspaceId]/components/product-tour/use-tour'
 
