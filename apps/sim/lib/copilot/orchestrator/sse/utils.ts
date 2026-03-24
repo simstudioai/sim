@@ -125,7 +125,5 @@ export function shouldSkipToolResultEvent(event: SSEEvent): boolean {
   if (event.type !== 'tool_result') return false
   const toolCallId = getToolCallIdFromEvent(event)
   if (!toolCallId) return false
-  if (wasToolResultSeen(toolCallId)) return true
-  markToolResultSeen(toolCallId)
-  return false
+  return wasToolResultSeen(toolCallId)
 }

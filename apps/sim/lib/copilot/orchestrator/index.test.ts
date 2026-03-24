@@ -279,16 +279,7 @@ describe('orchestrateCopilotStream async continuation', () => {
     expect(markAsyncToolDelivered).not.toHaveBeenCalled()
   })
 
-  it('does not send a partial resume payload when only some pending tool calls are claimable', async () => {
-    claimCompletedAsyncToolCall
-      .mockResolvedValueOnce({ toolCallId: 'tool-1' })
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ toolCallId: 'tool-1' })
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ toolCallId: 'tool-1' })
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ toolCallId: 'tool-1' })
-      .mockResolvedValueOnce(null)
+  it('fails explicitly when async continuation cannot be resumed', async () => {
     getAsyncToolCall.mockResolvedValue(null)
 
     runStreamLoop.mockImplementationOnce(async (_url: string, _opts: RequestInit, context: any) => {
@@ -310,9 +301,44 @@ describe('orchestrateCopilotStream async continuation', () => {
       }
     )
 
-    expect(result.success).toBe(true)
+    expect(result.success).toBe(false)
     expect(runStreamLoop).toHaveBeenCalledTimes(1)
-    expect(releaseCompletedAsyncToolClaim).toHaveBeenCalledWith('tool-1', 'run-1')
+    expect(result.error).toContain('Failed to resume async tool continuation')
+    expect(markAsyncToolDelivered).not.toHaveBeenCalled()
+  })
+
+  it('fails explicitly when a sim-handled tool has no durable async row', async () => {
+    claimCompletedAsyncToolCall.mockResolvedValue(null)
+    getAsyncToolCall.mockResolvedValue(null)
+
+    runStreamLoop.mockImplementationOnce(async (_url: string, _opts: RequestInit, context: any) => {
+      context.awaitingAsyncContinuation = {
+        checkpointId: 'checkpoint-1',
+        runId: 'run-1',
+        pendingToolCallIds: ['tool-1'],
+      }
+      context.toolCalls.set('tool-1', {
+        id: 'tool-1',
+        name: 'read',
+        status: 'success',
+        result: { success: true, output: { ok: true } },
+      })
+    })
+
+    const result = await orchestrateCopilotStream(
+      { message: 'hello' },
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+      }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Failed to resume async tool continuation')
+    expect(runStreamLoop).toHaveBeenCalledTimes(1)
     expect(markAsyncToolDelivered).not.toHaveBeenCalled()
   })
 })

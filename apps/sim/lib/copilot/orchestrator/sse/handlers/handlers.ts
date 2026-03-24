@@ -263,6 +263,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       const resultObj = asRecord(data?.result)
       current.error = (data?.error || resultObj.error) as string | undefined
     }
+    markToolResultSeen(toolCallId)
   },
   tool_error: (event, context) => {
     const data = getEventData(event)
@@ -273,6 +274,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     current.status = 'error'
     current.error = (data?.error as string | undefined) || 'Tool execution failed'
     current.endTime = Date.now()
+    markToolResultSeen(toolCallId)
   },
   tool_call_delta: () => {
     // Argument streaming delta — no action needed on orchestrator side
@@ -718,6 +720,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
         const resultObj = asRecord(data?.result)
         mainToolCall.error = (data?.error || resultObj.error) as string | undefined
       }
+    }
+    if (subAgentToolCall || mainToolCall) {
+      markToolResultSeen(toolCallId)
     }
   },
 }
