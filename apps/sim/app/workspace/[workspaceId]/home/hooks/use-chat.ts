@@ -85,6 +85,8 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
 const DEPLOY_TOOL_NAMES = new Set(['deploy_api', 'deploy_chat', 'deploy_mcp', 'redeploy'])
 const RECONNECT_TAIL_ERROR =
   'Live reconnect failed before the stream finished. The latest response may be incomplete.'
+const CONTINUE_OPTIONS_CONTENT =
+  '<options>{"continue":{"title":"Continue","description":"Pick up where we left off"}}</options>'
 
 function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
   const mapped: ContentBlock = {
@@ -1213,7 +1215,13 @@ export function useChat(
 
     if (storedBlocks.length > 0) {
       storedBlocks.push({ type: 'stopped' })
+      storedBlocks.push({ type: 'text', content: CONTINUE_OPTIONS_CONTENT })
     }
+
+    const persistedContent =
+      content && !content.includes('<options>')
+        ? `${content}\n\n${CONTINUE_OPTIONS_CONTENT}`
+        : content
 
     try {
       const res = await fetch(stopPathRef.current, {
@@ -1222,7 +1230,7 @@ export function useChat(
         body: JSON.stringify({
           chatId,
           streamId,
-          content,
+          content: persistedContent,
           ...(storedBlocks.length > 0 && { contentBlocks: storedBlocks }),
         }),
       })
@@ -1248,6 +1256,50 @@ export function useChat(
   const messagesRef = useRef(messages)
   messagesRef.current = messages
 
+  const resolveInterruptedToolCalls = useCallback(() => {
+    setMessages((prev) => {
+      const hasAnyExecuting = prev.some((m) =>
+        m.contentBlocks?.some((b) => b.toolCall?.status === 'executing')
+      )
+      if (!hasAnyExecuting) return prev
+
+      let lastAssistantIdx = -1
+      for (let i = prev.length - 1; i >= 0; i--) {
+        if (prev[i].role === 'assistant') {
+          lastAssistantIdx = i
+          break
+        }
+      }
+      return prev.map((msg, idx) => {
+        const hasExecuting = msg.contentBlocks?.some((b) => b.toolCall?.status === 'executing')
+        const isLastAssistant = idx === lastAssistantIdx
+        if (!hasExecuting && !isLastAssistant) return msg
+
+        const blocks: ContentBlock[] = (msg.contentBlocks ?? []).map((block) => {
+          if (block.toolCall?.status !== 'executing') return block
+          return {
+            ...block,
+            toolCall: {
+              ...block.toolCall,
+              status: 'cancelled' as const,
+              displayTitle: 'Stopped',
+            },
+          }
+        })
+        if (isLastAssistant && !blocks.some((b) => b.type === 'stopped')) {
+          blocks.push({ type: 'stopped' as const })
+        }
+        if (
+          isLastAssistant &&
+          !blocks.some((b) => b.type === 'text' && b.content?.includes('<options>'))
+        ) {
+          blocks.push({ type: 'text', content: CONTINUE_OPTIONS_CONTENT })
+        }
+        return { ...msg, contentBlocks: blocks.length > 0 ? blocks : msg.contentBlocks }
+      })
+    })
+  }, [])
+
   const finalize = useCallback(
     (options?: { error?: boolean }) => {
       sendingRef.current = false
@@ -1261,6 +1313,8 @@ export function useChat(
           onStreamEndRef.current(cid, messagesRef.current)
         }
       }
+
+      resolveInterruptedToolCalls()
 
       if (options?.error) {
         setMessageQueue([])
@@ -1277,7 +1331,7 @@ export function useChat(
         })
       }
     },
-    [invalidateChatQueries]
+    [invalidateChatQueries, resolveInterruptedToolCalls]
   )
   finalizeRef.current = finalize
 
@@ -1435,24 +1489,7 @@ export function useChat(
     sendingRef.current = false
     setIsSending(false)
 
-    setMessages((prev) =>
-      prev.map((msg) => {
-        if (!msg.contentBlocks?.some((b) => b.toolCall?.status === 'executing')) return msg
-        const updated = msg.contentBlocks!.map((block) => {
-          if (block.toolCall?.status !== 'executing') return block
-          return {
-            ...block,
-            toolCall: {
-              ...block.toolCall,
-              status: 'cancelled' as const,
-              displayTitle: 'Stopped by user',
-            },
-          }
-        })
-        updated.push({ type: 'stopped' as const })
-        return { ...msg, contentBlocks: updated }
-      })
-    )
+    resolveInterruptedToolCalls()
 
     if (sid) {
       fetch('/api/copilot/chat/abort', {
@@ -1518,7 +1555,7 @@ export function useChat(
 
       reportManualRunToolStop(workflowId, toolCallId).catch(() => {})
     }
-  }, [invalidateChatQueries, persistPartialResponse, executionStream])
+  }, [invalidateChatQueries, persistPartialResponse, executionStream, resolveInterruptedToolCalls])
 
   const removeFromQueue = useCallback((id: string) => {
     messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
