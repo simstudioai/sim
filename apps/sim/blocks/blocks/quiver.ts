@@ -190,25 +190,25 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
         const normalizedImage = normalizeFileInput(image, { single: true })
 
         return {
-          ...rest,
-          ...(normalizedRefs && { references: normalizedRefs }),
-          ...(normalizedImage && { image: normalizedImage }),
-          ...(rest.n && { n: Number(rest.n) }),
-          ...(rest.temperature && { temperature: Number(rest.temperature) }),
-          ...(topP && { top_p: Number(topP) }),
-          ...(maxOutputTokens && { max_output_tokens: Number(maxOutputTokens) }),
-          ...(presencePenalty && { presence_penalty: Number(presencePenalty) }),
-          ...(targetSize && { target_size: Number(targetSize) }),
-          ...(autoCrop === 'true' && { auto_crop: true }),
+          ...(rest as Record<string, unknown>),
+          ...(normalizedRefs ? { references: normalizedRefs } : {}),
+          ...(normalizedImage ? { image: normalizedImage } : {}),
+          ...(rest.n ? { n: Number(rest.n) } : {}),
+          ...(rest.temperature ? { temperature: Number(rest.temperature) } : {}),
+          ...(topP ? { top_p: Number(topP) } : {}),
+          ...(maxOutputTokens ? { max_output_tokens: Number(maxOutputTokens) } : {}),
+          ...(presencePenalty ? { presence_penalty: Number(presencePenalty) } : {}),
+          ...(targetSize ? { target_size: Number(targetSize) } : {}),
+          ...(autoCrop === 'true' ? { auto_crop: true } : {}),
         }
       },
     },
   },
   inputs: {
-    prompt: { type: 'string', required: false },
-    instructions: { type: 'string', required: false },
-    references: { type: 'file', required: false },
-    image: { type: 'file', required: false },
+    prompt: { type: 'string' },
+    instructions: { type: 'string' },
+    references: { type: 'file' },
+    image: { type: 'file' },
   },
   outputs: {
     file: {
@@ -230,22 +230,10 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
     usage: {
       type: 'json',
       description: 'Token usage statistics',
-      properties: {
-        totalTokens: { type: 'number', description: 'Total tokens used' },
-        inputTokens: { type: 'number', description: 'Input tokens used' },
-        outputTokens: { type: 'number', description: 'Output tokens used' },
-      },
     },
     models: {
       type: 'json',
       description: 'List of available models (list_models operation only)',
-      optional: true,
-      properties: {
-        id: { type: 'string', description: 'Model identifier' },
-        name: { type: 'string', description: 'Human-readable model name' },
-        description: { type: 'string', description: 'Model capabilities summary' },
-        supportedOperations: { type: 'json', description: 'Available operations' },
-      },
     },
   },
 }
