@@ -8,9 +8,11 @@ import {
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 
+export const maxDuration = 3600
+
 const logger = createLogger('CopilotChatStreamAPI')
 const POLL_INTERVAL_MS = 250
-const MAX_STREAM_MS = 10 * 60 * 1000
+const MAX_STREAM_MS = 60 * 60 * 1000
 
 function encodeEvent(event: Record<string, any>): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`)
@@ -67,6 +69,8 @@ export async function GET(request: NextRequest) {
       success: true,
       events: filteredEvents,
       status: meta.status,
+      executionId: meta.executionId,
+      runId: meta.runId,
     })
   }
 
@@ -75,6 +79,34 @@ export async function GET(request: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       let lastEventId = Number.isFinite(fromEventId) ? fromEventId : 0
+      let latestMeta = meta
+      let controllerClosed = false
+
+      const closeController = () => {
+        if (controllerClosed) return
+        controllerClosed = true
+        try {
+          controller.close()
+        } catch {
+          // Controller already closed by runtime/client - treat as normal.
+        }
+      }
+
+      const enqueueEvent = (payload: Record<string, any>) => {
+        if (controllerClosed) return false
+        try {
+          controller.enqueue(encodeEvent(payload))
+          return true
+        } catch {
+          controllerClosed = true
+          return false
+        }
+      }
+
+      const abortListener = () => {
+        controllerClosed = true
+      }
+      request.signal.addEventListener('abort', abortListener, { once: true })
 
       const flushEvents = async () => {
         const events = await readStreamEvents(streamId, lastEventId)
@@ -91,37 +123,53 @@ export async function GET(request: NextRequest) {
             ...entry.event,
             eventId: entry.eventId,
             streamId: entry.streamId,
+            executionId: latestMeta?.executionId,
+            runId: latestMeta?.runId,
           }
-          controller.enqueue(encodeEvent(payload))
+          if (!enqueueEvent(payload)) {
+            break
+          }
         }
       }
 
       try {
         await flushEvents()
 
-        while (Date.now() - startTime < MAX_STREAM_MS) {
+        while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
           const currentMeta = await getStreamMeta(streamId)
           if (!currentMeta) break
+          latestMeta = currentMeta
 
           await flushEvents()
 
-          if (currentMeta.status === 'complete' || currentMeta.status === 'error') {
+          if (controllerClosed) {
+            break
+          }
+          if (
+            currentMeta.status === 'complete' ||
+            currentMeta.status === 'error' ||
+            currentMeta.status === 'cancelled'
+          ) {
             break
           }
 
           if (request.signal.aborted) {
+            controllerClosed = true
             break
           }
 
           await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
         }
       } catch (error) {
-        logger.warn('Stream replay failed', {
-          streamId,
-          error: error instanceof Error ? error.message : String(error),
-        })
+        if (!controllerClosed && !request.signal.aborted) {
+          logger.warn('Stream replay failed', {
+            streamId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
       } finally {
-        controller.close()
+        request.signal.removeEventListener('abort', abortListener)
+        closeController()
       }
     },
   })

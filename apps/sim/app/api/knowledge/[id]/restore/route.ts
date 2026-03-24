@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { restoreKnowledgeBase } from '@/lib/knowledge/service'
+import { KnowledgeBaseConflictError, restoreKnowledgeBase } from '@/lib/knowledge/service'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('RestoreKnowledgeBaseAPI')
@@ -64,6 +64,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    if (error instanceof KnowledgeBaseConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
+
     logger.error(`[${requestId}] Error restoring knowledge base ${id}`, error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },

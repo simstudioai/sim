@@ -383,13 +383,6 @@ export default function LoginPage({
         </div>
       )}
 
-      {/* Password reset success message */}
-      {resetSuccessMessage && (
-        <div className='mt-1 space-y-1 text-[#4CAF50] text-xs'>
-          <p>{resetSuccessMessage}</p>
-        </div>
-      )}
-
       {/* Email/Password Form - show unless explicitly disabled */}
       {!isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && (
         <form onSubmit={onSubmit} className='mt-8 space-y-8'>
@@ -472,11 +465,19 @@ export default function LoginPage({
           </div>
 
           {turnstileSiteKey && (
-            <Turnstile
-              ref={turnstileRef}
-              siteKey={turnstileSiteKey}
-              options={{ size: 'invisible', execution: 'execute' }}
-            />
+            <div className='absolute'>
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={turnstileSiteKey}
+                options={{ size: 'invisible', execution: 'execute' }}
+              />
+            </div>
+          )}
+
+          {resetSuccessMessage && (
+            <div className='text-[#4CAF50] text-xs'>
+              <p>{resetSuccessMessage}</p>
+            </div>
           )}
 
           {formError && (

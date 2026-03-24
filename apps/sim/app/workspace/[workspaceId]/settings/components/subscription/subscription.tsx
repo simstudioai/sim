@@ -941,6 +941,47 @@ export function Subscription() {
             <BillingUsageNotificationsToggle />
           )}
 
+          {subscription.isPaid &&
+            !permissions.showTeamMemberView &&
+            !permissions.isEnterpriseMember && (
+              <div className='flex items-center justify-between'>
+                <Label>Invoices</Label>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  disabled={openBillingPortal.isPending}
+                  onClick={() => {
+                    const portalWindow = window.open('', '_blank')
+                    const context =
+                      subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+                    openBillingPortal.mutate(
+                      {
+                        context,
+                        organizationId: activeOrgId,
+                        returnUrl: window.location.href,
+                      },
+                      {
+                        onSuccess: (data) => {
+                          if (portalWindow) {
+                            portalWindow.location.href = data.url
+                          } else {
+                            window.location.href = data.url
+                          }
+                        },
+                        onError: (error) => {
+                          portalWindow?.close()
+                          logger.error('Failed to open billing portal', { error })
+                          alert(error.message)
+                        },
+                      }
+                    )
+                  }}
+                >
+                  View Invoices
+                </Button>
+              </div>
+            )}
+
           {!isLoading && isTeamAdmin && (
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-[6px]'>

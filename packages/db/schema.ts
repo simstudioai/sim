@@ -1058,6 +1058,12 @@ export const workspaceFiles = pgTable(
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
       .on(table.key)
       .where(sql`${table.deletedAt} IS NULL`),
+    /** One active display name per workspace for workspace-scoped files (VFS / file picker). */
+    workspaceOriginalNameActiveUnique: uniqueIndex('workspace_files_workspace_name_active_unique')
+      .on(table.workspaceId, table.originalName)
+      .where(
+        sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
+      ),
     keyIdx: index('workspace_files_key_idx').on(table.key),
     userIdIdx: index('workspace_files_user_id_idx').on(table.userId),
     workspaceIdIdx: index('workspace_files_workspace_id_idx').on(table.workspaceId),
@@ -1206,6 +1212,10 @@ export const knowledgeBase = pgTable(
     userWorkspaceIdx: index('kb_user_workspace_idx').on(table.userId, table.workspaceId),
     // Index for soft delete filtering
     deletedAtIdx: index('kb_deleted_at_idx').on(table.deletedAt),
+    /** One active (non-deleted) name per workspace; matches user_table_definitions pattern */
+    workspaceNameActiveUnique: uniqueIndex('kb_workspace_name_active_unique')
+      .on(table.workspaceId, table.name)
+      .where(sql`${table.deletedAt} IS NULL`),
   })
 )
 
@@ -1574,6 +1584,30 @@ export const copilotChats = pgTable(
   })
 )
 
+export const copilotWorkflowReadHashes = pgTable(
+  'copilot_workflow_read_hashes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    chatId: uuid('chat_id')
+      .notNull()
+      .references(() => copilotChats.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    hash: text('hash').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    chatIdIdx: index('copilot_workflow_read_hashes_chat_id_idx').on(table.chatId),
+    workflowIdIdx: index('copilot_workflow_read_hashes_workflow_id_idx').on(table.workflowId),
+    chatWorkflowUnique: uniqueIndex('copilot_workflow_read_hashes_chat_workflow_unique').on(
+      table.chatId,
+      table.workflowId
+    ),
+  })
+)
+
 export const workflowCheckpoints = pgTable(
   'workflow_checkpoints',
   {
@@ -1614,6 +1648,130 @@ export const workflowCheckpoints = pgTable(
     chatCreatedAtIdx: index('workflow_checkpoints_chat_created_at_idx').on(
       table.chatId,
       table.createdAt
+    ),
+  })
+)
+
+export const copilotRunStatusEnum = pgEnum('copilot_run_status', [
+  'active',
+  'paused_waiting_for_tool',
+  'resuming',
+  'complete',
+  'error',
+  'cancelled',
+])
+
+export const copilotAsyncToolStatusEnum = pgEnum('copilot_async_tool_status', [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+  'delivered',
+])
+
+export type CopilotRunStatus = (typeof copilotRunStatusEnum.enumValues)[number]
+export type CopilotAsyncToolStatus = (typeof copilotAsyncToolStatusEnum.enumValues)[number]
+
+export const copilotRuns = pgTable(
+  'copilot_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    executionId: text('execution_id').notNull(),
+    parentRunId: uuid('parent_run_id'),
+    chatId: uuid('chat_id')
+      .notNull()
+      .references(() => copilotChats.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    streamId: text('stream_id').notNull(),
+    agent: text('agent'),
+    model: text('model'),
+    provider: text('provider'),
+    status: copilotRunStatusEnum('status').notNull().default('active'),
+    requestContext: jsonb('request_context').notNull().default('{}'),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    error: text('error'),
+  },
+  (table) => ({
+    executionIdIdx: index('copilot_runs_execution_id_idx').on(table.executionId),
+    parentRunIdIdx: index('copilot_runs_parent_run_id_idx').on(table.parentRunId),
+    chatIdIdx: index('copilot_runs_chat_id_idx').on(table.chatId),
+    userIdIdx: index('copilot_runs_user_id_idx').on(table.userId),
+    workflowIdIdx: index('copilot_runs_workflow_id_idx').on(table.workflowId),
+    workspaceIdIdx: index('copilot_runs_workspace_id_idx').on(table.workspaceId),
+    statusIdx: index('copilot_runs_status_idx').on(table.status),
+    chatExecutionIdx: index('copilot_runs_chat_execution_idx').on(table.chatId, table.executionId),
+    executionStartedAtIdx: index('copilot_runs_execution_started_at_idx').on(
+      table.executionId,
+      table.startedAt
+    ),
+    streamIdUnique: uniqueIndex('copilot_runs_stream_id_unique').on(table.streamId),
+  })
+)
+
+export const copilotRunCheckpoints = pgTable(
+  'copilot_run_checkpoints',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => copilotRuns.id, { onDelete: 'cascade' }),
+    pendingToolCallId: text('pending_tool_call_id').notNull(),
+    conversationSnapshot: jsonb('conversation_snapshot').notNull().default('{}'),
+    agentState: jsonb('agent_state').notNull().default('{}'),
+    providerRequest: jsonb('provider_request').notNull().default('{}'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    runIdIdx: index('copilot_run_checkpoints_run_id_idx').on(table.runId),
+    pendingToolCallIdIdx: index('copilot_run_checkpoints_pending_tool_call_id_idx').on(
+      table.pendingToolCallId
+    ),
+    runPendingUnique: uniqueIndex('copilot_run_checkpoints_run_pending_tool_unique').on(
+      table.runId,
+      table.pendingToolCallId
+    ),
+  })
+)
+
+export const copilotAsyncToolCalls = pgTable(
+  'copilot_async_tool_calls',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => copilotRuns.id, { onDelete: 'cascade' }),
+    checkpointId: uuid('checkpoint_id').references(() => copilotRunCheckpoints.id, {
+      onDelete: 'cascade',
+    }),
+    toolCallId: text('tool_call_id').notNull(),
+    toolName: text('tool_name').notNull(),
+    args: jsonb('args').notNull().default('{}'),
+    status: copilotAsyncToolStatusEnum('status').notNull().default('pending'),
+    result: jsonb('result'),
+    error: text('error'),
+    claimedAt: timestamp('claimed_at'),
+    claimedBy: text('claimed_by'),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    runIdIdx: index('copilot_async_tool_calls_run_id_idx').on(table.runId),
+    checkpointIdIdx: index('copilot_async_tool_calls_checkpoint_id_idx').on(table.checkpointId),
+    toolCallIdIdx: index('copilot_async_tool_calls_tool_call_id_idx').on(table.toolCallId),
+    statusIdx: index('copilot_async_tool_calls_status_idx').on(table.status),
+    runStatusIdx: index('copilot_async_tool_calls_run_status_idx').on(table.runId, table.status),
+    toolCallUnique: uniqueIndex('copilot_async_tool_calls_tool_call_id_unique').on(
+      table.toolCallId
     ),
   })
 )

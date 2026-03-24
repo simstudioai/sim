@@ -90,7 +90,7 @@ const nextConfig: NextConfig = {
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
-    '/*': ['./node_modules/sharp/**/*', './node_modules/@img/**/*'],
+    '/*': ['./node_modules/sharp/**/*', './node_modules/@img/**/*', './dist/pptx-worker.cjs'],
   },
   experimental: {
     optimizeCss: true,

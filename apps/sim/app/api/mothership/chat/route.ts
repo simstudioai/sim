@@ -8,9 +8,9 @@ import { getSession } from '@/lib/auth'
 import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
 import {
+  acquirePendingChatStream,
   createSSEStream,
   SSE_RESPONSE_HEADERS,
-  waitForPendingChatStream,
 } from '@/lib/copilot/chat-streaming'
 import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
 import { processContextsServer, resolveActiveResourceContext } from '@/lib/copilot/process-contents'
@@ -21,6 +21,8 @@ import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
 } from '@/lib/workspaces/permissions/utils'
+
+export const maxDuration = 3600
 
 const logger = createLogger('MothershipChatAPI')
 
@@ -114,6 +116,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 403 })
     }
 
+    let currentChat: any = null
+    let conversationHistory: any[] = []
+    let actualChatId = chatId
+
+    if (chatId || createNewChat) {
+      const chatResult = await resolveOrCreateChat({
+        chatId,
+        userId: authenticatedUserId,
+        workspaceId,
+        model: 'claude-opus-4-6',
+        type: 'mothership',
+      })
+      currentChat = chatResult.chat
+      actualChatId = chatResult.chatId || chatId
+      conversationHistory = Array.isArray(chatResult.conversationHistory)
+        ? chatResult.conversationHistory
+        : []
+
+      if (chatId && !currentChat) {
+        return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
+      }
+    }
+
     let agentContexts: Array<{ type: string; content: string }> = []
     if (Array.isArray(contexts) && contexts.length > 0) {
       try {
@@ -121,7 +146,8 @@ export async function POST(req: NextRequest) {
           contexts as any,
           authenticatedUserId,
           message,
-          workspaceId
+          workspaceId,
+          actualChatId
         )
       } catch (e) {
         logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
@@ -135,7 +161,8 @@ export async function POST(req: NextRequest) {
             r.type,
             r.id,
             workspaceId,
-            authenticatedUserId
+            authenticatedUserId,
+            actualChatId
           )
           if (!ctx) return null
           return {
@@ -153,29 +180,6 @@ export async function POST(req: NextRequest) {
             result.reason
           )
         }
-      }
-    }
-
-    let currentChat: any = null
-    let conversationHistory: any[] = []
-    let actualChatId = chatId
-
-    if (chatId || createNewChat) {
-      const chatResult = await resolveOrCreateChat({
-        chatId,
-        userId: authenticatedUserId,
-        workspaceId,
-        model: 'claude-opus-4-5',
-        type: 'mothership',
-      })
-      currentChat = chatResult.chat
-      actualChatId = chatResult.chatId || chatId
-      conversationHistory = Array.isArray(chatResult.conversationHistory)
-        ? chatResult.conversationHistory
-        : []
-
-      if (chatId && !currentChat) {
-        return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
       }
     }
 
@@ -249,30 +253,46 @@ export async function POST(req: NextRequest) {
     )
 
     if (actualChatId) {
-      await waitForPendingChatStream(actualChatId)
+      const acquired = await acquirePendingChatStream(actualChatId, userMessageId)
+      if (!acquired) {
+        return NextResponse.json(
+          {
+            error:
+              'A response is already in progress for this chat. Wait for it to finish or use Stop.',
+          },
+          { status: 409 }
+        )
+      }
     }
 
+    const executionId = crypto.randomUUID()
+    const runId = crypto.randomUUID()
     const stream = createSSEStream({
       requestPayload,
       userId: authenticatedUserId,
       streamId: userMessageId,
+      executionId,
+      runId,
       chatId: actualChatId,
       currentChat,
       isNewChat: conversationHistory.length === 0,
       message,
-      titleModel: 'claude-opus-4-5',
+      titleModel: 'claude-opus-4-6',
       requestId: tracker.requestId,
       workspaceId,
+      pendingChatStreamAlreadyRegistered: Boolean(actualChatId),
       orchestrateOptions: {
         userId: authenticatedUserId,
         workspaceId,
         chatId: actualChatId,
+        executionId,
+        runId,
         goRoute: '/api/mothership',
         autoExecuteTools: true,
         interactive: true,
-        promptForToolApproval: false,
         onComplete: async (result: OrchestratorResult) => {
           if (!actualChatId) return
+          if (!result.success) return
 
           const assistantMessage: Record<string, unknown> = {
             id: crypto.randomUUID(),
@@ -289,16 +309,25 @@ export async function POST(req: NextRequest) {
               const stored: Record<string, unknown> = { type: block.type }
               if (block.content) stored.content = block.content
               if (block.type === 'tool_call' && block.toolCall) {
+                const state =
+                  block.toolCall.result?.success !== undefined
+                    ? block.toolCall.result.success
+                      ? 'success'
+                      : 'error'
+                    : block.toolCall.status
+                const isSubagentTool = !!block.calledBy
+                const isNonTerminal =
+                  state === 'cancelled' || state === 'pending' || state === 'executing'
                 stored.toolCall = {
                   id: block.toolCall.id,
                   name: block.toolCall.name,
-                  state:
-                    block.toolCall.result?.success !== undefined
-                      ? block.toolCall.result.success
-                        ? 'success'
-                        : 'error'
-                      : block.toolCall.status,
-                  result: block.toolCall.result,
+                  state,
+                  ...(isSubagentTool && isNonTerminal ? {} : { result: block.toolCall.result }),
+                  ...(isSubagentTool && isNonTerminal
+                    ? {}
+                    : block.toolCall.params
+                      ? { params: block.toolCall.params }
+                      : {}),
                   ...(block.calledBy ? { calledBy: block.calledBy } : {}),
                 }
               }

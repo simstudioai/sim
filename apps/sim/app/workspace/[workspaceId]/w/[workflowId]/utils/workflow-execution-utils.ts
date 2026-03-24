@@ -570,6 +570,7 @@ export interface WorkflowExecutionOptions {
   onBlockComplete?: (blockId: string, output: any) => Promise<void>
   overrideTriggerType?: 'chat' | 'manual' | 'api' | 'copilot'
   stopAfterBlockId?: string
+  abortSignal?: AbortSignal
   /** For run_from_block / run_block: start from a specific block using cached state */
   runFromBlock?: {
     startBlockId: string
@@ -643,6 +644,7 @@ export async function executeWorkflowWithFullLogging(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
+    signal: options.abortSignal,
   })
 
   if (!response.ok) {

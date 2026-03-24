@@ -16,6 +16,7 @@ import { getTableById, queryRows } from '@/lib/table/service'
 import {
   downloadWorkspaceFile,
   findWorkspaceFileRecord,
+  getSandboxWorkspaceFilePath,
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
@@ -26,6 +27,16 @@ import type { ToolConfig } from '@/tools/types'
 import { resolveToolId } from '@/tools/utils'
 
 const logger = createLogger('CopilotIntegrationTools')
+
+function csvEscapeValue(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  const str = String(value)
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    return `"${str.replace(/"/g, '""')}"`
+  }
+  return str
+}
 
 export async function executeIntegrationToolDirect(
   toolCall: ToolCallState,
@@ -169,23 +180,30 @@ export async function executeIntegrationToolDirect(
       ])
       let totalSize = 0
 
-      const inputFilePaths = executionParams.inputFiles as string[] | undefined
-      if (inputFilePaths?.length) {
+      const inputFileIds = executionParams.inputFiles as string[] | undefined
+      if (inputFileIds?.length) {
         const allFiles = await listWorkspaceFiles(workspaceId)
-        for (const filePath of inputFilePaths) {
-          const fileName = filePath.replace(/^files\//, '')
-          const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
-          if (!TEXT_EXTENSIONS.has(ext)) {
-            logger.warn('Skipping non-text sandbox input file', { fileName, ext })
+        for (const fileRef of inputFileIds) {
+          const record = findWorkspaceFileRecord(allFiles, fileRef)
+          if (!record) {
+            logger.warn('Sandbox input file not found', { fileRef })
             continue
           }
-          const record = findWorkspaceFileRecord(allFiles, filePath)
-          if (!record) {
-            logger.warn('Sandbox input file not found', { fileName })
+          const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
+          if (!TEXT_EXTENSIONS.has(ext)) {
+            logger.warn('Skipping non-text sandbox input file', {
+              fileId: record.id,
+              fileName: record.name,
+              ext,
+            })
             continue
           }
           if (record.size > MAX_FILE_SIZE) {
-            logger.warn('Sandbox input file exceeds size limit', { fileName, size: record.size })
+            logger.warn('Sandbox input file exceeds size limit', {
+              fileId: record.id,
+              fileName: record.name,
+              size: record.size,
+            })
             continue
           }
           if (totalSize + record.size > MAX_TOTAL_SIZE) {
@@ -194,7 +212,15 @@ export async function executeIntegrationToolDirect(
           }
           const buffer = await downloadWorkspaceFile(record)
           totalSize += buffer.length
-          sandboxFiles.push({ path: `/home/user/${fileName}`, content: buffer.toString('utf-8') })
+          const textContent = buffer.toString('utf-8')
+          sandboxFiles.push({
+            path: getSandboxWorkspaceFilePath(record),
+            content: textContent,
+          })
+          sandboxFiles.push({
+            path: `/home/user/${record.name}`,
+            content: textContent,
+          })
         }
       }
 
@@ -207,15 +233,13 @@ export async function executeIntegrationToolDirect(
             continue
           }
           const { rows } = await queryRows(tableId, workspaceId, { limit: 10000 }, 'sandbox-input')
-          const cols = (table.schema as { columns: Array<{ name: string }> }).columns.map(
-            (c) => c.name
-          )
-          const csvLines = [cols.join(',')]
+          const schema = table.schema as { columns: Array<{ name: string; type?: string }> }
+          const cols = schema.columns.map((c) => c.name)
+          const typeComment = `# types: ${schema.columns.map((c) => `${c.name}=${c.type || 'string'}`).join(', ')}`
+          const csvLines = [typeComment, cols.join(',')]
           for (const row of rows) {
             csvLines.push(
-              cols
-                .map((c) => JSON.stringify((row.data as Record<string, unknown>)[c] ?? ''))
-                .join(',')
+              cols.map((c) => csvEscapeValue((row.data as Record<string, unknown>)[c])).join(',')
             )
           }
           const csvContent = csvLines.join('\n')

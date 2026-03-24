@@ -3,7 +3,11 @@ import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { generateInternalToken } from '@/lib/auth/internal'
-import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import {
+  assertServerToolNotAborted,
+  type BaseServerTool,
+  type ServerToolContext,
+} from '@/lib/copilot/tools/server/base-tool'
 import type { KnowledgeBaseArgs, KnowledgeBaseResult } from '@/lib/copilot/tools/shared/schemas'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -50,6 +54,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
     const { operation, args = {} } = params
     const workspaceId =
       context.workspaceId || ((args as Record<string, unknown>).workspaceId as string | undefined)
+    const assertNotAborted = () =>
+      assertServerToolNotAborted(
+        context,
+        'Request aborted before knowledge mutation could be applied.'
+      )
 
     try {
       switch (operation) {
@@ -69,6 +78,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const newKnowledgeBase = await createKnowledgeBase(
             {
               name: args.name,
@@ -220,10 +230,12 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          if (!args.filePath) {
+          const fileReference = args.fileId || args.filePath
+          if (!fileReference) {
             return {
               success: false,
-              message: 'filePath is required (e.g. "files/report.pdf")',
+              message:
+                'fileId is required for add_file. Read files/{name}/meta.json or files/by-id/*/meta.json to get the canonical file ID.',
             }
           }
 
@@ -236,12 +248,12 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           const kbWorkspaceId: string = targetKb.workspaceId
-          const fileRecord = await resolveWorkspaceFileReference(kbWorkspaceId, args.filePath)
+          const fileRecord = await resolveWorkspaceFileReference(kbWorkspaceId, fileReference)
 
           if (!fileRecord) {
             return {
               success: false,
-              message: `Workspace file not found: "${args.filePath}"`,
+              message: `Workspace file not found: "${fileReference}"`,
             }
           }
 
@@ -252,6 +264,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           )
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const doc = await createSingleDocument(
             {
               filename: fileRecord.name,
@@ -327,6 +340,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const updatedKb = await updateKnowledgeBase(args.knowledgeBaseId, updates, requestId)
 
           logger.info('Knowledge base updated via copilot', {
@@ -365,6 +379,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           await deleteKnowledgeBase(args.knowledgeBaseId, requestId)
 
           logger.info('Knowledge base deleted via copilot', {
@@ -391,6 +406,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return { success: false, message: 'documentId is required for delete_document' }
           }
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const result = await deleteDocument(args.documentId, requestId)
           return {
             success: result.success,
@@ -420,6 +436,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           await updateDocument(args.documentId, updateData, requestId)
           return {
             success: true,
@@ -485,6 +502,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const newTag = await createTagDefinition(
             {
               knowledgeBaseId: args.knowledgeBaseId,
@@ -534,6 +552,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const updatedTag = await updateTagDefinition(args.tagDefinitionId, updateData, requestId)
 
           logger.info('Tag definition updated via copilot', {
@@ -568,6 +587,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           const requestId = crypto.randomUUID().slice(0, 8)
+          assertNotAborted()
           const deleted = await deleteTagDefinition(
             args.knowledgeBaseId,
             args.tagDefinitionId,
@@ -642,6 +662,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               args.disabledTagIds
           }
 
+          assertNotAborted()
           const createRes = await connectorApiCall(
             context.userId,
             `/api/knowledge/${args.knowledgeBaseId}/connectors`,
@@ -697,6 +718,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
+          assertNotAborted()
           const updateRes = await connectorApiCall(
             context.userId,
             `/api/knowledge/${kbId}/connectors/${args.connectorId}`,
@@ -730,6 +752,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return { success: false, message: `Connector "${args.connectorId}" not found` }
           }
 
+          assertNotAborted()
           const deleteRes = await connectorApiCall(
             context.userId,
             `/api/knowledge/${deleteKbId}/connectors/${args.connectorId}`,
@@ -762,6 +785,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return { success: false, message: `Connector "${args.connectorId}" not found` }
           }
 
+          assertNotAborted()
           const syncRes = await connectorApiCall(
             context.userId,
             `/api/knowledge/${syncKbId}/connectors/${args.connectorId}/sync`,

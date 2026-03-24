@@ -54,6 +54,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { chatId, resource } = AddResourceSchema.parse(body)
 
+    // Ephemeral UI tab (client does not POST this; guard for old clients / bugs).
+    if (resource.id === 'streaming-file') {
+      return NextResponse.json({ success: true })
+    }
+
     if (!VALID_RESOURCE_TYPES.has(resource.type)) {
       return createBadRequestResponse(`Invalid resource type: ${resource.type}`)
     }

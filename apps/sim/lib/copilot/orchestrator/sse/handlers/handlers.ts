@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
 import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
   asRecord,
@@ -18,9 +19,50 @@ import type {
   StreamingContext,
   ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
-import { executeToolAndReport, waitForToolCompletion, waitForToolDecision } from './tool-execution'
+import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
+import { executeToolAndReport, waitForToolCompletion } from './tool-execution'
 
 const logger = createLogger('CopilotSseHandlers')
+
+function registerPendingToolPromise(
+  context: StreamingContext,
+  toolCallId: string,
+  pendingPromise: Promise<{ status: string; message?: string; data?: Record<string, unknown> }>
+) {
+  context.pendingToolPromises.set(toolCallId, pendingPromise)
+  pendingPromise.finally(() => {
+    if (context.pendingToolPromises.get(toolCallId) === pendingPromise) {
+      context.pendingToolPromises.delete(toolCallId)
+    }
+  })
+}
+
+/**
+ * When the Sim→Go stream is aborted, avoid starting server-side tool work and
+ * unblock the Go async waiter with a terminal 499 completion.
+ */
+function abortPendingToolIfStreamDead(
+  toolCall: ToolCallState,
+  toolCallId: string,
+  options: OrchestratorOptions,
+  context: StreamingContext
+): boolean {
+  if (!options.abortSignal?.aborted && !context.wasAborted) {
+    return false
+  }
+  toolCall.status = 'cancelled'
+  toolCall.endTime = Date.now()
+  markToolResultSeen(toolCallId)
+  markToolComplete(toolCall.id, toolCall.name, 499, 'Request aborted before tool execution', {
+    cancelled: true,
+  }).catch((err) => {
+    logger.error('markToolComplete fire-and-forget failed (stream aborted)', {
+      toolCallId: toolCall.id,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  })
+  return true
+}
 
 /**
  * Extract the `ui` object from a Go SSE event. The Go backend enriches
@@ -146,7 +188,13 @@ async function emitSyntheticToolResult(
       result: resultPayload,
       error: !success ? completion?.message : undefined,
     } as SSEEvent)
-  } catch {}
+  } catch (error) {
+    logger.warn('Failed to emit synthetic tool_result', {
+      toolCallId,
+      toolName,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
 }
 
 // Normalization + dedupe helpers live in sse-utils to keep server/client in sync.
@@ -163,6 +211,27 @@ function inferToolSuccess(data: Record<string, unknown> | undefined): {
   const hasError = !!data?.error || !!resultObj.error
   const success = hasExplicitSuccess ? !!explicitSuccess : !hasError
   return { success, hasResultData, hasError }
+}
+
+function ensureTerminalToolCallState(
+  context: StreamingContext,
+  toolCallId: string,
+  toolName: string
+): ToolCallState {
+  const existing = context.toolCalls.get(toolCallId)
+  if (existing) {
+    return existing
+  }
+
+  const toolCall: ToolCallState = {
+    id: toolCallId,
+    name: toolName || 'unknown_tool',
+    status: 'pending',
+    startTime: Date.now(),
+  }
+  context.toolCalls.set(toolCallId, toolCall)
+  addContentBlock(context, { type: 'tool_call', toolCall })
+  return toolCall
 }
 
 export type SSEHandler = (
@@ -198,8 +267,12 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const data = getEventData(event)
     const toolCallId = event.toolCallId || (data?.id as string | undefined)
     if (!toolCallId) return
-    const current = context.toolCalls.get(toolCallId)
-    if (!current) return
+    const toolName =
+      event.toolName ||
+      (data?.name as string | undefined) ||
+      context.toolCalls.get(toolCallId)?.name ||
+      ''
+    const current = ensureTerminalToolCallState(context, toolCallId, toolName)
 
     const { success, hasResultData, hasError } = inferToolSuccess(data)
 
@@ -215,16 +288,22 @@ export const sseHandlers: Record<string, SSEHandler> = {
       const resultObj = asRecord(data?.result)
       current.error = (data?.error || resultObj.error) as string | undefined
     }
+    markToolResultSeen(toolCallId)
   },
   tool_error: (event, context) => {
     const data = getEventData(event)
     const toolCallId = event.toolCallId || (data?.id as string | undefined)
     if (!toolCallId) return
-    const current = context.toolCalls.get(toolCallId)
-    if (!current) return
+    const toolName =
+      event.toolName ||
+      (data?.name as string | undefined) ||
+      context.toolCalls.get(toolCallId)?.name ||
+      ''
+    const current = ensureTerminalToolCallState(context, toolCallId, toolName)
     current.status = 'error'
     current.error = (data?.error as string | undefined) || 'Tool execution failed'
     current.endTime = Date.now()
+    markToolResultSeen(toolCallId)
   },
   tool_call_delta: () => {
     // Argument streaming delta — no action needed on orchestrator side
@@ -265,6 +344,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
       existing?.endTime ||
       (existing && existing.status !== 'pending' && existing.status !== 'executing')
     ) {
+      if (!existing.name && toolName) {
+        existing.name = toolName
+      }
       if (!existing.params && args) {
         existing.params = args
       }
@@ -292,11 +374,14 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     if (isPartial) return
     if (wasToolResultSeen(toolCallId)) return
+    if (context.pendingToolPromises.has(toolCallId) || existing?.status === 'executing') {
+      return
+    }
 
     const toolCall = context.toolCalls.get(toolCallId)
     if (!toolCall) return
 
-    const { requiresConfirmation, clientExecutable, internal } = getEventUI(event)
+    const { clientExecutable, internal } = getEventUI(event)
 
     if (internal) {
       return
@@ -306,109 +391,78 @@ export const sseHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    // Fire tool execution without awaiting so parallel tool calls from the
-    // same LLM turn execute concurrently. executeToolAndReport is self-contained:
-    // it updates tool state, calls markToolComplete, and emits result events.
+    /**
+     * Fire tool execution without awaiting so parallel tool calls from the
+     * same LLM turn execute concurrently. executeToolAndReport is self-contained:
+     * it updates tool state, calls markToolComplete, and emits result events.
+     */
     const fireToolExecution = () => {
-      executeToolAndReport(toolCallId, context, execContext, options).catch((err) => {
+      const pendingPromise = (async () => {
+        try {
+          await upsertAsyncToolCall({
+            runId: context.runId || crypto.randomUUID(),
+            toolCallId,
+            toolName,
+            args,
+          })
+        } catch (err) {
+          logger.warn('Failed to persist async tool row before execution', {
+            toolCallId,
+            toolName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+        return executeToolAndReport(toolCallId, context, execContext, options)
+      })().catch((err) => {
         logger.error('Parallel tool execution failed', {
           toolCallId,
           toolName,
           error: err instanceof Error ? err.message : String(err),
         })
+        return {
+          status: 'error',
+          message: err instanceof Error ? err.message : String(err),
+          data: { error: err instanceof Error ? err.message : String(err) },
+        }
       })
+      registerPendingToolPromise(context, toolCallId, pendingPromise)
     }
 
     if (options.interactive === false) {
       if (options.autoExecuteTools !== false) {
-        fireToolExecution()
-      }
-      return
-    }
-
-    if (requiresConfirmation && options.promptForToolApproval) {
-      const decision = await waitForToolDecision(
-        toolCallId,
-        options.timeout || STREAM_TIMEOUT_MS,
-        options.abortSignal
-      )
-
-      if (decision?.status === 'accepted' || decision?.status === 'success') {
-        if (clientExecutable) {
-          toolCall.status = 'executing'
-          const completion = await waitForToolCompletion(
-            toolCallId,
-            options.timeout || STREAM_TIMEOUT_MS,
-            options.abortSignal
-          )
-          handleClientCompletion(toolCall, toolCallId, completion)
-          await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
-          return
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
         }
-        fireToolExecution()
-        return
       }
-
-      if (decision?.status === 'rejected' || decision?.status === 'error') {
-        toolCall.status = 'rejected'
-        toolCall.endTime = Date.now()
-        markToolComplete(
-          toolCall.id,
-          toolCall.name,
-          400,
-          decision.message || 'Tool execution rejected',
-          { skipped: true, reason: 'user_rejected' }
-        ).catch((err) => {
-          logger.error('markToolComplete fire-and-forget failed (rejected)', {
-            toolCallId: toolCall.id,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-        markToolResultSeen(toolCall.id)
-        return
-      }
-
-      if (decision?.status === 'background') {
-        toolCall.status = 'skipped'
-        toolCall.endTime = Date.now()
-        markToolComplete(
-          toolCall.id,
-          toolCall.name,
-          202,
-          decision.message || 'Tool execution moved to background',
-          { background: true }
-        ).catch((err) => {
-          logger.error('markToolComplete fire-and-forget failed (background)', {
-            toolCallId: toolCall.id,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-        markToolResultSeen(toolCall.id)
-        return
-      }
-
-      toolCall.status = 'rejected'
-      toolCall.endTime = Date.now()
-      markToolComplete(toolCall.id, toolCall.name, 408, 'Tool approval timed out', {
-        skipped: true,
-        reason: 'timeout',
-      }).catch((err) => {
-        logger.error('markToolComplete fire-and-forget failed (timeout)', {
-          toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
-        })
-      })
-      markToolResultSeen(toolCall.id)
       return
     }
 
     // Client-executable tool: execute server-side if available, otherwise
     // delegate to the client (React UI) and wait for completion.
+    // Workflow run tools are implemented on Sim for MCP/server callers but must
+    // still run in the browser when clientExecutable so the workflow terminal
+    // receives SSE block logs (executeWorkflowWithFullLogging).
     if (clientExecutable) {
-      if (isToolAvailableOnSimSide(toolName)) {
-        fireToolExecution()
+      const delegateWorkflowRunToClient = isWorkflowToolName(toolName)
+      if (isToolAvailableOnSimSide(toolName) && !delegateWorkflowRunToClient) {
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
+        }
       } else {
         toolCall.status = 'executing'
+        await upsertAsyncToolCall({
+          runId: context.runId || crypto.randomUUID(),
+          toolCallId,
+          toolName,
+          args,
+          status: 'running',
+        }).catch((err) => {
+          logger.warn('Failed to persist async tool row for client-executable tool', {
+            toolCallId,
+            toolName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        })
         const completion = await waitForToolCompletion(
           toolCallId,
           options.timeout || STREAM_TIMEOUT_MS,
@@ -421,7 +475,9 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
 
     if (options.autoExecuteTools !== false) {
-      fireToolExecution()
+      if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+        fireToolExecution()
+      }
     }
   },
   reasoning: (event, context) => {
@@ -463,6 +519,19 @@ export const sseHandlers: Record<string, SSEHandler> = {
   },
   done: (event, context) => {
     const d = asRecord(event.data)
+    const response = asRecord(d.response)
+    const asyncPause = asRecord(response.async_pause)
+    if (asyncPause.checkpointId) {
+      context.awaitingAsyncContinuation = {
+        checkpointId: String(asyncPause.checkpointId),
+        executionId:
+          typeof asyncPause.executionId === 'string' ? asyncPause.executionId : context.executionId,
+        runId: typeof asyncPause.runId === 'string' ? asyncPause.runId : context.runId,
+        pendingToolCallIds: Array.isArray(asyncPause.pendingToolCallIds)
+          ? asyncPause.pendingToolCallIds.map((id) => String(id))
+          : [],
+      }
+    }
     if (d.usage) {
       const u = asRecord(d.usage)
       context.usage = {
@@ -523,6 +592,12 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     const existing = context.toolCalls.get(toolCallId)
     // Ignore late/duplicate tool_call events once we already have a result.
     if (wasToolResultSeen(toolCallId) || existing?.endTime) {
+      if (existing && !existing.name && toolName) {
+        existing.name = toolName
+      }
+      if (existing && !existing.params && args) {
+        existing.params = args
+      }
       return
     }
 
@@ -552,8 +627,11 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     }
 
     if (isPartial) return
+    if (context.pendingToolPromises.has(toolCallId) || existing?.status === 'executing') {
+      return
+    }
 
-    const { requiresConfirmation, clientExecutable, internal } = getEventUI(event)
+    const { clientExecutable, internal } = getEventUI(event)
 
     if (internal) {
       return
@@ -564,100 +642,67 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     }
 
     const fireToolExecution = () => {
-      executeToolAndReport(toolCallId, context, execContext, options).catch((err) => {
+      const pendingPromise = (async () => {
+        try {
+          await upsertAsyncToolCall({
+            runId: context.runId || crypto.randomUUID(),
+            toolCallId,
+            toolName,
+            args,
+          })
+        } catch (err) {
+          logger.warn('Failed to persist async subagent tool row before execution', {
+            toolCallId,
+            toolName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+        return executeToolAndReport(toolCallId, context, execContext, options)
+      })().catch((err) => {
         logger.error('Parallel subagent tool execution failed', {
           toolCallId,
           toolName,
           error: err instanceof Error ? err.message : String(err),
         })
+        return {
+          status: 'error',
+          message: err instanceof Error ? err.message : String(err),
+          data: { error: err instanceof Error ? err.message : String(err) },
+        }
       })
+      registerPendingToolPromise(context, toolCallId, pendingPromise)
     }
 
     if (options.interactive === false) {
       if (options.autoExecuteTools !== false) {
-        fireToolExecution()
-      }
-      return
-    }
-
-    if (requiresConfirmation && options.promptForToolApproval) {
-      const decision = await waitForToolDecision(
-        toolCallId,
-        options.timeout || STREAM_TIMEOUT_MS,
-        options.abortSignal
-      )
-      if (decision?.status === 'accepted' || decision?.status === 'success') {
-        if (clientExecutable) {
-          toolCall.status = 'executing'
-          const completion = await waitForToolCompletion(
-            toolCallId,
-            options.timeout || STREAM_TIMEOUT_MS,
-            options.abortSignal
-          )
-          handleClientCompletion(toolCall, toolCallId, completion)
-          await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
-          return
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
         }
-        fireToolExecution()
-        return
       }
-      if (decision?.status === 'rejected' || decision?.status === 'error') {
-        toolCall.status = 'rejected'
-        toolCall.endTime = Date.now()
-        markToolComplete(
-          toolCall.id,
-          toolCall.name,
-          400,
-          decision.message || 'Tool execution rejected',
-          { skipped: true, reason: 'user_rejected' }
-        ).catch((err) => {
-          logger.error('markToolComplete fire-and-forget failed (subagent rejected)', {
-            toolCallId: toolCall.id,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-        markToolResultSeen(toolCall.id)
-        return
-      }
-      if (decision?.status === 'background') {
-        toolCall.status = 'skipped'
-        toolCall.endTime = Date.now()
-        markToolComplete(
-          toolCall.id,
-          toolCall.name,
-          202,
-          decision.message || 'Tool execution moved to background',
-          { background: true }
-        ).catch((err) => {
-          logger.error('markToolComplete fire-and-forget failed (subagent background)', {
-            toolCallId: toolCall.id,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-        markToolResultSeen(toolCall.id)
-        return
-      }
-
-      toolCall.status = 'rejected'
-      toolCall.endTime = Date.now()
-      markToolComplete(toolCall.id, toolCall.name, 408, 'Tool approval timed out', {
-        skipped: true,
-        reason: 'timeout',
-      }).catch((err) => {
-        logger.error('markToolComplete fire-and-forget failed (subagent timeout)', {
-          toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
-        })
-      })
-      markToolResultSeen(toolCall.id)
       return
     }
 
     if (clientExecutable) {
-      if (isToolAvailableOnSimSide(toolName)) {
-        fireToolExecution()
+      const delegateWorkflowRunToClient = isWorkflowToolName(toolName)
+      if (isToolAvailableOnSimSide(toolName) && !delegateWorkflowRunToClient) {
+        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+          fireToolExecution()
+        }
       } else {
         toolCall.status = 'executing'
+        await upsertAsyncToolCall({
+          runId: context.runId || crypto.randomUUID(),
+          toolCallId,
+          toolName,
+          args,
+          status: 'running',
+        }).catch((err) => {
+          logger.warn('Failed to persist async tool row for client-executable subagent tool', {
+            toolCallId,
+            toolName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        })
         const completion = await waitForToolCompletion(
           toolCallId,
           options.timeout || STREAM_TIMEOUT_MS,
@@ -670,7 +715,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     }
 
     if (options.autoExecuteTools !== false) {
-      fireToolExecution()
+      if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
+        fireToolExecution()
+      }
     }
   },
   tool_result: (event, context) => {
@@ -679,13 +726,14 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
     const data = getEventData(event)
     const toolCallId = event.toolCallId || (data?.id as string | undefined)
     if (!toolCallId) return
+    const toolName = event.toolName || (data?.name as string | undefined) || ''
 
     // Update in subAgentToolCalls.
     const toolCalls = context.subAgentToolCalls[parentToolCallId] || []
     const subAgentToolCall = toolCalls.find((tc) => tc.id === toolCallId)
 
     // Also update in main toolCalls (where we added it for execution).
-    const mainToolCall = context.toolCalls.get(toolCallId)
+    const mainToolCall = ensureTerminalToolCallState(context, toolCallId, toolName)
 
     const { success, hasResultData, hasError } = inferToolSuccess(data)
 
@@ -711,6 +759,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
         const resultObj = asRecord(data?.result)
         mainToolCall.error = (data?.error || resultObj.error) as string | undefined
       }
+    }
+    if (subAgentToolCall || mainToolCall) {
+      markToolResultSeen(toolCallId)
     }
   },
 }

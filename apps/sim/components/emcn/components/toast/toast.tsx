@@ -120,7 +120,10 @@ function CountdownRing({ duration }: { duration: number }) {
 
 function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: string) => void }) {
   const [exiting, setExiting] = useState(false)
+  const [paused, setPaused] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const remainingRef = useRef(t.duration)
+  const startRef = useRef(0)
 
   const dismiss = useCallback(() => {
     setExiting(true)
@@ -129,13 +132,33 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
 
   useEffect(() => {
     if (t.duration > 0) {
+      startRef.current = Date.now()
+      remainingRef.current = t.duration
       timerRef.current = setTimeout(dismiss, t.duration)
       return () => clearTimeout(timerRef.current)
     }
   }, [dismiss, t.duration])
 
+  const handleMouseEnter = useCallback(() => {
+    if (t.duration <= 0) return
+    clearTimeout(timerRef.current)
+    remainingRef.current -= Date.now() - startRef.current
+    setPaused(true)
+  }, [t.duration])
+
+  const handleMouseLeave = useCallback(() => {
+    if (t.duration <= 0) return
+    setPaused(false)
+    startRef.current = Date.now()
+    timerRef.current = setTimeout(dismiss, Math.max(remainingRef.current, 0))
+  }, [dismiss, t.duration])
+
+  const hasDuration = t.duration > 0
+
   return (
     <div
+      onMouseEnter={hasDuration ? handleMouseEnter : undefined}
+      onMouseLeave={hasDuration ? handleMouseLeave : undefined}
       className={cn(
         'pointer-events-auto w-[240px] overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] shadow-sm',
         exiting

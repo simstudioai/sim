@@ -6,7 +6,7 @@ import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 const logger = createLogger('FileReader')
 
 const MAX_TEXT_READ_BYTES = 5 * 1024 * 1024 // 5 MB
-const MAX_IMAGE_READ_BYTES = 20 * 1024 * 1024 // 20 MB
+const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 
 const TEXT_TYPES = new Set([
   'text/plain',
@@ -14,6 +14,7 @@ const TEXT_TYPES = new Set([
   'text/markdown',
   'text/html',
   'text/xml',
+  'text/x-pptxgenjs',
   'application/json',
   'application/xml',
   'application/javascript',
@@ -53,7 +54,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
     if (isImageFileType(record.type)) {
       if (record.size > MAX_IMAGE_READ_BYTES) {
         return {
-          content: `[Image too large: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB, limit 20MB)]`,
+          content: `[Image too large: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB, limit 5MB)]`,
           totalLines: 1,
         }
       }
@@ -70,6 +71,19 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           },
         },
       }
+    }
+
+    if (isReadableType(record.type)) {
+      if (record.size > MAX_TEXT_READ_BYTES) {
+        return {
+          content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
+          totalLines: 1,
+        }
+      }
+
+      const buffer = await downloadWorkspaceFile(record)
+      const content = buffer.toString('utf-8')
+      return { content, totalLines: content.split('\n').length }
     }
 
     const ext = getExtension(record.name)
@@ -93,23 +107,10 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
       }
     }
 
-    if (!isReadableType(record.type)) {
-      return {
-        content: `[Binary file: ${record.name} (${record.type}, ${record.size} bytes). Cannot display as text.]`,
-        totalLines: 1,
-      }
+    return {
+      content: `[Binary file: ${record.name} (${record.type}, ${record.size} bytes). Cannot display as text.]`,
+      totalLines: 1,
     }
-
-    if (record.size > MAX_TEXT_READ_BYTES) {
-      return {
-        content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
-        totalLines: 1,
-      }
-    }
-
-    const buffer = await downloadWorkspaceFile(record)
-    const content = buffer.toString('utf-8')
-    return { content, totalLines: content.split('\n').length }
   } catch (err) {
     logger.warn('Failed to read workspace file', {
       fileName: record.name,

@@ -6,8 +6,10 @@ import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
+export const maxDuration = 3600
+
 const logger = createLogger('CopilotHeadlessAPI')
-const DEFAULT_COPILOT_MODEL = 'claude-opus-4-5'
+const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
 
 const RequestSchema = z.object({
   message: z.string().min(1, 'message is required'),
@@ -17,7 +19,7 @@ const RequestSchema = z.object({
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   model: z.string().optional(),
   autoExecuteTools: z.boolean().optional().default(true),
-  timeout: z.number().optional().default(300000),
+  timeout: z.number().optional().default(3_600_000),
 })
 
 /**

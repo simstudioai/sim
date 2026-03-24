@@ -36,11 +36,11 @@ import {
 
 const logger = createLogger('CopilotMcpAPI')
 const mcpRateLimiter = new RateLimiter()
-const DEFAULT_COPILOT_MODEL = 'claude-opus-4-5'
+const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 300
+export const maxDuration = 3600
 
 interface CopilotKeyAuthResult {
   success: boolean
@@ -517,7 +517,7 @@ async function handleMcpRequestWithSdk(
   try {
     await transport.handleRequest(requestAdapter as any, responseCapture as any, parsedBody)
     await responseCapture.waitForHeaders()
-    // Must exceed the longest possible tool execution (build = 5 min).
+    // Must exceed the longest possible tool execution.
     // Using ORCHESTRATION_TIMEOUT_MS + 60 s buffer so the orchestrator can
     // finish or time-out on its own before the transport is torn down.
     await responseCapture.waitForEnd(ORCHESTRATION_TIMEOUT_MS + 60_000)
@@ -630,7 +630,11 @@ async function handleDirectToolCall(
   userId: string
 ): Promise<CallToolResult> {
   try {
-    const execContext = await prepareExecutionContext(userId, (args.workflowId as string) || '')
+    const execContext = await prepareExecutionContext(
+      userId,
+      (args.workflowId as string) || '',
+      (args.chatId as string) || undefined
+    )
 
     const toolCall = {
       id: randomUUID(),
@@ -729,7 +733,7 @@ async function handleBuildToolCall(
       chatId,
       goRoute: '/api/mcp',
       autoExecuteTools: true,
-      timeout: 300000,
+      timeout: ORCHESTRATION_TIMEOUT_MS,
       interactive: false,
       abortSignal,
     })

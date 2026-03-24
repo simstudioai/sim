@@ -1,3 +1,4 @@
+export { ConversationListItem } from './conversation-list-item'
 export { ErrorState, type ErrorStateProps } from './error'
 export { InlineRenameInput } from './inline-rename-input'
 export { MessageActions } from './message-actions'

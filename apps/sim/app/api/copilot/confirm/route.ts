@@ -1,16 +1,22 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { REDIS_TOOL_CALL_PREFIX, REDIS_TOOL_CALL_TTL_SECONDS } from '@/lib/copilot/constants'
+import {
+  completeAsyncToolCall,
+  getAsyncToolCall,
+  getRunSegment,
+  upsertAsyncToolCall,
+} from '@/lib/copilot/async-runs/repository'
+import { publishToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createInternalServerErrorResponse,
+  createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
   type NotificationStatus,
 } from '@/lib/copilot/request-helpers'
-import { getRedisClient } from '@/lib/core/config/redis'
 
 const logger = createLogger('CopilotConfirmAPI')
 
@@ -25,32 +31,53 @@ const ConfirmationSchema = z.object({
 })
 
 /**
- * Write the user's tool decision to Redis. The server-side orchestrator's
- * waitForToolDecision() polls Redis for this value.
+ * Persist the durable tool status, then publish a wakeup event.
  */
 async function updateToolCallStatus(
-  toolCallId: string,
+  existing: NonNullable<Awaited<ReturnType<typeof getAsyncToolCall>>>,
   status: NotificationStatus,
   message?: string,
   data?: Record<string, unknown>
 ): Promise<boolean> {
-  const redis = getRedisClient()
-  if (!redis) {
-    logger.warn('Redis client not available for tool confirmation')
-    return false
-  }
-
+  const toolCallId = existing.toolCallId
+  const durableStatus =
+    status === 'success'
+      ? 'completed'
+      : status === 'cancelled'
+        ? 'cancelled'
+        : status === 'error' || status === 'rejected'
+          ? 'failed'
+          : 'pending'
   try {
-    const key = `${REDIS_TOOL_CALL_PREFIX}${toolCallId}`
-    const payload: Record<string, unknown> = {
+    if (
+      durableStatus === 'completed' ||
+      durableStatus === 'failed' ||
+      durableStatus === 'cancelled'
+    ) {
+      await completeAsyncToolCall({
+        toolCallId,
+        status: durableStatus,
+        result: data ?? null,
+        error: status === 'success' ? null : message || status,
+      })
+    } else if (existing.runId) {
+      await upsertAsyncToolCall({
+        runId: existing.runId,
+        checkpointId: existing.checkpointId ?? null,
+        toolCallId,
+        toolName: existing.toolName || 'client_tool',
+        args: (existing.args as Record<string, unknown> | null) ?? {},
+        status: durableStatus,
+      })
+    }
+    const timestamp = new Date().toISOString()
+    publishToolConfirmation({
+      toolCallId,
       status,
-      message: message || null,
-      timestamp: new Date().toISOString(),
-    }
-    if (data) {
-      payload.data = data
-    }
-    await redis.set(key, JSON.stringify(payload), 'EX', REDIS_TOOL_CALL_TTL_SECONDS)
+      message: message || undefined,
+      timestamp,
+      data,
+    })
     return true
   } catch (error) {
     logger.error('Failed to update tool call status', {
@@ -80,9 +107,22 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const { toolCallId, status, message, data } = ConfirmationSchema.parse(body)
+    const existing = await getAsyncToolCall(toolCallId).catch(() => null)
 
-    // Update the tool call status in Redis
-    const updated = await updateToolCallStatus(toolCallId, status, message, data)
+    if (!existing) {
+      return createNotFoundResponse('Tool call not found')
+    }
+
+    const run = await getRunSegment(existing.runId).catch(() => null)
+    if (!run) {
+      return createNotFoundResponse('Tool call run not found')
+    }
+    if (run.userId !== authenticatedUserId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Update the durable tool call status and wake any waiters.
+    const updated = await updateToolCallStatus(existing, status, message, data)
 
     if (!updated) {
       logger.error(`[${tracker.requestId}] Failed to update tool call status`, {

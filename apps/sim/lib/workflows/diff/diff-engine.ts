@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
+import { getTargetedLayoutImpact } from '@/lib/workflows/autolayout'
 import type { BlockWithDiff } from '@/lib/workflows/diff/types'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { isUuid } from '@/executor/constants'
@@ -503,24 +504,14 @@ export class WorkflowDiffEngine {
       // Apply autolayout to the proposed state
       logger.info('Applying autolayout to proposed workflow state')
       try {
-        const baselineBlockIds = new Set(Object.keys(mergedBaseline.blocks))
-
-        // Identify blocks that need positioning: genuinely new blocks AND
-        // blocks inserted into subflows (position reset to 0,0). Extracted
-        // blocks are excluded — the server computes valid absolute positions
-        // from the container offset, so they don't need repositioning.
-        const blocksNeedingLayout = Object.keys(finalBlocks).filter((id) => {
-          if (!baselineBlockIds.has(id)) return true
-          const baselineParent = mergedBaseline.blocks[id]?.data?.parentId ?? null
-          const proposedParent = finalBlocks[id]?.data?.parentId ?? null
-          if (baselineParent === proposedParent) return false
-          const pos = finalBlocks[id]?.position
-          return pos?.x === 0 && pos?.y === 0
+        const { layoutBlockIds, shiftSourceBlockIds } = getTargetedLayoutImpact({
+          before: mergedBaseline,
+          after: fullyCleanedState,
         })
 
         const totalBlocks = Object.keys(finalBlocks).length
 
-        if (blocksNeedingLayout.length === 0) {
+        if (layoutBlockIds.length === 0 && shiftSourceBlockIds.length === 0) {
           logger.info('No blocks need layout; skipping autolayout', {
             totalBlocks,
           })
@@ -531,8 +522,9 @@ export class WorkflowDiffEngine {
           // gracefully to a full layout from the padding origin — same result
           // as applyAutoLayout but with one unified code path.
           logger.info('Using targeted layout for copilot edits', {
-            blocksNeedingLayout: blocksNeedingLayout.length,
-            anchors: totalBlocks - blocksNeedingLayout.length,
+            blocksNeedingLayout: layoutBlockIds.length,
+            shiftSourceBlocks: shiftSourceBlockIds.length,
+            anchors: totalBlocks - layoutBlockIds.length,
             totalBlocks,
           })
 
@@ -542,7 +534,8 @@ export class WorkflowDiffEngine {
           )
 
           const layoutedBlocks = applyTargetedLayout(finalBlocks, fullyCleanedState.edges, {
-            changedBlockIds: blocksNeedingLayout,
+            changedBlockIds: layoutBlockIds,
+            shiftSourceBlockIds,
             horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
             verticalSpacing: DEFAULT_VERTICAL_SPACING,
           })
@@ -573,7 +566,7 @@ export class WorkflowDiffEngine {
 
           logger.info('Successfully applied targeted layout to proposed state', {
             blocksLayouted: Object.keys(layoutedBlocks).length,
-            blocksNeedingLayout: blocksNeedingLayout.length,
+            blocksNeedingLayout: layoutBlockIds.length,
           })
         }
       } catch (layoutError) {

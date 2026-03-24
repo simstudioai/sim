@@ -1,14 +1,13 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { X } from 'lucide-react'
-import { Button, Tooltip } from '@/components/emcn'
+import { Button, CountdownRing, Tooltip } from '@/components/emcn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
   type Notification,
   type NotificationAction,
-  openCopilotWithMessage,
   sendMothershipMessage,
   useNotificationStore,
 } from '@/stores/notifications'
@@ -20,9 +19,6 @@ const STACK_OFFSET_PX = 3
 const AUTO_DISMISS_MS = 10000
 const EXIT_ANIMATION_MS = 200
 
-const RING_RADIUS = 5.5
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
-
 const ACTION_LABELS: Record<NotificationAction['type'], string> = {
   copilot: 'Fix in Copilot',
   refresh: 'Refresh',
@@ -33,7 +29,7 @@ function isAutoDismissable(n: Notification): boolean {
   return n.level === 'error' && !!n.workflowId
 }
 
-function CountdownRing({ onPause }: { onPause: () => void }) {
+function NotificationCountdownRing({ onPause }: { onPause: () => void }) {
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
@@ -41,30 +37,9 @@ function CountdownRing({ onPause }: { onPause: () => void }) {
           variant='ghost'
           onClick={onPause}
           aria-label='Keep notifications visible'
-          className='!p-[4px] -m-[2px] shrink-0 rounded-[5px] hover:bg-[var(--surface-active)]'
+          className='!p-[4px] -m-[2px] shrink-0 rounded-[5px] text-[var(--text-icon)] hover:bg-[var(--surface-active)]'
         >
-          <svg
-            width='14'
-            height='14'
-            viewBox='0 0 16 16'
-            fill='none'
-            xmlns='http://www.w3.org/2000/svg'
-            style={{ transform: 'rotate(-90deg) scaleX(-1)' }}
-          >
-            <circle cx='8' cy='8' r={RING_RADIUS} stroke='var(--border)' strokeWidth='1.5' />
-            <circle
-              cx='8'
-              cy='8'
-              r={RING_RADIUS}
-              stroke='var(--text-icon)'
-              strokeWidth='1.5'
-              strokeLinecap='round'
-              strokeDasharray={RING_CIRCUMFERENCE}
-              style={{
-                animation: `notification-countdown ${AUTO_DISMISS_MS}ms linear forwards`,
-              }}
-            />
-          </svg>
+          <CountdownRing duration={AUTO_DISMISS_MS} />
         </Button>
       </Tooltip.Trigger>
       <Tooltip.Content>
@@ -117,11 +92,7 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
 
         switch (action.type) {
           case 'copilot':
-            if (embedded) {
-              sendMothershipMessage(action.message)
-            } else {
-              openCopilotWithMessage(action.message)
-            }
+            sendMothershipMessage(action.message)
             break
           case 'refresh':
             window.location.reload()
@@ -266,7 +237,7 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
                   {notification.message}
                 </div>
                 <div className='flex shrink-0 items-start gap-[2px]'>
-                  {showCountdown && <CountdownRing onPause={pauseAll} />}
+                  {showCountdown && <NotificationCountdownRing onPause={pauseAll} />}
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <Button

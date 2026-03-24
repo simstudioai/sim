@@ -19,6 +19,8 @@ import {
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey, insertFileMetadata } from '@/lib/uploads/server/metadata'
+import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
+import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
@@ -95,6 +97,40 @@ export function generateWorkspaceFileKey(workspaceId: string, fileName: string):
   return `workspace/${workspaceId}/${timestamp}-${random}-${safeFileName}`
 }
 
+const MAX_COPY_SUFFIX = 1000
+const MAX_UPLOAD_UNIQUE_RETRIES = 8
+
+/**
+ * Inserts ` (n)` before the last extension (e.g. `a.pdf` → `a (1).pdf`), or appends for names without.
+ */
+function withCopySuffix(fileName: string, n: number): string {
+  const lastDot = fileName.lastIndexOf('.')
+  const hasExtension = lastDot > 0 && lastDot < fileName.length - 1
+  if (hasExtension) {
+    return `${fileName.slice(0, lastDot)} (${n})${fileName.slice(lastDot)}`
+  }
+  return `${fileName} (${n})`
+}
+
+/**
+ * Picks a display name that does not collide with an active workspace file (`original_name`).
+ */
+async function allocateUniqueWorkspaceFileName(
+  workspaceId: string,
+  baseName: string
+): Promise<string> {
+  if (!(await fileExistsInWorkspace(workspaceId, baseName))) {
+    return baseName
+  }
+  for (let n = 1; n <= MAX_COPY_SUFFIX; n++) {
+    const candidate = withCopySuffix(baseName, n)
+    if (!(await fileExistsInWorkspace(workspaceId, candidate))) {
+      return candidate
+    }
+  }
+  throw new FileConflictError(baseName)
+}
+
 /**
  * Upload a file to workspace-scoped storage
  */
@@ -107,107 +143,121 @@ export async function uploadWorkspaceFile(
 ): Promise<UserFile> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
 
-  const exists = await fileExistsInWorkspace(workspaceId, fileName)
-  if (exists) {
-    throw new Error(`A file named "${fileName}" already exists in this workspace`)
-  }
-
   const quotaCheck = await checkStorageQuota(userId, fileBuffer.length)
 
   if (!quotaCheck.allowed) {
     throw new Error(quotaCheck.error || 'Storage limit exceeded')
   }
 
-  const storageKey = generateWorkspaceFileKey(workspaceId, fileName)
-  let fileId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+  let lastError: unknown
+  for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
+    const uniqueName = await allocateUniqueWorkspaceFileName(workspaceId, fileName)
+    const storageKey = generateWorkspaceFileKey(workspaceId, uniqueName)
+    let fileId = `wf_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 
-  try {
-    logger.info(`Generated storage key: ${storageKey}`)
+    try {
+      logger.info(`Generated storage key: ${storageKey}`)
 
-    const metadata: Record<string, string> = {
-      originalName: fileName,
-      uploadedAt: new Date().toISOString(),
-      purpose: 'workspace',
-      userId: userId,
-      workspaceId: workspaceId,
-    }
+      const metadata: Record<string, string> = {
+        originalName: uniqueName,
+        uploadedAt: new Date().toISOString(),
+        purpose: 'workspace',
+        userId: userId,
+        workspaceId: workspaceId,
+      }
 
-    const uploadResult = await uploadFile({
-      file: fileBuffer,
-      fileName: storageKey, // Use the full storageKey as fileName
-      contentType,
-      context: 'workspace',
-      preserveKey: true, // Don't add timestamp prefix
-      customKey: storageKey, // Explicitly set the key
-      metadata, // Pass metadata for cloud storage consistency
-    })
-
-    logger.info(`Upload returned key: ${uploadResult.key}`)
-
-    const usingCloudStorage = hasCloudStorage()
-
-    if (!usingCloudStorage) {
-      const metadataRecord = await insertFileMetadata({
-        id: fileId,
-        key: uploadResult.key,
-        userId,
-        workspaceId,
-        context: 'workspace',
-        originalName: fileName,
+      const uploadResult = await uploadFile({
+        file: fileBuffer,
+        fileName: storageKey, // Use the full storageKey as fileName
         contentType,
-        size: fileBuffer.length,
+        context: 'workspace',
+        preserveKey: true, // Don't add timestamp prefix
+        customKey: storageKey, // Explicitly set the key
+        metadata, // Pass metadata for cloud storage consistency
       })
-      fileId = metadataRecord.id
-      logger.info(`Stored metadata in database for local file: ${uploadResult.key}`)
-    } else {
-      const existing = await getFileMetadataByKey(uploadResult.key, 'workspace')
 
-      if (!existing) {
-        logger.warn(`Metadata not found for cloud file ${uploadResult.key}, inserting...`)
+      logger.info(`Upload returned key: ${uploadResult.key}`)
+
+      const usingCloudStorage = hasCloudStorage()
+
+      if (!usingCloudStorage) {
         const metadataRecord = await insertFileMetadata({
           id: fileId,
           key: uploadResult.key,
           userId,
           workspaceId,
           context: 'workspace',
-          originalName: fileName,
+          originalName: uniqueName,
           contentType,
           size: fileBuffer.length,
         })
         fileId = metadataRecord.id
+        logger.info(`Stored metadata in database for local file: ${uploadResult.key}`)
       } else {
-        fileId = existing.id
-        logger.info(`Using existing metadata record for cloud file: ${uploadResult.key}`)
+        const existing = await getFileMetadataByKey(uploadResult.key, 'workspace')
+
+        if (!existing) {
+          logger.warn(`Metadata not found for cloud file ${uploadResult.key}, inserting...`)
+          const metadataRecord = await insertFileMetadata({
+            id: fileId,
+            key: uploadResult.key,
+            userId,
+            workspaceId,
+            context: 'workspace',
+            originalName: uniqueName,
+            contentType,
+            size: fileBuffer.length,
+          })
+          fileId = metadataRecord.id
+        } else {
+          fileId = existing.id
+          logger.info(`Using existing metadata record for cloud file: ${uploadResult.key}`)
+        }
       }
+
+      logger.info(
+        `Successfully uploaded workspace file: ${uniqueName} with key: ${uploadResult.key}`
+      )
+
+      try {
+        await incrementStorageUsage(userId, fileBuffer.length)
+      } catch (storageError) {
+        logger.error(`Failed to update storage tracking:`, storageError)
+      }
+
+      const { getServePathPrefix } = await import('@/lib/uploads')
+      const pathPrefix = getServePathPrefix()
+      const serveUrl = `${pathPrefix}${encodeURIComponent(uploadResult.key)}?context=workspace`
+
+      return {
+        id: fileId,
+        name: uniqueName,
+        size: fileBuffer.length,
+        type: contentType,
+        url: serveUrl, // Use authenticated serve URL (enforces context)
+        key: uploadResult.key,
+        context: 'workspace',
+      }
+    } catch (error) {
+      lastError = error
+      if (error instanceof FileConflictError) {
+        throw error
+      }
+      if (getPostgresErrorCode(error) === '23505') {
+        logger.warn(
+          `Unique name conflict on upload (attempt ${attempt + 1}/${MAX_UPLOAD_UNIQUE_RETRIES}), retrying with a new name`
+        )
+        continue
+      }
+      logger.error(`Failed to upload workspace file ${fileName}:`, error)
+      throw new Error(
+        `Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
-
-    logger.info(`Successfully uploaded workspace file: ${fileName} with key: ${uploadResult.key}`)
-
-    try {
-      await incrementStorageUsage(userId, fileBuffer.length)
-    } catch (storageError) {
-      logger.error(`Failed to update storage tracking:`, storageError)
-    }
-
-    const { getServePathPrefix } = await import('@/lib/uploads')
-    const pathPrefix = getServePathPrefix()
-    const serveUrl = `${pathPrefix}${encodeURIComponent(uploadResult.key)}?context=workspace`
-
-    return {
-      id: fileId,
-      name: fileName,
-      size: fileBuffer.length,
-      type: contentType,
-      url: serveUrl, // Use authenticated serve URL (enforces context)
-      key: uploadResult.key,
-      context: 'workspace',
-    }
-  } catch (error) {
-    logger.error(`Failed to upload workspace file ${fileName}:`, error)
-    throw new Error(
-      `Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
   }
+
+  logger.error(`Failed to upload workspace file after ${MAX_UPLOAD_UNIQUE_RETRIES} attempts`, lastError)
+  throw new FileConflictError(fileName)
 }
 
 /**
@@ -332,15 +382,20 @@ export async function listWorkspaceFiles(
 }
 
 /**
- * Normalize a workspace file reference to its display name.
- * Supports raw names and VFS-style paths like `files/name`, `files/name/content`,
- * and `files/name/meta.json`.
- *
- * Used by storage resolution (`findWorkspaceFileRecord`), not by `open_resource`, which
- * requires the canonical database UUID only.
+ * Normalize a workspace file reference to either a display name or canonical file ID.
+ * Supports raw IDs, `files/{name}`, `files/{name}/content`, `files/{name}/meta.json`,
+ * and canonical VFS aliases like `files/by-id/{fileId}/content`.
  */
 export function normalizeWorkspaceFileReference(fileReference: string): string {
   const trimmed = fileReference.trim().replace(/^\/+/, '')
+
+  if (trimmed.startsWith('files/by-id/')) {
+    const byIdRef = trimmed.slice('files/by-id/'.length)
+    const match = byIdRef.match(/^([^/]+)(?:\/(?:meta\.json|content))?$/)
+    if (match?.[1]) {
+      return match[1]
+    }
+  }
 
   if (trimmed.startsWith('files/')) {
     const withoutPrefix = trimmed.slice('files/'.length)
@@ -357,6 +412,13 @@ export function normalizeWorkspaceFileReference(fileReference: string): string {
 }
 
 /**
+ * Canonical sandbox mount path for an existing workspace file.
+ */
+export function getSandboxWorkspaceFilePath(file: Pick<WorkspaceFileRecord, 'id' | 'name'>): string {
+  return `/home/user/files/${file.id}/${file.name}`
+}
+
+/**
  * Find a workspace file record in an existing list from either its id or a VFS/name reference.
  * For copilot `open_resource` and the resource panel, use {@link getWorkspaceFile} with a UUID only.
  */
@@ -370,10 +432,13 @@ export function findWorkspaceFileRecord(
   }
 
   const normalizedReference = normalizeWorkspaceFileReference(fileReference)
+  const normalizedIdMatch = files.find((file) => file.id === normalizedReference)
+  if (normalizedIdMatch) {
+    return normalizedIdMatch
+  }
+
   const segmentKey = normalizeVfsSegment(normalizedReference)
-  return (
-    files.find((file) => normalizeVfsSegment(file.name) === segmentKey) ?? null
-  )
+  return files.find((file) => normalizeVfsSegment(file.name) === segmentKey) ?? null
 }
 
 /**
@@ -470,7 +535,8 @@ export async function updateWorkspaceFileContent(
   workspaceId: string,
   fileId: string,
   userId: string,
-  content: Buffer
+  content: Buffer,
+  contentType?: string
 ): Promise<WorkspaceFileRecord> {
   logger.info(`Updating workspace file content: ${fileId} for workspace ${workspaceId}`)
 
@@ -487,6 +553,8 @@ export async function updateWorkspaceFileContent(
     }
   }
 
+  const nextContentType = contentType || fileRecord.type
+
   try {
     const metadata: Record<string, string> = {
       originalName: fileRecord.name,
@@ -499,7 +567,7 @@ export async function updateWorkspaceFileContent(
     await uploadFile({
       file: content,
       fileName: fileRecord.key,
-      contentType: fileRecord.type,
+      contentType: nextContentType,
       context: 'workspace',
       preserveKey: true,
       customKey: fileRecord.key,
@@ -508,7 +576,7 @@ export async function updateWorkspaceFileContent(
 
     await db
       .update(workspaceFiles)
-      .set({ size: content.length })
+      .set({ size: content.length, contentType: nextContentType })
       .where(
         and(
           eq(workspaceFiles.id, fileId),
@@ -534,6 +602,7 @@ export async function updateWorkspaceFileContent(
     return {
       ...fileRecord,
       size: content.length,
+      type: nextContentType,
     }
   } catch (error) {
     logger.error(`Failed to update workspace file content ${fileId}:`, error)
@@ -572,17 +641,25 @@ export async function renameWorkspaceFile(
     throw new FileConflictError(trimmedName)
   }
 
-  const updated = await db
-    .update(workspaceFiles)
-    .set({ originalName: trimmedName })
-    .where(
-      and(
-        eq(workspaceFiles.id, fileId),
-        eq(workspaceFiles.workspaceId, workspaceId),
-        eq(workspaceFiles.context, 'workspace')
+  let updated: { id: string }[]
+  try {
+    updated = await db
+      .update(workspaceFiles)
+      .set({ originalName: trimmedName })
+      .where(
+        and(
+          eq(workspaceFiles.id, fileId),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          eq(workspaceFiles.context, 'workspace')
+        )
       )
-    )
-    .returning({ id: workspaceFiles.id })
+      .returning({ id: workspaceFiles.id })
+  } catch (error: unknown) {
+    if (getPostgresErrorCode(error) === '23505') {
+      throw new FileConflictError(trimmedName)
+    }
+    throw error
+  }
 
   if (updated.length === 0) {
     throw new Error('File not found or could not be renamed')
@@ -650,16 +727,43 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
     throw new Error('Cannot restore file into an archived workspace')
   }
 
-  await db
-    .update(workspaceFiles)
-    .set({ deletedAt: null })
-    .where(
-      and(
-        eq(workspaceFiles.id, fileId),
-        eq(workspaceFiles.workspaceId, workspaceId),
-        eq(workspaceFiles.context, 'workspace')
-      )
-    )
+  /**
+   * A concurrent upload/rename can claim the chosen name after `generateRestoreName`'s check (MVCC).
+   * Retries pick a new random suffix; 23505 maps to {@link FileConflictError} after exhaustion.
+   */
+  const maxUniqueViolationRetries = 8
+  let attemptedRestoreName = ''
 
-  logger.info(`Successfully restored workspace file: ${fileRecord.name}`)
+  for (let attempt = 0; attempt < maxUniqueViolationRetries; attempt++) {
+    attemptedRestoreName = ''
+    try {
+      const newName = await generateRestoreName(
+        fileRecord.name,
+        (candidate) => fileExistsInWorkspace(workspaceId, candidate),
+        { hasExtension: true }
+      )
+      attemptedRestoreName = newName
+
+      await db
+        .update(workspaceFiles)
+        .set({ deletedAt: null, originalName: newName })
+        .where(
+          and(
+            eq(workspaceFiles.id, fileId),
+            eq(workspaceFiles.workspaceId, workspaceId),
+            eq(workspaceFiles.context, 'workspace')
+          )
+        )
+
+      logger.info(`Successfully restored workspace file: ${newName}`)
+      return
+    } catch (error: unknown) {
+      if (getPostgresErrorCode(error) !== '23505') {
+        throw error
+      }
+      if (attempt === maxUniqueViolationRetries - 1) {
+        throw new FileConflictError(attemptedRestoreName || fileRecord.name)
+      }
+    }
+  }
 }

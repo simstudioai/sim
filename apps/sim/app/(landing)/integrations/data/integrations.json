@@ -8519,6 +8519,37 @@
     "tags": ["vector-search", "knowledge-base"]
   },
   {
+    "type": "quiver",
+    "slug": "quiver",
+    "name": "Quiver",
+    "description": "Generate and vectorize SVGs",
+    "longDescription": "Generate SVG images from text prompts or vectorize raster images into SVGs using QuiverAI. Supports reference images, style instructions, and multiple output generation.",
+    "bgColor": "#000000",
+    "iconName": "QuiverIcon",
+    "docsUrl": "https://docs.sim.ai/tools/quiver",
+    "operations": [
+      {
+        "name": "Text to SVG",
+        "description": "Generate SVG images from text prompts using QuiverAI"
+      },
+      {
+        "name": "Image to SVG",
+        "description": "Convert raster images into vector SVG format using QuiverAI"
+      },
+      {
+        "name": "List Models",
+        "description": "List all available QuiverAI models"
+      }
+    ],
+    "operationCount": 3,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "design",
+    "tags": ["image-generation"]
+  },
+  {
     "type": "reddit",
     "slug": "reddit",
     "name": "Reddit",
@@ -9582,6 +9613,14 @@
         "description": "Create a canvas pinned to a Slack channel as its resource hub"
       },
       {
+        "name": "Create Conversation",
+        "description": "Create a new public or private channel in a Slack workspace."
+      },
+      {
+        "name": "Invite to Conversation",
+        "description": "Invite one or more users to a Slack channel. Supports up to 100 users at a time."
+      },
+      {
         "name": "Open View",
         "description": "Open a modal view in Slack using a trigger_id from an interaction payload. Used to display forms, confirmations, and other interactive modals."
       },
@@ -9598,7 +9637,7 @@
         "description": "Publish a static view to a user"
       }
     ],
-    "operationCount": 23,
+    "operationCount": 25,
     "triggers": [
       {
         "id": "slack_webhook",

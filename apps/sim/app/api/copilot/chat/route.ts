@@ -1,20 +1,24 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getAccessibleCopilotChat, resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
 import {
+  acquirePendingChatStream,
   createSSEStream,
+  releasePendingChatStream,
   requestChatTitle,
   SSE_RESPONSE_HEADERS,
 } from '@/lib/copilot/chat-streaming'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { getStreamMeta, readStreamEvents } from '@/lib/copilot/orchestrator/stream/buffer'
+import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
+import { resolveActiveResourceContext } from '@/lib/copilot/process-contents'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -31,6 +35,8 @@ import {
   getUserEntityPermissions,
 } from '@/lib/workspaces/permissions/utils'
 
+export const maxDuration = 3600
+
 const logger = createLogger('CopilotChatAPI')
 
 const FileAttachmentSchema = z.object({
@@ -41,6 +47,13 @@ const FileAttachmentSchema = z.object({
   size: z.number(),
 })
 
+const ResourceAttachmentSchema = z.object({
+  type: z.enum(['workflow', 'table', 'file', 'knowledgebase']),
+  id: z.string().min(1),
+  title: z.string().optional(),
+  active: z.boolean().optional(),
+})
+
 const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   userMessageId: z.string().optional(),
@@ -48,13 +61,14 @@ const ChatMessageSchema = z.object({
   workflowId: z.string().optional(),
   workspaceId: z.string().optional(),
   workflowName: z.string().optional(),
-  model: z.string().optional().default('claude-opus-4-5'),
+  model: z.string().optional().default('claude-opus-4-6'),
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
   implicitFeedback: z.string().optional(),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
+  resourceAttachments: z.array(ResourceAttachmentSchema).optional(),
   provider: z.string().optional(),
   contexts: z
     .array(
@@ -69,6 +83,8 @@ const ChatMessageSchema = z.object({
           'knowledge',
           'templates',
           'docs',
+          'table',
+          'file',
         ]),
         label: z.string(),
         chatId: z.string().optional(),
@@ -78,6 +94,8 @@ const ChatMessageSchema = z.object({
         blockIds: z.array(z.string()).optional(),
         templateId: z.string().optional(),
         executionId: z.string().optional(),
+        tableId: z.string().optional(),
+        fileId: z.string().optional(),
       })
     )
     .optional(),
@@ -91,6 +109,10 @@ const ChatMessageSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
+  let actualChatId: string | undefined
+  let pendingChatStreamAcquired = false
+  let pendingChatStreamHandedOff = false
+  let pendingChatStreamID: string | undefined
 
   try {
     // Get session to access user information including name
@@ -117,6 +139,7 @@ export async function POST(req: NextRequest) {
       stream,
       implicitFeedback,
       fileAttachments,
+      resourceAttachments,
       provider,
       contexts,
       commands,
@@ -180,6 +203,29 @@ export async function POST(req: NextRequest) {
       })
     } catch {}
 
+    let currentChat: any = null
+    let conversationHistory: any[] = []
+    actualChatId = chatId
+    const selectedModel = model || 'claude-opus-4-6'
+
+    if (chatId || createNewChat) {
+      const chatResult = await resolveOrCreateChat({
+        chatId,
+        userId: authenticatedUserId,
+        workflowId,
+        model: selectedModel,
+      })
+      currentChat = chatResult.chat
+      actualChatId = chatResult.chatId || chatId
+      conversationHistory = Array.isArray(chatResult.conversationHistory)
+        ? chatResult.conversationHistory
+        : []
+
+      if (chatId && !currentChat) {
+        return createBadRequestResponse('Chat not found')
+      }
+    }
+
     let agentContexts: Array<{ type: string; content: string }> = []
     if (Array.isArray(normalizedContexts) && normalizedContexts.length > 0) {
       try {
@@ -188,7 +234,8 @@ export async function POST(req: NextRequest) {
           normalizedContexts as any,
           authenticatedUserId,
           message,
-          resolvedWorkspaceId
+          resolvedWorkspaceId,
+          actualChatId
         )
         agentContexts = processed
         logger.info(`[${tracker.requestId}] Contexts processed for request`, {
@@ -210,26 +257,36 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let currentChat: any = null
-    let conversationHistory: any[] = []
-    let actualChatId = chatId
-    const selectedModel = model || 'claude-opus-4-5'
-
-    if (chatId || createNewChat) {
-      const chatResult = await resolveOrCreateChat({
-        chatId,
-        userId: authenticatedUserId,
-        workflowId,
-        model: selectedModel,
-      })
-      currentChat = chatResult.chat
-      actualChatId = chatResult.chatId || chatId
-      conversationHistory = Array.isArray(chatResult.conversationHistory)
-        ? chatResult.conversationHistory
-        : []
-
-      if (chatId && !currentChat) {
-        return createBadRequestResponse('Chat not found')
+    if (
+      Array.isArray(resourceAttachments) &&
+      resourceAttachments.length > 0 &&
+      resolvedWorkspaceId
+    ) {
+      const results = await Promise.allSettled(
+        resourceAttachments.map(async (r) => {
+          const ctx = await resolveActiveResourceContext(
+            r.type,
+            r.id,
+            resolvedWorkspaceId!,
+            authenticatedUserId,
+            actualChatId
+          )
+          if (!ctx) return null
+          return {
+            ...ctx,
+            tag: r.active ? '@active_tab' : '@open_tab',
+          }
+        })
+      )
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value) {
+          agentContexts.push(result.value)
+        } else if (result.status === 'rejected') {
+          logger.error(
+            `[${tracker.requestId}] Failed to resolve resource attachment`,
+            result.reason
+          )
+        }
       }
     }
 
@@ -283,11 +340,59 @@ export async function POST(req: NextRequest) {
       })
     } catch {}
 
+    if (stream && actualChatId) {
+      const acquired = await acquirePendingChatStream(actualChatId, userMessageIdToUse)
+      if (!acquired) {
+        return NextResponse.json(
+          {
+            error:
+              'A response is already in progress for this chat. Wait for it to finish or use Stop.',
+          },
+          { status: 409 }
+        )
+      }
+      pendingChatStreamAcquired = true
+      pendingChatStreamID = userMessageIdToUse
+    }
+
+    if (actualChatId) {
+      const userMsg = {
+        id: userMessageIdToUse,
+        role: 'user' as const,
+        content: message,
+        timestamp: new Date().toISOString(),
+        ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
+        ...(Array.isArray(normalizedContexts) &&
+          normalizedContexts.length > 0 && {
+            contexts: normalizedContexts,
+          }),
+      }
+
+      const [updated] = await db
+        .update(copilotChats)
+        .set({
+          messages: sql`${copilotChats.messages} || ${JSON.stringify([userMsg])}::jsonb`,
+          conversationId: userMessageIdToUse,
+          updatedAt: new Date(),
+        })
+        .where(eq(copilotChats.id, actualChatId))
+        .returning({ messages: copilotChats.messages })
+
+      if (updated) {
+        const freshMessages: any[] = Array.isArray(updated.messages) ? updated.messages : []
+        conversationHistory = freshMessages.filter((m: any) => m.id !== userMessageIdToUse)
+      }
+    }
+
     if (stream) {
+      const executionId = crypto.randomUUID()
+      const runId = crypto.randomUUID()
       const sseStream = createSSEStream({
         requestPayload,
         userId: authenticatedUserId,
         streamId: userMessageIdToUse,
+        executionId,
+        runId,
         chatId: actualChatId,
         currentChat,
         isNewChat: conversationHistory.length === 0,
@@ -295,16 +400,96 @@ export async function POST(req: NextRequest) {
         titleModel: selectedModel,
         titleProvider: provider,
         requestId: tracker.requestId,
+        workspaceId: resolvedWorkspaceId,
+        pendingChatStreamAlreadyRegistered: Boolean(actualChatId && stream),
         orchestrateOptions: {
           userId: authenticatedUserId,
           workflowId,
           chatId: actualChatId,
+          executionId,
+          runId,
           goRoute: '/api/copilot',
           autoExecuteTools: true,
           interactive: true,
-          promptForToolApproval: true,
+          onComplete: async (result: OrchestratorResult) => {
+            if (!actualChatId) return
+            if (!result.success) return
+
+            const assistantMessage: Record<string, unknown> = {
+              id: crypto.randomUUID(),
+              role: 'assistant' as const,
+              content: result.content,
+              timestamp: new Date().toISOString(),
+              ...(result.requestId ? { requestId: result.requestId } : {}),
+            }
+            if (result.toolCalls.length > 0) {
+              assistantMessage.toolCalls = result.toolCalls
+            }
+            if (result.contentBlocks.length > 0) {
+              assistantMessage.contentBlocks = result.contentBlocks.map((block) => {
+                const stored: Record<string, unknown> = { type: block.type }
+                if (block.content) stored.content = block.content
+                if (block.type === 'tool_call' && block.toolCall) {
+                  const state =
+                    block.toolCall.result?.success !== undefined
+                      ? block.toolCall.result.success
+                        ? 'success'
+                        : 'error'
+                      : block.toolCall.status
+                  const isSubagentTool = !!block.calledBy
+                  const isNonTerminal =
+                    state === 'cancelled' || state === 'pending' || state === 'executing'
+                  stored.toolCall = {
+                    id: block.toolCall.id,
+                    name: block.toolCall.name,
+                    state,
+                    ...(isSubagentTool && isNonTerminal ? {} : { result: block.toolCall.result }),
+                    ...(isSubagentTool && isNonTerminal
+                      ? {}
+                      : block.toolCall.params
+                        ? { params: block.toolCall.params }
+                        : {}),
+                    ...(block.calledBy ? { calledBy: block.calledBy } : {}),
+                  }
+                }
+                return stored
+              })
+            }
+
+            try {
+              const [row] = await db
+                .select({ messages: copilotChats.messages })
+                .from(copilotChats)
+                .where(eq(copilotChats.id, actualChatId))
+                .limit(1)
+
+              const msgs: any[] = Array.isArray(row?.messages) ? row.messages : []
+              const userIdx = msgs.findIndex((m: any) => m.id === userMessageIdToUse)
+              const alreadyHasResponse =
+                userIdx >= 0 &&
+                userIdx + 1 < msgs.length &&
+                (msgs[userIdx + 1] as any)?.role === 'assistant'
+
+              if (!alreadyHasResponse) {
+                await db
+                  .update(copilotChats)
+                  .set({
+                    messages: sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`,
+                    conversationId: sql`CASE WHEN ${copilotChats.conversationId} = ${userMessageIdToUse} THEN NULL ELSE ${copilotChats.conversationId} END`,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(copilotChats.id, actualChatId))
+              }
+            } catch (error) {
+              logger.error(`[${tracker.requestId}] Failed to persist chat messages`, {
+                chatId: actualChatId,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              })
+            }
+          },
         },
       })
+      pendingChatStreamHandedOff = true
 
       return new Response(sseStream, { headers: SSE_RESPONSE_HEADERS })
     }
@@ -316,7 +501,6 @@ export async function POST(req: NextRequest) {
       goRoute: '/api/copilot',
       autoExecuteTools: true,
       interactive: true,
-      promptForToolApproval: true,
     })
 
     const responseData = {
@@ -411,6 +595,14 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (error) {
+    if (
+      actualChatId &&
+      pendingChatStreamAcquired &&
+      !pendingChatStreamHandedOff &&
+      pendingChatStreamID
+    ) {
+      await releasePendingChatStream(actualChatId, pendingChatStreamID).catch(() => {})
+    }
     const duration = tracker.getDuration()
 
     if (error instanceof z.ZodError) {

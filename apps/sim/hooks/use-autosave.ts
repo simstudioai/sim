@@ -36,6 +36,8 @@ export function useAutosave({
   const savingRef = useRef(false)
   const onSaveRef = useRef(onSave)
   onSaveRef.current = onSave
+  const enabledRef = useRef(enabled)
+  enabledRef.current = enabled
   const savedContentRef = useRef(savedContent)
   savedContentRef.current = savedContent
   const contentRef = useRef(content)
@@ -46,7 +48,13 @@ export function useAutosave({
   const MIN_SAVING_DISPLAY_MS = 600
 
   const save = useCallback(async () => {
-    if (savingRef.current || contentRef.current === savedContentRef.current) return
+    if (
+      !enabledRef.current ||
+      savingRef.current ||
+      contentRef.current === savedContentRef.current
+    ) {
+      return
+    }
     savingRef.current = true
     savingStartRef.current = Date.now()
     setSaveStatus('saving')
@@ -81,7 +89,11 @@ export function useAutosave({
     return () => {
       clearTimeout(timerRef.current)
       clearTimeout(idleTimerRef.current)
-      if (contentRef.current !== savedContentRef.current && !savingRef.current) {
+      if (
+        enabledRef.current &&
+        contentRef.current !== savedContentRef.current &&
+        !savingRef.current
+      ) {
         onSaveRef.current().catch(() => {})
       }
     }

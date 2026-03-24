@@ -42,7 +42,7 @@ export async function POST(
 
     const { getBaseUrl } = await import('@/lib/core/utils/urls')
     const serveUrl = `${getBaseUrl()}/api/files/serve/${encodeURIComponent(fileRecord.key)}?context=workspace`
-    const viewerUrl = `${getBaseUrl()}/workspace/${workspaceId}/files/${fileId}/view`
+    const viewerUrl = `${getBaseUrl()}/workspace/${workspaceId}/files/${fileId}`
 
     logger.info(`[${requestId}] Generated download URL for workspace file: ${fileRecord.name}`)
 

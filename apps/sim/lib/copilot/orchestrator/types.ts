@@ -59,6 +59,18 @@ export type ToolCallStatus =
   | 'rejected'
   | 'cancelled'
 
+const TERMINAL_TOOL_STATUSES: ReadonlySet<ToolCallStatus> = new Set([
+  'success',
+  'error',
+  'cancelled',
+  'skipped',
+  'rejected',
+])
+
+export function isTerminalToolCallStatus(status?: string): boolean {
+  return TERMINAL_TOOL_STATUSES.has(status as ToolCallStatus)
+}
+
 export interface ToolCallState {
   id: string
   name: string
@@ -90,10 +102,22 @@ export interface ContentBlock {
 export interface StreamingContext {
   chatId?: string
   requestId?: string
+  executionId?: string
+  runId?: string
   messageId: string
   accumulatedContent: string
   contentBlocks: ContentBlock[]
   toolCalls: Map<string, ToolCallState>
+  pendingToolPromises: Map<
+    string,
+    Promise<{ status: string; message?: string; data?: Record<string, unknown> }>
+  >
+  awaitingAsyncContinuation?: {
+    checkpointId: string
+    executionId?: string
+    runId?: string
+    pendingToolCallIds: string[]
+  }
   currentThinkingBlock: ContentBlock | null
   isInThinkingBlock: boolean
   subAgentParentToolCallId?: string
@@ -141,13 +165,6 @@ export interface OrchestratorOptions {
   onError?: (error: Error) => void | Promise<void>
   abortSignal?: AbortSignal
   interactive?: boolean
-  /**
-   * When true, tools with `requiresConfirmation` will block until the client
-   * explicitly approves or rejects. When false (e.g. Mothership chat), those
-   * tools are auto-executed without waiting for user approval.
-   * Defaults to false.
-   */
-  promptForToolApproval?: boolean
 }
 
 export interface OrchestratorResult {
@@ -178,6 +195,9 @@ export interface ExecutionContext {
   workflowId: string
   workspaceId?: string
   chatId?: string
+  executionId?: string
+  runId?: string
+  abortSignal?: AbortSignal
   userTimezone?: string
   userPermission?: string
   decryptedEnvVars?: Record<string, string>

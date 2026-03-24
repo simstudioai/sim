@@ -1,5 +1,3 @@
-'use client'
-
 import { ToastProvider } from '@/components/emcn'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'

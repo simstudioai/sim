@@ -1,5 +1,3 @@
-'use client'
-
 import { IntegrationsManager } from '@/app/workspace/[workspaceId]/settings/components/integrations/integrations-manager'
 
 export function Integrations() {

@@ -75,11 +75,13 @@ function getMetaKey(streamId: string) {
   return `${getStreamKeyPrefix(streamId)}:meta`
 }
 
-export type StreamStatus = 'active' | 'complete' | 'error'
+export type StreamStatus = 'active' | 'complete' | 'cancelled' | 'error'
 
 export type StreamMeta = {
   status: StreamStatus
   userId?: string
+  executionId?: string
+  runId?: string
   updatedAt?: string
   error?: string
 }
@@ -119,6 +121,8 @@ export async function setStreamMeta(streamId: string, meta: StreamMeta): Promise
       updatedAt: meta.updatedAt || new Date().toISOString(),
     }
     if (meta.userId) payload.userId = meta.userId
+    if (meta.executionId) payload.executionId = meta.executionId
+    if (meta.runId) payload.runId = meta.runId
     if (meta.error) payload.error = meta.error
     await redis.hset(getMetaKey(streamId), payload)
     await redis.expire(getMetaKey(streamId), config.ttlSeconds)

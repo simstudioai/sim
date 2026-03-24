@@ -50,7 +50,9 @@ export const KnowledgeBaseArgsSchema = z.object({
       workspaceId: z.string().optional(),
       /** Knowledge base ID (required for get, query, add_file, list_tags, create_tag, get_tag_usage, add_connector) */
       knowledgeBaseId: z.string().optional(),
-      /** Workspace file path to add as a document (required for add_file). Example: "files/report.pdf" */
+      /** Workspace file ID to add as a document (required for add_file). */
+      fileId: z.string().optional(),
+      /** Legacy workspace file reference for add_file. Prefer fileId. */
       filePath: z.string().optional(),
       /** Search query text (required for query) */
       query: z.string().optional(),
@@ -145,6 +147,7 @@ export const UserTableArgsSchema = z.object({
       sort: z.record(z.enum(['asc', 'desc'])).optional(),
       limit: z.number().optional(),
       offset: z.number().optional(),
+      fileId: z.string().optional(),
       filePath: z.string().optional(),
       column: z
         .object({
@@ -173,7 +176,7 @@ export type UserTableResult = z.infer<typeof UserTableResultSchema>
 
 // workspace_file - shared schema used by server tool and Go catalog
 export const WorkspaceFileArgsSchema = z.object({
-  operation: z.enum(['write', 'update', 'delete', 'rename']),
+  operation: z.enum(['write', 'update', 'delete', 'rename', 'patch']),
   args: z
     .object({
       fileId: z.string().optional(),
@@ -181,8 +184,13 @@ export const WorkspaceFileArgsSchema = z.object({
       content: z.string().optional(),
       contentType: z.string().optional(),
       workspaceId: z.string().optional(),
-      /** New name for the file (required for rename operation) */
       newName: z.string().optional(),
+      edits: z
+        .array(z.object({ search: z.string(), replace: z.string() }))
+        .describe(
+          'List of search/replace pairs applied sequentially — each edit operates on the result of the previous one. Search strings must be unique within the file.'
+        )
+        .optional(),
     })
     .optional(),
 })

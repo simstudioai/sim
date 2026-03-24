@@ -925,6 +925,82 @@ Create a canvas pinned to a Slack channel as its resource hub
 | --------- | ---- | ----------- |
 | `canvas_id` | string | ID of the created channel canvas |
 
+### `slack_create_conversation`
+
+Create a new public or private channel in a Slack workspace.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `name` | string | Yes | Name of the channel to create \(lowercase, numbers, hyphens, underscores only; max 80 characters\) |
+| `isPrivate` | boolean | No | Create a private channel instead of a public one \(default: false\) |
+| `teamId` | string | No | Encoded team ID to create the channel in \(required if using an org token\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channelInfo` | object | The newly created channel object |
+|   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
+|   ↳ `name` | string | Channel name without # prefix |
+|   ↳ `is_channel` | boolean | Whether this is a channel |
+|   ↳ `is_private` | boolean | Whether channel is private |
+|   ↳ `is_archived` | boolean | Whether channel is archived |
+|   ↳ `is_general` | boolean | Whether this is the general channel |
+|   ↳ `is_member` | boolean | Whether the bot/user is a member |
+|   ↳ `is_shared` | boolean | Whether channel is shared across workspaces |
+|   ↳ `is_ext_shared` | boolean | Whether channel is externally shared |
+|   ↳ `is_org_shared` | boolean | Whether channel is org-wide shared |
+|   ↳ `num_members` | number | Number of members in the channel |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `purpose` | string | Channel purpose/description |
+|   ↳ `created` | number | Unix timestamp when channel was created |
+|   ↳ `creator` | string | User ID of channel creator |
+|   ↳ `updated` | number | Unix timestamp of last update |
+
+### `slack_invite_to_conversation`
+
+Invite one or more users to a Slack channel. Supports up to 100 users at a time.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `authMethod` | string | No | Authentication method: oauth or bot_token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `channel` | string | Yes | The ID of the channel to invite users to |
+| `users` | string | Yes | Comma-separated list of user IDs to invite \(up to 100\) |
+| `force` | boolean | No | When true, continues inviting valid users while skipping invalid ones \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `channelInfo` | object | The channel object after inviting users |
+|   ↳ `id` | string | Channel ID \(e.g., C1234567890\) |
+|   ↳ `name` | string | Channel name without # prefix |
+|   ↳ `is_channel` | boolean | Whether this is a channel |
+|   ↳ `is_private` | boolean | Whether channel is private |
+|   ↳ `is_archived` | boolean | Whether channel is archived |
+|   ↳ `is_general` | boolean | Whether this is the general channel |
+|   ↳ `is_member` | boolean | Whether the bot/user is a member |
+|   ↳ `is_shared` | boolean | Whether channel is shared across workspaces |
+|   ↳ `is_ext_shared` | boolean | Whether channel is externally shared |
+|   ↳ `is_org_shared` | boolean | Whether channel is org-wide shared |
+|   ↳ `num_members` | number | Number of members in the channel |
+|   ↳ `topic` | string | Channel topic |
+|   ↳ `purpose` | string | Channel purpose/description |
+|   ↳ `created` | number | Unix timestamp when channel was created |
+|   ↳ `creator` | string | User ID of channel creator |
+|   ↳ `updated` | number | Unix timestamp of last update |
+| `errors` | array | Per-user errors when force is true and some invitations failed |
+|   ↳ `user` | string | User ID that failed |
+|   ↳ `ok` | boolean | Always false for error entries |
+|   ↳ `error` | string | Error code for this user |
+
 ### `slack_open_view`
 
 Open a modal view in Slack using a trigger_id from an interaction payload. Used to display forms, confirmations, and other interactive modals.

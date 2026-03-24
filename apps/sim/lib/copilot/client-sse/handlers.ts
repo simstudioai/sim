@@ -1,9 +1,13 @@
 import { createLogger } from '@sim/logger'
+import {
+  appendTextBlock,
+  beginThinkingBlock,
+  finalizeThinkingBlock,
+} from '@/lib/copilot/client-sse/content-blocks'
 import { STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
 import { asRecord } from '@/lib/copilot/orchestrator/sse/utils'
 import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 import {
-  abortAllInProgressTools,
   isBackgroundState,
   isRejectedState,
   isReviewState,
@@ -14,9 +18,9 @@ import type { CopilotStore, CopilotStreamInfo, CopilotToolCall } from '@/stores/
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { captureBaselineSnapshot } from '@/stores/workflow-diff/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { appendTextBlock, beginThinkingBlock, finalizeThinkingBlock } from './content-blocks'
 import { executeRunToolOnClient } from './run-tool-execution'
 import type { ClientContentBlock, ClientStreamingContext } from './types'
 
@@ -26,6 +30,81 @@ const TEXT_BLOCK_TYPE = 'text'
 const MAX_BATCH_INTERVAL = 50
 const MIN_BATCH_INTERVAL = 16
 const MAX_QUEUE_SIZE = 5
+
+interface StreamMessage extends Record<string, unknown> {
+  id: string
+  requestId?: string
+  content?: string
+  contentBlocks?: ClientContentBlock[]
+  error?: string
+}
+
+interface ChatSummary extends Record<string, unknown> {
+  id: string
+  title?: string
+}
+
+function isStreamMessage(value: Record<string, unknown>): value is StreamMessage {
+  return typeof value.id === 'string'
+}
+
+function getStreamMessages(store: CopilotStore): StreamMessage[] {
+  return store.messages.filter(isStreamMessage)
+}
+
+function getChatState(store: CopilotStore): {
+  currentChat?: ChatSummary
+  chats: ChatSummary[]
+} {
+  const currentChat = asRecord(store.currentChat)
+  const rawChats = Array.isArray(store.chats) ? store.chats : []
+
+  return {
+    currentChat:
+      typeof currentChat.id === 'string'
+        ? { ...currentChat, id: currentChat.id, title: currentChat.title as string | undefined }
+        : undefined,
+    chats: rawChats
+      .map((chat) => asRecord(chat))
+      .filter(
+        (chat): chat is Record<string, unknown> & { id: string } => typeof chat.id === 'string'
+      )
+      .map((chat) => ({ ...chat, id: chat.id, title: chat.title as string | undefined })),
+  }
+}
+
+function abortInProgressTools(set: StoreSet, get: () => CopilotStore): void {
+  const { toolCallsById } = get()
+  const updatedToolCalls = Object.fromEntries(
+    Object.entries(toolCallsById).map(([toolCallId, toolCall]) => {
+      if (
+        toolCall.state === ClientToolCallState.executing ||
+        toolCall.state === ClientToolCallState.generating ||
+        toolCall.state === ClientToolCallState.pending
+      ) {
+        const state = ClientToolCallState.aborted
+        return [
+          toolCallId,
+          {
+            ...toolCall,
+            state,
+            display: resolveToolDisplay(
+              toolCall.name,
+              state,
+              toolCall.id,
+              toolCall.params,
+              toolCall.serverUI
+            ),
+          },
+        ]
+      }
+
+      return [toolCallId, toolCall]
+    })
+  )
+
+  set({ toolCallsById: updatedToolCalls })
+}
 
 function writeActiveStreamToStorage(info: CopilotStreamInfo | null): void {
   if (typeof window === 'undefined') return
@@ -87,7 +166,7 @@ export function flushStreamingUpdates(set: StoreSet) {
   set((state: CopilotStore) => {
     if (updates.size === 0) return state
     return {
-      messages: state.messages.map((msg) => {
+      messages: getStreamMessages(state).map((msg) => {
         const update = updates.get(msg.id)
         if (update) {
           return {
@@ -123,7 +202,7 @@ export function updateStreamingMessage(set: StoreSet, context: ClientStreamingCo
         lastBatchTime = performance.now()
         set((state: CopilotStore) => {
           if (updates.size === 0) return state
-          const messages = state.messages
+          const messages = getStreamMessages(state)
           const lastMessage = messages[messages.length - 1]
           const lastMessageUpdate = lastMessage ? updates.get(lastMessage.id) : null
           if (updates.size === 1 && lastMessageUpdate) {
@@ -441,7 +520,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
   title_updated: (_data, _context, get, set) => {
     const title = _data.title
     if (!title) return
-    const { currentChat, chats } = get()
+    const { currentChat, chats } = getChatState(get())
     if (currentChat) {
       set({
         currentChat: { ...currentChat, title },
@@ -538,6 +617,8 @@ export const sseHandlers: Record<string, SSEHandler> = {
             if (!workflowId) {
               logger.warn('[SSE] edit_workflow result has no workflowId, skipping diff')
             } else {
+              const baselineWorkflow = captureBaselineSnapshot(workflowId)
+
               // Re-fetch the state the server just wrote to DB.
               // Never use the response's workflowState directly — that would
               // mean client and server independently track state, creating
@@ -551,6 +632,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
                 .then((freshState) => {
                   const diffStore = useWorkflowDiffStore.getState()
                   return diffStore.setProposedChanges(freshState as WorkflowState, undefined, {
+                    baselineWorkflow,
                     skipPersist: true,
                   })
                 })
@@ -564,6 +646,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
                     const diffStore = useWorkflowDiffStore.getState()
                     diffStore
                       .setProposedChanges(resultPayload.workflowState as WorkflowState, undefined, {
+                        baselineWorkflow,
                         skipPersist: true,
                       })
                       .catch(() => {})
@@ -790,8 +873,24 @@ export const sseHandlers: Record<string, SSEHandler> = {
       })
     }
   },
-  tool_call_delta: () => {
-    // Argument streaming delta — forwarded from Go, no client action yet
+  tool_call_delta: (data, context, get, set) => {
+    const toolCallId = data?.toolCallId
+    if (!toolCallId) return
+
+    const delta = typeof data?.data === 'string' ? data.data : ''
+    if (!delta) return
+
+    const { toolCallsById } = get()
+    const existing = toolCallsById[toolCallId]
+    if (!existing) return
+
+    const updated: CopilotToolCall = {
+      ...existing,
+      streamingArgs: (existing.streamingArgs ?? '') + delta,
+    }
+    set({ toolCallsById: { ...toolCallsById, [toolCallId]: updated } })
+    upsertToolCallBlock(context, updated)
+    updateStreamingMessage(set, context)
   },
   tool_generating: (data, context, get, set) => {
     const { toolCallId, toolName } = data
@@ -860,6 +959,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
           ...(args ? { params: args } : {}),
           ...(effectiveServerUI ? { serverUI: effectiveServerUI } : {}),
           ...(clientExecutable ? { clientExecutable: true } : {}),
+          ...(!isPartial ? { streamingArgs: undefined } : {}),
           display: resolveToolDisplay(
             toolName,
             initialState,
@@ -935,8 +1035,45 @@ export const sseHandlers: Record<string, SSEHandler> = {
     appendThinkingContent(context, chunk)
     updateStreamingMessage(set, context)
   },
+  context_compaction_start: (_data, context, get, set) => {
+    const id = `compaction_${Date.now()}`
+    context.activeCompactionId = id
+    const toolName = 'context_compaction'
+    const state = ClientToolCallState.executing
+    const tc: CopilotToolCall = {
+      id,
+      name: toolName,
+      state,
+      params: {},
+      display: resolveToolDisplay(toolName, state, id, {}),
+    }
+    const { toolCallsById } = get()
+    set({ toolCallsById: { ...toolCallsById, [id]: tc } })
+    upsertToolCallBlock(context, tc)
+    updateStreamingMessage(set, context)
+  },
+  context_compaction: (data, context, get, set) => {
+    const eventData = asRecord(data?.data)
+    const summaryChars = (eventData.summary_chars as number) || 0
+    const id = context.activeCompactionId || `compaction_${Date.now()}`
+    context.activeCompactionId = undefined
+    const toolName = 'context_compaction'
+    const state = ClientToolCallState.success
+    const params = { summary_chars: summaryChars }
+    const tc: CopilotToolCall = {
+      id,
+      name: toolName,
+      state,
+      params,
+      display: resolveToolDisplay(toolName, state, id, params),
+    }
+    const { toolCallsById } = get()
+    set({ toolCallsById: { ...toolCallsById, [id]: tc } })
+    upsertToolCallBlock(context, tc)
+    updateStreamingMessage(set, context)
+  },
   content: (data, context, get, set) => {
-    if (!data.data) return
+    if (typeof data.data !== 'string') return
     context.pendingContent += data.data
     processContentBuffer(context, get, set)
   },
@@ -954,7 +1091,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
   error: (data, context, _get, set) => {
     logger.error('Stream error:', data.error)
     set((state: CopilotStore) => ({
-      messages: state.messages.map((msg) =>
+      messages: getStreamMessages(state).map((msg) =>
         msg.id === context.messageId
           ? {
               ...msg,
@@ -977,7 +1114,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     }
     finalizeThinkingBlock(context)
     updateStreamingMessage(set, context)
-    abortAllInProgressTools(set, get)
+    abortInProgressTools(set, get)
   },
   default: () => {},
 }

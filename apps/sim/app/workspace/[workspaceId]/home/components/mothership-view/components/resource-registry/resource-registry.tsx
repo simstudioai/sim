@@ -129,7 +129,7 @@ const RESOURCE_INVALIDATORS: Record<
   },
   file: (qc, wId, id) => {
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
-    qc.invalidateQueries({ queryKey: workspaceFilesKeys.content(wId, id) })
+    qc.invalidateQueries({ queryKey: workspaceFilesKeys.contentFile(wId, id) })
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
   },
   workflow: (qc, _wId) => {

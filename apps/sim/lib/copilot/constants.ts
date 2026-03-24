@@ -14,9 +14,6 @@ export const SIM_AGENT_API_URL =
 // Redis key prefixes
 // ---------------------------------------------------------------------------
 
-/** Redis key prefix for tool call confirmation payloads (polled by waitForToolDecision). */
-export const REDIS_TOOL_CALL_PREFIX = 'tool_call:'
-
 /** Redis key prefix for copilot SSE stream buffers. */
 export const REDIS_COPILOT_STREAM_PREFIX = 'copilot_stream:'
 
@@ -24,27 +21,11 @@ export const REDIS_COPILOT_STREAM_PREFIX = 'copilot_stream:'
 // Timeouts
 // ---------------------------------------------------------------------------
 
-/** Default timeout for the copilot orchestration stream loop (5 min). */
-export const ORCHESTRATION_TIMEOUT_MS = 300_000
+/** Default timeout for the copilot orchestration stream loop (60 min). */
+export const ORCHESTRATION_TIMEOUT_MS = 3_600_000
 
-/** Timeout for the client-side streaming response handler (10 min). */
-export const STREAM_TIMEOUT_MS = 600_000
-
-/** TTL for Redis tool call confirmation entries (24 h). */
-export const REDIS_TOOL_CALL_TTL_SECONDS = 86_400
-
-// ---------------------------------------------------------------------------
-// Tool decision polling
-// ---------------------------------------------------------------------------
-
-/** Initial poll interval when waiting for a user tool decision. */
-export const TOOL_DECISION_INITIAL_POLL_MS = 100
-
-/** Maximum poll interval when waiting for a user tool decision. */
-export const TOOL_DECISION_MAX_POLL_MS = 3_000
-
-/** Backoff multiplier for the tool decision poll interval. */
-export const TOOL_DECISION_POLL_BACKOFF = 1.5
+/** Timeout for the client-side streaming response handler (60 min). */
+export const STREAM_TIMEOUT_MS = 3_600_000
 
 // ---------------------------------------------------------------------------
 // Stream resume

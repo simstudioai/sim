@@ -1738,6 +1738,7 @@ import {
 } from '@/tools/posthog'
 import { pulseParserTool, pulseParserV2Tool } from '@/tools/pulse'
 import { qdrantFetchTool, qdrantSearchTool, qdrantUpsertTool } from '@/tools/qdrant'
+import { quiverImageToSvgTool, quiverListModelsTool, quiverTextToSvgTool } from '@/tools/quiver'
 import {
   rdsDeleteTool,
   rdsExecuteTool,
@@ -1948,6 +1949,7 @@ import {
   slackAddReactionTool,
   slackCanvasTool,
   slackCreateChannelCanvasTool,
+  slackCreateConversationTool,
   slackDeleteMessageTool,
   slackDownloadTool,
   slackEditCanvasTool,
@@ -1957,6 +1959,7 @@ import {
   slackGetThreadTool,
   slackGetUserPresenceTool,
   slackGetUserTool,
+  slackInviteToConversationTool,
   slackListChannelsTool,
   slackListMembersTool,
   slackListUsersTool,
@@ -2822,6 +2825,8 @@ export const tools: Record<string, ToolConfig> = {
   slack_publish_view: slackPublishViewTool,
   slack_edit_canvas: slackEditCanvasTool,
   slack_create_channel_canvas: slackCreateChannelCanvasTool,
+  slack_create_conversation: slackCreateConversationTool,
+  slack_invite_to_conversation: slackInviteToConversationTool,
   github_repo_info: githubRepoInfoTool,
   github_repo_info_v2: githubRepoInfoV2Tool,
   github_latest_commit: githubLatestCommitTool,
@@ -3538,6 +3543,9 @@ export const tools: Record<string, ToolConfig> = {
   perplexity_search: perplexitySearchTool,
   pulse_parser: pulseParserTool,
   pulse_parser_v2: pulseParserV2Tool,
+  quiver_image_to_svg: quiverImageToSvgTool,
+  quiver_list_models: quiverListModelsTool,
+  quiver_text_to_svg: quiverTextToSvgTool,
   posthog_capture_event: posthogCaptureEventTool,
   posthog_batch_events: posthogBatchEventsTool,
   posthog_list_persons: posthogListPersonsTool,

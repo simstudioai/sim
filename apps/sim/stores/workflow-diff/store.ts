@@ -15,7 +15,6 @@ import {
   captureBaselineSnapshot,
   cloneWorkflowState,
   createBatchedUpdater,
-  findLatestEditWorkflowToolCallId,
   getLatestUserMessageId,
   persistWorkflowStateToServer,
 } from './utils'
@@ -89,7 +88,18 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           let baselineWorkflowId = get().baselineWorkflowId
           let capturedBaseline = false
 
-          if (!baselineWorkflow || baselineWorkflowId !== activeWorkflowId) {
+          if (
+            options?.baselineWorkflow &&
+            (!baselineWorkflow || baselineWorkflowId !== activeWorkflowId)
+          ) {
+            baselineWorkflow = cloneWorkflowState(options.baselineWorkflow)
+            baselineWorkflowId = activeWorkflowId
+            capturedBaseline = true
+            logger.info('Using provided baseline snapshot for diff workflow', {
+              workflowId: activeWorkflowId,
+              blockCount: Object.keys(baselineWorkflow.blocks || {}).length,
+            })
+          } else if (!baselineWorkflow || baselineWorkflowId !== activeWorkflowId) {
             baselineWorkflow = captureBaselineSnapshot(activeWorkflowId)
             baselineWorkflowId = activeWorkflowId
             capturedBaseline = true
@@ -140,16 +150,9 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           )
           serializer.deserializeWorkflow(serialized)
 
-          // OPTIMISTIC: Apply state immediately to stores (this is what makes UI update)
-          applyWorkflowStateToStores(activeWorkflowId, candidateState)
-          logger.info('[WorkflowDiff] Applied state to stores')
-
-          // OPTIMISTIC: Update diff state immediately so UI shows the diff
-          const triggerMessageId =
-            capturedBaseline && !get()._triggerMessageId
-              ? await getLatestUserMessageId()
-              : get()._triggerMessageId
-
+          // Set diff flags BEFORE applying state so that the very first
+          // React render after the store update already sees diff mode active.
+          // This prevents a flash frame where blocks render without diff colors.
           set({
             hasActiveDiff: true,
             isShowingDiff: true,
@@ -159,17 +162,19 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             diffAnalysis: diffAnalysisResult,
             diffMetadata: diffResult.diff.metadata,
             diffError: null,
-            _triggerMessageId: triggerMessageId ?? null,
+            _triggerMessageId: get()._triggerMessageId ?? null,
           })
 
-          if (triggerMessageId) {
-            import('@/stores/panel/copilot/store')
-              .then(({ useCopilotStore }) =>
-                useCopilotStore.getState().saveMessageCheckpoint(triggerMessageId)
-              )
-              .catch((error) => {
-                logger.warn('Failed to save checkpoint for diff', { error })
-              })
+          // Now apply the proposed state to stores — React will batch this
+          // with the diff flag update above into a single render.
+          applyWorkflowStateToStores(activeWorkflowId, candidateState)
+          logger.info('[WorkflowDiff] Applied state to stores with diff flags already active')
+
+          // Resolve trigger message ID in the background (non-blocking)
+          if (capturedBaseline && !get()._triggerMessageId) {
+            getLatestUserMessageId().then((msgId) => {
+              if (msgId) set({ _triggerMessageId: msgId })
+            })
           }
 
           logger.info('Workflow diff applied optimistically', {
@@ -334,18 +339,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               })
             })
           }
-
-          findLatestEditWorkflowToolCallId().then((toolCallId) => {
-            if (toolCallId) {
-              import('@/stores/panel/copilot/store')
-                .then(({ useCopilotStore }) => {
-                  useCopilotStore.getState().updatePreviewToolCallState('accepted', toolCallId)
-                })
-                .catch((error) => {
-                  logger.warn('Failed to update tool accept state', { error })
-                })
-            }
-          })
         },
 
         rejectChanges: async (options) => {
@@ -439,18 +432,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               })
             })
           }
-
-          findLatestEditWorkflowToolCallId().then((toolCallId) => {
-            if (toolCallId) {
-              import('@/stores/panel/copilot/store')
-                .then(({ useCopilotStore }) => {
-                  useCopilotStore.getState().updatePreviewToolCallState('rejected', toolCallId)
-                })
-                .catch((error) => {
-                  logger.warn('Failed to update tool reject state', { error })
-                })
-            }
-          })
         },
 
         reapplyDiffMarkers: () => {

@@ -478,11 +478,13 @@ function SignupFormContent({
           </div>
 
           {turnstileSiteKey && (
-            <Turnstile
-              ref={turnstileRef}
-              siteKey={turnstileSiteKey}
-              options={{ size: 'invisible', execution: 'execute' }}
-            />
+            <div className='absolute'>
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={turnstileSiteKey}
+                options={{ size: 'invisible', execution: 'execute' }}
+              />
+            </div>
           )}
 
           {formError && (
