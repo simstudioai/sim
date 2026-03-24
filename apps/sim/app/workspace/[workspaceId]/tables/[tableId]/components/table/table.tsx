@@ -2653,13 +2653,9 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     [column.name, onDragOver]
   )
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      onDragEnd?.()
-    },
-    [onDragEnd]
-  )
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+  }, [])
 
   const handleDragEnd = useCallback(() => {
     onDragEnd?.()
