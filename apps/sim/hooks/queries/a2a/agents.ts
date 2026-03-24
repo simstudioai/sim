@@ -40,8 +40,9 @@ export const a2aAgentKeys = {
   list: (workspaceId: string) => [...a2aAgentKeys.lists(), workspaceId] as const,
   details: () => [...a2aAgentKeys.all, 'detail'] as const,
   detail: (agentId: string) => [...a2aAgentKeys.details(), agentId] as const,
+  byWorkflows: () => [...a2aAgentKeys.all, 'byWorkflow'] as const,
   byWorkflow: (workspaceId: string, workflowId: string) =>
-    [...a2aAgentKeys.all, 'byWorkflow', workspaceId, workflowId] as const,
+    [...a2aAgentKeys.byWorkflows(), workspaceId, workflowId] as const,
 }
 
 /**
@@ -153,6 +154,9 @@ export function useCreateA2AAgent() {
       queryClient.invalidateQueries({
         queryKey: a2aAgentKeys.lists(),
       })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.byWorkflows(),
+      })
     },
   })
 }
@@ -205,6 +209,9 @@ export function useUpdateA2AAgent() {
       queryClient.invalidateQueries({
         queryKey: a2aAgentKeys.detail(variables.agentId),
       })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.byWorkflows(),
+      })
     },
   })
 }
@@ -236,6 +243,9 @@ export function useDeleteA2AAgent() {
       })
       queryClient.invalidateQueries({
         queryKey: a2aAgentKeys.detail(variables.agentId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.byWorkflows(),
       })
     },
   })
@@ -283,6 +293,9 @@ export function usePublishA2AAgent() {
       })
       queryClient.invalidateQueries({
         queryKey: a2aAgentKeys.detail(variables.agentId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.byWorkflows(),
       })
     },
   })
