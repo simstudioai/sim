@@ -25,11 +25,18 @@ export const quiverListModelsTool: ToolConfig<QuiverListModelsParams, QuiverList
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-
     if (!response.ok) {
-      throw new Error(data.message || `Quiver API error: ${response.status}`)
+      let message = `Quiver API error: ${response.status}`
+      try {
+        const errorData = await response.json()
+        message = errorData.message || message
+      } catch {
+        // Non-JSON error body (e.g. HTML from gateway)
+      }
+      throw new Error(message)
     }
+
+    const data = await response.json()
 
     const models = (data.data ?? []).map(
       (model: {

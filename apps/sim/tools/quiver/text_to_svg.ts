@@ -105,11 +105,15 @@ export const quiverTextToSvgTool: ToolConfig<QuiverTextToSvgParams, QuiverSvgRes
       properties: {
         file: {
           type: 'file',
-          description: 'Generated SVG file',
+          description: 'First generated SVG file',
+        },
+        files: {
+          type: 'json',
+          description: 'All generated SVG files (when n > 1)',
         },
         svgContent: {
           type: 'string',
-          description: 'Raw SVG markup content',
+          description: 'Raw SVG markup content of the first result',
         },
         id: {
           type: 'string',

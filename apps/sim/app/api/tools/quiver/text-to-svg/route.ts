@@ -108,19 +108,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const svgContent = result.data[0].svg
-    const svgBuffer = Buffer.from(svgContent, 'utf-8')
+    const files = result.data.map((entry: { svg: string }, index: number) => {
+      const buffer = Buffer.from(entry.svg, 'utf-8')
+      return {
+        name: result.data.length > 1 ? `generated-${index + 1}.svg` : 'generated.svg',
+        mimeType: 'image/svg+xml',
+        data: buffer.toString('base64'),
+        size: buffer.length,
+      }
+    })
 
     return NextResponse.json({
       success: true,
       output: {
-        file: {
-          name: 'generated.svg',
-          mimeType: 'image/svg+xml',
-          data: svgBuffer.toString('base64'),
-          size: svgBuffer.length,
-        },
-        svgContent,
+        file: files[0],
+        files,
+        svgContent: result.data[0].svg,
         id: result.id ?? null,
         usage: result.usage
           ? {

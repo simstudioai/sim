@@ -204,7 +204,11 @@ export const QuiverBlock: BlockConfig<QuiverSvgResponse> = {
   outputs: {
     file: {
       type: 'file',
-      description: 'Generated SVG file',
+      description: 'First generated SVG file',
+    },
+    files: {
+      type: 'json',
+      description: 'All generated SVG files (when n > 1)',
     },
     svgContent: {
       type: 'string',

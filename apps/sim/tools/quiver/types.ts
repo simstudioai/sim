@@ -37,6 +37,12 @@ export interface QuiverSvgResponse extends ToolResponse {
       data: string
       size: number
     }
+    files: Array<{
+      name: string
+      mimeType: string
+      data: string
+      size: number
+    }>
     svgContent: string
     id: string
     usage: {
