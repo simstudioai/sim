@@ -246,6 +246,49 @@ export async function orchestrateCopilotStream(
           continue
         }
 
+        const missingToolCallIds = continuation.pendingToolCallIds.filter(
+          (toolCallId) => !claimableToolCallIds.includes(toolCallId)
+        )
+        if (missingToolCallIds.length > 0) {
+          if (claimedToolCallIds.length > 0 && claimedByWorkerId) {
+            logger.info('Releasing partial async tool claims before retrying resume', {
+              checkpointId: continuation.checkpointId,
+              runId: continuation.runId,
+              claimedToolCallIds,
+              missingToolCallIds,
+            })
+            await Promise.all(
+              claimedToolCallIds.map((toolCallId) =>
+                releaseCompletedAsyncToolClaim(toolCallId, claimedByWorkerId!).catch(() => null)
+              )
+            )
+            claimedToolCallIds = []
+            claimedByWorkerId = null
+          }
+          if (emptyClaimRetries < 3) {
+            emptyClaimRetries++
+            logger.info(
+              'Retrying async resume claim after only a subset of tool calls were claimable',
+              {
+                checkpointId: continuation.checkpointId,
+                runId: continuation.runId,
+                retry: emptyClaimRetries,
+                missingToolCallIds,
+              }
+            )
+            await new Promise((resolve) => setTimeout(resolve, 250 * emptyClaimRetries))
+            continue
+          }
+          logger.warn('Skipping async resume because not all tool calls were claimable', {
+            checkpointId: continuation.checkpointId,
+            runId: continuation.runId,
+            claimableToolCallIds,
+            missingToolCallIds,
+          })
+          context.awaitingAsyncContinuation = undefined
+          break
+        }
+
         if (claimableToolCallIds.length === 0) {
           if (emptyClaimRetries < 3 && continuation.pendingToolCallIds.length > 0) {
             emptyClaimRetries++

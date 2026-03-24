@@ -278,4 +278,41 @@ describe('orchestrateCopilotStream async continuation', () => {
     expect(releaseCompletedAsyncToolClaim).toHaveBeenCalledWith('tool-1', 'run-1')
     expect(markAsyncToolDelivered).not.toHaveBeenCalled()
   })
+
+  it('does not send a partial resume payload when only some pending tool calls are claimable', async () => {
+    claimCompletedAsyncToolCall
+      .mockResolvedValueOnce({ toolCallId: 'tool-1' })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ toolCallId: 'tool-1' })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ toolCallId: 'tool-1' })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ toolCallId: 'tool-1' })
+      .mockResolvedValueOnce(null)
+    getAsyncToolCall.mockResolvedValue(null)
+
+    runStreamLoop.mockImplementationOnce(async (_url: string, _opts: RequestInit, context: any) => {
+      context.awaitingAsyncContinuation = {
+        checkpointId: 'checkpoint-1',
+        runId: 'run-1',
+        pendingToolCallIds: ['tool-1', 'tool-2'],
+      }
+    })
+
+    const result = await orchestrateCopilotStream(
+      { message: 'hello' },
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(runStreamLoop).toHaveBeenCalledTimes(1)
+    expect(releaseCompletedAsyncToolClaim).toHaveBeenCalledWith('tool-1', 'run-1')
+    expect(markAsyncToolDelivered).not.toHaveBeenCalled()
+  })
 })
