@@ -640,7 +640,7 @@ export async function executeToolAndReport(
       return cancelledCompletion('Request aborted before resource persistence')
     }
 
-    if (result.success && execContext.chatId) {
+    if (result.success && execContext.chatId && !abortRequested(context, execContext, options)) {
       let isDeleteOp = false
 
       if (hasDeleteCapability(toolCall.name)) {
@@ -659,6 +659,7 @@ export async function executeToolAndReport(
           })
 
           for (const resource of deleted) {
+            if (abortRequested(context, execContext, options)) break
             await options?.onEvent?.({
               type: 'resource_deleted',
               resource: { type: resource.type, id: resource.id, title: resource.title },
@@ -667,7 +668,7 @@ export async function executeToolAndReport(
         }
       }
 
-      if (!isDeleteOp) {
+      if (!isDeleteOp && !abortRequested(context, execContext, options)) {
         const resources =
           result.resources && result.resources.length > 0
             ? result.resources
@@ -684,6 +685,7 @@ export async function executeToolAndReport(
           })
 
           for (const resource of resources) {
+            if (abortRequested(context, execContext, options)) break
             await options?.onEvent?.({
               type: 'resource_added',
               resource: { type: resource.type, id: resource.id, title: resource.title },

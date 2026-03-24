@@ -3,10 +3,13 @@ import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/serv
 import { executeInE2B, type SandboxFile } from '@/lib/execution/e2b'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { getTableById, queryRows } from '@/lib/table/service'
+import { getServePathPrefix } from '@/lib/uploads'
 import {
   downloadWorkspaceFile,
   findWorkspaceFileRecord,
+  getWorkspaceFile,
   listWorkspaceFiles,
+  updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -17,6 +20,7 @@ interface VisualizationArgs {
   inputTables?: string[]
   inputFiles?: string[]
   fileName?: string
+  overwriteFileId?: string
 }
 
 interface VisualizationResult {
@@ -178,6 +182,34 @@ export const generateVisualizationServerTool: BaseServerTool<
 
       const fileName = params.fileName || 'chart.png'
       const imageBuffer = Buffer.from(imageBase64, 'base64')
+
+      if (params.overwriteFileId) {
+        const existing = await getWorkspaceFile(workspaceId, params.overwriteFileId)
+        if (!existing) {
+          return { success: false, message: `File not found for overwrite: ${params.overwriteFileId}` }
+        }
+        const updated = await updateWorkspaceFileContent(
+          workspaceId,
+          params.overwriteFileId,
+          context.userId,
+          imageBuffer,
+          'image/png'
+        )
+        logger.info('Chart image overwritten', {
+          fileId: updated.id,
+          fileName: updated.name,
+          size: imageBuffer.length,
+        })
+        const pathPrefix = getServePathPrefix()
+        return {
+          success: true,
+          message: `Chart updated in "${updated.name}" (${imageBuffer.length} bytes)`,
+          fileId: updated.id,
+          fileName: updated.name,
+          downloadUrl: `${pathPrefix}${encodeURIComponent(updated.key)}?context=workspace`,
+        }
+      }
+
       const uploaded = await uploadWorkspaceFile(
         workspaceId,
         context.userId,
