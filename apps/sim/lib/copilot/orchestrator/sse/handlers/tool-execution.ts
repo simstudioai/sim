@@ -6,12 +6,13 @@ import { completeAsyncToolCall, markAsyncToolRunning } from '@/lib/copilot/async
 import { waitForToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
 import { asRecord, markToolResultSeen } from '@/lib/copilot/orchestrator/sse/utils'
 import { executeToolServerSide, markToolComplete } from '@/lib/copilot/orchestrator/tool-executor'
-import type {
-  ExecutionContext,
-  OrchestratorOptions,
-  SSEEvent,
-  StreamingContext,
-  ToolCallResult,
+import {
+  type ExecutionContext,
+  isTerminalToolCallStatus,
+  type OrchestratorOptions,
+  type SSEEvent,
+  type StreamingContext,
+  type ToolCallResult,
 } from '@/lib/copilot/orchestrator/types'
 import {
   extractDeletedResourcesFromToolResult,
@@ -243,16 +244,6 @@ function cancelledCompletion(message: string): AsyncToolCompletion {
   }
 }
 
-function isTerminalToolCallStatus(status: string): boolean {
-  return (
-    status === 'success' ||
-    status === 'error' ||
-    status === 'cancelled' ||
-    status === 'skipped' ||
-    status === 'rejected'
-  )
-}
-
 function terminalCompletionFromToolCall(toolCall: {
   status: string
   error?: string
@@ -262,10 +253,23 @@ function terminalCompletionFromToolCall(toolCall: {
     return cancelledCompletion(toolCall.error || 'Tool execution cancelled')
   }
 
-  if (toolCall.status === 'success' || toolCall.status === 'skipped') {
+  if (toolCall.status === 'success') {
     return {
       status: 'success',
-      message: toolCall.error || 'Tool completed',
+      message: 'Tool completed',
+      data:
+        toolCall.result?.output &&
+        typeof toolCall.result.output === 'object' &&
+        !Array.isArray(toolCall.result.output)
+          ? (toolCall.result.output as Record<string, unknown>)
+          : undefined,
+    }
+  }
+
+  if (toolCall.status === 'skipped') {
+    return {
+      status: 'success',
+      message: 'Tool skipped',
       data:
         toolCall.result?.output &&
         typeof toolCall.result.output === 'object' &&

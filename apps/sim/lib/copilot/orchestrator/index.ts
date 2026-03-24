@@ -18,12 +18,13 @@ import {
   isToolAvailableOnSimSide,
   prepareExecutionContext,
 } from '@/lib/copilot/orchestrator/tool-executor'
-import type {
-  ExecutionContext,
-  OrchestratorOptions,
-  OrchestratorResult,
-  SSEEvent,
-  ToolCallState,
+import {
+  type ExecutionContext,
+  isTerminalToolCallStatus,
+  type OrchestratorOptions,
+  type OrchestratorResult,
+  type SSEEvent,
+  type ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
 import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
@@ -57,16 +58,6 @@ function didAsyncToolSucceed(input: {
   if (toolStateStatus === 'error' || toolStateStatus === 'cancelled') return false
 
   return false
-}
-
-function isTerminalToolState(status?: ToolCallState['status']): boolean {
-  return Boolean(
-    status === 'success' ||
-      status === 'error' ||
-      status === 'cancelled' ||
-      status === 'skipped' ||
-      status === 'rejected'
-  )
 }
 
 interface ReadyContinuationTool {
@@ -249,7 +240,7 @@ export async function orchestrateCopilotStream(
           if (
             !durableRow &&
             toolState &&
-            isTerminalToolState(toolState.status) &&
+            isTerminalToolCallStatus(toolState.status) &&
             !isToolAvailableOnSimSide(toolState.name)
           ) {
             logger.info('Including Go-handled tool in resume payload (no Sim-side row)', {
