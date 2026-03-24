@@ -396,104 +396,6 @@ export function UserInput({
     [textareaRef]
   )
 
-  const handleSubmit = useCallback(() => {
-    const fileAttachmentsForApi: FileAttachmentForApi[] = files.attachedFiles
-      .filter((f) => !f.uploading && f.key)
-      .map((f) => ({
-        id: f.id,
-        key: f.key!,
-        filename: f.name,
-        media_type: f.type,
-        size: f.size,
-      }))
-
-    onSubmit(
-      value,
-      fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined,
-      contextManagement.selectedContexts.length > 0 ? contextManagement.selectedContexts : undefined
-    )
-    setValue('')
-    files.clearAttachedFiles()
-    contextManagement.clearContexts()
-
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-    }
-  }, [onSubmit, files, value, contextManagement, textareaRef])
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-        e.preventDefault()
-        handleSubmit()
-        return
-      }
-
-      const textarea = textareaRef.current
-      const selStart = textarea?.selectionStart ?? 0
-      const selEnd = textarea?.selectionEnd ?? selStart
-      const selectionLength = Math.abs(selEnd - selStart)
-
-      if (e.key === 'Backspace' || e.key === 'Delete') {
-        if (selectionLength > 0) {
-          mentionTokensWithContext.removeContextsInSelection(selStart, selEnd)
-        } else {
-          const ranges = mentionTokensWithContext.computeMentionRanges()
-          const target =
-            e.key === 'Backspace'
-              ? ranges.find((r) => selStart > r.start && selStart <= r.end)
-              : ranges.find((r) => selStart >= r.start && selStart < r.end)
-
-          if (target) {
-            e.preventDefault()
-            mentionTokensWithContext.deleteRange(target)
-            return
-          }
-        }
-      }
-
-      if (selectionLength === 0 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-        if (textarea) {
-          if (e.key === 'ArrowLeft') {
-            const nextPos = Math.max(0, selStart - 1)
-            const r = mentionTokensWithContext.findRangeContaining(nextPos)
-            if (r) {
-              e.preventDefault()
-              const target = r.start
-              setTimeout(() => textarea.setSelectionRange(target, target), 0)
-              return
-            }
-          } else if (e.key === 'ArrowRight') {
-            const nextPos = Math.min(value.length, selStart + 1)
-            const r = mentionTokensWithContext.findRangeContaining(nextPos)
-            if (r) {
-              e.preventDefault()
-              const target = r.end
-              setTimeout(() => textarea.setSelectionRange(target, target), 0)
-              return
-            }
-          }
-        }
-      }
-
-      if (e.key.length === 1 || e.key === 'Space') {
-        const blocked =
-          selectionLength === 0 && !!mentionTokensWithContext.findRangeContaining(selStart)
-        if (blocked) {
-          e.preventDefault()
-          const r = mentionTokensWithContext.findRangeContaining(selStart)
-          if (r && textarea) {
-            setTimeout(() => {
-              textarea.setSelectionRange(r.end, r.end)
-            }, 0)
-          }
-          return
-        }
-      }
-    },
-    [handleSubmit, mentionTokensWithContext, value, textareaRef]
-  )
-
   const startRecognition = useCallback((): boolean => {
     const w = window as WindowWithSpeech
     const SpeechRecognitionAPI = w.SpeechRecognition || w.webkitSpeechRecognition
@@ -571,6 +473,105 @@ export function UserInput({
       setIsListening(true)
     }
   }, [isListening, value, startRecognition])
+
+  const handleSubmit = useCallback(() => {
+    const fileAttachmentsForApi: FileAttachmentForApi[] = files.attachedFiles
+      .filter((f) => !f.uploading && f.key)
+      .map((f) => ({
+        id: f.id,
+        key: f.key!,
+        filename: f.name,
+        media_type: f.type,
+        size: f.size,
+      }))
+
+    onSubmit(
+      value,
+      fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined,
+      contextManagement.selectedContexts.length > 0 ? contextManagement.selectedContexts : undefined
+    )
+    setValue('')
+    restartRecognition('')
+    files.clearAttachedFiles()
+    contextManagement.clearContexts()
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
+  }, [onSubmit, files, value, contextManagement, textareaRef, restartRecognition])
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+        e.preventDefault()
+        handleSubmit()
+        return
+      }
+
+      const textarea = textareaRef.current
+      const selStart = textarea?.selectionStart ?? 0
+      const selEnd = textarea?.selectionEnd ?? selStart
+      const selectionLength = Math.abs(selEnd - selStart)
+
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        if (selectionLength > 0) {
+          mentionTokensWithContext.removeContextsInSelection(selStart, selEnd)
+        } else {
+          const ranges = mentionTokensWithContext.computeMentionRanges()
+          const target =
+            e.key === 'Backspace'
+              ? ranges.find((r) => selStart > r.start && selStart <= r.end)
+              : ranges.find((r) => selStart >= r.start && selStart < r.end)
+
+          if (target) {
+            e.preventDefault()
+            mentionTokensWithContext.deleteRange(target)
+            return
+          }
+        }
+      }
+
+      if (selectionLength === 0 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        if (textarea) {
+          if (e.key === 'ArrowLeft') {
+            const nextPos = Math.max(0, selStart - 1)
+            const r = mentionTokensWithContext.findRangeContaining(nextPos)
+            if (r) {
+              e.preventDefault()
+              const target = r.start
+              setTimeout(() => textarea.setSelectionRange(target, target), 0)
+              return
+            }
+          } else if (e.key === 'ArrowRight') {
+            const nextPos = Math.min(value.length, selStart + 1)
+            const r = mentionTokensWithContext.findRangeContaining(nextPos)
+            if (r) {
+              e.preventDefault()
+              const target = r.end
+              setTimeout(() => textarea.setSelectionRange(target, target), 0)
+              return
+            }
+          }
+        }
+      }
+
+      if (e.key.length === 1 || e.key === 'Space') {
+        const blocked =
+          selectionLength === 0 && !!mentionTokensWithContext.findRangeContaining(selStart)
+        if (blocked) {
+          e.preventDefault()
+          const r = mentionTokensWithContext.findRangeContaining(selStart)
+          if (r && textarea) {
+            setTimeout(() => {
+              textarea.setSelectionRange(r.end, r.end)
+            }, 0)
+          }
+          return
+        }
+      }
+    },
+    [handleSubmit, mentionTokensWithContext, value, textareaRef]
+  )
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
