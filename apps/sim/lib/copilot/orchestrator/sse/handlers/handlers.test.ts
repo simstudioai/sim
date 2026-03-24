@@ -155,6 +155,39 @@ describe('sse-handlers tool lifecycle', () => {
     expect(updated?.status).toBe('cancelled')
   })
 
+  it('does not replace an in-flight pending promise on duplicate tool_call', async () => {
+    let resolveTool: ((value: { success: boolean; output: { ok: boolean } }) => void) | undefined
+    executeToolServerSide.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveTool = resolve
+        })
+    )
+    markToolComplete.mockResolvedValueOnce(true)
+
+    const event = {
+      type: 'tool_call',
+      data: { id: 'tool-inflight', name: 'read', arguments: { workflowId: 'workflow-1' } },
+    }
+
+    await sseHandlers.tool_call(event as any, context, execContext, { interactive: false })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const firstPromise = context.pendingToolPromises.get('tool-inflight')
+    expect(firstPromise).toBeDefined()
+
+    await sseHandlers.tool_call(event as any, context, execContext, { interactive: false })
+
+    expect(executeToolServerSide).toHaveBeenCalledTimes(1)
+    expect(context.pendingToolPromises.get('tool-inflight')).toBe(firstPromise)
+
+    resolveTool?.({ success: true, output: { ok: true } })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(context.pendingToolPromises.has('tool-inflight')).toBe(false)
+    expect(markToolComplete).toHaveBeenCalledTimes(1)
+  })
+
   it('still executes the tool when async row upsert fails', async () => {
     upsertAsyncToolCall.mockRejectedValueOnce(new Error('db down'))
     executeToolServerSide.mockResolvedValueOnce({ success: true, output: { ok: true } })

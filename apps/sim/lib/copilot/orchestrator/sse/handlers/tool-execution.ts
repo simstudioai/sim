@@ -157,10 +157,16 @@ async function maybeWriteOutputToFile(
   const format = resolveOutputFormat(fileName, explicitFormat)
 
   try {
+    if (context.abortSignal?.aborted) {
+      throw new Error('Request aborted before tool mutation could be applied')
+    }
     const content = serializeOutputForFile(result.output, format)
     const contentType = FORMAT_TO_CONTENT_TYPE[format]
 
     const buffer = Buffer.from(content, 'utf-8')
+    if (context.abortSignal?.aborted) {
+      throw new Error('Request aborted before tool mutation could be applied')
+    }
     const uploaded = await uploadWorkspaceFile(
       context.workspaceId,
       context.userId,
@@ -295,11 +301,20 @@ async function maybeWriteOutputToTable(
       }
     }
 
+    if (context.abortSignal?.aborted) {
+      throw new Error('Request aborted before tool mutation could be applied')
+    }
     await db.transaction(async (tx) => {
+      if (context.abortSignal?.aborted) {
+        throw new Error('Request aborted before tool mutation could be applied')
+      }
       await tx.delete(userTableRows).where(eq(userTableRows.tableId, outputTable))
 
       const now = new Date()
       for (let i = 0; i < rows.length; i += BATCH_CHUNK_SIZE) {
+        if (context.abortSignal?.aborted) {
+          throw new Error('Request aborted before tool mutation could be applied')
+        }
         const chunk = rows.slice(i, i + BATCH_CHUNK_SIZE)
         const values = chunk.map((rowData, j) => ({
           id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
@@ -405,11 +420,20 @@ async function maybeWriteReadCsvToTable(
       }
     }
 
+    if (context.abortSignal?.aborted) {
+      throw new Error('Request aborted before tool mutation could be applied')
+    }
     await db.transaction(async (tx) => {
+      if (context.abortSignal?.aborted) {
+        throw new Error('Request aborted before tool mutation could be applied')
+      }
       await tx.delete(userTableRows).where(eq(userTableRows.tableId, outputTable))
 
       const now = new Date()
       for (let i = 0; i < rows.length; i += BATCH_CHUNK_SIZE) {
+        if (context.abortSignal?.aborted) {
+          throw new Error('Request aborted before tool mutation could be applied')
+        }
         const chunk = rows.slice(i, i + BATCH_CHUNK_SIZE)
         const values = chunk.map((rowData, j) => ({
           id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
@@ -640,7 +664,7 @@ export async function executeToolAndReport(
       return cancelledCompletion('Request aborted before resource persistence')
     }
 
-    if (result.success && execContext.chatId) {
+    if (result.success && execContext.chatId && !abortRequested(context, execContext, options)) {
       let isDeleteOp = false
 
       if (hasDeleteCapability(toolCall.name)) {
@@ -659,6 +683,7 @@ export async function executeToolAndReport(
           })
 
           for (const resource of deleted) {
+            if (abortRequested(context, execContext, options)) break
             await options?.onEvent?.({
               type: 'resource_deleted',
               resource: { type: resource.type, id: resource.id, title: resource.title },
@@ -667,7 +692,7 @@ export async function executeToolAndReport(
         }
       }
 
-      if (!isDeleteOp) {
+      if (!isDeleteOp && !abortRequested(context, execContext, options)) {
         const resources =
           result.resources && result.resources.length > 0
             ? result.resources
@@ -684,6 +709,7 @@ export async function executeToolAndReport(
           })
 
           for (const resource of resources) {
+            if (abortRequested(context, execContext, options)) break
             await options?.onEvent?.({
               type: 'resource_added',
               resource: { type: resource.type, id: resource.id, title: resource.title },

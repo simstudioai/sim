@@ -1,10 +1,16 @@
 import { GoogleGenAI, type Part } from '@google/genai'
 import { createLogger } from '@sim/logger'
-import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import {
+  assertServerToolNotAborted,
+  type BaseServerTool,
+  type ServerToolContext,
+} from '@/lib/copilot/tools/server/base-tool'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
+import { getServePathPrefix } from '@/lib/uploads'
 import {
   downloadWorkspaceFile,
   getWorkspaceFile,
+  updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -26,6 +32,7 @@ interface GenerateImageArgs {
   referenceFileIds?: string[]
   aspectRatio?: string
   fileName?: string
+  overwriteFileId?: string
 }
 
 interface GenerateImageResult {
@@ -146,6 +153,40 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
       const fileName = params.fileName || `generated-image${ext}`
       const imageBuffer = Buffer.from(imageBase64, 'base64')
 
+      if (params.overwriteFileId) {
+        const existing = await getWorkspaceFile(workspaceId, params.overwriteFileId)
+        if (!existing) {
+          return {
+            success: false,
+            message: `File not found for overwrite: ${params.overwriteFileId}`,
+          }
+        }
+        assertServerToolNotAborted(context)
+        const updated = await updateWorkspaceFileContent(
+          workspaceId,
+          params.overwriteFileId,
+          context.userId,
+          imageBuffer,
+          mimeType
+        )
+        logger.info('Generated image overwritten', {
+          fileId: updated.id,
+          fileName: updated.name,
+          size: imageBuffer.length,
+          mimeType,
+        })
+        const pathPrefix = getServePathPrefix()
+        return {
+          success: true,
+          message: `Image ${params.referenceFileIds?.length ? 'edited' : 'generated'} and updated in "${updated.name}" (${imageBuffer.length} bytes)`,
+          fileId: updated.id,
+          fileName: updated.name,
+          downloadUrl: `${pathPrefix}${encodeURIComponent(updated.key)}?context=workspace`,
+          _serviceCost: { service: 'nano_banana_2', cost: NANO_BANANA_IMAGE_COST_USD },
+        }
+      }
+
+      assertServerToolNotAborted(context)
       const uploaded = await uploadWorkspaceFile(
         workspaceId,
         context.userId,

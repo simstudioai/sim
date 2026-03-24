@@ -1,5 +1,9 @@
 import { createLogger } from '@sim/logger'
-import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import {
+  assertServerToolNotAborted,
+  type BaseServerTool,
+  type ServerToolContext,
+} from '@/lib/copilot/tools/server/base-tool'
 import type { WorkspaceFileArgs, WorkspaceFileResult } from '@/lib/copilot/tools/shared/schemas'
 import { generatePptxFromCode } from '@/lib/execution/pptx-vm'
 import {
@@ -86,6 +90,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
           const fileBuffer = Buffer.from(content, 'utf-8')
 
+          assertServerToolNotAborted(context)
           const result = await uploadWorkspaceFile(
             workspaceId,
             context.userId,
@@ -146,6 +151,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
           const fileBuffer = Buffer.from(content, 'utf-8')
 
+          assertServerToolNotAborted(context)
           await updateWorkspaceFileContent(
             workspaceId,
             fileId,
@@ -189,6 +195,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
 
           const oldName = fileRecord.name
+          assertServerToolNotAborted(context)
           await renameWorkspaceFile(workspaceId, fileId, newName)
 
           logger.info('Workspace file renamed via copilot', {
@@ -216,6 +223,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             return { success: false, message: `File with ID "${fileId}" not found` }
           }
 
+          assertServerToolNotAborted(context)
           await deleteWorkspaceFile(workspaceId, fileId)
 
           logger.info('Workspace file deleted via copilot', {
@@ -286,6 +294,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
 
           const patchedBuffer = Buffer.from(content, 'utf-8')
+          assertServerToolNotAborted(context)
           await updateWorkspaceFileContent(
             workspaceId,
             fileId,
