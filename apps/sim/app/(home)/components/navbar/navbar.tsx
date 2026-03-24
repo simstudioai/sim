@@ -271,9 +271,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
             <ul className='flex flex-col'>
               {NAV_LINKS.map(({ label, href: rawHref, external }) => {
                 const href =
-                  useHomeLinks && rawHref.startsWith('/#')
-                    ? `/?home${rawHref.slice(1)}`
-                    : rawHref
+                  useHomeLinks && rawHref.startsWith('/#') ? `/?home${rawHref.slice(1)}` : rawHref
                 return (
                   <li key={label} className='border-[#2A2A2A] border-b'>
                     {external ? (
