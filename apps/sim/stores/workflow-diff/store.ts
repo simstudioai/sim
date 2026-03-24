@@ -88,7 +88,18 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           let baselineWorkflowId = get().baselineWorkflowId
           let capturedBaseline = false
 
-          if (!baselineWorkflow || baselineWorkflowId !== activeWorkflowId) {
+          if (
+            options?.baselineWorkflow &&
+            (!baselineWorkflow || baselineWorkflowId !== activeWorkflowId)
+          ) {
+            baselineWorkflow = cloneWorkflowState(options.baselineWorkflow)
+            baselineWorkflowId = activeWorkflowId
+            capturedBaseline = true
+            logger.info('Using provided baseline snapshot for diff workflow', {
+              workflowId: activeWorkflowId,
+              blockCount: Object.keys(baselineWorkflow.blocks || {}).length,
+            })
+          } else if (!baselineWorkflow || baselineWorkflowId !== activeWorkflowId) {
             baselineWorkflow = captureBaselineSnapshot(activeWorkflowId)
             baselineWorkflowId = activeWorkflowId
             capturedBaseline = true

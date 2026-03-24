@@ -311,9 +311,7 @@ export async function POST(req: NextRequest) {
                   id: block.toolCall.id,
                   name: block.toolCall.name,
                   state,
-                  ...(isSubagentTool && isNonTerminal
-                    ? {}
-                    : { result: block.toolCall.result }),
+                  ...(isSubagentTool && isNonTerminal ? {} : { result: block.toolCall.result }),
                   ...(isSubagentTool && isNonTerminal
                     ? {}
                     : block.toolCall.params
