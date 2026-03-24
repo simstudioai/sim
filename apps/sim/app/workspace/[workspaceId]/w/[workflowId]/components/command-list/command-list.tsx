@@ -58,7 +58,7 @@ const commands: CommandItem[] = [
 export function CommandList() {
   const params = useParams()
   const router = useRouter()
-  const { open: openSearchModal } = useSearchModalStore()
+  const openSearchModal = useSearchModalStore((s) => s.open)
   const preventZoomRef = usePreventZoom()
 
   const workspaceId = params.workspaceId as string | undefined
@@ -195,7 +195,6 @@ export function CommandList() {
               filter:
                 'brightness(0) saturate(100%) invert(69%) sepia(0%) saturate(0%) hue-rotate(202deg) brightness(94%) contrast(89%)',
             }}
-            priority
           />
         </div>
 

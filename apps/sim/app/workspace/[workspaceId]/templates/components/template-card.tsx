@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Star, User } from 'lucide-react'
+import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { VerifiedBadge } from '@/components/ui/verified-badge'
 import { cn } from '@/lib/core/utils/cn'
@@ -288,9 +289,14 @@ function TemplateCardInner({
       <div className='mt-[10px] flex items-center justify-between'>
         <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
           {authorImageUrl ? (
-            <div className='h-[20px] w-[20px] flex-shrink-0 overflow-hidden rounded-full'>
-              <img src={authorImageUrl} alt={author} className='h-full w-full object-cover' />
-            </div>
+            <Image
+              src={authorImageUrl}
+              alt={author}
+              width={20}
+              height={20}
+              className='flex-shrink-0 rounded-full object-cover'
+              unoptimized
+            />
           ) : (
             <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-7)]'>
               <User className='h-[12px] w-[12px] text-[var(--text-tertiary)]' />

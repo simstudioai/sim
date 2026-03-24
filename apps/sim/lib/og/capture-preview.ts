@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { toPng } from 'html-to-image'
 
 const logger = createLogger('OGCapturePreview')
 
@@ -30,6 +29,7 @@ export async function captureWorkflowPreview(
     try {
       logger.info(`Capturing workflow preview for OG image (attempt ${attempt}/${retries})`)
 
+      const { toPng } = await import('html-to-image')
       const dataUrl = await toPng(element, {
         width: OG_IMAGE_WIDTH,
         height: OG_IMAGE_HEIGHT,

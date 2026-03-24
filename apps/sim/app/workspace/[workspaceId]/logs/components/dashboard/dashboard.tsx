@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { Skeleton } from '@/components/emcn'
 import { formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 import type { DashboardStatsResponse, WorkflowStats } from '@/hooks/queries/logs'
@@ -146,7 +147,14 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
   const [lastAnchorIndices, setLastAnchorIndices] = useState<Record<string, number>>({})
   const lastAnchorIndicesRef = useRef<Record<string, number>>({})
 
-  const { workflowIds, searchQuery, toggleWorkflowId, timeRange } = useFilterStore()
+  const { workflowIds, searchQuery, toggleWorkflowId, timeRange } = useFilterStore(
+    useShallow((s) => ({
+      workflowIds: s.workflowIds,
+      searchQuery: s.searchQuery,
+      toggleWorkflowId: s.toggleWorkflowId,
+      timeRange: s.timeRange,
+    }))
+  )
 
   const allWorkflows = useWorkflowRegistry((state) => state.workflows)
 

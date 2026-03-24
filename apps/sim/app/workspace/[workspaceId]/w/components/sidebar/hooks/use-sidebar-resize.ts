@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
@@ -10,7 +11,13 @@ import { useSidebarStore } from '@/stores/sidebar/store'
  * @returns Resize state and handlers
  */
 export function useSidebarResize() {
-  const { setSidebarWidth, isResizing, setIsResizing } = useSidebarStore()
+  const { setSidebarWidth, isResizing, setIsResizing } = useSidebarStore(
+    useShallow((s) => ({
+      setSidebarWidth: s.setSidebarWidth,
+      isResizing: s.isResizing,
+      setIsResizing: s.setIsResizing,
+    }))
+  )
 
   /**
    * Handles mouse down on resize handle

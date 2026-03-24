@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Bell,
   Button,
@@ -230,7 +231,30 @@ export default function Logs() {
     setTimeRange,
     setDateRange,
     clearDateRange,
-  } = useFilterStore()
+  } = useFilterStore(
+    useShallow((s) => ({
+      setWorkspaceId: s.setWorkspaceId,
+      initializeFromURL: s.initializeFromURL,
+      timeRange: s.timeRange,
+      startDate: s.startDate,
+      endDate: s.endDate,
+      level: s.level,
+      workflowIds: s.workflowIds,
+      folderIds: s.folderIds,
+      setWorkflowIds: s.setWorkflowIds,
+      setSearchQuery: s.setSearchQuery,
+      triggers: s.triggers,
+      viewMode: s.viewMode,
+      setViewMode: s.setViewMode,
+      resetFilters: s.resetFilters,
+      setLevel: s.setLevel,
+      setFolderIds: s.setFolderIds,
+      setTriggers: s.setTriggers,
+      setTimeRange: s.setTimeRange,
+      setDateRange: s.setDateRange,
+      clearDateRange: s.clearDateRange,
+    }))
+  )
 
   useEffect(() => {
     setWorkspaceId(workspaceId)
@@ -1133,7 +1157,25 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
     setDateRange,
     clearDateRange,
     resetFilters,
-  } = useFilterStore()
+  } = useFilterStore(
+    useShallow((s) => ({
+      level: s.level,
+      setLevel: s.setLevel,
+      workflowIds: s.workflowIds,
+      setWorkflowIds: s.setWorkflowIds,
+      folderIds: s.folderIds,
+      setFolderIds: s.setFolderIds,
+      triggers: s.triggers,
+      setTriggers: s.setTriggers,
+      timeRange: s.timeRange,
+      setTimeRange: s.setTimeRange,
+      startDate: s.startDate,
+      endDate: s.endDate,
+      setDateRange: s.setDateRange,
+      clearDateRange: s.clearDateRange,
+      resetFilters: s.resetFilters,
+    }))
+  )
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [previousTimeRange, setPreviousTimeRange] = useState(timeRange)

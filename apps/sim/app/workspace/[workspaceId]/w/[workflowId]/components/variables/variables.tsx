@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Badge,
   Button,
@@ -92,12 +93,22 @@ const STRINGS = {
  * - Uses emcn Input/Code/Combobox components for a consistent UI
  */
 export function Variables() {
-  const { activeWorkflowId } = useWorkflowRegistry()
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
 
   const { isOpen, position, width, height, setIsOpen, setPosition, setDimensions } =
-    useVariablesStore()
+    useVariablesStore(
+      useShallow((s) => ({
+        isOpen: s.isOpen,
+        position: s.position,
+        width: s.width,
+        height: s.height,
+        setIsOpen: s.setIsOpen,
+        setPosition: s.setPosition,
+        setDimensions: s.setDimensions,
+      }))
+    )
 
-  const { getVariablesByWorkflowId } = usePanelVariablesStore()
+  const getVariablesByWorkflowId = usePanelVariablesStore((s) => s.getVariablesByWorkflowId)
 
   const { collaborativeUpdateVariable, collaborativeAddVariable, collaborativeDeleteVariable } =
     useCollaborativeWorkflow()

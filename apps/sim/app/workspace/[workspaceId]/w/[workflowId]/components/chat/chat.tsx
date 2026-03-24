@@ -11,6 +11,7 @@ import {
   Square,
   X,
 } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Badge,
   Button,
@@ -220,7 +221,7 @@ interface StartInputFormatField {
  * position across sessions using the floating chat store.
  */
 export function Chat() {
-  const { activeWorkflowId } = useWorkflowRegistry()
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
   const blocks = useWorkflowStore((state) => state.blocks)
   const triggerWorkflowUpdate = useWorkflowStore((state) => state.triggerUpdate)
   const setSubBlockValue = useSubBlockStore((state) => state.setValue)
@@ -242,7 +243,26 @@ export function Chat() {
     getConversationId,
     clearChat,
     exportChatCSV,
-  } = useChatStore()
+  } = useChatStore(
+    useShallow((s) => ({
+      isChatOpen: s.isChatOpen,
+      chatPosition: s.chatPosition,
+      chatWidth: s.chatWidth,
+      chatHeight: s.chatHeight,
+      setIsChatOpen: s.setIsChatOpen,
+      setChatPosition: s.setChatPosition,
+      setChatDimensions: s.setChatDimensions,
+      messages: s.messages,
+      addMessage: s.addMessage,
+      selectedWorkflowOutputs: s.selectedWorkflowOutputs,
+      setSelectedWorkflowOutput: s.setSelectedWorkflowOutput,
+      appendMessageContent: s.appendMessageContent,
+      finalizeMessageStream: s.finalizeMessageStream,
+      getConversationId: s.getConversationId,
+      clearChat: s.clearChat,
+      exportChatCSV: s.exportChatCSV,
+    }))
+  )
 
   const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
   const entriesFromStore = useTerminalConsoleStore((state) => state.entries)
