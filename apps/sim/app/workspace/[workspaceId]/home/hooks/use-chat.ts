@@ -85,8 +85,6 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
 const DEPLOY_TOOL_NAMES = new Set(['deploy_api', 'deploy_chat', 'deploy_mcp', 'redeploy'])
 const RECONNECT_TAIL_ERROR =
   'Live reconnect failed before the stream finished. The latest response may be incomplete.'
-const UNEXPECTED_PROVIDER_ERROR_TAG =
-  '<mothership-error>{"message":"An unexpected provider error occurred"}</mothership-error>'
 
 function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
   const mapped: ContentBlock = {
@@ -633,6 +631,21 @@ export function useChat(
         flush()
       }
 
+      const buildInlineErrorTag = (payload: SSEPayload) => {
+        const data = getPayloadData(payload) as Record<string, unknown> | undefined
+        const message =
+          (data?.displayMessage as string | undefined) ||
+          payload.error ||
+          'An unexpected error occurred'
+        const provider = (data?.provider as string | undefined) || undefined
+        const code = (data?.code as string | undefined) || undefined
+        return `<mothership-error>${JSON.stringify({
+          message,
+          ...(code ? { code } : {}),
+          ...(provider ? { provider } : {}),
+        })}</mothership-error>`
+      }
+
       const isStale = () => expectedGen !== undefined && streamGenRef.current !== expectedGen
 
       const flush = () => {
@@ -1125,7 +1138,7 @@ export function useChat(
               }
               case 'error': {
                 setError(parsed.error || 'An error occurred')
-                appendInlineErrorTag(UNEXPECTED_PROVIDER_ERROR_TAG)
+                appendInlineErrorTag(buildInlineErrorTag(parsed))
                 break
               }
             }

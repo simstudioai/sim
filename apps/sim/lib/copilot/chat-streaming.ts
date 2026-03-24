@@ -231,7 +231,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             eventId,
             error: error instanceof Error ? error.message : String(error),
           })
-          throw error
+          // Keep the live SSE stream going even if durable buffering hiccups.
         }
 
         try {
