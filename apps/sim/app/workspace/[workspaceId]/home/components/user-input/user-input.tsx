@@ -494,10 +494,10 @@ export function UserInput({
     [handleSubmit, mentionTokensWithContext, value, textareaRef]
   )
 
-  const startRecognition = useCallback(() => {
+  const startRecognition = useCallback((): boolean => {
     const w = window as WindowWithSpeech
     const SpeechRecognitionAPI = w.SpeechRecognition || w.webkitSpeechRecognition
-    if (!SpeechRecognitionAPI) return
+    if (!SpeechRecognitionAPI) return false
 
     const recognition = new SpeechRecognitionAPI()
     recognition.continuous = true
@@ -538,9 +538,10 @@ export function UserInput({
     recognitionRef.current = recognition
     try {
       recognition.start()
+      return true
     } catch {
       recognitionRef.current = null
-      setIsListening(false)
+      return false
     }
   }, [])
 
@@ -564,34 +565,38 @@ export function UserInput({
     }
 
     prefixRef.current = value
-    startRecognition()
-    setIsListening(true)
+    if (startRecognition()) {
+      setIsListening(true)
+    }
   }, [isListening, value, startRecognition])
 
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value
-    const caret = e.target.selectionStart ?? newValue.length
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const newValue = e.target.value
+      const caret = e.target.selectionStart ?? newValue.length
 
-    if (
-      caret > 0 &&
-      newValue.charAt(caret - 1) === '@' &&
-      (caret === 1 || /\s/.test(newValue.charAt(caret - 2)))
-    ) {
-      const before = newValue.slice(0, caret - 1)
-      const after = newValue.slice(caret)
-      const adjusted = `${before}${after}`
-      setValue(adjusted)
-      atInsertPosRef.current = caret - 1
-      setPlusMenuOpen(true)
-      setPlusMenuSearch('')
-      setPlusMenuActiveIndex(0)
-      restartRecognition(adjusted)
-      return
-    }
+      if (
+        caret > 0 &&
+        newValue.charAt(caret - 1) === '@' &&
+        (caret === 1 || /\s/.test(newValue.charAt(caret - 2)))
+      ) {
+        const before = newValue.slice(0, caret - 1)
+        const after = newValue.slice(caret)
+        const adjusted = `${before}${after}`
+        setValue(adjusted)
+        atInsertPosRef.current = caret - 1
+        setPlusMenuOpen(true)
+        setPlusMenuSearch('')
+        setPlusMenuActiveIndex(0)
+        restartRecognition(adjusted)
+        return
+      }
 
-    setValue(newValue)
-    restartRecognition(newValue)
-  }, [restartRecognition])
+      setValue(newValue)
+      restartRecognition(newValue)
+    },
+    [restartRecognition]
+  )
 
   const handleSelectAdjust = useCallback(() => {
     const textarea = textareaRef.current
