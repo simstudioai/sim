@@ -132,6 +132,16 @@ export function useTour({
     [steps.length, stopTour]
   )
 
+  /** Stop the tour when disabled becomes true (e.g. navigating away from the relevant page) */
+  useEffect(() => {
+    if (disabled && run) {
+      setRun(false)
+      setIsTooltipVisible(true)
+      setIsEntrance(true)
+      logger.info(`${tourName} paused — disabled became true`)
+    }
+  }, [disabled, run, tourName])
+
   /** Auto-start on first visit */
   useEffect(() => {
     if (disabled || hasAutoStarted.current) return
