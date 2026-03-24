@@ -8,6 +8,7 @@ import type { TourState } from '@/app/workspace/[workspaceId]/components/product
 import {
   TourStateContext,
   TourTooltipAdapter,
+  getSharedJoyrideProps,
 } from '@/app/workspace/[workspaceId]/components/product-tour/tour-shared'
 import { useTour } from '@/app/workspace/[workspaceId]/components/product-tour/use-tour'
 
@@ -55,41 +56,7 @@ export function NavTour() {
         disableOverlayClose
         spotlightPadding={4}
         tooltipComponent={TourTooltipAdapter}
-        floaterProps={{
-          disableAnimation: true,
-          hideArrow: true,
-          styles: {
-            floater: {
-              filter: 'none',
-              opacity: 0,
-              pointerEvents: 'none' as React.CSSProperties['pointerEvents'],
-              width: 0,
-              height: 0,
-            },
-          },
-        }}
-        styles={{
-          options: {
-            zIndex: 10000,
-          },
-          spotlight: {
-            backgroundColor: 'transparent',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: 8,
-            boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.55)',
-            position: 'fixed' as React.CSSProperties['position'],
-            transition:
-              'top 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94), left 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94), width 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94), height 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-          },
-          overlay: {
-            backgroundColor: 'transparent',
-            mixBlendMode: 'unset' as React.CSSProperties['mixBlendMode'],
-            position: 'fixed' as React.CSSProperties['position'],
-            height: '100%',
-            overflow: 'visible',
-            pointerEvents: 'none' as React.CSSProperties['pointerEvents'],
-          },
-        }}
+        {...getSharedJoyrideProps({ spotlightBorderRadius: 8 })}
       />
     </TourStateContext.Provider>
   )
