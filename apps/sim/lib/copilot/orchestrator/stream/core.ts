@@ -244,9 +244,10 @@ export function buildToolCallSummaries(context: StreamingContext): ToolCallSumma
     let status = toolCall.status
     if (toolCall.result && toolCall.result.success !== undefined) {
       status = toolCall.result.success ? 'success' : 'error'
-    } else if (status === 'pending' || status === 'executing') {
-      status = toolCall.error ? 'error' : 'success'
+    } else if ((status === 'pending' || status === 'executing') && toolCall.error) {
+      status = 'error'
     }
+
     return {
       id: toolCall.id,
       name: toolCall.name,

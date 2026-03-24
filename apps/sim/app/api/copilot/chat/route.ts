@@ -346,7 +346,6 @@ export async function POST(req: NextRequest) {
           goRoute: '/api/copilot',
           autoExecuteTools: true,
           interactive: true,
-          promptForToolApproval: false,
           onComplete: async (result: OrchestratorResult) => {
             if (!actualChatId) return
 
@@ -365,16 +364,25 @@ export async function POST(req: NextRequest) {
                 const stored: Record<string, unknown> = { type: block.type }
                 if (block.content) stored.content = block.content
                 if (block.type === 'tool_call' && block.toolCall) {
+                  const state =
+                    block.toolCall.result?.success !== undefined
+                      ? block.toolCall.result.success
+                        ? 'success'
+                        : 'error'
+                      : block.toolCall.status
+                  const isSubagentTool = !!block.calledBy
+                  const isNonTerminal =
+                    state === 'cancelled' || state === 'pending' || state === 'executing'
                   stored.toolCall = {
                     id: block.toolCall.id,
                     name: block.toolCall.name,
-                    state:
-                      block.toolCall.result?.success !== undefined
-                        ? block.toolCall.result.success
-                          ? 'success'
-                          : 'error'
-                        : block.toolCall.status,
-                    result: block.toolCall.result,
+                    state,
+                    ...(isSubagentTool && isNonTerminal ? {} : { result: block.toolCall.result }),
+                    ...(isSubagentTool && isNonTerminal
+                      ? {}
+                      : block.toolCall.params
+                        ? { params: block.toolCall.params }
+                        : {}),
                     ...(block.calledBy ? { calledBy: block.calledBy } : {}),
                   }
                 }
@@ -426,7 +434,6 @@ export async function POST(req: NextRequest) {
       goRoute: '/api/copilot',
       autoExecuteTools: true,
       interactive: true,
-      promptForToolApproval: false,
     })
 
     const responseData = {

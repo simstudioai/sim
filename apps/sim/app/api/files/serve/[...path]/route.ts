@@ -71,6 +71,10 @@ function stripStorageKeyPrefix(segment: string): string {
   return STORAGE_KEY_PREFIX_RE.test(segment) ? segment.replace(STORAGE_KEY_PREFIX_RE, '') : segment
 }
 
+function getWorkspaceIdForCompile(key: string): string | undefined {
+  return parseWorkspaceFileKey(key) ?? undefined
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
@@ -163,7 +167,7 @@ async function handleLocalFile(
     const rawBuffer = await readFile(filePath)
     const segment = filename.split('/').pop() || filename
     const displayName = stripStorageKeyPrefix(segment)
-    const workspaceId = parseWorkspaceFileKey(filename) ?? undefined
+    const workspaceId = getWorkspaceIdForCompile(filename)
     const { buffer: fileBuffer, contentType } = await compilePptxIfNeeded(
       rawBuffer,
       displayName,
@@ -228,7 +232,7 @@ async function handleCloudProxy(
 
     const segment = cloudKey.split('/').pop() || 'download'
     const displayName = stripStorageKeyPrefix(segment)
-    const workspaceId = parseWorkspaceFileKey(cloudKey) ?? undefined
+    const workspaceId = getWorkspaceIdForCompile(cloudKey)
     const { buffer: fileBuffer, contentType } = await compilePptxIfNeeded(
       rawBuffer,
       displayName,

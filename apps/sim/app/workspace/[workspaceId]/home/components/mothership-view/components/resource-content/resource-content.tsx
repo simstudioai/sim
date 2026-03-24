@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
 import { Download, FileX, SquareArrowUpRight, WorkflowX } from '@/components/emcn/icons'
 import {
+  cancelRunToolExecution,
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/client-sse/run-tool-execution'
@@ -191,9 +192,10 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
     setActiveWorkflow(workflowId)
 
     if (isExecuting) {
-      markRunToolManuallyStopped(workflowId)
+      const toolCallId = markRunToolManuallyStopped(workflowId)
+      cancelRunToolExecution(workflowId)
       await handleCancelExecution()
-      await reportManualRunToolStop(workflowId)
+      await reportManualRunToolStop(workflowId, toolCallId)
       return
     }
 

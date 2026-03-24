@@ -1254,6 +1254,13 @@
       "when": 1774139366798,
       "tag": "0179_burly_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 180,
+      "version": "7",
+      "when": 1774305252055,
+      "tag": "0180_amused_marvel_boy",
+      "breakpoints": true
     }
   ]
 }

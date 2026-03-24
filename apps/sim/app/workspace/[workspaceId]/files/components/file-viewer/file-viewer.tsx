@@ -436,8 +436,8 @@ function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
 
 const pptxSlideCache = new Map<string, string[]>()
 
-function pptxCacheKey(fileId: string, byteLength: number): string {
-  return `${fileId}:${byteLength}`
+function pptxCacheKey(fileId: string, dataUpdatedAt: number, byteLength: number): string {
+  return `${fileId}:${dataUpdatedAt}:${byteLength}`
 }
 
 function pptxCacheSet(key: string, slides: string[]): void {
@@ -539,7 +539,7 @@ function PptxPreview({
     dataUpdatedAt,
   } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
 
-  const cacheKey = pptxCacheKey(file.id, fileData?.byteLength ?? 0)
+  const cacheKey = pptxCacheKey(file.id, dataUpdatedAt, fileData?.byteLength ?? 0)
   const cached = pptxSlideCache.get(cacheKey)
 
   const [slides, setSlides] = useState<string[]>(cached ?? [])
