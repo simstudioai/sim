@@ -106,6 +106,7 @@ const SEND_BUTTON_ACTIVE =
 const SEND_BUTTON_DISABLED = 'bg-[var(--c-808080)] dark:bg-[var(--c-808080)]'
 
 const MAX_CHAT_TEXTAREA_HEIGHT = 200
+const SPEECH_RECOGNITION_LANG = 'en-US'
 
 const DROP_OVERLAY_ICONS = [
   PdfIcon,
@@ -267,12 +268,17 @@ export function UserInput({
   const [isListening, setIsListening] = useState(false)
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const prefixRef = useRef('')
+  const valueRef = useRef(value)
 
   useEffect(() => {
     return () => {
       recognitionRef.current?.abort()
     }
   }, [])
+
+  useEffect(() => {
+    valueRef.current = value
+  }, [value])
 
   const textareaRef = mentionMenu.textareaRef
   const wasSendingRef = useRef(false)
@@ -488,6 +494,80 @@ export function UserInput({
     [handleSubmit, mentionTokensWithContext, value, textareaRef]
   )
 
+  const startRecognition = useCallback(() => {
+    const w = window as WindowWithSpeech
+    const SpeechRecognitionAPI = w.SpeechRecognition || w.webkitSpeechRecognition
+    if (!SpeechRecognitionAPI) return
+
+    const recognition = new SpeechRecognitionAPI()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = SPEECH_RECOGNITION_LANG
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let transcript = ''
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript
+      }
+      const prefix = prefixRef.current
+      const newVal = prefix ? `${prefix} ${transcript}` : transcript
+      setValue(newVal)
+      valueRef.current = newVal
+    }
+
+    recognition.onend = () => {
+      if (recognitionRef.current === recognition) {
+        prefixRef.current = valueRef.current
+        try {
+          recognition.start()
+        } catch {
+          recognitionRef.current = null
+          setIsListening(false)
+        }
+      }
+    }
+
+    recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
+      if (recognitionRef.current !== recognition) return
+      if (e.error === 'aborted' || e.error === 'not-allowed') {
+        recognitionRef.current = null
+        setIsListening(false)
+      }
+    }
+
+    recognitionRef.current = recognition
+    try {
+      recognition.start()
+    } catch {
+      recognitionRef.current = null
+      setIsListening(false)
+    }
+  }, [])
+
+  const restartRecognition = useCallback(
+    (newPrefix: string) => {
+      if (!recognitionRef.current) return
+      prefixRef.current = newPrefix
+      recognitionRef.current.abort()
+      recognitionRef.current = null
+      startRecognition()
+    },
+    [startRecognition]
+  )
+
+  const toggleListening = useCallback(() => {
+    if (isListening) {
+      recognitionRef.current?.stop()
+      recognitionRef.current = null
+      setIsListening(false)
+      return
+    }
+
+    prefixRef.current = value
+    startRecognition()
+    setIsListening(true)
+  }, [isListening, value, startRecognition])
+
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value
     const caret = e.target.selectionStart ?? newValue.length
@@ -499,16 +579,19 @@ export function UserInput({
     ) {
       const before = newValue.slice(0, caret - 1)
       const after = newValue.slice(caret)
-      setValue(`${before}${after}`)
+      const adjusted = `${before}${after}`
+      setValue(adjusted)
       atInsertPosRef.current = caret - 1
       setPlusMenuOpen(true)
       setPlusMenuSearch('')
       setPlusMenuActiveIndex(0)
+      restartRecognition(adjusted)
       return
     }
 
     setValue(newValue)
-  }, [])
+    restartRecognition(newValue)
+  }, [restartRecognition])
 
   const handleSelectAdjust = useCallback(() => {
     const textarea = textareaRef.current
@@ -535,56 +618,6 @@ export function UserInput({
     },
     [isInitialView]
   )
-
-  const toggleListening = useCallback(() => {
-    if (isListening) {
-      recognitionRef.current?.stop()
-      recognitionRef.current = null
-      setIsListening(false)
-      return
-    }
-
-    const w = window as WindowWithSpeech
-    const SpeechRecognitionAPI = w.SpeechRecognition || w.webkitSpeechRecognition
-    if (!SpeechRecognitionAPI) return
-
-    prefixRef.current = value
-
-    const recognition = new SpeechRecognitionAPI()
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = 'en-US'
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let transcript = ''
-      for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript
-      }
-      const prefix = prefixRef.current
-      setValue(prefix ? `${prefix} ${transcript}` : transcript)
-    }
-
-    recognition.onend = () => {
-      if (recognitionRef.current === recognition) {
-        try {
-          recognition.start()
-        } catch {
-          recognitionRef.current = null
-          setIsListening(false)
-        }
-      }
-    }
-    recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
-      if (e.error === 'aborted' || e.error === 'not-allowed') {
-        recognitionRef.current = null
-        setIsListening(false)
-      }
-    }
-
-    recognitionRef.current = recognition
-    recognition.start()
-    setIsListening(true)
-  }, [isListening, value])
 
   const renderOverlayContent = useCallback(() => {
     const contexts = contextManagement.selectedContexts
