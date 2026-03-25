@@ -148,7 +148,8 @@ describe('sse-handlers tool lifecycle', () => {
       'read',
       499,
       'Request aborted during tool execution',
-      { cancelled: true }
+      { cancelled: true },
+      'msg-1'
     )
 
     const updated = context.toolCalls.get('tool-cancel')
