@@ -99,6 +99,8 @@ export const vllmProvider: ProviderConfig = {
     const vllm = new OpenAI({
       apiKey,
       baseURL: `${baseUrl}/v1`,
+      timeout: 60000,
+      maxRetries: 3,
     })
 
     const allMessages: Message[] = []
