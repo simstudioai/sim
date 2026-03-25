@@ -145,6 +145,7 @@ import { ReductoBlock, ReductoV2Block } from '@/blocks/blocks/reducto'
 import { ResendBlock } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
 import { RevenueCatBlock } from '@/blocks/blocks/revenuecat'
+import { RipplingBlock } from '@/blocks/blocks/rippling'
 import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 import { RssBlock } from '@/blocks/blocks/rss'
 import { S3Block } from '@/blocks/blocks/s3'
@@ -367,6 +368,7 @@ export const registry: Record<string, BlockConfig> = {
   resend: ResendBlock,
   response: ResponseBlock,
   revenuecat: RevenueCatBlock,
+  rippling: RipplingBlock,
   router: RouterBlock,
   router_v2: RouterV2Block,
   rss: RssBlock,

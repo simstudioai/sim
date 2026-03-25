@@ -904,7 +904,7 @@
       },
       {
         "name": "Assert Record (Upsert)",
-        "description": "Upsert a record in Attio — creates it if no match is found, updates it if a match exists"
+        "description": "Upsert a record in Attio \u2014 creates it if no match is found, updates it if a match exists"
       },
       {
         "name": "List Notes",
@@ -2504,7 +2504,7 @@
     "slug": "dspy",
     "name": "DSPy",
     "description": "Run predictions using self-hosted DSPy programs",
-    "longDescription": "Integrate with your self-hosted DSPy programs for LLM-powered predictions. Supports Predict, Chain of Thought, and ReAct agents. DSPy is the framework for programming—not prompting—language models.",
+    "longDescription": "Integrate with your self-hosted DSPy programs for LLM-powered predictions. Supports Predict, Chain of Thought, and ReAct agents. DSPy is the framework for programming\u2014not prompting\u2014language models.",
     "bgColor": "#E0E0E0",
     "iconName": "DsPyIcon",
     "docsUrl": "https://docs.sim.ai/tools/dspy",
@@ -8870,6 +8870,101 @@
     "category": "tools",
     "integrationType": "ecommerce",
     "tags": ["payments", "subscriptions"]
+  },
+  {
+    "type": "rippling",
+    "slug": "rippling",
+    "name": "Rippling",
+    "description": "Manage employees, leave, departments, and company data in Rippling",
+    "longDescription": "Integrate Rippling into your workflow. Manage employees, departments, teams, leave requests, work locations, groups, candidates, and company information.",
+    "bgColor": "#FFCC1C",
+    "iconName": "RipplingIcon",
+    "docsUrl": "https://docs.sim.ai/tools/rippling",
+    "operations": [
+      {
+        "name": "List Employees",
+        "description": "List all employees in Rippling with optional pagination"
+      },
+      {
+        "name": "Get Employee",
+        "description": "Get details for a specific employee by ID"
+      },
+      {
+        "name": "List Employees (Including Terminated)",
+        "description": "List all employees in Rippling including terminated employees with optional pagination"
+      },
+      {
+        "name": "List Departments",
+        "description": "List all departments in the Rippling organization"
+      },
+      {
+        "name": "List Teams",
+        "description": "List all teams in Rippling"
+      },
+      {
+        "name": "List Levels",
+        "description": "List all position levels in Rippling"
+      },
+      {
+        "name": "List Work Locations",
+        "description": "List all work locations in Rippling"
+      },
+      {
+        "name": "Get Company",
+        "description": "Get details for the current company in Rippling"
+      },
+      {
+        "name": "Get Company Activity",
+        "description": "Get activity events for the current company in Rippling"
+      },
+      {
+        "name": "List Custom Fields",
+        "description": "List all custom fields defined in Rippling"
+      },
+      {
+        "name": "Get Current User",
+        "description": "Get the current authenticated user details"
+      },
+      {
+        "name": "List Leave Requests",
+        "description": "List leave requests in Rippling with optional filtering by date range and status"
+      },
+      {
+        "name": "Approve/Decline Leave Request",
+        "description": "Approve or decline a leave request in Rippling"
+      },
+      {
+        "name": "List Leave Balances",
+        "description": "List leave balances for all employees in Rippling"
+      },
+      {
+        "name": "Get Leave Balance",
+        "description": "Get leave balance for a specific employee by role ID"
+      },
+      {
+        "name": "List Leave Types",
+        "description": ""
+      },
+      {
+        "name": "Create Group",
+        "description": "Create a new group in Rippling"
+      },
+      {
+        "name": "Update Group",
+        "description": "Update an existing group in Rippling"
+      },
+      {
+        "name": "Push Candidate",
+        "description": "Push a candidate to onboarding in Rippling"
+      }
+    ],
+    "operationCount": 19,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "hr",
+    "tags": ["hiring"]
   },
   {
     "type": "s3",
