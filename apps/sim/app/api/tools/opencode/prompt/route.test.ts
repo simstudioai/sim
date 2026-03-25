@@ -142,9 +142,19 @@ describe('POST /api/tools/opencode/prompt', () => {
     expect(mockBuildOpenCodeSessionMemoryKey).toHaveBeenCalledWith('wf-1', 'user:user-123')
     expect(mockGetStoredOpenCodeSession).toHaveBeenCalledWith('ws-1', 'memory-key')
     expect(mockBuildOpenCodeSessionTitle).toHaveBeenCalledWith('repo-a', 'user:user-123')
-    expect(mockCreateOpenCodeSession).toHaveBeenCalledWith('repo-a', 'session-title')
+    expect(mockCreateOpenCodeSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'repo-a',
+        directory: '/app/repos/repo-a',
+      }),
+      'session-title'
+    )
     expect(mockPromptOpenCodeSession).toHaveBeenCalledWith({
       repository: 'repo-a',
+      repositoryOption: expect.objectContaining({
+        id: 'repo-a',
+        directory: '/app/repos/repo-a',
+      }),
       sessionId: 'session-1',
       prompt: 'explain the change',
       systemPrompt: 'system prompt',
@@ -202,6 +212,10 @@ describe('POST /api/tools/opencode/prompt', () => {
     expect(mockCreateOpenCodeSession).not.toHaveBeenCalled()
     expect(mockPromptOpenCodeSession).toHaveBeenCalledWith({
       repository: 'repo-a',
+      repositoryOption: expect.objectContaining({
+        id: 'repo-a',
+        directory: '/app/repos/repo-a',
+      }),
       sessionId: 'stored-session',
       prompt: 'continue',
       systemPrompt: undefined,
@@ -254,7 +268,13 @@ describe('POST /api/tools/opencode/prompt', () => {
     expect(mockShouldRetryWithFreshOpenCodeSession).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'session not found' })
     )
-    expect(mockCreateOpenCodeSession).toHaveBeenCalledWith('repo-a', 'session-title')
+    expect(mockCreateOpenCodeSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'repo-a',
+        directory: '/app/repos/repo-a',
+      }),
+      'session-title'
+    )
     expect(mockStoreOpenCodeSession).toHaveBeenCalledWith(
       'ws-1',
       'memory-key',

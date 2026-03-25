@@ -99,6 +99,7 @@ function buildErrorResponse(
 async function executePrompt(
   params: z.infer<typeof OpenCodePromptSchema>,
   repository: string,
+  repositoryOption: Awaited<ReturnType<typeof resolveOpenCodeRepositoryOption>>,
   threadId: string,
   prompt: string,
   providerId: string,
@@ -106,6 +107,7 @@ async function executePrompt(
 ) {
   return promptOpenCodeSession({
     repository,
+    repositoryOption,
     sessionId: threadId,
     prompt,
     systemPrompt: params.systemPrompt?.trim() || undefined,
@@ -146,18 +148,28 @@ export async function POST(request: NextRequest) {
     const newThread = coerceBoolean(body.newThread)
     const storedThread = newThread ? null : await getStoredOpenCodeSession(workspaceId, memoryKey)
     let threadId =
-      storedThread && storedThread.repository === repositoryId ? storedThread.sessionId : undefined
+      storedThread && storedThread.repository === repositoryId
+        ? storedThread.sessionId
+        : undefined
 
     if (!threadId) {
       const session = await createOpenCodeSession(
-        repositoryId,
+        repositoryOption,
         buildOpenCodeSessionTitle(repositoryId, sessionOwnerKey)
       )
       threadId = session.id
     }
 
     try {
-      const result = await executePrompt(body, repositoryId, threadId, prompt, providerId, modelId)
+      const result = await executePrompt(
+        body,
+        repositoryId,
+        repositoryOption,
+        threadId,
+        prompt,
+        providerId,
+        modelId
+      )
 
       await storeOpenCodeSession(workspaceId, memoryKey, {
         sessionId: result.threadId,
@@ -179,12 +191,13 @@ export async function POST(request: NextRequest) {
       if (threadId && !newThread && shouldRetryWithFreshOpenCodeSession(error)) {
         try {
           const freshSession = await createOpenCodeSession(
-            repositoryId,
+            repositoryOption,
             buildOpenCodeSessionTitle(repositoryId, sessionOwnerKey)
           )
           const result = await executePrompt(
             body,
             repositoryId,
+            repositoryOption,
             freshSession.id,
             prompt,
             providerId,
@@ -214,13 +227,16 @@ export async function POST(request: NextRequest) {
           )
 
           const errorMessage =
-            retryError instanceof Error ? retryError.message : 'OpenCode prompt retry failed'
+            retryError instanceof Error
+              ? retryError.message
+              : 'OpenCode prompt retry failed'
           return buildErrorResponse(threadId, '', undefined, errorMessage)
         }
       }
 
       await logOpenCodeFailure('Failed to execute OpenCode prompt', error)
-      const errorMessage = error instanceof Error ? error.message : 'OpenCode prompt failed'
+      const errorMessage =
+        error instanceof Error ? error.message : 'OpenCode prompt failed'
       return buildErrorResponse(threadId || '', '', undefined, errorMessage)
     }
   } catch (error) {

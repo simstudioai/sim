@@ -52,6 +52,7 @@ export interface OpenCodePromptRequest {
   prompt: string
   providerId: string
   modelId: string
+  repositoryOption?: OpenCodeRepositoryOption
   systemPrompt?: string
   agent?: string
   sessionId?: string
@@ -295,6 +296,16 @@ export async function resolveOpenCodeRepositoryOption(
   return repositoryOption
 }
 
+async function getOpenCodeRepositoryOption(
+  repository: string | OpenCodeRepositoryOption
+): Promise<OpenCodeRepositoryOption> {
+  if (typeof repository === 'string') {
+    return resolveOpenCodeRepositoryOption(repository)
+  }
+
+  return repository
+}
+
 export async function listOpenCodeProviders(
   repository?: string
 ): Promise<OpenCodeProviderOption[]> {
@@ -352,11 +363,11 @@ export async function listOpenCodeAgents(repository?: string): Promise<OpenCodeA
 }
 
 export async function createOpenCodeSession(
-  repository: string,
+  repository: string | OpenCodeRepositoryOption,
   title?: string
 ): Promise<{ id: string }> {
   const client = createOpenCodeClient()
-  const repositoryOption = await resolveOpenCodeRepositoryOption(repository)
+  const repositoryOption = await getOpenCodeRepositoryOption(repository)
   const sessionResult = await client.session.create({
     query: { directory: repositoryOption.directory },
     body: title ? { title } : undefined,
@@ -370,10 +381,13 @@ export async function promptOpenCodeSession(
   request: OpenCodePromptRequest
 ): Promise<OpenCodePromptResult> {
   const client = createOpenCodeClient()
-  const repositoryOption = await resolveOpenCodeRepositoryOption(request.repository)
+  const repositoryOption =
+    request.repositoryOption ||
+    (await resolveOpenCodeRepositoryOption(request.repository))
   const directory = repositoryOption.directory
   const sessionId =
-    request.sessionId || (await createOpenCodeSession(request.repository, request.title)).id
+    request.sessionId ||
+    (await createOpenCodeSession(repositoryOption, request.title)).id
 
   const response = await client.session.prompt({
     path: { id: sessionId },
@@ -433,7 +447,13 @@ export async function getStoredOpenCodeSession(
   const result = await db
     .select({ data: memory.data })
     .from(memory)
-    .where(and(eq(memory.workspaceId, workspaceId), eq(memory.key, key), isNull(memory.deletedAt)))
+    .where(
+      and(
+        eq(memory.workspaceId, workspaceId),
+        eq(memory.key, key),
+        isNull(memory.deletedAt)
+      )
+    )
     .limit(1)
 
   if (result.length === 0) {
@@ -520,6 +540,9 @@ export function shouldRetryWithFreshOpenCodeSession(error: unknown): boolean {
   return normalized.includes('404') && normalized.includes('session')
 }
 
-export async function logOpenCodeFailure(message: string, error: unknown): Promise<void> {
+export async function logOpenCodeFailure(
+  message: string,
+  error: unknown
+): Promise<void> {
   logger.error(message, { error })
 }

@@ -1,5 +1,3 @@
-import { getOpenCodeBaseUrl } from '@/lib/opencode/client'
-
 export interface OpenCodeRouteError {
   status: number
   message: string
@@ -72,7 +70,8 @@ export function getOpenCodeRouteError(error: unknown, resourceName: string): Ope
   ) {
     return {
       status: 503,
-      message: `OpenCode server is unreachable at ${getOpenCodeBaseUrl()}.`,
+      message:
+        'OpenCode server is unreachable. Check OPENCODE_BASE_URL and the runtime network configuration.',
     }
   }
 

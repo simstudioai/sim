@@ -4,6 +4,10 @@
 
 import { describe, expect, it, vi } from 'vitest'
 
+const { mockCreateOpenCodeClient } = vi.hoisted(() => ({
+  mockCreateOpenCodeClient: vi.fn(),
+}))
+
 vi.mock('@sim/db', () => ({
   db: {},
 }))
@@ -31,10 +35,13 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 vi.mock('@/lib/opencode/client', () => ({
-  createOpenCodeClient: vi.fn(),
+  createOpenCodeClient: mockCreateOpenCodeClient,
 }))
 
-import { shouldRetryWithFreshOpenCodeSession } from '@/lib/opencode/service'
+import {
+  promptOpenCodeSession,
+  shouldRetryWithFreshOpenCodeSession,
+} from '@/lib/opencode/service'
 
 describe('shouldRetryWithFreshOpenCodeSession', () => {
   it('returns true for stale-session errors', () => {
@@ -48,5 +55,74 @@ describe('shouldRetryWithFreshOpenCodeSession', () => {
     expect(shouldRetryWithFreshOpenCodeSession('invalid session format')).toBe(false)
     expect(shouldRetryWithFreshOpenCodeSession('model not found')).toBe(false)
     expect(shouldRetryWithFreshOpenCodeSession('provider does not exist')).toBe(false)
+  })
+})
+
+describe('promptOpenCodeSession', () => {
+  it('reuses the provided repository option without resolving repositories again', async () => {
+    const mockSessionCreate = vi.fn().mockResolvedValue({
+      data: { id: 'session-1' },
+    })
+    const mockSessionPrompt = vi.fn().mockResolvedValue({
+      data: {
+        info: {
+          sessionID: 'session-1',
+          cost: 0.75,
+          providerID: 'provider-a',
+          modelID: 'model-a',
+        },
+        parts: [{ type: 'text', text: 'OpenCode result' }],
+      },
+    })
+
+    mockCreateOpenCodeClient.mockReturnValue({
+      project: {
+        list: vi.fn(),
+      },
+      session: {
+        create: mockSessionCreate,
+        prompt: mockSessionPrompt,
+      },
+    })
+
+    const result = await promptOpenCodeSession({
+      repository: 'repo-a',
+      repositoryOption: {
+        id: 'repo-a',
+        label: 'repo-a',
+        directory: '/app/repos/repo-a',
+        projectId: 'project-1',
+      },
+      prompt: 'Explain the change',
+      providerId: 'provider-a',
+      modelId: 'model-a',
+      title: 'session-title',
+    })
+
+    expect(mockSessionCreate).toHaveBeenCalledWith({
+      query: { directory: '/app/repos/repo-a' },
+      body: { title: 'session-title' },
+      throwOnError: true,
+    })
+    expect(mockSessionPrompt).toHaveBeenCalledWith({
+      path: { id: 'session-1' },
+      query: { directory: '/app/repos/repo-a' },
+      body: {
+        parts: [{ type: 'text', text: 'Explain the change' }],
+        model: {
+          providerID: 'provider-a',
+          modelID: 'model-a',
+        },
+      },
+      throwOnError: true,
+    })
+    expect(result).toEqual({
+      content: 'OpenCode result',
+      threadId: 'session-1',
+      cost: 0.75,
+      providerId: 'provider-a',
+      modelId: 'model-a',
+      assistantError: undefined,
+    })
   })
 })
