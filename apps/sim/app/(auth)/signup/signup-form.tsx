@@ -493,16 +493,14 @@ function SignupFormContent({
           </div>
 
           {turnstileSiteKey && (
-            <div className='absolute'>
-              <Turnstile
-                ref={turnstileRef}
-                siteKey={turnstileSiteKey}
-                onSuccess={(token) => captchaResolveRef.current?.(token)}
-                onError={() => captchaRejectRef.current?.(new Error('Captcha verification failed'))}
-                onExpire={() => captchaRejectRef.current?.(new Error('Captcha token expired'))}
-                options={{ size: 'invisible', execution: 'execute' }}
-              />
-            </div>
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              onSuccess={(token) => captchaResolveRef.current?.(token)}
+              onError={() => captchaRejectRef.current?.(new Error('Captcha verification failed'))}
+              onExpire={() => captchaRejectRef.current?.(new Error('Captcha token expired'))}
+              options={{ execution: 'execute' }}
+            />
           )}
 
           {formError && (
