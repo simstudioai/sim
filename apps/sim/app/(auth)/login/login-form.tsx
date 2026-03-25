@@ -174,7 +174,7 @@ export default function LoginPage({
           callbackURL: safeCallbackUrl,
         },
         {
-          onError: (ctx) => {
+          onError: (ctx: any) => {
             logger.error('Login error:', ctx.error)
 
             if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {

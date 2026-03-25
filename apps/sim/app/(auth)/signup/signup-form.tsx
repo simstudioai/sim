@@ -420,7 +420,7 @@ function SignupFormContent({
                       ? 'grid-rows-[1fr]'
                       : 'grid-rows-[0fr]'
                   )}
-                  aria-live='polite'
+                  aria-live={showNameValidationError && nameErrors.length > 0 ? 'polite' : 'off'}
                 >
                   <div className='overflow-hidden'>
                     <div className='mt-1 space-y-1 text-red-400 text-xs'>
@@ -459,7 +459,12 @@ function SignupFormContent({
                       ? 'grid-rows-[1fr]'
                       : 'grid-rows-[0fr]'
                   )}
-                  aria-live='polite'
+                  aria-live={
+                    (showEmailValidationError && emailErrors.length > 0) ||
+                    (emailError && !showEmailValidationError)
+                      ? 'polite'
+                      : 'off'
+                  }
                 >
                   <div className='overflow-hidden'>
                     <div className='mt-1 space-y-1 text-red-400 text-xs'>
@@ -512,7 +517,7 @@ function SignupFormContent({
                       ? 'grid-rows-[1fr]'
                       : 'grid-rows-[0fr]'
                   )}
-                  aria-live='polite'
+                  aria-live={showValidationError && passwordErrors.length > 0 ? 'polite' : 'off'}
                 >
                   <div className='overflow-hidden'>
                     <div className='mt-1 space-y-1 text-red-400 text-xs'>
