@@ -85,7 +85,7 @@ function getOpenCodeRepositoryRoot(): string {
   }
 
   if (configuredRoot === '/') {
-    return configuredRoot
+    return ''
   }
 
   return configuredRoot.replace(/\/+$/, '')
@@ -516,12 +516,7 @@ export function buildOpenCodeSessionTitle(repository: string, userKey: string): 
 }
 
 export function shouldRetryWithFreshOpenCodeSession(error: unknown): boolean {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : JSON.stringify(error)
+  const message = getOpenCodeRetryErrorMessage(error)
 
   const normalized = message.toLowerCase()
   const staleSessionPatterns = [
@@ -538,6 +533,25 @@ export function shouldRetryWithFreshOpenCodeSession(error: unknown): boolean {
   }
 
   return normalized.includes('404') && normalized.includes('session')
+}
+
+function getOpenCodeRetryErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  if (typeof error === 'string') {
+    return error
+  }
+
+  try {
+    const serialized = JSON.stringify(error)
+    if (typeof serialized === 'string') {
+      return serialized
+    }
+  } catch {}
+
+  return String(error ?? '')
 }
 
 export async function logOpenCodeFailure(

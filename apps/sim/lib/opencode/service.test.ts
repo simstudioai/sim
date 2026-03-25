@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCreateOpenCodeClient } = vi.hoisted(() => ({
   mockCreateOpenCodeClient: vi.fn(),
@@ -39,9 +39,18 @@ vi.mock('@/lib/opencode/client', () => ({
 }))
 
 import {
+  listOpenCodeRepositories,
   promptOpenCodeSession,
   shouldRetryWithFreshOpenCodeSession,
 } from '@/lib/opencode/service'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
 describe('shouldRetryWithFreshOpenCodeSession', () => {
   it('returns true for stale-session errors', () => {
@@ -55,6 +64,36 @@ describe('shouldRetryWithFreshOpenCodeSession', () => {
     expect(shouldRetryWithFreshOpenCodeSession('invalid session format')).toBe(false)
     expect(shouldRetryWithFreshOpenCodeSession('model not found')).toBe(false)
     expect(shouldRetryWithFreshOpenCodeSession('provider does not exist')).toBe(false)
+  })
+
+  it('does not crash for undefined, symbol, or function errors', () => {
+    expect(() => shouldRetryWithFreshOpenCodeSession(undefined)).not.toThrow()
+    expect(() => shouldRetryWithFreshOpenCodeSession(Symbol('session'))).not.toThrow()
+    expect(() => shouldRetryWithFreshOpenCodeSession(() => 'session')).not.toThrow()
+    expect(shouldRetryWithFreshOpenCodeSession(undefined)).toBe(false)
+  })
+})
+
+describe('listOpenCodeRepositories', () => {
+  it('handles OPENCODE_REPOSITORY_ROOT set to / without double slashes', async () => {
+    vi.stubEnv('OPENCODE_REPOSITORY_ROOT', '/')
+
+    mockCreateOpenCodeClient.mockReturnValue({
+      project: {
+        list: vi.fn().mockResolvedValue({
+          data: [{ id: 'project-1', worktree: '/repo-a' }],
+        }),
+      },
+    })
+
+    await expect(listOpenCodeRepositories()).resolves.toEqual([
+      {
+        id: 'repo-a',
+        label: 'repo-a',
+        directory: '/repo-a',
+        projectId: 'project-1',
+      },
+    ])
   })
 })
 
