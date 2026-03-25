@@ -1,6 +1,14 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getEnv } from '@/lib/core/config/env'
 import { ExternalRedirect, LegalLayout } from '@/app/(landing)/components'
+
+export const metadata: Metadata = {
+  title: 'Privacy Policy',
+  description:
+    'Learn how Sim collects, uses, and protects your personal data, including data obtained from Google APIs.',
+  alternates: { canonical: '/privacy' },
+}
 
 export default function PrivacyPolicy() {
   return (

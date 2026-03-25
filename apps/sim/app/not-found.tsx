@@ -1,7 +1,13 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getNavBlogPosts } from '@/lib/blog/registry'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import Navbar from '@/app/(home)/components/navbar/navbar'
+
+export const metadata: Metadata = {
+  title: 'Page Not Found',
+  robots: { index: false, follow: true },
+}
 
 const CTA_BASE =
   'inline-flex items-center h-[32px] rounded-[5px] border px-2.5 font-[430] font-season text-sm'

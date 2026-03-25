@@ -1,6 +1,14 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getEnv } from '@/lib/core/config/env'
 import { ExternalRedirect, LegalLayout } from '@/app/(landing)/components'
+
+export const metadata: Metadata = {
+  title: 'Terms of Service',
+  description:
+    'Read the terms and conditions for using the Sim platform, including subscription plans, data ownership, and acceptable use.',
+  alternates: { canonical: '/terms' },
+}
 
 export default function TermsOfService() {
   return (
