@@ -617,13 +617,13 @@ function SignupFormContent({
         </Link>
       </div>
 
-      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[var(--text-subtle)] text-small leading-relaxed sm:px-8 md:px-[44px]'>
+      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[var(--landing-text-muted)] text-small leading-relaxed sm:px-8 md:px-[44px]'>
         By creating an account, you agree to our{' '}
         <Link
           href='/terms'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[var(--text-subtle)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
+          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
         >
           Terms of Service
         </Link>{' '}
@@ -632,7 +632,7 @@ function SignupFormContent({
           href='/privacy'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[var(--text-subtle)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
+          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
         >
           Privacy Policy
         </Link>

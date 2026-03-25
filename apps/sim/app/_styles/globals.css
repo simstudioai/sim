@@ -32,10 +32,6 @@
   --shadow-kbd-sm: 0 2px 0 0 rgba(48, 48, 48, 1);
   --shadow-brand-inset: inset 0 1.25px 2.5px 0 #9b77ff;
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
-
-  /* Scrollbar colors */
-  --scrollbar-thumb-color: #c0c0c0;
-  --scrollbar-thumb-hover-color: #a8a8a8;
 }
 
 .workspace-root {
@@ -282,6 +278,10 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --terminal-status-warning-bg: #fefce8;
     --terminal-status-warning-border: #facc15;
     --terminal-status-warning-color: #a16207;
+
+    /* Scrollbar colors */
+    --scrollbar-thumb-color: #c0c0c0;
+    --scrollbar-thumb-hover-color: #a8a8a8;
   }
   .dark {
     /* Surface */
