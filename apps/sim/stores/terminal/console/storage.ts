@@ -1,22 +1,23 @@
 import { createLogger } from '@sim/logger'
 import { del, get, set } from 'idb-keyval'
-import type { StateStorage } from 'zustand/middleware'
+import type { ConsoleEntry } from './types'
 
 const logger = createLogger('ConsoleStorage')
 
 const STORE_KEY = 'terminal-console-store'
 const MIGRATION_KEY = 'terminal-console-store-migrated'
+const WRITE_DEBOUNCE_MS = 750
 
 /**
- * Promise that resolves when migration is complete.
- * Used to ensure getItem waits for migration before reading.
+ * Shape of terminal console data persisted to IndexedDB.
  */
+export interface PersistedConsoleData {
+  workflowEntries: Record<string, ConsoleEntry[]>
+  isOpen: boolean
+}
+
 let migrationPromise: Promise<void> | null = null
 
-/**
- * Migrates existing console data from localStorage to IndexedDB.
- * Runs once on first load, then marks migration as complete.
- */
 async function migrateFromLocalStorage(): Promise<void> {
   if (typeof window === 'undefined') return
 
@@ -43,39 +44,107 @@ if (typeof window !== 'undefined') {
   })
 }
 
-export const indexedDBStorage: StateStorage = {
-  getItem: async (name: string): Promise<string | null> => {
-    if (typeof window === 'undefined') return null
+/**
+ * Loads persisted console data from IndexedDB.
+ * Handles three historical storage formats:
+ * 1. Zustand persist wrapper: `{ state: { entries: [...] }, version }` (original flat format)
+ * 2. Zustand persist wrapper: `{ state: { workflowEntries: {...} }, version }` (refactored format)
+ * 3. Raw data: `{ workflowEntries: {...}, isOpen }` (current format)
+ */
+export async function loadConsoleData(): Promise<PersistedConsoleData | null> {
+  if (typeof window === 'undefined') return null
 
-    // Ensure migration completes before reading
-    if (migrationPromise) {
-      await migrationPromise
+  if (migrationPromise) {
+    await migrationPromise
+  }
+
+  try {
+    const raw = await get<string>(STORE_KEY)
+    if (!raw) return null
+
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    if (!parsed || typeof parsed !== 'object') return null
+
+    const data = parsed.state ?? parsed
+
+    if (Array.isArray(data.entries) && !data.workflowEntries) {
+      const workflowEntries: Record<string, ConsoleEntry[]> = {}
+      for (const entry of data.entries) {
+        if (!entry?.workflowId) continue
+        const wfId = entry.workflowId
+        if (!workflowEntries[wfId]) workflowEntries[wfId] = []
+        workflowEntries[wfId].push(entry)
+      }
+      return { workflowEntries, isOpen: Boolean(data.isOpen) }
     }
 
-    try {
-      const value = await get<string>(name)
-      return value ?? null
-    } catch (error) {
-      logger.warn('IndexedDB read failed', { name, error })
-      return null
+    return {
+      workflowEntries: data.workflowEntries ?? {},
+      isOpen: Boolean(data.isOpen),
     }
-  },
+  } catch (error) {
+    logger.warn('Failed to load console data from IndexedDB', { error })
+    return null
+  }
+}
 
-  setItem: async (name: string, value: string): Promise<void> => {
-    if (typeof window === 'undefined') return
-    try {
-      await set(name, value)
-    } catch (error) {
-      logger.warn('IndexedDB write failed', { name, error })
-    }
-  },
+let pendingData: PersistedConsoleData | null = null
+let writeTimer: ReturnType<typeof setTimeout> | null = null
 
-  removeItem: async (name: string): Promise<void> => {
-    if (typeof window === 'undefined') return
-    try {
-      await del(name)
-    } catch (error) {
-      logger.warn('IndexedDB delete failed', { name, error })
-    }
-  },
+function executeWrite(): void {
+  writeTimer = null
+  const data = pendingData
+  pendingData = null
+  if (!data) return
+
+  try {
+    const serialized = JSON.stringify(data)
+    set(STORE_KEY, serialized).catch((error) => {
+      logger.warn('IndexedDB write failed', { error })
+    })
+  } catch (error) {
+    logger.warn('Failed to serialize console data for persistence', { error })
+  }
+}
+
+/**
+ * Schedules a debounced write of console data to IndexedDB.
+ * Only stores a reference until the timer fires, so no serialization
+ * happens on the calling thread.
+ */
+export function scheduleConsolePersist(data: PersistedConsoleData): void {
+  if (typeof window === 'undefined') return
+  pendingData = data
+  if (writeTimer !== null) return
+  writeTimer = setTimeout(executeWrite, WRITE_DEBOUNCE_MS)
+}
+
+/**
+ * Immediately flushes any pending console data to IndexedDB.
+ * Used on page hide to avoid data loss.
+ */
+export function flushConsolePersist(): void {
+  if (writeTimer !== null) {
+    clearTimeout(writeTimer)
+  }
+  executeWrite()
+}
+
+/**
+ * Removes all persisted console data from IndexedDB.
+ */
+export async function clearPersistedConsoleData(): Promise<void> {
+  if (typeof window === 'undefined') return
+
+  if (writeTimer !== null) {
+    clearTimeout(writeTimer)
+    writeTimer = null
+  }
+  pendingData = null
+
+  try {
+    await del(STORE_KEY)
+  } catch (error) {
+    logger.warn('IndexedDB delete failed', { error })
+  }
 }

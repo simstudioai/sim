@@ -58,8 +58,15 @@ export interface ConsoleUpdate {
   childWorkflowInstanceId?: string
 }
 
+export interface ConsoleEntryLocation {
+  workflowId: string
+  index: number
+}
+
 export interface ConsoleStore {
-  entries: ConsoleEntry[]
+  workflowEntries: Record<string, ConsoleEntry[]>
+  entryIdsByBlockExecution: Record<string, string[]>
+  entryLocationById: Record<string, ConsoleEntryLocation>
   isOpen: boolean
   addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry
   clearWorkflowConsole: (workflowId: string) => void

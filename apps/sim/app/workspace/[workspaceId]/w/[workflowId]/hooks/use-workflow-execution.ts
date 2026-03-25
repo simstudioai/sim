@@ -1781,7 +1781,7 @@ export function useWorkflowExecution() {
   useEffect(() => {
     if (!activeWorkflowId || !hasHydrated) return
 
-    const entries = useTerminalConsoleStore.getState().entries
+    const entries = useTerminalConsoleStore.getState().getWorkflowEntries(activeWorkflowId)
     const runningEntries = entries.filter(
       (e) => e.isRunning && e.workflowId === activeWorkflowId && e.executionId
     )

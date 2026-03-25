@@ -1,5 +1,4 @@
-export { indexedDBStorage } from './storage'
-export { useTerminalConsoleStore } from './store'
+export { useConsoleEntry, useTerminalConsoleStore, useWorkflowConsoleEntries } from './store'
 export type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from './types'
 export {
   normalizeConsoleError,
@@ -8,4 +7,5 @@ export {
   safeConsoleStringify,
   TERMINAL_CONSOLE_LIMITS,
   trimConsoleEntries,
+  trimWorkflowConsoleEntries,
 } from './utils'

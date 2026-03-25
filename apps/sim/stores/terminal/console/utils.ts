@@ -219,7 +219,7 @@ export function normalizeConsoleError(error: unknown): string | null | undefined
 /**
  * Returns a workflow's entries trimmed to the configured cap.
  */
-function trimWorkflowEntries(entries: ConsoleEntry[]): ConsoleEntry[] {
+export function trimWorkflowConsoleEntries(entries: ConsoleEntry[]): ConsoleEntry[] {
   if (entries.length <= TERMINAL_CONSOLE_LIMITS.MAX_ENTRIES_PER_WORKFLOW) {
     return entries
   }
@@ -287,7 +287,7 @@ export function trimConsoleEntries(entries: ConsoleEntry[]): ConsoleEntry[] {
   const keptEntryIds = new Set<string>()
 
   for (const workflowEntries of workflowGroups.values()) {
-    trimWorkflowEntries(workflowEntries).forEach((entry) => keptEntryIds.add(entry.id))
+    trimWorkflowConsoleEntries(workflowEntries).forEach((entry) => keptEntryIds.add(entry.id))
   }
 
   return entries.filter((entry) => keptEntryIds.has(entry.id))

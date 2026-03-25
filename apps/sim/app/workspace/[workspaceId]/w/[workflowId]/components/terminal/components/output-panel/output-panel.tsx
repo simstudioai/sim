@@ -93,7 +93,7 @@ export interface OutputPanelProps {
   handleTrainingClick: (e: React.MouseEvent) => void
   showCopySuccess: boolean
   handleCopy: () => void
-  filteredEntries: ConsoleEntry[]
+  hasEntries: boolean
   handleExportConsole: (e: React.MouseEvent) => void
   handleClearConsole: (e: React.MouseEvent) => void
   shouldShowCodeDisplay: boolean
@@ -120,7 +120,7 @@ export const OutputPanel = React.memo(function OutputPanel({
   handleTrainingClick,
   showCopySuccess,
   handleCopy,
-  filteredEntries,
+  hasEntries,
   handleExportConsole,
   handleClearConsole,
   shouldShowCodeDisplay,
@@ -431,7 +431,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 <span>{showCopySuccess ? 'Copied' : 'Copy output'}</span>
               </Tooltip.Content>
             </Tooltip.Root>
-            {filteredEntries.length > 0 && (
+            {hasEntries && (
               <>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
