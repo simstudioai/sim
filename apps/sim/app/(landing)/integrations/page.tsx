@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { IntegrationGrid } from './components/integration-grid'
 import { RequestIntegrationModal } from './components/request-integration-modal'
 import { blockTypeToIconMap } from './data/icon-mapping'
@@ -15,6 +16,8 @@ const INTEGRATION_COUNT = allIntegrations.length
  */
 const TOP_NAMES = [...new Set(POPULAR_WORKFLOWS.flatMap((p) => [p.from, p.to]))].slice(0, 6)
 
+const baseUrl = getBaseUrl()
+
 export const metadata: Metadata = {
   title: 'Integrations',
   description: `Connect ${INTEGRATION_COUNT}+ apps and services with Sim's AI workflow automation. Build intelligent pipelines with ${TOP_NAMES.join(', ')}, and more.`,
@@ -28,16 +31,26 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Integrations for AI Workflow Automation | Sim',
     description: `Connect ${INTEGRATION_COUNT}+ apps with Sim. Build AI-powered pipelines that link ${TOP_NAMES.join(', ')}, and every tool your team uses.`,
-    url: 'https://sim.ai/integrations',
+    url: `${baseUrl}/integrations`,
     type: 'website',
-    images: [{ url: 'https://sim.ai/opengraph-image.png', width: 1200, height: 630 }],
+    images: [
+      {
+        url: `${baseUrl}/opengraph-image.png`,
+        width: 1200,
+        height: 630,
+        alt: 'Sim Integrations for AI Workflow Automation',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Integrations | Sim',
     description: `Connect ${INTEGRATION_COUNT}+ apps with Sim's AI workflow automation.`,
+    images: [
+      { url: `${baseUrl}/opengraph-image.png`, alt: 'Sim Integrations for AI Workflow Automation' },
+    ],
   },
-  alternates: { canonical: 'https://sim.ai/integrations' },
+  alternates: { canonical: `${baseUrl}/integrations` },
 }
 
 export default function IntegrationsPage() {
@@ -45,12 +58,12 @@ export default function IntegrationsPage() {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sim.ai' },
+      { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
       {
         '@type': 'ListItem',
         position: 2,
         name: 'Integrations',
-        item: 'https://sim.ai/integrations',
+        item: `${baseUrl}/integrations`,
       },
     ],
   }
@@ -60,7 +73,7 @@ export default function IntegrationsPage() {
     '@type': 'ItemList',
     name: 'Sim AI Workflow Integrations',
     description: `Complete list of ${INTEGRATION_COUNT}+ integrations available in Sim for building AI-powered workflow automation.`,
-    url: 'https://sim.ai/integrations',
+    url: `${baseUrl}/integrations`,
     numberOfItems: INTEGRATION_COUNT,
     itemListElement: allIntegrations.map((integration, index) => ({
       '@type': 'ListItem',
@@ -69,7 +82,7 @@ export default function IntegrationsPage() {
         '@type': 'SoftwareApplication',
         name: integration.name,
         description: integration.description,
-        url: `https://sim.ai/integrations/${integration.slug}`,
+        url: `${baseUrl}/integrations/${integration.slug}`,
         applicationCategory: 'BusinessApplication',
         featureList: integration.operations.map((o) => o.name),
       },

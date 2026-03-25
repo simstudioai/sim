@@ -11,7 +11,6 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  ModalTitle,
   ModalTrigger,
   Textarea,
 } from '@/components/emcn'
@@ -21,7 +20,7 @@ import {
   DEMO_REQUEST_USER_COUNT_OPTIONS,
   type DemoRequestPayload,
   demoRequestSchema,
-} from '@/lib/marketing/demo-request'
+} from '@/app/(home)/components/demo-request/consts'
 
 interface DemoRequestModalProps {
   children: React.ReactNode
@@ -130,7 +129,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
       setIsSubmitting(true)
 
       try {
-        const response = await fetch('/api/demo-request', {
+        const response = await fetch('/api/demo-requests', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(parsed.data),
@@ -165,9 +164,9 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
       <ModalTrigger asChild>{children}</ModalTrigger>
       <ModalContent size='lg' className={theme === 'dark' ? 'dark' : undefined}>
         <ModalHeader>
-          <ModalTitle className={submitSuccess ? 'sr-only' : undefined}>
+          <span className={submitSuccess ? 'sr-only' : undefined}>
             {submitSuccess ? 'Demo request submitted' : 'Nearly there!'}
-          </ModalTitle>
+          </span>
         </ModalHeader>
         <div className='relative flex-1'>
           <form

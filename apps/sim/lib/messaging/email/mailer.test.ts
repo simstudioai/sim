@@ -1,21 +1,11 @@
 import { createEnvMock, loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-/**
- * Tests for the mailer module.
- *
- * Note: Due to bun test runner's module loading behavior, the Resend and Azure
- * clients are initialized at module load time. These tests mock the actual
- * Resend and EmailClient classes to return mock implementations that our
- * mock functions can intercept.
- */
-
 const mockSend = vi.fn()
 const mockBatchSend = vi.fn()
 const mockAzureBeginSend = vi.fn()
 const mockAzurePollUntilDone = vi.fn()
 
-// Mock the Resend module - returns an object with emails.send
 vi.mock('resend', () => {
   return {
     Resend: vi.fn().mockImplementation(() => ({
@@ -29,7 +19,6 @@ vi.mock('resend', () => {
   }
 })
 
-// Mock Azure Communication Email - returns an object with beginSend
 vi.mock('@azure/communication-email', () => {
   return {
     EmailClient: vi.fn().mockImplementation(() => ({
@@ -38,13 +27,11 @@ vi.mock('@azure/communication-email', () => {
   }
 })
 
-// Mock unsubscribe module
 vi.mock('@/lib/messaging/email/unsubscribe', () => ({
   isUnsubscribed: vi.fn(),
   generateUnsubscribeToken: vi.fn(),
 }))
 
-// Mock env with valid API keys so the clients get initialized
 vi.mock('@/lib/core/config/env', () =>
   createEnvMock({
     RESEND_API_KEY: 'test-api-key',
@@ -55,28 +42,23 @@ vi.mock('@/lib/core/config/env', () =>
   })
 )
 
-// Mock URL utilities
 vi.mock('@/lib/core/utils/urls', () => ({
   getEmailDomain: vi.fn().mockReturnValue('sim.ai'),
   getBaseUrl: vi.fn().mockReturnValue('https://test.sim.ai'),
   getBaseDomain: vi.fn().mockReturnValue('test.sim.ai'),
 }))
 
-// Mock the utils module (getFromEmailAddress)
 vi.mock('@/lib/messaging/email/utils', () => ({
   getFromEmailAddress: vi.fn().mockReturnValue('Sim <noreply@sim.ai>'),
+  hasEmailHeaderControlChars: vi.fn().mockImplementation((value: string) => /[\r\n]/.test(value)),
+  EMAIL_HEADER_CONTROL_CHARS_REGEX: /[\r\n]/,
+  NO_EMAIL_HEADER_CONTROL_CHARS_REGEX: /^[^\r\n]*$/,
 }))
 
 vi.mock('@sim/logger', () => loggerMock)
 
-// Import after mocks are set up
-import {
-  type EmailType,
-  hasEmailService,
-  sendBatchEmails,
-  sendEmail,
-} from '@/lib/messaging/email/mailer'
-import { generateUnsubscribeToken, isUnsubscribed } from '@/lib/messaging/email/unsubscribe'
+import { type EmailType, hasEmailService, sendBatchEmails, sendEmail } from './mailer'
+import { generateUnsubscribeToken, isUnsubscribed } from './unsubscribe'
 
 describe('mailer', () => {
   const testEmailOptions = {
@@ -90,7 +72,6 @@ describe('mailer', () => {
     ;(isUnsubscribed as Mock).mockResolvedValue(false)
     ;(generateUnsubscribeToken as Mock).mockReturnValue('mock-token-123')
 
-    // Mock successful Resend response
     mockSend.mockResolvedValue({
       data: { id: 'test-email-id' },
       error: null,
@@ -101,7 +82,6 @@ describe('mailer', () => {
       error: null,
     })
 
-    // Mock successful Azure response
     mockAzurePollUntilDone.mockResolvedValue({
       status: 'Succeeded',
       id: 'azure-email-id',
@@ -114,7 +94,6 @@ describe('mailer', () => {
 
   describe('hasEmailService', () => {
     it('should return true when email service is configured', () => {
-      // The mailer module initializes with mocked env that has valid API keys
       const result = hasEmailService()
       expect(typeof result).toBe('boolean')
     })
@@ -128,7 +107,6 @@ describe('mailer', () => {
       })
 
       expect(result.success).toBe(true)
-      // Should not check unsubscribe status for transactional emails
       expect(isUnsubscribed).not.toHaveBeenCalled()
     })
 
@@ -212,12 +190,10 @@ describe('mailer', () => {
       })
 
       expect(result.success).toBe(true)
-      // Should use first recipient for unsubscribe check
       expect(isUnsubscribed).toHaveBeenCalledWith('user1@example.com', 'marketing')
     })
 
     it('should handle general exceptions gracefully', async () => {
-      // Mock an unexpected error before any email service call
       ;(isUnsubscribed as Mock).mockRejectedValue(new Error('Database connection failed'))
 
       const result = await sendEmail({
@@ -275,7 +251,6 @@ describe('mailer', () => {
 
       await sendBatchEmails({ emails: batchEmails })
 
-      // Should not check unsubscribe for transactional emails
       expect(isUnsubscribed).not.toHaveBeenCalled()
     })
   })

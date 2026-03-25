@@ -6,9 +6,11 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
-import { NO_EMAIL_HEADER_CONTROL_CHARS_REGEX } from '@/lib/messaging/email/header-safety'
 import { sendEmail } from '@/lib/messaging/email/mailer'
-import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+import {
+  getFromEmailAddress,
+  NO_EMAIL_HEADER_CONTROL_CHARS_REGEX,
+} from '@/lib/messaging/email/utils'
 
 const logger = createLogger('HelpAPI')
 

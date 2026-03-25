@@ -1,5 +1,11 @@
 import { createEnvMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
+import {
+  EMAIL_HEADER_CONTROL_CHARS_REGEX,
+  getFromEmailAddress,
+  hasEmailHeaderControlChars,
+  NO_EMAIL_HEADER_CONTROL_CHARS_REGEX,
+} from './utils'
 
 /**
  * Tests for getFromEmailAddress utility function.
@@ -20,8 +26,6 @@ vi.mock('@/lib/core/utils/urls', () => ({
   getEmailDomain: vi.fn().mockReturnValue('fallback.com'),
 }))
 
-import { getFromEmailAddress } from './utils'
-
 describe('getFromEmailAddress', () => {
   it('should return the configured FROM_EMAIL_ADDRESS', () => {
     const result = getFromEmailAddress()
@@ -36,7 +40,6 @@ describe('getFromEmailAddress', () => {
 
   it('should contain an @ symbol in the email', () => {
     const result = getFromEmailAddress()
-    // Either contains @ directly or in angle brackets
     expect(result.includes('@')).toBe(true)
   })
 
@@ -44,5 +47,23 @@ describe('getFromEmailAddress', () => {
     const result1 = getFromEmailAddress()
     const result2 = getFromEmailAddress()
     expect(result1).toBe(result2)
+  })
+})
+
+describe('email header safety', () => {
+  it('rejects CRLF characters consistently', () => {
+    const injectedHeader = 'Hello\r\nBcc: attacker@example.com'
+
+    expect(EMAIL_HEADER_CONTROL_CHARS_REGEX.test(injectedHeader)).toBe(true)
+    expect(hasEmailHeaderControlChars(injectedHeader)).toBe(true)
+    expect(NO_EMAIL_HEADER_CONTROL_CHARS_REGEX.test(injectedHeader)).toBe(false)
+  })
+
+  it('allows plain header content', () => {
+    const safeHeader = 'Product feedback'
+
+    expect(EMAIL_HEADER_CONTROL_CHARS_REGEX.test(safeHeader)).toBe(false)
+    expect(hasEmailHeaderControlChars(safeHeader)).toBe(false)
+    expect(NO_EMAIL_HEADER_CONTROL_CHARS_REGEX.test(safeHeader)).toBe(true)
   })
 })

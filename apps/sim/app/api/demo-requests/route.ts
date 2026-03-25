@@ -1,15 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getEmailDomain } from '@/lib/core/utils/urls'
+import { sendEmail } from '@/lib/messaging/email/mailer'
+import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import {
   demoRequestSchema,
   getDemoRequestRegionLabel,
   getDemoRequestUserCountLabel,
-} from '@/lib/marketing/demo-request'
-import { sendEmail } from '@/lib/messaging/email/mailer'
-import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+} from '@/app/(home)/components/demo-request/consts'
 
 const logger = createLogger('DemoRequestAPI')
 const rateLimiter = new RateLimiter()
@@ -78,7 +80,7 @@ ${details}
 `
 
     const emailResult = await sendEmail({
-      to: ['enterprise@sim.ai'],
+      to: [`enterprise@${env.EMAIL_DOMAIN || getEmailDomain()}`],
       subject: `[DEMO REQUEST] ${firstName} ${lastName}`,
       text: emailText,
       from: getFromEmailAddress(),
@@ -95,7 +97,7 @@ ${details}
 
     return NextResponse.json(
       { success: true, message: 'Thanks! Our team will reach out shortly.' },
-      { status: 200 }
+      { status: 201 }
     )
   } catch (error) {
     logger.error(`[${requestId}] Error processing demo request`, error)

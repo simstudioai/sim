@@ -3,9 +3,8 @@ import { createLogger } from '@sim/logger'
 import { Resend } from 'resend'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { hasEmailHeaderControlChars } from '@/lib/messaging/email/header-safety'
 import { generateUnsubscribeToken, isUnsubscribed } from '@/lib/messaging/email/unsubscribe'
-import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+import { getFromEmailAddress, hasEmailHeaderControlChars } from '@/lib/messaging/email/utils'
 
 const logger = createLogger('Mailer')
 
