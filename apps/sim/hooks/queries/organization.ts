@@ -91,9 +91,7 @@ async function fetchOrganizationSubscription(orgId: string, _signal?: AbortSigna
     (sub: any) => hasPaidSubscriptionStatus(sub.status) && isTeam(sub.plan)
   )
   const enterpriseSubscription = response.data?.find(
-    (sub: any) =>
-      hasPaidSubscriptionStatus(sub.status) &&
-      (isEnterprise(sub.plan) || sub.plan === 'enterprise-plus')
+    (sub: any) => hasPaidSubscriptionStatus(sub.status) && isEnterprise(sub.plan)
   )
   const activeSubscription = enterpriseSubscription || teamSubscription
 

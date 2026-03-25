@@ -260,30 +260,6 @@ export function AccessControl() {
   const isLoading = orgsLoading || subLoading || (queryEnabled && groupsLoading)
   const { data: organization } = useOrganization(activeOrganization?.id || '')
 
-  if (isBillingEnabled && !isLoading && !canManage) {
-    if (!activeOrganization) {
-      return (
-        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
-          You must be part of an organization to manage Access Control.
-        </div>
-      )
-    }
-    if (!hasEnterprisePlan) {
-      return (
-        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
-          Access Control is available on Enterprise plans only.
-        </div>
-      )
-    }
-    if (!isOrgAdminOrOwner) {
-      return (
-        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
-          Only organization owners and admins can manage Access Control settings.
-        </div>
-      )
-    }
-  }
-
   const createPermissionGroup = useCreatePermissionGroup()
   const updatePermissionGroup = useUpdatePermissionGroup()
   const deletePermissionGroup = useDeletePermissionGroup()
@@ -708,6 +684,30 @@ export function AccessControl() {
 
   if (isLoading) {
     return <AccessControlSkeleton />
+  }
+
+  if (isBillingEnabled && !canManage) {
+    if (!activeOrganization) {
+      return (
+        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
+          You must be part of an organization to manage Access Control.
+        </div>
+      )
+    }
+    if (!hasEnterprisePlan) {
+      return (
+        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
+          Access Control is available on Enterprise plans only.
+        </div>
+      )
+    }
+    if (!isOrgAdminOrOwner) {
+      return (
+        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
+          Only organization owners and admins can manage Access Control settings.
+        </div>
+      )
+    }
   }
 
   if (viewingGroup) {
