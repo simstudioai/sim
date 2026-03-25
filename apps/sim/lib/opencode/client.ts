@@ -17,7 +17,7 @@ function getOpenCodeBasicAuthHeader(): string {
   return `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`
 }
 
-export function getOpenCodeBaseUrl(): string {
+function getOpenCodeBaseUrl(): string {
   const explicitBaseUrl = process.env.OPENCODE_BASE_URL?.trim()
   if (explicitBaseUrl) {
     return explicitBaseUrl
