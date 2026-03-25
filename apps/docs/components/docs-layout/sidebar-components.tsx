@@ -26,6 +26,22 @@ function isActive(url: string, pathname: string, nested = true): boolean {
   )
 }
 
+const itemBase = cn(
+  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+  'text-fd-muted-foreground hover:bg-fd-accent/50 hover:text-fd-accent-foreground',
+  'lg:mb-[0.0625rem] lg:block lg:rounded-lg lg:px-2.5 lg:py-[7px] lg:text-[13.5px] lg:leading-snug'
+)
+
+const itemIdle = cn(
+  'lg:font-normal lg:text-neutral-500 lg:dark:text-neutral-400',
+  'lg:hover:bg-neutral-100/70 lg:hover:text-neutral-700 lg:dark:hover:bg-white/[0.06] lg:dark:hover:text-neutral-300'
+)
+
+const itemActive = cn(
+  'lg:bg-neutral-100 lg:font-medium lg:text-neutral-900',
+  'lg:dark:bg-white/[0.09] lg:dark:text-neutral-100'
+)
+
 export function SidebarItem({ item }: { item: Item }) {
   const pathname = usePathname()
   const active = isActive(item.url, pathname, false)
@@ -35,16 +51,9 @@ export function SidebarItem({ item }: { item: Item }) {
       href={item.url}
       data-active={active}
       className={cn(
-        // Mobile styles (default)
-        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-        'text-fd-muted-foreground hover:bg-fd-accent/50 hover:text-fd-accent-foreground',
+        itemBase,
         active && 'bg-fd-primary/10 font-medium text-fd-primary',
-        // Desktop styles (lg+)
-        'lg:mb-[0.0625rem] lg:block lg:rounded-md lg:px-2.5 lg:py-1.5 lg:font-normal lg:text-[13px] lg:leading-tight',
-        'lg:text-gray-600 lg:dark:text-gray-400',
-        !active && 'lg:hover:bg-gray-100/60 lg:dark:hover:bg-gray-800/40',
-        active &&
-          'lg:bg-emerald-50/80 lg:font-normal lg:text-emerald-600 lg:dark:bg-emerald-900/15 lg:dark:text-emerald-400'
+        active ? itemActive : itemIdle
       )}
     >
       {item.name}
@@ -81,22 +90,31 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
         href={item.index.url}
         data-active={active}
         className={cn(
-          // Mobile styles (default)
-          'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-          'text-fd-muted-foreground hover:bg-fd-accent/50 hover:text-fd-accent-foreground',
+          itemBase,
           active && 'bg-fd-primary/10 font-medium text-fd-primary',
-          // Desktop styles (lg+)
-          'lg:mb-[0.0625rem] lg:block lg:rounded-md lg:px-2.5 lg:py-1.5 lg:font-normal lg:text-[13px] lg:leading-tight',
-          'lg:text-gray-600 lg:dark:text-gray-400',
-          !active && 'lg:hover:bg-gray-100/60 lg:dark:hover:bg-gray-800/40',
-          active &&
-            'lg:bg-emerald-50/80 lg:font-normal lg:text-emerald-600 lg:dark:bg-emerald-900/15 lg:dark:text-emerald-400'
+          active ? itemActive : itemIdle
         )}
       >
         {item.name}
       </Link>
     )
   }
+
+  const folderHeaderBase = cn(
+    'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+    'text-fd-muted-foreground hover:bg-fd-accent/50 hover:text-fd-accent-foreground',
+    'lg:rounded-lg lg:px-2.5 lg:py-[7px] lg:text-[13.5px] lg:leading-snug'
+  )
+
+  const folderHeaderIdle = cn(
+    'lg:font-[460] lg:text-neutral-700 lg:dark:text-neutral-300',
+    'lg:hover:bg-neutral-100/70 lg:dark:hover:bg-white/[0.06]'
+  )
+
+  const folderHeaderActive = cn(
+    'lg:bg-neutral-100 lg:font-medium lg:text-neutral-900',
+    'lg:dark:bg-white/[0.09] lg:dark:text-neutral-100'
+  )
 
   return (
     <div className='flex flex-col lg:mb-[0.0625rem]'>
@@ -106,16 +124,10 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
             href={item.index.url}
             data-active={active}
             className={cn(
-              // Mobile styles (default)
-              'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-              'text-fd-muted-foreground hover:bg-fd-accent/50 hover:text-fd-accent-foreground',
+              folderHeaderBase,
+              'lg:block lg:flex-1',
               active && 'bg-fd-primary/10 font-medium text-fd-primary',
-              // Desktop styles (lg+)
-              'lg:block lg:flex-1 lg:rounded-md lg:px-2.5 lg:py-1.5 lg:font-medium lg:text-[13px] lg:leading-tight',
-              'lg:text-gray-800 lg:dark:text-gray-200',
-              !active && 'lg:hover:bg-gray-100/60 lg:dark:hover:bg-gray-800/40',
-              active &&
-                'lg:bg-emerald-50/80 lg:text-emerald-600 lg:dark:bg-emerald-900/15 lg:dark:text-emerald-400'
+              active ? folderHeaderActive : folderHeaderIdle
             )}
           >
             {item.name}
@@ -124,19 +136,15 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
           <button
             onClick={() => setOpen(!open)}
             className={cn(
-              // Mobile styles (default)
-              'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-              'text-fd-muted-foreground hover:bg-fd-accent/50',
-              // Desktop styles (lg+)
-              'lg:flex lg:w-full lg:cursor-pointer lg:items-center lg:justify-between lg:rounded-md lg:px-2.5 lg:py-1.5 lg:text-left lg:font-medium lg:text-[13px] lg:leading-tight',
-              'lg:text-gray-800 lg:hover:bg-gray-100/60 lg:dark:text-gray-200 lg:dark:hover:bg-gray-800/40'
+              folderHeaderBase,
+              'lg:flex lg:w-full lg:cursor-pointer lg:items-center lg:justify-between lg:text-left',
+              folderHeaderIdle
             )}
           >
             <span>{item.name}</span>
-            {/* Desktop-only chevron for non-index folders */}
             <ChevronRight
               className={cn(
-                'ml-auto hidden h-3 w-3 flex-shrink-0 text-gray-400 transition-transform duration-200 ease-in-out lg:block dark:text-gray-500',
+                'ml-auto hidden h-3 w-3 flex-shrink-0 text-neutral-400 transition-transform duration-200 ease-in-out lg:block dark:text-neutral-500',
                 open && 'rotate-90'
               )}
             />
@@ -146,19 +154,15 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
           <button
             onClick={() => setOpen(!open)}
             className={cn(
-              // Mobile styles
               'rounded p-1 hover:bg-fd-accent/50',
-              // Desktop styles
-              'lg:cursor-pointer lg:rounded lg:p-1 lg:transition-colors lg:hover:bg-gray-100/60 lg:dark:hover:bg-gray-800/40'
+              'lg:cursor-pointer lg:rounded-md lg:p-1 lg:transition-colors lg:hover:bg-neutral-100/70 lg:dark:hover:bg-white/[0.06]'
             )}
             aria-label={open ? 'Collapse' : 'Expand'}
           >
             <ChevronRight
               className={cn(
-                // Mobile styles
                 'h-4 w-4 transition-transform',
-                // Desktop styles
-                'lg:h-3 lg:w-3 lg:text-gray-400 lg:duration-200 lg:ease-in-out lg:dark:text-gray-500',
+                'lg:h-3 lg:w-3 lg:text-neutral-400 lg:duration-200 lg:ease-in-out lg:dark:text-neutral-500',
                 open && 'rotate-90'
               )}
             />
@@ -175,8 +179,8 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
           <div className='overflow-hidden'>
             {/* Mobile: simple indent */}
             <div className='ml-4 flex flex-col gap-0.5 lg:hidden'>{children}</div>
-            {/* Desktop: styled with border */}
-            <ul className='mt-0.5 ml-2 hidden space-y-[0.0625rem] border-gray-200/60 border-l pl-2.5 lg:block dark:border-gray-700/60'>
+            {/* Desktop: styled with subtle border */}
+            <ul className='mt-0.5 ml-2 hidden space-y-[0.0625rem] border-neutral-200/60 border-l pl-2.5 lg:block dark:border-neutral-700/50'>
               {children}
             </ul>
           </div>
@@ -190,10 +194,8 @@ export function SidebarSeparator({ item }: { item: Separator }) {
   return (
     <p
       className={cn(
-        // Mobile styles
         'mt-4 mb-2 px-2 font-medium text-fd-muted-foreground text-xs',
-        // Desktop styles
-        'lg:mt-4 lg:mb-1.5 lg:px-2.5 lg:font-semibold lg:text-[10px] lg:text-gray-500/80 lg:uppercase lg:tracking-wide lg:dark:text-gray-500'
+        'lg:mt-5 lg:mb-1.5 lg:px-2.5 lg:font-semibold lg:text-[10.5px] lg:text-neutral-400 lg:uppercase lg:tracking-widest lg:dark:text-neutral-500'
       )}
     >
       {item.name}

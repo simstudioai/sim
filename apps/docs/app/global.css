@@ -18,6 +18,7 @@ body {
 
 @theme {
   --color-fd-primary: var(--color-fd-foreground);
+  --font-season: var(--font-season);
 }
 
 /* Match landing page dark background (#1b1b1b) */
@@ -29,42 +30,43 @@ body {
   --color-fd-muted: hsl(0, 0%, 18%) !important;
 }
 
-/* Font family utilities */
+/* ── Font family utilities ── */
+.font-season {
+  font-family: var(--font-season), system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans", sans-serif;
+  font-weight: 420;
+}
+
 .font-sans {
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-season), system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  font-weight: 420;
 }
 
 .font-mono {
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+  font-family: var(--font-martian-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
 }
 
+/* ── Root layout variables ── */
 :root {
   --fd-border: transparent !important;
   --fd-border-sidebar: transparent !important;
-  --fd-nav-height: 93px; /* Custom navbar height (52px top + 1px divider + 40px tabs) */
-  /* Content container width used to center main content */
+  --fd-nav-height: 93px;
   --spacing-fd-container: 1400px;
-  /* Edge gutter = leftover space on each side of centered container */
   --edge-gutter: max(1rem, calc((100vw - var(--spacing-fd-container)) / 2));
-  /* Shift the sidebar slightly left from the content edge for extra breathing room */
   --sidebar-shift: 90px;
   --sidebar-offset: max(0px, calc(var(--edge-gutter) - var(--sidebar-shift)));
-  /* Shift TOC slightly right to match sidebar spacing for symmetry */
   --toc-shift: 90px;
   --toc-offset: max(0px, calc(var(--edge-gutter) - var(--toc-shift)));
-  /* Sidebar and TOC have 20px internal padding - navbar accounts for this directly */
-  /* Extra gap between sidebar/TOC and the main text content */
   --content-gap: 1.75rem;
 }
 
-/* Light mode navbar background */
+/* ── Navbar backgrounds ── */
 :root:not(.dark) nav {
-  background-color: hsla(0, 0%, 96%, 0.85) !important;
+  background-color: hsla(0, 0%, 97%, 0.88) !important;
 }
 
-/* Dark mode navbar background */
 :root.dark nav {
   background-color: hsla(0, 0%, 10.6%, 0.92) !important;
 }
@@ -80,7 +82,7 @@ body {
   color: rgba(255, 255, 255, 0.4) !important;
 }
 
-/* Floating sidebar appearance - remove background */
+/* ── Sidebar: transparent background ── */
 [data-sidebar-container],
 #nd-sidebar {
   background: transparent !important;
@@ -96,101 +98,69 @@ aside#nd-sidebar {
   border: none !important;
 }
 
-/* Fumadocs v16: Add sidebar placeholder styling for grid area */
 [data-sidebar-placeholder] {
   background: transparent !important;
 }
 
-/* Fumadocs v16: Hide sidebar panel (floating collapse button) */
 [data-sidebar-panel] {
   display: none !important;
 }
 
-/* Mobile only: Reduce gap between navbar and content (custom navbar hidden on mobile) */
-@media (max-width: 1023px) {
-  #nd-docs-layout {
-    margin-top: -25px;
-  }
-}
-
-/* Hide TOC popover on tablet/medium screens (768px - 1279px) */
-/* Keeps it visible on mobile (<768px) for easy navigation */
-/* Desktop (>=1280px) already hides it via fumadocs xl:hidden */
-@media (min-width: 768px) and (max-width: 1279px) {
-  #nd-docs-layout {
-    --fd-toc-popover-height: 0px !important;
-  }
-
-  [data-toc-popover] {
-    display: none !important;
-  }
-}
-
-/* Desktop only: Apply custom navbar offset, sidebar width and margin offsets */
-/* On mobile, let fumadocs handle the layout natively */
-@media (min-width: 1024px) {
-  :root {
-    --fd-banner-height: 93px !important; /* 52px top + 1px divider + 40px tabs */
-  }
-
-  #nd-docs-layout {
-    --fd-docs-height: calc(100dvh - 93px) !important; /* 52px top + 1px divider + 40px tabs */
-    --fd-sidebar-width: 300px !important;
-    margin-left: var(--sidebar-offset) !important;
-    margin-right: var(--toc-offset) !important;
-  }
-
-  /* Hide fumadocs nav on desktop - we use custom navbar there */
-  #nd-docs-layout > header {
-    display: none !important;
-  }
-}
-
-/* Sidebar spacing - compact like turborepo */
-/* Fumadocs v16: [data-sidebar-viewport] doesn't exist, target #nd-sidebar > div instead */
+/* ── Sidebar: spacing ── */
 [data-sidebar-viewport],
 #nd-sidebar > div {
   padding: 0.5rem 12px 12px;
   background: transparent !important;
 }
 
-/* Override sidebar item styling to match Raindrop */
-/* Target Link and button elements in sidebar - override Fumadocs itemVariants */
-/* Exclude the small chevron-only toggle buttons */
-/* Using html prefix for higher specificity over Tailwind v4 utilities */
+[data-sidebar-viewport] > * {
+  margin-bottom: 0.0625rem;
+}
+
+[data-sidebar-viewport] > *:last-child {
+  margin-bottom: 0;
+}
+
+[data-sidebar-viewport] ul {
+  margin: 0;
+  padding: 0;
+}
+
+aside[data-sidebar] > div:first-child {
+  padding-top: 0;
+}
+
+/* ── Sidebar: item styling ── */
 html #nd-sidebar a,
 html #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
-  font-size: 0.9375rem !important; /* 15px to match Raindrop */
-  line-height: 1.4 !important;
-  padding: 0.5rem 0.75rem !important; /* More compact like Raindrop */
-  font-weight: 400 !important;
-  border-radius: 0.75rem !important; /* More rounded like Raindrop */
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
+  padding: 7px 0.625rem !important;
+  font-weight: 420 !important;
+  border-radius: 0.5rem !important;
+  font-family: var(--font-season), system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial,
     sans-serif !important;
 }
 
-/* Dark mode sidebar text */
 html.dark #nd-sidebar a,
 html.dark #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
-  color: rgba(255, 255, 255, 0.6) !important;
+  color: rgba(255, 255, 255, 0.55) !important;
 }
 
-/* Light mode sidebar text */
 html:not(.dark) #nd-sidebar a,
 html:not(.dark) #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
-  color: rgba(0, 0, 0, 0.6) !important;
+  color: rgba(0, 0, 0, 0.55) !important;
 }
 
-/* Make sure chevron icons are visible and properly styled */
+/* Chevron icons */
 #nd-sidebar svg {
   display: inline-block !important;
-  opacity: 0.6 !important;
+  opacity: 0.5 !important;
   flex-shrink: 0 !important;
   width: 0.75rem !important;
   height: 0.75rem !important;
 }
 
-/* Ensure the small chevron toggle buttons are visible */
 #nd-sidebar button[aria-label*="ollapse"],
 #nd-sidebar button[aria-label*="xpand"] {
   display: flex !important;
@@ -198,9 +168,7 @@ html:not(.dark) #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*
   padding: 0.25rem !important;
 }
 
-/* Root-level spacing now handled by [data-sidebar-viewport] > * rule below */
-
-/* Add tiny gap between nested items */
+/* Nested item spacing */
 #nd-sidebar ul li {
   margin-bottom: 0.0625rem !important;
 }
@@ -209,94 +177,77 @@ html:not(.dark) #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*
   margin-bottom: 0 !important;
 }
 
-/* Section headers should be slightly larger */
-/* Fumadocs v16: Also target #nd-sidebar for compatibility */
+/* Section separator headers */
 [data-sidebar-viewport] [data-separator],
 #nd-sidebar [data-separator],
 #nd-sidebar p {
-  font-size: 0.75rem !important;
+  font-size: 0.6875rem !important;
   font-weight: 600 !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.05em !important;
+  letter-spacing: 0.08em !important;
 }
 
-/* Override active state */
+/* ── Sidebar: active state — neutral ── */
 #nd-sidebar a[data-active="true"],
 #nd-sidebar button[data-active="true"],
 #nd-sidebar a.bg-fd-primary\/10,
 #nd-sidebar a.text-fd-primary,
 #nd-sidebar a[class*="bg-fd-primary"],
 #nd-sidebar a[class*="text-fd-primary"],
-/* Override custom sidebar green classes */
-  #nd-sidebar
-  a.bg-emerald-50\/80,
-#nd-sidebar a.text-emerald-600,
 #nd-sidebar a[class*="bg-emerald"],
 #nd-sidebar a[class*="text-emerald"] {
   background-image: none !important;
 }
 
-/* Dark mode active state */
 html.dark #nd-sidebar a[data-active="true"],
 html.dark #nd-sidebar button[data-active="true"],
-html.dark #nd-sidebar a.bg-fd-primary\/10,
-html.dark #nd-sidebar a.text-fd-primary,
 html.dark #nd-sidebar a[class*="bg-fd-primary"],
 html.dark #nd-sidebar a[class*="text-fd-primary"],
-html.dark #nd-sidebar a.bg-emerald-50\/80,
-html.dark #nd-sidebar a.text-emerald-600,
 html.dark #nd-sidebar a[class*="bg-emerald"],
 html.dark #nd-sidebar a[class*="text-emerald"] {
-  background-color: rgba(255, 255, 255, 0.15) !important;
-  color: rgba(255, 255, 255, 1) !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+  font-weight: 460 !important;
 }
 
-/* Light mode active state */
 html:not(.dark) #nd-sidebar a[data-active="true"],
 html:not(.dark) #nd-sidebar button[data-active="true"],
-html:not(.dark) #nd-sidebar a.bg-fd-primary\/10,
-html:not(.dark) #nd-sidebar a.text-fd-primary,
 html:not(.dark) #nd-sidebar a[class*="bg-fd-primary"],
 html:not(.dark) #nd-sidebar a[class*="text-fd-primary"],
-html:not(.dark) #nd-sidebar a.bg-emerald-50\/80,
-html:not(.dark) #nd-sidebar a.text-emerald-600,
 html:not(.dark) #nd-sidebar a[class*="bg-emerald"],
 html:not(.dark) #nd-sidebar a[class*="text-emerald"] {
-  background-color: rgba(0, 0, 0, 0.07) !important;
-  color: rgba(0, 0, 0, 0.9) !important;
+  background-color: rgba(0, 0, 0, 0.06) !important;
+  color: rgba(0, 0, 0, 0.88) !important;
+  font-weight: 480 !important;
 }
 
-/* Dark mode hover state */
+/* ── Sidebar: hover state ── */
 html.dark #nd-sidebar a:hover:not([data-active="true"]),
 html.dark #nd-sidebar button:hover:not([data-active="true"]) {
-  background-color: rgba(255, 255, 255, 0.08) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.75) !important;
 }
 
-/* Light mode hover state */
 html:not(.dark) #nd-sidebar a:hover:not([data-active="true"]),
 html:not(.dark) #nd-sidebar button:hover:not([data-active="true"]) {
   background-color: rgba(0, 0, 0, 0.03) !important;
+  color: rgba(0, 0, 0, 0.7) !important;
 }
 
-/* Dark mode - ensure active/selected items don't change on hover */
-html.dark #nd-sidebar a.bg-emerald-50\/80:hover,
-html.dark #nd-sidebar a[class*="bg-emerald"]:hover,
+/* Active items don't change on hover */
 html.dark #nd-sidebar a[data-active="true"]:hover,
 html.dark #nd-sidebar button[data-active="true"]:hover {
-  background-color: rgba(255, 255, 255, 0.15) !important;
-  color: rgba(255, 255, 255, 1) !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
 }
 
-/* Light mode - ensure active/selected items don't change on hover */
-html:not(.dark) #nd-sidebar a.bg-emerald-50\/80:hover,
-html:not(.dark) #nd-sidebar a[class*="bg-emerald"]:hover,
 html:not(.dark) #nd-sidebar a[data-active="true"]:hover,
 html:not(.dark) #nd-sidebar button[data-active="true"]:hover {
-  background-color: rgba(0, 0, 0, 0.07) !important;
-  color: rgba(0, 0, 0, 0.9) !important;
+  background-color: rgba(0, 0, 0, 0.06) !important;
+  color: rgba(0, 0, 0, 0.88) !important;
 }
 
-/* Hide search, platform, and collapse button from sidebar completely */
+/* ── Sidebar: hide unnecessary elements ── */
 [data-sidebar] [data-search],
 [data-sidebar] .search-toggle,
 #nd-sidebar [data-search],
@@ -309,17 +260,15 @@ aside[data-sidebar] > div > button:first-child,
 [data-sidebar] a[href*="sim.ai"],
 #nd-sidebar a[href*="sim.ai"],
 [data-sidebar-viewport] a[href*="sim.ai"],
-/* Hide search buttons (but NOT folder chevron buttons) */
-  aside[data-sidebar] > div:first-child
+aside[data-sidebar]
+  > div:first-child
   > button:not([aria-label="Collapse"]):not([aria-label="Expand"]),
 #nd-sidebar > div:first-child > button:not([aria-label="Collapse"]):not([aria-label="Expand"]),
-/* Hide sidebar collapse button (panel icon) - direct children only */
 aside[data-sidebar] > button:first-of-type:not([aria-label="Collapse"]):not([aria-label="Expand"]),
 [data-sidebar]
   > button[type="button"]:first-of-type:not([aria-label="Collapse"]):not([aria-label="Expand"]),
 button[data-collapse]:not([aria-label="Collapse"]):not([aria-label="Expand"]),
 [data-sidebar-header] button,
-/* Hide theme toggle from sidebar footer */
 aside[data-sidebar] [data-theme-toggle],
 [data-sidebar-footer],
 [data-sidebar] footer,
@@ -327,18 +276,14 @@ footer button[aria-label*="heme"],
 aside[data-sidebar] > div:last-child:has(button[aria-label*="heme"]),
 aside[data-sidebar] button[aria-label*="heme"],
 [data-sidebar] button[aria-label*="Theme"],
-/* Additional theme toggle selectors */
-  aside[data-sidebar] > *:last-child
-  button,
+aside[data-sidebar] > *:last-child button,
 [data-sidebar-viewport] ~ *,
 aside[data-sidebar] > div:not([data-sidebar-viewport]),
-/* Aggressive theme toggle hiding */
 aside[data-sidebar] svg[class*="sun"],
 aside[data-sidebar] svg[class*="moon"],
 aside[data-sidebar] button[type="button"]:last-child,
 aside button:has(svg:only-child),
 [data-sidebar] div:has(> button[type="button"]:only-child:last-child),
-/* Hide theme toggle and other non-content elements */
 aside[data-sidebar] > *:not([data-sidebar-viewport]) {
   display: none !important;
   visibility: hidden !important;
@@ -351,7 +296,7 @@ aside[data-sidebar] > *:not([data-sidebar-viewport]) {
   left: -9999px !important;
 }
 
-/* Desktop only: Hide sidebar toggle buttons and nav title/logo (keep visible on mobile) */
+/* Desktop: hide sidebar toggle + logo */
 @media (min-width: 1025px) {
   [data-sidebar-container] > button,
   [data-sidebar-container] [data-toggle],
@@ -360,9 +305,7 @@ aside[data-sidebar] > *:not([data-sidebar-viewport]) {
   nav button[data-sidebar-toggle],
   button[aria-label="Toggle Sidebar"],
   button[aria-label="Collapse Sidebar"],
-  /* Hide nav title/logo in sidebar on desktop - target all possible locations */
-    /* Lower specificity selectors first (attribute selectors) */
-    [data-sidebar-header],
+  [data-sidebar-header],
   [data-sidebar] [data-title],
   aside[data-sidebar] a[href="/"],
   aside[data-sidebar] a[href="/"] img,
@@ -370,18 +313,14 @@ aside[data-sidebar] > *:not([data-sidebar-viewport]) {
   aside[data-sidebar] > div > a:first-child,
   aside[data-sidebar] img[alt="Sim"],
   aside[data-sidebar] svg[aria-label="Sim"],
-  /* Higher specificity selectors (ID selectors) */
-    #nd-sidebar
-    a[href="/"],
+  #nd-sidebar a[href="/"],
   #nd-sidebar a[href="/"] img,
   #nd-sidebar a[href="/"] svg,
   #nd-sidebar > a:first-child,
   #nd-sidebar > div:first-child > a:first-child,
   #nd-sidebar img[alt="Sim"],
   #nd-sidebar svg[aria-label="Sim"],
-  /* Hide theme toggle at bottom of sidebar on desktop */
-    #nd-sidebar
-    > footer,
+  #nd-sidebar > footer,
   #nd-sidebar footer,
   aside#nd-sidebar > *:last-child:not(div),
   #nd-sidebar > button:last-child,
@@ -396,31 +335,11 @@ aside[data-sidebar] > *:not([data-sidebar-viewport]) {
   }
 }
 
-/* Extra aggressive - hide everything after the viewport */
 aside[data-sidebar] [data-sidebar-viewport] ~ * {
   display: none !important;
 }
 
-/* Tighter spacing for sidebar content */
-[data-sidebar-viewport] > * {
-  margin-bottom: 0.0625rem;
-}
-
-[data-sidebar-viewport] > *:last-child {
-  margin-bottom: 0;
-}
-
-[data-sidebar-viewport] ul {
-  margin: 0;
-  padding: 0;
-}
-
-/* Ensure sidebar starts with content immediately */
-aside[data-sidebar] > div:first-child {
-  padding-top: 0;
-}
-
-/* Remove all sidebar borders and backgrounds */
+/* Remove all sidebar borders */
 [data-sidebar-container],
 aside[data-sidebar],
 [data-sidebar],
@@ -430,7 +349,6 @@ aside[data-sidebar],
   border: none !important;
 }
 
-/* Override fumadocs background colors for sidebar */
 .dark #nd-sidebar,
 .dark [data-sidebar-container],
 .dark aside[data-sidebar] {
@@ -439,7 +357,6 @@ aside[data-sidebar],
   background: transparent !important;
 }
 
-/* Force normal text flow in sidebar */
 [data-sidebar],
 [data-sidebar] *,
 [data-sidebar-viewport],
@@ -447,39 +364,71 @@ aside[data-sidebar],
   writing-mode: horizontal-tb !important;
 }
 
-/* Apply Geist Mono to code elements */
+/* ── Mobile: reduce navbar-content gap ── */
+@media (max-width: 1023px) {
+  #nd-docs-layout {
+    margin-top: -25px;
+  }
+}
+
+/* Hide TOC popover on tablet */
+@media (min-width: 768px) and (max-width: 1279px) {
+  #nd-docs-layout {
+    --fd-toc-popover-height: 0px !important;
+  }
+
+  [data-toc-popover] {
+    display: none !important;
+  }
+}
+
+/* ── Desktop: navbar offset + sidebar width ── */
+@media (min-width: 1024px) {
+  :root {
+    --fd-banner-height: 93px !important;
+  }
+
+  #nd-docs-layout {
+    --fd-docs-height: calc(100dvh - 93px) !important;
+    --fd-sidebar-width: 300px !important;
+    margin-left: var(--sidebar-offset) !important;
+    margin-right: var(--toc-offset) !important;
+  }
+
+  #nd-docs-layout > header {
+    display: none !important;
+  }
+}
+
+/* ── Code: Martian Mono ── */
 code,
 pre,
 pre code {
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+  font-family: var(--font-martian-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
 }
 
-/* Inline code */
 :not(pre) > code {
   padding: 0.2em 0.4em;
-  border-radius: 0.25rem;
-  font-size: 0.875em;
+  border-radius: 0.3rem;
+  font-size: 0.85em;
   font-weight: 500;
 }
 
-/* Light mode inline code */
 :root:not(.dark) :not(pre) > code {
   background-color: rgb(243 244 246);
-  color: rgb(220 38 38);
+  color: rgb(79 70 229);
   border: 1px solid rgb(229 231 235);
 }
 
-/* Dark mode inline code */
 .dark :not(pre) > code {
   background-color: rgb(31 41 55);
-  color: rgb(248 113 113);
+  color: rgb(165 180 252);
   border: 1px solid rgb(55 65 81);
 }
 
-/* Code block container improvements */
 pre {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   line-height: 1.7;
   tab-size: 2;
   -webkit-overflow-scrolling: touch;
@@ -491,42 +440,37 @@ pre code {
   min-width: 100%;
 }
 
-/* Syntax highlighting adjustments for better readability */
 pre code .line {
   padding-left: 0;
   padding-right: 0;
 }
 
-/* Custom text highlighting styles */
+/* ── Text highlighting ── */
 .text-highlight {
   color: var(--color-fd-primary);
 }
 
-/* Override marker color for highlighted lists */
 .highlight-markers li::marker {
   color: var(--color-fd-primary);
 }
 
-/* Remove the thin border-left on nested TOC items (keeps main indicator only) */
+/* Remove nested TOC border */
 #nd-toc a[style*="padding-inline-start"] {
   border-left: none !important;
 }
 
-/* Add bottom spacing to prevent abrupt page endings */
+/* ── Content area spacing ── */
 [data-content] {
   padding-top: 1.5rem !important;
   padding-bottom: 4rem;
 }
 
-/* Alternative fallback for different Fumadocs versions */
 main article,
 .docs-page main {
   padding-top: 1.5rem !important;
   padding-bottom: 4rem;
 }
 
-/* Main content area - center and constrain like turborepo/raindrop */
-/* Note: --sidebar-offset and --toc-offset are now applied at #nd-docs-layout level */
 main[data-main] {
   max-width: var(--spacing-fd-container, 1400px);
   margin-left: auto;
@@ -537,7 +481,6 @@ main[data-main] {
   order: 1 !important;
 }
 
-/* Adjust for smaller screens */
 @media (max-width: 768px) {
   main[data-main] {
     padding-left: 1rem;
@@ -545,7 +488,6 @@ main[data-main] {
   }
 }
 
-/* Ensure docs page content is properly constrained */
 [data-docs-page] {
   max-width: 1400px;
   margin-left: auto;
@@ -553,38 +495,32 @@ main[data-main] {
   padding-top: 1.5rem !important;
 }
 
-/* Remove any unwanted outlines from video elements */
 video {
   outline: none !important;
 }
 
-/* API Reference Pages — Mintlify-style overrides */
+/* ══════════════════════════════════════════════════════════════════════
+   API Reference Pages — Mintlify-style overrides
+   ══════════════════════════════════════════════════════════════════════ */
 
-/* OpenAPI pages: span main + TOC grid columns for wide two-column layout.
-   Use named grid lines from grid-template-areas so this works regardless
-   of whether the grid has 3 columns (production) or 5 columns (local dev). */
 #nd-page:has(.api-page-header) {
   grid-column: main-start / toc-end !important;
   max-width: 1400px !important;
 }
 
-/* Hide the empty TOC aside on OpenAPI pages so it doesn't overlay content */
 #nd-docs-layout:has(#nd-page:has(.api-page-header)) #nd-toc {
   display: none;
 }
 
-/* Hide the default "Response Body" heading rendered by fumadocs-openapi */
 .response-section-wrapper > .response-section-content > h2,
 .response-section-wrapper > .response-section-content > h3 {
   display: none !important;
 }
 
-/* Hide default accordion triggers (status code rows) — we show our own dropdown */
 .response-section-wrapper [data-orientation="vertical"] > [data-state] > h3 {
   display: none !important;
 }
 
-/* Ensure API reference pages use the same font as the rest of the docs */
 #nd-page:has(.api-page-header),
 #nd-page:has(.api-page-header) h2,
 #nd-page:has(.api-page-header) h3,
@@ -594,11 +530,11 @@ video {
 #nd-page:has(.api-page-header) div,
 #nd-page:has(.api-page-header) label,
 #nd-page:has(.api-page-header) button {
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-season), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Method badge pills — shared background colors (page + sidebar) */
+/* Method badge pills — shared background colors */
 span.font-mono.font-medium[data-method="get"],
 span.font-mono.font-medium[data-method="head"],
 span.font-mono.font-medium[data-method="options"] {
@@ -634,14 +570,13 @@ html.dark span.font-mono.font-medium[data-method="delete"] {
   background-color: rgb(239 68 68 / 0.15);
 }
 
-/* Sidebar links with method badges — flex for vertical centering */
+/* Sidebar method badges */
 #nd-sidebar a:has(span.font-mono.font-medium) {
   display: flex !important;
   align-items: center !important;
   gap: 0.375rem;
 }
 
-/* Sidebar method badges — fixed-width for right-aligned labels */
 #nd-sidebar a span.font-mono.font-medium {
   display: inline-flex;
   align-items: center;
@@ -654,7 +589,7 @@ html.dark span.font-mono.font-medium[data-method="delete"] {
   flex-shrink: 0;
 }
 
-/* Footer navigation method badges — pill styling to match sidebar */
+/* Footer navigation method badges */
 #nd-page span.font-mono.font-medium[data-method] {
   display: inline-flex;
   align-items: center;
@@ -665,25 +600,24 @@ html.dark span.font-mono.font-medium[data-method="delete"] {
   border-radius: 0.1875rem;
 }
 
-/* Code block containers — match regular docs styling */
+/* Code block containers */
 #nd-page:has(.api-page-header) figure.shiki {
   border-radius: 0.75rem !important;
   background-color: var(--color-fd-card) !important;
 }
 
-/* Hide "Filter Properties" search bar everywhere — main page and popovers */
+/* Hide "Filter Properties" search bar */
 input[placeholder="Filter Properties"] {
   display: none !important;
 }
 div:has(> input[placeholder="Filter Properties"]) {
   display: none !important;
 }
-/* Remove top border on first visible property after hidden Filter Properties */
 div:has(> input[placeholder="Filter Properties"]) + .text-sm.border-t {
   border-top: none !important;
 }
 
-/* Hide "TypeScript Definitions" copy panel on API pages */
+/* Hide "TypeScript Definitions" panel */
 #nd-page:has(.api-page-header) div.not-prose.rounded-xl.border.p-3.mb-4 {
   display: none !important;
 }
@@ -691,7 +625,7 @@ div:has(> input[placeholder="Filter Properties"]) + .text-sm.border-t {
   display: none !important;
 }
 
-/* Hide info tags (Format, Default, etc.) everywhere — main page and popovers */
+/* Hide info tags */
 div.flex.flex-row.gap-2.flex-wrap.not-prose:has(> div.bg-fd-secondary) {
   display: none !important;
 }
@@ -699,8 +633,7 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   display: none !important;
 }
 
-/* Method+path bar — cleaner, lighter styling like Gumloop.
-   Override bg-fd-card CSS variable directly for reliability. */
+/* Method+path bar */
 #nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose {
   --color-fd-card: rgb(249 250 251) !important;
   background-color: rgb(249 250 251) !important;
@@ -713,11 +646,11 @@ html.dark
   background-color: rgb(24 24 27) !important;
   border-color: rgb(63 63 70) !important;
 }
-/* Method badge inside path bar — cleaner sans-serif, softer colors */
+
 #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium {
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif !important;
+  font-family: var(--font-season), system-ui, sans-serif !important;
   font-weight: 600 !important;
   font-size: 0.6875rem !important;
   letter-spacing: 0.025em;
@@ -725,8 +658,8 @@ html.dark
   padding: 0.125rem 0.5rem !important;
   border-radius: 0.375rem !important;
 }
-/* Path bar per-method colors (fumadocs renders these, so we match by class) */
-/* GET */
+
+/* Path bar per-method colors */
 #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-green"] {
@@ -740,7 +673,6 @@ html.dark
   color: rgb(74 222 128) !important;
   background-color: rgb(34 197 94 / 0.15) !important;
 }
-/* POST */
 #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-blue"] {
@@ -754,7 +686,6 @@ html.dark
   color: rgb(96 165 250) !important;
   background-color: rgb(59 130 246 / 0.15) !important;
 }
-/* PUT */
 #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-yellow"] {
@@ -768,7 +699,6 @@ html.dark
   color: rgb(250 204 21) !important;
   background-color: rgb(234 179 8 / 0.15) !important;
 }
-/* PATCH */
 #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-orange"] {
@@ -782,7 +712,6 @@ html.dark
   color: rgb(251 146 60) !important;
   background-color: rgb(249 115 22 / 0.15) !important;
 }
-/* DELETE */
 #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-red"] {
@@ -797,7 +726,7 @@ html.dark
   background-color: rgb(239 68 68 / 0.15) !important;
 }
 
-/* Path text inside method+path bar — monospace, bright like Gumloop */
+/* Path text in method+path bar */
 #nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose code {
   color: rgb(55 65 81) !important;
   background: none !important;
@@ -812,8 +741,7 @@ html.dark
   color: rgb(229 231 235) !important;
 }
 
-/* Inline code in API pages — neutral color instead of red.
-   Exclude code inside the method+path bar (handled above). */
+/* Inline code in API pages — neutral instead of red */
 #nd-page:has(.api-page-header) .prose :not(pre) > code {
   color: rgb(79 70 229) !important;
 }
@@ -821,9 +749,7 @@ html.dark #nd-page:has(.api-page-header) .prose :not(pre) > code {
   color: rgb(165 180 252) !important;
 }
 
-/* Response Section — custom dropdown-based rendering (Mintlify style) */
-
-/* Hide divider lines between accordion items */
+/* Response Section — dropdown-based rendering */
 .response-section-wrapper [data-orientation="vertical"].divide-y > * {
   border-top-width: 0 !important;
   border-bottom-width: 0 !important;
@@ -831,15 +757,9 @@ html.dark #nd-page:has(.api-page-header) .prose :not(pre) > code {
 .response-section-wrapper [data-orientation="vertical"].divide-y {
   border-top: none !important;
 }
-
-/* Remove content type labels inside accordion items (we show one in the header) */
 .response-section-wrapper [data-orientation="vertical"] p.not-prose:has(code.text-xs) {
   display: none !important;
 }
-
-/* Hide the top-level response description (e.g. "Execution was successfully cancelled.")
-   but NOT field descriptions inside Schema which also use prose-no-margin.
-   The response description is a direct child of AccordionContent (role=region) with mb-2. */
 .response-section-wrapper [data-orientation="vertical"] [role="region"] > .prose-no-margin.mb-2,
 .response-section-wrapper
   [data-orientation="vertical"]
@@ -848,13 +768,10 @@ html.dark #nd-page:has(.api-page-header) .prose :not(pre) > code {
   > .prose-no-margin.mb-2 {
   display: none !important;
 }
-
-/* Remove left padding on accordion content so it aligns with Path Parameters */
 .response-section-wrapper [data-orientation="vertical"] [role="region"] {
   padding-inline-start: 0 !important;
 }
 
-/* Response section header */
 .response-section-header {
   display: flex;
   align-items: center;
@@ -868,7 +785,7 @@ html.dark #nd-page:has(.api-page-header) .prose :not(pre) > code {
   font-weight: 600;
   margin: 0;
   color: var(--color-fd-foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: var(--font-season), system-ui, -apple-system, sans-serif;
 }
 
 .response-section-meta {
@@ -878,7 +795,6 @@ html.dark #nd-page:has(.api-page-header) .prose :not(pre) > code {
   margin-left: auto;
 }
 
-/* Status code dropdown */
 .response-section-dropdown-wrapper {
   position: relative;
 }
@@ -896,7 +812,7 @@ html.dark #nd-page:has(.api-page-header) .prose :not(pre) > code {
   cursor: pointer;
   border-radius: 0.25rem;
   transition: color 0.15s;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-season), system-ui, sans-serif;
 }
 .response-section-dropdown-trigger:hover {
   color: var(--color-fd-foreground);
@@ -947,7 +863,7 @@ html.dark .response-section-dropdown-menu {
   transition:
     background-color 0.1s,
     color 0.1s;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-season), system-ui, sans-serif;
 }
 .response-section-dropdown-item:hover {
   background-color: rgb(243 244 246);
@@ -968,10 +884,10 @@ html.dark .response-section-dropdown-item:hover {
 .response-section-content-type {
   font-size: 0.875rem;
   color: var(--color-fd-muted-foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-season), system-ui, sans-serif;
 }
 
-/* Response schema container — remove border to match Path Parameters style */
+/* Response schema container */
 .response-section-wrapper [data-orientation="vertical"] .border.px-3.py-2.rounded-lg {
   border: none !important;
   padding: 0 !important;
@@ -979,21 +895,19 @@ html.dark .response-section-dropdown-item:hover {
   background-color: transparent;
 }
 
-/* Property row — reorder: name (1) → type badge (2) → required badge (3) */
+/* Property row ordering */
 #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
 }
 
-/* Name span — order 1 */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.font-medium.font-mono.text-fd-primary {
   order: 1;
 }
 
-/* Type badge — order 2, grey pill */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground {
@@ -1005,7 +919,7 @@ html.dark .response-section-dropdown-item:hover {
   font-size: 0.6875rem;
   line-height: 1.125rem;
   font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-season), system-ui, sans-serif;
 }
 html.dark
   #nd-page:has(.api-page-header)
@@ -1015,12 +929,10 @@ html.dark
   color: rgb(212 212 220);
 }
 
-/* Hide the "*" inside the name span — we'll add "required" as a ::after on the flex row */
 #nd-page:has(.api-page-header) span.font-medium.font-mono.text-fd-primary > span.text-red-400 {
   display: none;
 }
 
-/* Required badge — order 3, red pill */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
   content: "required";
@@ -1034,7 +946,7 @@ html.dark
   font-size: 0.6875rem;
   line-height: 1.125rem;
   font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-season), system-ui, sans-serif;
 }
 html.dark
   #nd-page:has(.api-page-header)
@@ -1043,22 +955,17 @@ html.dark
   color: rgb(252 165 165);
 }
 
-/* Optional "?" indicator — hide it */
 #nd-page:has(.api-page-header)
   span.font-medium.font-mono.text-fd-primary
   > span.text-fd-muted-foreground {
   display: none;
 }
 
-/* Hide the auth scheme type label (e.g. "apiKey") next to Authorization heading */
 #nd-page:has(.api-page-header) .flex.items-start.justify-between.gap-2 > div.not-prose {
   display: none !important;
 }
 
-/* Auth property — replace "<token>" with "string" badge, add "header" and "required" badges.
-   Auth properties use my-4 (vs py-4 for regular properties). */
-
-/* Auth property flex row — name: order 1, type: order 2, ::before "header": order 3, ::after "required": order 4 */
+/* Auth property badges */
 #nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose
@@ -1083,7 +990,7 @@ html.dark
   font-size: 0.6875rem;
   line-height: 1.125rem;
   font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-season), system-ui, sans-serif;
   background-color: rgb(241 245 249);
   color: rgb(71 85 105);
   padding: 0.1875rem 0.5rem;
@@ -1100,7 +1007,6 @@ html.dark
   color: rgb(212 212 220);
 }
 
-/* "header" badge via ::before on the auth flex row */
 #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::before {
   content: "header";
   order: 3;
@@ -1113,7 +1019,7 @@ html.dark
   font-size: 0.6875rem;
   line-height: 1.125rem;
   font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-season), system-ui, sans-serif;
 }
 html.dark
   #nd-page:has(.api-page-header)
@@ -1123,7 +1029,6 @@ html.dark
   color: rgb(212 212 220);
 }
 
-/* "required" badge via ::after on the auth flex row — red pill */
 #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after {
   content: "required";
   order: 4;
@@ -1136,7 +1041,7 @@ html.dark
   font-size: 0.6875rem;
   line-height: 1.125rem;
   font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-season), system-ui, sans-serif;
 }
 html.dark
   #nd-page:has(.api-page-header)
@@ -1146,12 +1051,11 @@ html.dark
   color: rgb(252 165 165);
 }
 
-/* Hide "In: header" text below auth property — redundant with the header badge */
 #nd-page:has(.api-page-header) div.my-4 .prose-no-margin p:has(> code) {
   display: none !important;
 }
 
-/* Section dividers — bottom border after Authorization and Body sections. */
+/* Section dividers */
 .api-section-divider {
   padding-bottom: 0.5rem;
   border-bottom: 1px solid rgb(229 231 235 / 0.6);
@@ -1160,8 +1064,7 @@ html.dark .api-section-divider {
   border-bottom-color: rgb(255 255 255 / 0.07);
 }
 
-/* Property rows — breathing room like Mintlify.
-   Regular properties use border-t py-4; auth properties use border-t my-4. */
+/* Property rows */
 #nd-page:has(.api-page-header) .text-sm.border-t.py-4 {
   padding-top: 1.25rem !important;
   padding-bottom: 1.25rem !important;
@@ -1172,7 +1075,6 @@ html.dark .api-section-divider {
   padding-top: 1.25rem;
 }
 
-/* Divider lines between fields — very subtle like Mintlify */
 #nd-page:has(.api-page-header) .text-sm.border-t {
   border-color: rgb(229 231 235 / 0.6);
 }
@@ -1180,7 +1082,7 @@ html.dark #nd-page:has(.api-page-header) .text-sm.border-t {
   border-color: rgb(255 255 255 / 0.07);
 }
 
-/* Body/Callback section "application/json" label — remove inline code styling */
+/* Body/Callback content-type label */
 #nd-page:has(.api-page-header) .flex.gap-2.items-center.justify-between p.not-prose code.text-xs,
 #nd-page:has(.api-page-header) .flex.justify-between.gap-2.items-end p.not-prose code.text-xs {
   background: none !important;
@@ -1188,10 +1090,10 @@ html.dark #nd-page:has(.api-page-header) .text-sm.border-t {
   padding: 0 !important;
   color: var(--color-fd-muted-foreground) !important;
   font-size: 0.875rem !important;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif !important;
+  font-family: var(--font-season), system-ui, sans-serif !important;
 }
 
-/* Object/array type triggers in property rows — order 2 + badge chip styling */
+/* Object/array type triggers */
 #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
 #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
   order: 2;
@@ -1202,7 +1104,7 @@ html.dark #nd-page:has(.api-page-header) .text-sm.border-t {
   font-size: 0.6875rem;
   line-height: 1.125rem;
   font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-season), system-ui, sans-serif;
 }
 html.dark #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
 html.dark
@@ -1213,13 +1115,13 @@ html.dark
   color: rgb(212 212 220);
 }
 
-/* Section headings (Authorization, Path Parameters, etc.) — consistent top spacing */
+/* Section headings */
 #nd-page:has(.api-page-header) .min-w-0.flex-1 h2 {
   margin-top: 1.75rem !important;
   margin-bottom: 0.25rem !important;
 }
 
-/* Code examples in right column — wrap long lines instead of horizontal scroll */
+/* Code examples — wrap long lines */
 #nd-page:has(.api-page-header) pre {
   white-space: pre-wrap !important;
   word-break: break-all !important;
@@ -1230,16 +1132,14 @@ html.dark
   overflow-wrap: break-word !important;
 }
 
-/* API page header — constrain title/copy-page to left content column, not full width.
-   Only applies on OpenAPI pages (which have the two-column layout). */
+/* API page header constraint */
 @media (min-width: 1280px) {
   .api-page-header {
     max-width: calc(100% - 400px - 1.5rem);
   }
 }
 
-/* Footer navigation — constrain to left content column on OpenAPI pages only.
-   Target pages that contain the two-column layout via :has() selector. */
+/* Footer navigation constraint on API pages */
 #nd-page:has(.api-page-header) > div:last-child {
   max-width: calc(100% - 400px - 1.5rem);
 }

@@ -14,7 +14,7 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <button className='flex cursor-pointer items-center justify-center rounded-md p-1 text-muted-foreground'>
+      <button className='flex cursor-pointer items-center justify-center rounded-md p-1.5 text-neutral-400'>
         <Moon className='h-4 w-4' />
       </button>
     )
@@ -23,7 +23,7 @@ export function ThemeToggle() {
   return (
     <button
       onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-      className='flex cursor-pointer items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground'
+      className='flex cursor-pointer items-center justify-center rounded-md p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:text-neutral-500 dark:hover:bg-white/[0.06] dark:hover:text-neutral-300'
       aria-label='Toggle theme'
     >
       {theme === 'dark' ? <Moon className='h-4 w-4' /> : <Sun className='h-4 w-4' />}

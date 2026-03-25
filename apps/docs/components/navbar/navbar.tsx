@@ -22,6 +22,8 @@ const NAV_TABS = [
     external: false,
   },
   { label: 'Mothership', href: 'https://sim.ai', external: true },
+  { label: 'Changelog', href: 'https://sim.ai/changelog', external: true },
+
 ] as const
 
 export function Navbar() {
@@ -46,15 +48,15 @@ export function Navbar() {
             <SearchTrigger />
           </div>
 
-          <div className='flex items-center gap-1'>
+          <div className='flex items-center gap-1.5'>
             <LanguageDropdown />
             <ThemeToggle />
           </div>
         </div>
 
-        {/* Bottom row: navigation tabs — border on row, tabs overlap it */}
+        {/* Bottom row: navigation tabs */}
         <div
-          className='flex h-[40px] items-stretch gap-6 border-border/20 border-b'
+          className='flex h-[40px] items-stretch gap-7 border-neutral-200/40 border-b dark:border-neutral-700/30'
           style={{
             paddingLeft: 'calc(var(--sidebar-offset) + 32px)',
           }}
@@ -67,14 +69,14 @@ export function Navbar() {
                 href={tab.href}
                 {...(tab.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                 className={cn(
-                  '-mb-px relative flex items-center border-b text-[14px] tracking-[-0.01em] transition-colors',
+                  '-mb-px relative flex items-center border-b-2 text-[13.5px] tracking-[-0.01em] transition-colors',
                   isActive
-                    ? 'border-neutral-400 font-[550] text-neutral-800 dark:border-neutral-500 dark:text-neutral-200'
-                    : 'border-transparent font-medium text-fd-muted-foreground hover:border-neutral-300 hover:text-neutral-600 dark:hover:border-neutral-600 dark:hover:text-neutral-400'
+                    ? 'border-neutral-800 font-[520] text-neutral-900 dark:border-neutral-300 dark:text-neutral-100'
+                    : 'border-transparent font-[420] text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300'
                 )}
               >
                 {/* Invisible bold text reserves width to prevent layout shift */}
-                <span className='invisible font-[550]'>{tab.label}</span>
+                <span className='invisible font-[520]'>{tab.label}</span>
                 <span className='absolute'>{tab.label}</span>
               </Link>
             )
