@@ -293,4 +293,55 @@ describe('POST /api/tools/opencode/prompt', () => {
       },
     })
   })
+
+  it('stores and returns the fresh session id when the retry prompt fails', async () => {
+    mockGetStoredOpenCodeSession.mockResolvedValue({
+      sessionId: 'stale-session',
+      repository: 'repo-a',
+      updatedAt: '2026-03-25T00:00:00.000Z',
+    })
+    mockPromptOpenCodeSession
+      .mockRejectedValueOnce(new Error('session not found'))
+      .mockRejectedValueOnce(new Error('provider unavailable'))
+    mockShouldRetryWithFreshOpenCodeSession.mockReturnValue(true)
+    mockCreateOpenCodeSession.mockResolvedValue({ id: 'fresh-session' })
+
+    const request = createMockRequest('POST', {
+      repository: 'repo-a',
+      providerId: 'provider-a',
+      modelId: 'model-a',
+      prompt: 'retry please',
+      _context: {
+        workspaceId: 'ws-1',
+        workflowId: 'wf-1',
+        userId: 'user-123',
+      },
+    })
+
+    const response = await POST(request as never)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockPromptOpenCodeSession).toHaveBeenCalledTimes(2)
+    expect(mockStoreOpenCodeSession).toHaveBeenCalledWith(
+      'ws-1',
+      'memory-key',
+      expect.objectContaining({
+        sessionId: 'fresh-session',
+        repository: 'repo-a',
+      })
+    )
+    expect(mockLogOpenCodeFailure).toHaveBeenCalledWith(
+      'Failed to retry OpenCode prompt with a fresh session',
+      expect.objectContaining({ message: 'provider unavailable' })
+    )
+    expect(data).toEqual({
+      success: true,
+      output: {
+        content: '',
+        threadId: 'fresh-session',
+        error: 'provider unavailable',
+      },
+    })
+  })
 })

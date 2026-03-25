@@ -178,11 +178,21 @@ export async function POST(request: NextRequest) {
       return buildSuccessResponse(result.threadId, result.content, result.cost)
     } catch (error) {
       if (threadId && !newThread && shouldRetryWithFreshOpenCodeSession(error)) {
+        let freshSessionId = threadId
+
         try {
           const freshSession = await createOpenCodeSession(
             repositoryOption,
             buildOpenCodeSessionTitle(repositoryId, sessionOwnerKey)
           )
+          freshSessionId = freshSession.id
+
+          await storeOpenCodeSession(workspaceId, memoryKey, {
+            sessionId: freshSessionId,
+            repository: repositoryId,
+            updatedAt: new Date().toISOString(),
+          })
+
           const result = await executePrompt(
             body,
             repositoryId,
@@ -219,7 +229,7 @@ export async function POST(request: NextRequest) {
             retryError instanceof Error
               ? retryError.message
               : 'OpenCode prompt retry failed'
-          return buildErrorResponse(threadId, '', undefined, errorMessage)
+          return buildErrorResponse(freshSessionId, '', undefined, errorMessage)
         }
       }
 
