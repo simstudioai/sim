@@ -1,0 +1,84 @@
+---
+title: Note
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+The Note block adds contextual annotations directly onto your workflow canvas. Use it to document decisions, share instructions, or leave collaborative context without affecting workflow execution.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/note.png"
+    alt="Note Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+  Note blocks are purely for documentation and collaboration—they do not execute during workflow runs and do not affect workflow logic or output.
+</Callout>
+
+## Configuration Options
+
+### Content
+
+The note content displayed on the canvas. Notes support full Markdown rendering, including:
+
+- **Text formatting**: Bold, italics, links, code inline
+- **Lists**: Bullet points and numbered lists
+- **Code blocks**: Syntax-highlighted code samples
+- **Headings**: Multiple heading levels for organization
+- **YouTube embeds**: Embed videos directly using standard embed syntax
+- **Block references**: Link to other blocks in the workflow using block names
+
+### Example Markdown
+
+```markdown
+## Processing Strategy
+
+This workflow handles customer support tickets using:
+1. Route by intent (FAQ vs. escalation)
+2. Generate response with Agent
+3. Log to database for analytics
+
+**Important**: Always include ticket ID in response.
+
+[More info](https://docs.example.com)
+```
+
+## Use Cases
+
+**Workflow Decision Documentation**
+```
+Add a Note explaining why specific routing logic is used, business rules, or decision points that other team members should understand
+```
+
+**Instructions for Collaborators**
+```
+Leave notes with setup instructions, configuration requirements, or prerequisites before certain blocks
+```
+
+**Embedded Learning Resources**
+```
+Include links to documentation, YouTube tutorials, or examples that help new team members understand the workflow
+```
+
+## Best Practices
+
+- **Keep notes concise**: Use notes to supplement, not replace, clear workflow design. If you're writing extensive documentation, consider external resources
+- **Update with workflow changes**: When you modify workflow logic, update related notes to reflect the changes
+- **Use for team communication**: Notes are visible to all collaborators—use them to explain non-obvious design decisions
+- **Link to resources**: Include links to external documentation, FAQs, or decision logs for more context
+
+<FAQ items={[
+  { question: "Do Note blocks affect workflow execution?", answer: "No. Note blocks are purely for documentation and visualization on the canvas. They do not execute, do not impact workflow logic, and do not produce outputs." },
+  { question: "Can I format text in a Note block?", answer: "Yes. Note blocks support full Markdown syntax including bold, italics, lists, code blocks, headings, links, and images. You can also embed YouTube videos using standard embed syntax." },
+  { question: "Can I include references to other blocks in a Note?", answer: "Yes. You can reference blocks by name in your Markdown. You can also link to external resources using standard Markdown link syntax." },
+  { question: "Are Notes visible to all collaborators?", answer: "Yes. Notes are part of the workflow canvas and are visible to everyone who has access to the workflow." },
+  { question: "Can I nest Notes within Loop or Parallel blocks?", answer: "Yes. Notes can be placed anywhere on the canvas, including inside container blocks like Loop and Parallel, to provide context for those sections." },
+  { question: "What's the maximum length for a Note?", answer: "There is no strict maximum length. However, for readability and performance, keep notes reasonably sized. If you need to document extensively, consider using external documentation linked from the Note." },
+]} />

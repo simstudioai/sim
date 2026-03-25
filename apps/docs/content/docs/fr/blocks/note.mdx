@@ -1,0 +1,84 @@
+---
+title: Note
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Le bloc Note ajoute des annotations contextuelles directement sur votre canevas de flux de travail. Utilisez-le pour documenter les décisions, partager des instructions ou laisser du contexte collaboratif sans affecter l'exécution du flux de travail.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/note.png"
+    alt="Configuration du bloc Note"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+  Les blocs Note sont purement à des fins de documentation et de collaboration—ils ne s'exécutent pas pendant les exécutions du flux de travail et n'affectent pas la logique du flux de travail ou la sortie.
+</Callout>
+
+## Options de configuration
+
+### Content
+
+Le contenu de la note affiché sur le canevas. Les notes supportent le rendu complet de Markdown, comprenant :
+
+- **Formatage du texte** : Gras, italiques, liens, code en ligne
+- **Listes** : Points à puces et listes numérotées
+- **Blocs de code** : Exemples de code avec coloration syntaxique
+- **Titres** : Plusieurs niveaux de titres pour l'organisation
+- **Intégrations YouTube** : Intégrer des vidéos directement en utilisant la syntaxe d'intégration standard
+- **Références de blocs** : Lier à d'autres blocs dans le flux de travail en utilisant les noms de blocs
+
+### Exemple de Markdown
+
+```markdown
+## Stratégie de traitement
+
+Ce flux de travail gère les tickets d'assistance client en utilisant :
+1. Acheminer par intention (FAQ vs escalade)
+2. Générer une réponse avec l'Agent
+3. Enregistrer à la base de données pour l'analyse
+
+**Important** : Toujours inclure l'ID du ticket dans la réponse.
+
+[Plus d'infos](https://docs.example.com)
+```
+
+## Cas d'utilisation
+
+**Documentation des décisions du flux de travail**
+```
+Ajouter une Note expliquant pourquoi une logique de routage spécifique est utilisée, les règles métier ou les points de décision que d'autres membres de l'équipe doivent comprendre
+```
+
+**Instructions pour les collaborateurs**
+```
+Laisser des notes avec des instructions de configuration, les exigences de configuration ou les prérequis avant certains blocs
+```
+
+**Ressources d'apprentissage intégrées**
+```
+Inclure des liens vers la documentation, des tutoriels YouTube ou des exemples qui aident les nouveaux membres de l'équipe à comprendre le flux de travail
+```
+
+## Bonnes pratiques
+
+- **Gardez les notes concises** : Utilisez les notes pour compléter, non pour remplacer, une conception de flux de travail claire. Si vous écrivez une documentation extensive, considérez les ressources externes
+- **Mettez à jour avec les changements du flux de travail** : Quand vous modifiez la logique du flux de travail, mettez à jour les notes associées pour refléter les changements
+- **Utilisez pour la communication d'équipe** : Les notes sont visibles pour tous les collaborateurs—utilisez-les pour expliquer les décisions de conception non évidentes
+- **Liez aux ressources** : Incluez des liens vers la documentation externe, les FAQ ou les journaux de décision pour plus de contexte
+
+<FAQ items={[
+  { question: "Les blocs Note affectent-ils l'exécution du flux de travail ?", answer: "Non. Les blocs Note sont purement à des fins de documentation et de visualisation sur le canevas. Ils ne s'exécutent pas, n'affectent pas la logique du flux de travail et ne produisent pas de sorties." },
+  { question: "Puis-je formater le texte dans un bloc Note ?", answer: "Oui. Les blocs Note supportent la syntaxe complète de Markdown, y compris le gras, les italiques, les listes, les blocs de code, les titres, les liens et les images. Vous pouvez également intégrer des vidéos YouTube en utilisant la syntaxe d'intégration standard." },
+  { question: "Puis-je inclure des références à d'autres blocs dans une Note ?", answer: "Oui. Vous pouvez référencer les blocs par nom dans votre Markdown. Vous pouvez également lier à des ressources externes en utilisant la syntaxe de lien Markdown standard." },
+  { question: "Les Notes sont-elles visibles à tous les collaborateurs ?", answer: "Oui. Les Notes font partie du canevas du flux de travail et sont visibles à toute personne ayant accès au flux de travail." },
+  { question: "Puis-je imbriquer des Notes dans des blocs Loop ou Parallel ?", answer: "Oui. Les Notes peuvent être placées n'importe où sur le canevas, y compris à l'intérieur des blocs conteneurs comme Loop et Parallel, pour fournir du contexte à ces sections." },
+  { question: "Quelle est la longueur maximale d'une Note ?", answer: "Il n'y a pas de limite stricte de longueur. Cependant, pour la lisibilité et les performances, gardez les notes d'une taille raisonnable. Si vous avez besoin de documenter de façon extensive, considérez l'utilisation de la documentation externe liée à partir de la Note." },
+]} />

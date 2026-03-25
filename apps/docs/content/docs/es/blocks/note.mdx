@@ -1,0 +1,84 @@
+---
+title: Nota
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+El bloque Nota añade anotaciones contextuales directamente en tu lienzo de flujo de trabajo. Úsalo para documentar decisiones, compartir instrucciones o dejar contexto colaborativo sin afectar la ejecución del flujo de trabajo.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/note.png"
+    alt="Configuración del bloque Nota"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+  Los bloques Nota son puramente para documentación y colaboración—no se ejecutan durante las ejecuciones de flujo de trabajo y no afectan la lógica o salida del flujo de trabajo.
+</Callout>
+
+## Opciones de configuración
+
+### Contenido
+
+El contenido de la nota que se muestra en el lienzo. Las notas soportan renderización completa de Markdown, incluyendo:
+
+- **Formato de texto**: Negrita, cursiva, enlaces, código en línea
+- **Listas**: Puntos y listas numeradas
+- **Bloques de código**: Ejemplos de código con sintaxis resaltada
+- **Encabezados**: Múltiples niveles de encabezados para organización
+- **Incrustaciones de YouTube**: Incrustar videos directamente usando sintaxis estándar de incrustación
+- **Referencias de bloques**: Vincular a otros bloques en el flujo de trabajo usando nombres de bloques
+
+### Ejemplo de Markdown
+
+```markdown
+## Estrategia de procesamiento
+
+Este flujo de trabajo maneja tickets de soporte al cliente usando:
+1. Enrutamiento por intención (FAQ vs. escalación)
+2. Generar respuesta con Agente
+3. Registrar en base de datos para análisis
+
+**Importante**: Siempre incluye el ID del ticket en la respuesta.
+
+[Más información](https://docs.example.com)
+```
+
+## Casos de uso
+
+**Documentación de decisión de flujo de trabajo**
+```
+Añade una Nota explicando por qué se utiliza la lógica de enrutamiento específica, reglas comerciales o puntos de decisión que otros miembros del equipo deben entender
+```
+
+**Instrucciones para colaboradores**
+```
+Deja notas con instrucciones de configuración, requisitos de configuración o requisitos previos antes de ciertos bloques
+```
+
+**Recursos de aprendizaje integrados**
+```
+Incluye enlaces a documentación, tutoriales de YouTube o ejemplos que ayuden a nuevos miembros del equipo a entender el flujo de trabajo
+```
+
+## Mejores prácticas
+
+- **Mantén las notas concisas**: Usa notas para complementar, no reemplazar, un diseño claro de flujo de trabajo. Si estás escribiendo documentación extensiva, considera recursos externos
+- **Actualiza con cambios de flujo de trabajo**: Cuando modifiques la lógica del flujo de trabajo, actualiza las notas relacionadas para reflejar los cambios
+- **Usa para comunicación de equipo**: Las notas son visibles para todos los colaboradores—úsalas para explicar decisiones de diseño no obvias
+- **Vincula a recursos**: Incluye enlaces a documentación externa, FAQs o registros de decisiones para más contexto
+
+<FAQ items={[
+  { question: "¿Los bloques Nota afectan la ejecución del flujo de trabajo?", answer: "No. Los bloques Nota son puramente para documentación y visualización en el lienzo. No se ejecutan, no impactan la lógica del flujo de trabajo y no producen salidas." },
+  { question: "¿Puedo formatear texto en un bloque Nota?", answer: "Sí. Los bloques Nota soportan sintaxis completa de Markdown incluyendo negrita, cursiva, listas, bloques de código, encabezados, enlaces e imágenes. También puedes incrustar videos de YouTube usando sintaxis estándar de incrustación." },
+  { question: "¿Puedo incluir referencias a otros bloques en una Nota?", answer: "Sí. Puedes hacer referencia a bloques por nombre en tu Markdown. También puedes vincular a recursos externos usando sintaxis estándar de enlaces de Markdown." },
+  { question: "¿Las Notas son visibles para todos los colaboradores?", answer: "Sí. Las notas forman parte del lienzo del flujo de trabajo y son visibles para todos los que tienen acceso al flujo de trabajo." },
+  { question: "¿Puedo anidar Notas dentro de bloques Loop o Paralelo?", answer: "Sí. Las notas se pueden colocar en cualquier lugar del lienzo, incluyendo dentro de bloques de contenedor como Loop y Paralelo, para proporcionar contexto para esas secciones." },
+  { question: "¿Cuál es la longitud máxima de una Nota?", answer: "No hay una longitud máxima estricta. Sin embargo, para legibilidad y rendimiento, mantén las notas con un tamaño razonable. Si necesitas documentar extensivamente, considera usar documentación externa vinculada desde la Nota." },
+]} />

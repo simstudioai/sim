@@ -6,7 +6,9 @@ description: Los componentes de construcción de tus flujos de trabajo de IA
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
 import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
 
 Los bloques son los componentes de construcción que conectas para crear flujos de trabajo de IA. Piensa en ellos como módulos especializados que manejan tareas específicas—desde chatear con modelos de IA hasta realizar llamadas API o procesar datos.
 
@@ -22,6 +24,7 @@ Sim proporciona tipos de bloques esenciales que manejan las funciones principale
 - **[Agente](/blocks/agent)** - Chatea con modelos de IA (OpenAI, Anthropic, Google, modelos locales)
 - **[Función](/blocks/function)** - Ejecuta código personalizado de JavaScript/TypeScript
 - **[API](/blocks/api)** - Conecta con servicios externos mediante peticiones HTTP
+- **[Memoria](/blocks/memory)** - Almacena y recupera memoria de conversación para agentes de IA
 
 ### Bloques lógicos
 - **[Condición](/blocks/condition)** - Ramifica caminos de flujo de trabajo basados en expresiones booleanas
@@ -35,6 +38,38 @@ Sim proporciona tipos de bloques esenciales que manejan las funciones principale
 
 ### Bloques de salida
 - **[Respuesta](/blocks/response)** - Formatear y devolver resultados finales desde tu flujo de trabajo
+- **[Webhook (salida)](/blocks/webhook-request)** - Envía solicitudes HTTP POST a webhooks externos con firma HMAC opcional
+
+### Bloques de documentación y utilidad
+- **[Nota](/blocks/note)** - Añade anotaciones contextuales e instrucciones directamente en el lienzo del flujo de trabajo
+
+## Selecciona el bloque adecuado
+
+| Quiero... | Usa este bloque |
+|---|---|
+| Chatea con un modelo de IA u obtén respuestas LLM | [Agente](/blocks/agent) |
+| Ejecuta código personalizado de JavaScript o Python | [Función](/blocks/function) |
+| Llama a una API REST externa | [API](/blocks/api) |
+| Rama según condiciones verdadero/falso | [Condición](/blocks/condition) |
+| Enrutar solicitudes usando criterio de IA | [Enrutador](/blocks/router) |
+| Puntúa o evalúa la calidad del contenido | [Evaluador](/blocks/evaluator) |
+| Requiere aprobación humana antes de continuar | [Humano en el proceso](/blocks/human-in-the-loop) |
+| Añade un retardo de tiempo entre pasos | [Espera](/blocks/wait) |
+| Establece o actualiza variables de flujo de trabajo | [Variables](/blocks/variables) |
+| Devuelve salida final desde un flujo de trabajo | [Respuesta](/blocks/response) |
+| Envía una solicitud webhook POST saliente | [Webhook](/blocks/webhook-request) |
+| Ejecuta otro flujo de trabajo como hijo | [Flujo de trabajo](/blocks/workflow) |
+| Almacena/recupera memoria de conversación | [Memoria](/blocks/memory) |
+| Añade notas o documentación en el lienzo | [Nota](/blocks/note) |
+| Valida contenido para seguridad o PII | [Guardrails](/blocks/guardrails) |
+| Ejecuta bloques en bucle | [Bucle](/blocks/loop) |
+| Ejecuta bloques en paralelo | [Paralelo](/blocks/parallel) |
+
+<Callout type="info">
+  Para integraciones de servicios de terceros (Gmail, Slack, GitHub, etc.), explora el catálogo [Herramientas e integraciones](/tools). Cada integración tiene su propio bloque dedicado.
+
+  El bloque [Pensamiento](/blocks/thinking) está disponible para flujos de trabajo avanzados de razonamiento pero está oculto de la barra de herramientas estándar.
+</Callout>
 
 ## Cómo funcionan los bloques
 
@@ -141,3 +176,33 @@ Cada tipo de bloque tiene opciones de configuración específicas:
     Pausa la ejecución del flujo de trabajo durante tiempos específicos
   </Card>
 </Cards>
+
+## Versiones de bloques
+
+A medida que Sim evoluciona, los bloques reciben actualizaciones y mejoras. Para mantener la compatibilidad hacia atrás, las actualizaciones significativas crean nuevas versiones de bloques (v2, v3, etc.) en lugar de reemplazar los originales.
+
+### Cómo funciona el versionado
+
+Cuando un bloque recibe actualizaciones de características principales o cambios de API, se crea una nueva versión con un sufijo de versión (p. ej., `archivo` se convierte en `archivo_v2`). La versión original permanece disponible para flujos de trabajo existentes.
+
+### Qué versión usar
+
+- **Nuevos flujos de trabajo**: Copilot selecciona automáticamente la versión más reciente al construir flujos de trabajo
+- **Flujos de trabajo existentes**: Continúa usando la versión con la que fueron construidos—no se necesitan cambios a menos que actualices explícitamente
+- **Actualizaciones manuales**: Puedes actualizar un bloque a una versión más nueva editando la configuración del flujo de trabajo
+
+### Bloques versionados
+
+Los siguientes bloques tienen múltiples versiones disponibles:
+
+Confluence (v2) · Cursor (v2) · Archivo (v2, v3) · Fireflies (v2) · GitHub (v2) · Gmail (v2) · Google Calendar (v2) · Google Sheets (v2) · Google Slides (v2) · Intercom (v2) · Kalshi (v2) · Microsoft Excel (v2) · Mistral Parse (v2, v3) · Notion (v2) · Pulse (v2) · Reducto (v2) · Router (v2) · Speech-to-Text (v2) · Textract (v2) · Generador de vídeo (v2) · Vision (v2)
+
+<FAQ items={[
+  { question: "¿Cuántos tipos de bloques hay disponibles en Sim?", answer: "Sim tiene más de 190 bloques en su registro, abarcando bloques de flujo de trabajo principal (Agente, Función, Condición, Enrutador, etc.), bloques de integración para servicios de terceros (Gmail, Slack, GitHub, Notion, y muchos más) y bloques de disparo que inician flujos de trabajo desde eventos externos como webhooks o programaciones. Loop y ejecución paralela están integrados en el motor de ejecución como construcciones de contenedor en el lienzo, en lugar de ser bloques de registro independientes." },
+  { question: "¿Puede la salida de un bloque conectarse a múltiples bloques downstream?", answer: "Sí. Un puerto de salida único puede conectarse a múltiples puertos de entrada en diferentes bloques. Esto te permite distribuir datos de un paso de procesamiento a varias rutas paralelas sin necesidad de duplicar el bloque." },
+  { question: "¿Qué sucede si un bloque en el medio de un flujo de trabajo falla?", answer: "Cuando un bloque encuentra un error, el flujo de trabajo detiene la ejecución a lo largo de esa ruta. Los bloques que soportan manejo de errores (como el Router) pueden dirigir a una ruta de error para que puedas manejar fallos de manera elegante en lugar de detener todo el flujo de trabajo." },
+  { question: "¿Cuál es la diferencia entre bloques de Procesamiento y bloques Lógicos?", answer: "Los bloques de Procesamiento (Agente, Función, API) transforman o generan datos — hacen el trabajo real. Los bloques Lógicos (Condición, Enrutador, Evaluador) toman decisiones sobre qué ruta debe seguir el flujo de trabajo según los datos, sin modificarlos a sí mismos." },
+  { question: "¿Puedo usar bloques de diferentes categorías juntos en un flujo de trabajo?", answer: "Absolutamente. Un flujo de trabajo típico combina bloques de múltiples categorías. Por ejemplo, podrías usar un bloque de disparo para iniciar el flujo de trabajo, un bloque Agente para procesar entrada, un bloque Condición para lógica de ramificación y un bloque de integración como Gmail para enviar resultados." },
+  { question: "¿Hay bloques de contenedor que pueden contener otros bloques dentro?", answer: "Sí. Loop y Paralelo son construcciones del motor de ejecución que aparecen como regiones de contenedor en el lienzo. Arrastra otros bloques dentro de ellas. Los contenedores Loop ejecutan sus bloques contenidos repetidamente, mientras que los contenedores Paralelo ejecutan sus bloques contenidos concurrentemente en múltiples ramas. A diferencia de los bloques de registro, estos se manejan directamente por el motor de ejecución." },
+]} />
+

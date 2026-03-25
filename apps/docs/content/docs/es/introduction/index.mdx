@@ -6,6 +6,7 @@ import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
 
 Sim es un constructor de flujos de trabajo visuales de código abierto para crear e implementar flujos de trabajo de agentes de IA. Diseña sistemas de automatización inteligentes utilizando una interfaz sin código—conecta modelos de IA, bases de datos, APIs y herramientas empresariales a través de un lienzo intuitivo de arrastrar y soltar. Ya sea que estés creando chatbots, automatizando procesos empresariales u orquestando complejos flujos de datos, Sim proporciona las herramientas para dar vida a tus flujos de trabajo de IA.
 
@@ -57,7 +58,7 @@ Permite que tu equipo construya juntos. Múltiples usuarios pueden editar flujos
 
 ## Integraciones
 
-Sim proporciona integraciones nativas con más de 80 servicios en múltiples categorías:
+Sim proporciona integraciones nativas con 175+ servicios en múltiples categorías:
 
 - **Modelos de IA**: OpenAI, Anthropic, Google Gemini, Groq, Cerebras, modelos locales a través de Ollama o VLLM
 - **Comunicación**: Gmail, Slack, Microsoft Teams, Telegram, WhatsApp  
@@ -109,9 +110,20 @@ Implementa en tu propia infraestructura usando Docker Compose o Kubernetes. Mant
     Aprende sobre los componentes básicos
   </Card>
   <Card title="Herramientas e integraciones" href="/tools">
-    Explora más de 80 integraciones incorporadas
+    Explora 175+ integraciones incorporadas
   </Card>
   <Card title="Permisos de equipo" href="/permissions/roles-and-permissions">
     Configura roles y permisos del espacio de trabajo
   </Card>
 </Cards>
+
+<FAQ items={[
+  { question: "¿Es Sim gratuito para usar?", answer: "Sim ofrece un plan Community gratuito con 1.000 créditos únicos para empezar. Los planes pagos comienzan en $25/mes (Pro) con 5.000 créditos y llegan hasta $100/mes (Max) con 20.000 créditos. La facturación anual está disponible con un 15% de descuento. También puedes autoalojar Sim gratis en tu propia infraestructura." },
+  { question: "¿Es Sim de código abierto?", answer: "Sí. Sim es de código abierto bajo la licencia Apache 2.0. El código fuente completo está disponible en GitHub y puedes autoalojarlo, contribuir al desarrollo o modificarlo para tus propias necesidades. Las características empresariales (SSO, control de acceso) tienen una licencia separada que requiere una suscripción para uso en producción." },
+  { question: "¿Qué modelos y proveedores de IA son compatibles?", answer: "Sim soporta 15+ proveedores incluyendo OpenAI, Anthropic, Google Gemini, Groq, Cerebras, DeepSeek, Mistral, xAI y OpenRouter. También puedes ejecutar modelos locales a través de Ollama o VLLM sin costo de API. Se soporta Bring Your Own Key (BYOK) para que puedas usar tus propias claves API a precio base del proveedor sin margen." },
+  { question: "¿Necesito experiencia en codificación para usar Sim?", answer: "No. Sim es un constructor visual sin código donde diseñas flujos de trabajo arrastrando bloques a un lienzo y conectándolos. Para casos de uso avanzados, el bloque Función te permite escribir JavaScript personalizado, pero es completamente opcional." },
+  { question: "¿Puedo autoalojar Sim?", answer: "Sí. Sim proporciona configuraciones de Docker Compose para implementaciones autoalojadas. El stack incluye la aplicación Sim, una base de datos PostgreSQL con pgvector y un servidor de colaboración en tiempo real. También puedes integrar modelos de IA locales a través de Ollama para una configuración completamente offline." },
+  { question: "¿Hay un límite en cuántos flujos de trabajo puedo crear?", answer: "No hay límite en la cantidad de flujos de trabajo que puedes crear en cualquier plan. Los límites de uso se aplican a los créditos de ejecución, límites de velocidad y almacenamiento de archivos, que varían según el nivel del plan." },
+  { question: "¿Qué integraciones están disponibles?", answer: "Sim ofrece 175+ integraciones nativas en categorías que incluyen modelos de IA, herramientas de comunicación (Gmail, Slack, Teams, Telegram), aplicaciones de productividad (Notion, Google Workspace, Airtable), herramientas de desarrollo (GitHub, Jira, Linear), servicios de búsqueda (Google Search, Perplexity, Exa) y bases de datos (PostgreSQL, Supabase, Pinecone). Para cualquier cosa no incorporada, puedes usar el soporte MCP (Protocolo de Contexto de Modelo) para conectar servicios personalizados." },
+  { question: "¿Cómo se compara Sim con otras herramientas de automatización de flujos de trabajo?", answer: "Sim está diseñado específicamente para flujos de trabajo de agentes de IA en lugar de automatización general de tareas. Proporciona un lienzo visual para orquestar agentes impulsados por LLM con soporte incorporado para uso de herramientas, salidas estructuradas, ramificación condicional y colaboración en tiempo real. La característica Copilot también te permite construir y modificar flujos de trabajo usando lenguaje natural." },
+]} />

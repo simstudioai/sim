@@ -6,7 +6,9 @@ description: Die Bausteine deiner KI-Workflows
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
 import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
 
 Blöcke sind die Bausteine, die du miteinander verbindest, um KI-Workflows zu erstellen. Betrachte sie als spezialisierte Module, die jeweils eine bestimmte Aufgabe übernehmen – vom Chatten mit KI-Modellen über API-Aufrufe bis hin zur Datenverarbeitung.
 
@@ -22,6 +24,7 @@ Sim bietet wesentliche Blocktypen, die die Kernfunktionen von KI-Workflows abdec
 - **[Agent](/blocks/agent)** - Chatte mit KI-Modellen (OpenAI, Anthropic, Google, lokale Modelle)
 - **[Function](/blocks/function)** - Führe benutzerdefinierten JavaScript/TypeScript-Code aus
 - **[API](/blocks/api)** - Verbinde dich mit externen Diensten über HTTP-Anfragen
+- **[Memory](/blocks/memory)** - Speichere und rufe Gesprächsgedächtnisse für KI-Agenten ab
 
 ### Logikblöcke
 - **[Condition](/blocks/condition)** - Verzweige Workflow-Pfade basierend auf booleschen Ausdrücken
@@ -35,6 +38,38 @@ Sim bietet wesentliche Blocktypen, die die Kernfunktionen von KI-Workflows abdec
 
 ### Ausgabeblöcke
 - **[Antwort](/blocks/response)** - Formatieren und Zurückgeben der endgültigen Ergebnisse aus Ihrem Workflow
+- **[Webhook (ausgehend)](/blocks/webhook-request)** - HTTP POST-Anfragen an externe Webhooks mit optionaler HMAC-Signatur versenden
+
+### Dokumentations- & Utility-Blöcke
+- **[Notiz](/blocks/note)** - Kontextbezogene Anmerkungen und Anweisungen direkt auf der Workflow-Leinwand hinzufügen
+
+## Den richtigen Block auswählen
+
+| Ich möchte... | Verwende diesen Block |
+|---|---|
+| Mit einem KI-Modell chatten oder LLM-Antworten erhalten | [Agent](/blocks/agent) |
+| Benutzerdefinierten JavaScript- oder Python-Code ausführen | [Function](/blocks/function) |
+| Eine externe REST-API aufrufen | [API](/blocks/api) |
+| Verzweigungen basierend auf Wahr/Falsch-Bedingungen erstellen | [Condition](/blocks/condition) |
+| Anfragen mit KI-Urteil weiterleiten | [Router](/blocks/router) |
+| Inhalt bewerten oder Qualität beurteilen | [Evaluator](/blocks/evaluator) |
+| Menschliche Genehmigung vor dem Fortfahren erfordern | [Human in the Loop](/blocks/human-in-the-loop) |
+| Eine Zeitverzögerung zwischen Schritten hinzufügen | [Wait](/blocks/wait) |
+| Workflow-Variablen setzen oder aktualisieren | [Variables](/blocks/variables) |
+| Endgültige Ausgabe aus einem Workflow zurückgeben | [Response](/blocks/response) |
+| HTTP POST-Anfrage an Webhook versenden | [Webhook](/blocks/webhook-request) |
+| Einen anderen Workflow als untergeordnetes Element ausführen | [Workflow](/blocks/workflow) |
+| Gesprächsgedächtnis speichern/abrufen | [Memory](/blocks/memory) |
+| Anmerkungen oder Dokumentation auf der Leinwand hinzufügen | [Note](/blocks/note) |
+| Inhalt auf Sicherheit oder PII validieren | [Guardrails](/blocks/guardrails) |
+| Blöcke in einer Schleife ausführen | [Loop](/blocks/loop) |
+| Blöcke parallel ausführen | [Parallel](/blocks/parallel) |
+
+<Callout type="info">
+  Für Third-Party-Service-Integrationen (Gmail, Slack, GitHub usw.) durchsuchen Sie den [Tools & Integrations](/tools)-Katalog. Jede Integration hat ihren eigenen dedizierten Block.
+
+  Der [Thinking](/blocks/thinking)-Block ist für fortgeschrittene Reasoning-Workflows verfügbar, ist aber in der Standardblock-Symbolleiste verborgen.
+</Callout>
 
 ## Wie Blöcke funktionieren
 
@@ -141,3 +176,33 @@ Jeder Blocktyp hat spezifische Konfigurationsoptionen:
     Workflow-Ausführung für bestimmte Zeitverzögerungen pausieren
   </Card>
 </Cards>
+
+## Block-Versionen
+
+Während sich Sim weiterentwickelt, erhalten Blöcke Updates und Verbesserungen. Um die Rückwärtskompatibilität zu gewährleisten, werden bedeutende Updates neue Versionen von Blöcken (v2, v3 usw.) anstelle von Ersetzungen erstellen.
+
+### Wie Versionierung funktioniert
+
+Wenn ein Block größere Feature-Updates oder API-Änderungen erhält, wird eine neue Version mit einem Versionsufffix erstellt (z. B. wird `file` zu `file_v2`). Die ursprüngliche Version bleibt für bestehende Workflows verfügbar.
+
+### Welche Version sollte verwendet werden
+
+- **Neue Workflows**: Copilot wählt automatisch die neueste Version beim Aufbau von Workflows aus
+- **Bestehende Workflows**: Verwenden Sie weiterhin die Version, mit der sie erstellt wurden – es sind keine Änderungen erforderlich, es sei denn, Sie aktualisieren explizit
+- **Manuelle Upgrades**: Sie können einen Block auf eine neuere Version aktualisieren, indem Sie die Workflow-Konfiguration bearbeiten
+
+### Versionierte Blöcke
+
+Die folgenden Blöcke haben mehrere verfügbare Versionen:
+
+Confluence (v2) · Cursor (v2) · File (v2, v3) · Fireflies (v2) · GitHub (v2) · Gmail (v2) · Google Calendar (v2) · Google Sheets (v2) · Google Slides (v2) · Intercom (v2) · Kalshi (v2) · Microsoft Excel (v2) · Mistral Parse (v2, v3) · Notion (v2) · Pulse (v2) · Reducto (v2) · Router (v2) · Speech-to-Text (v2) · Textract (v2) · Video Generator (v2) · Vision (v2)
+
+<FAQ items={[
+  { question: "Wie viele Block-Typen sind in Sim verfügbar?", answer: "Sim hat über 190 Blöcke in seiner Registry, die Kern-Workflow-Blöcke (Agent, Function, Condition, Router usw.), Integrations-Blöcke für Third-Party-Dienste (Gmail, Slack, GitHub, Notion und viele weitere) sowie Trigger-Blöcke umfassen, die Workflows von externen Ereignissen wie Webhooks oder Zeitplänen starten. Loop und Parallel-Ausführung sind als Container-Konstrukte auf der Leinwand in die Ausführungs-Engine integriert, anstatt eigenständige Registry-Blöcke zu sein." },
+  { question: "Kann die Ausgabe eines Blocks mit mehreren nachgelagerten Blöcken verbunden werden?", answer: "Ja. Ein einzelner Ausgabeport kann mit mehreren Eingabeports auf verschiedenen Blöcken verbunden werden. Dies ermöglicht es Ihnen, Daten von einem Verarbeitungsschritt auf mehrere parallele Pfade zu verteilen, ohne den Block duplizieren zu müssen." },
+  { question: "Was passiert, wenn ein Block in der Mitte eines Workflows fehlschlägt?", answer: "Wenn ein Block auf einen Fehler trifft, stoppt der Workflow die Ausführung entlang dieses Pfads. Blöcke, die Fehlerbehandlung unterstützen (wie der Router), können zu einem Fehlerpfad weiterleiten, damit Sie Fehler elegant behandeln können, anstatt den gesamten Workflow zu unterbrechen." },
+  { question: "Was ist der Unterschied zwischen Verarbeitungs- und Logikblöcken?", answer: "Verarbeitungsblöcke (Agent, Function, API) transformieren oder generieren Daten – sie führen die eigentliche Arbeit aus. Logikblöcke (Condition, Router, Evaluator) treffen Entscheidungen darüber, welchen Pfad der Workflow basierend auf den Daten einschlagen sollte, ohne die Daten selbst zu verändern." },
+  { question: "Kann ich Blöcke aus verschiedenen Kategorien zusammen in einem Workflow verwenden?", answer: "Absolut. Ein typischer Workflow kombiniert Blöcke aus mehreren Kategorien. Sie könnten beispielsweise einen Trigger-Block verwenden, um den Workflow zu starten, einen Agent-Block zur Verarbeitung von Eingaben, einen Condition-Block zur Verzweigung der Logik und einen Integrations-Block wie Gmail, um Ergebnisse zu senden." },
+  { question: "Gibt es Container-Blöcke, die andere Blöcke darin halten können?", answer: "Ja. Loop und Parallel sind Ausführungs-Engine-Konstrukte, die als Container-Bereiche auf der Leinwand erscheinen. Sie ziehen andere Blöcke darin ein. Loop-Container führen ihre enthaltenen Blöcke wiederholt aus, während Parallel-Container ihre enthaltenen Blöcke gleichzeitig über mehrere Branches ausführen. Im Gegensatz zu Registry-Blöcken werden diese direkt von der Ausführungs-Engine behandelt." },
+]} />
+

@@ -1,0 +1,88 @@
+---
+title: Thinking
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+The Thinking block forces an AI model to explicitly outline its thought process before proceeding. By encouraging step-by-step analysis, this block can improve reasoning quality and output accuracy on complex tasks.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/thinking.png"
+    alt="Thinking Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+  The Thinking block is hidden from the block toolbar by default and is used primarily in advanced workflows. It is not shown in the standard block selection UI but can be accessed programmatically or through import.
+</Callout>
+
+## Configuration Options
+
+### Thought
+
+The thought process or reasoning step that the model should document. This field is hidden from the UI but is required for internal processing.
+
+- **Type**: String (Markdown supported)
+- **Purpose**: Captures the model's explicit reasoning before generating the final output
+
+## Outputs
+
+- **`<thinking.acknowledgedThought>`**: The model's acknowledgment and processing of the outlined thought process
+
+## How It Works
+
+The Thinking block works by:
+
+1. Accepting a thought or reasoning prompt
+2. Instructing the AI model to explicitly work through the thought process
+3. Returning the acknowledged thought as output that can feed into subsequent blocks
+
+This encourages the model to break down complex reasoning into explicit steps, which can lead to more accurate and reliable outputs, especially for:
+
+- **Multi-step problem solving**: Tasks requiring sequential reasoning
+- **Complex analysis**: Situations where intermediate steps matter
+- **Chain-of-thought reasoning**: Workflows that benefit from explicit step-by-step logic
+- **Verification steps**: Adding explicit reasoning checks before final outputs
+
+## Example Use Cases
+
+**Complex Problem Solving with Reasoning Steps**
+```
+Input → Thinking (outline approach) → Agent (execute with reasoning) → Response
+```
+
+**Quality Assurance with Explicit Analysis**
+```
+Content → Agent (analyze) → Thinking (verify reasoning) → Function (validate) → Response
+```
+
+**Chain-of-Thought Verification**
+```
+Question → Thinking (break down problem) → Agent (solve step-by-step) → Response
+```
+
+## Best Practices
+
+- **Use for complex tasks**: Apply Thinking blocks to workflows involving complex reasoning, multi-step logic, or high-accuracy requirements
+- **Combine with Agent blocks**: Use Thinking in conjunction with Agent blocks to enhance their reasoning capabilities
+- **Keep thoughts focused**: Write clear, specific thoughts that guide the model toward better reasoning
+- **Monitor performance**: Test workflows with and without Thinking blocks to measure the impact on output quality
+
+<Callout type="tip">
+  For standard AI interactions, the Agent block alone is usually sufficient. The Thinking block is most valuable when dealing with complex reasoning tasks where explicit step-by-step analysis measurably improves results.
+</Callout>
+
+<FAQ items={[
+  { question: "Why is the Thinking block hidden from the toolbar?", answer: "The Thinking block is a specialized tool for advanced workflows that require explicit reasoning steps. It's hidden by default to keep the block toolbar focused on commonly used blocks. It can still be accessed through programmatic means or by importing workflow definitions that include it." },
+  { question: "How does the Thinking block improve AI reasoning?", answer: "By explicitly instructing the model to outline its thought process before responding, the Thinking block encourages step-by-step analysis. This can help the model break down complex problems and arrive at more accurate, well-reasoned outputs." },
+  { question: "When should I use a Thinking block vs. just using an Agent block?", answer: "Use a Thinking block when you're working with complex reasoning tasks, multi-step problem solving, or when you need the model to explicitly verify its logic before proceeding. For straightforward tasks, a single Agent block is usually sufficient." },
+  { question: "Can I use multiple Thinking blocks in one workflow?", answer: "Yes. You can use multiple Thinking blocks to add reasoning steps at different points in your workflow. Each block can address a specific reasoning checkpoint or validation step." },
+  { question: "What models support the Thinking block?", answer: "The Thinking block is designed to work with models that benefit from explicit reasoning prompts. It works best with advanced models like OpenAI's o-series, Claude's thinking models, and other reasoning-capable LLMs." },
+  { question: "How do I include a Thinking block in my workflow if it's hidden from the toolbar?", answer: "You can add Thinking blocks programmatically through workflow definition imports or by using the API to construct workflows. Once added, the block appears on the canvas and can be connected to other blocks like any standard block." },
+]} />

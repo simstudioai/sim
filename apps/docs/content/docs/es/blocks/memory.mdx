@@ -1,0 +1,98 @@
+---
+title: Memoria
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+El bloque Memoria almacena y recupera la memoria de conversación para agentes de IA. Te permite añadir, recuperar, actualizar y eliminar entradas del historial de conversación, permitiendo interacciones multi-turno con estado más allá de los modos de memoria incorporados del bloque Agente.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/memory.png"
+    alt="Configuración del bloque Memoria"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout type="warning">
+  No uses el bloque Memoria a menos que sea explícitamente necesario. Para conversaciones naturales, usa los modos de memoria incorporados del bloque Agente (Conversación, Ventana deslizante por mensajes o Ventana deslizante por tokens). El bloque Memoria está destinado a inyectar memoria artificial en flujos de trabajo cuando el manejo nativo de memoria del Agente es insuficiente.
+</Callout>
+
+## Opciones de configuración
+
+### Operación
+
+Selecciona la operación de memoria a realizar:
+
+- **Añadir memoria**: Añade un nuevo mensaje al historial de memoria de conversación
+- **Obtener memoria**: Recupera una entrada de memoria específica por su ID
+- **Obtener todas las memorias**: Recupera todas las memorias de una conversación
+- **Eliminar memoria**: Elimina una entrada de memoria del almacenamiento
+
+### ID de conversación
+
+El identificador único de la conversación. Esta clave persiste la memoria entre ejecuciones de flujo de trabajo y permite compartir contexto entre múltiples ejecuciones.
+
+- **Requerido**: Sí
+- **Tipo**: Cadena de texto
+- **Ejemplo**: `chat-session-123`, `user-456`, `conversation-abc`
+
+### Rol (solo Añadir memoria)
+
+Especifica el rol del hablante para la entrada de memoria cuando se utiliza la operación Añadir memoria:
+
+- **user**: Mensaje del usuario final
+- **assistant**: Mensaje del modelo de IA
+- **system**: Instrucción o contexto a nivel de sistema
+
+### Contenido (solo Añadir memoria)
+
+El contenido del mensaje para almacenar cuando se utiliza la operación Añadir memoria:
+
+- **Tipo**: Cadena de texto (Markdown soportado)
+- **Longitud máxima**: Sin límite estricto, pero mantén un tamaño razonable para el rendimiento
+
+## Salidas
+
+- **`<memory.memories>`**: Array JSON de todas las memorias en la conversación (para Obtener todas las memorias)
+- **`<memory.memory>`**: La entrada de memoria específica recuperada (para Obtener memoria)
+- **`<memory.success>`**: Booleano indicando si la operación se completó exitosamente
+- **`<memory.id>`**: El ID de conversación usado para la operación
+
+## Casos de uso de ejemplo
+
+**Conversación multi-turno con preservación de contexto**
+```
+Entrada del usuario → Memoria (Obtener todo) → Agente (con historial) → Memoria (Añadir mensaje usuario) → Agente → Memoria (Añadir mensaje asistente) → Respuesta
+```
+
+**Construcción de perfiles de usuario persistentes**
+```
+API (Datos del usuario) → Memoria (Añadir) → Agente (Mejorado con contexto del usuario) → API (Actualizar perfil)
+```
+
+**Análisis de conversación**
+```
+Disparador (Programado) → Memoria (Obtener todo, conversationId) → Función (Analizar sentimiento) → API (Registrar análisis)
+```
+
+## Mejores prácticas
+
+- **Usa primero la memoria del Agente**: Los modos de memoria incorporados del bloque Agente manejan la mayoría de escenarios de conversación sin requerir el bloque Memoria
+- **Gestiona el crecimiento de memoria**: Limpia periódicamente memorias antiguas para evitar almacenamiento excesivo y recuperación lenta
+- **IDs de conversación consistentes**: Usa IDs significativos y consistentes para asegurar que las memorias se agrupen correctamente y sean recuperables
+- **Combina con bloque Agente**: Para mejores resultados, usa Memoria junto con el bloque Agente para construir contexto de conversación completo
+
+<FAQ items={[
+  { question: "¿Cuándo debo usar el bloque Memoria vs. los modos de memoria del bloque Agente?", answer: "Usa los modos de memoria del bloque Agente (Conversación, Ventana deslizante por mensajes, Ventana deslizante por tokens) para conversaciones multi-turno estándar—son más simples y manejan la mayoría de casos. Usa el bloque Memoria solo cuando necesites control explícito sobre operaciones de memoria, como inyectar historial de conversación artificial, gestionar memorias fuera de llamadas de Agente, o construir lógica de conversación personalizada." },
+  { question: "¿Puedo compartir memorias entre diferentes agentes?", answer: "Sí. Al usar el mismo ID de conversación en múltiples bloques de Agente y Memoria, puedes compartir historial de conversación y contexto entre diferentes agentes en el mismo flujo de trabajo." },
+  { question: "¿Qué sucede si añado memoria con el mismo contenido dos veces?", answer: "Se permiten entradas duplicadas. Cada llamada a Añadir memoria crea una nueva entrada, incluso si el contenido es idéntico. Si necesitas evitar duplicados, añade lógica de deduplicación en bloques anteriores (p. ej., un bloque Función)." },
+  { question: "¿Las memorias persisten entre ejecuciones de flujo de trabajo?", answer: "Sí. Las memorias se almacenan en el backend y persisten entre múltiples ejecuciones de flujo de trabajo siempre que uses el mismo ID de conversación. Esto permite interacciones con estado a lo largo del tiempo." },
+  { question: "¿Puedo eliminar una entrada de memoria específica?", answer: "Sí. Usa la operación Eliminar memoria con el ID de conversación. Si necesitas eliminar entradas específicas, puede que necesites recuperar todas las memorias, filtrarlas en un bloque Función, y eliminar entradas selectivamente." },
+  { question: "¿Cómo incluyo el historial de conversación en un prompt del Agente?", answer: "Usa Memoria (Obtener todo) para recuperar todas las memorias de la conversación, luego pasa los resultados al bloque Agente. Puedes incluir las memorias en el prompt del sistema o del usuario como contexto para que el agente considere." },
+]} />

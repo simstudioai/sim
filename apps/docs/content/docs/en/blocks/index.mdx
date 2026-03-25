@@ -6,6 +6,7 @@ description: The building components of your AI workflows
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
@@ -23,6 +24,7 @@ Sim provides essential block types that handle the core functions of AI workflow
 - **[Agent](/blocks/agent)** - Chat with AI models (OpenAI, Anthropic, Google, local models)
 - **[Function](/blocks/function)** - Run custom JavaScript/TypeScript code
 - **[API](/blocks/api)** - Connect to external services via HTTP requests
+- **[Memory](/blocks/memory)** - Store and retrieve conversation memories for AI agents
 
 ### Logic Blocks
 - **[Condition](/blocks/condition)** - Branch workflow paths based on boolean expressions
@@ -36,6 +38,38 @@ Sim provides essential block types that handle the core functions of AI workflow
 
 ### Output Blocks
 - **[Response](/blocks/response)** - Format and return final results from your workflow
+- **[Webhook (outbound)](/blocks/webhook-request)** - Send HTTP POST requests to external webhooks with optional HMAC signing
+
+### Documentation & Utility Blocks
+- **[Note](/blocks/note)** - Add contextual annotations and instructions directly onto the workflow canvas
+
+## Choosing the Right Block
+
+| I want to... | Use this block |
+|---|---|
+| Chat with an AI model or get LLM responses | [Agent](/blocks/agent) |
+| Run custom JavaScript or Python code | [Function](/blocks/function) |
+| Call an external REST API | [API](/blocks/api) |
+| Branch based on true/false conditions | [Condition](/blocks/condition) |
+| Route requests using AI judgment | [Router](/blocks/router) |
+| Score or assess content quality | [Evaluator](/blocks/evaluator) |
+| Require human approval before continuing | [Human in the Loop](/blocks/human-in-the-loop) |
+| Add a time delay between steps | [Wait](/blocks/wait) |
+| Set or update workflow variables | [Variables](/blocks/variables) |
+| Return final output from a workflow | [Response](/blocks/response) |
+| Send an outbound webhook POST request | [Webhook](/blocks/webhook) |
+| Execute another workflow as a child | [Workflow](/blocks/workflow) |
+| Store/retrieve conversation memory | [Memory](/blocks/memory) |
+| Add notes or documentation to the canvas | [Note](/blocks/note) |
+| Validate content for safety or PII | [Guardrails](/blocks/guardrails) |
+| Run blocks in a loop | [Loop](/blocks/loop) |
+| Run blocks in parallel | [Parallel](/blocks/parallel) |
+
+<Callout type="info">
+  For third-party service integrations (Gmail, Slack, GitHub, etc.), browse the [Tools & Integrations](/tools) catalog. Each integration has its own dedicated block.
+
+  The [Thinking](/blocks/thinking) block is available for advanced reasoning workflows but is hidden from the standard block toolbar.
+</Callout>
 
 ## How Blocks Work
 
@@ -140,8 +174,28 @@ Each block type has specific configuration options:
   </Card>
 </Cards>
 
+## Block Versions
+
+As Sim evolves, blocks receive updates and improvements. To maintain backward compatibility, significant updates create new versions of blocks (v2, v3, etc.) rather than replacing the originals.
+
+### How Versioning Works
+
+When a block receives major feature updates or API changes, a new version is created with a version suffix (e.g., `file` becomes `file_v2`). The original version remains available for existing workflows.
+
+### Which Version to Use
+
+- **New workflows**: Copilot automatically selects the latest version when building workflows
+- **Existing workflows**: Continue using the version they were built with—no changes needed unless you upgrade explicitly
+- **Manual upgrades**: You can update a block to a newer version by editing the workflow configuration
+
+### Versioned Blocks
+
+The following blocks have multiple versions available:
+
+Confluence (v2) · Cursor (v2) · File (v2, v3) · Fireflies (v2) · GitHub (v2) · Gmail (v2) · Google Calendar (v2) · Google Sheets (v2) · Google Slides (v2) · Intercom (v2) · Kalshi (v2) · Microsoft Excel (v2) · Mistral Parse (v2, v3) · Notion (v2) · Pulse (v2) · Reducto (v2) · Router (v2) · Speech-to-Text (v2) · Textract (v2) · Video Generator (v2) · Vision (v2)
+
 <FAQ items={[
-  { question: "How many block types are available in Sim?", answer: "Sim has over 200 blocks in its registry, spanning core workflow blocks (Agent, Function, Condition, Router, etc.), integration blocks for third-party services (Gmail, Slack, GitHub, Notion, and many more), and trigger blocks that start workflows from external events like webhooks or schedules. Loop and parallel execution are built into the execution engine as container constructs on the canvas, rather than being standalone registry blocks." },
+  { question: "How many block types are available in Sim?", answer: "Sim has over 190 blocks in its registry, spanning core workflow blocks (Agent, Function, Condition, Router, etc.), integration blocks for third-party services (Gmail, Slack, GitHub, Notion, and many more), and trigger blocks that start workflows from external events like webhooks or schedules. Loop and parallel execution are built into the execution engine as container constructs on the canvas, rather than being standalone registry blocks." },
   { question: "Can one block's output connect to multiple downstream blocks?", answer: "Yes. A single output port can connect to multiple input ports on different blocks. This lets you fan out data from one processing step to several parallel paths without needing to duplicate the block." },
   { question: "What happens if a block in the middle of a workflow fails?", answer: "When a block encounters an error, the workflow stops executing along that path. Blocks that support error handling (like the Router) can route to an error path so you can handle failures gracefully instead of halting the entire workflow." },
   { question: "What is the difference between Processing blocks and Logic blocks?", answer: "Processing blocks (Agent, Function, API) transform or generate data — they do the actual work. Logic blocks (Condition, Router, Evaluator) make decisions about which path the workflow should take based on the data, without modifying it themselves." },

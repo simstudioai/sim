@@ -1,0 +1,98 @@
+---
+title: Memory
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Der Memory-Block speichert und ruft Gesprächsgedächtnisse für KI-Agenten ab. Er ermöglicht es dir, Gesprächseinträge hinzuzufügen, abzurufen, zu aktualisieren und zu löschen, was statushafte Multi-Turn-Interaktionen über die integrierten Speichermodi des Agent-Blocks hinaus ermöglicht.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/memory.png"
+    alt="Memory Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout type="warning">
+  Verwende den Memory-Block nicht, es sei denn, er wird explizit benötigt. Für natürliche Gespräche verwendest du die integrierten Speichermodi des Agent-Blocks (Conversation, Sliding Window by messages oder Sliding Window by tokens). Der Memory-Block ist für das Einfügen von künstlichem Gedächtnis in Workflows gedacht, wenn die native Speicherbehandlung des Agent-Blocks unzureichend ist.
+</Callout>
+
+## Konfigurationsoptionen
+
+### Operation
+
+Wählen Sie die Memory-Operation aus, die ausgeführt werden soll:
+
+- **Add Memory**: Füge eine neue Nachricht zum Gesprächsgedächtnis hinzu
+- **Get Memory**: Rufe einen bestimmten Memory-Eintrag nach seiner ID ab
+- **Get All Memories**: Rufe alle Memories für ein Gespräch ab
+- **Delete Memory**: Entferne einen Memory-Eintrag aus dem Speicher
+
+### Conversation ID
+
+Der eindeutige Bezeichner für das Gespräch. Dieser Schlüssel behält das Gedächtnis über Workflow-Ausführungen bei und ermöglicht die Kontextfreigabe zwischen mehreren Ausführungen.
+
+- **Erforderlich**: Ja
+- **Typ**: String
+- **Beispiel**: `chat-session-123`, `user-456`, `conversation-abc`
+
+### Role (nur Add Memory)
+
+Gibt die Sprecherrolle für den Memory-Eintrag an, wenn du die Operation "Add Memory" verwendest:
+
+- **user**: Nachricht vom Endbenutzer
+- **assistant**: Nachricht vom KI-Modell
+- **system**: System-Level-Anweisung oder Kontext
+
+### Content (nur Add Memory)
+
+Der Nachrichteninhalt, der gespeichert werden soll, wenn du die Operation "Add Memory" verwendest:
+
+- **Typ**: String (Markdown unterstützt)
+- **Maximale Länge**: Keine harte Grenze, aber halten Sie es angemessen groß für die Leistung
+
+## Outputs
+
+- **`<memory.memories>`**: JSON-Array aller Memories im Gespräch (für Get All Memories)
+- **`<memory.memory>`**: Der spezifische Memory-Eintrag, der abgerufen wurde (für Get Memory)
+- **`<memory.success>`**: Boolean, der anzeigt, ob die Operation erfolgreich abgeschlossen wurde
+- **`<memory.id>`**: Die Gesprächs-ID, die für die Operation verwendet wurde
+
+## Beispiel-Anwendungsfälle
+
+**Multi-Turn-Gespräch mit Kontextsicherung**
+```
+User Input → Memory (Get All) → Agent (w/ history) → Memory (Add user msg) → Agent → Memory (Add assistant msg) → Response
+```
+
+**Aufbau persistenter Benutzerprofile**
+```
+API (User Data) → Memory (Add) → Agent (Enhanced w/ user context) → API (Update Profile)
+```
+
+**Gesprächsanalyse**
+```
+Trigger (Scheduled) → Memory (Get All, conversationId) → Function (Analyze sentiment) → API (Log analytics)
+```
+
+## Best Practices
+
+- **Verwende zuerst das Agent-Gedächtnis**: Die integrierten Speichermodi des Agent-Blocks handhaben die meisten Gesprächsszenarien ohne den Memory-Block
+- **Verwalte das Gedächtnis-Wachstum**: Bereinige regelmäßig alte Memories, um übermäßigen Speicher und langsame Abrufe zu vermeiden
+- **Konsistente Gesprächs-IDs**: Verwende aussagekräftige, konsistente IDs, um sicherzustellen, dass Memories richtig gruppiert und abrufbar sind
+- **Kombiniere mit Agent-Block**: Für beste Ergebnisse verwendest du Memory neben dem Agent-Block, um vollständigen Gesprächskontext zu erstellen
+
+<FAQ items={[
+  { question: "Wann sollte ich den Memory-Block verwenden, wenn dem Agent-Gedächtnis Modus vorziehen?", answer: "Verwende die integrierten Speichermodi des Agent-Blocks (Conversation, Sliding Window by messages, Sliding Window by tokens) für standardmäßige Multi-Turn-Gespräche – sie sind einfacher und handhaben die meisten Fälle. Verwende den Memory-Block nur, wenn du explizite Kontrolle über Memory-Operationen benötigst, wie das Einfügen von künstlicher Gesprächshistorie, das Verwalten von Memories außerhalb von Agent-Aufrufen oder das Erstellen von benutzerdefinierter Gesprächslogik." },
+  { question: "Kann ich Memories zwischen verschiedenen Agenten teilen?", answer: "Ja. Durch die Verwendung derselben Gesprächs-ID über mehrere Agent- und Memory-Blöcke hinweg kannst du Gesprächshistorie und Kontext zwischen verschiedenen Agenten im selben Workflow teilen." },
+  { question: "Was passiert, wenn ich Memory mit demselben Inhalt zweimal hinzufüge?", answer: "Doppelte Einträge sind zulässig. Jeder Aufruf zu Add Memory erstellt einen neuen Eintrag, auch wenn der Inhalt identisch ist. Wenn du Duplikate verhindern möchtest, füge Deduplizierungslogik in vorgelagerten Blöcken hinzu (z. B. einen Function-Block)." },
+  { question: "Bleiben Memories über Workflow-Ausführungen hinweg erhalten?", answer: "Ja. Memories werden im Backend gespeichert und bleiben über mehrere Workflow-Ausführungen bestehen, solange du dieselbe Gesprächs-ID verwendest. Dies ermöglicht statushafte Interaktionen im Laufe der Zeit." },
+  { question: "Kann ich einen spezifischen Memory-Eintrag löschen?", answer: "Ja. Verwende die Delete Memory-Operation mit der Gesprächs-ID. Wenn du bestimmte Einträge löschen möchtest, musst du möglicherweise alle Memories abrufen, sie in einem Function-Block filtern und Einträge selektiv löschen." },
+  { question: "Wie incluye ich Gesprächshistorie in einen Agent-Prompt?", answer: "Verwende Memory (Get All), um alle Memories für das Gespräch abzurufen, dann übergibe die Ergebnisse an den Agent-Block. Du kannst die Memories im System-Prompt oder Benutzer-Prompt als Kontext für den Agenten einfügen, den er berücksichtigen sollte." },
+]} />

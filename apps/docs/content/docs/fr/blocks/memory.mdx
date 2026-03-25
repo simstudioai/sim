@@ -1,0 +1,98 @@
+---
+title: Memory
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Le bloc Memory stocke et récupère les mémoires de conversation pour les agents IA. Il vous permet d'ajouter, récupérer, mettre à jour et supprimer des entrées d'historique de conversation, ce qui permet des interactions multi-tours avec état au-delà des modes de mémoire intégrés du bloc Agent.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/memory.png"
+    alt="Configuration du bloc Memory"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout type="warning">
+  N'utilisez le bloc Memory que si cela est explicitement nécessaire. Pour les conversations naturelles, utilisez les modes de mémoire intégrés du bloc Agent (Conversation, Fenêtre glissante par messages ou Fenêtre glissante par tokens). Le bloc Memory est destiné à injecter une mémoire artificielle dans les flux de travail lorsque la gestion de mémoire native du bloc Agent est insuffisante.
+</Callout>
+
+## Options de configuration
+
+### Opération
+
+Sélectionnez l'opération de mémoire à effectuer :
+
+- **Add Memory** : Ajouter un nouveau message à la mémoire de conversation
+- **Get Memory** : Récupérer une entrée de mémoire spécifique par son ID
+- **Get All Memories** : Récupérer toutes les mémoires pour une conversation
+- **Delete Memory** : Supprimer une entrée de mémoire du stockage
+
+### Conversation ID
+
+L'identifiant unique pour la conversation. Cette clé persiste la mémoire entre les exécutions du flux de travail et permet le partage de contexte entre plusieurs exécutions.
+
+- **Requis** : Oui
+- **Type** : String
+- **Exemple** : `chat-session-123`, `user-456`, `conversation-abc`
+
+### Role (Add Memory uniquement)
+
+Spécifie le rôle du locuteur pour l'entrée de mémoire lors de l'utilisation de l'opération Add Memory :
+
+- **user** : Message de l'utilisateur final
+- **assistant** : Message du modèle d'IA
+- **system** : Instruction ou contexte au niveau du système
+
+### Content (Add Memory uniquement)
+
+Le contenu du message à stocker lors de l'utilisation de l'opération Add Memory :
+
+- **Type** : String (Markdown supporté)
+- **Longueur maximale** : Pas de limite stricte, mais garder une taille raisonnable pour les performances
+
+## Sorties
+
+- **`<memory.memories>`** : Tableau JSON de toutes les mémoires dans la conversation (pour Get All Memories)
+- **`<memory.memory>`** : L'entrée de mémoire spécifique récupérée (pour Get Memory)
+- **`<memory.success>`** : Booléen indiquant si l'opération s'est déroulée avec succès
+- **`<memory.id>`** : L'ID de conversation utilisé pour l'opération
+
+## Cas d'utilisation courants
+
+**Conversation multi-tours avec préservation du contexte**
+```
+User Input → Memory (Get All) → Agent (w/ history) → Memory (Add user msg) → Agent → Memory (Add assistant msg) → Response
+```
+
+**Construction de profils utilisateur persistants**
+```
+API (User Data) → Memory (Add) → Agent (Enhanced w/ user context) → API (Update Profile)
+```
+
+**Analyse de conversation**
+```
+Trigger (Scheduled) → Memory (Get All, conversationId) → Function (Analyze sentiment) → API (Log analytics)
+```
+
+## Bonnes pratiques
+
+- **Utilisez la mémoire du bloc Agent en premier** : Les modes de mémoire intégrés du bloc Agent gèrent la plupart des scénarios de conversation sans nécessiter le bloc Memory
+- **Gérez la croissance de la mémoire** : Nettoyez périodiquement les anciennes mémoires pour éviter un stockage excessif et une lente récupération
+- **IDs de conversation cohérents** : Utilisez des IDs significatifs et cohérents pour assurer que les mémoires sont correctement regroupées et récupérables
+- **Combinez avec le bloc Agent** : Pour de meilleurs résultats, utilisez Memory aux côtés du bloc Agent pour construire le contexte complet de la conversation
+
+<FAQ items={[
+  { question: "Quand dois-je utiliser le bloc Memory par rapport aux modes de mémoire du bloc Agent ?", answer: "Utilisez les modes de mémoire du bloc Agent (Conversation, Fenêtre glissante par messages, Fenêtre glissante par tokens) pour les conversations multi-tours standard—ils sont plus simples et gèrent la plupart des cas. Utilisez le bloc Memory seulement lorsque vous avez besoin d'un contrôle explicite sur les opérations de mémoire, comme injecter un historique de conversation artificiel, gérer les mémoires en dehors des appels du bloc Agent, ou construire une logique de conversation personnalisée." },
+  { question: "Puis-je partager les mémoires entre différents agents ?", answer: "Oui. En utilisant le même ID de conversation sur plusieurs blocs Agent et Memory, vous pouvez partager l'historique de conversation et le contexte entre différents agents dans le même flux de travail." },
+  { question: "Que se passe-t-il si j'ajoute la mémoire avec le même contenu deux fois ?", answer: "Les entrées en double sont autorisées. Chaque appel à Add Memory crée une nouvelle entrée, même si le contenu est identique. Si vous avez besoin de prévenir les doublons, ajoutez une logique de déduplication dans les blocs en amont (par exemple, un bloc Fonction)." },
+  { question: "Les mémoires sont-elles persistantes entre les exécutions du flux de travail ?", answer: "Oui. Les mémoires sont stockées dans le backend et persistent entre plusieurs exécutions du flux de travail tant que vous utilisez le même ID de conversation. Cela permet des interactions avec état dans le temps." },
+  { question: "Puis-je supprimer une entrée de mémoire spécifique ?", answer: "Oui. Utilisez l'opération Delete Memory avec l'ID de conversation. Si vous devez supprimer des entrées spécifiques, vous devrez peut-être récupérer toutes les mémoires, les filtrer dans un bloc Fonction et supprimer sélectivement les entrées." },
+  { question: "Comment inclure l'historique de conversation dans un prompt du bloc Agent ?", answer: "Utilisez Memory (Get All) pour récupérer toutes les mémoires de la conversation, puis passez les résultats au bloc Agent. Vous pouvez inclure les mémoires dans le prompt système ou le prompt utilisateur comme contexte pour que l'agent considère." },
+]} />

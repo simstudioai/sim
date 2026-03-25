@@ -5,44 +5,24 @@ title: Copilot
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Image } from '@/components/ui/image'
-import { MessageCircle, Package, Zap, Infinity as InfinityIcon, Brain, BrainCircuit } from 'lucide-react'
+import { MessageCircle, Hammer, ListChecks, Zap, Globe, Paperclip, History, RotateCcw, Brain } from 'lucide-react'
 
-Copilot ist dein Assistent im Editor, der dir hilft, Workflows mit Sim Copilot zu erstellen und zu bearbeiten sowie diese zu verstehen und zu verbessern. Er kann:
+Copilot ist dein Assistent im Editor, der dir hilft, Workflows zu erstellen und zu bearbeiten. Er kann:
 
 - **Erklären**: Beantwortet Fragen zu Sim und deinem aktuellen Workflow
 - **Anleiten**: Schlägt Bearbeitungen und Best Practices vor
-- **Bearbeiten**: Nimmt Änderungen an Blöcken, Verbindungen und Einstellungen vor, wenn du zustimmst
+- **Erstellen**: Füge Blöcke hinzu, verbinde Verbindungen und konfiguriere Einstellungen
+- **Debuggen**: Analysiere Ausführungsprobleme und optimiere Leistung
 
 <Callout type="info">
-  Copilot ist ein von Sim verwalteter Dienst. Für selbst gehostete Installationen generiere einen Copilot API-Schlüssel in der gehosteten App (sim.ai → Einstellungen → Copilot)
+  Copilot ist ein von Sim verwalteter Dienst. Für selbst gehostete Bereitstellungen:
   1. Gehe zu [sim.ai](https://sim.ai) → Einstellungen → Copilot und generiere einen Copilot API-Schlüssel
-  2. Setze `COPILOT_API_KEY` in deiner selbst gehosteten Umgebung auf diesen Wert
+  2. Setze `COPILOT_API_KEY` in deiner selbst gehosteten Umgebung
 </Callout>
 
-## Kontextmenü (@)
-
-Verwende das `@` Symbol, um auf verschiedene Ressourcen zu verweisen und Copilot mehr Kontext über deinen Arbeitsbereich zu geben:
-
-<Image
-  src="/static/copilot/copilot-menu.png"
-  alt="Copilot-Kontextmenü mit verfügbaren Referenzoptionen"
-  width={600}
-  height={400}
-/>
-
-Das `@` Menü bietet Zugriff auf:
-- **Chats**: Verweise auf vorherige Copilot-Gespräche
-- **Alle Workflows**: Verweise auf beliebige Workflows in deinem Arbeitsbereich
-- **Workflow-Blöcke**: Verweise auf bestimmte Blöcke aus Workflows
-- **Blöcke**: Verweise auf Blocktypen und Vorlagen
-- **Wissen**: Verweise auf deine hochgeladenen Dokumente und Wissensdatenbank
-- **Dokumentation**: Verweise auf Sim-Dokumentation
-- **Vorlagen**: Verweise auf Workflow-Vorlagen
-- **Logs**: Verweise auf Ausführungsprotokolle und Ergebnisse
-
-Diese kontextbezogenen Informationen helfen Copilot, genauere und relevantere Unterstützung für deinen spezifischen Anwendungsfall zu bieten.
-
 ## Modi
+
+Wechsle zwischen Modi mit dem Mode-Selector am unteren Ende des Eingabebereichs.
 
 <Cards>
   <Card
@@ -60,134 +40,112 @@ Diese kontextbezogenen Informationen helfen Copilot, genauere und relevantere Un
   <Card
     title={
       <span className="inline-flex items-center gap-2">
-        <Package className="h-4 w-4 text-muted-foreground" />
-        Agent
+        <Hammer className="h-4 w-4 text-muted-foreground" />
+        Erstellen
       </span>
     }
   >
     <div className="m-0 text-sm">
-      Erstellen-und-Bearbeiten-Modus. Copilot schlägt spezifische Änderungen vor (Blöcke hinzufügen, Variablen verbinden, Einstellungen anpassen) und wendet sie an, wenn du zustimmst.
+      Workflow-Erstellungsmodus. Copilot kann Blöcke hinzufügen, Verbindungen verdrahten, Konfigurationen bearbeiten und Probleme beheben.
+    </div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <ListChecks className="h-4 w-4 text-muted-foreground" />
+        Planen
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      Erstellt einen schrittweisen Implementierungsplan für deinen Workflow, ohne Änderungen vorzunehmen. Hilft dir, den Ansatz durchzudenken, bevor du mit dem Aufbau beginnst.
     </div>
   </Card>
 </Cards>
 
-<div className="flex justify-center">
-  <Image
-    src="/static/copilot/copilot-mode.png"
-    alt="Copilot-Modusauswahl-Oberfläche"
-    width={600}
-    height={400}
-    className="my-6"
-  />
-</div>
+## Modelle
 
-## Tiefenebenen
+Wähle dein bevorzugtes KI-Modell mit dem Model-Selector unten rechts im Eingabebereich aus.
 
-<Cards>
-  <Card
-    title={
-      <span className="inline-flex items-center gap-2">
-        <Zap className="h-4 w-4 text-muted-foreground" />
-        Schnell
-      </span>
-    }
-  >
-    <div className="m-0 text-sm">Am schnellsten und günstigsten. Ideal für kleine Änderungen, einfache Arbeitsabläufe und geringfügige Anpassungen.</div>
-  </Card>
-  <Card
-    title={
-      <span className="inline-flex items-center gap-2">
-        <InfinityIcon className="h-4 w-4 text-muted-foreground" />
-        Auto
-      </span>
-    }
-  >
-    <div className="m-0 text-sm">Ausgewogene Geschwindigkeit und Denkleistung. Empfohlene Standardeinstellung für die meisten Aufgaben.</div>
-  </Card>
-  <Card
-    title={
-      <span className="inline-flex items-center gap-2">
-        <Brain className="h-4 w-4 text-muted-foreground" />
-        Erweitert
-      </span>
-    }
-  >
-    <div className="m-0 text-sm">Mehr Denkleistung für umfangreichere Arbeitsabläufe und komplexe Änderungen bei gleichzeitiger Leistungsfähigkeit.</div>
-  </Card>
-  <Card
-    title={
-      <span className="inline-flex items-center gap-2">
-        <BrainCircuit className="h-4 w-4 text-muted-foreground" />
-        Behemoth
-      </span>
-    }
-  >
-    <div className="m-0 text-sm">Maximale Denkleistung für tiefgreifende Planung, Fehlerbehebung und komplexe architektonische Änderungen.</div>
-  </Card>
-</Cards>
+**Verfügbare Modelle:**
+- **Anthropic**: Claude Opus 4.6 (Standard), Claude Opus 4.5, Claude Sonnet 4.5, Claude Haiku 4.5
+- **OpenAI**: GPT-5.4, GPT-5.2, GPT-5.1, GPT-5, GPT-4o, GPT-4.1, o3, o4-mini
+- **Google**: Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.0 Flash
+- **Andere Anbieter**: Groq, Cerebras, DeepSeek, Mistral, xAI, Azure OpenAI, OpenRouter
+- **Lokale Modelle**: Ollama oder VLLM kompatible Modelle
 
-### Modusauswahl-Oberfläche
+Wähle basierend auf deinen Anforderungen: schnellere Modelle für einfache Aufgaben, fähigere Modelle für komplexe Workflows.
 
-Du kannst einfach zwischen verschiedenen Denkmodi über die Modusauswahl in der Copilot-Oberfläche wechseln:
+## Kontextmenü (@)
 
-<Image
-  src="/static/copilot/copilot-models.png"
-  alt="Copilot-Modusauswahl zeigt den erweiterten Modus mit MAX-Umschalter"
-  width={600}
-  height={300}
-/>
+Verwende das `@` Symbol, um auf Ressourcen zu verweisen und Copilot mehr Kontext zu geben:
 
-Die Oberfläche ermöglicht dir:
-- **Denkebene auswählen**: Wähle zwischen Schnell, Auto, Erweitert oder Behemoth
-- **MAX-Modus aktivieren**: Umschalten für maximale Denkfähigkeiten, wenn du die gründlichste Analyse benötigst
-- **Modusbeschreibungen anzeigen**: Verstehe, wofür jeder Modus optimiert ist
+| Referenz | Beschreibung |
+|-----------|-------------|
+| **Chats** | Vorherige Copilot-Gespräche |
+| **Workflows** | Beliebige Workflows in deinem Arbeitsbereich |
+| **Workflow-Blöcke** | Blöcke im aktuellen Workflow |
+| **Blöcke** | Blocktypen und Vorlagen |
+| **Wissen** | Hochgeladene Dokumente und Wissensdatenbanken |
+| **Dokumentation** | Sim-Dokumentation |
+| **Vorlagen** | Workflow-Vorlagen |
+| **Logs** | Ausführungsprotokolle und Ergebnisse |
 
-Wähle deinen Modus basierend auf der Komplexität deiner Aufgabe - verwende Schnell für einfache Fragen und Behemoth für komplexe architektonische Änderungen.
+Gib `@` im Eingabefeld ein, um das Kontextmenü zu öffnen, und suche oder durchsuche, um das Gewünschte zu finden.
 
-## Abrechnung und Kostenberechnung
+## Slash-Befehle (/)
 
-### Wie Kosten berechnet werden
+Verwende Slash-Befehle für schnelle Aktionen:
 
-Die Copilot-Nutzung wird pro Token vom zugrundeliegenden LLM abgerechnet:
+| Befehl | Beschreibung |
+|---------|-------------|
+| `/fast` | Schnelle Modusausführung |
+| `/research` | Forschungs- und Erkundungsmodus |
+| `/actions` | Agentaktionen ausführen |
 
-- **Eingabe-Tokens**: werden zum Basispreis des Anbieters berechnet (**zum Selbstkostenpreis**)
-- **Ausgabe-Tokens**: werden mit dem **1,5-fachen** des Basis-Ausgabepreises des Anbieters berechnet
+**Web-Befehle:**
 
-```javascript
-copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5)) / 1,000,000
-```
+| Befehl | Beschreibung |
+|---------|-------------|
+| `/search` | Im Web suchen |
+| `/read` | Eine spezifische URL lesen |
+| `/scrape` | Inhalte einer Webseite scrapen |
+| `/crawl` | Mehrere Seiten durchforsten |
 
-| Komponente | Angewendeter Tarif    |
-|------------|------------------------|
-| Eingabe    | inputPrice             |
-| Ausgabe    | outputPrice × 1,5      |
+Gib `/` im Eingabefeld ein, um verfügbare Befehle zu sehen.
 
-<Callout type="warning">
-  Die angezeigten Preise spiegeln die Tarife vom 4. September 2025 wider. Überprüfen Sie die Anbieter-Dokumentation für aktuelle Preise.
-</Callout>
+## Chat-Verwaltung
 
-<Callout type="info">
-  Modellpreise werden pro Million Tokens angegeben. Die Berechnung teilt durch 1.000.000, um die tatsächlichen Kosten zu ermitteln. Siehe <a href="/execution/costs">die Seite zur Kostenberechnung</a> für Hintergründe und Beispiele.
-</Callout>
+### Ein neues Gespräch starten
 
-Fahre mit der Maus über eine deiner Nachrichten und klicke auf **Bearbeiten**, um sie zu ändern und erneut zu senden. Dies ist nützlich, um deine Eingaben zu verfeinern.
+Klicke auf die **+** Schaltfläche in der Copilot-Kopfzeile, um eine neue Konversation zu starten.
+
+### Chat-Verlauf
+
+Klicke auf **Verlauf**, um vorherige Gespräche sortiert nach Datum anzusehen. Du kannst:
+- Ein Gespräch anklicken, um es fortzusetzen
+- Gespräche löschen, die du nicht mehr brauchst
+
+### Nachrichten bearbeiten
+
+Fahre mit der Maus über eine deiner Nachrichten und klicke auf **Bearbeiten**, um sie zu ändern und erneut zu senden. Dies ist nützlich, um deine Prompts zu verfeinern.
 
 ### Nachrichtenwarteschlange
 
-Wenn du eine Nachricht sendest, während Copilot noch antwortet, wird sie in die Warteschlange gestellt. Du kannst:
-- Warteschlangennachrichten im erweiterbaren Warteschlangenpanel anzeigen
-- Eine Nachricht aus der Warteschlange sofort senden (bricht die aktuelle Antwort ab)
+Wenn du eine Nachricht sendest, während Copilot noch antwortet, wird sie in die Warteschlange eingereiht. Du kannst:
+- Warteschlangen-Nachrichten im erweiterbaren Warteschlangen-Panel ansehen
+- Eine Nachricht aus der Warteschlange sofort senden (bricht aktuelle Antwort ab)
 - Nachrichten aus der Warteschlange entfernen
 
-## Dateianhänge
+## Datei-Anhänge
 
-Klicke auf das Anhang-Symbol, um Dateien mit deiner Nachricht hochzuladen. Unterstützte Dateitypen umfassen:
-- Bilder (Vorschau-Thumbnails werden angezeigt)
+Klicke auf das Anhang-Symbol, um Dateien mit deiner Nachricht hochzuladen. Unterstützte Dateitypen sind:
+- Bilder (Vorschau-Miniaturen angezeigt)
 - PDFs
 - Textdateien, JSON, XML
 - Andere Dokumentformate
 
-Dateien werden als anklickbare Thumbnails angezeigt, die in einem neuen Tab geöffnet werden.
+Dateien werden als anklickbare Miniaturen angezeigt, die in einem neuen Tab öffnen.
 
 ## Checkpoints & Änderungen
 
@@ -241,7 +199,7 @@ Ausgewählte Optionen sind hervorgehoben; nicht ausgewählte Optionen erscheinen
 
 ## Nutzungslimits
 
-Die Copilot-Nutzung wird pro Token des zugrunde liegenden LLM abgerechnet. Wenn Sie Ihr Nutzungslimit erreichen, fordert Copilot Sie auf, Ihr Limit zu erhöhen. Sie können die Nutzung in Schritten (50 $, 100 $) von Ihrer aktuellen Basis aus hinzufügen.
+Die Copilot-Nutzung wird pro Token des zugrunde liegenden LLM abgerechnet und zählt zum Kreditverbrauch deines Plans. Wenn du dein Nutzungslimit erreichst, aktiviere die bedarfsgesteuerte Abrechnung unter Einstellungen → Abonnement, um Copilot über das im Plan enthaltene Guthaben hinaus weiter zu nutzen.
 
 <Callout type="info">
   Siehe die [Seite zur Kostenberechnung](/execution/costs) für Abrechnungsdetails.

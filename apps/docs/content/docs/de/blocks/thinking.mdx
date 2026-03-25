@@ -1,0 +1,88 @@
+---
+title: Thinking
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Der Thinking-Block zwingt ein KI-Modell dazu, seinen Gedankenprozess explizit zu skizzieren, bevor es fortfährt. Durch die Förderung von Schritt-für-Schritt-Analysen kann dieser Block die Reasoning-Qualität und Output-Genauigkeit bei komplexen Aufgaben verbessern.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/thinking.png"
+    alt="Thinking Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+  Der Thinking-Block ist standardmäßig in der Block-Symbolleiste verborgen und wird hauptsächlich in fortgeschrittenen Workflows verwendet. Er wird nicht in der Standard-Block-Auswahlbenutzeroberfläche angezeigt, kann aber programmatisch oder durch Import zugegriffen werden.
+</Callout>
+
+## Konfigurationsoptionen
+
+### Thought
+
+Der Gedankenprozess oder Reasoning-Schritt, den das Modell dokumentieren sollte. Dieses Feld ist in der UI verborgen, ist aber für die interne Verarbeitung erforderlich.
+
+- **Typ**: String (Markdown unterstützt)
+- **Zweck**: Erfasst das explizite Reasoning des Modells vor der Erstellung der endgültigen Ausgabe
+
+## Outputs
+
+- **`<thinking.acknowledgedThought>`**: Die Bestätigung und Verarbeitung des skizzierten Gedankenprozesses durch das Modell
+
+## Wie es funktioniert
+
+Der Thinking-Block funktioniert durch:
+
+1. Annahme eines Gedankens oder Reasoning-Prompts
+2. Anweisung an das KI-Modell, den Gedankenprozess explizit zu durcharbeiten
+3. Rückgabe des bestätigten Gedankens als Ausgabe, die in nachfolgende Blöcke fließen kann
+
+Dies ermutigt das Modell, komplexe Reasoning in explizite Schritte zu zerlegen, was zu genaueren und zuverlässigeren Ausgaben führen kann, besonders für:
+
+- **Multi-Step-Problemlösung**: Aufgaben, die sequentielles Reasoning erfordern
+- **Komplexe Analyse**: Situationen, in denen Zwischenschritte wichtig sind
+- **Chain-of-Thought-Reasoning**: Workflows, die von expliziter Schritt-für-Schritt-Logik profitieren
+- **Verifizierungsschritte**: Explizite Reasoning-Checks vor endgültigen Ausgaben
+
+## Beispiel-Anwendungsfälle
+
+**Komplexe Problemlösung mit Reasoning-Schritten**
+```
+Input → Thinking (outline approach) → Agent (execute with reasoning) → Response
+```
+
+**Qualitätssicherung mit expliziter Analyse**
+```
+Content → Agent (analyze) → Thinking (verify reasoning) → Function (validate) → Response
+```
+
+**Chain-of-Thought-Verifizierung**
+```
+Question → Thinking (break down problem) → Agent (solve step-by-step) → Response
+```
+
+## Best Practices
+
+- **Verwende für komplexe Aufgaben**: Wende Thinking-Blöcke auf Workflows mit komplexem Reasoning, mehrstufiger Logik oder hohen Genauigkeitsanforderungen an
+- **Kombiniere mit Agent-Blöcken**: Verwende Thinking in Kombination mit Agent-Blöcken, um ihre Reasoning-Fähigkeiten zu verbessern
+- **Halte Gedanken fokussiert**: Schreibe klare, spezifische Gedanken, die das Modell zu besserem Reasoning leiten
+- **Überwache die Leistung**: Teste Workflows mit und ohne Thinking-Blöcke, um die Auswirkung auf die Output-Qualität zu messen
+
+<Callout type="tip">
+  Für standardmäßige KI-Interaktionen ist der Agent-Block allein normalerweise ausreichend. Der Thinking-Block ist am wertvollsten bei komplexen Reasoning-Aufgaben, bei denen explizite Schritt-für-Schritt-Analyse nachweislich die Ergebnisse verbessert.
+</Callout>
+
+<FAQ items={[
+  { question: "Warum ist der Thinking-Block in der Symbolleiste verborgen?", answer: "Der Thinking-Block ist ein spezialisiertes Werkzeug für fortgeschrittene Workflows, die explizite Reasoning-Schritte erfordern. Er ist standardmäßig verborgen, um die Block-Symbolleiste auf häufig verwendete Blöcke fokussiert zu halten. Er kann immer noch durch programmatische Mittel oder durch den Import von Workflow-Definitionen, die ihn enthalten, zugegriffen werden." },
+  { question: "Wie verbessert der Thinking-Block das KI-Reasoning?", answer: "Durch die explizite Anweisung an das Modell, seinen Gedankenprozess zu skizzieren, bevor es antwortet, ermutigt der Thinking-Block zu Schritt-für-Schritt-Analysen. Dies kann dem Modell helfen, komplexe Probleme zu zerlegen und zu genaueren, gut begründeten Ausgaben zu gelangen." },
+  { question: "Wann sollte ich einen Thinking-Block verwenden, im Gegensatz zu nur einem Agent-Block?", answer: "Verwende einen Thinking-Block, wenn du mit komplexen Reasoning-Aufgaben, mehrstufiger Problemlösung arbeitest oder wenn das Modell seine Logik explizit verifizieren muss, bevor du fortfährst. Für unkomplizierte Aufgaben ist ein einzelner Agent-Block normalerweise ausreichend." },
+  { question: "Kann ich mehrere Thinking-Blöcke in einem Workflow verwenden?", answer: "Ja. Du kannst mehrere Thinking-Blöcke verwenden, um Reasoning-Schritte an verschiedenen Stellen in deinem Workflow hinzuzufügen. Jeder Block kann einen spezifischen Reasoning-Checkpoint oder Validierungsschritt adressieren." },
+  { question: "Welche Modelle unterstützen den Thinking-Block?", answer: "Der Thinking-Block ist dafür ausgelegt, mit Modellen zu arbeiten, die von expliziten Reasoning-Prompts profitieren. Er funktioniert am besten mit fortgeschrittenen Modellen wie OpenAIs o-Serie, Claudes Thinking-Modelle und andere Reasoning-fähige LLMs." },
+  { question: "Wie füge ich einen Thinking-Block zu meinem Workflow hinzu, wenn er in der Symbolleiste verborgen ist?", answer: "Du kannst Thinking-Blöcke programmatisch durch Workflow-Definition-Importe oder durch die API zur Konstruktion von Workflows hinzufügen. Nach dem Hinzufügen erscheint der Block auf der Leinwand und kann wie jeder Standard-Block mit anderen Blöcken verbunden werden." },
+]} />

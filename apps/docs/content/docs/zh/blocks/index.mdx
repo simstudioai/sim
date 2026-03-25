@@ -6,7 +6,9 @@ description: 构建 AI 工作流的组件
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
 import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
 
 模块是您连接在一起以创建 AI 工作流的构建组件。可以将它们视为专门的模块，每个模块都处理特定任务——从与 AI 模型聊天到进行 API 调用或处理数据。
 
@@ -22,6 +24,7 @@ Sim 提供了处理 AI 工作流核心功能的基本模块类型：
 - **[Agent](/blocks/agent)** - 与 AI 模型（OpenAI、Anthropic、Google、本地模型）聊天
 - **[Function](/blocks/function)** - 运行自定义 JavaScript/TypeScript 代码
 - **[API](/blocks/api)** - 通过 HTTP 请求连接到外部服务
+- **[Memory](/blocks/memory)** - 为 AI 代理存储和检索对话记忆
 
 ### 逻辑模块
 - **[Condition](/blocks/condition)** - 基于布尔表达式分支工作流路径
@@ -34,7 +37,39 @@ Sim 提供了处理 AI 工作流核心功能的基本模块类型：
 - **[Human in the Loop](/blocks/human-in-the-loop)** - 在继续之前暂停以获得人工批准和反馈
 
 ### 输出模块
-- **[响应](/blocks/response)** - 格式化并返回工作流的最终结果
+- **[Response](/blocks/response)** - 格式化并返回工作流的最终结果
+- **[Webhook (outbound)](/blocks/webhook-request)** - 向外部 webhook 发送带有可选 HMAC 签名的 HTTP POST 请求
+
+### 文档与实用工具模块
+- **[Note](/blocks/note)** - 在工作流画布上直接添加上下文注解和说明
+
+## 选择正确的模块
+
+| 我想要... | 使用这个模块 |
+|---|---|
+| 与 AI 模型聊天或获取 LLM 响应 | [Agent](/blocks/agent) |
+| 运行自定义 JavaScript 或 Python 代码 | [Function](/blocks/function) |
+| 调用外部 REST API | [API](/blocks/api) |
+| 根据真/假条件分支 | [Condition](/blocks/condition) |
+| 使用 AI 判断路由请求 | [Router](/blocks/router) |
+| 评分或评估内容质量 | [Evaluator](/blocks/evaluator) |
+| 需要继续前的人工批准 | [Human in the Loop](/blocks/human-in-the-loop) |
+| 在步骤之间添加时间延迟 | [Wait](/blocks/wait) |
+| 设置或更新工作流变量 | [Variables](/blocks/variables) |
+| 从工作流返回最终输出 | [Response](/blocks/response) |
+| 发送出站 webhook POST 请求 | [Webhook](/blocks/webhook) |
+| 执行另一个工作流作为子流程 | [Workflow](/blocks/workflow) |
+| 存储/检索对话记忆 | [Memory](/blocks/memory) |
+| 向画布添加注解或文档 | [Note](/blocks/note) |
+| 验证内容安全性或 PII | [Guardrails](/blocks/guardrails) |
+| 在循环中运行模块 | [Loop](/blocks/loop) |
+| 并行运行模块 | [Parallel](/blocks/parallel) |
+
+<Callout type="info">
+  对于第三方服务集成（Gmail、Slack、GitHub 等），请浏览 [工具与集成](/tools) 目录。每个集成都有自己专门的模块。
+
+  [Thinking](/blocks/thinking) 模块可用于高级推理工作流，但默认在标准模块工具栏中隐藏。
+</Callout>
 
 ## 模块的工作原理
 
@@ -118,6 +153,26 @@ Agent → Evaluator → Condition → Response (if good)
 - 请求头和身份验证
 - 请求/响应格式化
 
+## 模块版本
+
+随着 Sim 的演进，模块会获得更新和改进。为了保持向后兼容性，重大更新会创建新的模块版本（v2、v3 等），而不是替换原始版本。
+
+### 版本管理的工作原理
+
+当一个模块获得主要功能更新或 API 更改时，会创建一个新版本，并带有版本后缀（例如 `file` 变成 `file_v2`）。原始版本仍然可用于现有工作流。
+
+### 使用哪个版本
+
+- **新工作流**：在构建工作流时，Copilot 自动选择最新版本
+- **现有工作流**：继续使用构建它的版本——除非您明确升级，否则无需更改
+- **手动升级**：您可以通过编辑工作流配置来将模块更新到更新版本
+
+### 版本化模块
+
+以下模块有多个版本可用：
+
+Confluence (v2) · Cursor (v2) · File (v2, v3) · Fireflies (v2) · GitHub (v2) · Gmail (v2) · Google Calendar (v2) · Google Sheets (v2) · Google Slides (v2) · Intercom (v2) · Kalshi (v2) · Microsoft Excel (v2) · Mistral Parse (v2, v3) · Notion (v2) · Pulse (v2) · Reducto (v2) · Router (v2) · Speech-to-Text (v2) · Textract (v2) · Video Generator (v2) · Vision (v2)
+
 <Cards>
   <Card title="Agent 模块" href="/blocks/agent">
     连接 AI 模型并创建智能响应
@@ -141,3 +196,13 @@ Agent → Evaluator → Condition → Response (if good)
     暂停工作流执行指定的时间延迟
   </Card>
 </Cards>
+
+<FAQ items={[
+  { question: "Sim 中有多少种模块类型？", answer: "Sim 在其注册表中有 190 多个模块，跨越核心工作流模块（Agent、Function、Condition、Router 等）、第三方服务集成模块（Gmail、Slack、GitHub、Notion 等）和触发模块，这些模块从外部事件（如 webhook 或计划）启动工作流。Loop 和 Parallel 执行内置在执行引擎中作为画布上的容器构造，而不是独立注册模块。" },
+  { question: "一个模块的输出可以连接到多个下游模块吗？", answer: "可以。单个输出端口可以连接到不同模块上的多个输入端口。这让您可以从一个处理步骤将数据分散到多个并行路径，而无需复制模块。" },
+  { question: "如果工作流中间的模块失败会发生什么？", answer: "当模块遇到错误时，工作流停止沿该路径执行。支持错误处理的模块（如 Router）可以路由到错误路径，这样您可以优雅地处理失败，而不是停止整个工作流。" },
+  { question: "处理模块和逻辑模块之间有什么区别？", answer: "处理模块（Agent、Function、API）转换或生成数据——它们完成实际工作。逻辑模块（Condition、Router、Evaluator）根据数据决定工作流应该采取哪条路径，而不修改数据本身。" },
+  { question: "我可以在一个工作流中一起使用来自不同类别的模块吗？", answer: "当然可以。典型工作流结合了来自多个类别的模块。例如，您可能使用触发模块启动工作流，使用 Agent 模块处理输入，使用 Condition 模块进行分支逻辑，以及使用 Gmail 等集成模块发送结果。" },
+  { question: "是否有可以在其中容纳其他模块的容器模块？", answer: "是的。Loop 和 Parallel 是执行引擎构造，在画布上显示为容器区域。您将其他模块拖入其中。Loop 容器反复执行其所包含的模块，而 Parallel 容器跨多个分支并发执行其所包含的模块。与注册模块不同，这些由执行引擎直接处理。" },
+]} />
+

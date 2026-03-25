@@ -1,0 +1,88 @@
+---
+title: Thinking
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Le bloc Thinking force un modèle d'IA à explicitement décrire son processus de réflexion avant de continuer. En encourageant l'analyse étape par étape, ce bloc peut améliorer la qualité du raisonnement et la précision de la sortie sur des tâches complexes.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/thinking.png"
+    alt="Configuration du bloc Thinking"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+  Le bloc Thinking est caché de la barre d'outils des blocs par défaut et est utilisé principalement dans les flux de travail avancés. Il ne s'affiche pas dans l'interface utilisateur de sélection de bloc standard mais peut être accédé par programmation ou par importation.
+</Callout>
+
+## Options de configuration
+
+### Thought
+
+Le processus de réflexion ou l'étape de raisonnement que le modèle doit documenter. Ce champ est caché de l'interface utilisateur mais est nécessaire pour le traitement interne.
+
+- **Type** : String (Markdown supporté)
+- **Objectif** : Capture le raisonnement explicite du modèle avant de générer la sortie finale
+
+## Sorties
+
+- **`<thinking.acknowledgedThought>`** : L'accusé de réception et le traitement du modèle du processus de réflexion décrit
+
+## Comment cela fonctionne
+
+Le bloc Thinking fonctionne en :
+
+1. Acceptant une pensée ou un prompt de raisonnement
+2. Instruisant le modèle d'IA d'explicitement travailler à travers le processus de réflexion
+3. Retournant la pensée reconnue en tant que sortie qui peut alimenter les blocs suivants
+
+Cela encourage le modèle à décomposer le raisonnement complexe en étapes explicites, ce qui peut mener à des sorties plus précises et fiables, particulièrement pour :
+
+- **Résolution de problèmes multi-étapes** : Tâches nécessitant un raisonnement séquentiel
+- **Analyse complexe** : Situations où les étapes intermédiaires importent
+- **Raisonnement chaîne-de-pensée** : Flux de travail qui bénéficient d'une logique explicite étape par étape
+- **Étapes de vérification** : Ajouter des vérifications de raisonnement explicite avant les sorties finales
+
+## Cas d'utilisation courants
+
+**Résolution de problèmes complexes avec étapes de raisonnement**
+```
+Input → Thinking (outline approach) → Agent (execute with reasoning) → Response
+```
+
+**Assurance qualité avec analyse explicite**
+```
+Content → Agent (analyze) → Thinking (verify reasoning) → Function (validate) → Response
+```
+
+**Vérification chaîne-de-pensée**
+```
+Question → Thinking (break down problem) → Agent (solve step-by-step) → Response
+```
+
+## Bonnes pratiques
+
+- **Utilisez pour les tâches complexes** : Appliquez les blocs Thinking aux flux de travail impliquant un raisonnement complexe, une logique multi-étapes ou des exigences de haute précision
+- **Combinez avec les blocs Agent** : Utilisez Thinking en conjonction avec les blocs Agent pour améliorer leurs capacités de raisonnement
+- **Gardez les pensées ciblées** : Écrivez des pensées claires et spécifiques qui guident le modèle vers un meilleur raisonnement
+- **Surveillez les performances** : Testez les flux de travail avec et sans blocs Thinking pour mesurer l'impact sur la qualité de la sortie
+
+<Callout type="tip">
+  Pour les interactions IA standard, le bloc Agent seul est généralement suffisant. Le bloc Thinking est plus précieux lorsqu'il s'agit de tâches de raisonnement complexe où l'analyse explicite étape par étape améliore mesurément les résultats.
+</Callout>
+
+<FAQ items={[
+  { question: "Pourquoi le bloc Thinking est-il caché de la barre d'outils ?", answer: "Le bloc Thinking est un outil spécialisé pour les flux de travail avancés qui nécessitent des étapes de raisonnement explicite. Il est caché par défaut pour garder la barre d'outils des blocs concentrée sur les blocs couramment utilisés. Il peut toujours être accédé par des moyens programmatiques ou en important des définitions de flux de travail qui l'incluent." },
+  { question: "Comment le bloc Thinking améliore-t-il le raisonnement de l'IA ?", answer: "En instruisant explicitement le modèle d'expliciter son processus de réflexion avant de répondre, le bloc Thinking encourage l'analyse étape par étape. Cela peut aider le modèle à décomposer les problèmes complexes et à arriver à des sorties plus précises et bien raisonnées." },
+  { question: "Quand dois-je utiliser un bloc Thinking par rapport à juste utiliser un bloc Agent ?", answer: "Utilisez un bloc Thinking lorsque vous travaillez avec des tâches de raisonnement complexe, la résolution de problèmes multi-étapes, ou lorsque vous devez que le modèle explicitement vérifie sa logique avant de continuer. Pour les tâches simples, un bloc Agent seul est généralement suffisant." },
+  { question: "Puis-je utiliser plusieurs blocs Thinking dans un flux de travail ?", answer: "Oui. Vous pouvez utiliser plusieurs blocs Thinking pour ajouter des étapes de raisonnement à différents points de votre flux de travail. Chaque bloc peut adresser un point de vérification de raisonnement spécifique ou une étape de validation." },
+  { question: "Quels modèles supportent le bloc Thinking ?", answer: "Le bloc Thinking est conçu pour fonctionner avec les modèles qui bénéficient de prompts de raisonnement explicite. Il fonctionne mieux avec les modèles avancés comme la série o d'OpenAI, les modèles de raisonnement de Claude et d'autres LLMs capables de raisonnement." },
+  { question: "Comment inclure un bloc Thinking dans mon flux de travail s'il est caché de la barre d'outils ?", answer: "Vous pouvez ajouter des blocs Thinking par programmation via des importations de définition de flux de travail ou en utilisant l'API pour construire des flux de travail. Une fois ajouté, le bloc s'affiche sur le canevas et peut être connecté à d'autres blocs comme tout bloc standard." },
+]} />

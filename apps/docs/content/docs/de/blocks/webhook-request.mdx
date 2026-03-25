@@ -1,0 +1,138 @@
+---
+title: Webhook (ausgehend)
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Der Webhook-Block (ausgehend) sendet HTTP POST-Anfragen an externe Webhook-Endpunkte. Er unterstützt benutzerdefinierte Header, automatische HMAC-SHA256-Payload-Signierung für sichere Zustellung und KI-gestützte JSON-Generierung.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook-request.png"
+    alt="Webhook Request Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Konfigurationsoptionen
+
+### URL
+
+Die Webhook-Endpunkt-URL, wohin die POST-Anfrage gesendet wird.
+
+- **Erforderlich**: Ja
+- **Typ**: String (vollständige URL, beginnend mit http:// oder https://)
+- **Beispiel**: `https://api.example.com/webhooks/events`
+
+### Body
+
+Die JSON-Payload zum Senden im Textkörper der POST-Anfrage.
+
+- **Typ**: JSON-Objekt
+- **KI-Zauberstab**: Verwende den KI-Zauberstab, um JSON automatisch basierend auf einer Beschreibung in natürlicher Sprache zu generieren
+- **Beispiel**:
+```json
+{
+  "event": "order_created",
+  "orderId": "<api.order_id>",
+  "amount": 99.99,
+  "timestamp": "<function.currentTime>"
+}
+```
+
+### Secret (Optional)
+
+Ein gemeinsames Geheimnis, das zum Signieren der Payload mit HMAC-SHA256 verwendet wird. Falls bereitgestellt, wird die Webhook-Anfrage enthalten:
+
+- **Header**: `X-Signature` mit dem HMAC-SHA256-Hash der Payload
+- **Zweck**: Überprüfe die Authentizität der Anfrage auf der Empfängerseite
+
+**Wie man auf der Empfängerseite validiert:**
+```javascript
+const crypto = require('crypto')
+const signature = crypto
+  .createHmac('sha256', secret)
+  .update(JSON.stringify(body))
+  .digest('hex')
+const isValid = signature === req.headers['x-signature']
+```
+
+### Headers (Optional)
+
+Benutzerdefinierte HTTP-Header, die in die Anfrage eingebunden werden. Geben Sie als Schlüssel-Wert-Paare an:
+
+- **Content-Type**: Standardmäßig `application/json`
+- **Benutzerdefinierte Header**: Füge Autorisierung, Tracking-IDs, API-Schlüssel oder andere Header nach Bedarf hinzu
+
+**Beispiel:**
+```
+Authorization: Bearer token123
+X-Custom-Header: custom-value
+X-Request-ID: <function.requestId>
+```
+
+## Outputs
+
+- **`<webhookRequest.data>`**: Der Response-Body vom Webhook-Endpunkt (JSON)
+- **`<webhookRequest.status>`**: HTTP-Statuscode der Antwort (z. B. 200, 404, 500)
+- **`<webhookRequest.headers>`**: Response-Header als JSON-Objekt
+
+## Beispiel-Anwendungsfälle
+
+**Echtzeit-Event-Benachrichtigungen**
+```
+Agent (Process Event) → Webhook Request (Notify external system) → Response
+```
+
+**Sichere Third-Party-Integrationen**
+```
+Function (Generate payload) → Webhook Request (w/ HMAC signature) → External Service
+```
+
+**Multi-Service-Orchestrierung**
+```
+API (Fetch data) → Function (Transform) → Webhook Request (Service A)
+                                       → Webhook Request (Service B)
+```
+
+**Audit-Trail und Protokollierung**
+```
+Agent → Function (Log event) → Webhook Request (Send to audit service) → Response
+```
+
+## Best Practices
+
+- **Verwende HMAC-Signatur für sensible Daten**: Aktiviere immer die Secret/Signature-Option beim Versenden sensibler Informationen, um Authentizität zu gewährleisten
+- **Behandle Wiederholungen**: Der empfangende Service sollte Idempotenz-Checks implementieren, um doppelte Webhook-Deliveries zu handhaben
+- **Füge Korrelations-IDs ein**: Füge eindeutige Request-IDs hinzu, um Webhook-Events End-to-End zu verfolgen
+- **Validiere Webhook-Antworten**: Überprüfe den Statuscode und Response-Daten, bevor du in nachgelagerten Blöcken fortfährst
+- **Verwende den KI-Zauberstab für JSON**: Lass den KI-Zauberstab komplexe JSON-Payloads generieren, um Zeit zu sparen und Fehler zu reduzieren
+
+<Callout type="info">
+  Webhook-Anfragen sind synchron – der Block wartet auf die Antwort des empfangenden Service, bevor er fortfährt. Für bessere Zuverlässigkeit mit externen Diensten implementiere Timeout-Handling und erwäge Wiederholungslogik in deinem Workflow.
+</Callout>
+
+## Webhook-Sicherheit
+
+Beim Versenden sensibler Daten über Webhooks:
+
+1. **Aktiviere HMAC-Signatur**: Verwende immer das Secret-Feld, um Payloads kryptographisch zu signieren
+2. **Verwende HTTPS**: Stelle sicher, dass die Webhook-URL HTTPS verwendet, nicht HTTP
+3. **Validiere auf Empfängerseite**: Der empfangende Service sollte die Signature validieren, bevor Verarbeitung stattfindet
+4. **Rotiere Secrets regelmäßig**: Ändere Secrets regelmäßig, um Auswirkungen von Kompromisse zu minimieren
+5. **Protokolliere Anfragen**: Halte Audit-Logs aller Webhook-Anfragen für Compliance
+
+<FAQ items={[
+  { question: "Wie signiere ich eine Webhook-Payload mit HMAC-SHA256?", answer: "Gebe dein gemeinsames Geheimnis im Secret-Feld ein. Der Webhook-Request-Block berechnet automatisch den HMAC-SHA256-Hash des JSON-Body und bindet ihn in den X-Signature-Header ein. Der empfangende Service sollte diese Signature mit demselben Geheimnis und derselben Payload validieren." },
+  { question: "Was passiert, wenn der Webhook-Endpunkt einen Fehler zurückgibt?", answer: "Der Block erfasst den HTTP-Statuscode und Response-Body in seinen Outputs. Du kannst einen Condition-Block verwenden, um den Statuscode zu überprüfen und zur Fehlerbehandlung weiterleiten, falls erforderlich. Der Workflow schlägt nicht automatisch bei nicht-2xx-Statuscodes fehl." },
+  { question: "Kann ich benutzerdefinierte Header mit der Webhook-Anfrage versenden?", answer: "Ja. Verwende das Headers-Feld, um benutzerdefinierte Header als Schlüssel-Wert-Paare hinzuzufügen. Dies ist nützlich für Autorisierungs-Token, benutzerdefinierte Bezeichner oder Service-spezifische Header, die der empfangende Endpunkt erwartet." },
+  { question: "Wie integriere ich dynamische Daten von anderen Blöcken?", answer: "Verwende Block-Reference-Syntax im JSON-Body, wie <agent.content>, <api.response> oder <function.result>. Diese Referenzen werden zur Ausführungszeit aufgelöst, bevor der Webhook gesendet wird." },
+  { question: "Kann ich den KI-Zauberstab verwenden, um den JSON-Body zu generieren?", answer: "Ja. Klicke auf das KI-Zauberstab-Symbol neben dem Body-Feld und beschreibe die Payload-Struktur in natürlicher Sprache. Die KI generiert das entsprechende JSON-Schema für dich." },
+  { question: "Wie lange ist das Timeout für Webhook-Anfragen?", answer: "Webhook-Anfragen sind synchron und warten auf die Antwort des empfangenden Service. Stelle sicher, dass dein empfangender Service innerhalb angemessener Zeitrahmen antwortet. Falls Timeouts auftreten, erwäge die Fehlerbehandlung in nachgelagerten Blöcken." },
+  { question: "Kann ich Webhook-Anfragen an mehrere Endpunkte parallel versenden?", answer: "Ja. Füge mehrere Webhook-Request-Blöcke in einem Parallel-Container hinzu, um gleichzeitig Anfragen an verschiedene Endpunkte zu versenden. Jede Anfrage wird unabhängig ausgeführt und erfasst ihre eigene Antwort." },
+]} />

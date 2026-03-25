@@ -1,0 +1,84 @@
+---
+title: Notiz
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Der Notiz-Block fügt kontextbezogene Anmerkungen direkt auf deine Workflow-Leinwand ein. Verwende ihn, um Entscheidungen zu dokumentieren, Anweisungen zu teilen oder kolaborativen Kontext zu hinterlassen, ohne die Workflow-Ausführung zu beeinflussen.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/note.png"
+    alt="Note Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+  Notiz-Blöcke sind ausschließlich für Dokumentation und Zusammenarbeit – sie werden nicht während Workflow-Ausführungen ausgeführt und beeinflussen nicht die Workflow-Logik oder Ausgabe.
+</Callout>
+
+## Konfigurationsoptionen
+
+### Content
+
+Der Notizeninhalt, der auf der Leinwand angezeigt wird. Notizen unterstützen vollständiges Markdown-Rendering, einschließlich:
+
+- **Textformatierung**: Fett, Kursiv, Links, Inline-Code
+- **Listen**: Aufzählungspunkte und nummerierte Listen
+- **Code-Blöcke**: Syntaxhervorgehobene Code-Beispiele
+- **Überschriften**: Mehrere Überschriftsebenen für Organisation
+- **YouTube-Einbettungen**: Embed-Videos direkt mit Standard-Embed-Syntax
+- **Block-Referenzen**: Verlinke andere Blöcke im Workflow mit Blocknamen
+
+### Markdown-Beispiel
+
+```markdown
+## Verarbeitungsstrategie
+
+Dieser Workflow behandelt Kundenservice-Tickets mit:
+1. Route nach Absicht (FAQ vs. Eskalation)
+2. Generiere Antwort mit Agent
+3. Protokolliere in Datenbank für Analytik
+
+**Wichtig**: Ticketnummer immer in Antwort einschließen.
+
+[Mehr Informationen](https://docs.example.com)
+```
+
+## Anwendungsfälle
+
+**Dokumentation von Workflow-Entscheidungen**
+```
+Füge eine Notiz hinzu, die erklärt, warum spezifische Routing-Logik verwendet wird, Geschäftsregeln oder Entscheidungspunkte, die andere Teamkollegen verstehen sollten
+```
+
+**Anweisungen für Mitarbeiter**
+```
+Hinterlasse Notizen mit Setup-Anweisungen, Konfigurationsanforderungen oder Voraussetzungen vor bestimmten Blöcken
+```
+
+**Eingebettete Lernressourcen**
+```
+Füge Links zu Dokumentation, YouTube-Tutorials oder Beispielen ein, die neuen Teamkollegen helfen, den Workflow zu verstehen
+```
+
+## Best Practices
+
+- **Halte Notizen prägnant**: Verwende Notizen zur Ergänzung, nicht zum Ersetzen klarer Workflow-Gestaltung. Wenn du umfangreiche Dokumentation schreibst, ziehe externe Ressourcen in Betracht
+- **Aktualisiere bei Workflow-Änderungen**: Wenn du Workflow-Logik änderst, aktualisiere zugehörige Notizen, um die Änderungen widerzuspiegeln
+- **Verwende zur Team-Kommunikation**: Notizen sind für alle Mitarbeiter sichtbar – verwende sie, um nicht-offensichtliche Designentscheidungen zu erklären
+- **Verlinke zu Ressourcen**: Füge Links zu externer Dokumentation, FAQs oder Entscheidungsprotokollen für mehr Kontext ein
+
+<FAQ items={[
+  { question: "Beeinflussen Notiz-Blöcke die Workflow-Ausführung?", answer: "Nein. Notiz-Blöcke sind ausschließlich für Dokumentation und Visualisierung auf der Leinwand. Sie werden nicht ausgeführt, beeinflussen die Workflow-Logik nicht und produzieren keine Ausgaben." },
+  { question: "Kann ich Text in einem Notiz-Block formatieren?", answer: "Ja. Notiz-Blöcke unterstützen vollständige Markdown-Syntax einschließlich Fett, Kursiv, Listen, Code-Blöcke, Überschriften, Links und Bilder. Du kannst auch YouTube-Videos mit Standard-Embed-Syntax einbetten." },
+  { question: "Kann ich Referenzen zu anderen Blöcken in einer Notiz einfügen?", answer: "Ja. Du kannst Blöcke nach Namen in deinem Markdown referenzieren. Du kannst auch auf externe Ressourcen mit Standard-Markdown-Link-Syntax verlinken." },
+  { question: "Sind Notizen für alle Mitarbeiter sichtbar?", answer: "Ja. Notizen sind Teil der Workflow-Leinwand und sind für alle sichtbar, die Zugriff auf den Workflow haben." },
+  { question: "Kann ich Notizen in Loop- oder Parallel-Blöcke verschachteln?", answer: "Ja. Notizen können überall auf der Leinwand platziert werden, einschließlich innerhalb von Container-Blöcken wie Loop und Parallel, um Kontext für diese Bereiche zu geben." },
+  { question: "Wie lang darf eine Notiz maximal sein?", answer: "Es gibt keine strikte Maximallänge. Für Lesbarkeit und Leistung halte Notizen jedoch angemessen groß. Wenn du umfangreich dokumentieren musst, erwäge die Verwendung externer Dokumentation, auf die von der Notiz verlinkt wird." },
+]} />

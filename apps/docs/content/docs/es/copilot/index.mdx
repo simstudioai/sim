@@ -5,44 +5,24 @@ title: Copilot
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Image } from '@/components/ui/image'
-import { MessageCircle, Package, Zap, Infinity as InfinityIcon, Brain, BrainCircuit } from 'lucide-react'
+import { MessageCircle, Hammer, ListChecks, Zap, Globe, Paperclip, History, RotateCcw, Brain } from 'lucide-react'
 
-Copilot es tu asistente integrado en el editor que te ayuda a crear y editar flujos de trabajo con Sim Copilot, así como a entenderlos y mejorarlos. Puede:
+Copilot es tu asistente integrado en el editor que te ayuda a crear y editar flujos de trabajo. Puede:
 
 - **Explicar**: Responder preguntas sobre Sim y tu flujo de trabajo actual
 - **Guiar**: Sugerir ediciones y mejores prácticas
-- **Editar**: Realizar cambios en bloques, conexiones y configuraciones cuando los apruebes
+- **Construir**: Añadir bloques, conectar variables y configurar ajustes
+- **Depurar**: Analizar problemas de ejecución y optimizar rendimiento
 
 <Callout type="info">
-  Copilot es un servicio gestionado por Sim. Para implementaciones autoalojadas, genera una clave API de Copilot en la aplicación alojada (sim.ai → Configuración → Copilot)
+  Copilot es un servicio gestionado por Sim. Para implementaciones autoalojadas:
   1. Ve a [sim.ai](https://sim.ai) → Configuración → Copilot y genera una clave API de Copilot
-  2. Establece `COPILOT_API_KEY` en tu entorno autoalojado con ese valor
+  2. Establece `COPILOT_API_KEY` en tu entorno autoalojado
 </Callout>
 
-## Menú contextual (@)
-
-Usa el símbolo `@` para hacer referencia a varios recursos y proporcionar a Copilot más contexto sobre tu espacio de trabajo:
-
-<Image
-  src="/static/copilot/copilot-menu.png"
-  alt="Menú contextual de Copilot mostrando opciones de referencia disponibles"
-  width={600}
-  height={400}
-/>
-
-El menú `@` proporciona acceso a:
-- **Chats**: Referencia conversaciones previas con copilot
-- **Todos los flujos de trabajo**: Referencia cualquier flujo de trabajo en tu espacio de trabajo
-- **Bloques de flujo de trabajo**: Referencia bloques específicos de los flujos de trabajo
-- **Bloques**: Referencia tipos de bloques y plantillas
-- **Conocimiento**: Referencia tus documentos subidos y base de conocimientos
-- **Documentación**: Referencia la documentación de Sim
-- **Plantillas**: Referencia plantillas de flujo de trabajo
-- **Registros**: Referencia registros de ejecución y resultados
-
-Esta información contextual ayuda a Copilot a proporcionar asistencia más precisa y relevante para tu caso de uso específico.
-
 ## Modos
+
+Cambia entre modos usando el selector de modo en la parte inferior del área de entrada.
 
 <Cards>
   <Card
@@ -54,129 +34,107 @@ Esta información contextual ayuda a Copilot a proporcionar asistencia más prec
     }
   >
     <div className="m-0 text-sm">
-      Modo de preguntas y respuestas para explicaciones, orientación y sugerencias sin realizar cambios en tu flujo de trabajo.
+      Modo Q&A para explicaciones, orientación y sugerencias sin realizar cambios en tu flujo de trabajo.
     </div>
   </Card>
   <Card
     title={
       <span className="inline-flex items-center gap-2">
-        <Package className="h-4 w-4 text-muted-foreground" />
-        Agente
+        <Hammer className="h-4 w-4 text-muted-foreground" />
+        Construir
       </span>
     }
   >
     <div className="m-0 text-sm">
-      Modo de construcción y edición. Copilot propone ediciones específicas (añadir bloques, conectar variables, ajustar configuraciones) y las aplica cuando las apruebas.
+      Modo de construcción de flujo de trabajo. Copilot puede añadir bloques, conectar variables, editar configuraciones y depurar problemas.
+    </div>
+  </Card>
+  <Card
+    title={
+      <span className="inline-flex items-center gap-2">
+        <ListChecks className="h-4 w-4 text-muted-foreground" />
+        Planificar
+      </span>
+    }
+  >
+    <div className="m-0 text-sm">
+      Crea un plan de implementación paso a paso para tu flujo de trabajo sin realizar cambios. Te ayuda a pensar en el enfoque antes de construir.
     </div>
   </Card>
 </Cards>
 
-<div className="flex justify-center">
-  <Image
-    src="/static/copilot/copilot-mode.png"
-    alt="Interfaz de selección de modo de Copilot"
-    width={600}
-    height={400}
-    className="my-6"
-  />
-</div>
+## Modelos
 
-## Niveles de profundidad
+Selecciona tu modelo de IA preferido usando el selector de modelos en la parte inferior derecha del área de entrada.
 
-<Cards>
-  <Card
-    title={
-      <span className="inline-flex items-center gap-2">
-        <Zap className="h-4 w-4 text-muted-foreground" />
-        Rápido
-      </span>
-    }
-  >
-    <div className="m-0 text-sm">El más rápido y económico. Ideal para ediciones pequeñas, flujos de trabajo simples y ajustes menores.</div>
-  </Card>
-  <Card
-    title={
-      <span className="inline-flex items-center gap-2">
-        <InfinityIcon className="h-4 w-4 text-muted-foreground" />
-        Auto
-      </span>
-    }
-  >
-    <div className="m-0 text-sm">Equilibrio entre velocidad y razonamiento. Opción predeterminada recomendada para la mayoría de las tareas.</div>
-  </Card>
-  <Card
-    title={
-      <span className="inline-flex items-center gap-2">
-        <Brain className="h-4 w-4 text-muted-foreground" />
-        Avanzado
-      </span>
-    }
-  >
-    <div className="m-0 text-sm">Mayor razonamiento para flujos de trabajo más grandes y ediciones complejas sin perder rendimiento.</div>
-  </Card>
-  <Card
-    title={
-      <span className="inline-flex items-center gap-2">
-        <BrainCircuit className="h-4 w-4 text-muted-foreground" />
-        Behemoth
-      </span>
-    }
-  >
-    <div className="m-0 text-sm">Máximo razonamiento para planificación profunda, depuración y cambios arquitectónicos complejos.</div>
-  </Card>
-</Cards>
+**Modelos disponibles:**
+- **Anthropic**: Claude Opus 4.6 (predeterminado), Claude Opus 4.5, Claude Sonnet 4.5, Claude Haiku 4.5
+- **OpenAI**: GPT-5.4, GPT-5.2, GPT-5.1, GPT-5, GPT-4o, GPT-4.1, o3, o4-mini
+- **Google**: Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.0 Flash
+- **Otros proveedores**: Groq, Cerebras, DeepSeek, Mistral, xAI, Azure OpenAI, OpenRouter
+- **Modelos locales**: modelos compatibles con Ollama o VLLM
 
-### Interfaz de selección de modo
+Elige según tus necesidades: modelos más rápidos para tareas simples, modelos más capaces para flujos de trabajo complejos.
 
-Puedes cambiar fácilmente entre diferentes modos de razonamiento utilizando el selector de modo en la interfaz de Copilot:
+## Menú contextual (@)
 
-<Image
-  src="/static/copilot/copilot-models.png"
-  alt="Selección de modo de Copilot mostrando el modo Avanzado con el interruptor MAX"
-  width={600}
-  height={300}
-/>
+Usa el símbolo `@` para hacer referencia a recursos y proporcionar a Copilot más contexto:
 
-La interfaz te permite:
-- **Seleccionar nivel de razonamiento**: Elige entre Rápido, Auto, Avanzado o Behemoth
-- **Activar modo MAX**: Activa el interruptor para obtener las máximas capacidades de razonamiento cuando necesites el análisis más exhaustivo
-- **Ver descripciones de modos**: Comprende para qué está optimizado cada modo
+| Referencia | Descripción |
+|-----------|-------------|
+| **Chats** | Conversaciones previas con Copilot |
+| **Flujos de trabajo** | Cualquier flujo de trabajo en tu espacio de trabajo |
+| **Bloques de flujo de trabajo** | Bloques en el flujo de trabajo actual |
+| **Bloques** | Tipos de bloques y plantillas |
+| **Conocimiento** | Documentos subidos y bases de conocimientos |
+| **Documentación** | Documentación de Sim |
+| **Plantillas** | Plantillas de flujo de trabajo |
+| **Registros** | Registros de ejecución y resultados |
 
-Elige tu modo según la complejidad de tu tarea - usa Rápido para preguntas simples y Behemoth para cambios arquitectónicos complejos.
+Escribe `@` en el campo de entrada para abrir el menú contextual, luego busca o explora para encontrar lo que necesitas.
 
-## Facturación y cálculo de costos
+## Comandos de barra (/)
 
-### Cómo se calculan los costos
+Usa comandos de barra para acciones rápidas:
 
-El uso de Copilot se factura por token del LLM subyacente:
+| Comando | Descripción |
+|---------|-------------|
+| `/fast` | Ejecución en modo rápido |
+| `/research` | Modo de investigación y exploración |
+| `/actions` | Ejecutar acciones de agente |
 
-- **Tokens de entrada**: facturados a la tarifa base del proveedor (**a costo**)
-- **Tokens de salida**: facturados a **1,5×** la tarifa base de salida del proveedor
+**Comandos web:**
 
-```javascript
-copilotCost = (inputTokens × inputPrice + outputTokens × (outputPrice × 1.5)) / 1,000,000
-```
+| Comando | Descripción |
+|---------|-------------|
+| `/search` | Buscar en la web |
+| `/read` | Leer una URL específica |
+| `/scrape` | Raspar contenido de página web |
+| `/crawl` | Rastrear múltiples páginas |
 
-| Componente | Tarifa aplicada       |
-|------------|----------------------|
-| Entrada    | inputPrice           |
-| Salida     | outputPrice × 1,5    |
+Escribe `/` en el campo de entrada para ver los comandos disponibles.
 
-<Callout type="warning">
-  Los precios mostrados reflejan las tarifas a partir del 4 de septiembre de 2025. Consulta la documentación del proveedor para conocer los precios actuales.
-</Callout>
+## Gestión de chats
 
-<Callout type="info">
-  Los precios de los modelos son por millón de tokens. El cálculo divide por 1.000.000 para obtener el costo real. Consulta <a href="/execution/costs">la página de Cálculo de Costos</a> para obtener información general y ejemplos.
-</Callout>
+### Comenzar una nueva conversación
 
-Pasa el cursor sobre cualquiera de tus mensajes y haz clic en **Editar** para modificarlo y reenviarlo. Esto es útil para refinar tus prompts.
+Haz clic en el botón **+** en el encabezado de Copilot para iniciar una nueva conversación.
+
+### Historial de chat
+
+Haz clic en **Historial** para ver conversaciones anteriores agrupadas por fecha. Puedes:
+- Haz clic en un chat para reanudarlo
+- Eliminar chats que ya no necesites
+
+### Editar mensajes
+
+Pasa el cursor sobre cualquiera de tus mensajes y haz clic en **Editar** para modificar y reenviar. Esto es útil para refinar tus prompts.
 
 ### Cola de mensajes
 
-Si envías un mensaje mientras Copilot aún está respondiendo, se pone en cola. Puedes:
-- Ver los mensajes en cola en el panel expandible de cola
-- Enviar un mensaje en cola inmediatamente (interrumpe la respuesta actual)
+Si envías un mensaje mientras Copilot sigue respondiendo, se pone en cola. Puedes:
+- Ver mensajes en cola en el panel expandible de cola
+- Enviar un mensaje en cola inmediatamente (aborta la respuesta actual)
 - Eliminar mensajes de la cola
 
 ## Archivos adjuntos
@@ -241,10 +199,10 @@ Las opciones seleccionadas están resaltadas; las opciones no seleccionadas apar
 
 ## Límites de uso
 
-El uso de Copilot se factura por token del LLM subyacente. Si alcanzas tu límite de uso, Copilot te pedirá que aumentes tu límite. Puedes agregar uso en incrementos ($50, $100) desde tu base actual.
+El uso de Copilot se factura por token del LLM subyacente y cuenta hacia el uso de créditos de tu plan. Si alcanzas tu límite de uso, habilita facturación bajo demanda desde Configuración → Suscripción para continuar usando Copilot más allá de los créditos incluidos en tu plan.
 
 <Callout type="info">
-  Consulta la [página de cálculo de costos](/execution/costs) para detalles de facturación.
+  Consulta la [página de cálculo de costos](/execution/costs) para detalles de facturación y planes.
 </Callout>
 ## Copilot MCP
 
@@ -341,3 +299,17 @@ Reemplaza `YOUR_COPILOT_API_KEY` con tu clave.
 <Callout type="info">
   Para implementaciones auto-alojadas, reemplaza `https://www.sim.ai` con tu URL de Sim auto-alojada.
 </Callout>
+
+import { FAQ } from '@/components/ui/faq'
+
+<FAQ items={[
+  { question: "¿Cuál es la diferencia entre el modo Preguntar, Construir y Planificar?", answer: "Copilot tiene tres modos. El modo Preguntar es un modo Q&A de solo lectura para explicaciones, orientación y sugerencias sin realizar cambios en tu flujo de trabajo. El modo Construir permite que Copilot modifique activamente tu flujo de trabajo añadiendo bloques, conectando variables, editando configuraciones y depurando problemas. El modo Planificar crea un plan de implementación paso a paso para tu solicitud sin realizar cambios, para que puedas revisar el enfoque antes de comprometerte. Usa Preguntar cuando quieras aprender o explorar ideas, Planificar cuando quieras ver un enfoque propuesto primero, y Construir cuando quieras que Copilot realice cambios directamente." },
+  { question: "¿Tiene Copilot acceso a mi flujo de trabajo completo cuando responde preguntas?", answer: "Copilot tiene acceso al flujo de trabajo que estás editando actualmente como contexto. También puedes usar el menú contextual @ para hacer referencia a otros flujos de trabajo, chats anteriores, registros de ejecución, bases de conocimientos, documentación y plantillas para proporcionar a Copilot contexto adicional para tu solicitud." },
+  { question: "¿Cómo uso Copilot desde un editor externo como Cursor o VS Code?", answer: "Puedes usar Copilot como servidor MCP desde editores externos. Primero, genera una clave API de Copilot desde Configuración > Copilot en sim.ai. Luego, añade la configuración del servidor MCP a tu editor usando el endpoint https://www.sim.ai/api/mcp/copilot con tu clave API en el encabezado X-API-Key. Los ejemplos de configuración están disponibles para Cursor, Claude Code, Claude Desktop y VS Code." },
+  { question: "¿Puedo revertir cambios que Copilot hizo en mi flujo de trabajo?", answer: "Sí. Cuando Copilot realiza cambios en modo Construir, guarda puntos de control del estado de tu flujo de trabajo. Puedes pasar el cursor sobre un mensaje de Copilot y hacer clic en el icono de puntos de control para ver estados guardados, luego hacer clic en Revertir en cualquier punto de control para restaurar tu flujo de trabajo. Ten en cuenta que revertir no se puede deshacer, así que revisa el punto de control antes de confirmar." },
+  { question: "¿Cómo funciona la facturación de Copilot?", answer: "El uso de Copilot se factura por token del LLM subyacente y cuenta hacia el uso de créditos de tu plan. Los modelos más capaces como Claude Opus cuestan más por token que los modelos más ligeros como Haiku. Si alcanzas tu límite de uso, puedes habilitar facturación bajo demanda desde Configuración > Suscripción para continuar usando Copilot." },
+  { question: "¿Qué hacen los comandos de barra como /research y /search?", answer: "Los comandos de barra activan comportamientos especializados. /fast habilita ejecución en modo rápido, /research activa un modo de investigación y exploración, y /actions ejecuta acciones de agente. Los comandos web como /search, /read, /scrape y /crawl permiten que Copilot interactúe con la web para buscar información, leer URLs, raspar contenido de página o rastrear múltiples páginas para recopilar contexto para tu solicitud." },
+  { question: "¿Cómo configuro Copilot para una implementación auto-alojada?", answer: "Para implementaciones auto-alojadas, ve a sim.ai > Configuración > Copilot y genera una clave API de Copilot. Luego, establece la variable de entorno COPILOT_API_KEY en tu entorno auto-alojado. Copilot es un servicio gestionado por Sim, por lo que la instancia auto-alojada se comunica con los servidores de Sim para procesar solicitudes." },
+]} />
+
+

@@ -1,0 +1,138 @@
+---
+title: Webhook (outbound)
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+The Webhook (outbound) block sends HTTP POST requests to external webhook endpoints. It supports custom headers, automatic HMAC-SHA256 payload signing for secure delivery, and AI-assisted JSON generation.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/webhook-request.png"
+    alt="Webhook Request Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+## Configuration Options
+
+### URL
+
+The webhook endpoint URL where the POST request will be sent.
+
+- **Required**: Yes
+- **Type**: String (full URL, starting with http:// or https://)
+- **Example**: `https://api.example.com/webhooks/events`
+
+### Body
+
+The JSON payload to send in the POST request body.
+
+- **Type**: JSON object
+- **AI Wand**: Use the AI wand to automatically generate JSON based on a natural language description
+- **Example**:
+```json
+{
+  "event": "order_created",
+  "orderId": "<api.order_id>",
+  "amount": 99.99,
+  "timestamp": "<function.currentTime>"
+}
+```
+
+### Secret (Optional)
+
+A shared secret used to sign the payload with HMAC-SHA256. If provided, the webhook request will include:
+
+- **Header**: `X-Signature` containing the HMAC-SHA256 hash of the payload
+- **Purpose**: Verify the request authenticity on the receiving end
+
+**How to validate on the receiver:**
+```javascript
+const crypto = require('crypto')
+const signature = crypto
+  .createHmac('sha256', secret)
+  .update(JSON.stringify(body))
+  .digest('hex')
+const isValid = signature === req.headers['x-signature']
+```
+
+### Headers (Optional)
+
+Custom HTTP headers to include with the request. Specify as key-value pairs:
+
+- **Content-Type**: Defaults to `application/json`
+- **Custom Headers**: Add authorization, tracking IDs, API keys, or other headers as needed
+
+**Example:**
+```
+Authorization: Bearer token123
+X-Custom-Header: custom-value
+X-Request-ID: <function.requestId>
+```
+
+## Outputs
+
+- **`<webhookRequest.data>`**: The response body from the webhook endpoint (JSON)
+- **`<webhookRequest.status>`**: HTTP status code of the response (e.g., 200, 404, 500)
+- **`<webhookRequest.headers>`**: Response headers as a JSON object
+
+## Example Use Cases
+
+**Real-time Event Notifications**
+```
+Agent (Process Event) → Webhook Request (Notify external system) → Response
+```
+
+**Secure Third-party Integrations**
+```
+Function (Generate payload) → Webhook Request (w/ HMAC signature) → External Service
+```
+
+**Multi-service Orchestration**
+```
+API (Fetch data) → Function (Transform) → Webhook Request (Service A)
+                                        → Webhook Request (Service B)
+```
+
+**Audit Trail and Logging**
+```
+Agent → Function (Log event) → Webhook Request (Send to audit service) → Response
+```
+
+## Best Practices
+
+- **Use HMAC signing for sensitive data**: Always enable the secret/signature option when sending sensitive information to ensure authenticity
+- **Handle retries**: The receiving service should implement idempotency checks to handle duplicate webhook deliveries
+- **Include correlation IDs**: Add unique request IDs to track webhook events end-to-end
+- **Validate webhook responses**: Check the status code and response data before proceeding in downstream blocks
+- **Use the AI wand for JSON**: Let the AI wand generate complex JSON payloads to save time and reduce errors
+
+<Callout type="info">
+  Webhook requests are synchronous—the block waits for the receiving service to respond before continuing. For better reliability with external services, implement timeout handling and consider retry logic in your workflow.
+</Callout>
+
+## Webhook Security
+
+When sending sensitive data via webhooks:
+
+1. **Enable HMAC signing**: Always use the Secret field to cryptographically sign payloads
+2. **Use HTTPS**: Ensure the webhook URL uses HTTPS, not HTTP
+3. **Validate on receiver**: The receiving service should validate the signature before processing
+4. **Rotate secrets periodically**: Change secrets regularly to minimize impact of compromise
+5. **Log requests**: Keep audit logs of all webhook requests for compliance
+
+<FAQ items={[
+  { question: "How do I sign a webhook payload with HMAC-SHA256?", answer: "Enter your shared secret in the Secret field. The Webhook Request block automatically computes the HMAC-SHA256 hash of the JSON body and includes it in the X-Signature header. The receiving service should validate this signature using the same secret and the same payload." },
+  { question: "What happens if the webhook endpoint returns an error?", answer: "The block captures the HTTP status code and response body in its outputs. You can use a Condition block to check the status code and route to error handling if needed. The workflow does not automatically fail on non-2xx status codes." },
+  { question: "Can I send custom headers with the webhook request?", answer: "Yes. Use the Headers field to add custom headers as key-value pairs. This is useful for authorization tokens, custom identifiers, or service-specific headers that the receiving endpoint expects." },
+  { question: "How do I include dynamic data from other blocks?", answer: "Use block reference syntax in the JSON body, such as <agent.content>, <api.response>, or <function.result>. These references are resolved at execution time before the webhook is sent." },
+  { question: "Can I use the AI wand to generate the JSON body?", answer: "Yes. Click the AI wand icon next to the Body field and describe the payload structure in natural language. The AI will generate the corresponding JSON schema for you." },
+  { question: "What is the timeout for webhook requests?", answer: "Webhook requests are synchronous and wait for the receiving service to respond. Ensure your receiving service responds within reasonable timeframes. If timeouts occur, consider adding error handling in downstream blocks." },
+  { question: "Can I send webhook requests to multiple endpoints in parallel?", answer: "Yes. Add multiple Webhook Request blocks in a Parallel container to send requests to different endpoints concurrently. Each request executes independently and captures its own response." },
+]} />

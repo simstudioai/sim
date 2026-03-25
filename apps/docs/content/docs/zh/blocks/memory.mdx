@@ -1,0 +1,98 @@
+---
+title: Memory
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Memory 模块为 AI 代理存储和检索对话记忆。它允许您添加、检索、更新和删除对话历史条目，实现超越 Agent 模块内置记忆模式的有状态多轮交互。
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/memory.png"
+    alt="Memory Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout type="warning">
+  除非明确需要，否则不要使用 Memory 模块。对于自然对话，使用 Agent 模块的内置记忆模式（Conversation、Sliding Window by messages 或 Sliding Window by tokens）。Memory 模块用于在 Agent 的本地记忆处理不足时向工作流注入人工记忆。
+</Callout>
+
+## 配置选项
+
+### Operation
+
+选择要执行的记忆操作：
+
+- **Add Memory**: 向对话记忆添加新消息
+- **Get Memory**: 按 ID 检索特定记忆条目
+- **Get All Memories**: 检索一个对话的所有记忆
+- **Delete Memory**: 从存储中移除记忆条目
+
+### Conversation ID
+
+对话的唯一标识符。此密钥跨工作流运行保持记忆，并在多个执行之间启用上下文共享。
+
+- **必需**：是
+- **类型**：String
+- **示例**：`chat-session-123`、`user-456`、`conversation-abc`
+
+### Role（仅 Add Memory）
+
+使用 Add Memory 操作时指定记忆条目的说话人角色：
+
+- **user**: 来自最终用户的消息
+- **assistant**: 来自 AI 模型的消息
+- **system**: 系统级别的指令或上下文
+
+### Content（仅 Add Memory）
+
+使用 Add Memory 操作时要存储的消息内容：
+
+- **类型**：String（支持 Markdown）
+- **最大长度**：没有硬限制，但保持合理大小以获得性能
+
+## 输出
+
+- **`<memory.memories>`**: 对话中所有记忆的 JSON 数组（用于 Get All Memories）
+- **`<memory.memory>`**: 检索到的特定记忆条目（用于 Get Memory）
+- **`<memory.success>`**: 布尔值，指示操作是否成功完成
+- **`<memory.id>`**: 用于操作的对话 ID
+
+## 使用示例
+
+**具有上下文保留的多轮对话**
+```
+User Input → Memory (Get All) → Agent (w/ history) → Memory (Add user msg) → Agent → Memory (Add assistant msg) → Response
+```
+
+**构建持久用户档案**
+```
+API (User Data) → Memory (Add) → Agent (Enhanced w/ user context) → API (Update Profile)
+```
+
+**对话分析**
+```
+Trigger (Scheduled) → Memory (Get All, conversationId) → Function (Analyze sentiment) → API (Log analytics)
+```
+
+## 最佳实践
+
+- **首先使用 Agent 记忆**：Agent 模块的内置记忆模式处理大多数对话场景，无需 Memory 模块
+- **管理记忆增长**：定期清理旧记忆以防止过度存储和缓慢检索
+- **一致的对话 ID**：使用有意义的、一致的 ID 以确保记忆被正确分组和检索
+- **与 Agent 模块结合**：为获得最佳结果，使用 Memory 与 Agent 模块一起构建完整对话上下文
+
+<FAQ items={[
+  { question: "何时应该使用 Memory 模块与 Agent 模块的记忆模式？", answer: "对于标准多轮对话，使用 Agent 模块的记忆模式（Conversation、Sliding Window by messages、Sliding Window by tokens）——它们更简单，处理大多数情况。仅当您需要对记忆操作进行显式控制时才使用 Memory 模块，例如注入人工对话历史、在 Agent 调用之外管理记忆或构建自定义对话逻辑。" },
+  { question: "我可以在不同代理之间共享记忆吗？", answer: "可以。通过在多个 Agent 和 Memory 模块中使用相同的对话 ID，您可以在同一工作流中的不同代理之间共享对话历史和上下文。" },
+  { question: "如果我添加两次相同内容的记忆会发生什么？", answer: "允许重复条目。每次调用 Add Memory 都会创建新条目，即使内容相同。如果您需要防止重复，请在上游模块中添加去重逻辑（例如，Function 模块）。" },
+  { question: "记忆跨工作流执行是否持久？", answer: "是的。记忆存储在后端并跨多个工作流执行持久化，只要您使用相同的对话 ID。这在一段时间内启用有状态交互。" },
+  { question: "我可以删除特定的记忆条目吗？", answer: "可以。使用 Delete Memory 操作和对话 ID。如果您需要删除特定条目，您可能需要检索所有记忆，在 Function 模块中过滤它们，并有选择性地删除条目。" },
+  { question: "如何在 Agent 提示中包含对话历史？", answer: "使用 Memory (Get All) 检索对话的所有记忆，然后将结果传递给 Agent 模块。您可以将记忆包含在系统提示或用户提示中作为代理考虑的上下文。" },
+]} />

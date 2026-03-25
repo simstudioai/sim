@@ -1,0 +1,98 @@
+---
+title: Memory
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+The Memory block stores and retrieves conversation memories for AI agents. It allows you to add, retrieve, update, and delete conversation history entries, enabling stateful multi-turn interactions beyond the Agent block's built-in memory modes.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/memory.png"
+    alt="Memory Block Configuration"
+    width={500}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+<Callout type="warning">
+  Do not use the Memory block unless explicitly needed. For natural conversations, use the Agent block's built-in memory modes (Conversation, Sliding Window by messages, or Sliding Window by tokens). The Memory block is intended for injecting artificial memory into workflows when the Agent's native memory handling is insufficient.
+</Callout>
+
+## Configuration Options
+
+### Operation
+
+Select the memory operation to perform:
+
+- **Add Memory**: Add a new message to the conversation memory
+- **Get Memory**: Retrieve a specific memory entry by its ID
+- **Get All Memories**: Retrieve all memories for a conversation
+- **Delete Memory**: Remove a memory entry from storage
+
+### Conversation ID
+
+The unique identifier for the conversation. This key persists the memory across workflow runs and enables context sharing between multiple executions.
+
+- **Required**: Yes
+- **Type**: String
+- **Example**: `chat-session-123`, `user-456`, `conversation-abc`
+
+### Role (Add Memory only)
+
+Specifies the speaker role for the memory entry when using the Add Memory operation:
+
+- **user**: Message from the end user
+- **assistant**: Message from the AI model
+- **system**: System-level instruction or context
+
+### Content (Add Memory only)
+
+The message content to store when using the Add Memory operation:
+
+- **Type**: String (Markdown supported)
+- **Max Length**: No hard limit, but keep reasonably sized for performance
+
+## Outputs
+
+- **`<memory.memories>`**: JSON array of all memories in the conversation (for Get All Memories)
+- **`<memory.memory>`**: The specific memory entry retrieved (for Get Memory)
+- **`<memory.success>`**: Boolean indicating whether the operation completed successfully
+- **`<memory.id>`**: The conversation ID used for the operation
+
+## Example Use Cases
+
+**Multi-Turn Conversation with Context Preservation**
+```
+User Input → Memory (Get All) → Agent (w/ history) → Memory (Add user msg) → Agent → Memory (Add assistant msg) → Response
+```
+
+**Building Persistent User Profiles**
+```
+API (User Data) → Memory (Add) → Agent (Enhanced w/ user context) → API (Update Profile)
+```
+
+**Conversation Analytics**
+```
+Trigger (Scheduled) → Memory (Get All, conversationId) → Function (Analyze sentiment) → API (Log analytics)
+```
+
+## Best Practices
+
+- **Use Agent memory first**: The Agent block's built-in memory modes handle most conversation scenarios without requiring the Memory block
+- **Manage memory growth**: Periodically clean up old memories to prevent excessive storage and slow retrieval
+- **Consistent conversation IDs**: Use meaningful, consistent IDs to ensure memories are properly grouped and retrievable
+- **Combine with Agent block**: For best results, use Memory alongside the Agent block to build full conversation context
+
+<FAQ items={[
+  { question: "When should I use the Memory block vs. the Agent block's memory modes?", answer: "Use the Agent block's memory modes (Conversation, Sliding Window by messages, Sliding Window by tokens) for standard multi-turn conversations—they're simpler and handle most cases. Use the Memory block only when you need explicit control over memory operations, such as injecting artificial conversation history, managing memories outside of Agent calls, or building custom conversation logic." },
+  { question: "Can I share memories between different agents?", answer: "Yes. By using the same conversation ID across multiple Agent and Memory blocks, you can share conversation history and context between different agents in the same workflow." },
+  { question: "What happens if I add memory with the same content twice?", answer: "Duplicate entries are allowed. Each call to Add Memory creates a new entry, even if the content is identical. If you need to prevent duplicates, add deduplication logic in upstream blocks (e.g., a Function block)." },
+  { question: "Are memories persistent across workflow executions?", answer: "Yes. Memories are stored in the backend and persist across multiple workflow executions as long as you use the same conversation ID. This enables stateful interactions over time." },
+  { question: "Can I delete a specific memory entry?", answer: "Yes. Use the Delete Memory operation with the conversation ID. If you need to delete specific entries, you may need to retrieve all memories, filter them in a Function block, and selectively delete entries." },
+  { question: "How do I include conversation history in an Agent prompt?", answer: "Use Memory (Get All) to retrieve all memories for the conversation, then pass the results to the Agent block. You can include the memories in the system prompt or user prompt as context for the agent to consider." },
+]} />

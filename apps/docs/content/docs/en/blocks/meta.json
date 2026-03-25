@@ -9,12 +9,17 @@
     "guardrails",
     "human-in-the-loop",
     "loop",
+    "memory",
+    "note",
     "parallel",
     "response",
     "router",
+    "thinking",
     "variables",
     "wait",
     "webhook",
+    "webhook-request",
     "workflow"
   ]
 }
+
