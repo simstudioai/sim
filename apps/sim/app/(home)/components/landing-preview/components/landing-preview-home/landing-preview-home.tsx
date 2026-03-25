@@ -49,12 +49,13 @@ export const LandingPreviewHome = memo(function LandingPreviewHome() {
 
   return (
     <div className='flex min-w-0 flex-1 flex-col items-center justify-center px-[24px] pb-[2vh]'>
-      <h1
+      <p
+        role='presentation'
         className='mb-[24px] max-w-[42rem] font-[430] font-season text-[32px] tracking-[-0.02em]'
         style={{ color: C.TEXT_PRIMARY }}
       >
         What should we get done?
-      </h1>
+      </p>
 
       <div className='w-full max-w-[32rem]'>
         <div

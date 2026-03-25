@@ -1,19 +1,19 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
+import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import {
-  getFromEmailAddress,
-  NO_EMAIL_HEADER_CONTROL_CHARS_REGEX,
-} from '@/lib/messaging/email/utils'
+  demoRequestSchema,
+  getDemoRequestRegionLabel,
+  getDemoRequestUserCountLabel,
+} from '@/app/(home)/components/demo-request/consts'
 
-const logger = createLogger('IntegrationRequestAPI')
-
+const logger = createLogger('DemoRequestAPI')
 const rateLimiter = new RateLimiter()
 
 const PUBLIC_ENDPOINT_RATE_LIMIT: TokenBucketConfig = {
@@ -22,23 +22,12 @@ const PUBLIC_ENDPOINT_RATE_LIMIT: TokenBucketConfig = {
   refillIntervalMs: 60_000,
 }
 
-const integrationRequestSchema = z.object({
-  integrationName: z
-    .string()
-    .trim()
-    .min(1, 'Integration name is required')
-    .max(200)
-    .regex(NO_EMAIL_HEADER_CONTROL_CHARS_REGEX, 'Invalid characters'),
-  email: z.string().email('A valid email is required'),
-  useCase: z.string().max(2000).optional(),
-})
-
 export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
 
   try {
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
-    const storageKey = `public:integration-request:${ip}`
+    const storageKey = `public:demo-request:${ip}`
 
     const { allowed, remaining, resetAt } = await rateLimiter.checkRateLimitDirect(
       storageKey,
@@ -57,10 +46,10 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
+    const validationResult = demoRequestSchema.safeParse(body)
 
-    const validationResult = integrationRequestSchema.safeParse(body)
     if (!validationResult.success) {
-      logger.warn(`[${requestId}] Invalid integration request data`, {
+      logger.warn(`[${requestId}] Invalid demo request data`, {
         errors: validationResult.error.format(),
       })
       return NextResponse.json(
@@ -69,50 +58,49 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { integrationName, email, useCase } = validationResult.data
+    const { firstName, lastName, companyEmail, phoneNumber, region, userCount, details } =
+      validationResult.data
 
-    logger.info(`[${requestId}] Processing integration request`, {
-      integrationName,
-      email: `${email.substring(0, 3)}***`,
+    logger.info(`[${requestId}] Processing demo request`, {
+      email: `${companyEmail.substring(0, 3)}***`,
+      region,
+      userCount,
     })
 
-    const emailText = `Integration: ${integrationName}
-From: ${email}
+    const emailText = `Demo request submitted
 Submitted: ${new Date().toISOString()}
+Name: ${firstName} ${lastName}
+Email: ${companyEmail}
+Phone: ${phoneNumber ?? 'Not provided'}
+Region: ${getDemoRequestRegionLabel(region)}
+Users: ${getDemoRequestUserCountLabel(userCount)}
 
-${useCase ? `Use Case:\n${useCase}` : 'No use case provided.'}
+Details:
+${details}
 `
 
     const emailResult = await sendEmail({
-      to: [`help@${env.EMAIL_DOMAIN || getEmailDomain()}`],
-      subject: `[INTEGRATION REQUEST] ${integrationName}`,
+      to: [`enterprise@${env.EMAIL_DOMAIN || getEmailDomain()}`],
+      subject: `[DEMO REQUEST] ${firstName} ${lastName}`,
       text: emailText,
       from: getFromEmailAddress(),
-      replyTo: email,
+      replyTo: companyEmail,
       emailType: 'transactional',
     })
 
     if (!emailResult.success) {
-      logger.error(`[${requestId}] Error sending integration request email`, emailResult.message)
-      return NextResponse.json({ error: 'Failed to send request' }, { status: 500 })
+      logger.error(`[${requestId}] Error sending demo request email`, emailResult.message)
+      return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 })
     }
 
-    logger.info(`[${requestId}] Integration request email sent successfully`)
+    logger.info(`[${requestId}] Demo request email sent successfully`)
 
     return NextResponse.json(
-      { success: true, message: 'Integration request submitted successfully' },
-      { status: 200 }
+      { success: true, message: 'Thanks! Our team will reach out shortly.' },
+      { status: 201 }
     )
   } catch (error) {
-    if (error instanceof Error && error.message.includes('not configured')) {
-      logger.error(`[${requestId}] Email service configuration error`, error)
-      return NextResponse.json(
-        { error: 'Email service is temporarily unavailable. Please try again later.' },
-        { status: 500 }
-      )
-    }
-
-    logger.error(`[${requestId}] Error processing integration request`, error)
+    logger.error(`[${requestId}] Error processing demo request`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
