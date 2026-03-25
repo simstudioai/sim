@@ -398,6 +398,10 @@ aside[data-sidebar],
   #nd-docs-layout > header {
     display: none !important;
   }
+  #nd-docs-layout > footer[data-docs-footer] {
+    grid-column: main-start / toc-end;
+    grid-row: -1;
+  }
 }
 
 /* ── Code: Martian Mono ── */

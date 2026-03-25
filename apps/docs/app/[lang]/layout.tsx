@@ -5,6 +5,7 @@ import { RootProvider } from 'fumadocs-ui/provider/next'
 import { Martian_Mono } from 'next/font/google'
 import localFont from 'next/font/local'
 import Script from 'next/script'
+import { DocsFooter } from '@/components/docs-layout/docs-footer'
 import {
   SidebarFolder,
   SidebarItem,
@@ -131,6 +132,7 @@ export default async function Layout({ children, params }: LayoutProps) {
           >
             {children}
           </DocsLayout>
+            <DocsFooter />
         </RootProvider>
       </body>
     </html>

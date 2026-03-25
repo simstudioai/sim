@@ -1,6 +1,5 @@
 'use client'
 
-import { CircleHelp } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LanguageDropdown } from '@/components/ui/language-dropdown'
@@ -33,13 +32,7 @@ export function Navbar() {
     <nav className='sticky top-0 pt-2 z-50 bg-background/80 backdrop-blur-md backdrop-saturate-150'>
       <div className='hidden w-full flex-col lg:flex'>
         {/* Top row: logo, search, controls */}
-        <div
-          className='relative flex h-[52px] w-full items-center justify-between'
-          style={{
-            paddingLeft: 'calc(var(--sidebar-offset) + 32px)',
-            paddingRight: 'calc(var(--toc-offset) + 60px)',
-          }}
-        >
+        <div className='relative flex h-[52px] w-full items-center justify-between px-8'>
           <Link href='/' className='flex min-w-[100px] items-center'>
             <SimLogoFull className='h-6 w-auto' />
           </Link>
@@ -74,12 +67,7 @@ export function Navbar() {
         </div>
 
         {/* Bottom row: navigation tabs */}
-        <div
-          className='flex h-[40px] items-stretch gap-7 border-neutral-200/40 border-b dark:border-neutral-700/30'
-          style={{
-            paddingLeft: 'calc(var(--sidebar-offset) + 32px)',
-          }}
-        >
+        <div className='flex h-[40px] items-stretch gap-7 border-neutral-200/40 border-b px-8 dark:border-neutral-700/30'>
           {NAV_TABS.map((tab) => {
             const isActive = !tab.external && tab.match(pathname)
             return (
