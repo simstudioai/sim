@@ -123,7 +123,7 @@ async function generateIconMapping(): Promise<Record<string, string>> {
       // For icon mapping, we need ALL blocks including hidden ones
       // because V2 blocks inherit icons from legacy blocks via spread
       // First, extract the primary icon from the file (usually the legacy block's icon)
-      const primaryIcon = extractIconName(fileContent)
+      const primaryIcon = extractIconNameFromContent(fileContent)
 
       // Find all block exports and their types
       const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
@@ -678,7 +678,7 @@ function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
   const configs: BlockConfig[] = []
 
   // First, extract the primary icon from the file (for V2 blocks that inherit via spread)
-  const primaryIcon = extractIconName(fileContent)
+  const primaryIcon = extractIconNameFromContent(fileContent)
 
   // Find all block exports in the file
   const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
