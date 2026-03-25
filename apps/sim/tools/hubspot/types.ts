@@ -745,6 +745,7 @@ export interface HubSpotPaging {
 export interface HubSpotGetUsersResponse extends ToolResponse {
   output: {
     users: HubSpotUser[]
+    paging: HubSpotPaging | null
     totalItems?: number
     success: boolean
   }

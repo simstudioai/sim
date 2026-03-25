@@ -479,6 +479,7 @@ Return ONLY the JSON object with properties - no explanations, no markdown, no e
           'get_appointments',
           'get_carts',
           'list_owners',
+          'get_users',
           'get_marketing_events',
           'get_lists',
           'search_contacts',

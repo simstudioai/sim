@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { HubSpotGetUsersParams, HubSpotGetUsersResponse } from '@/tools/hubspot/types'
-import { USERS_ARRAY_OUTPUT } from '@/tools/hubspot/types'
+import { PAGING_OUTPUT, USERS_ARRAY_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotGetUsers')
@@ -79,6 +79,7 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
       success: true,
       output: {
         users,
+        paging: data.paging ?? null,
         totalItems: users.length,
         success: true,
       },
@@ -87,6 +88,7 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
 
   outputs: {
     users: USERS_ARRAY_OUTPUT,
+    paging: PAGING_OUTPUT,
     totalItems: { type: 'number', description: 'Total number of users returned' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
