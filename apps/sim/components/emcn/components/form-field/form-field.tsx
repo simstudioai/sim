@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Label } from '../label/label'
+import { Label } from '@/components/emcn'
 
 export interface FormFieldProps {
   label: ReactNode

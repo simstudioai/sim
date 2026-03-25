@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   Button,
   Combobox,
@@ -42,6 +42,8 @@ interface DemoRequestFormState {
 }
 
 const SUBMIT_SUCCESS_MESSAGE = "We'll be in touch soon!"
+const COMBOBOX_REGIONS = [...DEMO_REQUEST_REGION_OPTIONS]
+const COMBOBOX_USER_COUNTS = [...DEMO_REQUEST_USER_COUNT_OPTIONS]
 
 const INITIAL_FORM_STATE: DemoRequestFormState = {
   firstName: '',
@@ -60,9 +62,6 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState(false)
-
-  const comboboxRegions = useMemo(() => [...DEMO_REQUEST_REGION_OPTIONS], [])
-  const comboboxUserCounts = useMemo(() => [...DEMO_REQUEST_USER_COUNT_OPTIONS], [])
 
   const resetForm = useCallback(() => {
     setForm(INITIAL_FORM_STATE)
@@ -229,7 +228,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                 <div className='grid gap-4 sm:grid-cols-2'>
                   <FormField htmlFor='region' label='Region' error={errors.region}>
                     <Combobox
-                      options={comboboxRegions}
+                      options={COMBOBOX_REGIONS}
                       value={form.region}
                       selectedValue={form.region}
                       onChange={(value) =>
@@ -242,7 +241,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                   </FormField>
                   <FormField htmlFor='userCount' label='Number of users' error={errors.userCount}>
                     <Combobox
-                      options={comboboxUserCounts}
+                      options={COMBOBOX_USER_COUNTS}
                       value={form.userCount}
                       selectedValue={form.userCount}
                       onChange={(value) =>
