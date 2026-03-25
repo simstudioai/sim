@@ -77,6 +77,7 @@ app:
     
     # Node environment
     NODE_ENV: "production"
+    LOG_LEVEL: "INFO"
     NEXT_TELEMETRY_DISABLED: "1"
 
     # Telemetry & Monitoring
@@ -323,6 +324,7 @@ realtime:
     
     # Node environment
     NODE_ENV: "production"
+    LOG_LEVEL: "INFO"
   
   # Service configuration
   service:
