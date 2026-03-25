@@ -11,7 +11,7 @@ export const RipplingBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/rippling',
   category: 'tools',
   integrationType: IntegrationType.HR,
-  tags: [],
+  tags: ['hiring'],
   bgColor: '#FFCC1C',
   icon: RipplingIcon,
   authMode: AuthMode.ApiKey,
@@ -317,20 +317,49 @@ export const RipplingBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `rippling_${params.operation}`,
-      params: (params) => ({
-        ...params,
-        ...(params.limit && { limit: Number(params.limit) }),
-        ...(params.offset && { offset: Number(params.offset) }),
-        ...(params.groupVersion && { version: Number(params.groupVersion) }),
-        ...(params.groupName && { name: params.groupName }),
-        ...(params.candidatePhone && { phone: params.candidatePhone }),
-        ...(params.candidateDepartment && { department: params.candidateDepartment }),
-        ...(params.candidateStartDate && { startDate: params.candidateStartDate }),
-        ...(params.nextCursor && { next: params.nextCursor }),
-        ...(params.users && {
-          users: typeof params.users === 'string' ? JSON.parse(params.users) : params.users,
-        }),
-      }),
+      params: (params) => {
+        const mapped: Record<string, unknown> = {
+          apiKey: params.apiKey,
+          operation: params.operation,
+        }
+
+        if (params.employeeId) mapped.employeeId = params.employeeId
+        if (params.leaveRequestId) mapped.leaveRequestId = params.leaveRequestId
+        if (params.action) mapped.action = params.action
+        if (params.roleId) mapped.roleId = params.roleId
+        if (params.spokeId) mapped.spokeId = params.spokeId
+        if (params.groupId) mapped.groupId = params.groupId
+        if (params.firstName) mapped.firstName = params.firstName
+        if (params.lastName) mapped.lastName = params.lastName
+        if (params.email) mapped.email = params.email
+        if (params.jobTitle) mapped.jobTitle = params.jobTitle
+        if (params.startDate) mapped.startDate = params.startDate
+        if (params.endDate) mapped.endDate = params.endDate
+        if (params.status) mapped.status = params.status
+        if (params.managedBy) mapped.managedBy = params.managedBy
+
+        if (params.limit != null && params.limit !== '') mapped.limit = Number(params.limit)
+        if (params.offset != null && params.offset !== '') mapped.offset = Number(params.offset)
+        if (params.groupVersion) mapped.version = Number(params.groupVersion)
+        if (params.groupName) mapped.name = params.groupName
+        if (params.candidatePhone) mapped.phone = params.candidatePhone
+        if (params.candidateDepartment) mapped.department = params.candidateDepartment
+        if (params.candidateStartDate) mapped.startDate = params.candidateStartDate
+        if (params.nextCursor) mapped.next = params.nextCursor
+
+        if (params.users) {
+          try {
+            mapped.users =
+              typeof params.users === 'string' ? JSON.parse(params.users) : params.users
+          } catch {
+            throw new Error(
+              'Invalid JSON for "User IDs" field. Expected an array like ["user-id-1", "user-id-2"].'
+            )
+          }
+        }
+
+        return mapped
+      },
     },
   },
 
