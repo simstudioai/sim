@@ -135,7 +135,7 @@ export async function orchestrateCopilotStream(
   let claimedToolCallIds: string[] = []
   let claimedByWorkerId: string | null = null
 
-  logger.info(withLogContext('Starting copilot orchestration'), {
+  logger.error(withLogContext('Starting copilot orchestration'), {
     goRoute,
     workflowId,
     workspaceId,
@@ -154,7 +154,7 @@ export async function orchestrateCopilotStream(
     for (;;) {
       context.streamComplete = false
 
-      logger.info(withLogContext('Starting orchestration loop iteration'), {
+      logger.error(withLogContext('Starting orchestration loop iteration'), {
         route,
         hasPendingAsyncContinuation: Boolean(context.awaitingAsyncContinuation),
         claimedToolCallCount: claimedToolCallIds.length,
@@ -167,7 +167,7 @@ export async function orchestrateCopilotStream(
             const d = (event.data ?? {}) as Record<string, unknown>
             const response = (d.response ?? {}) as Record<string, unknown>
             if (response.async_pause) {
-              logger.info(withLogContext('Detected async pause from copilot backend'), {
+              logger.error(withLogContext('Detected async pause from copilot backend'), {
                 route,
                 checkpointId:
                   typeof (response.async_pause as Record<string, unknown>)?.checkpointId ===
@@ -200,7 +200,7 @@ export async function orchestrateCopilotStream(
         loopOptions
       )
 
-      logger.info(withLogContext('Completed orchestration loop iteration'), {
+      logger.error(withLogContext('Completed orchestration loop iteration'), {
         route,
         streamComplete: context.streamComplete,
         wasAborted: context.wasAborted,
@@ -209,7 +209,7 @@ export async function orchestrateCopilotStream(
       })
 
       if (claimedToolCallIds.length > 0) {
-        logger.info(withLogContext('Marking async tool calls as delivered'), {
+        logger.error(withLogContext('Marking async tool calls as delivered'), {
           toolCallIds: claimedToolCallIds,
         })
         await Promise.all(
@@ -222,7 +222,7 @@ export async function orchestrateCopilotStream(
       }
 
       if (options.abortSignal?.aborted || context.wasAborted) {
-        logger.info(withLogContext('Stopping orchestration because request was aborted'), {
+        logger.error(withLogContext('Stopping orchestration because request was aborted'), {
           pendingToolCallCount: Array.from(context.toolCalls.values()).filter(
             (toolCall) => toolCall.status === 'pending' || toolCall.status === 'executing'
           ).length,
@@ -240,13 +240,13 @@ export async function orchestrateCopilotStream(
 
       const continuation = context.awaitingAsyncContinuation
       if (!continuation) {
-        logger.info(withLogContext('No async continuation pending; finishing orchestration'))
+        logger.error(withLogContext('No async continuation pending; finishing orchestration'))
         break
       }
 
       let resumeReady = false
       let resumeRetries = 0
-      logger.info(withLogContext('Processing async continuation'), {
+      logger.error(withLogContext('Processing async continuation'), {
         checkpointId: continuation.checkpointId,
         runId: continuation.runId,
         pendingToolCallIds: continuation.pendingToolCallIds,
@@ -442,7 +442,7 @@ export async function orchestrateCopilotStream(
           }
           if (resumeRetries < 3) {
             resumeRetries++
-            logger.info(withLogContext('Retrying async resume after claim contention'), {
+            logger.error(withLogContext('Retrying async resume after claim contention'), {
               checkpointId: continuation.checkpointId,
               runId: continuation.runId,
               workerId: resumeWorkerId,
@@ -473,7 +473,7 @@ export async function orchestrateCopilotStream(
         ]
         claimedByWorkerId = claimedToolCallIds.length > 0 ? resumeWorkerId : null
 
-        logger.info(withLogContext('Resuming async tool continuation'), {
+        logger.error(withLogContext('Resuming async tool continuation'), {
           checkpointId: continuation.checkpointId,
           runId: continuation.runId,
           workerId: resumeWorkerId,
@@ -539,7 +539,7 @@ export async function orchestrateCopilotStream(
           checkpointId: continuation.checkpointId,
           results,
         }
-        logger.info(withLogContext('Prepared async continuation payload for resume endpoint'), {
+        logger.error(withLogContext('Prepared async continuation payload for resume endpoint'), {
           route,
           checkpointId: continuation.checkpointId,
           resultCount: results.length,
@@ -568,7 +568,7 @@ export async function orchestrateCopilotStream(
       usage: context.usage,
       cost: context.cost,
     }
-    logger.info(withLogContext('Completing copilot orchestration'), {
+    logger.error(withLogContext('Completing copilot orchestration'), {
       success: result.success,
       chatId: result.chatId,
       hasRequestId: Boolean(result.requestId),
