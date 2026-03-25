@@ -196,11 +196,11 @@ export const Dropdown = memo(function Dropdown({
    */
   const handleOpenChange = useCallback(
     (open: boolean) => {
-      if (open && (fetchedOptions.length === 0 || fetchError !== null)) {
+      if (open) {
         void fetchOptionsIfNeeded(fetchError !== null)
       }
     },
-    [fetchError, fetchOptionsIfNeeded, fetchedOptions.length]
+    [fetchError, fetchOptionsIfNeeded]
   )
 
   const evaluatedOptions = useMemo(() => {
