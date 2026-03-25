@@ -32,7 +32,7 @@ type DropdownOption =
  */
 interface DropdownProps {
   /** Static options array or function that returns options */
-  options: DropdownOption[] | (() => DropdownOption[])
+  options?: DropdownOption[] | (() => DropdownOption[])
   /** Default value to select when no value is set */
   defaultValue?: string
   /** Unique identifier for the block */
@@ -127,10 +127,12 @@ export const Dropdown = memo(function Dropdown({
   const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [hasAttemptedOptionsFetch, setHasAttemptedOptionsFetch] = useState(false)
   const [hydratedOption, setHydratedOption] = useState<{ label: string; id: string } | null>(null)
 
   const previousModeRef = useRef<string | null>(null)
   const previousDependencyValuesRef = useRef<string>('')
+  const isOptionsFetchInFlightRef = useRef(false)
 
   const [builderData, setBuilderData] = useSubBlockValue<any[]>(blockId, 'builderData')
   const [data, setData] = useSubBlockValue<string>(blockId, 'data')
@@ -154,9 +156,20 @@ export const Dropdown = memo(function Dropdown({
         : []
     : null
 
-  const fetchOptionsIfNeeded = useCallback(async () => {
-    if (!fetchOptions || isPreview || disabled) return
+  const fetchOptionsIfNeeded = useCallback(async (force = false) => {
+    if (
+      !fetchOptions ||
+      isPreview ||
+      disabled ||
+      isLoadingOptions ||
+      (!force && hasAttemptedOptionsFetch) ||
+      isOptionsFetchInFlightRef.current
+    ) {
+      return
+    }
 
+    isOptionsFetchInFlightRef.current = true
+    setHasAttemptedOptionsFetch(true)
     setIsLoadingOptions(true)
     setFetchError(null)
     try {
@@ -167,24 +180,34 @@ export const Dropdown = memo(function Dropdown({
       setFetchError(errorMessage)
       setFetchedOptions([])
     } finally {
+      isOptionsFetchInFlightRef.current = false
       setIsLoadingOptions(false)
     }
-  }, [fetchOptions, blockId, subBlockId, isPreview, disabled])
+  }, [
+    fetchOptions,
+    blockId,
+    subBlockId,
+    isPreview,
+    disabled,
+    isLoadingOptions,
+    hasAttemptedOptionsFetch,
+  ])
 
   /**
    * Handles combobox open state changes to trigger option fetching
    */
   const handleOpenChange = useCallback(
     (open: boolean) => {
-      if (open) {
-        void fetchOptionsIfNeeded()
+      if (open && fetchedOptions.length === 0) {
+        void fetchOptionsIfNeeded(fetchError !== null)
       }
     },
-    [fetchOptionsIfNeeded]
+    [fetchError, fetchOptionsIfNeeded, fetchedOptions.length]
   )
 
   const evaluatedOptions = useMemo(() => {
-    return typeof options === 'function' ? options() : options
+    const resolvedOptions = typeof options === 'function' ? options() : options
+    return Array.isArray(resolvedOptions) ? resolvedOptions : []
   }, [options])
 
   const normalizedFetchedOptions = useMemo(() => {
@@ -370,6 +393,8 @@ export const Dropdown = memo(function Dropdown({
         currentDependencyValuesStr !== previousDependencyValuesStr
       ) {
         setFetchedOptions([])
+        setFetchError(null)
+        setHasAttemptedOptionsFetch(false)
         setHydratedOption(null)
       }
 
@@ -387,7 +412,8 @@ export const Dropdown = memo(function Dropdown({
       !disabled &&
       fetchedOptions.length === 0 &&
       !isLoadingOptions &&
-      !fetchError
+      !fetchError &&
+      !hasAttemptedOptionsFetch
     ) {
       fetchOptionsIfNeeded()
     }
@@ -399,6 +425,7 @@ export const Dropdown = memo(function Dropdown({
     fetchedOptions.length,
     isLoadingOptions,
     fetchError,
+    hasAttemptedOptionsFetch,
     dependencyValues,
   ])
 

@@ -48,6 +48,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, '../../packages/logger/src'),
       },
       {
+        find: '@opencode-ai/sdk',
+        replacement: path.resolve(__dirname, '../../node_modules/@opencode-ai/sdk/dist/index.js'),
+      },
+      {
         find: '@/stores/console/store',
         replacement: path.resolve(__dirname, 'stores/console/store.ts'),
       },

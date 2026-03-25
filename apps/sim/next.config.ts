@@ -1,3 +1,4 @@
+import path from 'path'
 import type { NextConfig } from 'next'
 import { env, getEnv, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/feature-flags'
@@ -8,7 +9,19 @@ import {
   getWorkflowExecutionCSPPolicy,
 } from './lib/core/security/csp'
 
+const OPEN_CODE_SDK_DIST_ABSOLUTE = path.resolve(
+  __dirname,
+  '../../node_modules/@opencode-ai/sdk/dist/index.js'
+)
+const OPEN_CODE_SDK_DIST_PROJECT_RELATIVE = '../../node_modules/@opencode-ai/sdk/dist/index.js'
+
 const nextConfig: NextConfig = {
+  webpack: (config) => {
+    config.resolve = config.resolve || {}
+    config.resolve.alias = config.resolve.alias || {}
+    config.resolve.alias['@opencode-ai/sdk'] = OPEN_CODE_SDK_DIST_ABSOLUTE
+    return config
+  },
   devIndicators: false,
   images: {
     remotePatterns: [
@@ -76,6 +89,9 @@ const nextConfig: NextConfig = {
   output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
   turbopack: {
     resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
+    resolveAlias: {
+      '@opencode-ai/sdk': OPEN_CODE_SDK_DIST_PROJECT_RELATIVE,
+    },
   },
   serverExternalPackages: [
     '@1password/sdk',

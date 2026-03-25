@@ -56,6 +56,29 @@ export function AgentIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function OpenCodeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns='http://www.w3.org/2000/svg'
+      width='24'
+      height='24'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.8'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <rect x='3' y='4' width='18' height='14' rx='2.5' />
+      <path d='M7 9.5 5.5 11l1.5 1.5' />
+      <path d='M17 9.5 18.5 11 17 12.5' />
+      <path d='m11.5 8.5-1 5' />
+      <path d='M8 20h8' />
+    </svg>
+  )
+}
+
 export function ApiIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

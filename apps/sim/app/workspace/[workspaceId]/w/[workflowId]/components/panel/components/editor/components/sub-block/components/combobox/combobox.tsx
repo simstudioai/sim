@@ -39,7 +39,7 @@ type ComboBoxOption =
  */
 interface ComboBoxProps {
   /** Available options for selection - can be static array or function that returns options */
-  options: ComboBoxOption[] | (() => ComboBoxOption[])
+  options?: ComboBoxOption[] | (() => ComboBoxOption[])
   /** Default value to use when no value is set */
   defaultValue?: string
   /** ID of the parent block */
@@ -123,15 +123,28 @@ export const ComboBox = memo(function ComboBox({
   const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [hasAttemptedOptionsFetch, setHasAttemptedOptionsFetch] = useState(false)
   const [hydratedOption, setHydratedOption] = useState<{ label: string; id: string } | null>(null)
   const previousDependencyValuesRef = useRef<string>('')
+  const isOptionsFetchInFlightRef = useRef(false)
 
   /**
    * Fetches options from the async fetchOptions function if provided
    */
-  const fetchOptionsIfNeeded = useCallback(async () => {
-    if (!fetchOptions || isPreview || disabled) return
+  const fetchOptionsIfNeeded = useCallback(async (force = false) => {
+    if (
+      !fetchOptions ||
+      isPreview ||
+      disabled ||
+      isLoadingOptions ||
+      (!force && hasAttemptedOptionsFetch) ||
+      isOptionsFetchInFlightRef.current
+    ) {
+      return
+    }
 
+    isOptionsFetchInFlightRef.current = true
+    setHasAttemptedOptionsFetch(true)
     setIsLoadingOptions(true)
     setFetchError(null)
     try {
@@ -142,9 +155,18 @@ export const ComboBox = memo(function ComboBox({
       setFetchError(errorMessage)
       setFetchedOptions([])
     } finally {
+      isOptionsFetchInFlightRef.current = false
       setIsLoadingOptions(false)
     }
-  }, [fetchOptions, blockId, subBlockId, isPreview, disabled])
+  }, [
+    fetchOptions,
+    blockId,
+    subBlockId,
+    isPreview,
+    disabled,
+    isLoadingOptions,
+    hasAttemptedOptionsFetch,
+  ])
 
   // Determine the active value based on mode (preview vs. controlled vs. store)
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
@@ -154,7 +176,8 @@ export const ComboBox = memo(function ComboBox({
 
   // Evaluate static options if provided as a function
   const staticOptions = useMemo(() => {
-    const opts = typeof options === 'function' ? options() : options
+    const resolvedOptions = typeof options === 'function' ? options() : options
+    const opts = Array.isArray(resolvedOptions) ? resolvedOptions : []
 
     if (subBlockId === 'model') {
       return opts.filter((opt) => {
@@ -307,6 +330,8 @@ export const ComboBox = memo(function ComboBox({
         currentDependencyValuesStr !== previousDependencyValuesStr
       ) {
         setFetchedOptions([])
+        setFetchError(null)
+        setHasAttemptedOptionsFetch(false)
         setHydratedOption(null)
       }
 
@@ -322,7 +347,8 @@ export const ComboBox = memo(function ComboBox({
       !disabled &&
       fetchedOptions.length === 0 &&
       !isLoadingOptions &&
-      !fetchError
+      !fetchError &&
+      !hasAttemptedOptionsFetch
     ) {
       fetchOptionsIfNeeded()
     }
@@ -334,6 +360,7 @@ export const ComboBox = memo(function ComboBox({
     fetchedOptions.length,
     isLoadingOptions,
     fetchError,
+    hasAttemptedOptionsFetch,
     dependencyValues,
   ])
 
@@ -428,11 +455,11 @@ export const ComboBox = memo(function ComboBox({
    */
   const handleOpenChange = useCallback(
     (open: boolean) => {
-      if (open) {
-        void fetchOptionsIfNeeded()
+      if (open && fetchedOptions.length === 0) {
+        void fetchOptionsIfNeeded(fetchError !== null)
       }
     },
-    [fetchOptionsIfNeeded]
+    [fetchError, fetchOptionsIfNeeded, fetchedOptions.length]
   )
 
   /**

@@ -1614,6 +1614,11 @@ import {
 } from '@/tools/onepassword'
 import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
+  openCodeGetMessagesTool,
+  openCodeListReposTool,
+  openCodePromptTool,
+} from '@/tools/opencode'
+import {
   outlookCopyTool,
   outlookDeleteTool,
   outlookDraftTool,
@@ -3994,6 +3999,9 @@ export const tools: Record<string, ToolConfig> = {
   microsoft_ad_list_group_members: microsoftAdListGroupMembersTool,
   microsoft_ad_add_group_member: microsoftAdAddGroupMemberTool,
   microsoft_ad_remove_group_member: microsoftAdRemoveGroupMemberTool,
+  opencode_get_messages: openCodeGetMessagesTool,
+  opencode_list_repos: openCodeListReposTool,
+  opencode_prompt: openCodePromptTool,
   microsoft_teams_read_chat: microsoftTeamsReadChatTool,
   microsoft_teams_write_chat: microsoftTeamsWriteChatTool,
   microsoft_teams_read_channel: microsoftTeamsReadChannelTool,
