@@ -834,6 +834,29 @@ export function useChat(
             finalizeRef.current(result.error ? { error: true } : undefined)
           }
         } catch (err) {
+          if (err instanceof Error && err.name === 'AbortError') return
+          logger.warn('Unexpected error during reconnect', {
+            streamId: activeStreamId,
+            chatId: chatHistory.id,
+            error: err instanceof Error ? err.message : String(err),
+          })
+          if (streamGenRef.current === gen) {
+            try {
+              finalizeRef.current({ error: true })
+            } catch (finalizeError) {
+              logger.error('Reconnect fallback finalize failed', {
+                streamId: activeStreamId,
+                chatId: chatHistory.id,
+                error:
+                  finalizeError instanceof Error ? finalizeError.message : String(finalizeError),
+              })
+              sendingRef.current = false
+              setIsSending(false)
+              setIsReconnecting(false)
+              abortControllerRef.current = null
+              setError('Failed to reconnect to the active stream')
+            }
+          }
         } finally {
           if (abortControllerRef.current === abortController) {
             abortControllerRef.current = null
@@ -1677,7 +1700,11 @@ export function useChat(
             return
           }
 
-          const batch = await fetchStreamBatch(userMessageId, termination.lastEventId)
+          const batch = await fetchStreamBatch(
+            userMessageId,
+            termination.lastEventId,
+            abortController.signal
+          )
           if (streamGenRef.current !== gen) {
             return
           }
