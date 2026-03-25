@@ -1,8 +1,8 @@
 # PR 3761 Branch Status
 
-## Scope
+## Purpose
 
-This note summarizes the branches involved in PR `#3761` and the final state of each one from this worktree.
+This note describes what each relevant branch contains and how responsibilities are split, so it is easier to see where changes overlap.
 
 PR: `https://github.com/simstudioai/sim/pull/3761`
 
@@ -10,59 +10,127 @@ PR: `https://github.com/simstudioai/sim/pull/3761`
 
 ### `staging`
 
-- Role: base branch of PR `#3761`
-- Expected state: unchanged by this worktree
-- Relationship to this work: `feat/opencode-optional-runtime` is intended to merge into `staging`
+Base branch for PR `#3761`.
+
+What it contains:
+
+- current shared integration baseline before OpenCode optional runtime lands
+- current default compose and deployment behavior
+- no PR-specific branch-only review fixes from this worktree
+
+What it does **not** contain yet:
+
+- the OpenCode branch work described below until PR `#3761` is merged
 
 ### `feat/opencode-optional-runtime`
 
-- Role: feature branch for the OpenCode integration and optional runtime overlay
-- Local state: in sync with `origin/feat/opencode-optional-runtime`
-- Worktree state at the end of this session: clean
-- Latest commit at the end of this session: `5ab2b5f4c`
+Feature branch for PR `#3761`.
+
+Primary responsibility:
+
+- add the OpenCode integration and its optional runtime overlay without changing the existing default local/prod setups
+
+What it contains:
+
+- OpenCode block in Sim
+- OpenCode tools
+- OpenCode API routes
+- `apps/sim/lib/opencode`
+- wiring for `@opencode-ai/sdk` in Next/Vitest
+- async dropdown/combobox support needed by the integration
+- optional runtime files under `docker/opencode/`
+- `docker-compose.opencode.yml`
+- `docker-compose.opencode.local.yml`
+- deployment/runtime hardening for:
+  - `OPENCODE_REPOSITORY_ROOT`
+  - `OPENCODE_SERVER_PASSWORD`
+  - retry/session handling
+  - route error behavior
+  - OpenCode runtime config guards
+
+What this branch intentionally preserves:
+
+- `docker-compose.local.yml` stays as the default local setup
+- `docker-compose.prod.yml` stays as the default production setup
+- OpenCode remains hidden by default behind `NEXT_PUBLIC_OPENCODE_ENABLED`
 
 ### `origin/feat/opencode-optional-runtime`
 
-- Role: remote branch backing PR `#3761`
-- Remote state at the end of this session: matches local `feat/opencode-optional-runtime`
-- Latest pushed commit at the end of this session: `5ab2b5f4c`
+Remote branch backing PR `#3761`.
 
-## Final State Of `feat/opencode-optional-runtime`
+Expected relationship:
 
-At the end of this session, the branch contains:
+- should match local `feat/opencode-optional-runtime`
+- if local and remote diverge, local work has not been pushed yet or remote changed externally
 
-- OpenCode block integration in Sim
-- OpenCode tools, API routes, and `apps/sim/lib/opencode`
-- optional OpenCode runtime overlay under `docker/` and dedicated compose files
-- OpenCode hidden by default behind `NEXT_PUBLIC_OPENCODE_ENABLED`
-- `docker-compose.local.yml` and `docker-compose.prod.yml` preserved as defaults
-- external runtime hardening, including configurable `OPENCODE_REPOSITORY_ROOT`
-- fail-fast production overlay behavior when `OPENCODE_SERVER_PASSWORD` is missing
-- focused fixes for review feedback around:
-  - stale session retry handling
-  - repository resolution reuse
-  - internal URL leakage in route errors
-  - Docker runtime detection caching
-  - async selector refetch behavior in dropdown/combobox
-  - OpenCode retry session persistence
-  - root-path and retry-error hardening
-  - entrypoint port validation
+## Overlap And Boundaries
 
-## Final Commit Sequence Applied In This Session
+### Product / app layer
 
-- `1e174f75a` `fix(opencode): avoid redundant resolution and url leaks`
-- `35fac8dd3` `fix(opencode): clean up low severity review notes`
-- `35949bb16` `fix(opencode): harden root path and retry errors`
-- `3458868ba` `refactor(opencode): keep base url helper private`
-- `a27de0d7c` `fix(editor): avoid stale open-change fetch gating`
-- `a8fb07354` `fix(opencode): persist fresh retry sessions`
-- `2bb744a38` `fix(opencode): tighten retry and entrypoint guards`
-- `5ab2b5f4c` `fix(editor): stabilize async option refetching`
+Owned here in `feat/opencode-optional-runtime`:
 
-## End-State Summary
+- OpenCode block/tool/route/lib implementation
+- editor support required by the OpenCode selectors
 
-- Current branch: `feat/opencode-optional-runtime`
-- Base branch: `staging`
-- PR branch remote: `origin/feat/opencode-optional-runtime`
-- Local/remote divergence at the end of this session: none
-- Worktree cleanliness at the end of this session: clean
+Possible overlap area:
+
+- shared editor components like dropdown/combobox
+- these are not OpenCode-only files, but this branch touches them only where needed for OpenCode async option behavior
+
+### Runtime / deployment layer
+
+Owned here in `feat/opencode-optional-runtime`:
+
+- optional OpenCode container/runtime bootstrap
+- optional compose overlays
+
+Boundary:
+
+- this branch should not replace the default local/prod compose files as the main path
+- it only adds overlays and guards around the optional runtime
+
+### Review-fix layer
+
+Many follow-up changes in this branch are not separate features.
+
+They are:
+
+- hardening fixes
+- correctness fixes
+- small refactors
+- review-driven adjustments on top of the same OpenCode feature branch
+
+That means several files now contain both:
+
+- original feature work
+- later review fixes
+
+So if something feels like it is "overlapping", that is expected: the branch has accumulated refinement passes on top of the original OpenCode implementation rather than splitting them into separate branches.
+
+## Final Branch State
+
+At the end of this session:
+
+- current branch: `feat/opencode-optional-runtime`
+- base branch: `staging`
+- remote tracking branch: `origin/feat/opencode-optional-runtime`
+- local/remote divergence: none
+- worktree state: clean
+
+## Practical Reading Guide
+
+If you want to understand the branch quickly, read it in this order:
+
+1. `apps/sim/lib/opencode/`
+2. `apps/sim/app/api/opencode/`
+3. `apps/sim/app/api/tools/opencode/`
+4. `apps/sim/blocks/blocks/opencode.ts`
+5. `docker/opencode/`
+6. `docker-compose.opencode.yml`
+7. `docker-compose.opencode.local.yml`
+
+If you want to understand where overlap happened, check these shared files next:
+
+- `apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/combobox/combobox.tsx`
+- `apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/dropdown/dropdown.tsx`
+- `apps/sim/app/api/tools/opencode/prompt/route.ts`
