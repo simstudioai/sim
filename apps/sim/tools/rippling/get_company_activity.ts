@@ -114,7 +114,7 @@ export const ripplingGetCompanyActivityTool: ToolConfig<
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of activity events returned',
+      description: 'Number of activity events returned on this page',
     },
     nextCursor: {
       type: 'string',

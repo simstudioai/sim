@@ -96,7 +96,7 @@ export const ripplingListWorkLocationsTool: ToolConfig<
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of work locations returned',
+      description: 'Number of work locations returned on this page',
     },
   },
 }

@@ -88,7 +88,7 @@ export const ripplingListDepartmentsTool: ToolConfig<
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of departments returned',
+      description: 'Number of departments returned on this page',
     },
   },
 }

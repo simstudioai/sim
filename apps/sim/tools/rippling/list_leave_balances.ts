@@ -101,7 +101,7 @@ export const ripplingListLeaveBalancesTool: ToolConfig<
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of leave balances returned',
+      description: 'Number of leave balances returned on this page',
     },
   },
 }

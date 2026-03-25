@@ -90,7 +90,7 @@ export const ripplingListCustomFieldsTool: ToolConfig<
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of custom fields returned',
+      description: 'Number of custom fields returned on this page',
     },
   },
 }

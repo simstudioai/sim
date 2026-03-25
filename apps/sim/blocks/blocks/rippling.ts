@@ -333,8 +333,9 @@ export const RipplingBlock: BlockConfig = {
         if (params.lastName) mapped.lastName = params.lastName
         if (params.email) mapped.email = params.email
         if (params.jobTitle) mapped.jobTitle = params.jobTitle
-        if (params.startDate) mapped.startDate = params.startDate
-        if (params.endDate) mapped.endDate = params.endDate
+        if (params.startDate && params.operation !== 'push_candidate')
+          mapped.startDate = params.startDate
+        if (params.endDate && params.operation !== 'push_candidate') mapped.endDate = params.endDate
         if (params.status) mapped.status = params.status
         if (params.managedBy) mapped.managedBy = params.managedBy
 
@@ -344,7 +345,8 @@ export const RipplingBlock: BlockConfig = {
         if (params.groupName) mapped.name = params.groupName
         if (params.candidatePhone) mapped.phone = params.candidatePhone
         if (params.candidateDepartment) mapped.department = params.candidateDepartment
-        if (params.candidateStartDate) mapped.startDate = params.candidateStartDate
+        if (params.candidateStartDate && params.operation === 'push_candidate')
+          mapped.startDate = params.candidateStartDate
         if (params.nextCursor) mapped.next = params.nextCursor
 
         if (params.users) {

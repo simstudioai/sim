@@ -83,7 +83,7 @@ export const ripplingListTeamsTool: ToolConfig<RipplingListTeamsParams, Rippling
       },
       totalCount: {
         type: 'number',
-        description: 'Total number of teams returned',
+        description: 'Number of teams returned on this page',
       },
     },
   }

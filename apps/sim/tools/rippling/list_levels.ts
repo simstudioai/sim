@@ -85,7 +85,7 @@ export const ripplingListLevelsTool: ToolConfig<
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of levels returned',
+      description: 'Number of levels returned on this page',
     },
   },
 }

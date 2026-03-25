@@ -106,7 +106,7 @@ export const ripplingListEmployeesTool: ToolConfig<
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of employees returned',
+      description: 'Number of employees returned on this page',
     },
   },
 }
