@@ -284,10 +284,6 @@ async function processHostedKeyCost(
 
   if (!userId) return { cost, metadata }
 
-  // Tool hosting costs are included in the provider response's cost.total
-  // (see providers/index.ts sumToolCosts), which flows into the execution's
-  // costSummary and gets recorded atomically via recordUsage() at completion.
-  // No separate log entry is needed here — that would double-count the cost.
   logger.debug(
     `[${requestId}] Hosted key cost for ${tool.id}: $${cost}`,
     metadata ? { metadata } : {}

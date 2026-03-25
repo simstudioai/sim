@@ -84,11 +84,9 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
 
   const { userId, entries, workspaceId, workflowId, executionId, additionalStats } = params
 
-  // Filter to entries with positive cost and derive total
   const validEntries = entries.filter((e) => e.cost > 0)
   const totalCost = validEntries.reduce((sum, e) => sum + e.cost, 0)
 
-  // Nothing to write: no cost entries and no counter increments
   if (
     validEntries.length === 0 &&
     (!additionalStats || Object.keys(additionalStats).length === 0)
@@ -96,14 +94,12 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
     return
   }
 
-  // Keys managed by recordUsage — callers must not override these via additionalStats
   const RESERVED_KEYS = new Set(['totalCost', 'currentPeriodCost', 'lastActive'])
   const safeStats = additionalStats
     ? Object.fromEntries(Object.entries(additionalStats).filter(([k]) => !RESERVED_KEYS.has(k)))
     : undefined
 
   await db.transaction(async (tx) => {
-    // Step 1: Insert usage_log entries (only if there are positive-cost entries)
     if (validEntries.length > 0) {
       await tx.insert(usageLog).values(
         validEntries.map((entry) => ({
@@ -121,7 +117,6 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
       )
     }
 
-    // Step 2: Update userStats — core billing fields + source-specific counters
     const updateFields: Record<string, SQL | Date> = {
       lastActive: new Date(),
       ...(totalCost > 0 && {

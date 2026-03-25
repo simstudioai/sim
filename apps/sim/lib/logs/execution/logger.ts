@@ -645,7 +645,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
         return
       }
 
-      // Build usage entries from cost summary
       const entries: Array<{
         category: 'model' | 'fixed'
         source: 'workflow'
@@ -691,7 +690,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
         additionalStats[triggerCounter.key] = sql`${sql.raw(triggerCounter.column)} + 1`
       }
 
-      // Atomic write: usage_log INSERT + userStats UPDATE in one transaction
       await recordUsage({
         userId,
         entries,

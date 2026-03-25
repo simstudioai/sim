@@ -100,7 +100,6 @@ export async function POST(req: NextRequest) {
       additionalStats.totalMcpCopilotCalls = sql`total_mcp_copilot_calls + 1`
     }
 
-    // Atomic write: usage_log INSERT + userStats UPDATE in one transaction
     await recordUsage({
       userId,
       entries: [

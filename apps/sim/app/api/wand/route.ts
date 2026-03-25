@@ -134,7 +134,6 @@ async function updateUserStatsForWand(
       costToStore = modelCost * costMultiplier
     }
 
-    // Atomic write: usage_log INSERT + userStats UPDATE in one transaction
     await recordUsage({
       userId,
       entries: [
