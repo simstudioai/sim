@@ -320,7 +320,6 @@ export const RipplingBlock: BlockConfig = {
       params: (params) => {
         const mapped: Record<string, unknown> = {
           apiKey: params.apiKey,
-          operation: params.operation,
         }
 
         if (params.employeeId) mapped.employeeId = params.employeeId
