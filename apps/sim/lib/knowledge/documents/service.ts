@@ -114,11 +114,11 @@ export interface DocumentData {
 }
 
 export interface ProcessingOptions {
-  chunkSize: number
-  minCharactersPerChunk: number
-  recipe: string
-  lang: string
-  chunkOverlap: number
+  chunkSize?: number
+  minCharactersPerChunk?: number
+  recipe?: string
+  lang?: string
+  chunkOverlap?: number
 }
 
 export interface DocumentJobData {
@@ -668,7 +668,7 @@ export function isTriggerAvailable(): boolean {
 export async function processDocumentsWithTrigger(
   documents: DocumentProcessingPayload[],
   requestId: string
-): Promise<{ success: boolean; message: string; jobIds?: string[] }> {
+): Promise<{ success: boolean; message: string; batchIds?: string[] }> {
   if (!isTriggerAvailable()) {
     throw new Error('Trigger.dev is not configured - TRIGGER_SECRET_KEY missing')
   }
@@ -676,19 +676,32 @@ export async function processDocumentsWithTrigger(
   try {
     logger.info(`[${requestId}] Triggering background processing for ${documents.length} documents`)
 
-    const jobPromises = documents.map(async (document) => {
-      const job = await tasks.trigger('knowledge-process-document', document)
-      return job.id
-    })
+    const MAX_BATCH_SIZE = 1000
+    const batchIds: string[] = []
 
-    const jobIds = await Promise.all(jobPromises)
+    for (let i = 0; i < documents.length; i += MAX_BATCH_SIZE) {
+      const chunk = documents.slice(i, i + MAX_BATCH_SIZE)
+      const batchResult = await tasks.batchTrigger(
+        'knowledge-process-document',
+        chunk.map((doc) => ({
+          payload: doc,
+          options: {
+            idempotencyKey: `doc-process-${doc.documentId}-${requestId}`,
+            tags: [`kb:${doc.knowledgeBaseId}`, `doc:${doc.documentId}`],
+          },
+        }))
+      )
+      batchIds.push(batchResult.batchId)
+    }
 
-    logger.info(`[${requestId}] Triggered ${jobIds.length} document processing jobs`)
+    logger.info(
+      `[${requestId}] Triggered ${documents.length} document processing jobs in ${batchIds.length} batch(es)`
+    )
 
     return {
       success: true,
       message: `${documents.length} document processing jobs triggered`,
-      jobIds,
+      batchIds,
     }
   } catch (error) {
     logger.error(`[${requestId}] Failed to trigger document processing jobs:`, error)
@@ -1590,10 +1603,19 @@ export async function retryDocumentProcessing(
     chunkOverlap: kbConfig.overlap,
   }
 
-  processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions).catch(
-    (error: unknown) => {
-      logger.error(`[${requestId}] Background retry processing error:`, error)
-    }
+  await processDocumentsWithQueue(
+    [
+      {
+        documentId,
+        filename: docData.filename,
+        fileUrl: docData.fileUrl,
+        fileSize: docData.fileSize,
+        mimeType: docData.mimeType,
+      },
+    ],
+    knowledgeBaseId,
+    processingOptions,
+    requestId
   )
 
   logger.info(`[${requestId}] Document retry initiated: ${documentId}`)
