@@ -389,7 +389,7 @@ export function MessageContent({
             return (
               <div key={segment.id} className={isStreaming ? 'animate-stream-fade-in' : undefined}>
                 <AgentGroup
-                  key={`${segment.id}-${segment.id === lastOpenSubagentGroupId ? 'expanded' : 'default'}`}
+                  key={segment.id}
                   agentName={segment.agentName}
                   agentLabel={segment.agentLabel}
                   items={segment.items}
