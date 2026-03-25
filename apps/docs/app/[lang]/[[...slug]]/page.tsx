@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { join, relative } from 'node:path'
 import type React from 'react'
 import type { Root } from 'fumadocs-core/page-tree'
 import { findNeighbour } from 'fumadocs-core/page-tree'
@@ -11,7 +13,6 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { PageNavigationArrows } from '@/components/docs-layout/page-navigation-arrows'
 import { TOCFooter } from '@/components/docs-layout/toc-footer'
-import { LLMCopyButton } from '@/components/page-actions'
 import { StructuredData } from '@/components/structured-data'
 import { CodeBlock } from '@/components/ui/code-block'
 import { Heading } from '@/components/ui/heading'
@@ -19,9 +20,34 @@ import { ResponseSection } from '@/components/ui/response-section'
 import { i18n } from '@/lib/i18n'
 import { getApiSpecContent, openapi } from '@/lib/openapi'
 import { type PageData, source } from '@/lib/source'
+import { LLMCopyButton, ViewOptionsPopover } from '@/components/page-actions'
 
 const SUPPORTED_LANGUAGES: Set<string> = new Set(i18n.languages)
 const BASE_URL = 'https://docs.sim.ai'
+const CONTENT_DOCS_DIR = join(process.cwd(), 'apps/docs/content/docs')
+
+function resolveGitHubDocUrl(pageUrl: string) {
+  const pathParts = pageUrl.split('/').filter(Boolean)
+  if (pathParts.length === 0) return undefined
+
+  const first = pathParts[0] ?? ''
+  const lang = SUPPORTED_LANGUAGES.has(first) ? first : i18n.defaultLanguage
+  const restParts = SUPPORTED_LANGUAGES.has(first) ? pathParts.slice(1) : pathParts
+
+  const relBase = restParts.join('/')
+  if (!relBase) return undefined
+
+  const candidates = [
+    join(CONTENT_DOCS_DIR, lang, `${relBase}.mdx`),
+    join(CONTENT_DOCS_DIR, lang, relBase, 'index.mdx'),
+  ]
+
+  const foundPath = candidates.find((p) => existsSync(p))
+  if (!foundPath) return undefined
+
+  const relFromContent = relative(CONTENT_DOCS_DIR, foundPath).split('\\').join('/')
+  return `https://github.com/simstudioai/sim/blob/main/apps/docs/content/docs/${relFromContent}`
+}
 
 function resolveLangAndSlug(params: { slug?: string[]; lang: string }) {
   const isValidLang = SUPPORTED_LANGUAGES.has(params.lang)
@@ -66,6 +92,9 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
   }
   const isOpenAPI = '_openapi' in data && data._openapi != null
   const isApiReference = slug?.some((s) => s === 'api-reference') ?? false
+
+  const markdownUrl = `${page.url}.mdx`
+  const githubUrl = resolveGitHubDocUrl(page.url)
 
   const pageTreeRecord = source.pageTree as Record<string, Root>
   const pageTree = pageTreeRecord[lang] ?? pageTreeRecord.en ?? Object.values(pageTreeRecord)[0]
@@ -257,6 +286,11 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
               <div className='hidden sm:flex'>
                 <LLMCopyButton content={apiPageContent} />
               </div>
+              <div className='hidden sm:flex'>
+                <ViewOptionsPopover markdownUrl={markdownUrl} githubUrl={githubUrl}>
+                  Open
+                </ViewOptionsPopover>
+              </div>
               <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
             </div>
             <DocsTitle>{data.title}</DocsTitle>
@@ -271,7 +305,6 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
   }
 
   const MDX = data.body
-  const markdownContent = await data.getText('processed')
 
   return (
     <>
@@ -306,8 +339,13 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
         <div className='relative mt-6 sm:mt-0'>
           <div className='absolute top-1 right-0 flex items-center gap-2'>
             <div className='hidden sm:flex'>
-              <LLMCopyButton content={markdownContent} />
+              <LLMCopyButton markdownUrl={markdownUrl} />
             </div>
+            <div className='hidden sm:flex'>
+                <ViewOptionsPopover markdownUrl={markdownUrl} githubUrl={githubUrl}>
+                  Open
+                </ViewOptionsPopover>
+              </div>
             <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
           </div>
           <DocsTitle>{data.title}</DocsTitle>

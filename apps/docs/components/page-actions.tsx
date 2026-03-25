@@ -1,16 +1,39 @@
 'use client'
 
+import type { ComponentProps, ReactNode } from 'react'
 import { useCopyButton } from 'fumadocs-ui/utils/use-copy-button'
 import { Check, Copy } from 'lucide-react'
+import { MarkdownCopyButton, ViewOptionsPopover } from '@/components/ai/page-actions'
+import { cn } from '@/lib/utils'
 
-export function LLMCopyButton({ content }: { content: string }) {
+export { ViewOptionsPopover }
+
+type ButtonProps = Omit<ComponentProps<'button'>, 'onClick'>
+
+export interface LLMCopyButtonProps extends ButtonProps {
+  /**
+   * Plain text content to copy (used for API pages where we generate content server-side).
+   */
+  content?: string
+  /**
+   * URL to fetch the raw Markdown/MDX content from (used for normal docs pages).
+   */
+  markdownUrl?: string
+  children?: ReactNode
+}
+
+function ContentCopyButton({ content, className, ...props }: { content: string } & ButtonProps) {
   const [checked, onClick] = useCopyButton(() => navigator.clipboard.writeText(content))
 
   return (
     <button
       onClick={onClick}
-      className='flex cursor-pointer items-center gap-1.5 rounded-lg border border-border/40 bg-background px-2.5 py-2 text-muted-foreground/60 text-sm leading-none transition-all hover:border-border hover:bg-accent/50 hover:text-muted-foreground'
+      className={cn(
+        'flex cursor-pointer items-center gap-1.5 rounded-lg border border-border/40 bg-background px-2.5 py-2 text-muted-foreground/60 text-sm leading-none transition-all hover:border-border hover:bg-accent/50 hover:text-muted-foreground',
+        className,
+      )}
       aria-label={checked ? 'Copied to clipboard' : 'Copy page content'}
+      {...props}
     >
       {checked ? (
         <>
@@ -25,4 +48,22 @@ export function LLMCopyButton({ content }: { content: string }) {
       )}
     </button>
   )
+}
+
+export function LLMCopyButton({ content, markdownUrl, children, className, ...props }: LLMCopyButtonProps) {
+  if (markdownUrl) {
+    return (
+      <MarkdownCopyButton
+        markdownUrl={markdownUrl}
+        className={className}
+        {...props}
+      >
+        {children ?? 'Copy Markdown'}
+      </MarkdownCopyButton>
+    )
+  }
+
+  if (!content) return null
+
+  return <ContentCopyButton content={content} className={className} {...props} />
 }
