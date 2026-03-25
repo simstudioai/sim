@@ -290,7 +290,7 @@ export const UpstashBlock: BlockConfig<UpstashResponse> = {
           case 'ttl':
             return 'upstash_redis_ttl'
           default:
-            return 'upstash_redis_get'
+            throw new Error(`Unknown operation: ${params.operation}`)
         }
       },
     },
