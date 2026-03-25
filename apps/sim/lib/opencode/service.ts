@@ -507,7 +507,8 @@ export function shouldRetryWithFreshOpenCodeSession(error: unknown): boolean {
   return (
     normalized.includes('404') ||
     normalized.includes('not found') ||
-    normalized.includes('session') ||
+    normalized.includes('session not found') ||
+    normalized.includes('session does not exist') ||
     normalized.includes('does not exist')
   )
 }
