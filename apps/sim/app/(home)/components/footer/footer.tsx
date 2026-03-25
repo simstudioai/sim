@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
+import { DemoRequestModal } from '@/app/(home)/components/demo-request/demo-request-modal'
 import { FooterCTA } from '@/app/(home)/components/footer/footer-cta'
 
 const LINK_CLASS = 'text-[14px] text-[#999] transition-colors hover:text-[#ECECEC]'
@@ -8,11 +9,12 @@ interface FooterItem {
   label: string
   href: string
   external?: boolean
+  action?: 'demo-request'
 }
 
 const PRODUCT_LINKS: FooterItem[] = [
   { label: 'Pricing', href: '/#pricing' },
-  { label: 'Enterprise', href: 'https://form.typeform.com/to/jqCO12pF', external: true },
+  { label: 'Enterprise', href: '#', action: 'demo-request' },
   { label: 'Self Hosting', href: 'https://docs.sim.ai/self-hosting', external: true },
   { label: 'MCP', href: 'https://docs.sim.ai/mcp', external: true },
   { label: 'Knowledge Base', href: 'https://docs.sim.ai/knowledgebase', external: true },
@@ -83,8 +85,14 @@ function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) 
     <div>
       <h3 className='mb-[16px] font-medium text-[#ECECEC] text-[14px]'>{title}</h3>
       <div className='flex flex-col gap-[10px]'>
-        {items.map(({ label, href, external }) =>
-          external ? (
+        {items.map(({ label, href, external, action }) =>
+          action === 'demo-request' ? (
+            <DemoRequestModal key={label}>
+              <button type='button' className={`${LINK_CLASS} bg-transparent text-left`}>
+                {label}
+              </button>
+            </DemoRequestModal>
+          ) : external ? (
             <a
               key={label}
               href={href}
