@@ -1,0 +1,386 @@
+'use client'
+
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
+import type { Edge } from 'reactflow'
+import { buildMockExecutionPlan } from '@/lib/academy/mock-execution'
+import type {
+  ExerciseBlockState,
+  ExerciseDefinition,
+  ExerciseEdgeState,
+  ValidationResult,
+} from '@/lib/academy/types'
+import { validateExercise } from '@/lib/academy/validation'
+import { cn } from '@/lib/core/utils/cn'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { SandboxWorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import Workflow from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow'
+import { getBlock } from '@/blocks/registry'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { BlockState, SubBlockState, WorkflowState } from '@/stores/workflows/workflow/types'
+import { ValidationChecklist } from './validation-checklist'
+
+const logger = createLogger('SandboxCanvasProvider')
+
+const SANDBOX_WORKSPACE_ID = 'sandbox'
+
+interface SandboxCanvasProviderProps {
+  /** Unique ID for this exercise instance */
+  exerciseId: string
+  /** Full exercise configuration */
+  exerciseConfig: ExerciseDefinition
+  /**
+   * Called when all validation rules pass for the first time.
+   * Receives the current canvas state so the caller can persist it.
+   */
+  onComplete?: (blocks: ExerciseBlockState[], edges: ExerciseEdgeState[]) => void
+  className?: string
+}
+
+/**
+ * Builds a Zustand-compatible WorkflowState from exercise block/edge definitions.
+ * Looks up each block type in the registry to construct proper sub-block and output maps.
+ */
+function buildWorkflowState(
+  initialBlocks: ExerciseBlockState[],
+  initialEdges: ExerciseEdgeState[]
+): WorkflowState {
+  const blocks: Record<string, BlockState> = {}
+
+  for (const exerciseBlock of initialBlocks) {
+    const config = getBlock(exerciseBlock.type)
+    if (!config) {
+      logger.warn(`Unknown block type "${exerciseBlock.type}" in exercise config`)
+      continue
+    }
+
+    const subBlocks: Record<string, SubBlockState> = {}
+    for (const sb of config.subBlocks ?? []) {
+      const overrideValue = exerciseBlock.subBlocks?.[sb.id]
+      subBlocks[sb.id] = {
+        id: sb.id,
+        type: sb.type,
+        value: (overrideValue !== undefined ? overrideValue : null) as SubBlockState['value'],
+      }
+    }
+
+    const outputs = getEffectiveBlockOutputs(exerciseBlock.type, subBlocks, {
+      triggerMode: false,
+      preferToolOutputs: true,
+    })
+
+    blocks[exerciseBlock.id] = {
+      id: exerciseBlock.id,
+      type: exerciseBlock.type,
+      name: config.name,
+      position: exerciseBlock.position,
+      subBlocks,
+      outputs,
+      enabled: true,
+      horizontalHandles: true,
+      advancedMode: false,
+      triggerMode: false,
+      height: 0,
+      locked: exerciseBlock.locked ?? false,
+    }
+  }
+
+  const edges: Edge[] = initialEdges.map((e) => ({
+    id: e.id,
+    source: e.source,
+    target: e.target,
+    sourceHandle: e.sourceHandle,
+    targetHandle: e.targetHandle,
+    type: 'default',
+    data: {},
+  }))
+
+  return { blocks, edges, loops: {}, parallels: {}, lastSaved: Date.now() }
+}
+
+/**
+ * Reads the current canvas state from the workflow store and converts it to
+ * the exercise block/edge format used by the validation engine.
+ */
+function readCurrentCanvasState(workflowId: string): {
+  blocks: ExerciseBlockState[]
+  edges: ExerciseEdgeState[]
+} {
+  const workflowStore = useWorkflowStore.getState()
+  const subBlockStore = useSubBlockStore.getState()
+
+  const blocks: ExerciseBlockState[] = Object.values(workflowStore.blocks).map((block) => {
+    const storedValues = subBlockStore.workflowValues[workflowId] ?? {}
+    const blockValues = storedValues[block.id] ?? {}
+    const subBlocks: Record<string, unknown> = {}
+    for (const [key, entry] of Object.entries(blockValues)) {
+      subBlocks[key] = (entry as { value: unknown } | null)?.value ?? null
+    }
+    return {
+      id: block.id,
+      type: block.type,
+      position: block.position,
+      subBlocks,
+    }
+  })
+
+  const edges: ExerciseEdgeState[] = workflowStore.edges.map((e) => ({
+    id: e.id,
+    source: e.source,
+    target: e.target,
+    sourceHandle: e.sourceHandle ?? undefined,
+    targetHandle: e.targetHandle ?? undefined,
+  }))
+
+  return { blocks, edges }
+}
+
+/**
+ * Wraps the real Sim canvas in sandbox mode for Sim Academy exercises.
+ *
+ * - Pre-hydrates workflow stores directly (no API calls)
+ * - Provides sandbox permissions (canEdit: true, no workspace dependency)
+ * - Displays a constrained block toolbar and live validation checklist
+ * - Supports mock execution to simulate workflow runs
+ */
+export function SandboxCanvasProvider({
+  exerciseId,
+  exerciseConfig,
+  onComplete,
+  className,
+}: SandboxCanvasProviderProps) {
+  const [isReady, setIsReady] = useState(false)
+  const [validationResult, setValidationResult] = useState<ValidationResult>({
+    passed: false,
+    results: [],
+  })
+  const [isMockRunning, setIsMockRunning] = useState(false)
+  const [hintIndex, setHintIndex] = useState(-1)
+  const completedRef = useRef(false)
+  const onCompleteRef = useRef(onComplete)
+  onCompleteRef.current = onComplete
+  const unsubscribeRef = useRef<(() => void) | null>(null)
+  const isMockRunningRef = useRef(false)
+  /** Last-known canvas state, updated by runValidation and reused by handleMockRun. */
+  const lastCanvasStateRef = useRef<{ blocks: ExerciseBlockState[]; edges: ExerciseEdgeState[] }>({
+    blocks: [],
+    edges: [],
+  })
+
+  // Stable exercise ID — used as the workflow ID in the stores
+  const workflowId = `sandbox-${exerciseId}`
+
+  const runValidation = useCallback(() => {
+    const canvasState = readCurrentCanvasState(workflowId)
+    lastCanvasStateRef.current = canvasState
+    const { blocks, edges } = canvasState
+    const result = validateExercise(blocks, edges, exerciseConfig.validationRules)
+
+    setValidationResult((prev) => {
+      if (
+        prev.passed === result.passed &&
+        prev.results.length === result.results.length &&
+        prev.results.every((r, i) => r.passed === result.results[i].passed)
+      ) {
+        return prev
+      }
+      return result
+    })
+
+    if (result.passed && !completedRef.current) {
+      completedRef.current = true
+      onCompleteRef.current?.(blocks, edges)
+    }
+  }, [workflowId, exerciseConfig.validationRules])
+
+  useEffect(() => {
+    const workflowState = buildWorkflowState(
+      exerciseConfig.initialBlocks ?? [],
+      exerciseConfig.initialEdges ?? []
+    )
+
+    const syntheticMetadata: WorkflowMetadata = {
+      id: workflowId,
+      name: 'Exercise',
+      lastModified: new Date(),
+      createdAt: new Date(),
+      color: '#3972F6',
+      workspaceId: SANDBOX_WORKSPACE_ID,
+      sortOrder: 0,
+    }
+
+    useWorkflowStore.getState().replaceWorkflowState(workflowState)
+    useSubBlockStore.getState().initializeFromWorkflow(workflowId, workflowState.blocks)
+    useWorkflowRegistry.setState((state) => ({
+      workflows: { ...state.workflows, [workflowId]: syntheticMetadata },
+      activeWorkflowId: workflowId,
+      hydration: {
+        phase: 'ready',
+        workspaceId: SANDBOX_WORKSPACE_ID,
+        workflowId,
+        requestId: null,
+        error: null,
+      },
+    }))
+
+    logger.info('Sandbox stores hydrated', { workflowId })
+    setIsReady(true)
+
+    // Coalesce rapid store updates so validation runs at most once per animation frame.
+    let rafId: number | null = null
+    const scheduleValidation = () => {
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        runValidation()
+      })
+    }
+
+    const unsubWorkflow = useWorkflowStore.subscribe(scheduleValidation)
+    const unsubSubBlock = useSubBlockStore.subscribe(scheduleValidation)
+    unsubscribeRef.current = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId)
+      unsubWorkflow()
+      unsubSubBlock()
+    }
+
+    runValidation()
+
+    return () => {
+      unsubscribeRef.current?.()
+      useWorkflowRegistry.setState((state) => {
+        const { [workflowId]: _removed, ...rest } = state.workflows
+        return {
+          workflows: rest,
+          activeWorkflowId: state.activeWorkflowId === workflowId ? null : state.activeWorkflowId,
+          hydration:
+            state.hydration.workflowId === workflowId
+              ? { phase: 'idle', workspaceId: null, workflowId: null, requestId: null, error: null }
+              : state.hydration,
+        }
+      })
+      useWorkflowStore.setState({ blocks: {}, edges: [], loops: {}, parallels: {} })
+      useSubBlockStore.setState((state) => {
+        const { [workflowId]: _removed, ...rest } = state.workflowValues
+        return { workflowValues: rest }
+      })
+    }
+  }, [workflowId, exerciseConfig.initialBlocks, exerciseConfig.initialEdges, runValidation])
+
+  const handleMockRun = useCallback(async () => {
+    if (isMockRunningRef.current) return
+
+    const { blocks, edges } = lastCanvasStateRef.current
+    const result = validateExercise(blocks, edges, exerciseConfig.validationRules)
+    setValidationResult(result)
+    if (!result.passed) return
+
+    const plan = buildMockExecutionPlan(blocks, edges, exerciseConfig.mockOutputs ?? {})
+    if (plan.length === 0) return
+
+    isMockRunningRef.current = true
+    setIsMockRunning(true)
+    const { setActiveBlocks, setIsExecuting } = useExecutionStore.getState()
+
+    setIsExecuting(workflowId, true)
+
+    for (const step of plan) {
+      setActiveBlocks(workflowId, new Set([step.blockId]))
+      await new Promise((resolve) => setTimeout(resolve, step.delay))
+      setActiveBlocks(workflowId, new Set())
+    }
+
+    setIsExecuting(workflowId, false)
+    isMockRunningRef.current = false
+    setIsMockRunning(false)
+  }, [workflowId, exerciseConfig.validationRules, exerciseConfig.mockOutputs])
+
+  const handleShowHint = useCallback(() => {
+    const hints = exerciseConfig.hints ?? []
+    if (hints.length === 0) return
+    setHintIndex((i) => Math.min(i + 1, hints.length - 1))
+  }, [exerciseConfig.hints])
+
+  const handlePrevHint = useCallback(() => {
+    setHintIndex((i) => Math.max(i - 1, 0))
+  }, [])
+
+  if (!isReady) {
+    return (
+      <div className='flex h-full w-full items-center justify-center bg-[#0e0e0e]'>
+        <div className='h-5 w-5 animate-spin rounded-full border-2 border-[#ECECEC] border-t-transparent' />
+      </div>
+    )
+  }
+
+  const hints = exerciseConfig.hints ?? []
+  const currentHint = hintIndex >= 0 ? hints[hintIndex] : null
+
+  return (
+    <GlobalCommandsProvider>
+      <SandboxWorkspacePermissionsProvider>
+        <div className={cn('flex h-full w-full overflow-hidden', className)}>
+          {/* Left sidebar: checklist + hints */}
+          <div className='flex w-52 flex-shrink-0 flex-col gap-4 border-[#1F1F1F] border-r bg-[#141414] p-3'>
+            <ValidationChecklist
+              results={validationResult.results}
+              allPassed={validationResult.passed}
+            />
+
+            <div className='mt-auto flex flex-col gap-2'>
+              {currentHint && (
+                <div className='rounded-[6px] border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-[11px]'>
+                  <div className='mb-1 flex items-center justify-between'>
+                    <span className='font-[430] text-[#666]'>
+                      Hint {hintIndex + 1}/{hints.length}
+                    </span>
+                    <div className='flex gap-1'>
+                      <button
+                        type='button'
+                        onClick={handlePrevHint}
+                        disabled={hintIndex === 0}
+                        className='rounded px-1 text-[#666] transition-colors hover:text-[#ECECEC] disabled:opacity-30'
+                        aria-label='Previous hint'
+                      >
+                        ‹
+                      </button>
+                      <button
+                        type='button'
+                        onClick={handleShowHint}
+                        disabled={hintIndex === hints.length - 1}
+                        className='rounded px-1 text-[#666] transition-colors hover:text-[#ECECEC] disabled:opacity-30'
+                        aria-label='Next hint'
+                      >
+                        ›
+                      </button>
+                    </div>
+                  </div>
+                  <span className='text-[#ECECEC]'>{currentHint}</span>
+                </div>
+              )}
+              {hints.length > 0 && hintIndex < 0 && (
+                <button
+                  type='button'
+                  onClick={handleShowHint}
+                  className='w-full rounded-[5px] border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-1.5 text-[#999] text-[12px] transition-colors hover:border-[#3A3A3A] hover:text-[#ECECEC]'
+                >
+                  Show hint
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Real canvas in sandbox mode */}
+          <div className='relative flex-1 overflow-hidden'>
+            <Workflow workspaceId={SANDBOX_WORKSPACE_ID} workflowId={workflowId} sandbox />
+          </div>
+        </div>
+      </SandboxWorkspacePermissionsProvider>
+    </GlobalCommandsProvider>
+  )
+}
