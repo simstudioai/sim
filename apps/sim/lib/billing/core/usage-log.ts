@@ -89,7 +89,10 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
   const totalCost = validEntries.reduce((sum, e) => sum + e.cost, 0)
 
   // Nothing to write: no cost entries and no counter increments
-  if (validEntries.length === 0 && (!additionalStats || Object.keys(additionalStats).length === 0)) {
+  if (
+    validEntries.length === 0 &&
+    (!additionalStats || Object.keys(additionalStats).length === 0)
+  ) {
     return
   }
 
