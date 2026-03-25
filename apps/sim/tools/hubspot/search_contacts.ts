@@ -152,7 +152,7 @@ export const hubspotSearchContactsTool: ToolConfig<
       success: true,
       output: {
         contacts: data.results || [],
-        total: data.total ?? null,
+        total: data.total ?? 0,
         paging: data.paging ?? null,
         metadata: {
           totalReturned: data.results?.length || 0,

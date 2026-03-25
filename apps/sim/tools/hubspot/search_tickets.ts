@@ -134,7 +134,7 @@ export const hubspotSearchTicketsTool: ToolConfig<
       success: true,
       output: {
         tickets: data.results || [],
-        total: data.total ?? null,
+        total: data.total ?? 0,
         paging: data.paging ?? null,
         metadata: {
           totalReturned: data.results?.length || 0,

@@ -131,7 +131,7 @@ export const hubspotSearchDealsTool: ToolConfig<
       success: true,
       output: {
         deals: data.results || [],
-        total: data.total ?? null,
+        total: data.total ?? 0,
         paging: data.paging ?? null,
         metadata: {
           totalReturned: data.results?.length || 0,
