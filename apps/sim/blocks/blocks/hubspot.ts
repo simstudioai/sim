@@ -495,7 +495,13 @@ Return ONLY the JSON object with properties - no explanations, no markdown, no e
       placeholder: 'Search term (e.g., company name, contact email)',
       condition: {
         field: 'operation',
-        value: ['search_contacts', 'search_companies', 'search_deals', 'search_tickets', 'get_lists'],
+        value: [
+          'search_contacts',
+          'search_companies',
+          'search_deals',
+          'search_tickets',
+          'get_lists',
+        ],
       },
     },
     {
@@ -1077,9 +1083,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
           case 'get_quotes':
             return params.quoteId ? 'hubspot_get_quote' : 'hubspot_list_quotes'
           case 'get_appointments':
-            return params.appointmentId
-              ? 'hubspot_get_appointment'
-              : 'hubspot_list_appointments'
+            return params.appointmentId ? 'hubspot_get_appointment' : 'hubspot_list_appointments'
           case 'create_appointment':
             return 'hubspot_create_appointment'
           case 'update_appointment':
@@ -1089,9 +1093,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
           case 'list_owners':
             return 'hubspot_list_owners'
           case 'get_marketing_events':
-            return params.eventId
-              ? 'hubspot_get_marketing_event'
-              : 'hubspot_list_marketing_events'
+            return params.eventId ? 'hubspot_get_marketing_event' : 'hubspot_list_marketing_events'
           case 'get_lists':
             return params.listId ? 'hubspot_get_list' : 'hubspot_list_lists'
           case 'create_list':
@@ -1150,12 +1152,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
           cleanParams.properties = properties
         }
 
-        const searchOps = [
-          'search_contacts',
-          'search_companies',
-          'search_deals',
-          'search_tickets',
-        ]
+        const searchOps = ['search_contacts', 'search_companies', 'search_deals', 'search_tickets']
         if (searchProperties && searchOps.includes(operation as string)) {
           cleanParams.properties = searchProperties
         }
@@ -1185,9 +1182,15 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
           cleanParams.name = listName
         }
 
-        if (operation === 'get_lists' && rest.limit) {
-          cleanParams.count = rest.limit
-          delete rest.limit
+        if (operation === 'get_lists') {
+          if (rest.limit) {
+            cleanParams.count = rest.limit
+            rest.limit = undefined
+          }
+          if (rest.after) {
+            cleanParams.offset = rest.after
+            rest.after = undefined
+          }
         }
 
         const excludeKeys = [

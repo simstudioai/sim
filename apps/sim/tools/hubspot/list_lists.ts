@@ -35,6 +35,12 @@ export const hubspotListListsTool: ToolConfig<HubSpotListListsParams, HubSpotLis
       visibility: 'user-or-llm',
       description: 'Maximum number of results to return (default 25)',
     },
+    offset: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination offset for next page (from previous response)',
+    },
   },
 
   request: {
@@ -53,6 +59,7 @@ export const hubspotListListsTool: ToolConfig<HubSpotListListsParams, HubSpotLis
       const body: Record<string, unknown> = {}
       if (params.query) body.query = params.query
       if (params.count) body.count = Number(params.count)
+      if (params.offset) body.offset = Number(params.offset)
       return body
     },
   },
@@ -68,10 +75,12 @@ export const hubspotListListsTool: ToolConfig<HubSpotListListsParams, HubSpotLis
       success: true,
       output: {
         lists,
-        paging: data.paging ?? null,
+        paging:
+          data.offset != null ? { next: { after: String(data.offset) } } : (data.paging ?? null),
         metadata: {
           totalReturned: lists.length,
-          hasMore: !!data.paging?.next || data.hasMore === true,
+          total: data.total ?? null,
+          hasMore: data.hasMore === true || !!data.paging?.next,
         },
         success: true,
       },

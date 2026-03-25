@@ -34,7 +34,7 @@ export const hubspotSearchContactsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" (e.g., "EQ", "CONTAINS"), and "value"',
+        'Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" (e.g., "EQ", "CONTAINS_TOKEN", "GT"), and "value"',
     },
     sorts: {
       type: 'array',

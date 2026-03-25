@@ -3,7 +3,7 @@ import type {
   HubSpotGetMarketingEventParams,
   HubSpotGetMarketingEventResponse,
 } from '@/tools/hubspot/types'
-import { MARKETING_EVENT_OUTPUT_PROPERTIES } from '@/tools/hubspot/types'
+import { MARKETING_EVENT_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotGetMarketingEvent')
@@ -69,11 +69,7 @@ export const hubspotGetMarketingEventTool: ToolConfig<
   },
 
   outputs: {
-    event: {
-      type: 'object',
-      description: 'HubSpot marketing event',
-      properties: MARKETING_EVENT_OUTPUT_PROPERTIES,
-    },
+    event: MARKETING_EVENT_OBJECT_OUTPUT,
     eventId: { type: 'string', description: 'The retrieved marketing event ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
