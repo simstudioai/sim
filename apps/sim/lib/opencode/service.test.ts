@@ -40,10 +40,13 @@ describe('shouldRetryWithFreshOpenCodeSession', () => {
   it('returns true for stale-session errors', () => {
     expect(shouldRetryWithFreshOpenCodeSession(new Error('404 session not found'))).toBe(true)
     expect(shouldRetryWithFreshOpenCodeSession('session does not exist')).toBe(true)
+    expect(shouldRetryWithFreshOpenCodeSession('unknown session')).toBe(true)
   })
 
   it('returns false for unrelated session errors', () => {
     expect(shouldRetryWithFreshOpenCodeSession(new Error('session limit exceeded'))).toBe(false)
     expect(shouldRetryWithFreshOpenCodeSession('invalid session format')).toBe(false)
+    expect(shouldRetryWithFreshOpenCodeSession('model not found')).toBe(false)
+    expect(shouldRetryWithFreshOpenCodeSession('provider does not exist')).toBe(false)
   })
 })

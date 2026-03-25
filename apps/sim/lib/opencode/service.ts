@@ -504,13 +504,20 @@ export function shouldRetryWithFreshOpenCodeSession(error: unknown): boolean {
         : JSON.stringify(error)
 
   const normalized = message.toLowerCase()
-  return (
-    normalized.includes('404') ||
-    normalized.includes('not found') ||
-    normalized.includes('session not found') ||
-    normalized.includes('session does not exist') ||
-    normalized.includes('does not exist')
-  )
+  const staleSessionPatterns = [
+    'session not found',
+    'session does not exist',
+    'session was not found',
+    'session no longer exists',
+    'unknown session',
+    'invalid session id',
+  ]
+
+  if (staleSessionPatterns.some((pattern) => normalized.includes(pattern))) {
+    return true
+  }
+
+  return normalized.includes('404') && normalized.includes('session')
 }
 
 export async function logOpenCodeFailure(message: string, error: unknown): Promise<void> {
