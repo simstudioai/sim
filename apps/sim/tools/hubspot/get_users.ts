@@ -29,6 +29,12 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
       visibility: 'user-or-llm',
       description: 'Number of results to return (default: 100, max: 100)',
     },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor for next page of results (from previous response)',
+    },
   },
 
   request: {
@@ -38,6 +44,9 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
 
       if (params.limit) {
         queryParams.append('limit', params.limit)
+      }
+      if (params.after) {
+        queryParams.append('after', params.after)
       }
 
       const queryString = queryParams.toString()

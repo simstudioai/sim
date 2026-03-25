@@ -33,7 +33,7 @@ export const hubspotListCompaniesTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results per page (max 100, default 10)',
+      description: 'Maximum number of results per page (max 100, default 100)',
     },
     after: {
       type: 'string',

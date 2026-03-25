@@ -35,6 +35,12 @@ export const hubspotGetAppointmentTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The HubSpot appointment ID to retrieve',
     },
+    idProperty: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Property to use as unique identifier. If not specified, uses record ID',
+    },
     properties: {
       type: 'string',
       required: false,
@@ -55,6 +61,7 @@ export const hubspotGetAppointmentTool: ToolConfig<
     url: (params) => {
       const baseUrl = `https://api.hubapi.com/crm/v3/objects/appointments/${params.appointmentId.trim()}`
       const queryParams = new URLSearchParams()
+      if (params.idProperty) queryParams.append('idProperty', params.idProperty)
       if (params.properties) queryParams.append('properties', params.properties)
       if (params.associations) queryParams.append('associations', params.associations)
       const queryString = queryParams.toString()

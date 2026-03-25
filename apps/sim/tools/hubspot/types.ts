@@ -753,6 +753,7 @@ export interface HubSpotGetUsersResponse extends ToolResponse {
 export interface HubSpotGetUsersParams {
   accessToken: string
   limit?: string
+  after?: string
 }
 
 // List Contacts
