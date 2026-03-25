@@ -4,6 +4,7 @@ import { createOpencodeClient } from '@opencode-ai/sdk'
 const OPEN_CODE_HOST = 'opencode'
 const OPEN_CODE_LOCALHOST = '127.0.0.1'
 const OPEN_CODE_DEFAULT_PORT = '4096'
+const IS_DOCKER_RUNTIME = existsSync('/.dockerenv')
 
 function getOpenCodeBasicAuthHeader(): string {
   const username = process.env.OPENCODE_SERVER_USERNAME
@@ -23,7 +24,7 @@ export function getOpenCodeBaseUrl(): string {
   }
 
   const port = process.env.OPENCODE_PORT || OPEN_CODE_DEFAULT_PORT
-  const host = existsSync('/.dockerenv') ? OPEN_CODE_HOST : OPEN_CODE_LOCALHOST
+  const host = IS_DOCKER_RUNTIME ? OPEN_CODE_HOST : OPEN_CODE_LOCALHOST
 
   return `http://${host}:${port}`
 }

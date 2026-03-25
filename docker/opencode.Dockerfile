@@ -1,5 +1,7 @@
 FROM node:22-bookworm-slim
 
+ARG OPENCODE_AI_VERSION=0.8.0
+
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -12,7 +14,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g opencode-ai
+RUN npm install -g "opencode-ai@${OPENCODE_AI_VERSION}"
 
 RUN groupadd -g 1001 opencode && \
     useradd -m -u 1001 -g opencode -s /bin/bash opencode

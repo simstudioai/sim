@@ -19,7 +19,7 @@ if [[ "$prompt" == Password* ]]; then
     exit 0
   fi
 
-  printf '%s\n' "${GIT_TOKEN:-${GITHUB_TOKEN:-}}"
+  printf '%s\n' "${GIT_TOKEN:-}"
   exit 0
 fi
 
