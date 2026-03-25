@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import type { HubSpotListListsParams, HubSpotListListsResponse } from '@/tools/hubspot/types'
-import { LISTS_ARRAY_OUTPUT, METADATA_OUTPUT_PROPERTIES, PAGING_OUTPUT } from '@/tools/hubspot/types'
+import {
+  LISTS_ARRAY_OUTPUT,
+  METADATA_OUTPUT_PROPERTIES,
+  PAGING_OUTPUT,
+} from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotListLists')
@@ -99,7 +103,11 @@ export const hubspotListListsTool: ToolConfig<HubSpotListListsParams, HubSpotLis
       description: 'Response metadata',
       properties: {
         ...METADATA_OUTPUT_PROPERTIES,
-        total: { type: 'number', description: 'Total number of lists matching the query', optional: true },
+        total: {
+          type: 'number',
+          description: 'Total number of lists matching the query',
+          optional: true,
+        },
       },
     },
     success: { type: 'boolean', description: 'Operation success status' },
