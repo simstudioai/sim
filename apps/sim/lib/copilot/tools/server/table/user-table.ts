@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -241,8 +242,13 @@ async function batchInsertAll(
 export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult> = {
   name: 'user_table',
   async execute(params: UserTableArgs, context?: ServerToolContext): Promise<UserTableResult> {
+    const withMessageId = (message: string) =>
+      appendCopilotLogContext(message, { messageId: context?.messageId })
+
     if (!context?.userId) {
-      logger.error('Unauthorized attempt to access user table - no authenticated user context')
+      logger.error(
+        withMessageId('Unauthorized attempt to access user table - no authenticated user context')
+      )
       throw new Error('Authentication required')
     }
 
@@ -723,7 +729,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const coerced = coerceRows(rows, columns, columnMap)
           const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
 
-          logger.info('Table created from file', {
+          logger.info(withMessageId('Table created from file'), {
             tableId: table.id,
             fileName: file.name,
             columns: columns.length,
@@ -799,7 +805,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const coerced = coerceRows(rows, matchedColumns, columnMap)
           const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
 
-          logger.info('Rows imported from file', {
+          logger.info(withMessageId('Rows imported from file'), {
             tableId: table.id,
             fileName: file.name,
             matchedColumns: mappedHeaders.length,
@@ -997,7 +1003,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             ? error.cause.message
             : String(error.cause)
           : undefined
-      logger.error('Table operation failed', { operation, error: errorMessage, cause })
+      logger.error(withMessageId('Table operation failed'), {
+        operation,
+        error: errorMessage,
+        cause,
+      })
       const displayMessage = cause ? `${errorMessage} (${cause})` : errorMessage
       return { success: false, message: `Operation failed: ${displayMessage}` }
     }

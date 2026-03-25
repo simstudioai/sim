@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
+import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import {
   handleSubagentRouting,
   sseHandlers,
@@ -164,10 +165,13 @@ export async function runStreamLoop(
       try {
         await options.onEvent?.(normalizedEvent)
       } catch (error) {
-        logger.warn('Failed to forward SSE event', {
-          type: normalizedEvent.type,
-          error: error instanceof Error ? error.message : String(error),
-        })
+        logger.warn(
+          appendCopilotLogContext('Failed to forward SSE event', { messageId: context.messageId }),
+          {
+            type: normalizedEvent.type,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        )
       }
 
       // Let the caller intercept before standard dispatch.
@@ -201,7 +205,11 @@ export async function runStreamLoop(
         if (context.subAgentParentStack.length > 0) {
           context.subAgentParentStack.pop()
         } else {
-          logger.warn('subagent_end without matching subagent_start')
+          logger.warn(
+            appendCopilotLogContext('subagent_end without matching subagent_start', {
+              messageId: context.messageId,
+            })
+          )
         }
         context.subAgentParentToolCallId =
           context.subAgentParentStack.length > 0
