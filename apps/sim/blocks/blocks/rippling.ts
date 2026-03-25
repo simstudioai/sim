@@ -341,7 +341,8 @@ export const RipplingBlock: BlockConfig = {
 
         if (params.limit != null && params.limit !== '') mapped.limit = Number(params.limit)
         if (params.offset != null && params.offset !== '') mapped.offset = Number(params.offset)
-        if (params.groupVersion) mapped.version = Number(params.groupVersion)
+        if (params.groupVersion != null && params.groupVersion !== '')
+          mapped.version = Number(params.groupVersion)
         if (params.groupName) mapped.name = params.groupName
         if (params.candidatePhone) mapped.phone = params.candidatePhone
         if (params.candidateDepartment) mapped.department = params.candidateDepartment
