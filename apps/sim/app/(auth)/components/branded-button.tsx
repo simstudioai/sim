@@ -57,7 +57,7 @@ export const BrandedButton = forwardRef<HTMLButtonElement, BrandedButtonProps>(
         className={cn(
           'group inline-flex h-[32px] items-center justify-center gap-2 rounded-[5px] border px-2.5 font-[430] font-season text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50',
           !hasCustomColor &&
-            'border-[var(--white)] bg-[var(--white)] text-black hover:border-[var(--border-1)] hover:bg-[var(--border-1)]',
+            'border-[var(--white)] bg-[var(--white)] text-black hover:border-[#E0E0E0] hover:bg-[#E0E0E0]',
           fullWidth && 'w-full',
           className
         )}

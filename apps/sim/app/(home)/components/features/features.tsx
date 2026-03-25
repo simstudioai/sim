@@ -220,7 +220,7 @@ export default function Features() {
                 {char}
               </ScrollLetter>
             ))}
-            <span className='text-[color-mix(in_srgb,var(--landing-text-subtle)_40%,transparent)]'>
+            <span className='text-[color-mix(in_srgb,var(--landing-text-dark)_40%,transparent)]'>
               Design powerful workflows, connect your data, and monitor every run — all in one
               platform.
             </span>
@@ -301,7 +301,7 @@ export default function Features() {
                 <h3 className='font-[430] font-season text-[24px] text-[var(--landing-text-dark)] leading-[120%] tracking-[-0.02em] lg:text-[28px]'>
                   {FEATURE_TABS[activeTab].title}
                 </h3>
-                <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_50%,transparent)] text-md leading-[150%] tracking-[0.02em] lg:text-lg'>
+                <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-dark)_50%,transparent)] text-md leading-[150%] tracking-[0.02em] lg:text-lg'>
                   {FEATURE_TABS[activeTab].description}
                 </p>
               </div>
