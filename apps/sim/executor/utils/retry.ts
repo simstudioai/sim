@@ -37,9 +37,23 @@ function parseRetryAfterHeader(headers: Headers): number | null {
 }
 
 /**
+ * Returns true only for known transient network errors (no HTTP status code).
+ * Deliberately excludes JS runtime errors (TypeError, RangeError, etc.)
+ * to avoid masking bugs with silent retries.
+ */
+function isNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const networkErrorCodes = ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EPIPE']
+  const code = (error as any)?.code
+  if (code && networkErrorCodes.includes(code)) return true
+  const networkErrorNames = ['FetchError', 'NetworkError', 'AbortError']
+  return networkErrorNames.includes(error.name)
+}
+
+/**
  * Wraps an async function with retry logic using exponential backoff and jitter.
- * Respects Retry-After headers from LLM providers on 429 responses.
- * Only retries on transient errors (429, 503, 529) — never on user errors (4xx).
+ * Respects Retry-After headers from LLM providers on 429 and 503 responses.
+ * Only retries on known transient errors — never on JS runtime errors or user errors (4xx).
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,
@@ -63,17 +77,21 @@ export async function withRetry<T>(
       const status = (error as any)?.status ?? (error as any)?.statusCode ?? null
       const responseHeaders: Headers | null = (error as any)?.headers ?? null
 
+      // Only retry known transient HTTP codes or recognised network errors
+      // Statusless JS errors (TypeError, RangeError, etc.) are NOT retried
       const isRetryable =
-        status === null ||
-        retryableStatusCodes.includes(status)
+        status !== null
+          ? retryableStatusCodes.includes(status)
+          : isNetworkError(error)
 
       if (!isRetryable) {
         logger.warn('Non-retryable error, aborting retry loop', { status, attempt })
         throw error
       }
 
+      // Respect Retry-After header for both 429 and 503 (RFC 7231 §7.1.3)
       let delayMs: number
-      if (responseHeaders && status === 429) {
+      if (responseHeaders && (status === 429 || status === 503)) {
         const retryAfterMs = parseRetryAfterHeader(responseHeaders)
         delayMs = retryAfterMs ?? calculateBackoffDelay(attempt, initialDelayMs, maxDelayMs)
       } else {

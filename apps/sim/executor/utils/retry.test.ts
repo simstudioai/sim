@@ -6,6 +6,10 @@ describe('withRetry', () => {
     vi.useFakeTimers()
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('returns result immediately on success', async () => {
     const fn = vi.fn().mockResolvedValue('ok')
     const result = await withRetry(fn)

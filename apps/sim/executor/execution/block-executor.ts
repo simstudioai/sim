@@ -121,11 +121,19 @@ export class BlockExecutor {
     cleanupSelfReference?.()
 
     try {
-      const output = await withRetry(
-        () => handler.executeWithNode
-          ? handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
-          : handler.execute(ctx, block, resolvedInputs)
-      )
+      const isLLMBlock = isAgentBlockType(block.metadata?.id) ||
+        block.metadata?.id === BlockType.EVALUATOR ||
+        block.metadata?.id === BlockType.ROUTER ||
+        block.metadata?.id === BlockType.ROUTER_V2
+      const output = isLLMBlock
+        ? await withRetry(
+            () => handler.executeWithNode
+              ? handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
+              : handler.execute(ctx, block, resolvedInputs)
+          )
+        : await (handler.executeWithNode
+            ? handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
+            : handler.execute(ctx, block, resolvedInputs))
 
       const isStreamingExecution =
         output && typeof output === 'object' && 'stream' in output && 'execution' in output
