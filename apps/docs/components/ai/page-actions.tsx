@@ -30,6 +30,7 @@ export function MarkdownCopyButton({
 
     try {
       const promise = fetch(markdownUrl).then((res) => res.text())
+      promise.catch(() => cache.delete(markdownUrl))
       cache.set(markdownUrl, promise)
       await navigator.clipboard.write([
         new ClipboardItem({
@@ -235,11 +236,11 @@ export function ViewOptionsPopover({
             href={item.href}
             rel='noreferrer noopener'
             target='_blank'
-            className='text-sm p-2 rounded-lg inline-flex items-center gap-2 hover:text-fd-accent-foreground hover:bg-fd-accent [&_svg]:size-4'
+            className='inline-flex items-center gap-2 rounded-lg p-2 text-sm hover:bg-fd-accent hover:text-fd-accent-foreground [&_svg]:size-4'
           >
             {item.icon}
             {item.title}
-            <ExternalLinkIcon className='text-fd-muted-foreground size-3.5 ms-auto' />
+            <ExternalLinkIcon className='ms-auto size-3.5 text-fd-muted-foreground' />
           </a>
         ))}
       </PopoverContent>

@@ -132,7 +132,7 @@ export default async function Layout({ children, params }: LayoutProps) {
           >
             {children}
           </DocsLayout>
-            <DocsFooter />
+          <DocsFooter />
         </RootProvider>
       </body>
     </html>

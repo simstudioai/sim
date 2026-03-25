@@ -7,14 +7,74 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
-const SEPARATOR_ICONS: Record<string, React.ElementType> = {
-  Basics: BookOpen,
-  'Core Concepts': Layers,
-  Integrations: Plug,
-  'Security & Configuration': Cog,
-  'Execution & Operations': Play,
-  Deployment: Rocket,
-  Reference: Search,
+const SEPARATOR_ICON_ENTRIES: Array<{ names: Set<string>; icon: React.ElementType }> = [
+  {
+    names: new Set(['Basics', 'Fundamentos', 'Grundlagen', '基本', '基础', 'Bases']),
+    icon: BookOpen,
+  },
+  {
+    names: new Set([
+      'Core Concepts',
+      'Conceptos principales',
+      'Kernkonzepte',
+      'コアコンセプト',
+      '核心概念',
+      'Concepts clés',
+    ]),
+    icon: Layers,
+  },
+  {
+    names: new Set([
+      'Integrations',
+      'Integraciones',
+      'Integrationen',
+      'インテグレーション',
+      '集成',
+      'Intégrations',
+    ]),
+    icon: Plug,
+  },
+  {
+    names: new Set([
+      'Security & Configuration',
+      'Seguridad y configuración',
+      'Sicherheit & Konfiguration',
+      'セキュリティと設定',
+      '安全与配置',
+      'Sécurité et configuration',
+    ]),
+    icon: Cog,
+  },
+  {
+    names: new Set([
+      'Execution & Operations',
+      'Ejecución y operaciones',
+      'Ausführung & Betrieb',
+      '実行と運用',
+      '执行与运维',
+      'Exécution et opérations',
+    ]),
+    icon: Play,
+  },
+  {
+    names: new Set([
+      'Deployment',
+      'Despliegue',
+      'Bereitstellung',
+      'デプロイ',
+      '部署',
+      'Déploiement',
+    ]),
+    icon: Rocket,
+  },
+  {
+    names: new Set(['Reference', 'Referencia', 'Referenz', 'リファレンス', '参考', 'Référence']),
+    icon: Search,
+  },
+]
+
+function getSeparatorIcon(name: string): React.ElementType | undefined {
+  return SEPARATOR_ICON_ENTRIES.find((entry) => entry.names.has(name))?.icon
 }
 
 const LANG_PREFIXES = ['/en', '/es', '/fr', '/de', '/ja', '/zh']
@@ -202,14 +262,14 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
 
 export function SidebarSeparator({ item }: { item: Separator }) {
   const name = typeof item.name === 'string' ? item.name : ''
-  const Icon = SEPARATOR_ICONS[name]
+  const Icon = getSeparatorIcon(name)
 
   return (
     <p
       className={cn(
         'mt-5 mb-2 flex items-center gap-2 px-2 font-semibold text-fd-muted-foreground text-sm',
-        'lg:mt-7 lg:mb-2 lg:px-2.5 lg:text-[13px] lg:font-[620] lg:tracking-normal lg:text-neutral-800 lg:dark:text-neutral-200',
-        'first:lg:mt-0 first:mt-0'
+        'lg:mt-7 lg:mb-2 lg:px-2.5 lg:font-[620] lg:text-[13px] lg:text-neutral-800 lg:tracking-normal lg:dark:text-neutral-200',
+        'first:mt-0 first:lg:mt-0'
       )}
     >
       {Icon && <Icon className='h-[14px] w-[14px] flex-shrink-0 opacity-70' />}

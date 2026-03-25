@@ -24,7 +24,7 @@ import { type PageData, source } from '@/lib/source'
 
 const SUPPORTED_LANGUAGES: Set<string> = new Set(i18n.languages)
 const BASE_URL = 'https://docs.sim.ai'
-const CONTENT_DOCS_DIR = join(process.cwd(), 'apps/docs/content/docs')
+const CONTENT_DOCS_DIR = join(process.cwd(), 'content/docs')
 
 function resolveGitHubDocUrl(pageUrl: string) {
   const pathParts = pageUrl.split('/').filter(Boolean)

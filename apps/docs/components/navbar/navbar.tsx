@@ -2,12 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { DiscordIcon } from '@/components/icons'
 import { LanguageDropdown } from '@/components/ui/language-dropdown'
 import { SearchTrigger } from '@/components/ui/search-trigger'
 import { SimLogoFull } from '@/components/ui/sim-logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { cn } from '@/lib/utils'
-import { DiscordIcon } from '../icons'
 
 const NAV_TABS = [
   {
@@ -29,7 +29,7 @@ export function Navbar() {
   const pathname = usePathname()
 
   return (
-    <nav className='sticky top-0 pt-2 z-50 bg-background/80 backdrop-blur-md backdrop-saturate-150'>
+    <nav className='sticky top-0 z-50 bg-background/80 pt-2 backdrop-blur-md backdrop-saturate-150'>
       <div className='hidden w-full flex-col lg:flex'>
         {/* Top row: logo, search, controls */}
         <div className='relative flex h-[52px] w-full items-center justify-between px-8'>
@@ -56,7 +56,7 @@ export function Navbar() {
               href='https://sim.ai'
               target='_blank'
               rel='noopener noreferrer'
-              className='inline-flex h-[30px] items-center rounded-[5px] bg-[#33C482] px-[10px] font-medium text-[12px] text-[#1b1b1b] transition-colors hover:bg-[#2DAC72]'
+              className='inline-flex h-[30px] items-center rounded-[5px] bg-[#33C482] px-[10px] font-medium text-[#1b1b1b] text-[12px] transition-colors hover:bg-[#2DAC72]'
               aria-label='Go to Sim AI'
             >
               Mothership
