@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
-import { abortActiveStream, waitForPendingChatStream } from '@/lib/copilot/chat-streaming'
+import { abortActiveStream } from '@/lib/copilot/chat-streaming'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
 import { env } from '@/lib/core/config/env'
@@ -55,10 +55,5 @@ export async function POST(request: Request) {
   }
 
   const aborted = await abortActiveStream(streamId)
-  if (chatId) {
-    await waitForPendingChatStream(chatId, GO_EXPLICIT_ABORT_TIMEOUT_MS + 1000, streamId).catch(
-      () => false
-    )
-  }
   return NextResponse.json({ aborted })
 }

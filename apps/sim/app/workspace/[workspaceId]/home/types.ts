@@ -1,4 +1,3 @@
-import type { MothershipResourceType } from '@/lib/copilot/resource-types'
 import type { ChatContext } from '@/stores/panel'
 
 export type {
@@ -20,39 +19,6 @@ export interface QueuedMessage {
   fileAttachments?: FileAttachmentForApi[]
   contexts?: ChatContext[]
 }
-
-/**
- * SSE event types emitted by the Go orchestrator backend.
- *
- * @example
- * ```json
- * { "type": "content", "data": "Hello world" }
- * { "type": "tool_call", "state": "executing", "toolCallId": "toolu_...", "toolName": "glob", "ui": { "title": "..." } }
- * { "type": "subagent_start", "subagent": "build" }
- * ```
- */
-export type SSEEventType =
-  | 'chat_id'
-  | 'request_id'
-  | 'title_updated'
-  | 'content'
-  | 'reasoning' // openai reasoning - render as thinking text
-  | 'tool_call' // tool call name
-  | 'tool_call_delta' // chunk of tool call
-  | 'tool_generating' // start a tool call
-  | 'tool_result' // tool call result
-  | 'tool_error' // tool call error
-  | 'resource_added' // add a resource to the chat
-  | 'resource_deleted' // delete a resource from the chat
-  | 'subagent_start' // start a subagent
-  | 'subagent_end' // end a subagent
-  | 'structured_result' // structured result from a tool call
-  | 'subagent_result' // result from a subagent
-  | 'done' // end of the chat
-  | 'context_compaction_start' // context compaction started
-  | 'context_compaction' // conversation context was compacted
-  | 'error' // error in the chat
-  | 'start' // start of the chat
 
 /**
  * All tool names observed in the mothership SSE stream, grouped by phase.
@@ -470,40 +436,4 @@ export const TOOL_UI_METADATA: Record<MothershipToolName, ToolUIMetadata> = {
   debug: { title: 'Debugging', phaseLabel: 'Debug', phase: 'subagent' },
   edit: { title: 'Editing workflow', phaseLabel: 'Edit', phase: 'subagent' },
   fast_edit: { title: 'Editing workflow', phaseLabel: 'Edit', phase: 'subagent' },
-}
-
-export interface SSEPayloadUI {
-  hidden?: boolean
-  title?: string
-  phaseLabel?: string
-  icon?: string
-  internal?: boolean
-  clientExecutable?: boolean
-}
-
-export interface SSEPayloadData {
-  name?: string
-  ui?: SSEPayloadUI
-  id?: string
-  agent?: string
-  partial?: boolean
-  arguments?: Record<string, unknown>
-  input?: Record<string, unknown>
-  result?: unknown
-  error?: string
-}
-
-export interface SSEPayload {
-  type: SSEEventType | (string & {})
-  chatId?: string
-  data?: string | SSEPayloadData
-  content?: string
-  toolCallId?: string
-  toolName?: string
-  ui?: SSEPayloadUI
-  success?: boolean
-  result?: unknown
-  error?: string
-  subagent?: string
-  resource?: { type: MothershipResourceType; id: string; title: string }
 }

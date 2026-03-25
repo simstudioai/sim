@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
         id: copilotChats.id,
         title: copilotChats.title,
         updatedAt: copilotChats.updatedAt,
-        conversationId: copilotChats.conversationId,
+        activeStreamId: copilotChats.conversationId,
         lastSeenAt: copilotChats.lastSeenAt,
       })
       .from(copilotChats)

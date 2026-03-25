@@ -9,15 +9,12 @@ import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { getAccessibleCopilotChat, resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
 import {
-  acquirePendingChatStream,
   createSSEStream,
-  releasePendingChatStream,
   requestChatTitle,
   SSE_RESPONSE_HEADERS,
 } from '@/lib/copilot/chat-streaming'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
-import { getStreamMeta, readStreamEvents } from '@/lib/copilot/orchestrator/stream/buffer'
 import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
 import { resolveActiveResourceContext } from '@/lib/copilot/process-contents'
 import {
@@ -111,9 +108,6 @@ const ChatMessageSchema = z.object({
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
   let actualChatId: string | undefined
-  let pendingChatStreamAcquired = false
-  let pendingChatStreamHandedOff = false
-  let pendingChatStreamID: string | undefined
 
   try {
     // Get session to access user information including name
@@ -183,9 +177,7 @@ export async function POST(req: NextRequest) {
       const wf = await getWorkflowById(workflowId)
       resolvedWorkspaceId = wf?.workspaceId ?? undefined
     } catch {
-      logger
-        .withMetadata({ requestId: tracker.requestId, messageId: userMessageId })
-        .warn('Failed to resolve workspaceId from workflow')
+      logger.warn(`[${tracker.requestId}] Failed to resolve workspaceId from workflow`)
     }
 
     const userMessageIdToUse = userMessageId || crypto.randomUUID()
@@ -194,7 +186,7 @@ export async function POST(req: NextRequest) {
       messageId: userMessageIdToUse,
     })
     try {
-      reqLogger.info('Received chat POST', {
+      logger.info(`[${tracker.requestId}] Received chat POST`, {
         workflowId,
         hasContexts: Array.isArray(normalizedContexts),
         contextsCount: Array.isArray(normalizedContexts) ? normalizedContexts.length : 0,
@@ -245,7 +237,7 @@ export async function POST(req: NextRequest) {
           actualChatId
         )
         agentContexts = processed
-        reqLogger.info('Contexts processed for request', {
+        logger.info(`[${tracker.requestId}] Contexts processed for request`, {
           processedCount: agentContexts.length,
           kinds: agentContexts.map((c) => c.type),
           lengthPreview: agentContexts.map((c) => c.content?.length ?? 0),
@@ -255,12 +247,12 @@ export async function POST(req: NextRequest) {
           normalizedContexts.length > 0 &&
           agentContexts.length === 0
         ) {
-          reqLogger.warn(
-            'Contexts provided but none processed. Check executionId for logs contexts.'
+          logger.warn(
+            `[${tracker.requestId}] Contexts provided but none processed. Check executionId for logs contexts.`
           )
         }
       } catch (e) {
-        reqLogger.error('Failed to process contexts', e)
+        logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
       }
     }
 
@@ -289,7 +281,10 @@ export async function POST(req: NextRequest) {
         if (result.status === 'fulfilled' && result.value) {
           agentContexts.push(result.value)
         } else if (result.status === 'rejected') {
-          reqLogger.error('Failed to resolve resource attachment', result.reason)
+          logger.error(
+            `[${tracker.requestId}] Failed to resolve resource attachment`,
+            result.reason
+          )
         }
       }
     }
@@ -328,7 +323,7 @@ export async function POST(req: NextRequest) {
     )
 
     try {
-      reqLogger.info('About to call Sim Agent', {
+      logger.info(`[${tracker.requestId}] About to call Sim Agent`, {
         hasContext: agentContexts.length > 0,
         contextCount: agentContexts.length,
         hasFileAttachments: Array.isArray(requestPayload.fileAttachments),
@@ -343,21 +338,6 @@ export async function POST(req: NextRequest) {
         hasCredentials: !!requestPayload.credentials,
       })
     } catch {}
-
-    if (stream && actualChatId) {
-      const acquired = await acquirePendingChatStream(actualChatId, userMessageIdToUse)
-      if (!acquired) {
-        return NextResponse.json(
-          {
-            error:
-              'A response is already in progress for this chat. Wait for it to finish or use Stop.',
-          },
-          { status: 409 }
-        )
-      }
-      pendingChatStreamAcquired = true
-      pendingChatStreamID = userMessageIdToUse
-    }
 
     if (actualChatId) {
       const userMsg = {
@@ -405,7 +385,6 @@ export async function POST(req: NextRequest) {
         titleProvider: provider,
         requestId: tracker.requestId,
         workspaceId: resolvedWorkspaceId,
-        pendingChatStreamAlreadyRegistered: Boolean(actualChatId && stream),
         orchestrateOptions: {
           userId: authenticatedUserId,
           workflowId,
@@ -485,7 +464,7 @@ export async function POST(req: NextRequest) {
                   .where(eq(copilotChats.id, actualChatId))
               }
             } catch (error) {
-              reqLogger.error('Failed to persist chat messages', {
+              logger.error(`[${tracker.requestId}] Failed to persist chat messages`, {
                 chatId: actualChatId,
                 error: error instanceof Error ? error.message : 'Unknown error',
               })
@@ -493,7 +472,6 @@ export async function POST(req: NextRequest) {
           },
         },
       })
-      pendingChatStreamHandedOff = true
 
       return new Response(sseStream, { headers: SSE_RESPONSE_HEADERS })
     }
@@ -530,7 +508,7 @@ export async function POST(req: NextRequest) {
       provider: typeof requestPayload?.provider === 'string' ? requestPayload.provider : undefined,
     }
 
-    reqLogger.info('Non-streaming response from orchestrator', {
+    logger.info(`[${tracker.requestId}] Non-streaming response from orchestrator:`, {
       hasContent: !!responseData.content,
       contentLength: responseData.content?.length || 0,
       model: responseData.model,
@@ -569,8 +547,8 @@ export async function POST(req: NextRequest) {
 
       // Start title generation in parallel if this is first message (non-streaming)
       if (actualChatId && !currentChat.title && conversationHistory.length === 0) {
-        reqLogger.info('Starting title generation for non-streaming response')
-        requestChatTitle({ message, model: selectedModel, provider, messageId: userMessageIdToUse })
+        logger.info(`[${tracker.requestId}] Starting title generation for non-streaming response`)
+        requestChatTitle({ message, model: selectedModel, provider })
           .then(async (title) => {
             if (title) {
               await db
@@ -580,11 +558,11 @@ export async function POST(req: NextRequest) {
                   updatedAt: new Date(),
                 })
                 .where(eq(copilotChats.id, actualChatId!))
-              reqLogger.info(`Generated and saved title: ${title}`)
+              logger.info(`[${tracker.requestId}] Generated and saved title: ${title}`)
             }
           })
           .catch((error) => {
-            reqLogger.error('Title generation failed', error)
+            logger.error(`[${tracker.requestId}] Title generation failed:`, error)
           })
       }
 
@@ -598,7 +576,7 @@ export async function POST(req: NextRequest) {
         .where(eq(copilotChats.id, actualChatId!))
     }
 
-    reqLogger.info('Returning non-streaming response', {
+    logger.info(`[${tracker.requestId}] Returning non-streaming response`, {
       duration: tracker.getDuration(),
       chatId: actualChatId,
       responseLength: responseData.content?.length || 0,
@@ -615,36 +593,24 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (error) {
-    if (
-      actualChatId &&
-      pendingChatStreamAcquired &&
-      !pendingChatStreamHandedOff &&
-      pendingChatStreamID
-    ) {
-      await releasePendingChatStream(actualChatId, pendingChatStreamID).catch(() => {})
-    }
     const duration = tracker.getDuration()
 
     if (error instanceof z.ZodError) {
-      logger
-        .withMetadata({ requestId: tracker.requestId, messageId: pendingChatStreamID ?? undefined })
-        .error('Validation error', {
-          duration,
-          errors: error.errors,
-        })
+      logger.error(`[${tracker.requestId}] Validation error:`, {
+        duration,
+        errors: error.errors,
+      })
       return NextResponse.json(
         { error: 'Invalid request data', details: error.errors },
         { status: 400 }
       )
     }
 
-    logger
-      .withMetadata({ requestId: tracker.requestId, messageId: pendingChatStreamID ?? undefined })
-      .error('Error handling copilot chat', {
-        duration,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-      })
+    logger.error(`[${tracker.requestId}] Error handling copilot chat:`, {
+      duration,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    })
 
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
@@ -673,32 +639,6 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
 
-      let streamSnapshot: {
-        events: Array<{ eventId: number; streamId: string; event: Record<string, unknown> }>
-        status: string
-      } | null = null
-
-      if (chat.conversationId) {
-        try {
-          const [meta, events] = await Promise.all([
-            getStreamMeta(chat.conversationId),
-            readStreamEvents(chat.conversationId, 0),
-          ])
-          streamSnapshot = {
-            events: events || [],
-            status: meta?.status || 'unknown',
-          }
-        } catch (err) {
-          logger
-            .withMetadata({ messageId: chat.conversationId || undefined })
-            .warn('Failed to read stream snapshot for chat', {
-              chatId,
-              conversationId: chat.conversationId,
-              error: err instanceof Error ? err.message : String(err),
-            })
-        }
-      }
-
       const transformedChat = {
         id: chat.id,
         title: chat.title,
@@ -707,16 +647,13 @@ export async function GET(req: NextRequest) {
         messageCount: Array.isArray(chat.messages) ? chat.messages.length : 0,
         planArtifact: chat.planArtifact || null,
         config: chat.config || null,
-        conversationId: chat.conversationId || null,
+        activeStreamId: chat.conversationId || null,
         resources: Array.isArray(chat.resources) ? chat.resources : [],
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,
-        ...(streamSnapshot ? { streamSnapshot } : {}),
       }
 
-      logger
-        .withMetadata({ messageId: chat.conversationId || undefined })
-        .info(`Retrieved chat ${chatId}`)
+      logger.info(`Retrieved chat ${chatId}`)
       return NextResponse.json({ success: true, chat: transformedChat })
     }
 
@@ -778,7 +715,7 @@ export async function GET(req: NextRequest) {
       chats: transformedChats,
     })
   } catch (error) {
-    logger.error('Error fetching copilot chats', error)
+    logger.error('Error fetching copilot chats:', error)
     return createInternalServerErrorResponse('Failed to fetch chats')
   }
 }

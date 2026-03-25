@@ -1,5 +1,9 @@
 import { STREAM_BUFFER_MAX_DEDUP_ENTRIES } from '@/lib/copilot/constants'
-import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
+import {
+  MothershipStreamV1EventType,
+  MothershipStreamV1ToolPhase,
+} from '@/lib/copilot/generated/mothership-stream-v1'
+import type { StreamEvent } from '@/lib/copilot/orchestrator/types'
 
 type EventDataObject = Record<string, unknown> | undefined
 
@@ -24,72 +28,16 @@ function addToSet(set: Set<string>, id: string): void {
   set.add(id)
 }
 
-const parseEventData = (data: unknown): EventDataObject => {
-  if (!data) return undefined
-  if (typeof data !== 'string') {
-    if (typeof data === 'object' && !Array.isArray(data)) {
-      return data as EventDataObject
-    }
+export const getEventData = (event: StreamEvent): EventDataObject => {
+  if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) {
     return undefined
   }
-  try {
-    const parsed = JSON.parse(data)
-    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-      return parsed as EventDataObject
-    }
-    return undefined
-  } catch {
-    return undefined
-  }
+  return event.payload
 }
 
-const hasToolFields = (data: EventDataObject): boolean => {
-  if (!data) return false
-  return (
-    data.id !== undefined ||
-    data.toolCallId !== undefined ||
-    data.name !== undefined ||
-    data.success !== undefined ||
-    data.result !== undefined ||
-    data.arguments !== undefined
-  )
-}
-
-export const getEventData = (event: SSEEvent): EventDataObject => {
-  const topLevel = parseEventData(event.data)
-  if (!topLevel) return undefined
-  if (hasToolFields(topLevel)) return topLevel
-  const nested = parseEventData(topLevel.data)
-  return nested || topLevel
-}
-
-function getToolCallIdFromEvent(event: SSEEvent): string | undefined {
+function getToolCallIdFromEvent(event: StreamEvent): string | undefined {
   const data = getEventData(event)
-  return (
-    event.toolCallId || (data?.id as string | undefined) || (data?.toolCallId as string | undefined)
-  )
-}
-
-/** Normalizes SSE events so tool metadata is available at the top level. */
-export function normalizeSseEvent(event: SSEEvent): SSEEvent {
-  if (!event) return event
-  const data = getEventData(event)
-  if (!data) return event
-  const toolCallId =
-    event.toolCallId || (data.id as string | undefined) || (data.toolCallId as string | undefined)
-  const toolName =
-    event.toolName || (data.name as string | undefined) || (data.toolName as string | undefined)
-  const success = event.success ?? (data.success as boolean | undefined)
-  const result = event.result ?? data.result
-  const normalizedData = typeof event.data === 'string' ? data : event.data
-  return {
-    ...event,
-    data: normalizedData,
-    toolCallId,
-    toolName,
-    success,
-    result,
-  }
+  return (data?.toolCallId as string | undefined) || (data?.id as string | undefined)
 }
 
 function markToolCallSeen(toolCallId: string): void {
@@ -108,11 +56,13 @@ export function wasToolResultSeen(toolCallId: string): boolean {
   return seenToolResults.has(toolCallId)
 }
 
-export function shouldSkipToolCallEvent(event: SSEEvent): boolean {
-  if (event.type !== 'tool_call') return false
+export function shouldSkipToolCallEvent(event: StreamEvent): boolean {
+  if (event.type !== MothershipStreamV1EventType.tool) return false
+  const eventData = getEventData(event)
+  if (eventData?.phase !== MothershipStreamV1ToolPhase.call) return false
+  if (eventData?.status === 'generating') return false
   const toolCallId = getToolCallIdFromEvent(event)
   if (!toolCallId) return false
-  const eventData = getEventData(event)
   if (eventData?.partial === true) return false
   if (wasToolResultSeen(toolCallId) || wasToolCallSeen(toolCallId)) {
     return true
@@ -121,8 +71,10 @@ export function shouldSkipToolCallEvent(event: SSEEvent): boolean {
   return false
 }
 
-export function shouldSkipToolResultEvent(event: SSEEvent): boolean {
-  if (event.type !== 'tool_result') return false
+export function shouldSkipToolResultEvent(event: StreamEvent): boolean {
+  if (event.type !== MothershipStreamV1EventType.tool) return false
+  const eventData = getEventData(event)
+  if (eventData?.phase !== MothershipStreamV1ToolPhase.result) return false
   const toolCallId = getToolCallIdFromEvent(event)
   if (!toolCallId) return false
   return wasToolResultSeen(toolCallId)

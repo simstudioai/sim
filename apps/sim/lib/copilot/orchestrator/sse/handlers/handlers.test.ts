@@ -34,7 +34,11 @@ vi.mock('@/lib/copilot/async-runs/repository', async () => {
 })
 
 import { sseHandlers } from '@/lib/copilot/orchestrator/sse/handlers'
-import type { ExecutionContext, StreamingContext } from '@/lib/copilot/orchestrator/types'
+import type {
+  ExecutionContext,
+  StreamEvent,
+  StreamingContext,
+} from '@/lib/copilot/orchestrator/types'
 
 describe('sse-handlers tool lifecycle', () => {
   let context: StreamingContext
@@ -72,11 +76,18 @@ describe('sse-handlers tool lifecycle', () => {
     markToolComplete.mockResolvedValueOnce(true)
     const onEvent = vi.fn()
 
-    await sseHandlers.tool_call(
+    await sseHandlers.tool(
       {
-        type: 'tool_call',
-        data: { id: 'tool-1', name: 'read', arguments: { workflowId: 'workflow-1' } },
-      } as any,
+        type: 'tool',
+        payload: {
+          toolCallId: 'tool-1',
+          toolName: 'read',
+          arguments: { workflowId: 'workflow-1' },
+          executor: 'sim',
+          mode: 'async',
+          phase: 'call',
+        },
+      } satisfies StreamEvent,
       context,
       execContext,
       { onEvent, interactive: false, timeout: 1000 }
@@ -90,9 +101,12 @@ describe('sse-handlers tool lifecycle', () => {
     expect(markToolComplete).toHaveBeenCalledTimes(1)
     expect(onEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: 'tool_result',
-        toolCallId: 'tool-1',
-        success: true,
+        type: 'tool',
+        payload: expect.objectContaining({
+          toolCallId: 'tool-1',
+          success: true,
+          phase: 'result',
+        }),
       })
     )
 
@@ -106,13 +120,20 @@ describe('sse-handlers tool lifecycle', () => {
     markToolComplete.mockResolvedValueOnce(true)
 
     const event = {
-      type: 'tool_call',
-      data: { id: 'tool-dup', name: 'read', arguments: { workflowId: 'workflow-1' } },
+      type: 'tool',
+      payload: {
+        toolCallId: 'tool-dup',
+        toolName: 'read',
+        arguments: { workflowId: 'workflow-1' },
+        executor: 'sim',
+        mode: 'async',
+        phase: 'call',
+      },
     }
 
-    await sseHandlers.tool_call(event as any, context, execContext, { interactive: false })
+    await sseHandlers.tool(event as StreamEvent, context, execContext, { interactive: false })
     await new Promise((resolve) => setTimeout(resolve, 0))
-    await sseHandlers.tool_call(event as any, context, execContext, { interactive: false })
+    await sseHandlers.tool(event as StreamEvent, context, execContext, { interactive: false })
 
     expect(executeToolServerSide).toHaveBeenCalledTimes(1)
     expect(markToolComplete).toHaveBeenCalledTimes(1)
@@ -132,11 +153,18 @@ describe('sse-handlers tool lifecycle', () => {
     )
     markToolComplete.mockResolvedValue(true)
 
-    await sseHandlers.tool_call(
+    await sseHandlers.tool(
       {
-        type: 'tool_call',
-        data: { id: 'tool-cancel', name: 'read', arguments: { workflowId: 'workflow-1' } },
-      } as any,
+        type: 'tool',
+        payload: {
+          toolCallId: 'tool-cancel',
+          toolName: 'read',
+          arguments: { workflowId: 'workflow-1' },
+          executor: 'sim',
+          mode: 'async',
+          phase: 'call',
+        },
+      } satisfies StreamEvent,
       context,
       execContext,
       {
@@ -175,17 +203,24 @@ describe('sse-handlers tool lifecycle', () => {
     markToolComplete.mockResolvedValueOnce(true)
 
     const event = {
-      type: 'tool_call',
-      data: { id: 'tool-inflight', name: 'read', arguments: { workflowId: 'workflow-1' } },
+      type: 'tool',
+      payload: {
+        toolCallId: 'tool-inflight',
+        toolName: 'read',
+        arguments: { workflowId: 'workflow-1' },
+        executor: 'sim',
+        mode: 'async',
+        phase: 'call',
+      },
     }
 
-    await sseHandlers.tool_call(event as any, context, execContext, { interactive: false })
+    await sseHandlers.tool(event as StreamEvent, context, execContext, { interactive: false })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     const firstPromise = context.pendingToolPromises.get('tool-inflight')
     expect(firstPromise).toBeDefined()
 
-    await sseHandlers.tool_call(event as any, context, execContext, { interactive: false })
+    await sseHandlers.tool(event as StreamEvent, context, execContext, { interactive: false })
 
     expect(executeToolServerSide).toHaveBeenCalledTimes(1)
     expect(context.pendingToolPromises.get('tool-inflight')).toBe(firstPromise)
@@ -202,11 +237,18 @@ describe('sse-handlers tool lifecycle', () => {
     executeToolServerSide.mockResolvedValueOnce({ success: true, output: { ok: true } })
     markToolComplete.mockResolvedValueOnce(true)
 
-    await sseHandlers.tool_call(
+    await sseHandlers.tool(
       {
-        type: 'tool_call',
-        data: { id: 'tool-upsert-fail', name: 'read', arguments: { workflowId: 'workflow-1' } },
-      } as any,
+        type: 'tool',
+        payload: {
+          toolCallId: 'tool-upsert-fail',
+          toolName: 'read',
+          arguments: { workflowId: 'workflow-1' },
+          executor: 'sim',
+          mode: 'async',
+          phase: 'call',
+        },
+      } satisfies StreamEvent,
       context,
       execContext,
       { onEvent: vi.fn(), interactive: false, timeout: 1000 }
@@ -229,22 +271,36 @@ describe('sse-handlers tool lifecycle', () => {
     )
     const onEvent = vi.fn()
 
-    await sseHandlers.tool_call(
+    await sseHandlers.tool(
       {
-        type: 'tool_call',
-        data: { id: 'tool-race', name: 'read', arguments: { workflowId: 'workflow-1' } },
-      } as any,
+        type: 'tool',
+        payload: {
+          toolCallId: 'tool-race',
+          toolName: 'read',
+          arguments: { workflowId: 'workflow-1' },
+          executor: 'sim',
+          mode: 'async',
+          phase: 'call',
+        },
+      } satisfies StreamEvent,
       context,
       execContext,
       { onEvent, interactive: false, timeout: 1000 }
     )
 
-    await sseHandlers.tool_result(
+    await sseHandlers.tool(
       {
-        type: 'tool_result',
-        toolCallId: 'tool-race',
-        data: { id: 'tool-race', success: true, result: { ok: true } },
-      } as any,
+        type: 'tool',
+        payload: {
+          toolCallId: 'tool-race',
+          toolName: 'read',
+          executor: 'sim',
+          mode: 'async',
+          phase: 'result',
+          success: true,
+          result: { ok: true },
+        },
+      } satisfies StreamEvent,
       context,
       execContext,
       { onEvent, interactive: false, timeout: 1000 }
@@ -262,23 +318,36 @@ describe('sse-handlers tool lifecycle', () => {
   it('does not execute a tool if a tool_result arrives before the tool_call event', async () => {
     const onEvent = vi.fn()
 
-    await sseHandlers.tool_result(
+    await sseHandlers.tool(
       {
-        type: 'tool_result',
-        toolCallId: 'tool-early-result',
-        toolName: 'read',
-        data: { id: 'tool-early-result', name: 'read', success: true, result: { ok: true } },
-      } as any,
+        type: 'tool',
+        payload: {
+          toolCallId: 'tool-early-result',
+          toolName: 'read',
+          executor: 'sim',
+          mode: 'async',
+          phase: 'result',
+          success: true,
+          result: { ok: true },
+        },
+      } satisfies StreamEvent,
       context,
       execContext,
       { onEvent, interactive: false, timeout: 1000 }
     )
 
-    await sseHandlers.tool_call(
+    await sseHandlers.tool(
       {
-        type: 'tool_call',
-        data: { id: 'tool-early-result', name: 'read', arguments: { workflowId: 'workflow-1' } },
-      } as any,
+        type: 'tool',
+        payload: {
+          toolCallId: 'tool-early-result',
+          toolName: 'read',
+          arguments: { workflowId: 'workflow-1' },
+          executor: 'sim',
+          mode: 'async',
+          phase: 'call',
+        },
+      } satisfies StreamEvent,
       context,
       execContext,
       { onEvent, interactive: false, timeout: 1000 }

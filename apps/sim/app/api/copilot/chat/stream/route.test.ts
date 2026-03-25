@@ -5,24 +5,37 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getStreamMeta, readStreamEvents, authenticateCopilotRequestSessionOnly } = vi.hoisted(
-  () => ({
-    getStreamMeta: vi.fn(),
-    readStreamEvents: vi.fn(),
-    authenticateCopilotRequestSessionOnly: vi.fn(),
-  })
-)
+const {
+  getLatestRunForStream,
+  readEnvelopes,
+  checkForReplayGap,
+  authenticateCopilotRequestSessionOnly,
+} = vi.hoisted(() => ({
+  getLatestRunForStream: vi.fn(),
+  readEnvelopes: vi.fn(),
+  checkForReplayGap: vi.fn(),
+  authenticateCopilotRequestSessionOnly: vi.fn(),
+}))
 
-vi.mock('@/lib/copilot/orchestrator/stream/buffer', () => ({
-  getStreamMeta,
-  readStreamEvents,
+vi.mock('@/lib/copilot/async-runs/repository', () => ({
+  getLatestRunForStream,
+}))
+
+vi.mock('@/lib/copilot/mothership-stream', () => ({
+  readEnvelopes,
+  checkForReplayGap,
+  encodeSSEEnvelope: (event: Record<string, unknown>) =>
+    new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`),
+  SSE_RESPONSE_HEADERS: {
+    'Content-Type': 'text/event-stream',
+  },
 }))
 
 vi.mock('@/lib/copilot/request-helpers', () => ({
   authenticateCopilotRequestSessionOnly,
 }))
 
-import { GET } from '@/app/api/copilot/chat/stream/route'
+import { GET } from './route'
 
 describe('copilot chat stream replay route', () => {
   beforeEach(() => {
@@ -31,22 +44,25 @@ describe('copilot chat stream replay route', () => {
       userId: 'user-1',
       isAuthenticated: true,
     })
-    readStreamEvents.mockResolvedValue([])
+    readEnvelopes.mockResolvedValue([])
+    checkForReplayGap.mockResolvedValue(null)
   })
 
-  it('stops replay polling when stream meta becomes cancelled', async () => {
-    getStreamMeta
+  it('stops replay polling when run becomes cancelled', async () => {
+    getLatestRunForStream
       .mockResolvedValueOnce({
         status: 'active',
-        userId: 'user-1',
+        executionId: 'exec-1',
+        id: 'run-1',
       })
       .mockResolvedValueOnce({
         status: 'cancelled',
-        userId: 'user-1',
+        executionId: 'exec-1',
+        id: 'run-1',
       })
 
     const response = await GET(
-      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1')
+      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
     )
 
     const reader = response.body?.getReader()
@@ -54,6 +70,6 @@ describe('copilot chat stream replay route', () => {
 
     const first = await reader!.read()
     expect(first.done).toBe(true)
-    expect(getStreamMeta).toHaveBeenCalledTimes(2)
+    expect(getLatestRunForStream).toHaveBeenCalledTimes(2)
   })
 })

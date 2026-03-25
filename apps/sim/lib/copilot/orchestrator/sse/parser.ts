@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import type { SSEEvent } from '@/lib/copilot/orchestrator/types'
 
 const logger = createLogger('CopilotSseParser')
 
@@ -10,7 +9,7 @@ export async function* parseSSEStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   decoder: TextDecoder,
   abortSignal?: AbortSignal
-): AsyncGenerator<SSEEvent> {
+): AsyncGenerator<unknown> {
   let buffer = ''
 
   try {
@@ -40,10 +39,7 @@ export async function* parseSSEStream(
           if (jsonStr === '[DONE]') continue
 
           try {
-            const event = JSON.parse(jsonStr) as SSEEvent
-            if (event?.type) {
-              yield event
-            }
+            yield JSON.parse(jsonStr)
           } catch (error) {
             logger.warn('Failed to parse SSE event', {
               preview: jsonStr.slice(0, 200),
@@ -64,10 +60,7 @@ export async function* parseSSEStream(
 
     if (buffer.trim() && buffer.startsWith('data: ')) {
       try {
-        const event = JSON.parse(buffer.slice(6)) as SSEEvent
-        if (event?.type) {
-          yield event
-        }
+        yield JSON.parse(buffer.slice(6))
       } catch (error) {
         logger.warn('Failed to parse final SSE buffer', {
           preview: buffer.slice(0, 200),

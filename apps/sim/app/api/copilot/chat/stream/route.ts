@@ -1,22 +1,19 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import {
-  getStreamMeta,
-  readStreamEvents,
-  type StreamMeta,
-} from '@/lib/copilot/orchestrator/stream/buffer'
+  checkForReplayGap,
+  encodeSSEEnvelope,
+  readEnvelopes,
+  SSE_RESPONSE_HEADERS,
+} from '@/lib/copilot/mothership-stream'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
-import { SSE_HEADERS } from '@/lib/core/utils/sse'
 
 export const maxDuration = 3600
 
 const logger = createLogger('CopilotChatStreamAPI')
 const POLL_INTERVAL_MS = 250
 const MAX_STREAM_MS = 60 * 60 * 1000
-
-function encodeEvent(event: Record<string, any>): Uint8Array {
-  return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`)
-}
 
 export async function GET(request: NextRequest) {
   const { userId: authenticatedUserId, isAuthenticated } =
@@ -28,67 +25,28 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url)
   const streamId = url.searchParams.get('streamId') || ''
-  const fromParam = url.searchParams.get('from') || '0'
-  const fromEventId = Number(fromParam || 0)
-  // If batch=true, return buffered events as JSON instead of SSE
-  const batchMode = url.searchParams.get('batch') === 'true'
-  const toParam = url.searchParams.get('to')
-  const toEventId = toParam ? Number(toParam) : undefined
-
-  const reqLogger = logger.withMetadata({ messageId: streamId || undefined })
-
-  reqLogger.info('[Resume] Received resume request', {
-    streamId: streamId || undefined,
-    fromEventId,
-    toEventId,
-    batchMode,
-  })
+  const afterCursor = url.searchParams.get('after') || ''
 
   if (!streamId) {
     return NextResponse.json({ error: 'streamId is required' }, { status: 400 })
   }
 
-  const meta = (await getStreamMeta(streamId)) as StreamMeta | null
-  reqLogger.info('[Resume] Stream lookup', {
+  const run = await getLatestRunForStream(streamId, authenticatedUserId).catch(() => null)
+  logger.info('[Resume] Stream lookup', {
     streamId,
-    fromEventId,
-    toEventId,
-    batchMode,
-    hasMeta: !!meta,
-    metaStatus: meta?.status,
+    afterCursor,
+    hasRun: !!run,
+    runStatus: run?.status,
   })
-  if (!meta) {
+  if (!run) {
     return NextResponse.json({ error: 'Stream not found' }, { status: 404 })
-  }
-  if (meta.userId && meta.userId !== authenticatedUserId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
-  }
-
-  // Batch mode: return all buffered events as JSON
-  if (batchMode) {
-    const events = await readStreamEvents(streamId, fromEventId)
-    const filteredEvents = toEventId ? events.filter((e) => e.eventId <= toEventId) : events
-    reqLogger.info('[Resume] Batch response', {
-      streamId,
-      fromEventId,
-      toEventId,
-      eventCount: filteredEvents.length,
-    })
-    return NextResponse.json({
-      success: true,
-      events: filteredEvents,
-      status: meta.status,
-      executionId: meta.executionId,
-      runId: meta.runId,
-    })
   }
 
   const startTime = Date.now()
 
   const stream = new ReadableStream({
     async start(controller) {
-      let lastEventId = Number.isFinite(fromEventId) ? fromEventId : 0
-      let latestMeta = meta
+      let cursor = afterCursor || '0'
       let controllerClosed = false
 
       const closeController = () => {
@@ -97,14 +55,14 @@ export async function GET(request: NextRequest) {
         try {
           controller.close()
         } catch {
-          // Controller already closed by runtime/client - treat as normal.
+          // Controller already closed by runtime/client
         }
       }
 
-      const enqueueEvent = (payload: Record<string, any>) => {
+      const enqueueEvent = (payload: unknown) => {
         if (controllerClosed) return false
         try {
-          controller.enqueue(encodeEvent(payload))
+          controller.enqueue(encodeSSEEnvelope(payload))
           return true
         } catch {
           controllerClosed = true
@@ -118,36 +76,38 @@ export async function GET(request: NextRequest) {
       request.signal.addEventListener('abort', abortListener, { once: true })
 
       const flushEvents = async () => {
-        const events = await readStreamEvents(streamId, lastEventId)
+        const events = await readEnvelopes(streamId, cursor)
         if (events.length > 0) {
-          reqLogger.info('[Resume] Flushing events', {
+          logger.info('[Resume] Flushing events', {
             streamId,
-            fromEventId: lastEventId,
+            afterCursor: cursor,
             eventCount: events.length,
           })
         }
-        for (const entry of events) {
-          lastEventId = entry.eventId
-          const payload = {
-            ...entry.event,
-            eventId: entry.eventId,
-            streamId: entry.streamId,
-            executionId: latestMeta?.executionId,
-            runId: latestMeta?.runId,
-          }
-          if (!enqueueEvent(payload)) {
+        for (const envelope of events) {
+          cursor = envelope.stream.cursor ?? String(envelope.seq)
+          if (!enqueueEvent(envelope)) {
             break
           }
         }
       }
 
       try {
+        const gap = await checkForReplayGap(streamId, afterCursor)
+        if (gap) {
+          for (const envelope of gap.envelopes) {
+            enqueueEvent(envelope)
+          }
+          return
+        }
+
         await flushEvents()
 
         while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
-          const currentMeta = await getStreamMeta(streamId)
-          if (!currentMeta) break
-          latestMeta = currentMeta
+          const currentRun = await getLatestRunForStream(streamId, authenticatedUserId).catch(
+            () => null
+          )
+          if (!currentRun) break
 
           await flushEvents()
 
@@ -155,9 +115,9 @@ export async function GET(request: NextRequest) {
             break
           }
           if (
-            currentMeta.status === 'complete' ||
-            currentMeta.status === 'error' ||
-            currentMeta.status === 'cancelled'
+            currentRun.status === 'complete' ||
+            currentRun.status === 'error' ||
+            currentRun.status === 'cancelled'
           ) {
             break
           }
@@ -171,7 +131,7 @@ export async function GET(request: NextRequest) {
         }
       } catch (error) {
         if (!controllerClosed && !request.signal.aborted) {
-          reqLogger.warn('Stream replay failed', {
+          logger.warn('Stream replay failed', {
             streamId,
             error: error instanceof Error ? error.message : String(error),
           })
@@ -183,5 +143,5 @@ export async function GET(request: NextRequest) {
     },
   })
 
-  return new Response(stream, { headers: SSE_HEADERS })
+  return new Response(stream, { headers: SSE_RESPONSE_HEADERS })
 }

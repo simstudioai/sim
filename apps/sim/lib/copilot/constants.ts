@@ -11,13 +11,6 @@ export const SIM_AGENT_API_URL =
     : SIM_AGENT_API_URL_DEFAULT
 
 // ---------------------------------------------------------------------------
-// Redis key prefixes
-// ---------------------------------------------------------------------------
-
-/** Redis key prefix for copilot SSE stream buffers. */
-export const REDIS_COPILOT_STREAM_PREFIX = 'copilot_stream:'
-
-// ---------------------------------------------------------------------------
 // Timeouts
 // ---------------------------------------------------------------------------
 
@@ -63,9 +56,6 @@ export const COPILOT_CHAT_API_PATH = '/api/copilot/chat'
 
 /** POST — send a workspace-scoped chat message (mothership). */
 export const MOTHERSHIP_CHAT_API_PATH = '/api/mothership/chat'
-
-/** GET — resume/replay a copilot SSE stream. */
-export const COPILOT_CHAT_STREAM_API_PATH = '/api/copilot/chat/stream'
 
 /** POST — persist chat messages / plan artifact / config. */
 export const COPILOT_UPDATE_MESSAGES_API_PATH = '/api/copilot/chat/update-messages'

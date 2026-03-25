@@ -9,18 +9,12 @@ export interface TaskMetadata {
   isUnread: boolean
 }
 
-export interface StreamSnapshot {
-  events: Array<{ eventId: number; streamId: string; event: Record<string, unknown> }>
-  status: string
-}
-
 export interface TaskChatHistory {
   id: string
   title: string | null
   messages: TaskStoredMessage[]
   activeStreamId: string | null
   resources: MothershipResource[]
-  streamSnapshot?: StreamSnapshot | null
 }
 
 export interface TaskStoredToolCall {
@@ -87,7 +81,7 @@ interface TaskResponse {
   id: string
   title: string | null
   updatedAt: string
-  conversationId: string | null
+  activeStreamId: string | null
   lastSeenAt: string | null
 }
 
@@ -97,9 +91,9 @@ function mapTask(chat: TaskResponse): TaskMetadata {
     id: chat.id,
     name: chat.title ?? 'New task',
     updatedAt,
-    isActive: chat.conversationId !== null,
+    isActive: chat.activeStreamId !== null,
     isUnread:
-      chat.conversationId === null &&
+      chat.activeStreamId === null &&
       (chat.lastSeenAt === null || updatedAt > new Date(chat.lastSeenAt)),
   }
 }
@@ -160,9 +154,8 @@ export async function fetchChatHistory(
     id: chat.id,
     title: chat.title,
     messages: Array.isArray(chat.messages) ? chat.messages : [],
-    activeStreamId: chat.conversationId || null,
+    activeStreamId: chat.activeStreamId || null,
     resources: Array.isArray(chat.resources) ? chat.resources : [],
-    streamSnapshot: chat.streamSnapshot || null,
   }
 }
 

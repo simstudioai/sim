@@ -1,54 +1,7 @@
+import type { StreamEvent } from '@/lib/copilot/mothership-stream'
 import type { MothershipResource } from '@/lib/copilot/resource-types'
 
-export type SSEEventType =
-  | 'chat_id'
-  | 'request_id'
-  | 'title_updated'
-  | 'content'
-  | 'reasoning'
-  | 'tool_call'
-  | 'tool_call_delta'
-  | 'tool_generating'
-  | 'tool_result'
-  | 'tool_error'
-  | 'resource_added'
-  | 'resource_deleted'
-  | 'subagent_start'
-  | 'subagent_end'
-  | 'structured_result'
-  | 'subagent_result'
-  | 'done'
-  | 'error'
-  | 'start'
-
-export interface SSEEvent {
-  type: SSEEventType
-  /** Authoritative tool call state set by the server */
-  state?: string
-  data?: Record<string, unknown>
-  /** Parent agent that produced this event */
-  agent?: string
-  /** Subagent identifier (e.g. "build", "fast_edit") */
-  subagent?: string
-  toolCallId?: string
-  toolName?: string
-  success?: boolean
-  result?: unknown
-  /** Set on chat_id events */
-  chatId?: string
-  /** Set on title_updated events */
-  title?: string
-  /** Set on error events */
-  error?: string
-  /** Set on content/reasoning events */
-  content?: string
-  /** Set on reasoning events */
-  phase?: string
-  /** UI metadata from copilot (title, icon, phaseLabel) */
-  ui?: Record<string, unknown>
-  /** Set on resource_added events */
-  resource?: { type: string; id: string; title: string }
-}
+export type { StreamEvent }
 
 export type ToolCallStatus =
   | 'pending'
@@ -160,18 +113,10 @@ export interface OrchestratorRequest {
 export interface OrchestratorOptions {
   autoExecuteTools?: boolean
   timeout?: number
-  onEvent?: (event: SSEEvent) => void | Promise<void>
+  onEvent?: (event: StreamEvent) => void | Promise<void>
   onComplete?: (result: OrchestratorResult) => void | Promise<void>
   onError?: (error: Error) => void | Promise<void>
   abortSignal?: AbortSignal
-  /** Fires only on explicit user stop, never on passive transport disconnect. */
-  userStopSignal?: AbortSignal
-  /**
-   * Fires when the SSE client disconnects (tab close, navigation, etc.).
-   * Used to short-circuit `waitForToolCompletion` for client-executable tools
-   * so the orchestrator doesn't block for the full 60-min timeout.
-   */
-  clientDisconnectedSignal?: AbortSignal
   interactive?: boolean
 }
 
@@ -207,8 +152,6 @@ export interface ExecutionContext {
   executionId?: string
   runId?: string
   abortSignal?: AbortSignal
-  /** Fires only on explicit user stop, never on passive transport disconnect. */
-  userStopSignal?: AbortSignal
   userTimezone?: string
   userPermission?: string
   decryptedEnvVars?: Record<string, string>

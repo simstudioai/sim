@@ -3,20 +3,27 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
+  MothershipStreamV1CompletionStatus,
+  MothershipStreamV1EventType,
+  MothershipStreamV1SpanLifecycleEvent,
+  MothershipStreamV1SpanPayloadKind,
+  MothershipStreamV1TextChannel,
+} from '@/lib/copilot/generated/mothership-stream-v1'
+import { envelopeToStreamEvent, isEnvelope } from '@/lib/copilot/mothership-stream'
+import {
   handleSubagentRouting,
   sseHandlers,
   subAgentHandlers,
 } from '@/lib/copilot/orchestrator/sse/handlers'
 import { parseSSEStream } from '@/lib/copilot/orchestrator/sse/parser'
 import {
-  normalizeSseEvent,
   shouldSkipToolCallEvent,
   shouldSkipToolResultEvent,
 } from '@/lib/copilot/orchestrator/sse/utils'
 import type {
   ExecutionContext,
   OrchestratorOptions,
-  SSEEvent,
+  StreamEvent,
   StreamingContext,
   ToolCallSummary,
 } from '@/lib/copilot/orchestrator/types'
@@ -31,7 +38,7 @@ export interface StreamLoopOptions extends OrchestratorOptions {
    * Called for each normalized event BEFORE standard handler dispatch.
    * Return true to skip the default handler for this event.
    */
-  onBeforeDispatch?: (event: SSEEvent, context: StreamingContext) => boolean | undefined
+  onBeforeDispatch?: (event: StreamEvent, context: StreamingContext) => boolean | undefined
 }
 
 /**
@@ -105,9 +112,20 @@ export async function runStreamLoop(
       })
       const syntheticContent = `<usage_upgrade>${upgradePayload}</usage_upgrade>`
 
-      const syntheticEvents: SSEEvent[] = [
-        { type: 'content', data: syntheticContent as unknown as Record<string, unknown> },
-        { type: 'done', data: {} },
+      const syntheticEvents: StreamEvent[] = [
+        {
+          type: MothershipStreamV1EventType.text,
+          payload: {
+            channel: MothershipStreamV1TextChannel.assistant,
+            text: syntheticContent,
+          },
+        },
+        {
+          type: MothershipStreamV1EventType.complete,
+          payload: {
+            status: MothershipStreamV1CompletionStatus.complete,
+          },
+        },
       ]
       for (const event of syntheticEvents) {
         try {
@@ -151,81 +169,98 @@ export async function runStreamLoop(
         break
       }
 
-      const normalizedEvent = normalizeSseEvent(event)
+      if (!isEnvelope(event)) {
+        logger.warn('Received non-contract stream event on shared path; dropping event')
+        continue
+      }
+      const streamEvent = envelopeToStreamEvent(event)
+      if (event.trace?.requestId) {
+        context.requestId = event.trace.requestId
+      }
 
       // Skip duplicate tool events — both forwarding AND handler dispatch.
-      const shouldSkipToolCall = shouldSkipToolCallEvent(normalizedEvent)
-      const shouldSkipToolResult = shouldSkipToolResultEvent(normalizedEvent)
+      const shouldSkipToolCall = shouldSkipToolCallEvent(streamEvent)
+      const shouldSkipToolResult = shouldSkipToolResultEvent(streamEvent)
 
       if (shouldSkipToolCall || shouldSkipToolResult) {
         continue
       }
 
       try {
-        await options.onEvent?.(normalizedEvent)
+        await options.onEvent?.(streamEvent)
       } catch (error) {
-        logger.withMetadata({ messageId: context.messageId }).warn('Failed to forward SSE event', {
-          type: normalizedEvent.type,
+        logger.warn('Failed to forward stream event', {
+          type: streamEvent.type,
           error: error instanceof Error ? error.message : String(error),
         })
       }
 
       // Let the caller intercept before standard dispatch.
-      if (options.onBeforeDispatch?.(normalizedEvent, context)) {
+      if (options.onBeforeDispatch?.(streamEvent, context)) {
         if (context.streamComplete) break
         continue
       }
 
       // Standard subagent start/end handling (stack-based for nested agents).
-      if (normalizedEvent.type === 'subagent_start') {
-        const eventData = normalizedEvent.data as Record<string, unknown> | undefined
-        const toolCallId = eventData?.tool_call_id as string | undefined
-        const subagentName = normalizedEvent.subagent || (eventData?.agent as string | undefined)
-        if (toolCallId) {
-          context.subAgentParentStack.push(toolCallId)
-          context.subAgentParentToolCallId = toolCallId
-          context.subAgentContent[toolCallId] = ''
-          context.subAgentToolCalls[toolCallId] = []
-        }
-        if (subagentName) {
-          context.contentBlocks.push({
-            type: 'subagent',
-            content: subagentName,
-            timestamp: Date.now(),
-          })
-        }
-        continue
-      }
-
-      if (normalizedEvent.type === 'subagent_end') {
-        if (context.subAgentParentStack.length > 0) {
-          context.subAgentParentStack.pop()
-        } else {
-          logger
-            .withMetadata({ messageId: context.messageId })
-            .warn('subagent_end without matching subagent_start')
-        }
-        context.subAgentParentToolCallId =
-          context.subAgentParentStack.length > 0
-            ? context.subAgentParentStack[context.subAgentParentStack.length - 1]
+      if (
+        streamEvent.type === MothershipStreamV1EventType.span &&
+        streamEvent.payload.kind === MothershipStreamV1SpanPayloadKind.subagent
+      ) {
+        const spanData =
+          streamEvent.payload.data &&
+          typeof streamEvent.payload.data === 'object' &&
+          !Array.isArray(streamEvent.payload.data)
+            ? (streamEvent.payload.data as Record<string, unknown>)
             : undefined
-        continue
+        const toolCallId =
+          (streamEvent.payload.parentToolCallId as string | undefined) ||
+          (spanData?.tool_call_id as string | undefined)
+        const subagentName = streamEvent.payload.agent as string | undefined
+        const spanEvent = streamEvent.payload.event as string | undefined
+        if (spanEvent === MothershipStreamV1SpanLifecycleEvent.start) {
+          if (toolCallId) {
+            context.subAgentParentStack.push(toolCallId)
+            context.subAgentParentToolCallId = toolCallId
+            context.subAgentContent[toolCallId] = ''
+            context.subAgentToolCalls[toolCallId] = []
+          }
+          if (subagentName) {
+            context.contentBlocks.push({
+              type: 'subagent',
+              content: subagentName,
+              timestamp: Date.now(),
+            })
+          }
+          continue
+        }
+        if (spanEvent === MothershipStreamV1SpanLifecycleEvent.end) {
+          if (context.subAgentParentStack.length > 0) {
+            context.subAgentParentStack.pop()
+          } else {
+            logger.warn('subagent end without matching start')
+          }
+          context.subAgentParentToolCallId =
+            context.subAgentParentStack.length > 0
+              ? context.subAgentParentStack[context.subAgentParentStack.length - 1]
+              : undefined
+          continue
+        }
       }
 
       // Subagent event routing.
-      if (handleSubagentRouting(normalizedEvent, context)) {
-        const handler = subAgentHandlers[normalizedEvent.type]
+      if (handleSubagentRouting(streamEvent, context)) {
+        const handler = subAgentHandlers[streamEvent.type]
         if (handler) {
-          await handler(normalizedEvent, context, execContext, options)
+          await handler(streamEvent, context, execContext, options)
         }
         if (context.streamComplete) break
         continue
       }
 
       // Main event handler dispatch.
-      const handler = sseHandlers[normalizedEvent.type]
+      const handler = sseHandlers[streamEvent.type]
       if (handler) {
-        await handler(normalizedEvent, context, execContext, options)
+        await handler(streamEvent, context, execContext, options)
       }
       if (context.streamComplete) break
     }

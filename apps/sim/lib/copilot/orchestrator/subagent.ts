@@ -1,10 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import {
+  MothershipStreamV1EventType,
+  MothershipStreamV1SpanPayloadKind,
+} from '@/lib/copilot/generated/mothership-stream-v1'
 import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
 import type {
   ExecutionContext,
   OrchestratorOptions,
-  SSEEvent,
+  StreamEvent,
   StreamingContext,
   ToolCallSummary,
 } from '@/lib/copilot/orchestrator/types'
@@ -71,23 +75,22 @@ export async function orchestrateSubagentStream(
       execContext,
       {
         ...options,
-        onBeforeDispatch: (event: SSEEvent, ctx: StreamingContext) => {
-          // Handle structured_result / subagent_result - subagent-specific.
-          if (event.type === 'structured_result' || event.type === 'subagent_result') {
-            structuredResult = normalizeStructuredResult(event.data)
+        onBeforeDispatch: (event: StreamEvent, ctx: StreamingContext) => {
+          if (
+            event.type === MothershipStreamV1EventType.span &&
+            (event.payload.kind === MothershipStreamV1SpanPayloadKind.structured_result ||
+              event.payload.kind === MothershipStreamV1SpanPayloadKind.subagent_result)
+          ) {
+            structuredResult = normalizeStructuredResult(event.payload.data)
             ctx.streamComplete = true
-            return true // skip default dispatch
+            return true
           }
 
-          // For direct subagent calls, events may have the subagent field set
-          // but no subagent_start because this IS the top-level agent.
-          // Skip subagent routing for events where the subagent field matches
-          // the current agentId - these are top-level events.
-          if (event.subagent === agentId && !ctx.subAgentParentToolCallId) {
-            return false // let default dispatch handle it
+          if (event.scope?.agentId === agentId && !ctx.subAgentParentToolCallId) {
+            return false
           }
 
-          return false // let default dispatch handle it
+          return false
         },
       }
     )
