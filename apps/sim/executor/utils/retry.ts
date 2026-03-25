@@ -93,7 +93,7 @@ export async function withRetry<T>(
       let delayMs: number
       if (responseHeaders && (status === 429 || status === 503 || status === 529)) {
         const retryAfterMs = parseRetryAfterHeader(responseHeaders)
-        delayMs = retryAfterMs ?? calculateBackoffDelay(attempt, initialDelayMs, maxDelayMs)
+        delayMs = retryAfterMs !== null ? Math.min(retryAfterMs, maxDelayMs) : calculateBackoffDelay(attempt, initialDelayMs, maxDelayMs)
       } else {
         delayMs = calculateBackoffDelay(attempt, initialDelayMs, maxDelayMs)
       }
