@@ -1,5 +1,6 @@
 'use client'
 
+import { CircleHelp } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LanguageDropdown } from '@/components/ui/language-dropdown'
@@ -7,6 +8,7 @@ import { SearchTrigger } from '@/components/ui/search-trigger'
 import { SimLogoFull } from '@/components/ui/sim-logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { cn } from '@/lib/utils'
+import { DiscordIcon } from '../icons'
 
 const NAV_TABS = [
   {
@@ -21,16 +23,14 @@ const NAV_TABS = [
     match: (p: string) => p.includes('/api-reference'),
     external: false,
   },
-  { label: 'Mothership', href: 'https://sim.ai', external: true },
   { label: 'Changelog', href: 'https://sim.ai/changelog', external: true },
-
 ] as const
 
 export function Navbar() {
   const pathname = usePathname()
 
   return (
-    <nav className='sticky top-0 z-50 bg-background/80 backdrop-blur-md backdrop-saturate-150'>
+    <nav className='sticky top-0 pt-2 z-50 bg-background/80 backdrop-blur-md backdrop-saturate-150'>
       <div className='hidden w-full flex-col lg:flex'>
         {/* Top row: logo, search, controls */}
         <div
@@ -48,7 +48,26 @@ export function Navbar() {
             <SearchTrigger />
           </div>
 
-          <div className='flex items-center gap-1.5'>
+          <div className='flex items-center gap-2'>
+            <Link
+              href='https://discord.gg/Hr4UWYEcTT'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='inline-flex h-[30px] items-center gap-[6px] rounded-[5px] border border-neutral-200 bg-white px-[10px] font-medium text-[12px] text-neutral-700 transition-colors hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:border-neutral-600 dark:hover:bg-neutral-700'
+              aria-label='Get help on Discord'
+            >
+              <DiscordIcon className='h-[13px] w-[13px]' />
+              Discord
+            </Link>
+            <Link
+              href='https://sim.ai'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='inline-flex h-[30px] items-center rounded-[5px] bg-[#33C482] px-[10px] font-medium text-[12px] text-[#1b1b1b] transition-colors hover:bg-[#2DAC72]'
+              aria-label='Go to Sim AI'
+            >
+              Mothership
+            </Link>
             <LanguageDropdown />
             <ThemeToggle />
           </div>

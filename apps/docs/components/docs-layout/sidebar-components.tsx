@@ -2,10 +2,20 @@
 
 import { type ReactNode, useEffect, useState } from 'react'
 import type { Folder, Item, Separator } from 'fumadocs-core/page-tree'
-import { ChevronRight } from 'lucide-react'
+import { BookOpen, ChevronRight, Cog, Layers, Play, Plug, Rocket, Search } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
+
+const SEPARATOR_ICONS: Record<string, React.ElementType> = {
+  Basics: BookOpen,
+  'Core Concepts': Layers,
+  Integrations: Plug,
+  'Security & Configuration': Cog,
+  'Execution & Operations': Play,
+  Deployment: Rocket,
+  Reference: Search,
+}
 
 const LANG_PREFIXES = ['/en', '/es', '/fr', '/de', '/ja', '/zh']
 
@@ -191,13 +201,18 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
 }
 
 export function SidebarSeparator({ item }: { item: Separator }) {
+  const name = typeof item.name === 'string' ? item.name : ''
+  const Icon = SEPARATOR_ICONS[name]
+
   return (
     <p
       className={cn(
-        'mt-4 mb-2 px-2 font-medium text-fd-muted-foreground text-xs',
-        'lg:mt-5 lg:mb-1.5 lg:px-2.5 lg:font-semibold lg:text-[10.5px] lg:text-neutral-400 lg:uppercase lg:tracking-widest lg:dark:text-neutral-500'
+        'mt-5 mb-2 flex items-center gap-2 px-2 font-semibold text-fd-muted-foreground text-sm',
+        'lg:mt-7 lg:mb-2 lg:px-2.5 lg:text-[13px] lg:font-[620] lg:tracking-normal lg:text-neutral-800 lg:dark:text-neutral-200',
+        'first:lg:mt-0 first:mt-0'
       )}
     >
+      {Icon && <Icon className='h-[14px] w-[14px] flex-shrink-0 opacity-70' />}
       {item.name}
     </p>
   )

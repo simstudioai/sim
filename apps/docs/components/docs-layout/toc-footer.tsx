@@ -1,4 +1,3 @@
-import { ArrowRight, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 
 export function TOCFooter() {
@@ -18,20 +17,10 @@ export function TOCFooter() {
           href='https://sim.ai/signup'
           target='_blank'
           rel='noopener noreferrer'
-          className='group mt-2 inline-flex h-[32px] w-fit items-center rounded-[5px] bg-[#33c482] px-[10px] font-[430] font-season text-[14px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#2DAC72] dark:bg-[#33c482] dark:text-black dark:hover:border-[#E0E0E0] dark:hover:bg-[#2DAC72]'
+          className='mt-2 inline-flex h-[30px] w-fit items-center rounded-[5px] bg-[#33C482] px-[10px] font-medium text-[12px] text-[#1b1b1b] transition-colors hover:bg-[#2DAC72]'
           aria-label='Get started with Sim - Sign up for free'
         >
           Get started
-          <span className='relative inline-flex h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5'>
-            <ChevronRight
-              className='absolute inset-0 h-4 w-4 transition-opacity duration-200 group-hover:opacity-0'
-              aria-hidden='true'
-            />
-            <ArrowRight
-              className='absolute inset-0 h-4 w-4 opacity-0 transition-opacity duration-200 group-hover:opacity-100'
-              aria-hidden='true'
-            />
-          </span>
         </Link>
       </div>
     </div>

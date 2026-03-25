@@ -1,0 +1,158 @@
+---
+title: Tables
+description: Store, query, and manage structured data directly within your workspace
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Tables let you store and manage structured data directly in your workspace. Use them to maintain reference data, collect workflow outputs, or build lightweight databases — all without leaving Sim.
+
+<Image src="/static/tables/tables-overview.png" alt="Tables view showing structured data with typed columns for name, title, company, role, and more" width={800} height={500} />
+
+Each table has a schema of typed columns, supports filtering and sorting, and is fully accessible through the [Tables API](/docs/en/api-reference/(generated)/tables).
+
+## Creating a Table
+
+1. Open the **Tables** section from your workspace sidebar
+2. Click **New table**
+3. Name your table and start adding columns
+
+Tables start with a single text column. Add more columns by clicking **New column** in the column header area.
+
+## Column Types
+
+Each column has a type that determines how values are stored and validated.
+
+| Type | Description | Example Values |
+|------|-------------|----------------|
+| **Text** | Free-form string | `"Acme Corp"`, `"hello@example.com"` |
+| **Number** | Numeric value | `42`, `3.14`, `-100` |
+| **Boolean** | True or false | `true`, `false` |
+| **Date** | Date value | `2026-03-16` |
+| **JSON** | Structured object or array | `{"key": "value"}`, `[1, 2, 3]` |
+
+<Callout type="info">
+Column types are enforced on input. For example, typing into a Number column is restricted to digits, dots, and minus signs. Non-numeric values entered via paste are coerced to `0`.
+</Callout>
+
+## Working with Rows
+
+### Adding Rows
+
+- Click **New row** below the last row to append a new row
+- Press **Shift + Enter** while a cell is selected to insert a row below
+- Paste tabular data (from a spreadsheet or TSV) to bulk-create rows
+
+### Editing Cells
+
+Click a cell to select it, then press **Enter**, **F2**, or start typing to edit. Press **Escape** to cancel, or **Tab** to save and move to the next cell.
+
+### Selecting Rows
+
+Click a row's checkbox to select it. Selecting additional checkboxes adds to the selection without clearing previous selections.
+
+| Action | Behavior |
+|--------|----------|
+| Click checkbox | Toggle that row's selection |
+| Shift + click checkbox | Select range from last clicked to current |
+| Click header checkbox | Select all / deselect all |
+| Shift + Space | Toggle row selection from keyboard |
+
+### Deleting Rows
+
+Right-click a selected row (or group of selected rows) and choose **Delete row** from the context menu.
+
+## Filtering and Sorting
+
+Use the toolbar above the table to filter and sort your data.
+
+- **Filter**: Set conditions on any column (e.g., "Name contains Acme"). Multiple filters are combined with AND logic.
+- **Sort**: Order rows by any column, ascending or descending.
+
+Filters and sorts are applied in real time and do not modify the underlying data.
+
+## Keyboard Shortcuts
+
+All shortcuts work when the table is focused and no cell is being edited.
+
+<Callout type="info">
+**Mod** refers to `Cmd` on macOS and `Ctrl` on Windows/Linux.
+</Callout>
+
+### Navigation
+
+| Shortcut | Action |
+|----------|--------|
+| Arrow keys | Move one cell |
+| `Mod` + Arrow keys | Jump to edge of table |
+| `Tab` / `Shift` + `Tab` | Move to next / previous cell |
+| `Escape` | Clear selection |
+
+### Selection
+
+| Shortcut | Action |
+|----------|--------|
+| `Shift` + Arrow keys | Extend selection by one cell |
+| `Mod` + `Shift` + Arrow keys | Extend selection to edge |
+| `Mod` + `A` | Select all rows |
+| `Shift` + `Space` | Toggle current row selection |
+
+### Editing
+
+| Shortcut | Action |
+|----------|--------|
+| `Enter` or `F2` | Start editing selected cell |
+| `Escape` | Cancel editing |
+| Type any character | Start editing with that character |
+| `Shift` + `Enter` | Insert new row below |
+| `Space` | Expand row details |
+
+### Clipboard
+
+| Shortcut | Action |
+|----------|--------|
+| `Mod` + `C` | Copy selected cells |
+| `Mod` + `X` | Cut selected cells |
+| `Mod` + `V` | Paste |
+| `Delete` / `Backspace` | Clear selected cells (all columns when using checkbox selection) |
+
+### History
+
+| Shortcut | Action |
+|----------|--------|
+| `Mod` + `Z` | Undo |
+| `Mod` + `Shift` + `Z` | Redo |
+| `Mod` + `Y` | Redo (alternative) |
+
+## Using Tables in Workflows
+
+Tables can be read from and written to within your workflows using the **Table** block. Common patterns include:
+
+- **Lookup**: Query a table for reference data (e.g., pricing rules, customer metadata)
+- **Write-back**: Store workflow outputs in a table for later review or reporting
+- **Iteration**: Process each row in a table as part of a batch workflow
+
+## API Access
+
+Tables are fully accessible through the REST API. You can create, read, update, and delete both tables and rows programmatically.
+
+See the [Tables API Reference](/docs/en/api-reference/(generated)/tables) for endpoints, parameters, and examples.
+
+## Best Practices
+
+- **Use typed columns** to enforce data integrity — prefer Number and Boolean over storing everything as Text
+- **Name columns descriptively** so they are self-documenting when referenced in workflows
+- **Use JSON columns sparingly** — they are flexible but harder to filter and sort against
+- **Leverage the API** for bulk imports rather than manually entering large datasets
+
+<FAQ items={[
+  { question: "Is there a row limit per table?", answer: "Tables are designed for working datasets. For very large datasets (100k+ rows), consider paginating API reads or splitting data across multiple tables." },
+  { question: "Can I import data from a spreadsheet?", answer: "Yes. Copy rows from any spreadsheet application and paste them directly into the table. Column values will be validated against the column types." },
+  { question: "Do tables support formulas?", answer: "Tables store raw data and do not support computed formulas. Use workflow logic (Function block or Agent block) to derive computed values and write them back to the table." },
+  { question: "Can multiple workflows write to the same table?", answer: "Yes. Table writes are atomic at the row level, so multiple workflows can safely write to the same table concurrently." },
+  { question: "How do I reference a table from a workflow?", answer: "Use the Table block in your workflow. Select the target table from the dropdown, choose an operation (read, write, update), and configure the parameters." },
+  { question: "Are tables shared across workspace members?", answer: "Yes. Tables are workspace-scoped and accessible to all members with appropriate permissions." },
+  { question: "Can I undo changes?", answer: "In the table editor, Cmd/Ctrl+Z undoes recent cell edits, row insertions, and row deletions. API-driven changes are not covered by the editor's undo history." },
+]} />

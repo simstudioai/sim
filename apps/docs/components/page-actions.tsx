@@ -29,8 +29,8 @@ function ContentCopyButton({ content, className, ...props }: { content: string }
     <button
       onClick={onClick}
       className={cn(
-        'flex cursor-pointer items-center gap-1.5 rounded-lg border border-border/40 bg-background px-2.5 py-2 text-muted-foreground/60 text-sm leading-none transition-all hover:border-border hover:bg-accent/50 hover:text-muted-foreground',
-        className,
+        'inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border/40 bg-background px-2.5 py-1.5 text-muted-foreground/60 text-sm transition-all hover:border-border hover:bg-accent/50 hover:text-muted-foreground',
+        className
       )}
       aria-label={checked ? 'Copied to clipboard' : 'Copy page content'}
       {...props}
@@ -50,14 +50,16 @@ function ContentCopyButton({ content, className, ...props }: { content: string }
   )
 }
 
-export function LLMCopyButton({ content, markdownUrl, children, className, ...props }: LLMCopyButtonProps) {
+export function LLMCopyButton({
+  content,
+  markdownUrl,
+  children,
+  className,
+  ...props
+}: LLMCopyButtonProps) {
   if (markdownUrl) {
     return (
-      <MarkdownCopyButton
-        markdownUrl={markdownUrl}
-        className={className}
-        {...props}
-      >
+      <MarkdownCopyButton markdownUrl={markdownUrl} className={className} {...props}>
         {children ?? 'Copy Markdown'}
       </MarkdownCopyButton>
     )
