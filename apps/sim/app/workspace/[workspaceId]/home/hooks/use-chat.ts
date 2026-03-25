@@ -507,6 +507,8 @@ export function useChat(
         setIsSending(false)
         setIsReconnecting(false)
         lastEventIdRef.current = 0
+        pendingRecoveryMessageRef.current = null
+        setPendingRecoveryMessage(null)
         if (abandonedChatId) {
           queryClient.invalidateQueries({ queryKey: taskKeys.detail(abandonedChatId) })
         }
@@ -530,6 +532,8 @@ export function useChat(
     setMessageQueue([])
     lastEventIdRef.current = 0
     clientExecutionStartedRef.current.clear()
+    pendingRecoveryMessageRef.current = null
+    setPendingRecoveryMessage(null)
   }, [initialChatId, queryClient])
 
   useEffect(() => {
@@ -552,6 +556,8 @@ export function useChat(
     setMessageQueue([])
     lastEventIdRef.current = 0
     clientExecutionStartedRef.current.clear()
+    pendingRecoveryMessageRef.current = null
+    setPendingRecoveryMessage(null)
   }, [isHomePage])
 
   const fetchStreamBatch = useCallback(
@@ -704,7 +710,7 @@ export function useChat(
             attempt: attachAttempt,
           })
 
-          if (batch.events.length === 0 && batch.status === 'unknown') {
+          if (batch.events.length === 0 && !isTerminalStreamStatus(batch.status)) {
             throw new Error(RECONNECT_TAIL_ERROR)
           }
         }
@@ -1803,9 +1809,15 @@ export function useChat(
               pendingRecovery.snapshot?.events?.[pendingRecovery.snapshot.events.length - 1]
                 ?.eventId ?? 0
 
+            const rehydratedMessages = messagesRef.current
+            const lastAssistantMsg = [...rehydratedMessages]
+              .reverse()
+              .find((m) => m.role === 'assistant')
+            const recoveryAssistantId = lastAssistantMsg?.id ?? assistantId
+
             const reconnectResult = await attachToExistingStream({
               streamId: pendingRecovery.streamId,
-              assistantId,
+              assistantId: recoveryAssistantId,
               expectedGen: gen,
               snapshot: pendingRecovery.snapshot,
               initialLastEventId: lastEventIdRef.current,
@@ -1858,6 +1870,8 @@ export function useChat(
     setIsSending(false)
     setIsReconnecting(false)
     lastEventIdRef.current = 0
+    pendingRecoveryMessageRef.current = null
+    setPendingRecoveryMessage(null)
 
     setMessages((prev) =>
       prev.map((msg) => {
