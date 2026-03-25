@@ -309,7 +309,8 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const rid = typeof event.data === 'string' ? event.data : undefined
     if (rid) {
       context.requestId = rid
-      logger.error(appendCopilotLogContext('Mapped copilot message to Go trace ID', {
+      logger.error(
+        appendCopilotLogContext('Mapped copilot message to Go trace ID', {
           messageId: context.messageId,
         }),
         {

@@ -187,7 +187,8 @@ async function maybeWriteOutputToFile(
       contentType
     )
 
-    logger.error(appendCopilotLogContext('Tool output written to file', { messageId: context.messageId }),
+    logger.error(
+      appendCopilotLogContext('Tool output written to file', { messageId: context.messageId }),
       {
         toolName,
         fileName,
@@ -396,7 +397,8 @@ async function maybeWriteOutputToTable(
       }
     })
 
-    logger.error(appendCopilotLogContext('Tool output written to table', { messageId: context.messageId }),
+    logger.error(
+      appendCopilotLogContext('Tool output written to table', { messageId: context.messageId }),
       {
         toolName,
         tableId: outputTable,
@@ -522,7 +524,8 @@ async function maybeWriteReadCsvToTable(
       }
     })
 
-    logger.error(appendCopilotLogContext('Read output written to table', { messageId: context.messageId }),
+    logger.error(
+      appendCopilotLogContext('Read output written to table', { messageId: context.messageId }),
       {
         toolName,
         tableId: outputTable,
@@ -592,11 +595,14 @@ export async function executeToolAndReport(
   toolCall.status = 'executing'
   await markAsyncToolRunning(toolCall.id, 'sim-stream').catch(() => {})
 
-  logger.error(appendCopilotLogContext('Tool execution started', { messageId: context.messageId }), {
-    toolCallId: toolCall.id,
-    toolName: toolCall.name,
-    params: toolCall.params,
-  })
+  logger.error(
+    appendCopilotLogContext('Tool execution started', { messageId: context.messageId }),
+    {
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      params: toolCall.params,
+    }
+  )
 
   try {
     let result = await executeToolServerSide(toolCall, execContext)
@@ -683,7 +689,8 @@ export async function executeToolAndReport(
           : raw && typeof raw === 'object'
             ? JSON.stringify(raw).slice(0, 200)
             : undefined
-      logger.error(appendCopilotLogContext('Tool execution succeeded', { messageId: context.messageId }),
+      logger.error(
+        appendCopilotLogContext('Tool execution succeeded', { messageId: context.messageId }),
         {
           toolCallId: toolCall.id,
           toolName: toolCall.name,

@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
   const toParam = url.searchParams.get('to')
   const toEventId = toParam ? Number(toParam) : undefined
 
-  logger.error(appendCopilotLogContext('[Resume] Received resume request', {
+  logger.error(
+    appendCopilotLogContext('[Resume] Received resume request', {
       messageId: streamId || undefined,
     }),
     {
@@ -123,7 +124,8 @@ export async function GET(request: NextRequest) {
       const flushEvents = async () => {
         const events = await readStreamEvents(streamId, lastEventId)
         if (events.length > 0) {
-          logger.error(appendCopilotLogContext('[Resume] Flushing events', { messageId: streamId }),
+          logger.error(
+            appendCopilotLogContext('[Resume] Flushing events', { messageId: streamId }),
             {
               streamId,
               fromEventId: lastEventId,
