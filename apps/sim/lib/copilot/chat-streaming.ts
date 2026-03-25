@@ -440,8 +440,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         })
 
         if (abortController.signal.aborted) {
-          logger.info(
-            appendCopilotLogContext('Stream aborted by explicit stop', { requestId, messageId })
+          logger.error(appendCopilotLogContext('Stream aborted by explicit stop', { requestId, messageId })
           )
           await eventWriter.close().catch(() => {})
           await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
@@ -456,8 +455,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             'An unexpected error occurred while processing the response.'
 
           if (clientDisconnected) {
-            logger.info(
-              appendCopilotLogContext('Stream failed after client disconnect', {
+            logger.error(appendCopilotLogContext('Stream failed after client disconnect', {
                 requestId,
                 messageId,
               }),
@@ -500,8 +498,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         await updateRunStatus(runId, 'complete', { completedAt: new Date() }).catch(() => {})
       } catch (error) {
         if (abortController.signal.aborted) {
-          logger.info(
-            appendCopilotLogContext('Stream aborted by explicit stop', { requestId, messageId })
+          logger.error(appendCopilotLogContext('Stream aborted by explicit stop', { requestId, messageId })
           )
           await eventWriter.close().catch(() => {})
           await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
@@ -509,8 +506,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           return
         }
         if (clientDisconnected) {
-          logger.info(
-            appendCopilotLogContext('Stream errored after client disconnect', {
+          logger.error(appendCopilotLogContext('Stream errored after client disconnect', {
               requestId,
               messageId,
             }),

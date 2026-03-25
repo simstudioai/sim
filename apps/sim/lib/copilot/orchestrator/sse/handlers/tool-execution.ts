@@ -187,8 +187,7 @@ async function maybeWriteOutputToFile(
       contentType
     )
 
-    logger.info(
-      appendCopilotLogContext('Tool output written to file', { messageId: context.messageId }),
+    logger.error(appendCopilotLogContext('Tool output written to file', { messageId: context.messageId }),
       {
         toolName,
         fileName,
@@ -397,8 +396,7 @@ async function maybeWriteOutputToTable(
       }
     })
 
-    logger.info(
-      appendCopilotLogContext('Tool output written to table', { messageId: context.messageId }),
+    logger.error(appendCopilotLogContext('Tool output written to table', { messageId: context.messageId }),
       {
         toolName,
         tableId: outputTable,
@@ -524,8 +522,7 @@ async function maybeWriteReadCsvToTable(
       }
     })
 
-    logger.info(
-      appendCopilotLogContext('Read output written to table', { messageId: context.messageId }),
+    logger.error(appendCopilotLogContext('Read output written to table', { messageId: context.messageId }),
       {
         toolName,
         tableId: outputTable,
@@ -595,7 +592,7 @@ export async function executeToolAndReport(
   toolCall.status = 'executing'
   await markAsyncToolRunning(toolCall.id, 'sim-stream').catch(() => {})
 
-  logger.info(appendCopilotLogContext('Tool execution started', { messageId: context.messageId }), {
+  logger.error(appendCopilotLogContext('Tool execution started', { messageId: context.messageId }), {
     toolCallId: toolCall.id,
     toolName: toolCall.name,
     params: toolCall.params,
@@ -686,8 +683,7 @@ export async function executeToolAndReport(
           : raw && typeof raw === 'object'
             ? JSON.stringify(raw).slice(0, 200)
             : undefined
-      logger.info(
-        appendCopilotLogContext('Tool execution succeeded', { messageId: context.messageId }),
+      logger.error(appendCopilotLogContext('Tool execution succeeded', { messageId: context.messageId }),
         {
           toolCallId: toolCall.id,
           toolName: toolCall.name,

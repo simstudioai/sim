@@ -113,8 +113,7 @@ export async function POST(req: NextRequest) {
     const userMessageId = providedMessageId || crypto.randomUUID()
     userMessageIdForLogs = userMessageId
 
-    logger.info(
-      appendCopilotLogContext('Received mothership chat start request', {
+    logger.error(appendCopilotLogContext('Received mothership chat start request', {
         requestId: tracker.requestId,
         messageId: userMessageId,
       }),

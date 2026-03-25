@@ -83,8 +83,7 @@ export async function POST(req: NextRequest) {
     const chatId = parsed.chatId || crypto.randomUUID()
 
     messageId = crypto.randomUUID()
-    logger.info(
-      appendCopilotLogContext('Received headless copilot chat start request', { messageId }),
+    logger.error(appendCopilotLogContext('Received headless copilot chat start request', { messageId }),
       {
         workflowId: resolved.workflowId,
         workflowName: parsed.workflowName,
