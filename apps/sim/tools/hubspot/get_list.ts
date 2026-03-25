@@ -53,7 +53,11 @@ export const hubspotGetListTool: ToolConfig<HubSpotGetListParams, HubSpotGetList
     }
     return {
       success: true,
-      output: { list: data, listId: data.listId ?? data.id, success: true },
+      output: {
+        list: data.list ?? data,
+        listId: data.list?.listId ?? data.listId ?? data.id,
+        success: true,
+      },
     }
   },
 

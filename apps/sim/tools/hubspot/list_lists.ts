@@ -27,19 +27,20 @@ export const hubspotListListsTool: ToolConfig<HubSpotListListsParams, HubSpotLis
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Search query to filter lists by name',
+      description: 'Search query to filter lists by name. Leave empty to return all lists.',
     },
     count: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results to return (default 25)',
+      description: 'Maximum number of results to return (default 20, max 500)',
     },
     offset: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Pagination offset for next page (from previous response)',
+      description:
+        'Pagination offset for next page of results (use the offset value from previous response)',
     },
   },
 
@@ -56,10 +57,11 @@ export const hubspotListListsTool: ToolConfig<HubSpotListListsParams, HubSpotLis
       }
     },
     body: (params) => {
-      const body: Record<string, unknown> = {}
+      const body: Record<string, unknown> = {
+        offset: params.offset ? Number(params.offset) : 0,
+      }
       if (params.query) body.query = params.query
       if (params.count) body.count = Number(params.count)
-      if (params.offset) body.offset = Number(params.offset)
       return body
     },
   },
@@ -70,17 +72,19 @@ export const hubspotListListsTool: ToolConfig<HubSpotListListsParams, HubSpotLis
       logger.error('HubSpot API request failed', { data, status: response.status })
       throw new Error(data.message || 'Failed to list lists from HubSpot')
     }
-    const lists = data.lists ?? data.results ?? []
+    const lists = data.lists ?? []
     return {
       success: true,
       output: {
         lists,
         paging:
-          data.offset != null ? { next: { after: String(data.offset) } } : (data.paging ?? null),
+          data.hasMore === true && data.offset != null
+            ? { next: { after: String(data.offset) } }
+            : undefined,
         metadata: {
           totalReturned: lists.length,
           total: data.total ?? null,
-          hasMore: data.hasMore === true || !!data.paging?.next,
+          hasMore: data.hasMore === true,
         },
         success: true,
       },

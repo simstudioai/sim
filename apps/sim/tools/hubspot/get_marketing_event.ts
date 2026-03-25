@@ -3,7 +3,7 @@ import type {
   HubSpotGetMarketingEventParams,
   HubSpotGetMarketingEventResponse,
 } from '@/tools/hubspot/types'
-import { MARKETING_EVENT_OBJECT_OUTPUT } from '@/tools/hubspot/types'
+import { MARKETING_EVENT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotGetMarketingEvent')
@@ -33,13 +33,13 @@ export const hubspotGetMarketingEventTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The HubSpot marketing event ID to retrieve',
+      description: 'The HubSpot marketing event objectId to retrieve',
     },
   },
 
   request: {
     url: (params) =>
-      `https://api.hubapi.com/crm/v3/objects/marketing_events/${params.eventId.trim()}`,
+      `https://api.hubapi.com/marketing/v3/marketing-events/${params.eventId.trim()}`,
     method: 'GET',
     headers: (params) => {
       if (!params.accessToken) {
@@ -62,14 +62,14 @@ export const hubspotGetMarketingEventTool: ToolConfig<
       success: true,
       output: {
         event: data,
-        eventId: data.id,
+        eventId: data.objectId ?? data.id,
         success: true,
       },
     }
   },
 
   outputs: {
-    event: MARKETING_EVENT_OBJECT_OUTPUT,
+    event: MARKETING_EVENT_OUTPUT,
     eventId: { type: 'string', description: 'The retrieved marketing event ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

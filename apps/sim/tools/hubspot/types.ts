@@ -390,34 +390,38 @@ export const OWNER_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Marketing event properties returned by HubSpot CRM Objects API.
- * @see https://developers.hubspot.com/docs/api/crm/marketing-events
+ * Marketing event properties returned by HubSpot Marketing Events API.
+ * Response is flat (not CRM envelope) — fields are at the top level.
+ * @see https://developers.hubspot.com/docs/api/marketing/marketing-events
  */
-export const MARKETING_EVENT_PROPERTIES_OUTPUT = {
-  hs_event_name: { type: 'string', description: 'Event name' },
-  hs_event_type: { type: 'string', description: 'Event type', optional: true },
-  hs_event_status: { type: 'string', description: 'Event status', optional: true },
-  hs_event_description: { type: 'string', description: 'Event description', optional: true },
-  hs_event_url: { type: 'string', description: 'Event URL', optional: true },
-  hs_event_organizer: { type: 'string', description: 'Event organizer', optional: true },
-  hs_start_date_time: { type: 'string', description: 'Start date/time (ISO 8601)', optional: true },
-  hs_end_date_time: { type: 'string', description: 'End date/time (ISO 8601)', optional: true },
+export const MARKETING_EVENT_OUTPUT_PROPERTIES = {
+  objectId: { type: 'string', description: 'Unique event ID (HubSpot internal)' },
+  eventName: { type: 'string', description: 'Event name' },
+  eventType: { type: 'string', description: 'Event type', optional: true },
+  eventStatus: { type: 'string', description: 'Event status', optional: true },
+  eventDescription: { type: 'string', description: 'Event description', optional: true },
+  eventUrl: { type: 'string', description: 'Event URL', optional: true },
+  eventOrganizer: { type: 'string', description: 'Event organizer', optional: true },
+  startDateTime: { type: 'string', description: 'Start date/time (ISO 8601)', optional: true },
+  endDateTime: { type: 'string', description: 'End date/time (ISO 8601)', optional: true },
+  eventCancelled: { type: 'boolean', description: 'Whether event is cancelled', optional: true },
+  eventCompleted: { type: 'boolean', description: 'Whether event is completed', optional: true },
+  registrants: { type: 'number', description: 'Number of registrants', optional: true },
+  attendees: { type: 'number', description: 'Number of attendees', optional: true },
+  cancellations: { type: 'number', description: 'Number of cancellations', optional: true },
+  noShows: { type: 'number', description: 'Number of no-shows', optional: true },
+  externalEventId: { type: 'string', description: 'External event ID', optional: true },
+  createdAt: { type: 'string', description: 'Creation date (ISO 8601)' },
+  updatedAt: { type: 'string', description: 'Last updated date (ISO 8601)' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Marketing event object output definition with CRM envelope structure.
+ * Single marketing event output definition.
  */
-export const MARKETING_EVENT_OBJECT_OUTPUT: OutputProperty = {
+export const MARKETING_EVENT_OUTPUT: OutputProperty = {
   type: 'object',
-  description: 'HubSpot marketing event CRM record',
-  properties: {
-    ...CRM_RECORD_BASE_OUTPUT_PROPERTIES,
-    properties: {
-      type: 'object',
-      description: 'Marketing event properties',
-      properties: MARKETING_EVENT_PROPERTIES_OUTPUT,
-    },
-  },
+  description: 'HubSpot marketing event',
+  properties: MARKETING_EVENT_OUTPUT_PROPERTIES,
 }
 
 /**
@@ -428,8 +432,13 @@ export const LIST_OUTPUT_PROPERTIES = {
   listId: { type: 'string', description: 'List ID' },
   name: { type: 'string', description: 'List name' },
   objectTypeId: { type: 'string', description: 'Object type ID (e.g., 0-1 for contacts)' },
-  processingType: { type: 'string', description: 'Processing type (MANUAL, DYNAMIC)' },
-  size: { type: 'number', description: 'Number of records in the list', optional: true },
+  processingType: { type: 'string', description: 'Processing type (MANUAL, DYNAMIC, SNAPSHOT)' },
+  processingStatus: {
+    type: 'string',
+    description: 'Processing status (COMPLETE, PROCESSING)',
+    optional: true,
+  },
+  listVersion: { type: 'number', description: 'List version number', optional: true },
   createdAt: { type: 'string', description: 'Creation date (ISO 8601)', optional: true },
   updatedAt: { type: 'string', description: 'Last updated date (ISO 8601)', optional: true },
 } as const satisfies Record<string, OutputProperty>
@@ -651,17 +660,10 @@ export const OWNERS_ARRAY_OUTPUT: OutputProperty = {
  */
 export const MARKETING_EVENTS_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
-  description: 'Array of HubSpot marketing event CRM objects',
+  description: 'Array of HubSpot marketing event objects',
   items: {
     type: 'object',
-    properties: {
-      ...CRM_RECORD_BASE_OUTPUT_PROPERTIES,
-      properties: {
-        type: 'object',
-        description: 'Marketing event properties',
-        properties: MARKETING_EVENT_PROPERTIES_OUTPUT,
-      },
-    },
+    properties: MARKETING_EVENT_OUTPUT_PROPERTIES,
   },
 }
 
@@ -1179,7 +1181,7 @@ export interface HubSpotListListsResponse extends ToolResponse {
   output: {
     lists: HubSpotList[]
     paging?: HubSpotPaging
-    metadata: { totalReturned: number; hasMore: boolean }
+    metadata: { totalReturned: number; total: number | null; hasMore: boolean }
     success: boolean
   }
 }
