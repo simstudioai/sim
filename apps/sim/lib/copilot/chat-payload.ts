@@ -201,7 +201,7 @@ export async function buildCopilotRequestPayload(
             })
           }
           if (mcpTools.length > 0) {
-            logger.info(
+            logger.error(
               appendCopilotLogContext('Added MCP tools to copilot payload', {
                 messageId: userMessageId,
               }),

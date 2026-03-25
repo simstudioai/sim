@@ -187,7 +187,7 @@ async function maybeWriteOutputToFile(
       contentType
     )
 
-    logger.info(
+    logger.error(
       appendCopilotLogContext('Tool output written to file', { messageId: context.messageId }),
       {
         toolName,
@@ -397,7 +397,7 @@ async function maybeWriteOutputToTable(
       }
     })
 
-    logger.info(
+    logger.error(
       appendCopilotLogContext('Tool output written to table', { messageId: context.messageId }),
       {
         toolName,
@@ -524,7 +524,7 @@ async function maybeWriteReadCsvToTable(
       }
     })
 
-    logger.info(
+    logger.error(
       appendCopilotLogContext('Read output written to table', { messageId: context.messageId }),
       {
         toolName,
@@ -595,11 +595,14 @@ export async function executeToolAndReport(
   toolCall.status = 'executing'
   await markAsyncToolRunning(toolCall.id, 'sim-stream').catch(() => {})
 
-  logger.info(appendCopilotLogContext('Tool execution started', { messageId: context.messageId }), {
-    toolCallId: toolCall.id,
-    toolName: toolCall.name,
-    params: toolCall.params,
-  })
+  logger.error(
+    appendCopilotLogContext('Tool execution started', { messageId: context.messageId }),
+    {
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      params: toolCall.params,
+    }
+  )
 
   try {
     let result = await executeToolServerSide(toolCall, execContext)
@@ -686,7 +689,7 @@ export async function executeToolAndReport(
           : raw && typeof raw === 'object'
             ? JSON.stringify(raw).slice(0, 200)
             : undefined
-      logger.info(
+      logger.error(
         appendCopilotLogContext('Tool execution succeeded', { messageId: context.messageId }),
         {
           toolCallId: toolCall.id,

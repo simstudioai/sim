@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
 
     const userMessageIdToUse = userMessageId || crypto.randomUUID()
     try {
-      logger.info(
+      logger.error(
         appendCopilotLogContext('Received chat POST', {
           requestId: tracker.requestId,
           messageId: userMessageIdToUse,
@@ -250,7 +250,7 @@ export async function POST(req: NextRequest) {
           actualChatId
         )
         agentContexts = processed
-        logger.info(
+        logger.error(
           appendCopilotLogContext('Contexts processed for request', {
             requestId: tracker.requestId,
             messageId: userMessageIdToUse,
@@ -357,7 +357,7 @@ export async function POST(req: NextRequest) {
     )
 
     try {
-      logger.info(
+      logger.error(
         appendCopilotLogContext('About to call Sim Agent', {
           requestId: tracker.requestId,
           messageId: userMessageIdToUse,
@@ -555,7 +555,7 @@ export async function POST(req: NextRequest) {
       provider: typeof requestPayload?.provider === 'string' ? requestPayload.provider : undefined,
     }
 
-    logger.info(
+    logger.error(
       appendCopilotLogContext('Non-streaming response from orchestrator', {
         requestId: tracker.requestId,
         messageId: userMessageIdToUse,
@@ -600,7 +600,7 @@ export async function POST(req: NextRequest) {
 
       // Start title generation in parallel if this is first message (non-streaming)
       if (actualChatId && !currentChat.title && conversationHistory.length === 0) {
-        logger.info(
+        logger.error(
           appendCopilotLogContext('Starting title generation for non-streaming response', {
             requestId: tracker.requestId,
             messageId: userMessageIdToUse,
@@ -616,7 +616,7 @@ export async function POST(req: NextRequest) {
                   updatedAt: new Date(),
                 })
                 .where(eq(copilotChats.id, actualChatId!))
-              logger.info(
+              logger.error(
                 appendCopilotLogContext(`Generated and saved title: ${title}`, {
                   requestId: tracker.requestId,
                   messageId: userMessageIdToUse,
@@ -645,7 +645,7 @@ export async function POST(req: NextRequest) {
         .where(eq(copilotChats.id, actualChatId!))
     }
 
-    logger.info(
+    logger.error(
       appendCopilotLogContext('Returning non-streaming response', {
         requestId: tracker.requestId,
         messageId: userMessageIdToUse,
@@ -778,7 +778,7 @@ export async function GET(req: NextRequest) {
         ...(streamSnapshot ? { streamSnapshot } : {}),
       }
 
-      logger.info(
+      logger.error(
         appendCopilotLogContext(`Retrieved chat ${chatId}`, {
           messageId: chat.conversationId || undefined,
         })

@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   const toParam = url.searchParams.get('to')
   const toEventId = toParam ? Number(toParam) : undefined
 
-  logger.info(
+  logger.error(
     appendCopilotLogContext('[Resume] Received resume request', {
       messageId: streamId || undefined,
     }),
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
   }
 
   const meta = (await getStreamMeta(streamId)) as StreamMeta | null
-  logger.info(appendCopilotLogContext('[Resume] Stream lookup', { messageId: streamId }), {
+  logger.error(appendCopilotLogContext('[Resume] Stream lookup', { messageId: streamId }), {
     streamId,
     fromEventId,
     toEventId,
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
   if (batchMode) {
     const events = await readStreamEvents(streamId, fromEventId)
     const filteredEvents = toEventId ? events.filter((e) => e.eventId <= toEventId) : events
-    logger.info(appendCopilotLogContext('[Resume] Batch response', { messageId: streamId }), {
+    logger.error(appendCopilotLogContext('[Resume] Batch response', { messageId: streamId }), {
       streamId,
       fromEventId,
       toEventId,
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
       const flushEvents = async () => {
         const events = await readStreamEvents(streamId, lastEventId)
         if (events.length > 0) {
-          logger.info(
+          logger.error(
             appendCopilotLogContext('[Resume] Flushing events', { messageId: streamId }),
             {
               streamId,
