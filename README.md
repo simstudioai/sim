@@ -83,6 +83,37 @@ Open [http://localhost:3000](http://localhost:3000)
 
 OpenCode is opt-in. By default the `OpenCode` block stays hidden so the base Sim UX and deployment path remain unchanged.
 
+Quick deploy paths:
+
+##### Sim only
+
+- Do not set `NEXT_PUBLIC_OPENCODE_ENABLED`.
+- Do not set any `OPENCODE_*` variables.
+- Do not use `docker-compose.opencode.yml` or `docker-compose.opencode.local.yml`.
+- Start Sim with the normal upstream flow.
+
+##### Sim + OpenCode local overlay
+
+- Set `NEXT_PUBLIC_OPENCODE_ENABLED=true`.
+- Set `OPENCODE_SERVER_USERNAME` and `OPENCODE_SERVER_PASSWORD`.
+- Set `OPENCODE_REPOSITORY_ROOT=/app/repos` unless you intentionally changed the runtime root.
+- Set `OPENCODE_REPOS` to one or more HTTPS repository URLs.
+- Set at least one provider key such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `GOOGLE_GENERATIVE_AI_API_KEY`.
+- Set `GIT_USERNAME` and `GIT_TOKEN` or `GITHUB_TOKEN` if any repository is private.
+- For host-side `next dev`, also set `OPENCODE_BASE_URL=http://127.0.0.1:4096`.
+- Start with `docker compose -f docker-compose.local.yml -f docker-compose.opencode.local.yml up -d --build`.
+
+##### Sim + external OpenCode runtime
+
+- Set `NEXT_PUBLIC_OPENCODE_ENABLED=true`.
+- Set `OPENCODE_BASE_URL` to the external OpenCode server.
+- Set `OPENCODE_SERVER_USERNAME` and `OPENCODE_SERVER_PASSWORD` to the credentials expected by that server.
+- Set `OPENCODE_REPOSITORY_ROOT` to the same worktree root used by the external OpenCode deployment.
+- Set `OPENCODE_REPOS` to the repository catalog you expect the runtime to clone or expose.
+- Ensure the external runtime already has at least one provider key configured.
+- Ensure the external runtime can clone private repositories with the right git credentials if needed.
+- Verify `/global/health` and one real prompt before exposing the block to users.
+
 Minimum setup:
 
 ```bash
