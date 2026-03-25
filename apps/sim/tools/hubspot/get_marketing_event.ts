@@ -39,7 +39,7 @@ export const hubspotGetMarketingEventTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.hubapi.com/marketing/v3/marketing-events/${params.eventId.trim()}`,
+      `https://api.hubapi.com/crm/v3/objects/marketing_events/${params.eventId.trim()}`,
     method: 'GET',
     headers: (params) => {
       if (!params.accessToken) {
@@ -62,7 +62,7 @@ export const hubspotGetMarketingEventTool: ToolConfig<
       success: true,
       output: {
         event: data,
-        eventId: data.objectId ?? data.id,
+        eventId: data.id,
         success: true,
       },
     }
