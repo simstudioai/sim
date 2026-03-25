@@ -1,6 +1,6 @@
 # Sim App Scope
 
-These rules apply to files under `apps/sim/` in addition to the repository root [AGENTS.md](/home/danielgm/dev/sim/AGENTS.md).
+These rules apply to files under `apps/sim/` in addition to the repository root [AGENTS.md](/AGENTS.md).
 
 ## Architecture
 
