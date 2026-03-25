@@ -1,5 +1,6 @@
 import type { SVGProps } from 'react'
 import styles from '@/components/emcn/icons/animate/loader.module.css'
+import { cn } from '@/lib/core/utils/cn'
 
 export interface LoaderProps extends SVGProps<SVGSVGElement> {
   /**
@@ -17,9 +18,7 @@ export interface LoaderProps extends SVGProps<SVGSVGElement> {
  * @param props - SVG properties including className, animate, etc.
  */
 export function Loader({ animate = false, className, ...props }: LoaderProps) {
-  const svgClassName = animate
-    ? `${styles['animated-loader-svg']} ${className || ''}`.trim()
-    : className
+  const svgClassName = cn(animate && styles['animated-loader-svg'], className)
 
   return (
     <svg
@@ -33,6 +32,7 @@ export function Loader({ animate = false, className, ...props }: LoaderProps) {
       strokeLinecap='round'
       strokeLinejoin='round'
       className={svgClassName}
+      aria-hidden='true'
       {...props}
     >
       <path d='M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74' />

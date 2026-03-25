@@ -30,7 +30,7 @@ function Breadcrumb({ items, className, ...props }: BreadcrumbProps) {
             {item.href && !isLast ? (
               <Link
                 href={item.href}
-                className='block max-w-[200px] truncate font-medium text-[14px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                className='block max-w-[200px] truncate font-medium text-[14px] text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
               >
                 {item.label}
               </Link>

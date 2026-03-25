@@ -16,6 +16,7 @@ export function Rocket(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path d='M11 1.75C8.5 4.75 7.25 8.75 7.25 12.75V15.75H14.75V12.75C14.75 8.75 13.5 4.75 11 1.75Z' />

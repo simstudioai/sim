@@ -26,7 +26,7 @@ import { Check, ChevronRight, Circle, Search } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 
 const ANIMATION_CLASSES =
-  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in'
+  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
 
 const DropdownMenu = DropdownMenuPrimitive.Root
 
@@ -79,7 +79,7 @@ const DropdownMenuSubContent = React.forwardRef<
     ref={ref}
     className={cn(
       ANIMATION_CLASSES,
-      'z-50 max-h-[240px] min-w-[8rem] max-w-[220px] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-body)] shadow-sm',
+      'z-[var(--z-dropdown)] max-h-[240px] min-w-[8rem] max-w-[280px] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-body)] shadow-sm',
       className
     )}
     {...props}
@@ -97,7 +97,7 @@ const DropdownMenuContent = React.forwardRef<
       sideOffset={sideOffset}
       className={cn(
         ANIMATION_CLASSES,
-        'z-50 max-h-[240px] min-w-[8rem] max-w-[220px] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-body)] shadow-sm',
+        'z-[var(--z-dropdown)] max-h-[240px] min-w-[8rem] max-w-[280px] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-body)] shadow-sm',
         className
       )}
       {...props}

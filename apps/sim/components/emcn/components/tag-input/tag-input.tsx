@@ -55,7 +55,7 @@ const tagVariants = cva(
       variant: {
         default: 'bg-[#bfdbfe] text-[#1d4ed8] dark:bg-[rgba(59,130,246,0.2)] dark:text-[#93c5fd]',
         secondary:
-          'border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+          'border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]',
         invalid:
           'bg-[#fecaca] text-[var(--text-error)] dark:bg-[#551a1a] dark:text-[var(--text-error)]',
       },
@@ -102,7 +102,7 @@ const Tag = React.memo(function Tag({
           type='button'
           onClick={onRemove}
           className={cn(
-            'flex-shrink-0 opacity-80 transition-opacity hover:opacity-100 focus:outline-none',
+            'relative flex-shrink-0 opacity-80 transition-opacity before:absolute before:inset-[-8px] before:content-[""] hover-hover:opacity-100 focus:outline-none',
             variant === 'invalid'
               ? 'text-[var(--text-error)]'
               : variant === 'secondary'
@@ -474,7 +474,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   inputRef.current?.focus()
                 }
               }}
-              className='flex items-center px-[3px] opacity-80 transition-opacity hover:opacity-100 focus:outline-none'
+              className='relative flex items-center px-[3px] opacity-80 transition-opacity before:absolute before:inset-[-10px] before:content-[""] hover-hover:opacity-100 focus:outline-none'
               disabled={disabled}
               aria-label='Add tag'
             >
@@ -491,7 +491,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   e.stopPropagation()
                   fileInputRef.current?.click()
                 }}
-                className='absolute right-[8px] bottom-[9px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]'
+                className='absolute right-[8px] bottom-[9px] p-[6px] -m-[6px] text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-secondary)]'
                 aria-label={fileInputOptions?.tooltip ?? 'Upload file'}
               >
                 <FileIcon className='h-[14px] w-[14px]' strokeWidth={2} />

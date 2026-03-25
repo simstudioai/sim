@@ -40,7 +40,7 @@ import { cn } from '@/lib/core/utils/cn'
  * Matches the combobox and input styling patterns.
  */
 const datePickerVariants = cva(
-  'flex w-full rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[var(--surface-7)] hover:bg-[var(--surface-5)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]',
+  'flex w-full rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus-visible:border-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 hover-hover:border-[var(--surface-7)] hover-hover:bg-[var(--surface-5)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]',
   {
     variants: {
       variant: {
@@ -385,7 +385,7 @@ function CalendarMonth({
         {showNavigation === 'left' || showNavigation === 'both' ? (
           <button
             type='button'
-            className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+            className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
             onClick={onPrevMonth}
           >
             <ChevronLeft className='h-4 w-4' />
@@ -399,7 +399,7 @@ function CalendarMonth({
         {showNavigation === 'right' || showNavigation === 'both' ? (
           <button
             type='button'
-            className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+            className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
             onClick={onNextMonth}
           >
             <ChevronRight className='h-4 w-4' />
@@ -452,13 +452,13 @@ function CalendarMonth({
                       ? isStart || isEnd
                         ? 'bg-[var(--brand-secondary)] text-[var(--bg)]'
                         : inRange
-                          ? 'text-[var(--text-primary)] hover:bg-[#60a5fa]/40'
-                          : 'text-[var(--text-primary)] hover:bg-[var(--surface-5)]'
+                          ? 'text-[var(--text-primary)] hover-hover:bg-[#60a5fa]/40'
+                          : 'text-[var(--text-primary)] hover-hover:bg-[var(--surface-5)]'
                       : isSelected(day)
                         ? 'bg-[var(--brand-secondary)] text-[var(--bg)]'
                         : isToday(day)
                           ? 'bg-[var(--surface-5)] text-[var(--text-primary)]'
-                          : 'text-[var(--text-primary)] hover:bg-[var(--surface-5)]'
+                          : 'text-[var(--text-primary)] hover-hover:bg-[var(--surface-5)]'
                   )}
                   onClick={() => onSelectDate(day)}
                   onMouseEnter={() => onHoverDate?.(day)}
@@ -761,7 +761,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
           size='sm'
           onClick={handleClearRange}
           disabled={!rangeStart && !rangeEnd}
-          className='text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          className='text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]'
         >
           Clear
         </Button>

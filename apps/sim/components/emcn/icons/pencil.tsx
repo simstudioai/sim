@@ -16,6 +16,7 @@ export function Pencil(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path d='M14.75 1.25L19.25 5.75L7.25 17.75H2.75V13.25L14.75 1.25Z' />

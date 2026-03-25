@@ -33,10 +33,10 @@ import { Button } from '../button/button'
 import { Modal, type ModalContentProps, ModalOverlay, ModalPortal } from '../modal/modal'
 
 const ANIMATION_CLASSES =
-  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in'
+  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
 
 const CONTENT_ANIMATION_CLASSES =
-  'data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[50%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[50%]'
+  'data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[50%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[50%] motion-reduce:animate-none'
 
 /**
  * Root sidebar modal component.
@@ -75,7 +75,7 @@ const SModalContent = React.forwardRef<
         className={cn(
           ANIMATION_CLASSES,
           CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] z-[500] flex h-[min(calc(100vh-8rem),900px)] min-h-[400px] w-[min(calc(100vw-8rem),1080px)] min-w-[520px] translate-x-[-50%] translate-y-[-50%] flex-row rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
+          'fixed top-[50%] z-[var(--z-modal)] flex h-[min(calc(100vh-8rem),900px)] min-h-[400px] w-[min(calc(100vw-8rem),1080px)] min-w-[520px] translate-x-[-50%] translate-y-[-50%] flex-row rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
           className
         )}
         style={{
@@ -192,7 +192,7 @@ function SModalSidebarItem({
       className={cn(
         'w-full justify-start gap-[8px] rounded-[6px] border-0 text-[13px]',
         !active &&
-          'text-[var(--text-tertiary)] hover:bg-[var(--surface-6)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--border)]',
+          'text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-6)] hover-hover:text-[var(--text-primary)] dark:hover-hover:bg-[var(--border)]',
         className
       )}
       {...props}
@@ -233,7 +233,10 @@ const SModalMainHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<H
     <div ref={ref} className={cn('flex items-center justify-between', className)} {...props}>
       <span className='font-base text-[14px] text-[var(--text-muted)]'>{children}</span>
       <DialogPrimitive.Close asChild>
-        <Button variant='ghost' className='h-[16px] w-[16px] p-0'>
+        <Button
+          variant='ghost'
+          className='relative h-[16px] w-[16px] p-0 before:absolute before:inset-[-14px] before:content-[""]'
+        >
           <X className='h-[16px] w-[16px]' />
           <span className='sr-only'>Close</span>
         </Button>
@@ -328,7 +331,7 @@ const SModalTabsList = React.forwardRef<
       <span
         className={cn(
           'pointer-events-none absolute bottom-0 h-[1px] rounded-full bg-[var(--text-primary)]',
-          ready && 'transition-all duration-200 ease-out'
+          ready ? 'opacity-100 transition-[left,width,opacity] duration-200 ease-out' : 'opacity-0'
         )}
         style={{ left: indicator.left, width: indicator.width }}
       />
@@ -349,7 +352,7 @@ const SModalTabsTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       'px-1 pb-[8px] font-medium text-[13px] text-[var(--text-secondary)] transition-colors',
-      'hover:text-[var(--text-primary)] data-[state=active]:text-[var(--text-primary)]',
+      'hover-hover:text-[var(--text-primary)] data-[state=active]:text-[var(--text-primary)]',
       className
     )}
     {...props}

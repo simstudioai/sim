@@ -329,7 +329,7 @@ const CollapseButton = memo(function CollapseButton({ isCollapsed, onClick }: Co
     <button
       type='button'
       onClick={onClick}
-      className='flex h-[21px] w-[12px] cursor-pointer items-center justify-center border-none bg-transparent p-0 text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+      className='flex h-[21px] w-[12px] cursor-pointer items-center justify-center border-none bg-transparent p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-secondary)]'
       aria-label={isCollapsed ? 'Expand' : 'Collapse'}
     >
       <ChevronRight

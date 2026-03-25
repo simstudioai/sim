@@ -15,6 +15,13 @@
   --toolbar-triggers-height: 300px; /* TOOLBAR_TRIGGERS_HEIGHT.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
+
+  /* z-index scale for layered UI */
+  --z-dropdown: 100;
+  --z-popover: 200;
+  --z-modal: 300;
+  --z-tooltip: 400;
+  --z-toast: 500;
 }
 
 .workspace-root {

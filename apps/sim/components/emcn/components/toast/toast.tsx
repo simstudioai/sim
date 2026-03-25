@@ -14,7 +14,7 @@ import { X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/core/utils/cn'
 
-const AUTO_DISMISS_MS = 0
+const AUTO_DISMISS_MS = 5000
 const EXIT_ANIMATION_MS = 200
 const MAX_VISIBLE = 20
 
@@ -160,10 +160,10 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
       onMouseEnter={hasDuration ? handleMouseEnter : undefined}
       onMouseLeave={hasDuration ? handleMouseLeave : undefined}
       className={cn(
-        'pointer-events-auto w-[240px] overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] shadow-sm',
+        'pointer-events-auto w-[240px] overflow-hidden items-start gap-[8px] rounded-[8px] px-[12px] py-[10px] border border-[var(--border)] bg-[var(--bg)] transition-[transform,opacity]',
         exiting
-          ? 'animate-[toast-exit_200ms_ease-in_forwards]'
-          : 'animate-[toast-enter_200ms_ease-out_forwards]'
+          ? 'animate-[toast-exit_200ms_ease-in_forwards] motion-reduce:animate-none'
+          : 'animate-[toast-enter_200ms_ease-out_forwards] motion-reduce:animate-none'
       )}
     >
       <div className='flex flex-col gap-[8px] p-[8px]'>
@@ -263,7 +263,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
           <div
             aria-live='polite'
             aria-label='Notifications'
-            className='pointer-events-none fixed right-[16px] bottom-[16px] z-[10000400] flex flex-col-reverse items-end gap-[8px]'
+            className='pointer-events-none fixed right-[16px] bottom-[16px] z-[var(--z-toast)] flex flex-col-reverse items-end gap-[8px]'
           >
             {toasts.map((t) => (
               <ToastItem key={t.id} toast={t} onDismiss={dismissToast} />

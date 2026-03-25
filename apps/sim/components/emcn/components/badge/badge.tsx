@@ -11,9 +11,9 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          'gap-[4px] rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] hover:text-[var(--text-primary)] hover:border-[var(--border-1)] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
+          'gap-[4px] rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)] hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]',
         outline:
-          'gap-[4px] rounded-[40px] border border-[var(--border-1)] bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-5)] dark:hover:bg-transparent dark:hover:border-[var(--surface-6)]',
+          'gap-[4px] rounded-[40px] border border-[var(--border-1)] bg-transparent text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)] hover-hover:bg-[var(--surface-5)] dark:hover-hover:bg-transparent dark:hover-hover:border-[var(--surface-6)]',
         type: 'gap-[4px] rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] dark:bg-[var(--surface-6)]',
         green: `${STATUS_BASE} bg-[#bbf7d0] text-[#15803d] dark:bg-[rgba(34,197,94,0.2)] dark:text-[#86efac]`,
         red: `${STATUS_BASE} bg-[#fecaca] text-[var(--text-error)] dark:bg-[#551a1a] dark:text-[var(--text-error)]`,

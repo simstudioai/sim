@@ -16,6 +16,7 @@ export function TypeJson(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path d='M5.75 1.25C3.54086 1.25 1.75 3.04086 1.75 5.25V7.75C1.75 9.13071 0.630712 10.25 -0.75 10.25C0.630712 10.25 1.75 11.3693 1.75 12.75V15.25C1.75 17.4591 3.54086 19.25 5.75 19.25' />

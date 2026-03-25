@@ -48,14 +48,14 @@ import { Button } from '../button/button'
  * Mirrors the legacy `Modal` component to ensure consistent behavior.
  */
 const ANIMATION_CLASSES =
-  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in'
+  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
 
 /**
  * Modal content animation classes.
  * We keep only the slide animations (no zoom) to stabilize positioning while avoiding scale effects.
  */
 const CONTENT_ANIMATION_CLASSES =
-  'data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[50%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[50%]'
+  'data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[50%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[50%] motion-reduce:animate-none'
 
 /**
  * Root modal component. Manages open state.
@@ -90,7 +90,7 @@ const ModalOverlay = React.forwardRef<
       <DialogPrimitive.Overlay
         ref={ref}
         className={cn(
-          'fixed inset-0 z-[500] bg-black/10 backdrop-blur-[2px]',
+          'fixed inset-0 z-[var(--z-modal)] bg-black/10 backdrop-blur-[2px]',
           ANIMATION_CLASSES,
           className
         )}
@@ -159,7 +159,7 @@ const ModalContent = React.forwardRef<
         className={cn(
           ANIMATION_CLASSES,
           CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] z-[500] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-[13px] ring-1 ring-foreground/10 duration-200',
+          'fixed top-[50%] z-[var(--z-modal)] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-[13px] ring-1 ring-foreground/10 duration-200',
           MODAL_SIZES[size],
           className
         )}
@@ -204,7 +204,10 @@ const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
         {children}
       </DialogPrimitive.Title>
       <DialogPrimitive.Close asChild>
-        <Button variant='ghost' className='h-[16px] w-[16px] flex-shrink-0 p-0'>
+        <Button
+          variant='ghost'
+          className='relative h-[16px] w-[16px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
+        >
           <X className='h-[16px] w-[16px]' />
           <span className='sr-only'>Close</span>
         </Button>
@@ -308,7 +311,7 @@ const ModalTabsList = React.forwardRef<
       <span
         className={cn(
           'pointer-events-none absolute bottom-0 h-[1px] rounded-full bg-[var(--text-primary)]',
-          ready && 'transition-all duration-200 ease-out'
+          ready ? 'opacity-100 transition-[left,width,opacity] duration-200 ease-out' : 'opacity-0'
         )}
         style={{ left: indicator.left, width: indicator.width }}
       />
@@ -329,7 +332,7 @@ const ModalTabsTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       'px-1 pb-[8px] font-medium text-[13px] text-[var(--text-secondary)] transition-colors',
-      'hover:text-[var(--text-primary)] data-[state=active]:text-[var(--text-primary)]',
+      'hover-hover:text-[var(--text-primary)] data-[state=active]:text-[var(--text-primary)]',
       className
     )}
     {...props}
@@ -370,7 +373,7 @@ const ModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
     <div
       ref={ref}
       className={cn(
-        'flex justify-end gap-2 rounded-b-xl border-t bg-muted/50 px-4 py-3',
+        'flex justify-end gap-2 rounded-b-xl border-t border-[var(--border)] bg-[var(--surface-3)]/50 px-4 py-3',
         className
       )}
       {...props}

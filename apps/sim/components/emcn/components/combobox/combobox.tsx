@@ -21,7 +21,7 @@ import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
 const comboboxVariants = cva(
-  'flex w-full rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-[var(--surface-7)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]',
+  'flex w-full rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus-visible:border-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 hover-hover:bg-[var(--surface-7)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]',
   {
     variants: {
       variant: {
@@ -187,10 +187,18 @@ const Combobox = memo(
       const searchInputRef = useRef<HTMLInputElement>(null)
       const containerRef = useRef<HTMLDivElement>(null)
       const dropdownRef = useRef<HTMLDivElement>(null)
+      const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null)
       const internalInputRef = useRef<HTMLInputElement>(null)
       const inputRef = externalInputRef || internalInputRef
 
       const effectiveSelectedValue = selectedValue ?? value
+
+      // Cleanup blur timeout on unmount
+      useEffect(() => {
+        return () => {
+          if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current)
+        }
+      }, [])
 
       // Flatten groups into options if groups are provided
       const allOptions = useMemo(() => {
@@ -328,8 +336,10 @@ const Combobox = memo(
        * Handles blur for editable mode
        */
       const handleBlur = useCallback(() => {
+        // Clear any pending blur timeout
+        if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current)
         // Delay to allow dropdown clicks
-        setTimeout(() => {
+        blurTimeoutRef.current = setTimeout(() => {
           const activeElement = document.activeElement
           // Check if focus is in the container, dropdown, or search input
           const isInContainer = containerRef.current?.contains(activeElement)
@@ -510,7 +520,7 @@ const Combobox = memo(
                     <Input
                       ref={inputRef}
                       className={cn(
-                        'w-full pr-[40px] font-medium transition-colors hover:bg-[var(--surface-7)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]',
+                        'w-full pr-[40px] font-medium transition-colors hover-hover:bg-[var(--surface-7)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]',
                         (overlayContent || SelectedIcon) && 'text-transparent caret-foreground',
                         SelectedIcon && !overlayContent && 'pl-[28px]',
                         className
@@ -736,7 +746,7 @@ const Combobox = memo(
                                 className={cn(
                                   'relative flex cursor-pointer select-none items-center gap-[8px] rounded-[4px] px-[6px] font-medium font-sans',
                                   size === 'sm' ? 'py-[5px] text-[12px]' : 'py-[6px] text-sm',
-                                  'hover:bg-[var(--border-1)]',
+                                  'hover-hover:bg-[var(--border-1)]',
                                   (isHighlighted || isSelected) && 'bg-[var(--border-1)]',
                                   option.disabled && 'cursor-not-allowed opacity-50'
                                 )}
@@ -776,7 +786,7 @@ const Combobox = memo(
                           className={cn(
                             'relative flex cursor-pointer select-none items-center rounded-[4px] px-[6px] font-medium font-sans',
                             size === 'sm' ? 'py-[5px] text-[12px]' : 'py-[6px] text-sm',
-                            'hover:bg-[var(--border-1)]',
+                            'hover-hover:bg-[var(--border-1)]',
                             !multiSelectValues?.length && 'bg-[var(--border-1)]'
                           )}
                         >
@@ -810,7 +820,7 @@ const Combobox = memo(
                             className={cn(
                               'relative flex cursor-pointer select-none items-center gap-[8px] rounded-[4px] px-[6px] font-medium font-sans',
                               size === 'sm' ? 'py-[5px] text-[12px]' : 'py-[6px] text-sm',
-                              'hover:bg-[var(--border-1)]',
+                              'hover-hover:bg-[var(--border-1)]',
                               (isHighlighted || isSelected) && 'bg-[var(--border-1)]',
                               option.disabled && 'cursor-not-allowed opacity-50'
                             )}
