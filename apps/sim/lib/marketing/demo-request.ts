@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-
-const NO_EMAIL_HEADER_CONTROL_CHARS_REGEX = /^[^\r\n]*$/
+import { NO_EMAIL_HEADER_CONTROL_CHARS_REGEX } from '@/lib/messaging/email/header-safety'
 
 export const DEMO_REQUEST_REGION_VALUES = [
   'north_america',

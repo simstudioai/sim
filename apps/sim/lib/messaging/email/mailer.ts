@@ -3,11 +3,11 @@ import { createLogger } from '@sim/logger'
 import { Resend } from 'resend'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { hasEmailHeaderControlChars } from '@/lib/messaging/email/header-safety'
 import { generateUnsubscribeToken, isUnsubscribed } from '@/lib/messaging/email/unsubscribe'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 
 const logger = createLogger('Mailer')
-const EMAIL_HEADER_CONTROL_CHARS_REGEX = /[\r\n]/
 
 export type EmailType = 'transactional' | 'marketing' | 'updates' | 'notifications'
 
@@ -63,10 +63,6 @@ interface PreparedEmailHeaderData {
   subject: string
   senderEmail: string
   replyTo?: string
-}
-
-function hasEmailHeaderControlChars(value: string): boolean {
-  return EMAIL_HEADER_CONTROL_CHARS_REGEX.test(value)
 }
 
 function sanitizeEmailSubject(subject: string): string {
