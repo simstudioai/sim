@@ -1,0 +1,5 @@
+interface:
+  display_name: "Add Connector"
+  short_description: "Build a Sim knowledge connector"
+  brand_color: "#0F766E"
+  default_prompt: "Use $add-connector to add or update a Sim knowledge connector for a service."
