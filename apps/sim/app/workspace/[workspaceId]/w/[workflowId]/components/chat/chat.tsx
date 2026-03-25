@@ -1143,9 +1143,9 @@ export function Chat() {
                 {isStreaming ? (
                   <Button
                     onClick={handleStopStreaming}
-                    className='!bg-[var(--text-subtle)] hover-hover:!bg-[var(--surface-7)] h-[22px] w-[22px] rounded-full p-0 transition-colors'
+                    className='h-[22px] w-[22px] rounded-full border-0 p-0 transition-colors bg-[var(--text-primary)] hover-hover:bg-[var(--text-secondary)] dark:bg-[var(--border-1)] dark:hover-hover:bg-[var(--text-body)]'
                   >
-                    <Square className='h-2.5 w-2.5 fill-black text-black' />
+                    <Square className='h-2.5 w-2.5 fill-white text-white dark:fill-black dark:text-black' />
                   </Button>
                 ) : (
                   <Button
@@ -1157,13 +1157,16 @@ export function Chat() {
                       isStreaming
                     }
                     className={cn(
-                      'h-[22px] w-[22px] rounded-full p-0 transition-colors',
+                      'h-[22px] w-[22px] rounded-full border-0 p-0 transition-colors',
                       chatMessage.trim() || chatFiles.length > 0
-                        ? '!bg-[var(--text-subtle)] hover-hover:!bg-[var(--surface-7)]'
-                        : '!bg-[var(--text-subtle)]'
+                        ? 'bg-[var(--text-primary)] hover-hover:bg-[var(--text-secondary)] dark:bg-[var(--border-1)] dark:hover-hover:bg-[var(--text-body)]'
+                        : 'bg-[var(--text-subtle)] dark:bg-[var(--text-subtle)]'
                     )}
                   >
-                    <ArrowUp className='h-3.5 w-3.5 text-black' strokeWidth={2.25} />
+                    <ArrowUp
+                      className='h-3.5 w-3.5 text-white dark:text-black'
+                      strokeWidth={2.25}
+                    />
                   </Button>
                 )}
               </div>
