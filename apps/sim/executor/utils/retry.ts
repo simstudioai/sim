@@ -20,7 +20,7 @@ function calculateBackoffDelay(attempt: number, initialDelayMs: number, maxDelay
   const exponential = initialDelayMs * Math.pow(2, attempt)
   const capped = Math.min(maxDelayMs, exponential)
   const jitter = Math.random() * capped * 0.2
-  return Math.floor(capped + jitter)
+  return Math.floor(Math.min(capped + jitter, maxDelayMs))
 }
 
 function parseRetryAfterHeader(headers: Headers): number | null {
