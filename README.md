@@ -63,12 +63,125 @@ Docker must be installed and running on your machine.
 
 ### Self-hosted: Docker Compose
 
+For local Docker builds, use the local compose file:
+
+```bash
+git clone https://github.com/simstudioai/sim.git && cd sim
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+For a cloud or production-style deployment, use the published images:
+
 ```bash
 git clone https://github.com/simstudioai/sim.git && cd sim
 docker compose -f docker-compose.prod.yml up -d
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
+
+#### OpenCode Setup
+
+OpenCode is opt-in. By default the `OpenCode` block stays hidden so the base Sim UX and deployment path remain unchanged.
+
+Minimum setup:
+
+```bash
+cp apps/sim/.env.example apps/sim/.env
+```
+
+Then add these values to `apps/sim/.env`:
+
+```env
+NEXT_PUBLIC_OPENCODE_ENABLED=true
+OPENCODE_SERVER_USERNAME=opencode
+OPENCODE_SERVER_PASSWORD=change-me
+OPENCODE_REPOS=https://github.com/octocat/Hello-World.git
+
+# Pick at least one provider key that OpenCode can use
+GEMINI_API_KEY=your-gemini-key
+# or OPENAI_API_KEY=...
+# or ANTHROPIC_API_KEY=...
+```
+
+If you want private repositories:
+
+```env
+# Generic HTTPS or Azure Repos
+GIT_USERNAME=your-user-or-email
+GIT_TOKEN=your-token-or-pat
+
+# Optional GitHub-only fallback
+GITHUB_TOKEN=your-github-token
+```
+
+Important:
+
+- The `OpenCode` block remains hidden unless `NEXT_PUBLIC_OPENCODE_ENABLED=true` is set on the Sim app.
+- `docker compose` reads environment from the shell, not from `apps/sim/.env` automatically.
+- If you want the app and the OpenCode runtime to use the same credentials, load that file before starting compose:
+
+```bash
+set -a
+source apps/sim/.env
+set +a
+docker compose -f docker-compose.local.yml -f docker-compose.opencode.local.yml up -d --build
+```
+
+Local vs production behavior:
+
+- `docker-compose.local.yml`
+  - remains unchanged
+- `docker-compose.opencode.local.yml`
+  - adds OpenCode locally without changing the base local compose file
+  - publishes `OPENCODE_PORT` to the host so `next dev` on the host can talk to OpenCode
+  - defaults `OPENCODE_SERVER_USERNAME=opencode`
+  - defaults `OPENCODE_SERVER_PASSWORD=dev-opencode-password` if you do not set one explicitly
+- `docker-compose.prod.yml`
+  - contains the upstream-style base deployment only
+- `docker-compose.opencode.yml`
+  - adds the `opencode` service as a production overlay
+  - builds the OpenCode runtime locally from this repository instead of requiring an official Sim-hosted image
+  - injects the required `NEXT_PUBLIC_OPENCODE_ENABLED` and `OPENCODE_*` variables into `simstudio`
+  - keeps OpenCode internal to the Docker network with `expose`, not a published host port
+  - expects `OPENCODE_SERVER_PASSWORD` to be set explicitly
+
+Production deploy command:
+
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.opencode.yml up -d --build
+```
+
+For local hot reload with `next dev` on the host, also set this in `apps/sim/.env`:
+
+```env
+OPENCODE_BASE_URL=http://127.0.0.1:4096
+```
+
+Then start only the optional OpenCode runtime:
+
+```bash
+docker compose -f docker-compose.local.yml -f docker-compose.opencode.local.yml up -d --build opencode
+```
+
+Without that override, host-side Next.js cannot reliably reach the Docker service alias.
+
+Notes:
+
+- If `OPENCODE_REPOS` is empty, `opencode` still starts but no repositories are cloned.
+- Repositories are cloned into `/app/repos/<repo-name>`.
+- Private Azure Repos must use `https` plus `GIT_USERNAME` and `GIT_TOKEN`; the container will not prompt interactively for passwords.
+- `GOOGLE_GENERATIVE_AI_API_KEY` is optional; the optional overlays map it automatically from `GEMINI_API_KEY` if not set.
+- If you prefer to run OpenCode in separate infrastructure, skip the overlays and point Sim at that deployment with `OPENCODE_BASE_URL`, `OPENCODE_SERVER_USERNAME`, and `OPENCODE_SERVER_PASSWORD`.
+
+Basic verification after startup:
+
+```bash
+curl -u "opencode:change-me" http://127.0.0.1:4096/global/health
+```
+
+If you changed the username, password, or port, use those values instead.
+
+See [`docker/opencode/README.md`](docker/opencode/README.md) for service-specific verification steps and runtime behavior.
 
 #### Using Local Models with Ollama
 
@@ -136,6 +249,26 @@ cp packages/db/.env.example packages/db/.env
 # Edit both .env files to set DATABASE_URL="postgresql://postgres:your_password@localhost:5432/simstudio"
 ```
 
+If you want to use the OpenCode workflow block while running `next dev` on the host, also set these in `apps/sim/.env`:
+
+```env
+NEXT_PUBLIC_OPENCODE_ENABLED=true
+OPENCODE_BASE_URL=http://127.0.0.1:4096
+OPENCODE_SERVER_USERNAME=opencode
+OPENCODE_SERVER_PASSWORD=change-me
+OPENCODE_REPOS=https://github.com/octocat/Hello-World.git
+GEMINI_API_KEY=your-gemini-key
+```
+
+Then export the same environment before starting the OpenCode container so the app and Docker use identical credentials:
+
+```bash
+set -a
+source apps/sim/.env
+set +a
+docker compose -f docker-compose.local.yml -f docker-compose.opencode.local.yml up -d --build opencode
+```
+
 4. Run migrations:
 
 ```bash
@@ -146,9 +279,10 @@ cd packages/db && bunx drizzle-kit migrate --config=./drizzle.config.ts
 
 ```bash
 bun run dev:full  # Starts both Next.js app and realtime socket server
+bun run dev:full:webpack  # Same, but using Webpack instead of Turbopack
 ```
 
-Or run separately: `bun run dev` (Next.js) and `cd apps/sim && bun run dev:sockets` (realtime).
+Or run separately: `bun run dev` (Next.js/Turbopack), `cd apps/sim && bun run dev:webpack` (Next.js/Webpack), and `cd apps/sim && bun run dev:sockets` (realtime).
 
 ## Copilot API Keys
 

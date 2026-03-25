@@ -1,6 +1,9 @@
-import { OpenCodeIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { OpenCodeIcon } from '@/components/icons'
+import { getEnv, isTruthy } from '@/lib/core/config/env'
 import type { OpenCodePromptResponse } from '@/tools/opencode/types'
+
+const isOpenCodeEnabled = isTruthy(getEnv('NEXT_PUBLIC_OPENCODE_ENABLED'))
 
 function coerceBoolean(value: unknown): boolean {
   if (typeof value === 'boolean') {
@@ -92,6 +95,7 @@ export const OpenCodeBlock: BlockConfig<OpenCodePromptResponse> = {
   category: 'tools',
   bgColor: '#111827',
   icon: OpenCodeIcon,
+  hideFromToolbar: !isOpenCodeEnabled,
   subBlocks: [
     {
       id: 'repository',
