@@ -216,7 +216,12 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
 
           <div className='hidden flex-1 lg:block' />
 
-          <div className={cn('hidden items-center gap-2 pr-20 pl-5 lg:flex', isSessionPending && 'invisible')}>
+          <div
+            className={cn(
+              'hidden items-center gap-2 pr-20 pl-5 lg:flex',
+              isSessionPending && 'invisible'
+            )}
+          >
             {isAuthenticated ? (
               <Link
                 href='/workspace'
@@ -229,14 +234,14 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
               <>
                 <Link
                   href='/login'
-                  className='inline-flex h-[30px] items-center rounded-[5px] border border-[var(--border-1)] px-[9px] text-[var(--landing-text)] text-[13.5px] transition-colors hover:bg-[var(--surface-4)]'
+                  className='inline-flex h-[30px] items-center rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] text-[var(--landing-text)] text-[13.5px] transition-colors hover:bg-[var(--landing-bg-elevated)]'
                   aria-label='Log in'
                 >
                   Log in
                 </Link>
                 <Link
                   href='/signup'
-                  className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-[9px] text-[13.5px] text-black transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)]'
+                  className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-[9px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                   aria-label='Get started with Sim'
                 >
                   Get started
