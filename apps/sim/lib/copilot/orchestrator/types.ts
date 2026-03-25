@@ -195,6 +195,7 @@ export interface ExecutionContext {
   workflowId: string
   workspaceId?: string
   chatId?: string
+  messageId?: string
   executionId?: string
   runId?: string
   abortSignal?: AbortSignal
