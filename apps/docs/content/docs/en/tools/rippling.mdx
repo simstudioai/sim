@@ -72,7 +72,7 @@ List all employees in Rippling with optional pagination
 |   ↳ `endDate` | string | Employment end date |
 |   ↳ `manager` | string | Manager ID or name |
 |   ↳ `phone` | string | Phone number |
-| `totalCount` | number | Total number of employees returned |
+| `totalCount` | number | Number of employees returned on this page |
 
 ### `rippling_get_employee`
 
@@ -131,7 +131,7 @@ List all employees in Rippling including terminated employees with optional pagi
 |   ↳ `endDate` | string | Employment end date |
 |   ↳ `manager` | string | Manager ID or name |
 |   ↳ `phone` | string | Phone number |
-| `totalCount` | number | Total number of employees returned |
+| `totalCount` | number | Number of employees returned on this page |
 
 ### `rippling_list_departments`
 
@@ -153,7 +153,7 @@ List all departments in the Rippling organization
 |   ↳ `id` | string | Department ID |
 |   ↳ `name` | string | Department name |
 |   ↳ `parent` | string | Parent department ID |
-| `totalCount` | number | Total number of departments returned |
+| `totalCount` | number | Number of departments returned on this page |
 
 ### `rippling_list_teams`
 
@@ -175,7 +175,7 @@ List all teams in Rippling
 |   ↳ `id` | string | Team ID |
 |   ↳ `name` | string | Team name |
 |   ↳ `parent` | string | Parent team ID |
-| `totalCount` | number | Total number of teams returned |
+| `totalCount` | number | Number of teams returned on this page |
 
 ### `rippling_list_levels`
 
@@ -197,7 +197,7 @@ List all position levels in Rippling
 |   ↳ `id` | string | Level ID |
 |   ↳ `name` | string | Level name |
 |   ↳ `parent` | string | Parent level ID |
-| `totalCount` | number | Total number of levels returned |
+| `totalCount` | number | Number of levels returned on this page |
 
 ### `rippling_list_work_locations`
 
@@ -223,7 +223,7 @@ List all work locations in Rippling
 |   ↳ `state` | string | State or province |
 |   ↳ `zip` | string | ZIP or postal code |
 |   ↳ `country` | string | Country |
-| `totalCount` | number | Total number of work locations returned |
+| `totalCount` | number | Number of work locations returned on this page |
 
 ### `rippling_get_company`
 
@@ -270,7 +270,7 @@ Get activity events for the current company in Rippling
 |   ↳ `description` | string | Event description |
 |   ↳ `createdAt` | string | Event creation timestamp |
 |   ↳ `actor` | json | Actor who triggered the event \(id, name\) |
-| `totalCount` | number | Total number of activity events returned |
+| `totalCount` | number | Number of activity events returned on this page |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
 ### `rippling_list_custom_fields`
@@ -294,7 +294,7 @@ List all custom fields defined in Rippling
 |   ↳ `type` | string | Field type |
 |   ↳ `title` | string | Field title |
 |   ↳ `mandatory` | boolean | Whether the field is mandatory |
-| `totalCount` | number | Total number of custom fields returned |
+| `totalCount` | number | Number of custom fields returned on this page |
 
 ### `rippling_get_current_user`
 
@@ -385,7 +385,7 @@ List leave balances for all employees in Rippling
 |   ↳ `balances` | array | Leave balance entries |
 |     ↳ `leaveType` | string | Type of leave |
 |     ↳ `minutesRemaining` | number | Minutes of leave remaining |
-| `totalCount` | number | Total number of leave balances returned |
+| `totalCount` | number | Number of leave balances returned on this page |
 
 ### `rippling_get_leave_balance`
 
