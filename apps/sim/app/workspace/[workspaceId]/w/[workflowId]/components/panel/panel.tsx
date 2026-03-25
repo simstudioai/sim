@@ -692,6 +692,7 @@ export const Panel = memo(function Panel() {
                   variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
                   onClick={() => handleTabClick('copilot')}
                   data-tab-button='copilot'
+                  data-tour='tab-copilot'
                 >
                   Copilot
                 </Button>
@@ -705,6 +706,7 @@ export const Panel = memo(function Panel() {
                 variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
+                data-tour='tab-toolbar'
               >
                 Toolbar
               </Button>
@@ -717,6 +719,7 @@ export const Panel = memo(function Panel() {
                 variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
+                data-tour='tab-editor'
               >
                 Editor
               </Button>

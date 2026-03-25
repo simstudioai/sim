@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import type { TooltipRenderProps } from 'react-joyride'
 import { TourTooltip } from '@/components/emcn'
 
@@ -60,6 +60,7 @@ export function TourTooltipAdapter({
 }: TooltipRenderProps) {
   const { isTooltipVisible, isEntrance, totalSteps } = useContext(TourStateContext)
   const [targetEl, setTargetEl] = useState<HTMLElement | null>(null)
+  const joyrideRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const { target } = step
@@ -72,21 +73,27 @@ export function TourTooltipAdapter({
     }
   }, [step])
 
-  const refCallback = useCallback(
-    (node: HTMLDivElement | null) => {
-      if (tooltipProps.ref) {
-        ;(tooltipProps.ref as React.RefCallback<HTMLDivElement>)(node)
-      }
-    },
-    [tooltipProps.ref]
-  )
+  /**
+   * Forwards the Joyride tooltip ref safely, handling both
+   * callback refs and RefObject refs from the library.
+   */
+  const setJoyrideRef = (node: HTMLDivElement | null) => {
+    joyrideRef.current = node
+    const { ref } = tooltipProps
+    if (!ref) return
+    if (typeof ref === 'function') {
+      ref(node)
+    } else {
+      ;(ref as React.MutableRefObject<HTMLDivElement | null>).current = node
+    }
+  }
 
   const placement = mapPlacement(step.placement)
 
   return (
     <>
       <div
-        ref={refCallback}
+        ref={setJoyrideRef}
         role={tooltipProps.role}
         aria-modal={tooltipProps['aria-modal']}
         style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
