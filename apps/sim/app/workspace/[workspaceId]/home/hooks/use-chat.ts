@@ -1582,6 +1582,9 @@ export function useChat(
           : undefined
 
       const requestChatId = selectedChatIdRef.current ?? chatIdRef.current
+      const previousChatHistory = requestChatId
+        ? queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(requestChatId))
+        : undefined
       if (requestChatId) {
         const cachedUserMsg: TaskStoredMessage = {
           id: userMessageId,
@@ -1602,9 +1605,6 @@ export function useChat(
 
       const userAttachments = storedAttachments?.map(toDisplayAttachment)
       const previousMessages = messagesRef.current
-      const previousChatHistory = requestChatId
-        ? queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(requestChatId))
-        : undefined
 
       const messageContexts = contexts?.map((c) => ({
         kind: c.kind,
@@ -1678,6 +1678,9 @@ export function useChat(
           }
 
           const batch = await fetchStreamBatch(userMessageId, termination.lastEventId)
+          if (streamGenRef.current !== gen) {
+            return
+          }
           if (isTerminalStreamStatus(batch.status)) {
             finalize(batch.status === 'error' ? { error: true } : undefined)
             return
