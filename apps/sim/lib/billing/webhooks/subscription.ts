@@ -1,13 +1,14 @@
 import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, ne } from 'drizzle-orm'
+import { and, eq, inArray, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
-import { hasActiveSubscription } from '@/lib/billing/core/subscription'
+import { hasPaidSubscription } from '@/lib/billing/core/subscription'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import {
   getBilledOverageForSubscription,
   resetUsageForSubscription,
@@ -67,7 +68,7 @@ async function cleanupOrganizationSubscription(organizationId: string): Promise<
   // Check if other active subscriptions still point to this org
   // Note: The subscription being deleted is already marked as 'canceled' by better-auth
   // before this handler runs, so we only find truly active ones
-  if (await hasActiveSubscription(organizationId)) {
+  if (await hasPaidSubscription(organizationId)) {
     logger.info('Skipping organization deletion - other active subscriptions exist', {
       organizationId,
     })
@@ -119,7 +120,7 @@ export async function handleSubscriptionCreated(subscriptionData: {
       .where(
         and(
           eq(subscription.referenceId, subscriptionData.referenceId),
-          eq(subscription.status, 'active'),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
           ne(subscription.id, subscriptionData.id) // Exclude current subscription
         )
       )

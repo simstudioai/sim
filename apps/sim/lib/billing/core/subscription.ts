@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
 import { member, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserUsageLimit } from '@/lib/billing/core/usage'
 import {
@@ -14,8 +15,11 @@ import {
   checkEnterprisePlan,
   checkProPlan,
   checkTeamPlan,
+  ENTITLED_SUBSCRIPTION_STATUSES,
   getFreeTierLimit,
   getPerUserMinimumLimit,
+  hasUsableSubscriptionAccess,
+  USABLE_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
 import type { UserSubscriptionState } from '@/lib/billing/types'
 import {
@@ -63,17 +67,22 @@ export async function writeBillingInterval(
 }
 
 /**
- * Check if a referenceId (user ID or org ID) has an active subscription
- * Used for duplicate subscription prevention
+ * Check if a referenceId (user ID or org ID) has a paid subscription row.
+ * Used for duplicate subscription prevention and transfer safety.
  *
  * Fails closed: returns true on error to prevent duplicate creation
  */
-export async function hasActiveSubscription(referenceId: string): Promise<boolean> {
+export async function hasPaidSubscription(referenceId: string): Promise<boolean> {
   try {
     const [activeSub] = await db
       .select({ id: subscription.id })
       .from(subscription)
-      .where(and(eq(subscription.referenceId, referenceId), eq(subscription.status, 'active')))
+      .where(
+        and(
+          eq(subscription.referenceId, referenceId),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
       .limit(1)
 
     return !!activeSub
@@ -189,13 +198,18 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
       return false
     }
 
+    const billingStatus = await getEffectiveBillingStatus(userId)
+    if (billingStatus.billingBlocked) {
+      return false
+    }
+
     const [orgSub] = await db
       .select()
       .from(subscription)
       .where(
         and(
           eq(subscription.referenceId, memberRecord.organizationId),
-          eq(subscription.status, 'active')
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
         )
       )
       .limit(1)
@@ -248,13 +262,18 @@ export async function isTeamOrgAdminOrOwner(userId: string): Promise<boolean> {
       return false
     }
 
+    const billingStatus = await getEffectiveBillingStatus(userId)
+    if (billingStatus.billingBlocked) {
+      return false
+    }
+
     const [orgSub] = await db
       .select()
       .from(subscription)
       .where(
         and(
           eq(subscription.referenceId, memberRecord.organizationId),
-          eq(subscription.status, 'active')
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
         )
       )
       .limit(1)
@@ -293,10 +312,19 @@ export async function isOrganizationOnTeamOrEnterprisePlan(
       return true
     }
 
+    if (await isOrganizationBillingBlocked(organizationId)) {
+      return false
+    }
+
     const [orgSub] = await db
       .select()
       .from(subscription)
-      .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
+        )
+      )
       .limit(1)
 
     return !!orgSub && (checkTeamPlan(orgSub) || checkEnterprisePlan(orgSub))
@@ -320,10 +348,19 @@ export async function isOrganizationOnEnterprisePlan(organizationId: string): Pr
       return true
     }
 
+    if (await isOrganizationBillingBlocked(organizationId)) {
+      return false
+    }
+
     const [orgSub] = await db
       .select()
       .from(subscription)
-      .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
+        )
+      )
       .limit(1)
 
     return !!orgSub && checkEnterprisePlan(orgSub)
@@ -413,6 +450,8 @@ export async function hasInboxAccess(userId: string): Promise<boolean> {
     }
     const sub = await getHighestPrioritySubscription(userId)
     if (!sub) return false
+    const billingStatus = await getEffectiveBillingStatus(userId)
+    if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) return false
     return getPlanTierCredits(sub.plan) >= 25000 || checkEnterprisePlan(sub)
   } catch (error) {
     logger.error('Error checking inbox access', { error, userId })

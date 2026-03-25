@@ -39,7 +39,11 @@ import {
   isPro,
   isTeam,
 } from '@/lib/billing/plan-helpers'
-import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
+import {
+  getEffectiveSeats,
+  hasPaidSubscriptionStatus,
+  hasUsableSubscriptionAccess,
+} from '@/lib/billing/subscriptions/utils'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
@@ -306,7 +310,9 @@ export function Subscription() {
     isPro: isPro(subscriptionData?.data?.plan),
     isTeam: isTeam(subscriptionData?.data?.plan),
     isEnterprise: isEnterprise(subscriptionData?.data?.plan),
-    isPaid: isPaid(subscriptionData?.data?.plan) && subscriptionData?.data?.status === 'active',
+    isPaid:
+      isPaid(subscriptionData?.data?.plan) &&
+      hasPaidSubscriptionStatus(subscriptionData?.data?.status),
     plan: subscriptionData?.data?.plan || 'free',
     status: subscriptionData?.data?.status || 'inactive',
     seats: getEffectiveSeats(subscriptionData?.data),
@@ -364,7 +370,7 @@ export function Subscription() {
     isTeamAdmin &&
     organizationBillingData?.data
       ? organizationBillingData.data.minimumBillingAmount
-      : getPlanTierDollars(subscription.plan)
+      : getPlanTierCredits(subscription.plan) / CREDIT_MULTIPLIER
 
   const effectiveUsageLimit =
     (subscription.isTeam || subscription.isEnterprise) &&
@@ -468,8 +474,12 @@ export function Subscription() {
   }
   const badgeConfig = getBadgeConfig()
 
+  const hasUsablePaidAccess = subscription.isPaid
+    ? hasUsableSubscriptionAccess(subscription.status, isBlocked)
+    : false
+
   const onDemandState: 'hidden' | 'enable' | 'disable' = (() => {
-    if (!subscription.isPaid || !permissions.canEditUsageLimit || isBlocked) return 'hidden'
+    if (!hasUsablePaidAccess || !permissions.canEditUsageLimit) return 'hidden'
     return isOnDemandActive ? 'disable' : 'enable'
   })()
 
@@ -751,7 +761,9 @@ export function Subscription() {
                         ? `Switch to ${isAnnual ? 'Annual' : 'Monthly'}`
                         : subscription.isTeam
                           ? 'Upgrade Team'
-                          : 'Upgrade'
+                          : subscription.isFree
+                            ? 'Get started'
+                            : 'Upgrade'
                   }
                   onButtonClick={
                     isOnMax
@@ -916,7 +928,7 @@ export function Subscription() {
           {subscription.isPaid && permissions.canViewUsageInfo && (
             <CreditBalance
               balance={subscriptionData?.data?.creditBalance ?? 0}
-              canPurchase={permissions.canEditUsageLimit}
+              canPurchase={hasUsablePaidAccess && permissions.canEditUsageLimit}
               entityType={
                 subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
               }

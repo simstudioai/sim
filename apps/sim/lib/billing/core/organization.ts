@@ -1,11 +1,17 @@
 import { db } from '@sim/db'
 import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
+import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
 import { getPlanTierDollars, isEnterprise, isPaid, isTeam } from '@/lib/billing/plan-helpers'
-import { getEffectiveSeats, getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
+import {
+  ENTITLED_SUBSCRIPTION_STATUSES,
+  getEffectiveSeats,
+  getFreeTierLimit,
+  hasUsableSubscriptionStatus,
+} from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('OrganizationBilling')
 
@@ -18,7 +24,12 @@ async function getOrganizationSubscription(organizationId: string) {
     const orgSubs = await db
       .select()
       .from(subscription)
-      .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
       .limit(1)
 
     return orgSubs.length > 0 ? orgSubs[0] : null
@@ -235,6 +246,13 @@ export async function updateOrganizationUsageLimit(
     const subscription = await getOrganizationSubscription(organizationId)
     if (!subscription) {
       return { success: false, error: 'No active subscription found' }
+    }
+
+    if (
+      !hasUsableSubscriptionStatus(subscription.status) ||
+      (await isOrganizationBillingBlocked(organizationId))
+    ) {
+      return { success: false, error: 'An active subscription is required to edit usage limits' }
     }
 
     // Enterprise plans have fixed usage limits that cannot be changed

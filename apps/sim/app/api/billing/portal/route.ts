@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
 import { subscription as subscriptionTable, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, or } from 'drizzle-orm'
+import { and, eq, inArray, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('BillingPortal')
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
           and(
             eq(subscriptionTable.referenceId, organizationId),
             or(
-              eq(subscriptionTable.status, 'active'),
+              inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
               eq(subscriptionTable.cancelAtPeriodEnd, true)
             )
           )

@@ -4,7 +4,7 @@ import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
 import { ExternalLink, Users } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
-import { getSubscriptionStatus } from '@/lib/billing/client'
+import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { getPollingProviderFromOAuth } from '@/lib/credential-sets/providers'
 import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
@@ -64,8 +64,8 @@ export function CredentialSelector({
   const { data: organizationsData } = useOrganizations()
   const { data: subscriptionData } = useSubscriptionData({ enabled: isBillingEnabled })
   const activeOrganization = organizationsData?.activeOrganization
-  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
-  const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
+  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
+  const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const canUseCredentialSets = supportsCredentialSets && hasTeamPlan && !!activeOrganization?.id
 
   const { data: credentialSets = [] } = useCredentialSets(

@@ -56,6 +56,7 @@ export interface NavigationItem {
   hideWhenBillingDisabled?: boolean
   requiresTeam?: boolean
   requiresEnterprise?: boolean
+  requiresMax?: boolean
   requiresHosted?: boolean
   selfHostedOverride?: boolean
   requiresSuperUser?: boolean
@@ -133,6 +134,7 @@ export const allNavigationItems: NavigationItem[] = [
     label: 'Sim Mailer',
     icon: Send,
     section: 'system',
+    requiresMax: true,
     requiresHosted: true,
     selfHostedOverride: isInboxEnabled,
   },
@@ -141,6 +143,7 @@ export const allNavigationItems: NavigationItem[] = [
     label: 'Email Polling',
     icon: Mail,
     section: 'system',
+    requiresTeam: true,
     requiresHosted: true,
     selfHostedOverride: isCredentialSetsEnabled,
   },

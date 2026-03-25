@@ -1,9 +1,11 @@
 import { db } from '@sim/db'
 import { subscription, user, workflowExecutionLogs, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, lt, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lt } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
+import { sqlIsPaid } from '@/lib/billing/plan-helpers'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/core/config/env'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
@@ -29,9 +31,13 @@ export async function GET(request: NextRequest) {
       .from(user)
       .leftJoin(
         subscription,
-        sql`${user.id} = ${subscription.referenceId} AND ${subscription.status} = 'active' AND ${subscription.plan} IN ('pro', 'team', 'enterprise')`
+        and(
+          eq(user.id, subscription.referenceId),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
+          sqlIsPaid(subscription.plan)
+        )
       )
-      .where(sql`${subscription.id} IS NULL`)
+      .where(isNull(subscription.id))
 
     if (freeUsers.length === 0) {
       logger.info('No free users found for log cleanup')

@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { ChevronDown, Skeleton, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
-import { getSubscriptionStatus } from '@/lib/billing/client'
+import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization'
@@ -59,9 +59,9 @@ export function SettingsSidebar({
   const isOwner = userRole === 'owner'
   const isAdmin = userRole === 'admin'
   const isOrgAdminOrOwner = isOwner || isAdmin
-  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
-  const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
-  const hasEnterprisePlan = subscriptionStatus.isEnterprise
+  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
+  const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
+  const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
 
   const isSuperUser = session?.user?.role === 'admin'
 
@@ -74,62 +74,60 @@ export function SettingsSidebar({
   }, [userId, ssoProvidersData?.providers, isLoadingSSO])
 
   const navigationItems = useMemo(() => {
-    return allNavigationItems.filter((item) => {
+    return allNavigationItems.flatMap((item) => {
       if (item.hideWhenBillingDisabled && !isBillingEnabled) {
-        return false
+        return []
       }
 
       if (item.id === 'template-profile') {
-        return false
+        return []
       }
       if (item.id === 'apikeys' && permissionConfig.hideApiKeysTab) {
-        return false
+        return []
       }
       if (item.id === 'mcp' && permissionConfig.disableMcpTools) {
-        return false
+        return []
       }
       if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) {
-        return false
+        return []
       }
       if (item.id === 'skills' && permissionConfig.disableSkills) {
-        return false
+        return []
       }
 
       if (item.selfHostedOverride && !isHosted) {
         if (item.id === 'sso') {
           const hasProviders = (ssoProvidersData?.providers?.length ?? 0) > 0
-          return !hasProviders || isSSOProviderOwner === true
+          return !hasProviders || isSSOProviderOwner === true ? [{ ...item, disabled: false }] : []
         }
-        return true
-      }
-
-      if (item.requiresTeam && (!hasTeamPlan || !isOrgAdminOrOwner)) {
-        return false
-      }
-
-      if (item.requiresEnterprise && (!hasEnterprisePlan || !isOrgAdminOrOwner)) {
-        return false
+        return [{ ...item, disabled: false }]
       }
 
       if (item.requiresHosted && !isHosted) {
-        return false
+        return []
       }
 
       const superUserModeEnabled = generalSettings?.superUserModeEnabled ?? false
       const effectiveSuperUser = isSuperUser && superUserModeEnabled
       if (item.requiresSuperUser && !effectiveSuperUser) {
-        return false
+        return []
       }
 
       if (item.requiresAdminRole && !isSuperUser) {
-        return false
+        return []
       }
 
-      return true
+      const disabled =
+        (item.requiresTeam && (!hasTeamPlan || !isOrgAdminOrOwner)) ||
+        (item.requiresEnterprise && (!hasEnterprisePlan || !isOrgAdminOrOwner)) ||
+        (item.requiresMax && !subscriptionAccess.hasUsableMaxAccess)
+
+      return [{ ...item, disabled }]
     })
   }, [
     hasTeamPlan,
     hasEnterprisePlan,
+    subscriptionAccess.hasUsableMaxAccess,
     isOrgAdminOrOwner,
     isSSOProviderOwner,
     ssoProvidersData?.providers?.length,
@@ -252,9 +250,13 @@ export function SettingsSidebar({
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
+                    const disabled = Boolean(item.disabled)
                     const itemClassName = cn(
-                      'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
-                      active && 'bg-[var(--surface-active)]'
+                      'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px]',
+                      disabled
+                        ? 'cursor-not-allowed opacity-50'
+                        : 'hover:bg-[var(--surface-active)]',
+                      active && !disabled && 'bg-[var(--surface-active)]'
                     )
                     const content = (
                       <>
@@ -278,9 +280,11 @@ export function SettingsSidebar({
                       <button
                         type='button'
                         className={itemClassName}
+                        disabled={disabled}
                         onMouseEnter={() => handlePrefetch(item.id)}
                         onFocus={() => handlePrefetch(item.id)}
                         onClick={() =>
+                          !disabled &&
                           router.replace(getSettingsHref({ section: item.id as SettingsSection }), {
                             scroll: false,
                           })
