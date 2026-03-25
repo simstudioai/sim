@@ -4,10 +4,9 @@ import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
 import { ExternalLink, Users } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
-import { getSubscriptionAccessState } from '@/lib/billing/client'
+import { getSubscriptionStatus } from '@/lib/billing/client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { getPollingProviderFromOAuth } from '@/lib/credential-sets/providers'
-import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -26,7 +25,6 @@ import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
-import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
@@ -64,8 +62,8 @@ export function CredentialSelector({
   const { data: organizationsData } = useOrganizations()
   const { data: subscriptionData } = useSubscriptionData({ enabled: isBillingEnabled })
   const activeOrganization = organizationsData?.activeOrganization
-  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
-  const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
+  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
+  const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
   const canUseCredentialSets = supportsCredentialSets && hasTeamPlan && !!activeOrganization?.id
 
   const { data: credentialSets = [] } = useCredentialSets(
@@ -157,7 +155,6 @@ export function CredentialSelector({
   const displayValue = isEditing ? editingValue : resolvedLabel
 
   useCredentialRefreshTriggers(refetchCredentials, effectiveProviderId, workspaceId)
-  const { navigateToSettings } = useSettingsNavigation()
 
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
@@ -199,21 +196,8 @@ export function CredentialSelector({
   )
 
   const handleAddCredential = useCallback(() => {
-    writePendingCredentialCreateRequest({
-      workspaceId,
-      type: 'oauth',
-      providerId: effectiveProviderId,
-      displayName: '',
-      serviceId,
-      requiredScopes: getCanonicalScopesForProvider(effectiveProviderId),
-      requestedAt: Date.now(),
-      returnOrigin: activeWorkflowId
-        ? { type: 'workflow', workflowId: activeWorkflowId }
-        : undefined,
-    })
-
-    navigateToSettings({ section: 'integrations' })
-  }, [workspaceId, effectiveProviderId, serviceId, activeWorkflowId])
+    setShowOAuthModal(true)
+  }, [])
 
   const getProviderIcon = useCallback((providerName: OAuthProvider) => {
     const { baseProvider } = parseProvider(providerName)

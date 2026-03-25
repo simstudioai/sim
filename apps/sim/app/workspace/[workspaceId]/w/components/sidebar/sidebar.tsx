@@ -33,6 +33,7 @@ import {
   Settings,
   Sim,
   Table,
+  Wordmark,
 } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
@@ -1024,7 +1025,7 @@ export const Sidebar = memo(function Sidebar() {
                 ) : (
                   <Link
                     href={`/workspace/${workspaceId}/home`}
-                    className='flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover:bg-[var(--surface-active)]'
+                    className='flex h-[30px] items-center rounded-[8px] px-[6px] hover:bg-[var(--surface-active)]'
                   >
                     {brand.logoUrl ? (
                       <Image
@@ -1036,7 +1037,7 @@ export const Sidebar = memo(function Sidebar() {
                         unoptimized
                       />
                     ) : (
-                      <Sim className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+                      <Wordmark className='h-[16px] w-auto text-[var(--text-body)]' />
                     )}
                   </Link>
                 )}
