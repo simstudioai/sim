@@ -415,6 +415,9 @@ export function useChat(
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
   messageQueueRef.current = messageQueue
+  const [pendingRecoveryMessage, setPendingRecoveryMessage] = useState<QueuedMessage | null>(null)
+  const pendingRecoveryMessageRef = useRef<QueuedMessage | null>(null)
+  pendingRecoveryMessageRef.current = pendingRecoveryMessage
 
   const sendMessageRef = useRef<UseChatReturn['sendMessage']>(async () => {})
   const processSSEStreamRef = useRef<
@@ -1530,6 +1533,16 @@ export function useChat(
 
   const messagesRef = useRef(messages)
   messagesRef.current = messages
+  const visibleMessageQueue = useMemo(
+    () =>
+      pendingRecoveryMessage
+        ? [
+            pendingRecoveryMessage,
+            ...messageQueue.filter((msg) => msg.id !== pendingRecoveryMessage.id),
+          ]
+        : messageQueue,
+    [messageQueue, pendingRecoveryMessage]
+  )
 
   const finalize = useCallback(
     (options?: { error?: boolean }) => {
@@ -1547,6 +1560,21 @@ export function useChat(
 
       if (options?.error) {
         setMessageQueue([])
+        return
+      }
+
+      const recoveryMessage = pendingRecoveryMessageRef.current
+      if (recoveryMessage) {
+        setPendingRecoveryMessage(null)
+        const gen = streamGenRef.current
+        queueMicrotask(() => {
+          if (streamGenRef.current !== gen) return
+          sendMessageRef.current(
+            recoveryMessage.content,
+            recoveryMessage.fileAttachments,
+            recoveryMessage.contexts
+          )
+        })
         return
       }
 
@@ -1758,9 +1786,7 @@ export function useChat(
             fileAttachments,
             contexts,
           }
-          const nextQueue = [...messageQueueRef.current, queuedMessage]
-          messageQueueRef.current = nextQueue
-          setMessageQueue(nextQueue)
+          setPendingRecoveryMessage(queuedMessage)
 
           try {
             const pendingRecovery = await preparePendingStreamRecovery(requestChatId)
@@ -1919,24 +1945,47 @@ export function useChat(
   }, [invalidateChatQueries, persistPartialResponse, executionStream])
 
   const removeFromQueue = useCallback((id: string) => {
+    if (pendingRecoveryMessageRef.current?.id === id) {
+      pendingRecoveryMessageRef.current = null
+      setPendingRecoveryMessage(null)
+      return
+    }
     messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
     setMessageQueue((prev) => prev.filter((m) => m.id !== id))
   }, [])
 
   const sendNow = useCallback(
     async (id: string) => {
-      const msg = messageQueueRef.current.find((m) => m.id === id)
+      const recoveryMessage = pendingRecoveryMessageRef.current
+      const msg =
+        recoveryMessage?.id === id
+          ? recoveryMessage
+          : messageQueueRef.current.find((m) => m.id === id)
       if (!msg) return
       // Eagerly update ref so a rapid second click finds the message already gone
-      messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
+      if (recoveryMessage?.id === id) {
+        pendingRecoveryMessageRef.current = null
+        setPendingRecoveryMessage(null)
+      } else {
+        messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
+      }
       await stopGeneration()
-      setMessageQueue((prev) => prev.filter((m) => m.id !== id))
+      if (recoveryMessage?.id !== id) {
+        setMessageQueue((prev) => prev.filter((m) => m.id !== id))
+      }
       await sendMessage(msg.content, msg.fileAttachments, msg.contexts)
     },
     [stopGeneration, sendMessage]
   )
 
   const editQueuedMessage = useCallback((id: string): QueuedMessage | undefined => {
+    const recoveryMessage = pendingRecoveryMessageRef.current
+    if (recoveryMessage?.id === id) {
+      pendingRecoveryMessageRef.current = null
+      setPendingRecoveryMessage(null)
+      return recoveryMessage
+    }
+
     const msg = messageQueueRef.current.find((m) => m.id === id)
     if (!msg) return undefined
     messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
@@ -1952,6 +2001,7 @@ export function useChat(
       sendingRef.current = false
       lastEventIdRef.current = 0
       clientExecutionStartedRef.current.clear()
+      pendingRecoveryMessageRef.current = null
     }
   }, [])
 
@@ -1969,7 +2019,7 @@ export function useChat(
     addResource,
     removeResource,
     reorderResources,
-    messageQueue,
+    messageQueue: visibleMessageQueue,
     removeFromQueue,
     sendNow,
     editQueuedMessage,
