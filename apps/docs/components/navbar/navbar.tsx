@@ -39,7 +39,7 @@ export function Navbar() {
           }}
         >
           <Link href='/' className='flex min-w-[100px] items-center'>
-            <SimLogoFull className='h-7 w-auto' />
+            <SimLogoFull className='h-6 w-auto' />
           </Link>
 
           <div className='-translate-x-1/2 absolute left-1/2 flex items-center justify-center'>
