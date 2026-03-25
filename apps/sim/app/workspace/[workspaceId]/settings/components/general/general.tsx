@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Camera, Check, Pencil } from 'lucide-react'
+import { Camera, Check, Info, Pencil } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
@@ -376,20 +376,22 @@ export function General() {
       </div>
 
       <div className='flex items-center justify-between'>
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Label htmlFor='auto-connect' className='cursor-help'>
-              Auto-connect on drop
-            </Label>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='bottom' align='start'>
-            <p>Automatically connect blocks when dropped near each other</p>
-            <Tooltip.Preview
-              src='/tooltips/auto-connect-on-drop.mp4'
-              alt='Auto-connect on drop example'
-            />
-          </Tooltip.Content>
-        </Tooltip.Root>
+        <div className='flex items-center gap-[6px]'>
+          <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Info className='h-[14px] w-[14px] cursor-help text-[var(--text-muted)]' />
+            </Tooltip.Trigger>
+            <Tooltip.Content side='bottom' align='start'>
+              <p>Automatically connect blocks when dropped near each other</p>
+              <Tooltip.Preview
+                src='/tooltips/auto-connect-on-drop.mp4'
+                alt='Auto-connect on drop example'
+                loop={false}
+              />
+            </Tooltip.Content>
+          </Tooltip.Root>
+        </div>
         <Switch
           id='auto-connect'
           checked={settings?.autoConnect ?? true}
@@ -398,20 +400,21 @@ export function General() {
       </div>
 
       <div className='flex items-center justify-between'>
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Label htmlFor='error-notifications' className='cursor-help'>
-              Canvas error notifications
-            </Label>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='bottom' align='start'>
-            <p>Show error popups on blocks when a workflow run fails</p>
-            <Tooltip.Preview
-              src='/tooltips/canvas-error-notification.mp4'
-              alt='Canvas error notification example'
-            />
-          </Tooltip.Content>
-        </Tooltip.Root>
+        <div className='flex items-center gap-[6px]'>
+          <Label htmlFor='error-notifications'>Canvas error notifications</Label>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Info className='h-[14px] w-[14px] cursor-help text-[var(--text-muted)]' />
+            </Tooltip.Trigger>
+            <Tooltip.Content side='bottom' align='start'>
+              <p>Show error popups on blocks when a workflow run fails</p>
+              <Tooltip.Preview
+                src='/tooltips/canvas-error-notification.mp4'
+                alt='Canvas error notification example'
+              />
+            </Tooltip.Content>
+          </Tooltip.Root>
+        </div>
         <Switch
           id='error-notifications'
           checked={settings?.errorNotificationsEnabled ?? true}

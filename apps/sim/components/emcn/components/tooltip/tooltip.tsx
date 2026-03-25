@@ -98,6 +98,8 @@ interface PreviewProps {
   width?: number
   /** Height of the preview in pixels */
   height?: number
+  /** Whether video should loop */
+  loop?: boolean
   /** Optional additional class names */
   className?: string
 }
@@ -115,20 +117,22 @@ const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.ogg', '.mov'] as const
  * </Tooltip.Content>
  * ```
  */
-const Preview = ({ src, alt = '', width = 240, height, className }: PreviewProps) => {
+const Preview = ({ src, alt = '', width = 240, height, loop = true, className }: PreviewProps) => {
   const pathname = src.toLowerCase().split('?')[0].split('#')[0]
   const isVideo = VIDEO_EXTENSIONS.some((ext) => pathname.endsWith(ext))
 
   return (
-    <div className={cn('mt-[4px] overflow-hidden rounded-[3px]', className)}>
+    <div
+      className={cn('-mx-[8px] -mb-[3.5px] mt-[4px] overflow-hidden rounded-b-[4px]', className)}
+    >
       {isVideo ? (
         <video
           src={src}
           width={width}
           height={height}
-          className='block max-w-full'
+          className='block w-full'
           autoPlay
-          loop
+          loop={loop}
           muted
           playsInline
           preload='none'
@@ -140,7 +144,7 @@ const Preview = ({ src, alt = '', width = 240, height, className }: PreviewProps
           alt={alt}
           width={width}
           height={height}
-          className='block max-w-full'
+          className='block w-full'
           loading='lazy'
         />
       )}

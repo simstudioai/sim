@@ -1,6 +1,7 @@
 'use client'
 
 import type * as React from 'react'
+import { type RefObject, useRef } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { X } from 'lucide-react'
 import { createPortal } from 'react-dom'
@@ -67,8 +68,13 @@ function TourCard({
           {step} / {totalSteps}
         </span>
         <div className='flex items-center gap-[6px]'>
-          <div className={cn(isFirst && 'pointer-events-none opacity-0')}>
-            <Button variant='default' size='sm' onClick={onBack}>
+          <div className={cn(isFirst && 'invisible')}>
+            <Button
+              variant='default'
+              size='sm'
+              onClick={onBack}
+              tabIndex={isFirst ? -1 : undefined}
+            >
               Back
             </Button>
           </div>
@@ -141,6 +147,9 @@ function TourTooltip({
   onClose,
   className,
 }: TourTooltipProps) {
+  const virtualRef = useRef<HTMLElement | null>(null)
+  virtualRef.current = targetEl
+
   if (typeof document === 'undefined') return null
   if (!isVisible) return null
 
@@ -186,7 +195,7 @@ function TourTooltip({
 
   return createPortal(
     <PopoverPrimitive.Root open>
-      <PopoverPrimitive.Anchor virtualRef={{ current: targetEl }} />
+      <PopoverPrimitive.Anchor virtualRef={virtualRef as RefObject<HTMLElement>} />
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
           side={PLACEMENT_TO_SIDE[placement] || 'bottom'}

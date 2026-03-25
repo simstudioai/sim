@@ -66,6 +66,13 @@ function clearTourCompletion(storageKey: string): void {
 }
 
 /**
+ * Tracks which tours have already attempted auto-start in this page session.
+ * Module-level so it survives component remounts (e.g. navigating between
+ * workflows remounts WorkflowTour), while still resetting on full page reload.
+ */
+const autoStartAttempted = new Set<string>()
+
+/**
  * Shared hook for managing product tour state with smooth transitions.
  *
  * Handles auto-start on first visit, localStorage persistence,
@@ -87,16 +94,51 @@ export function useTour({
   const [isTooltipVisible, setIsTooltipVisible] = useState(true)
   const [isEntrance, setIsEntrance] = useState(true)
 
-  const hasAutoStarted = useRef(false)
+  const disabledRef = useRef(disabled)
   const retriggerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rafRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    disabledRef.current = disabled
+  }, [disabled])
+
+  /**
+   * Schedules a two-frame rAF to reveal the tooltip after the browser
+   * finishes repositioning. Stores the outer frame ID in `rafRef` so
+   * it can be cancelled on unmount or when the tour is interrupted.
+   */
+  const scheduleReveal = useCallback(() => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+    }
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null
+        setIsTooltipVisible(true)
+      })
+    })
+  }, [])
+
+  /** Cancels any pending transition timer and rAF reveal */
+  const cancelPendingTransitions = useCallback(() => {
+    if (transitionTimerRef.current) {
+      clearTimeout(transitionTimerRef.current)
+      transitionTimerRef.current = null
+    }
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+  }, [])
 
   const stopTour = useCallback(() => {
+    cancelPendingTransitions()
     setRun(false)
     setIsTooltipVisible(true)
     setIsEntrance(true)
     markTourCompleted(storageKey)
-  }, [storageKey])
+  }, [storageKey, cancelPendingTransitions])
 
   /** Transition to a new step with a coordinated fade-out/fade-in */
   const transitionToStep = useCallback(
@@ -106,65 +148,48 @@ export function useTour({
         return
       }
 
-      /** Hide tooltip during transition */
       setIsTooltipVisible(false)
-
-      if (transitionTimerRef.current) {
-        clearTimeout(transitionTimerRef.current)
-      }
+      cancelPendingTransitions()
 
       transitionTimerRef.current = setTimeout(() => {
         transitionTimerRef.current = null
         setStepIndex(newIndex)
         setIsEntrance(false)
-
-        /**
-         * Wait for the browser to process the Radix Popover repositioning
-         * before showing the tooltip at the new position.
-         */
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            setIsTooltipVisible(true)
-          })
-        })
+        scheduleReveal()
       }, FADE_OUT_MS)
     },
-    [steps.length, stopTour]
+    [steps.length, stopTour, cancelPendingTransitions, scheduleReveal]
   )
 
   /** Stop the tour when disabled becomes true (e.g. navigating away from the relevant page) */
   useEffect(() => {
     if (disabled && run) {
+      cancelPendingTransitions()
       setRun(false)
       setIsTooltipVisible(true)
       setIsEntrance(true)
       logger.info(`${tourName} paused — disabled became true`)
     }
-  }, [disabled, run, tourName])
+  }, [disabled, run, tourName, cancelPendingTransitions])
 
-  /** Auto-start on first visit */
+  /** Auto-start on first visit (once per page session per tour) */
   useEffect(() => {
-    if (disabled || hasAutoStarted.current) return
+    if (disabled || autoStartAttempted.has(storageKey) || isTourCompleted(storageKey)) return
 
     const timer = setTimeout(() => {
-      hasAutoStarted.current = true
-      if (!isTourCompleted(storageKey)) {
-        setStepIndex(0)
-        setIsEntrance(true)
-        setIsTooltipVisible(false)
-        setRun(true)
-        logger.info(`Auto-starting ${tourName}`)
+      if (disabledRef.current) return
 
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            setIsTooltipVisible(true)
-          })
-        })
-      }
+      autoStartAttempted.add(storageKey)
+      setStepIndex(0)
+      setIsEntrance(true)
+      setIsTooltipVisible(false)
+      setRun(true)
+      logger.info(`Auto-starting ${tourName}`)
+      scheduleReveal()
     }, autoStartDelay)
 
     return () => clearTimeout(timer)
-  }, [storageKey, autoStartDelay, tourName, disabled])
+  }, [disabled, storageKey, autoStartDelay, tourName, scheduleReveal])
 
   /** Listen for manual trigger events */
   useEffect(() => {
@@ -179,11 +204,6 @@ export function useTour({
         clearTimeout(retriggerTimerRef.current)
       }
 
-      /**
-       * Start with the tooltip hidden so Joyride can mount, find the
-       * target element, and position its overlay/spotlight before the
-       * tooltip card appears.
-       */
       retriggerTimerRef.current = setTimeout(() => {
         retriggerTimerRef.current = null
         setStepIndex(0)
@@ -191,12 +211,7 @@ export function useTour({
         setIsTooltipVisible(false)
         setRun(true)
         logger.info(`${tourName} triggered via event`)
-
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            setIsTooltipVisible(true)
-          })
-        })
+        scheduleReveal()
       }, 50)
     }
 
@@ -207,15 +222,17 @@ export function useTour({
         clearTimeout(retriggerTimerRef.current)
       }
     }
-  }, [triggerEvent, resettable, storageKey, tourName])
+  }, [triggerEvent, resettable, storageKey, tourName, scheduleReveal])
 
+  /** Clean up all pending async work on unmount */
   useEffect(() => {
     return () => {
-      if (transitionTimerRef.current) {
-        clearTimeout(transitionTimerRef.current)
+      cancelPendingTransitions()
+      if (retriggerTimerRef.current) {
+        clearTimeout(retriggerTimerRef.current)
       }
     }
-  }, [])
+  }, [cancelPendingTransitions])
 
   const handleCallback = useCallback(
     (data: CallBackProps) => {

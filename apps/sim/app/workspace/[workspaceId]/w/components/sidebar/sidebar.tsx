@@ -215,6 +215,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
     <Link
       href={item.href}
       data-item-id={item.id}
+      data-tour={`nav-${item.id}`}
       className={`${baseClasses} ${activeClasses}`}
       onClick={
         item.onClick
@@ -233,6 +234,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
     <button
       type='button'
       data-item-id={item.id}
+      data-tour={`nav-${item.id}`}
       className={`${baseClasses} ${activeClasses}`}
       onClick={item.onClick}
     >
@@ -1139,7 +1141,7 @@ export const Sidebar = memo(function Sidebar() {
                 )}
               >
                 {/* Tasks */}
-                <div className='tasks-section flex flex-shrink-0 flex-col'>
+                <div className='tasks-section flex flex-shrink-0 flex-col' data-tour='nav-tasks'>
                   <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-[16px]'>
                     <div className='font-base text-[var(--text-icon)] text-small'>All tasks</div>
                     {!isCollapsed && (
@@ -1253,7 +1255,10 @@ export const Sidebar = memo(function Sidebar() {
                 </div>
 
                 {/* Workflows */}
-                <div className='workflows-section relative mt-[14px] flex flex-col'>
+                <div
+                  className='workflows-section relative mt-[14px] flex flex-col'
+                  data-tour='nav-workflows'
+                >
                   <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-[16px]'>
                     <div className='font-base text-[var(--text-icon)] text-small'>Workflows</div>
                     {!isCollapsed && (
