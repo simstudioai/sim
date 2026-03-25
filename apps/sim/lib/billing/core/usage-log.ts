@@ -86,15 +86,22 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
 
   // Filter to entries with positive cost and derive total
   const validEntries = entries.filter((e) => e.cost > 0)
-  if (validEntries.length === 0) {
+  const totalCost = validEntries.reduce((sum, e) => sum + e.cost, 0)
+
+  // Nothing to write: no cost entries and no counter increments
+  if (validEntries.length === 0 && !additionalStats) {
     return
   }
 
-  const totalCost = validEntries.reduce((sum, e) => sum + e.cost, 0)
+  // Keys managed by recordUsage — callers must not override these via additionalStats
+  const RESERVED_KEYS = new Set(['totalCost', 'currentPeriodCost', 'lastActive'])
+  const safeStats = additionalStats
+    ? Object.fromEntries(Object.entries(additionalStats).filter(([k]) => !RESERVED_KEYS.has(k)))
+    : undefined
 
-  try {
-    await db.transaction(async (tx) => {
-      // Step 1: Insert all usage_log entries
+  await db.transaction(async (tx) => {
+    // Step 1: Insert usage_log entries (only if there are positive-cost entries)
+    if (validEntries.length > 0) {
       await tx.insert(usageLog).values(
         validEntries.map((entry) => ({
           id: crypto.randomUUID(),
@@ -109,48 +116,39 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
           executionId: executionId ?? null,
         }))
       )
+    }
 
-      // Step 2: Update userStats — core billing fields derived from entries
-      const updateFields: Record<string, SQL | Date> = {
+    // Step 2: Update userStats — core billing fields + source-specific counters
+    const updateFields: Record<string, SQL | Date> = {
+      lastActive: new Date(),
+      ...(totalCost > 0 && {
         totalCost: sql`total_cost + ${totalCost}`,
         currentPeriodCost: sql`current_period_cost + ${totalCost}`,
-        lastActive: new Date(),
-        // Merge any source-specific counter increments from the caller
-        ...additionalStats,
-      }
+      }),
+      ...safeStats,
+    }
 
-      const result = await tx
-        .update(userStats)
-        .set(updateFields)
-        .where(eq(userStats.userId, userId))
-        .returning({ userId: userStats.userId })
+    const result = await tx
+      .update(userStats)
+      .set(updateFields)
+      .where(eq(userStats.userId, userId))
+      .returning({ userId: userStats.userId })
 
-      if (result.length === 0) {
-        logger.warn('recordUsage: userStats row not found, usage_log entries will roll back', {
-          userId,
-          totalCost,
-        })
-        throw new Error(`userStats row not found for userId: ${userId}`)
-      }
-    })
+    if (result.length === 0) {
+      logger.warn('recordUsage: userStats row not found, transaction will roll back', {
+        userId,
+        totalCost,
+      })
+      throw new Error(`userStats row not found for userId: ${userId}`)
+    }
+  })
 
-    logger.debug('Recorded usage', {
-      userId,
-      totalCost,
-      entryCount: validEntries.length,
-      sources: [...new Set(validEntries.map((e) => e.source))],
-    })
-  } catch (error) {
-    logger.error('Failed to record usage', {
-      error: error instanceof Error ? error.message : String(error),
-      userId,
-      totalCost,
-      entryCount: validEntries.length,
-    })
-    // Don't throw — the caller (execution logger, wand, copilot) decides whether to retry.
-    // Critically, the transaction ensures we never have a state where currentPeriodCost
-    // is incremented without corresponding usage_log entries.
-  }
+  logger.debug('Recorded usage', {
+    userId,
+    totalCost,
+    entryCount: validEntries.length,
+    sources: [...new Set(validEntries.map((e) => e.source))],
+  })
 }
 
 /**
