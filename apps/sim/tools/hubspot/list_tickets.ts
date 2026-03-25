@@ -1,14 +1,17 @@
 import { createLogger } from '@sim/logger'
-import type { HubSpotListDealsParams, HubSpotListDealsResponse } from '@/tools/hubspot/types'
-import { DEALS_ARRAY_OUTPUT, METADATA_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
+import type { HubSpotListTicketsParams, HubSpotListTicketsResponse } from '@/tools/hubspot/types'
+import { METADATA_OUTPUT, PAGING_OUTPUT, TICKETS_ARRAY_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('HubSpotListDeals')
+const logger = createLogger('HubSpotListTickets')
 
-export const hubspotListDealsTool: ToolConfig<HubSpotListDealsParams, HubSpotListDealsResponse> = {
-  id: 'hubspot_list_deals',
-  name: 'List Deals from HubSpot',
-  description: 'Retrieve all deals from HubSpot account with pagination support',
+export const hubspotListTicketsTool: ToolConfig<
+  HubSpotListTicketsParams,
+  HubSpotListTicketsResponse
+> = {
+  id: 'hubspot_list_tickets',
+  name: 'List Tickets from HubSpot',
+  description: 'Retrieve all tickets from HubSpot account with pagination support',
   version: '1.0.0',
 
   oauth: {
@@ -40,7 +43,7 @@ export const hubspotListDealsTool: ToolConfig<HubSpotListDealsParams, HubSpotLis
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of HubSpot property names to return (e.g., "dealname,amount,dealstage")',
+        'Comma-separated list of HubSpot property names to return (e.g., "subject,content,hs_ticket_priority")',
     },
     associations: {
       type: 'string',
@@ -53,22 +56,12 @@ export const hubspotListDealsTool: ToolConfig<HubSpotListDealsParams, HubSpotLis
 
   request: {
     url: (params) => {
-      const baseUrl = 'https://api.hubapi.com/crm/v3/objects/deals'
+      const baseUrl = 'https://api.hubapi.com/crm/v3/objects/tickets'
       const queryParams = new URLSearchParams()
-
-      if (params.limit) {
-        queryParams.append('limit', params.limit)
-      }
-      if (params.after) {
-        queryParams.append('after', params.after)
-      }
-      if (params.properties) {
-        queryParams.append('properties', params.properties)
-      }
-      if (params.associations) {
-        queryParams.append('associations', params.associations)
-      }
-
+      if (params.limit) queryParams.append('limit', params.limit)
+      if (params.after) queryParams.append('after', params.after)
+      if (params.properties) queryParams.append('properties', params.properties)
+      if (params.associations) queryParams.append('associations', params.associations)
       const queryString = queryParams.toString()
       return queryString ? `${baseUrl}?${queryString}` : baseUrl
     },
@@ -77,7 +70,6 @@ export const hubspotListDealsTool: ToolConfig<HubSpotListDealsParams, HubSpotLis
       if (!params.accessToken) {
         throw new Error('Access token is required')
       }
-
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
@@ -87,16 +79,14 @@ export const hubspotListDealsTool: ToolConfig<HubSpotListDealsParams, HubSpotLis
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
     if (!response.ok) {
       logger.error('HubSpot API request failed', { data, status: response.status })
-      throw new Error(data.message || 'Failed to list deals from HubSpot')
+      throw new Error(data.message || 'Failed to list tickets from HubSpot')
     }
-
     return {
       success: true,
       output: {
-        deals: data.results || [],
+        tickets: data.results || [],
         paging: data.paging ?? null,
         metadata: {
           totalReturned: data.results?.length || 0,
@@ -108,7 +98,7 @@ export const hubspotListDealsTool: ToolConfig<HubSpotListDealsParams, HubSpotLis
   },
 
   outputs: {
-    deals: DEALS_ARRAY_OUTPUT,
+    tickets: TICKETS_ARRAY_OUTPUT,
     paging: PAGING_OUTPUT,
     metadata: METADATA_OUTPUT,
     success: { type: 'boolean', description: 'Operation success status' },

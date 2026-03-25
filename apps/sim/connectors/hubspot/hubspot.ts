@@ -185,7 +185,7 @@ export const hubspotConnector: ConnectorConfig = {
       'crm.objects.contacts.read',
       'crm.objects.companies.read',
       'crm.objects.deals.read',
-      'crm.objects.tickets.read',
+      'tickets',
     ],
   },
 
