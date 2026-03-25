@@ -155,11 +155,13 @@ export function extractResourcesFromToolResult(
     case 'knowledge_base': {
       if (READ_ONLY_KB_OPS.has(getOperation(params) ?? '')) return []
 
+      const args = asRecord(params?.args)
       const kbId =
-        (data.id as string) ??
+        (args.knowledgeBaseId as string) ??
+        (params?.knowledgeBaseId as string) ??
         (result.knowledgeBaseId as string) ??
         (data.knowledgeBaseId as string) ??
-        (params?.knowledgeBaseId as string)
+        (data.id as string)
       if (kbId) {
         const kbName =
           (data.name as string) ?? (result.knowledgeBaseName as string) ?? 'Knowledge Base'
