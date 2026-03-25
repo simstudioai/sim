@@ -28,6 +28,7 @@ import {
   deleteTagDefinition,
   getDocumentTagDefinitions,
   getNextAvailableSlot,
+  getTagDefinitionById,
   getTagUsageStats,
   updateTagDefinition,
 } from '@/lib/knowledge/tags/service'
@@ -525,6 +526,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             message: `Tag "${newTag.displayName}" created successfully`,
             data: {
               id: newTag.id,
+              knowledgeBaseId: args.knowledgeBaseId,
               tagSlot: newTag.tagSlot,
               displayName: newTag.displayName,
               fieldType: newTag.fieldType,
@@ -551,12 +553,21 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
+          const existingTag = await getTagDefinitionById(args.tagDefinitionId)
+          if (!existingTag) {
+            return {
+              success: false,
+              message: `Tag definition with ID "${args.tagDefinitionId}" not found`,
+            }
+          }
+
           const requestId = crypto.randomUUID().slice(0, 8)
           assertNotAborted()
           const updatedTag = await updateTagDefinition(args.tagDefinitionId, updateData, requestId)
 
           logger.info('Tag definition updated via copilot', {
             tagId: args.tagDefinitionId,
+            knowledgeBaseId: existingTag.knowledgeBaseId,
             userId: context.userId,
           })
 
@@ -565,6 +576,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             message: `Tag "${updatedTag.displayName}" updated successfully`,
             data: {
               id: updatedTag.id,
+              knowledgeBaseId: existingTag.knowledgeBaseId,
               tagSlot: updatedTag.tagSlot,
               displayName: updatedTag.displayName,
               fieldType: updatedTag.fieldType,
@@ -605,6 +617,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             success: true,
             message: `Tag "${deleted.displayName}" deleted successfully. All document/chunk references cleared.`,
             data: {
+              knowledgeBaseId: args.knowledgeBaseId,
               tagSlot: deleted.tagSlot,
               displayName: deleted.displayName,
             },
