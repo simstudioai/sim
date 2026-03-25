@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import type { TooltipRenderProps } from 'react-joyride'
 import { TourTooltip } from '@/components/emcn'
 
@@ -60,7 +60,6 @@ export function TourTooltipAdapter({
 }: TooltipRenderProps) {
   const { isTooltipVisible, isEntrance, totalSteps } = useContext(TourStateContext)
   const [targetEl, setTargetEl] = useState<HTMLElement | null>(null)
-  const joyrideRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const { target } = step
@@ -76,17 +75,21 @@ export function TourTooltipAdapter({
   /**
    * Forwards the Joyride tooltip ref safely, handling both
    * callback refs and RefObject refs from the library.
+   * Memoized to prevent ref churn (null → node cycling) on re-renders.
    */
-  const setJoyrideRef = (node: HTMLDivElement | null) => {
-    joyrideRef.current = node
-    const { ref } = tooltipProps
-    if (!ref) return
-    if (typeof ref === 'function') {
-      ref(node)
-    } else {
-      ;(ref as React.MutableRefObject<HTMLDivElement | null>).current = node
-    }
-  }
+  const setJoyrideRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      const { ref } = tooltipProps
+      if (!ref) return
+      if (typeof ref === 'function') {
+        ref(node)
+      } else {
+        ;(ref as React.MutableRefObject<HTMLDivElement | null>).current = node
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tooltipProps.ref]
+  )
 
   const placement = mapPlacement(step.placement)
 

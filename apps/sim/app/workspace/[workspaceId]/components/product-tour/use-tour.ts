@@ -174,12 +174,12 @@ export function useTour({
 
   /** Auto-start on first visit (once per page session per tour) */
   useEffect(() => {
-    if (autoStartAttempted.has(storageKey)) return
-    autoStartAttempted.add(storageKey)
+    if (disabled || autoStartAttempted.has(storageKey) || isTourCompleted(storageKey)) return
 
     const timer = setTimeout(() => {
-      if (disabledRef.current || isTourCompleted(storageKey)) return
+      if (disabledRef.current) return
 
+      autoStartAttempted.add(storageKey)
       setStepIndex(0)
       setIsEntrance(true)
       setIsTooltipVisible(false)
@@ -189,8 +189,7 @@ export function useTour({
     }, autoStartDelay)
 
     return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [disabled, storageKey, autoStartDelay, tourName, scheduleReveal])
 
   /** Listen for manual trigger events */
   useEffect(() => {
