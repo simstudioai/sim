@@ -44,6 +44,21 @@ export function AgentGroup({
   const [expanded, setExpanded] = useState(defaultExpanded || !allDone)
   const [mounted, setMounted] = useState(defaultExpanded || !allDone)
   const didAutoCollapseRef = useRef(allDone)
+  const wasAutoExpandedRef = useRef(defaultExpanded)
+
+  useEffect(() => {
+    if (defaultExpanded) {
+      wasAutoExpandedRef.current = true
+      setMounted(true)
+      setExpanded(true)
+      return
+    }
+
+    if (wasAutoExpandedRef.current && allDone) {
+      wasAutoExpandedRef.current = false
+      setExpanded(false)
+    }
+  }, [defaultExpanded, allDone])
 
   useEffect(() => {
     if (!autoCollapse || didAutoCollapseRef.current) return
@@ -65,7 +80,10 @@ export function AgentGroup({
       {hasItems ? (
         <button
           type='button'
-          onClick={() => setExpanded((prev) => !prev)}
+          onClick={() => {
+            wasAutoExpandedRef.current = false
+            setExpanded((prev) => !prev)
+          }}
           className='flex cursor-pointer items-center gap-[8px]'
         >
           <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>

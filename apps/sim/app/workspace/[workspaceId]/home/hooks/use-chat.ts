@@ -8,7 +8,7 @@ import {
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/client-sse/run-tool-execution'
-import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import { COPILOT_CHAT_API_PATH, MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
 import {
   extractResourcesFromToolResult,
   isResourceToolName,
@@ -263,6 +263,29 @@ export interface UseChatOptions {
   onToolResult?: (toolName: string, success: boolean, result: unknown) => void
   onTitleUpdate?: () => void
   onStreamEnd?: (chatId: string, messages: ChatMessage[]) => void
+}
+
+export function getMothershipUseChatOptions(
+  options: Pick<UseChatOptions, 'onResourceEvent' | 'onStreamEnd'> = {}
+): UseChatOptions {
+  return {
+    apiPath: MOTHERSHIP_CHAT_API_PATH,
+    stopPath: '/api/mothership/chat/stop',
+    ...options,
+  }
+}
+
+export function getWorkflowCopilotUseChatOptions(
+  options: Pick<
+    UseChatOptions,
+    'workflowId' | 'onToolResult' | 'onTitleUpdate' | 'onStreamEnd'
+  > = {}
+): UseChatOptions {
+  return {
+    apiPath: COPILOT_CHAT_API_PATH,
+    stopPath: '/api/mothership/chat/stop',
+    ...options,
+  }
 }
 
 export function useChat(
