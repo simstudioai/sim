@@ -36,6 +36,7 @@ import {
 } from '@/executor/types'
 import { streamingResponseFormatProcessor } from '@/executor/utils'
 import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
+import { withRetry } from '@/executor/utils/retry'
 import {
   buildUnifiedParentIterations,
   getIterationContext,
@@ -120,9 +121,11 @@ export class BlockExecutor {
     cleanupSelfReference?.()
 
     try {
-      const output = handler.executeWithNode
-        ? await handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
-        : await handler.execute(ctx, block, resolvedInputs)
+      const output = await withRetry(
+        () => handler.executeWithNode
+          ? handler.executeWithNode(ctx, block, resolvedInputs, nodeMetadata)
+          : handler.execute(ctx, block, resolvedInputs)
+      )
 
       const isStreamingExecution =
         output && typeof output === 'object' && 'stream' in output && 'execution' in output
