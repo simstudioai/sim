@@ -7,6 +7,7 @@ import { generateUnsubscribeToken, isUnsubscribed } from '@/lib/messaging/email/
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 
 const logger = createLogger('Mailer')
+const EMAIL_HEADER_CONTROL_CHARS_REGEX = /[\r\n]/
 
 export type EmailType = 'transactional' | 'marketing' | 'updates' | 'notifications'
 
@@ -55,6 +56,21 @@ interface ProcessedEmailData {
   headers: Record<string, string>
   attachments?: EmailAttachment[]
   replyTo?: string
+}
+
+interface PreparedEmailHeaderData {
+  to: string | string[]
+  subject: string
+  senderEmail: string
+  replyTo?: string
+}
+
+function hasEmailHeaderControlChars(value: string): boolean {
+  return EMAIL_HEADER_CONTROL_CHARS_REGEX.test(value)
+}
+
+function sanitizeEmailSubject(subject: string): string {
+  return subject.replace(/[\r\n]+/g, ' ').trim()
 }
 
 const resendApiKey = env.RESEND_API_KEY
@@ -172,17 +188,14 @@ function addUnsubscribeData(
 async function processEmailData(options: EmailOptions): Promise<ProcessedEmailData> {
   const {
     to,
-    subject,
     html,
     text,
-    from,
     emailType = 'transactional',
     includeUnsubscribe = true,
     attachments,
-    replyTo,
   } = options
 
-  const senderEmail = from || getFromEmailAddress()
+  const preparedHeaders = prepareEmailHeaders(options)
 
   let finalHtml = html
   let finalText = text
@@ -197,14 +210,43 @@ async function processEmailData(options: EmailOptions): Promise<ProcessedEmailDa
   }
 
   return {
-    to,
-    subject,
+    to: preparedHeaders.to,
+    subject: preparedHeaders.subject,
     html: finalHtml,
     text: finalText,
-    senderEmail,
+    senderEmail: preparedHeaders.senderEmail,
     headers,
     attachments,
-    replyTo,
+    replyTo: preparedHeaders.replyTo,
+  }
+}
+
+function prepareEmailHeaders(options: EmailOptions): PreparedEmailHeaderData {
+  const senderEmail = options.from || getFromEmailAddress()
+  const recipients = Array.isArray(options.to) ? options.to : [options.to]
+
+  if (recipients.some(hasEmailHeaderControlChars)) {
+    throw new Error('Invalid recipient email header')
+  }
+
+  if (hasEmailHeaderControlChars(senderEmail)) {
+    throw new Error('Invalid from email header')
+  }
+
+  if (options.replyTo && hasEmailHeaderControlChars(options.replyTo)) {
+    throw new Error('Invalid reply-to email header')
+  }
+
+  const subject = sanitizeEmailSubject(options.subject)
+  if (subject.length === 0) {
+    throw new Error('Email subject cannot be empty')
+  }
+
+  return {
+    to: options.to,
+    subject,
+    senderEmail,
+    replyTo: options.replyTo,
   }
 }
 
@@ -359,11 +401,11 @@ async function sendBatchWithResend(emails: EmailOptions[]): Promise<BatchSendEma
       }
     }
 
-    const senderEmail = email.from || getFromEmailAddress()
+    const preparedHeaders = prepareEmailHeaders(email)
     const emailData: any = {
-      from: senderEmail,
-      to: email.to,
-      subject: email.subject,
+      from: preparedHeaders.senderEmail,
+      to: preparedHeaders.to,
+      subject: preparedHeaders.subject,
     }
 
     if (includeUnsubscribe && emailType !== 'transactional') {

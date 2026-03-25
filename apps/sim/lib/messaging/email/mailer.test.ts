@@ -175,6 +175,34 @@ describe('mailer', () => {
       expect(result.success).toBe(true)
     })
 
+    it('should sanitize CRLF characters in subjects before sending', async () => {
+      const result = await sendEmail({
+        to: 'test@example.com',
+        subject: 'Hello\r\nBcc: attacker@evil.com',
+        text: 'Plain text content',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subject: 'Hello Bcc: attacker@evil.com',
+        })
+      )
+    })
+
+    it('should reject reply-to values containing header control characters', async () => {
+      const result = await sendEmail({
+        to: 'test@example.com',
+        subject: 'Test Subject',
+        text: 'Plain text content',
+        replyTo: 'user@example.com\r\nBcc: attacker@evil.com',
+      })
+
+      expect(result.success).toBe(false)
+      expect(result.message).toBe('Failed to send email')
+      expect(mockSend).not.toHaveBeenCalled()
+    })
+
     it('should handle multiple recipients as array', async () => {
       const recipients = ['user1@example.com', 'user2@example.com', 'user3@example.com']
       const result = await sendEmail({
@@ -220,6 +248,23 @@ describe('mailer', () => {
 
       expect(result.success).toBe(true)
       expect(result.results.length).toBeGreaterThanOrEqual(0)
+    })
+
+    it('should sanitize CRLF characters in batch email subjects', async () => {
+      await sendBatchEmails({
+        emails: [
+          {
+            ...testEmailOptions,
+            subject: 'Batch\r\nCc: attacker@evil.com',
+          },
+        ],
+      })
+
+      expect(mockBatchSend).toHaveBeenCalledWith([
+        expect.objectContaining({
+          subject: 'Batch Cc: attacker@evil.com',
+        }),
+      ])
     })
 
     it('should handle transactional emails without unsubscribe check', async () => {

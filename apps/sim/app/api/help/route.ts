@@ -10,9 +10,14 @@ import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 
 const logger = createLogger('HelpAPI')
+const NO_EMAIL_HEADER_CONTROL_CHARS_REGEX = /^[^\r\n]*$/
 
 const helpFormSchema = z.object({
-  subject: z.string().min(1, 'Subject is required'),
+  subject: z
+    .string()
+    .trim()
+    .min(1, 'Subject is required')
+    .regex(NO_EMAIL_HEADER_CONTROL_CHARS_REGEX, 'Invalid characters'),
   message: z.string().min(1, 'Message is required'),
   type: z.enum(['bug', 'feedback', 'feature_request', 'other']),
 })

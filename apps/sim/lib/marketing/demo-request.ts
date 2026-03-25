@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
+const NO_EMAIL_HEADER_CONTROL_CHARS_REGEX = /^[^\r\n]*$/
+
 export const DEMO_REQUEST_REGION_VALUES = [
   'north_america',
   'europe',
@@ -38,8 +40,18 @@ export const DEMO_REQUEST_USER_COUNT_OPTIONS = [
 ] as const
 
 export const demoRequestSchema = z.object({
-  firstName: z.string().trim().min(1, 'First name is required').max(100),
-  lastName: z.string().trim().min(1, 'Last name is required').max(100),
+  firstName: z
+    .string()
+    .trim()
+    .min(1, 'First name is required')
+    .max(100)
+    .regex(NO_EMAIL_HEADER_CONTROL_CHARS_REGEX, 'Invalid characters'),
+  lastName: z
+    .string()
+    .trim()
+    .min(1, 'Last name is required')
+    .max(100)
+    .regex(NO_EMAIL_HEADER_CONTROL_CHARS_REGEX, 'Invalid characters'),
   companyEmail: z
     .string()
     .trim()
