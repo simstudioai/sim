@@ -234,7 +234,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
               <>
                 <Link
                   href='/login'
-                  className='inline-flex h-[30px] items-center rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] text-[var(--landing-text)] text-[13.5px] transition-colors hover:bg-[var(--landing-bg-elevated)]'
+                  className='inline-flex h-[30px] items-center rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] text-[13.5px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
                   aria-label='Log in'
                 >
                   Log in
