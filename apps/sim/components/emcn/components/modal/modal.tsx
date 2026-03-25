@@ -39,7 +39,6 @@
 import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as TabsPrimitive from '@radix-ui/react-tabs'
-import { cva } from 'class-variance-authority'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 import { Button } from '../button/button'
@@ -117,18 +116,6 @@ const MODAL_SIZES = {
 } as const
 
 export type ModalSize = keyof typeof MODAL_SIZES
-
-const modalTitleVariants = cva('min-w-0 text-[var(--text-primary)] leading-none', {
-  variants: {
-    variant: {
-      default: 'font-medium text-base',
-      display: 'font-[430] font-season text-[24px] tracking-[-0.02em]',
-    },
-  },
-  defaultVariants: {
-    variant: 'default',
-  },
-})
 
 export interface ModalContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
@@ -399,7 +386,6 @@ export {
   ModalContent,
   ModalHeader,
   ModalTitle,
-  modalTitleVariants,
   ModalDescription,
   ModalBody,
   ModalTabs,

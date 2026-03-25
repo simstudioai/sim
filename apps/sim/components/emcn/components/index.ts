@@ -78,7 +78,6 @@ export {
   ModalTabsTrigger,
   ModalTitle,
   ModalTrigger,
-  modalTitleVariants,
 } from './modal/modal'
 export {
   Popover,
