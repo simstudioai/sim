@@ -370,7 +370,7 @@ export function Subscription() {
     isTeamAdmin &&
     organizationBillingData?.data
       ? organizationBillingData.data.minimumBillingAmount
-      : getPlanTierDollars(subscription.plan)
+      : getPlanTierCredits(subscription.plan) / CREDIT_MULTIPLIER
 
   const effectiveUsageLimit =
     (subscription.isTeam || subscription.isEnterprise) &&
