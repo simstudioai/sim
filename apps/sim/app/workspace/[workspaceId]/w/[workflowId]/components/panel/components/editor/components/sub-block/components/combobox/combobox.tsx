@@ -136,7 +136,6 @@ export const ComboBox = memo(function ComboBox({
       !fetchOptions ||
       isPreview ||
       disabled ||
-      isLoadingOptions ||
       (!force && hasAttemptedOptionsFetch) ||
       isOptionsFetchInFlightRef.current
     ) {
@@ -164,7 +163,6 @@ export const ComboBox = memo(function ComboBox({
     subBlockId,
     isPreview,
     disabled,
-    isLoadingOptions,
     hasAttemptedOptionsFetch,
   ])
 

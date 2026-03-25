@@ -1,21 +1,10 @@
 import type { BlockConfig } from '@/blocks/types'
 import { OpenCodeIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { coerceOpenCodeBoolean } from '@/lib/opencode/utils'
 import type { OpenCodePromptResponse } from '@/tools/opencode/types'
 
 const isOpenCodeEnabled = isTruthy(getEnv('NEXT_PUBLIC_OPENCODE_ENABLED'))
-
-function coerceBoolean(value: unknown): boolean {
-  if (typeof value === 'boolean') {
-    return value
-  }
-
-  if (typeof value === 'string') {
-    return value.toLowerCase() === 'true'
-  }
-
-  return false
-}
 
 function getOptionalString(value: unknown): string | undefined {
   if (typeof value !== 'string') {
@@ -230,7 +219,7 @@ export const OpenCodeBlock: BlockConfig<OpenCodePromptResponse> = {
         modelId: params.modelId,
         ...(getOptionalString(params.agent) ? { agent: getOptionalString(params.agent) } : {}),
         prompt: params.prompt,
-        newThread: coerceBoolean(params.newThread),
+        newThread: coerceOpenCodeBoolean(params.newThread),
       }),
     },
   },

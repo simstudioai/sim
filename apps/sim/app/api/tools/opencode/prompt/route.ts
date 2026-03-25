@@ -14,6 +14,7 @@ import {
   shouldRetryWithFreshOpenCodeSession,
   storeOpenCodeSession,
 } from '@/lib/opencode/service'
+import { coerceOpenCodeBoolean } from '@/lib/opencode/utils'
 
 const logger = createLogger('OpenCodePromptToolAPI')
 
@@ -43,18 +44,6 @@ const OpenCodePromptSchema = z.object({
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-
-function coerceBoolean(value: boolean | string | undefined): boolean {
-  if (typeof value === 'boolean') {
-    return value
-  }
-
-  if (typeof value === 'string') {
-    return value.toLowerCase() === 'true'
-  }
-
-  return false
-}
 
 function getSessionOwnerKey(params: z.infer<typeof OpenCodePromptSchema>): string {
   if (params._context?.userId) {
@@ -145,7 +134,7 @@ export async function POST(request: NextRequest) {
     const modelId = body.modelId.trim()
     const sessionOwnerKey = getSessionOwnerKey(body)
     const memoryKey = buildOpenCodeSessionMemoryKey(workflowId, sessionOwnerKey)
-    const newThread = coerceBoolean(body.newThread)
+    const newThread = coerceOpenCodeBoolean(body.newThread)
     const storedThread = newThread ? null : await getStoredOpenCodeSession(workspaceId, memoryKey)
     let threadId =
       storedThread && storedThread.repository === repositoryId

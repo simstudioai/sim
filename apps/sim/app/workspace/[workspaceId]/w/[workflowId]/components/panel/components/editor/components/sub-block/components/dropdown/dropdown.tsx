@@ -161,7 +161,6 @@ export const Dropdown = memo(function Dropdown({
       !fetchOptions ||
       isPreview ||
       disabled ||
-      isLoadingOptions ||
       (!force && hasAttemptedOptionsFetch) ||
       isOptionsFetchInFlightRef.current
     ) {
@@ -189,7 +188,6 @@ export const Dropdown = memo(function Dropdown({
     subBlockId,
     isPreview,
     disabled,
-    isLoadingOptions,
     hasAttemptedOptionsFetch,
   ])
 
