@@ -42,7 +42,8 @@ export function useDeleteWorkflow({
 }: UseDeleteWorkflowProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { workflows, removeWorkflow } = useWorkflowRegistry()
+  const workflows = useWorkflowRegistry((s) => s.workflows)
+  const removeWorkflow = useWorkflowRegistry((s) => s.removeWorkflow)
   const [isDeleting, setIsDeleting] = useState(false)
 
   /**

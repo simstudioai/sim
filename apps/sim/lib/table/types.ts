@@ -35,6 +35,7 @@ export interface TableSchema {
 /** UI-only metadata stored alongside the table definition. */
 export interface TableMetadata {
   columnWidths?: Record<string, number>
+  columnOrder?: string[]
 }
 
 export interface TableDefinition {

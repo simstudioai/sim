@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -89,6 +89,7 @@ export function useDeploymentInfo(workflowId: string | null, options?: { enabled
     queryFn: ({ signal }) => fetchDeploymentInfo(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -123,6 +124,7 @@ export function useDeployedWorkflowState(
     queryFn: ({ signal }) => fetchDeployedWorkflowState(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -162,6 +164,7 @@ export function useDeploymentVersions(workflowId: string | null, options?: { ena
     queryFn: ({ signal }) => fetchDeploymentVersions(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -209,6 +212,7 @@ export function useChatDeploymentStatus(
     queryFn: ({ signal }) => fetchChatDeploymentStatus(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -256,6 +260,7 @@ export function useChatDetail(chatId: string | null, options?: { enabled?: boole
     queryFn: ({ signal }) => fetchChatDetail(chatId!, signal),
     enabled: Boolean(chatId) && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
+    placeholderData: keepPreviousData,
   })
 }
 

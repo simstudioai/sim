@@ -4,6 +4,7 @@ import { memo, useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Scan } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Button,
   ChevronDown,
@@ -36,7 +37,9 @@ const logger = createLogger('WorkflowControls')
 export const WorkflowControls = memo(function WorkflowControls() {
   const reactFlowInstance = useReactFlow()
   const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
-  const { mode, setMode } = useCanvasModeStore()
+  const { mode, setMode } = useCanvasModeStore(
+    useShallow((s) => ({ mode: s.mode, setMode: s.setMode }))
+  )
   const { undo, redo } = useCollaborativeWorkflow()
   const showWorkflowControls = useShowActionBar()
   const updateSetting = useUpdateGeneralSetting()
@@ -80,13 +83,14 @@ export const WorkflowControls = memo(function WorkflowControls() {
   }
 
   if (!showWorkflowControls) {
-    return null
+    return <div data-tour='workflow-controls' className='hidden' />
   }
 
   return (
     <>
       <div
         className='absolute bottom-[16px] left-[16px] z-10 flex h-[36px] items-center gap-[2px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] p-[4px]'
+        data-tour='workflow-controls'
         onContextMenu={handleContextMenu}
       >
         {/* Canvas Mode Selector */}

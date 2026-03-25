@@ -111,7 +111,7 @@ function buildFAQs(integration: Integration): FAQItem[] {
       ? [
           {
             question: `How do I trigger a Sim workflow from ${name} automatically?`,
-            answer: `In your Sim workflow, switch the ${name} block to Trigger mode and copy the generated webhook URL. Paste that URL into ${name}'s webhook settings and select the events you want to listen for (${triggers.map((t) => t.name).join(', ')}). From that point on, every matching event in ${name} instantly fires your workflow — no polling, no delay.`,
+            answer: `Add a ${name} trigger block to your workflow and copy the generated webhook URL. Paste that URL into ${name}'s webhook settings and select the events you want to listen for (${triggers.map((t) => t.name).join(', ')}). From that point on, every matching event in ${name} instantly fires your workflow — no polling, no delay.`,
           },
           {
             question: `What data does Sim receive when a ${name} event triggers a workflow?`,

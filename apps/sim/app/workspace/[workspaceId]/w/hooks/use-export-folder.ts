@@ -89,8 +89,8 @@ function collectSubfolders(
  * Hook for managing folder export to ZIP.
  */
 export function useExportFolder({ folderId, onSuccess }: UseExportFolderProps) {
-  const { workflows } = useWorkflowRegistry()
-  const { folders } = useFolderStore()
+  const workflows = useWorkflowRegistry((s) => s.workflows)
+  const folders = useFolderStore((s) => s.folders)
   const [isExporting, setIsExporting] = useState(false)
 
   const hasWorkflows = useMemo(() => {

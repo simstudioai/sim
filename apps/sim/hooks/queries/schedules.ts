@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 
@@ -96,6 +96,7 @@ export function useWorkspaceSchedules(workspaceId?: string) {
     },
     enabled: Boolean(workspaceId),
     staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -113,6 +114,7 @@ export function useScheduleQuery(
     enabled: !!workflowId && !!blockId && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
     retry: false,
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -234,6 +236,7 @@ export function useDisableSchedule() {
     },
     onSuccess: ({ workspaceId }) => {
       queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.details() })
     },
     onError: (error) => {
       logger.error('Failed to disable schedule', { error })
@@ -268,6 +271,7 @@ export function useDeleteSchedule() {
     },
     onSuccess: ({ workspaceId }) => {
       queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.details() })
     },
     onError: (error) => {
       logger.error('Failed to delete schedule', { error })
@@ -311,6 +315,7 @@ export function useUpdateSchedule() {
     },
     onSuccess: ({ workspaceId }) => {
       queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.details() })
     },
     onError: (error) => {
       logger.error('Failed to update schedule', { error })

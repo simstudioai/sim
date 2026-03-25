@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { v4 as uuidv4 } from 'uuid'
+import { useShallow } from 'zustand/react/shallow'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import {
@@ -97,12 +98,27 @@ function normalizeErrorMessage(error: unknown): string {
 export function useWorkflowExecution() {
   const queryClient = useQueryClient()
   const currentWorkflow = useCurrentWorkflow()
-  const { activeWorkflowId, workflows } = useWorkflowRegistry()
+  const { activeWorkflowId, workflows } = useWorkflowRegistry(
+    useShallow((s) => ({ activeWorkflowId: s.activeWorkflowId, workflows: s.workflows }))
+  )
   const { toggleConsole, addConsole, updateConsole, cancelRunningEntries, clearExecutionEntries } =
-    useTerminalConsoleStore()
+    useTerminalConsoleStore(
+      useShallow((s) => ({
+        toggleConsole: s.toggleConsole,
+        addConsole: s.addConsole,
+        updateConsole: s.updateConsole,
+        cancelRunningEntries: s.cancelRunningEntries,
+        clearExecutionEntries: s.clearExecutionEntries,
+      }))
+    )
   const hasHydrated = useTerminalConsoleStore((s) => s._hasHydrated)
-  const { getAllVariables } = useEnvironmentStore()
-  const { getVariablesByWorkflowId, variables } = useVariablesStore()
+  const getAllVariables = useEnvironmentStore((s) => s.getAllVariables)
+  const { getVariablesByWorkflowId, variables } = useVariablesStore(
+    useShallow((s) => ({
+      getVariablesByWorkflowId: s.getVariablesByWorkflowId,
+      variables: s.variables,
+    }))
+  )
   const { isExecuting, isDebugging, pendingBlocks, executor, debugContext } =
     useCurrentWorkflowExecution()
   const setCurrentExecutionId = useExecutionStore((s) => s.setCurrentExecutionId)
