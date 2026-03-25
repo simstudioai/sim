@@ -7,7 +7,7 @@
  * Options:
  *   --dry-run   List matching accounts without deleting (default behavior)
  *   --execute   Actually delete the accounts
- *   --pattern   Email domain/pattern to match (default: @sharebot.net)
+ *   --pattern   Email domain/pattern to match (default: @vapu.xyz)
  */
 
 import postgres from 'postgres'
@@ -47,13 +47,24 @@ async function main() {
 
   console.log(`Found ${spamUsers.length} matching accounts:\n`)
 
-  // Show account details with their workflow/execution counts
+  const userIds = spamUsers.map((u: { id: string }) => u.id)
+
+  // Fetch workflow/workspace counts for all matching users in one query
+  const statRows = await sql`
+    SELECT
+      u.id,
+      COUNT(DISTINCT ws.id) AS workspace_count,
+      COUNT(DISTINCT wf.id) AS workflow_count
+    FROM "user" u
+    LEFT JOIN workspace ws ON ws.owner_id = u.id
+    LEFT JOIN workflow wf ON wf.user_id = u.id
+    WHERE u.id = ANY(${userIds}::text[])
+    GROUP BY u.id
+  `
+  const statsById = Object.fromEntries(statRows.map((r: { id: string }) => [r.id, r]))
+
   for (const user of spamUsers) {
-    const [stats] = await sql`
-      SELECT
-        (SELECT COUNT(*) FROM workflow WHERE user_id = ${user.id}) as workflow_count,
-        (SELECT COUNT(*) FROM workspace WHERE owner_id = ${user.id}) as workspace_count
-    `
+    const stats = statsById[user.id] ?? { workspace_count: 0, workflow_count: 0 }
     console.log(`  ${user.email}`)
     console.log(`    ID: ${user.id} | Created: ${user.created_at}`)
     console.log(`    Workspaces: ${stats.workspace_count} | Workflows: ${stats.workflow_count}`)
@@ -68,8 +79,6 @@ async function main() {
 
   // Execute deletion
   console.log(`\n⚠️  Deleting ${spamUsers.length} accounts...`)
-
-  const userIds = spamUsers.map((u: { id: string }) => u.id)
 
   // Delete workspaces first to handle the billedAccountUserId no-action FK
   const deletedWorkspaces = await sql`
