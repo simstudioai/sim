@@ -91,7 +91,7 @@ export async function withRetry<T>(
 
       // Respect Retry-After header for both 429 and 503 (RFC 7231 §7.1.3)
       let delayMs: number
-      if (responseHeaders && (status === 429 || status === 503)) {
+      if (responseHeaders && (status === 429 || status === 503 || status === 529)) {
         const retryAfterMs = parseRetryAfterHeader(responseHeaders)
         delayMs = retryAfterMs ?? calculateBackoffDelay(attempt, initialDelayMs, maxDelayMs)
       } else {

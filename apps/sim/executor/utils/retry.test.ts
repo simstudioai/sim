@@ -53,7 +53,7 @@ describe('withRetry', () => {
   })
 
   it('retries on network error with no status code', async () => {
-    const error = new Error('network failure')
+    const error = Object.assign(new Error('network failure'), { name: 'FetchError' })
     const fn = vi.fn()
       .mockRejectedValueOnce(error)
       .mockResolvedValue('recovered')
