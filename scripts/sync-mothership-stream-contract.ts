@@ -55,7 +55,7 @@ async function main() {
     const existing = await readFile(OUTPUT_PATH, 'utf8').catch(() => null)
     if (existing !== rendered) {
       throw new Error(
-        `Generated mothership stream contract is stale. Run: bun run mothership:generate`
+        `Generated mothership stream contract is stale. Run: bun run mship-contracts:generate`
       )
     }
     return

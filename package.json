@@ -21,6 +21,12 @@
     "lint:helm": "helm lint ./helm/sim --strict --values ./helm/sim/test/values-lint.yaml",
     "lint:all": "turbo run lint && bun run lint:helm",
     "check": "turbo run format:check",
+    "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",
+    "mship-contracts:check": "bun run scripts/sync-mothership-stream-contract.ts --check",
+    "mship-tools:generate": "bun run scripts/sync-tool-catalog.ts",
+    "mship-tools:check": "bun run scripts/sync-tool-catalog.ts --check",
+    "mship:generate": "bun run mship-contracts:generate && bun run mship-tools:generate",
+    "mship:check": "bun run mship-contracts:check && bun run mship-tools:check",
     "prepare": "bun husky",
     "type-check": "turbo run type-check",
     "release": "bun run scripts/create-single-release.ts"
