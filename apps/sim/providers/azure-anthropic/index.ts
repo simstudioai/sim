@@ -47,6 +47,8 @@ export const azureAnthropicProvider: ProviderConfig = {
         providerLabel: 'Azure Anthropic',
         createClient: (apiKey, useNativeStructuredOutputs) =>
           new Anthropic({
+            timeout: 60000,
+            maxRetries: 3,
             baseURL,
             apiKey,
             defaultHeaders: {

@@ -68,6 +68,8 @@ async function executeChatCompletionsRequest(
     apiKey: request.apiKey,
     apiVersion: azureApiVersion,
     endpoint: azureEndpoint,
+      timeout: 60000,
+      maxRetries: 3,,
   })
 
   const allMessages: ChatCompletionMessageParam[] = []

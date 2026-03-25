@@ -68,6 +68,8 @@ export const ollamaProvider: ProviderConfig = {
     const ollama = new OpenAI({
       apiKey: 'empty',
       baseURL: `${OLLAMA_HOST}/v1`,
+      timeout: 60000,
+      maxRetries: 3,
     })
 
     const allMessages = []

@@ -80,6 +80,8 @@ export const openRouterProvider: ProviderConfig = {
     const client = new OpenAI({
       apiKey: request.apiKey,
       baseURL: 'https://openrouter.ai/api/v1',
+      timeout: 60000,
+      maxRetries: 3,,
     })
 
     const requestedModel = request.model.replace(/^openrouter\//, '')

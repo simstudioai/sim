@@ -44,6 +44,8 @@ export const deepseekProvider: ProviderConfig = {
       const deepseek = new OpenAI({
         apiKey: request.apiKey,
         baseURL: 'https://api.deepseek.com/v1',
+      timeout: 60000,
+      maxRetries: 3,,
       })
 
       const allMessages = []

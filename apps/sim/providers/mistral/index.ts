@@ -54,6 +54,8 @@ export const mistralProvider: ProviderConfig = {
     const mistral = new OpenAI({
       apiKey: request.apiKey,
       baseURL: 'https://api.mistral.ai/v1',
+      timeout: 60000,
+      maxRetries: 3,,
     })
 
     const allMessages = []

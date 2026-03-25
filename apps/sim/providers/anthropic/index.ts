@@ -23,6 +23,8 @@ export const anthropicProvider: ProviderConfig = {
       providerLabel: 'Anthropic',
       createClient: (apiKey, useNativeStructuredOutputs) =>
         new Anthropic({
+            timeout: 60000,
+            maxRetries: 3,
           apiKey,
           defaultHeaders: useNativeStructuredOutputs
             ? { 'anthropic-beta': 'structured-outputs-2025-11-13' }
