@@ -318,6 +318,7 @@ export const Panel = memo(function Panel() {
   const {
     messages: copilotMessages,
     isSending: copilotIsSending,
+    isReconnecting: copilotIsReconnecting,
     sendMessage: copilotSendMessage,
     stopGeneration: copilotStopGeneration,
     resolvedChatId: copilotResolvedChatId,
@@ -812,6 +813,7 @@ export const Panel = memo(function Panel() {
                   className='min-h-0 flex-1'
                   messages={copilotMessages}
                   isSending={copilotIsSending}
+                  isReconnecting={copilotIsReconnecting}
                   onSubmit={handleCopilotSubmit}
                   onStopGeneration={copilotStopGeneration}
                   messageQueue={copilotMessageQueue}

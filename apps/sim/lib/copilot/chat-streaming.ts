@@ -294,6 +294,21 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   return new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder()
+      const markClientDisconnected = (reason: string) => {
+        if (clientDisconnected) return
+        clientDisconnected = true
+        logger.info(
+          appendCopilotLogContext('Client disconnected from live SSE stream', {
+            requestId,
+            messageId,
+          }),
+          {
+            streamId,
+            runId,
+            reason,
+          }
+        )
+      }
 
       await resetStreamBuffer(streamId)
       await setStreamMeta(streamId, { status: 'active', userId, executionId, runId })
@@ -381,7 +396,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             )
           }
         } catch {
-          clientDisconnected = true
+          markClientDisconnected('enqueue_failed')
         }
       }
 
@@ -424,7 +439,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         try {
           controller.enqueue(encoder.encode(': keepalive\n\n'))
         } catch {
-          clientDisconnected = true
+          markClientDisconnected('keepalive_failed')
         }
       }, 15_000)
 
@@ -498,6 +513,18 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         await eventWriter.close()
         await setStreamMeta(streamId, { status: 'complete', userId, executionId, runId })
         await updateRunStatus(runId, 'complete', { completedAt: new Date() }).catch(() => {})
+        if (clientDisconnected) {
+          logger.info(
+            appendCopilotLogContext('Orchestration completed after client disconnect', {
+              requestId,
+              messageId,
+            }),
+            {
+              streamId,
+              runId,
+            }
+          )
+        }
       } catch (error) {
         if (abortController.signal.aborted) {
           logger.error(
@@ -544,6 +571,12 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           error: errorMessage,
         }).catch(() => {})
       } finally {
+        logger.info(appendCopilotLogContext('Closing live SSE stream', { requestId, messageId }), {
+          streamId,
+          runId,
+          clientDisconnected,
+          aborted: abortController.signal.aborted,
+        })
         clearInterval(keepaliveInterval)
         if (abortPoller) {
           clearInterval(abortPoller)
@@ -566,6 +599,16 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       }
     },
     cancel() {
+      logger.info(
+        appendCopilotLogContext('ReadableStream cancel received from client', {
+          requestId,
+          messageId,
+        }),
+        {
+          streamId,
+          runId,
+        }
+      )
       clientDisconnected = true
       if (eventWriter) {
         eventWriter.flush().catch(() => {})
