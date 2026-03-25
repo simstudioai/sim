@@ -35,8 +35,13 @@ export const ripplingProcessLeaveRequestTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://api.rippling.com/platform/api/leave_requests/${encodeURIComponent(params.leaveRequestId.trim())}/process?action=${encodeURIComponent(params.action.trim())}`,
+    url: (params) => {
+      const action = params.action.trim()
+      if (action !== 'approve' && action !== 'decline') {
+        throw new Error(`Invalid action "${action}". Must be "approve" or "decline".`)
+      }
+      return `https://api.rippling.com/platform/api/leave_requests/${encodeURIComponent(params.leaveRequestId.trim())}/process?action=${encodeURIComponent(action)}`
+    },
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

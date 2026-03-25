@@ -72,6 +72,11 @@ export const ripplingUpdateGroupTool: ToolConfig<
       if (params.version !== undefined) {
         body.version = params.version
       }
+      if (Object.keys(body).length === 0) {
+        throw new Error(
+          'At least one field (name, spokeId, users, or version) must be provided to update a group.'
+        )
+      }
       return body
     },
   },
