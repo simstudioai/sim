@@ -8,7 +8,7 @@ import {
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/client-sse/run-tool-execution'
-import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import { COPILOT_CHAT_API_PATH, MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   extractResourcesFromToolResult,
