@@ -5,6 +5,15 @@ log() {
   printf '[opencode-entrypoint] %s\n' "$*"
 }
 
+validate_port() {
+  local port="$1"
+
+  if [[ ! "$port" =~ ^[0-9]+$ ]]; then
+    log "OPENCODE_PORT must be a numeric TCP port"
+    exit 1
+  fi
+}
+
 write_runtime_env() {
   local env_file="/home/opencode/.config/opencode/runtime-env.sh"
   local vars=(
@@ -87,6 +96,8 @@ main() {
   if [[ -z "${GOOGLE_GENERATIVE_AI_API_KEY:-}" && -n "${GEMINI_API_KEY:-}" ]]; then
     export GOOGLE_GENERATIVE_AI_API_KEY="${GEMINI_API_KEY}"
   fi
+
+  validate_port "${OPENCODE_PORT}"
 
   mkdir -p "${OPENCODE_REPOSITORY_ROOT}" /home/opencode/.config/opencode /home/opencode/.local/share/opencode /home/opencode/.local/state
   chown -R opencode:opencode "${OPENCODE_REPOSITORY_ROOT}" /home/opencode/.config /home/opencode/.local/share /home/opencode/.local/state

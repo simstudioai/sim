@@ -220,7 +220,7 @@ function getAssistantErrorMessage(error: AssistantMessage['error']): string | un
   return error.name
 }
 
-export function extractOpenCodeText(parts: Part[]): string {
+function extractOpenCodeText(parts: Part[]): string {
   return parts
     .filter((part): part is Extract<Part, { type: 'text' }> => part.type === 'text')
     .map((part) => part.text.trim())

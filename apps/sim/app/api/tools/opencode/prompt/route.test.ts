@@ -294,6 +294,43 @@ describe('POST /api/tools/opencode/prompt', () => {
     })
   })
 
+  it('does not retry when a newly created session fails immediately', async () => {
+    mockPromptOpenCodeSession.mockRejectedValueOnce(new Error('session not found'))
+    mockShouldRetryWithFreshOpenCodeSession.mockReturnValue(true)
+    mockCreateOpenCodeSession.mockResolvedValue({ id: 'fresh-session' })
+
+    const request = createMockRequest('POST', {
+      repository: 'repo-a',
+      providerId: 'provider-a',
+      modelId: 'model-a',
+      prompt: 'retry please',
+      _context: {
+        workspaceId: 'ws-1',
+        workflowId: 'wf-1',
+        userId: 'user-123',
+      },
+    })
+
+    const response = await POST(request as never)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockCreateOpenCodeSession).toHaveBeenCalledTimes(1)
+    expect(mockPromptOpenCodeSession).toHaveBeenCalledTimes(1)
+    expect(mockLogOpenCodeFailure).toHaveBeenCalledWith(
+      'Failed to execute OpenCode prompt',
+      expect.objectContaining({ message: 'session not found' })
+    )
+    expect(data).toEqual({
+      success: true,
+      output: {
+        content: '',
+        threadId: 'fresh-session',
+        error: 'session not found',
+      },
+    })
+  })
+
   it('stores and returns the fresh session id when the retry prompt fails', async () => {
     mockGetStoredOpenCodeSession.mockResolvedValue({
       sessionId: 'stale-session',
