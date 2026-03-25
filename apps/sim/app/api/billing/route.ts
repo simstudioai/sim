@@ -1,4 +1,7 @@
+import { db } from '@sim/db'
+import { member } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
