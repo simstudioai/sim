@@ -380,7 +380,7 @@ export function General() {
           <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Info className='h-[14px] w-[14px] cursor-help text-[var(--text-muted)]' />
+              <Info className='h-[14px] w-[14px] cursor-default text-[var(--text-muted)]' />
             </Tooltip.Trigger>
             <Tooltip.Content side='bottom' align='start'>
               <p>Automatically connect blocks when dropped near each other</p>
@@ -404,7 +404,7 @@ export function General() {
           <Label htmlFor='error-notifications'>Canvas error notifications</Label>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Info className='h-[14px] w-[14px] cursor-help text-[var(--text-muted)]' />
+              <Info className='h-[14px] w-[14px] cursor-default text-[var(--text-muted)]' />
             </Tooltip.Trigger>
             <Tooltip.Content side='bottom' align='start'>
               <p>Show error popups on blocks when a workflow run fails</p>
