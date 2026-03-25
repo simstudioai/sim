@@ -102,7 +102,7 @@ interface PricingCardProps {
 }
 
 function PricingCard({ tier }: PricingCardProps) {
-  const isEnterprise = tier.id === 'enterprise'
+  const isDemoRequest = tier.cta.action === 'demo-request'
   const isPro = tier.id === 'pro'
 
   return (
@@ -125,7 +125,7 @@ function PricingCard({ tier }: PricingCardProps) {
             )}
           </p>
           <div className='mt-4'>
-            {isEnterprise ? (
+            {isDemoRequest ? (
               <DemoRequestModal theme='light'>
                 <button
                   type='button'
