@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
 
       return buildSuccessResponse(result.threadId, result.content, result.cost)
     } catch (error) {
-      if (reusedStoredThread && threadId && !newThread && shouldRetryWithFreshOpenCodeSession(error)) {
+      if (reusedStoredThread && threadId && shouldRetryWithFreshOpenCodeSession(error)) {
         let freshSessionId = threadId
 
         try {

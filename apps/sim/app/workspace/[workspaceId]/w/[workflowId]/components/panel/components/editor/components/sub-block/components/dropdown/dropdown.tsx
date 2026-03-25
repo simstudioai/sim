@@ -133,6 +133,8 @@ export const Dropdown = memo(function Dropdown({
   const previousModeRef = useRef<string | null>(null)
   const previousDependencyValuesRef = useRef<string>('')
   const isOptionsFetchInFlightRef = useRef(false)
+  const fetchErrorRef = useRef<string | null>(null)
+  const hasAttemptedOptionsFetchRef = useRef(false)
 
   const [builderData, setBuilderData] = useSubBlockValue<any[]>(blockId, 'builderData')
   const [data, setData] = useSubBlockValue<string>(blockId, 'data')
@@ -156,19 +158,21 @@ export const Dropdown = memo(function Dropdown({
         : []
     : null
 
-  const fetchOptionsIfNeeded = useCallback(async (force = false) => {
+  const fetchOptionsIfNeeded = useCallback(async (force = fetchErrorRef.current !== null) => {
     if (
       !fetchOptions ||
       isPreview ||
       disabled ||
-      (!force && hasAttemptedOptionsFetch) ||
+      (!force && hasAttemptedOptionsFetchRef.current) ||
       isOptionsFetchInFlightRef.current
     ) {
       return
     }
 
     isOptionsFetchInFlightRef.current = true
+    hasAttemptedOptionsFetchRef.current = true
     setHasAttemptedOptionsFetch(true)
+    fetchErrorRef.current = null
     setIsLoadingOptions(true)
     setFetchError(null)
     try {
@@ -176,6 +180,7 @@ export const Dropdown = memo(function Dropdown({
       setFetchedOptions(options)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
+      fetchErrorRef.current = errorMessage
       setFetchError(errorMessage)
       setFetchedOptions([])
     } finally {
@@ -188,7 +193,6 @@ export const Dropdown = memo(function Dropdown({
     subBlockId,
     isPreview,
     disabled,
-    hasAttemptedOptionsFetch,
   ])
 
   /**
@@ -197,10 +201,10 @@ export const Dropdown = memo(function Dropdown({
   const handleOpenChange = useCallback(
     (open: boolean) => {
       if (open) {
-        void fetchOptionsIfNeeded(fetchError !== null)
+        void fetchOptionsIfNeeded()
       }
     },
-    [fetchError, fetchOptionsIfNeeded]
+    [fetchOptionsIfNeeded]
   )
 
   const evaluatedOptions = useMemo(() => {
@@ -391,7 +395,9 @@ export const Dropdown = memo(function Dropdown({
         currentDependencyValuesStr !== previousDependencyValuesStr
       ) {
         setFetchedOptions([])
+        fetchErrorRef.current = null
         setFetchError(null)
+        hasAttemptedOptionsFetchRef.current = false
         setHasAttemptedOptionsFetch(false)
         setHydratedOption(null)
       }

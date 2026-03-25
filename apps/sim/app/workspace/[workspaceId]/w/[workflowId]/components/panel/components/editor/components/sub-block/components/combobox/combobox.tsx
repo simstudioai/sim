@@ -127,23 +127,27 @@ export const ComboBox = memo(function ComboBox({
   const [hydratedOption, setHydratedOption] = useState<{ label: string; id: string } | null>(null)
   const previousDependencyValuesRef = useRef<string>('')
   const isOptionsFetchInFlightRef = useRef(false)
+  const fetchErrorRef = useRef<string | null>(null)
+  const hasAttemptedOptionsFetchRef = useRef(false)
 
   /**
    * Fetches options from the async fetchOptions function if provided
    */
-  const fetchOptionsIfNeeded = useCallback(async (force = false) => {
+  const fetchOptionsIfNeeded = useCallback(async (force = fetchErrorRef.current !== null) => {
     if (
       !fetchOptions ||
       isPreview ||
       disabled ||
-      (!force && hasAttemptedOptionsFetch) ||
+      (!force && hasAttemptedOptionsFetchRef.current) ||
       isOptionsFetchInFlightRef.current
     ) {
       return
     }
 
     isOptionsFetchInFlightRef.current = true
+    hasAttemptedOptionsFetchRef.current = true
     setHasAttemptedOptionsFetch(true)
+    fetchErrorRef.current = null
     setIsLoadingOptions(true)
     setFetchError(null)
     try {
@@ -151,6 +155,7 @@ export const ComboBox = memo(function ComboBox({
       setFetchedOptions(options)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
+      fetchErrorRef.current = errorMessage
       setFetchError(errorMessage)
       setFetchedOptions([])
     } finally {
@@ -163,7 +168,6 @@ export const ComboBox = memo(function ComboBox({
     subBlockId,
     isPreview,
     disabled,
-    hasAttemptedOptionsFetch,
   ])
 
   // Determine the active value based on mode (preview vs. controlled vs. store)
@@ -328,7 +332,9 @@ export const ComboBox = memo(function ComboBox({
         currentDependencyValuesStr !== previousDependencyValuesStr
       ) {
         setFetchedOptions([])
+        fetchErrorRef.current = null
         setFetchError(null)
+        hasAttemptedOptionsFetchRef.current = false
         setHasAttemptedOptionsFetch(false)
         setHydratedOption(null)
       }
@@ -454,10 +460,10 @@ export const ComboBox = memo(function ComboBox({
   const handleOpenChange = useCallback(
     (open: boolean) => {
       if (open) {
-        void fetchOptionsIfNeeded(fetchError !== null)
+        void fetchOptionsIfNeeded()
       }
     },
-    [fetchError, fetchOptionsIfNeeded]
+    [fetchOptionsIfNeeded]
   )
 
   /**
