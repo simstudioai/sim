@@ -15,7 +15,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { createOpenCodeClient } from '@/lib/opencode/client'
 
 const logger = createLogger('OpenCodeService')
-const OPEN_CODE_REPOSITORY_ROOT = '/app/repos'
+const DEFAULT_OPEN_CODE_REPOSITORY_ROOT = '/app/repos'
 
 export interface OpenCodeRepositoryOption {
   id: string
@@ -75,6 +75,19 @@ export interface OpenCodeMessageItem {
   providerId?: string
   modelId?: string
   createdAt: number
+}
+
+function getOpenCodeRepositoryRoot(): string {
+  const configuredRoot = process.env.OPENCODE_REPOSITORY_ROOT?.trim()
+  if (!configuredRoot) {
+    return DEFAULT_OPEN_CODE_REPOSITORY_ROOT
+  }
+
+  if (configuredRoot === '/') {
+    return configuredRoot
+  }
+
+  return configuredRoot.replace(/\/+$/, '')
 }
 
 function stripGitSuffix(value: string): string {
@@ -140,19 +153,21 @@ function listConfiguredOpenCodeRepositoryNames(): string[] {
 }
 
 function getRepositoryName(repository: string): string {
-  if (repository.startsWith(OPEN_CODE_REPOSITORY_ROOT)) {
-    return repository.slice(OPEN_CODE_REPOSITORY_ROOT.length + 1)
+  const repositoryRoot = getOpenCodeRepositoryRoot()
+
+  if (repository.startsWith(`${repositoryRoot}/`)) {
+    return repository.slice(repositoryRoot.length + 1)
   }
 
   return repository
 }
 
 function buildOpenCodeRepositoryDirectory(repository: string): string {
-  return `${OPEN_CODE_REPOSITORY_ROOT}/${repository}`
+  return `${getOpenCodeRepositoryRoot()}/${repository}`
 }
 
 function isProjectInsideRepositoryRoot(project: Project): boolean {
-  return project.worktree.startsWith(`${OPEN_CODE_REPOSITORY_ROOT}/`)
+  return project.worktree.startsWith(`${getOpenCodeRepositoryRoot()}/`)
 }
 
 function mapProjectToRepositoryOption(project: Project): OpenCodeRepositoryOption {

@@ -11,6 +11,7 @@ write_runtime_env() {
     HOME
     PATH
     OPENCODE_REPOS
+    OPENCODE_REPOSITORY_ROOT
     GIT_USERNAME
     GIT_TOKEN
     GITHUB_TOKEN
@@ -76,6 +77,7 @@ EOF
 main() {
   : "${OPENCODE_PORT:=4096}"
   : "${OPENCODE_SERVER_USERNAME:=opencode}"
+  : "${OPENCODE_REPOSITORY_ROOT:=/app/repos}"
 
   if [[ -z "${OPENCODE_SERVER_PASSWORD:-}" ]]; then
     log "OPENCODE_SERVER_PASSWORD is required"
@@ -86,8 +88,8 @@ main() {
     export GOOGLE_GENERATIVE_AI_API_KEY="${GEMINI_API_KEY}"
   fi
 
-  mkdir -p /app/repos /home/opencode/.config/opencode /home/opencode/.local/share/opencode /home/opencode/.local/state
-  chown -R opencode:opencode /app/repos /home/opencode/.config /home/opencode/.local/share /home/opencode/.local/state
+  mkdir -p "${OPENCODE_REPOSITORY_ROOT}" /home/opencode/.config/opencode /home/opencode/.local/share/opencode /home/opencode/.local/state
+  chown -R opencode:opencode "${OPENCODE_REPOSITORY_ROOT}" /home/opencode/.config /home/opencode/.local/share /home/opencode/.local/state
 
   write_runtime_env
   write_global_config

@@ -8,8 +8,9 @@ services:
       - '4096'
     environment:
       - OPENCODE_PORT=${OPENCODE_PORT:-4096}
+      - OPENCODE_REPOSITORY_ROOT=${OPENCODE_REPOSITORY_ROOT:-/app/repos}
       - OPENCODE_SERVER_USERNAME=${OPENCODE_SERVER_USERNAME:-opencode}
-      - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD}
+      - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD:?OPENCODE_SERVER_PASSWORD is required for docker-compose.opencode.yml}
       - OPENCODE_REPOS=${OPENCODE_REPOS:-}
       - GIT_USERNAME=${GIT_USERNAME:-}
       - GIT_TOKEN=${GIT_TOKEN:-}
@@ -19,7 +20,7 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-${GEMINI_API_KEY_1:-}}
       - GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY:-${GEMINI_API_KEY:-${GEMINI_API_KEY_1:-}}}
     volumes:
-      - opencode_repos:/app/repos
+      - opencode_repos:${OPENCODE_REPOSITORY_ROOT:-/app/repos}
       - opencode_data:/home/opencode/.local/share/opencode
     healthcheck:
       test: ['CMD', '/usr/local/bin/opencode-healthcheck.sh']
@@ -33,8 +34,9 @@ services:
       - NEXT_PUBLIC_OPENCODE_ENABLED=${NEXT_PUBLIC_OPENCODE_ENABLED:-true}
       - OPENCODE_BASE_URL=${OPENCODE_BASE_URL:-http://opencode:${OPENCODE_PORT:-4096}}
       - OPENCODE_PORT=${OPENCODE_PORT:-4096}
+      - OPENCODE_REPOSITORY_ROOT=${OPENCODE_REPOSITORY_ROOT:-/app/repos}
       - OPENCODE_SERVER_USERNAME=${OPENCODE_SERVER_USERNAME:-opencode}
-      - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD}
+      - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD:?OPENCODE_SERVER_PASSWORD is required for docker-compose.opencode.yml}
       - OPENCODE_REPOS=${OPENCODE_REPOS:-}
     depends_on:
       opencode:

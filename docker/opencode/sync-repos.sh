@@ -8,6 +8,7 @@ fi
 export HOME="${HOME:-/home/opencode}"
 export GIT_TERMINAL_PROMPT=0
 export GIT_ASKPASS=/usr/local/bin/git-askpass.sh
+export OPENCODE_REPOSITORY_ROOT="${OPENCODE_REPOSITORY_ROOT:-/app/repos}"
 
 log() {
   printf '[opencode-sync] %s\n' "$*"
@@ -23,7 +24,7 @@ trim() {
 sync_repo() {
   local repo_url="$1"
   local repo_name="$2"
-  local repo_dir="/app/repos/${repo_name}"
+  local repo_dir="${OPENCODE_REPOSITORY_ROOT}/${repo_name}"
 
   if [[ -d "$repo_dir/.git" ]]; then
     if git -C "$repo_dir" pull --ff-only; then
@@ -53,7 +54,7 @@ sync_repo() {
 main() {
   local repos_raw="${OPENCODE_REPOS:-}"
 
-  mkdir -p /app/repos
+  mkdir -p "${OPENCODE_REPOSITORY_ROOT}"
 
   if [[ -z "$repos_raw" ]]; then
     log "No repositories configured"

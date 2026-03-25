@@ -15,6 +15,7 @@ This service runs `opencode serve` for Sim. It backs the optional `OpenCode` wor
 At minimum, set:
 
 ```env
+OPENCODE_REPOSITORY_ROOT=/app/repos
 OPENCODE_SERVER_USERNAME=opencode
 OPENCODE_SERVER_PASSWORD=change-me
 OPENCODE_REPOS=https://github.com/octocat/Hello-World.git
@@ -24,9 +25,10 @@ GEMINI_API_KEY=your-gemini-key
 Notes:
 
 - The UI block is intentionally hidden until `NEXT_PUBLIC_OPENCODE_ENABLED=true` is set on the Sim app.
+- `OPENCODE_REPOSITORY_ROOT` defaults to `/app/repos` and must match the path Sim uses when it resolves repository directories.
 - `OPENCODE_SERVER_USERNAME` defaults to `opencode` in the optional compose overlays if omitted.
 - `docker-compose.opencode.local.yml` defaults `OPENCODE_SERVER_PASSWORD` to `dev-opencode-password`, but setting it explicitly is safer and avoids app/container credential drift.
-- `docker-compose.opencode.yml` requires `OPENCODE_SERVER_PASSWORD` to be provided from the environment.
+- `docker-compose.opencode.yml` requires `OPENCODE_SERVER_PASSWORD` to be provided from the environment before `docker compose` starts.
 - OpenCode needs at least one provider key to answer prompts:
   - `OPENAI_API_KEY`
   - `ANTHROPIC_API_KEY`
@@ -48,7 +50,7 @@ Azure Repos over HTTPS is also supported. Example:
 OPENCODE_REPOS=https://dev.azure.com/org/project/_git/repo
 ```
 
-Each repository is cloned into `/app/repos/<repo-name>`. On restart, existing clones are updated with `git pull --ff-only`. A background cron sync retries every 15 minutes.
+Each repository is cloned into `${OPENCODE_REPOSITORY_ROOT:-/app/repos}/<repo-name>`. On restart, existing clones are updated with `git pull --ff-only`. A background cron sync retries every 15 minutes.
 
 For private repositories, provide HTTPS credentials with one of these options:
 
@@ -68,6 +70,7 @@ Add this to `apps/sim/.env`:
 ```env
 NEXT_PUBLIC_OPENCODE_ENABLED=true
 OPENCODE_BASE_URL=http://127.0.0.1:4096
+OPENCODE_REPOSITORY_ROOT=/app/repos
 OPENCODE_SERVER_USERNAME=opencode
 OPENCODE_SERVER_PASSWORD=change-me
 ```
@@ -119,9 +122,9 @@ Production should use the base compose plus the OpenCode overlay:
 docker compose -f docker-compose.prod.yml -f docker-compose.opencode.yml up -d --build
 ```
 
-The overlay injects `NEXT_PUBLIC_OPENCODE_ENABLED`, `OPENCODE_BASE_URL`, `OPENCODE_PORT`, `OPENCODE_SERVER_USERNAME`, and `OPENCODE_SERVER_PASSWORD` into `simstudio`, so the app can authenticate against the internal OpenCode server without changing `docker-compose.prod.yml`.
+The overlay injects `NEXT_PUBLIC_OPENCODE_ENABLED`, `OPENCODE_BASE_URL`, `OPENCODE_PORT`, `OPENCODE_REPOSITORY_ROOT`, `OPENCODE_SERVER_USERNAME`, and `OPENCODE_SERVER_PASSWORD` into `simstudio`, so the app can authenticate against the internal OpenCode server without changing `docker-compose.prod.yml`.
 
-If you prefer to run OpenCode in separate infrastructure, skip the overlay and set the same app variables directly on the Sim deployment.
+If you prefer to run OpenCode in separate infrastructure, skip the overlay and set the same app variables directly on the Sim deployment. The external OpenCode runtime must expose project worktrees under the same `OPENCODE_REPOSITORY_ROOT` that Sim is configured to use.
 
 OpenCode stays internal to the Docker network, so verify from another container:
 
@@ -166,4 +169,4 @@ The SDK also supports injecting extra per-session context without triggering a r
 ## Notes
 
 - Session retention is not managed yet. OpenCode data persists until the `opencode_data` volume is pruned.
-- The compose overlays are convenience wrappers. The app can also target any compatible external OpenCode deployment through `OPENCODE_BASE_URL` plus the same server credentials.
+- The compose overlays are convenience wrappers. The app can also target any compatible external OpenCode deployment through `OPENCODE_BASE_URL`, the same server credentials, and the same `OPENCODE_REPOSITORY_ROOT`.

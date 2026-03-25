@@ -93,6 +93,7 @@ Then add these values to `apps/sim/.env`:
 
 ```env
 NEXT_PUBLIC_OPENCODE_ENABLED=true
+OPENCODE_REPOSITORY_ROOT=/app/repos
 OPENCODE_SERVER_USERNAME=opencode
 OPENCODE_SERVER_PASSWORD=change-me
 OPENCODE_REPOS=https://github.com/octocat/Hello-World.git
@@ -134,6 +135,7 @@ Local vs production behavior:
 - `docker-compose.opencode.local.yml`
   - adds OpenCode locally without changing the base local compose file
   - publishes `OPENCODE_PORT` to the host so `next dev` on the host can talk to OpenCode
+  - defaults `OPENCODE_REPOSITORY_ROOT=/app/repos`
   - defaults `OPENCODE_SERVER_USERNAME=opencode`
   - defaults `OPENCODE_SERVER_PASSWORD=dev-opencode-password` if you do not set one explicitly
 - `docker-compose.prod.yml`
@@ -143,7 +145,8 @@ Local vs production behavior:
   - builds the OpenCode runtime locally from this repository instead of requiring an official Sim-hosted image
   - injects the required `NEXT_PUBLIC_OPENCODE_ENABLED` and `OPENCODE_*` variables into `simstudio`
   - keeps OpenCode internal to the Docker network with `expose`, not a published host port
-  - expects `OPENCODE_SERVER_PASSWORD` to be set explicitly
+  - defaults `OPENCODE_REPOSITORY_ROOT=/app/repos`
+  - requires `OPENCODE_SERVER_PASSWORD` to be set explicitly before `docker compose` starts
 
 Production deploy command:
 
@@ -168,10 +171,10 @@ Without that override, host-side Next.js cannot reliably reach the Docker servic
 Notes:
 
 - If `OPENCODE_REPOS` is empty, `opencode` still starts but no repositories are cloned.
-- Repositories are cloned into `/app/repos/<repo-name>`.
+- Repositories are cloned into `${OPENCODE_REPOSITORY_ROOT:-/app/repos}/<repo-name>`.
 - Private Azure Repos must use `https` plus `GIT_USERNAME` and `GIT_TOKEN`; the container will not prompt interactively for passwords.
 - `GOOGLE_GENERATIVE_AI_API_KEY` is optional; the optional overlays map it automatically from `GEMINI_API_KEY` if not set.
-- If you prefer to run OpenCode in separate infrastructure, skip the overlays and point Sim at that deployment with `OPENCODE_BASE_URL`, `OPENCODE_SERVER_USERNAME`, and `OPENCODE_SERVER_PASSWORD`.
+- If you prefer to run OpenCode in separate infrastructure, skip the overlays and point Sim at that deployment with `OPENCODE_BASE_URL`, `OPENCODE_SERVER_USERNAME`, `OPENCODE_SERVER_PASSWORD`, and the matching `OPENCODE_REPOSITORY_ROOT`.
 
 Basic verification after startup:
 
