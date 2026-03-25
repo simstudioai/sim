@@ -6270,6 +6270,17 @@ export function RedisIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function RipplingIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 145.3 109.9' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M17.5,30.5C17.5,18.4,11.4,8.4,0,0h26.5c9.3,7.2,15,18.2,15,30.5c0,12.3-5.7,23.3-15,30.5 c8.6,3.6,13.5,12.4,13.5,25v24H16v-24c0-12-5.7-20.4-16-25C11.4,52.5,17.5,42.6,17.5,30.5 M69.4,30.5c0-12.1-6.1-22.1-17.5-30.5 h26.5c9.3,7.2,15,18.2,15,30.5c0,12.3-5.7,23.3-15,30.5c8.6,3.6,13.5,12.4,13.5,25v24h-24v-24c0-12-5.7-20.4-16-25 C63.3,52.5,69.4,42.6,69.4,30.5 M121.4,30.5c0-12.1-6.1-22.1-17.5-30.5h26.5c9.3,7.2,15,18.2,15,30.5c0,12.3-5.7,23.3-15,30.5 c8.6,3.6,13.5,12.4,13.5,25v24h-24v-24c0-12-5.7-20.4-16-25C115.3,52.5,121.4,42.6,121.4,30.5'
+        fill='#502D3C'
+      />
+    </svg>
+  )
+}
+
 export function HexIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1450.3 600'>
