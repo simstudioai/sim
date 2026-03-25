@@ -73,9 +73,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       setOpen(nextOpen)
-      if (!nextOpen) {
-        resetForm()
-      }
+      resetForm()
     },
     [resetForm]
   )
@@ -144,7 +142,6 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
           throw new Error(result?.error || 'Failed to submit demo request')
         }
 
-        resetForm()
         setSubmitSuccess(true)
       } catch (error) {
         setSubmitError(
