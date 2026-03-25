@@ -126,6 +126,7 @@ export async function orchestrateCopilotStream(
     runId,
     messageId,
   })
+  const continuationWorkerId = `sim-resume:${crypto.randomUUID()}`
   const withLogContext = (message: string) =>
     appendCopilotLogContext(message, {
       requestId: context.requestId,
@@ -253,7 +254,7 @@ export async function orchestrateCopilotStream(
       for (;;) {
         claimedToolCallIds = []
         claimedByWorkerId = null
-        const resumeWorkerId = continuation.runId || context.runId || context.messageId
+        const resumeWorkerId = continuationWorkerId
         const readyTools: ReadyContinuationTool[] = []
         const localPendingPromises: Promise<unknown>[] = []
         const missingToolCallIds: string[] = []
@@ -272,6 +273,7 @@ export async function orchestrateCopilotStream(
               {
                 toolCallId,
                 runId: continuation.runId,
+                workerId: resumeWorkerId,
               }
             )
             continue
@@ -287,6 +289,7 @@ export async function orchestrateCopilotStream(
                 {
                   toolCallId,
                   runId: continuation.runId,
+                  workerId: resumeWorkerId,
                   claimedBy: durableRow.claimedBy,
                 }
               )
@@ -355,6 +358,7 @@ export async function orchestrateCopilotStream(
               {
                 checkpointId: continuation.checkpointId,
                 runId: continuation.runId,
+                workerId: resumeWorkerId,
                 retry: resumeRetries,
                 missingToolCallIds,
               }
@@ -385,6 +389,7 @@ export async function orchestrateCopilotStream(
               {
                 checkpointId: continuation.checkpointId,
                 runId: continuation.runId,
+                workerId: resumeWorkerId,
                 retry: resumeRetries,
               }
             )
@@ -424,6 +429,7 @@ export async function orchestrateCopilotStream(
               {
                 checkpointId: continuation.checkpointId,
                 runId: continuation.runId,
+                workerId: resumeWorkerId,
                 newlyClaimedToolCallIds,
                 claimFailures,
               }
@@ -439,6 +445,7 @@ export async function orchestrateCopilotStream(
             logger.info(withLogContext('Retrying async resume after claim contention'), {
               checkpointId: continuation.checkpointId,
               runId: continuation.runId,
+              workerId: resumeWorkerId,
               retry: resumeRetries,
               claimFailures,
             })
@@ -469,6 +476,7 @@ export async function orchestrateCopilotStream(
         logger.info(withLogContext('Resuming async tool continuation'), {
           checkpointId: continuation.checkpointId,
           runId: continuation.runId,
+          workerId: resumeWorkerId,
           toolCallIds: readyTools.map((tool) => tool.toolCallId),
         })
 
