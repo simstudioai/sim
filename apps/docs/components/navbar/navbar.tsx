@@ -52,16 +52,6 @@ export function Navbar() {
           </div>
         </div>
 
-        {/* Divider — only spans content width */}
-        <div
-          className='border-b'
-          style={{
-            marginLeft: 'calc(var(--sidebar-offset) + 32px)',
-            marginRight: 'calc(var(--toc-offset) + 60px)',
-            borderColor: 'rgba(128, 128, 128, 0.1)',
-          }}
-        />
-
         {/* Bottom row: navigation tabs — border on row, tabs overlap it */}
         <div
           className='flex h-[40px] items-stretch gap-6 border-border/20 border-b'
