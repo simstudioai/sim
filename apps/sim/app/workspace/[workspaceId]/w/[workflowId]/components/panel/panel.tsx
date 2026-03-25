@@ -34,16 +34,9 @@ import { Lock, Unlock, Upload } from '@/components/emcn/icons'
 import { VariableIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
-import { ConversationListItem, MessageActions } from '@/app/workspace/[workspaceId]/components'
-import {
-  assistantMessageHasRenderableContent,
-  MessageContent,
-  QueuedMessages,
-  UserInput,
-  UserMessageContent,
-} from '@/app/workspace/[workspaceId]/home/components'
-import { PendingTagIndicator } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { useAutoScroll, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
+import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
+import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components'
+import { getWorkflowCopilotUseChatOptions, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
 import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -332,13 +325,15 @@ export const Panel = memo(function Panel() {
     removeFromQueue: copilotRemoveFromQueue,
     sendNow: copilotSendNow,
     editQueuedMessage: copilotEditQueuedMessage,
-  } = useChat(workspaceId, copilotChatId, {
-    apiPath: '/api/copilot/chat',
-    stopPath: '/api/mothership/chat/stop',
-    workflowId: activeWorkflowId || undefined,
-    onTitleUpdate: loadCopilotChats,
-    onToolResult: handleCopilotToolResult,
-  })
+  } = useChat(
+    workspaceId,
+    copilotChatId,
+    getWorkflowCopilotUseChatOptions({
+      workflowId: activeWorkflowId || undefined,
+      onTitleUpdate: loadCopilotChats,
+      onToolResult: handleCopilotToolResult,
+    })
+  )
 
   const handleCopilotNewChat = useCallback(() => {
     if (!activeWorkflowId || !workspaceId) return
@@ -402,9 +397,6 @@ export const Panel = memo(function Panel() {
     },
     [copilotSendMessage]
   )
-
-  const { ref: copilotScrollRef, scrollToBottom: copilotScrollToBottom } =
-    useAutoScroll(copilotIsSending)
 
   /**
    * Mark hydration as complete on mount
@@ -700,6 +692,7 @@ export const Panel = memo(function Panel() {
                   variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
                   onClick={() => handleTabClick('copilot')}
                   data-tab-button='copilot'
+                  data-tour='tab-copilot'
                 >
                   Copilot
                 </Button>
@@ -713,6 +706,7 @@ export const Panel = memo(function Panel() {
                 variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
+                data-tour='tab-toolbar'
               >
                 Toolbar
               </Button>
@@ -725,6 +719,7 @@ export const Panel = memo(function Panel() {
                 variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
+                data-tour='tab-editor'
               >
                 Editor
               </Button>
@@ -813,77 +808,21 @@ export const Panel = memo(function Panel() {
                   </div>
                 </div>
 
-                <div
-                  ref={copilotScrollRef}
-                  className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pt-2 pb-4'
-                >
-                  <div className='space-y-4'>
-                    {copilotMessages.map((msg, index) => {
-                      if (msg.role === 'user') {
-                        return (
-                          <div key={msg.id} className='flex flex-col items-end gap-[6px] pt-2'>
-                            <div className='max-w-[85%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3 py-2'>
-                              <UserMessageContent content={msg.content} contexts={msg.contexts} />
-                            </div>
-                          </div>
-                        )
-                      }
-
-                      const hasAnyBlocks = Boolean(msg.contentBlocks?.length)
-                      const hasRenderableAssistant = assistantMessageHasRenderableContent(
-                        msg.contentBlocks ?? [],
-                        msg.content ?? ''
-                      )
-                      const isLastAssistant =
-                        msg.role === 'assistant' && index === copilotMessages.length - 1
-                      const isThisStreaming = copilotIsSending && isLastAssistant
-
-                      if (!hasAnyBlocks && !msg.content?.trim() && isThisStreaming) {
-                        return <PendingTagIndicator key={msg.id} />
-                      }
-
-                      if (!hasRenderableAssistant && !msg.content?.trim() && !isThisStreaming) {
-                        return null
-                      }
-
-                      const isLastMessage = index === copilotMessages.length - 1
-
-                      return (
-                        <div key={msg.id} className='group/msg relative pb-3'>
-                          {!isThisStreaming && (msg.content || msg.contentBlocks?.length) && (
-                            <div className='absolute right-0 bottom-0 z-10'>
-                              <MessageActions content={msg.content} requestId={msg.requestId} />
-                            </div>
-                          )}
-                          <MessageContent
-                            blocks={msg.contentBlocks || []}
-                            fallbackContent={msg.content}
-                            isStreaming={isThisStreaming}
-                            onOptionSelect={isLastMessage ? copilotSendMessage : undefined}
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                <div className='flex-shrink-0 px-3 pb-3'>
-                  <QueuedMessages
-                    messageQueue={copilotMessageQueue}
-                    onRemove={copilotRemoveFromQueue}
-                    onSendNow={copilotSendNow}
-                    onEdit={handleCopilotEditQueuedMessage}
-                  />
-                  <UserInput
-                    onSubmit={handleCopilotSubmit}
-                    isSending={copilotIsSending}
-                    onStopGeneration={copilotStopGeneration}
-                    isInitialView={false}
-                    userId={session?.user?.id}
-                    editValue={copilotEditingInputValue}
-                    onEditValueConsumed={clearCopilotEditingValue}
-                  />
-                </div>
+                <MothershipChat
+                  className='min-h-0 flex-1'
+                  messages={copilotMessages}
+                  isSending={copilotIsSending}
+                  onSubmit={handleCopilotSubmit}
+                  onStopGeneration={copilotStopGeneration}
+                  messageQueue={copilotMessageQueue}
+                  onRemoveQueuedMessage={copilotRemoveFromQueue}
+                  onSendQueuedMessage={copilotSendNow}
+                  onEditQueuedMessage={handleCopilotEditQueuedMessage}
+                  userId={session?.user?.id}
+                  editValue={copilotEditingInputValue}
+                  onEditValueConsumed={clearCopilotEditingValue}
+                  layout='copilot-view'
+                />
               </div>
             )}
             <div

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { PanelLeft } from '@/components/emcn/icons'
@@ -11,21 +11,10 @@ import {
   LandingWorkflowSeedStorage,
 } from '@/lib/core/utils/browser-storage'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
-import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import type { ChatContext } from '@/stores/panel'
-import {
-  assistantMessageHasRenderableContent,
-  ChatMessageAttachments,
-  MessageContent,
-  MothershipView,
-  QueuedMessages,
-  TemplatePrompts,
-  UserInput,
-  UserMessageContent,
-} from './components'
-import { PendingTagIndicator } from './components/message-content/components/special-tags'
-import { useAutoScroll, useChat, useMothershipResize } from './hooks'
+import { MothershipChat, MothershipView, TemplatePrompts, UserInput } from './components'
+import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
@@ -173,7 +162,11 @@ export function Home({ chatId }: HomeProps = {}) {
     sendNow,
     editQueuedMessage,
     streamingFile,
-  } = useChat(workspaceId, chatId, { onResourceEvent: handleResourceEvent })
+  } = useChat(
+    workspaceId,
+    chatId,
+    getMothershipUseChatOptions({ onResourceEvent: handleResourceEvent })
+  )
 
   const [editingInputValue, setEditingInputValue] = useState('')
   const [prevChatId, setPrevChatId] = useState(chatId)
@@ -285,22 +278,7 @@ export function Home({ chatId }: HomeProps = {}) {
     [addResource, handleResourceEvent]
   )
 
-  const { ref: scrollContainerRef, scrollToBottom } = useAutoScroll(isSending)
-
   const hasMessages = messages.length > 0
-  const initialScrollDoneRef = useRef(false)
-
-  useLayoutEffect(() => {
-    if (!hasMessages) {
-      initialScrollDoneRef.current = false
-      return
-    }
-    if (initialScrollDoneRef.current) return
-    if (resources.length > 0 && isResourceCollapsed) return
-
-    initialScrollDoneRef.current = true
-    scrollToBottom()
-  }, [hasMessages, resources.length, isResourceCollapsed, scrollToBottom])
 
   useEffect(() => {
     if (hasMessages) return
@@ -354,90 +332,23 @@ export function Home({ chatId }: HomeProps = {}) {
   return (
     <div className='relative flex h-full bg-[var(--bg)]'>
       <div className='flex h-full min-w-[320px] flex-1 flex-col'>
-        <div
-          ref={scrollContainerRef}
-          className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-8 [scrollbar-gutter:stable]'
-        >
-          <div className='mx-auto max-w-[42rem] space-y-6'>
-            {messages.map((msg, index) => {
-              if (msg.role === 'user') {
-                const hasAttachments = msg.attachments && msg.attachments.length > 0
-                return (
-                  <div key={msg.id} className='flex flex-col items-end gap-[6px] pt-3'>
-                    {hasAttachments && (
-                      <ChatMessageAttachments
-                        attachments={msg.attachments!}
-                        align='end'
-                        className='max-w-[70%]'
-                      />
-                    )}
-                    <div className='max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2'>
-                      <UserMessageContent content={msg.content} contexts={msg.contexts} />
-                    </div>
-                  </div>
-                )
-              }
-
-              const hasAnyBlocks = Boolean(msg.contentBlocks?.length)
-              const hasRenderableAssistant = assistantMessageHasRenderableContent(
-                msg.contentBlocks ?? [],
-                msg.content ?? ''
-              )
-              const isLastAssistant = msg.role === 'assistant' && index === messages.length - 1
-              const isThisStreaming = isSending && isLastAssistant
-
-              if (!hasAnyBlocks && !msg.content?.trim() && isThisStreaming) {
-                return <PendingTagIndicator key={msg.id} />
-              }
-
-              if (!hasRenderableAssistant && !msg.content?.trim() && !isThisStreaming) {
-                return null
-              }
-
-              const isLastMessage = index === messages.length - 1
-
-              return (
-                <div key={msg.id} className='group/msg relative pb-5'>
-                  {!isThisStreaming && (msg.content || msg.contentBlocks?.length) && (
-                    <div className='absolute right-0 bottom-0 z-10'>
-                      <MessageActions content={msg.content} requestId={msg.requestId} />
-                    </div>
-                  )}
-                  <MessageContent
-                    blocks={msg.contentBlocks || []}
-                    fallbackContent={msg.content}
-                    isStreaming={isThisStreaming}
-                    onOptionSelect={isLastMessage ? sendMessage : undefined}
-                  />
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        <div
-          className={`flex-shrink-0 px-[24px] pb-[16px]${isInputEntering ? ' animate-slide-in-bottom' : ''}`}
-          onAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
-        >
-          <div className='mx-auto max-w-[42rem]'>
-            <QueuedMessages
-              messageQueue={messageQueue}
-              onRemove={removeFromQueue}
-              onSendNow={sendNow}
-              onEdit={handleEditQueuedMessage}
-            />
-            <UserInput
-              onSubmit={handleSubmit}
-              isSending={isSending}
-              onStopGeneration={stopGeneration}
-              isInitialView={false}
-              userId={session?.user?.id}
-              onContextAdd={handleContextAdd}
-              editValue={editingInputValue}
-              onEditValueConsumed={clearEditingValue}
-            />
-          </div>
-        </div>
+        <MothershipChat
+          messages={messages}
+          isSending={isSending}
+          onSubmit={handleSubmit}
+          onStopGeneration={stopGeneration}
+          messageQueue={messageQueue}
+          onRemoveQueuedMessage={removeFromQueue}
+          onSendQueuedMessage={sendNow}
+          onEditQueuedMessage={handleEditQueuedMessage}
+          userId={session?.user?.id}
+          onContextAdd={handleContextAdd}
+          editValue={editingInputValue}
+          onEditValueConsumed={clearEditingValue}
+          animateInput={isInputEntering}
+          onInputAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
+          initialScrollBlocked={resources.length > 0 && isResourceCollapsed}
+        />
       </div>
 
       {/* Resize handle — zero-width flex child whose absolute child straddles the border */}

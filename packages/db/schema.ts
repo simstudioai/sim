@@ -753,7 +753,7 @@ export const userStats = pgTable('user_stats', {
   totalChatExecutions: integer('total_chat_executions').notNull().default(0),
   totalMcpExecutions: integer('total_mcp_executions').notNull().default(0),
   totalA2aExecutions: integer('total_a2a_executions').notNull().default(0),
-  totalTokensUsed: integer('total_tokens_used').notNull().default(0),
+  totalTokensUsed: bigint('total_tokens_used', { mode: 'number' }).notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $5 (1,000 credits) for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
@@ -769,7 +769,7 @@ export const userStats = pgTable('user_stats', {
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
   currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
-  totalCopilotTokens: integer('total_copilot_tokens').notNull().default(0),
+  totalCopilotTokens: bigint('total_copilot_tokens', { mode: 'number' }).notNull().default(0),
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
   // MCP Copilot usage tracking
   totalMcpCopilotCalls: integer('total_mcp_copilot_calls').notNull().default(0),
