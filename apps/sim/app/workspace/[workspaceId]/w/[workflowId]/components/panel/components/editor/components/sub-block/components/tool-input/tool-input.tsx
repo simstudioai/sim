@@ -27,6 +27,7 @@ import type { McpToolSchema } from '@/lib/mcp/types'
 import { getProviderIdFromServiceId, type OAuthProvider, type OAuthService } from '@/lib/oauth'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { McpServerFormModal } from '@/app/workspace/[workspaceId]/settings/components/mcp/components/mcp-server-form-modal/mcp-server-form-modal'
 import {
   LongInput,
   ShortInput,
@@ -48,6 +49,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import { getAllBlocks } from '@/blocks'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
+import { BUILT_IN_TOOL_TYPES } from '@/blocks/utils'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import {
   type CustomTool as CustomToolDefinition,
@@ -55,12 +57,15 @@ import {
 } from '@/hooks/queries/custom-tools'
 import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
 import {
+  useAllowedMcpDomains,
+  useCreateMcpServer,
   useForceRefreshMcpTools,
   useMcpServers,
   useMcpToolsEvents,
   useStoredMcpTools,
 } from '@/hooks/queries/mcp'
 import { useWorkflowState, useWorkflows } from '@/hooks/queries/workflows'
+import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -330,24 +335,6 @@ function resolveCustomToolFromReference(
  * These are distinguished from third-party integrations for categorization
  * in the tool selection dropdown.
  */
-const BUILT_IN_TOOL_TYPES = new Set([
-  'api',
-  'file',
-  'function',
-  'knowledge',
-  'search',
-  'thinking',
-  'image_generator',
-  'video_generator',
-  'vision',
-  'translate',
-  'tts',
-  'stt',
-  'memory',
-  'table',
-  'webhook_request',
-  'workflow',
-])
 
 /**
  * Checks if a block supports multiple operations.
@@ -469,6 +456,7 @@ export const ToolInput = memo(function ToolInput({
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
+  const [mcpModalOpen, setMcpModalOpen] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -507,6 +495,9 @@ export const ToolInput = memo(function ToolInput({
   const forceRefreshMcpTools = useForceRefreshMcpTools()
   useMcpToolsEvents(workspaceId)
   const { navigateToSettings } = useSettingsNavigation()
+  const createMcpServer = useCreateMcpServer()
+  const { data: allowedMcpDomains = null } = useAllowedMcpDomains()
+  const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
   const mcpDataLoading = mcpLoading || mcpServersLoading
 
   const { data: workflowsList = [] } = useWorkflows(workspaceId, { syncRegistry: false })
@@ -1379,7 +1370,7 @@ export const ToolInput = memo(function ToolInput({
         icon: McpIcon,
         onSelect: () => {
           setOpen(false)
-          navigateToSettings({ section: 'mcp' })
+          setMcpModalOpen(true)
         },
         disabled: isPreview,
       })
@@ -2094,6 +2085,18 @@ export const ToolInput = memo(function ToolInput({
               })()
             : undefined
         }
+      />
+
+      <McpServerFormModal
+        open={mcpModalOpen}
+        onOpenChange={setMcpModalOpen}
+        mode='add'
+        onSubmit={async (config) => {
+          await createMcpServer.mutateAsync({ workspaceId, config: { ...config, enabled: true } })
+        }}
+        workspaceId={workspaceId}
+        availableEnvVars={availableEnvVars}
+        allowedMcpDomains={allowedMcpDomains}
       />
     </div>
   )
