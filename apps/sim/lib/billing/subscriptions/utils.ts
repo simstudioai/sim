@@ -16,6 +16,38 @@ import {
 import type { EnterpriseSubscriptionMetadata } from '@/lib/billing/types'
 import { env } from '@/lib/core/config/env'
 
+export const ENTITLED_SUBSCRIPTION_STATUSES = ['active', 'past_due'] as const
+
+export const USABLE_SUBSCRIPTION_STATUSES = ['active'] as const
+
+/**
+ * Returns true when a subscription should still count as a paid plan entitlement.
+ */
+export function hasPaidSubscriptionStatus(status: string | null | undefined): boolean {
+  return ENTITLED_SUBSCRIPTION_STATUSES.includes(
+    status as (typeof ENTITLED_SUBSCRIPTION_STATUSES)[number]
+  )
+}
+
+/**
+ * Returns true when a subscription status is usable for product access.
+ */
+export function hasUsableSubscriptionStatus(status: string | null | undefined): boolean {
+  return USABLE_SUBSCRIPTION_STATUSES.includes(
+    status as (typeof USABLE_SUBSCRIPTION_STATUSES)[number]
+  )
+}
+
+/**
+ * Returns true when a subscription is usable for product access.
+ */
+export function hasUsableSubscriptionAccess(
+  status: string | null | undefined,
+  billingBlocked: boolean | null | undefined
+): boolean {
+  return hasUsableSubscriptionStatus(status) && !billingBlocked
+}
+
 /**
  * Get the free tier limit from env or fallback to default
  */
@@ -45,7 +77,7 @@ export function getEnterpriseTierLimitPerSeat(): number {
 }
 
 export function checkEnterprisePlan(subscription: any): boolean {
-  return isEnterprise(subscription?.plan) && subscription?.status === 'active'
+  return isEnterprise(subscription?.plan) && hasPaidSubscriptionStatus(subscription?.status)
 }
 
 /**
@@ -81,11 +113,11 @@ export function getEffectiveSeats(subscription: any): number {
 }
 
 export function checkProPlan(subscription: any): boolean {
-  return isPro(subscription?.plan) && subscription?.status === 'active'
+  return isPro(subscription?.plan) && hasPaidSubscriptionStatus(subscription?.status)
 }
 
 export function checkTeamPlan(subscription: any): boolean {
-  return isTeam(subscription?.plan) && subscription?.status === 'active'
+  return isTeam(subscription?.plan) && hasPaidSubscriptionStatus(subscription?.status)
 }
 
 /**
@@ -96,7 +128,7 @@ export function checkTeamPlan(subscription: any): boolean {
  * @returns The per-user minimum limit in dollars
  */
 export function getPerUserMinimumLimit(subscription: any): number {
-  if (!subscription || subscription.status !== 'active') {
+  if (!subscription || !hasPaidSubscriptionStatus(subscription.status)) {
     return getFreeTierLimit()
   }
 
@@ -124,7 +156,7 @@ export function getPerUserMinimumLimit(subscription: any): number {
  * @returns Whether the user can edit their usage limits
  */
 export function canEditUsageLimit(subscription: any): boolean {
-  if (!subscription || subscription.status !== 'active') {
+  if (!subscription || !hasUsableSubscriptionStatus(subscription.status)) {
     return false // Free plan users cannot edit limits
   }
 

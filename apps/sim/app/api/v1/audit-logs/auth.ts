@@ -8,8 +8,10 @@
 import { db } from '@sim/db'
 import { member, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
+import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('V1AuditLogsAuth')
 
@@ -57,6 +59,17 @@ export async function validateEnterpriseAuditAccess(userId: string): Promise<Aut
     }
   }
 
+  const billingStatus = await getEffectiveBillingStatus(userId)
+  if (billingStatus.billingBlocked) {
+    return {
+      success: false,
+      response: NextResponse.json(
+        { error: 'Active enterprise subscription required' },
+        { status: 403 }
+      ),
+    }
+  }
+
   const [orgSub, orgMembers] = await Promise.all([
     db
       .select({ id: subscription.id })
@@ -65,7 +78,7 @@ export async function validateEnterpriseAuditAccess(userId: string): Promise<Aut
         and(
           eq(subscription.referenceId, membership.organizationId),
           eq(subscription.plan, 'enterprise'),
-          eq(subscription.status, 'active')
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
         )
       )
       .limit(1),

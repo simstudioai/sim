@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import { Button, Combobox, Input, Skeleton, Switch, Textarea } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
-import { getSubscriptionStatus } from '@/lib/billing/client/utils'
+import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -76,8 +76,8 @@ export function SSO() {
   const isOwner = userRole === 'owner'
   const isAdmin = userRole === 'admin'
   const canManageSSO = isOwner || isAdmin
-  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
-  const hasEnterprisePlan = subscriptionStatus.isEnterprise
+  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
+  const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
 
   const isSSOProviderOwner =
     !isBillingEnabled && userId ? providers.some((p: any) => p.userId === userId) : null

@@ -24,7 +24,7 @@ import {
 import { GmailIcon, OutlookIcon } from '@/components/icons'
 import { Input as BaseInput } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
-import { getSubscriptionStatus } from '@/lib/billing/client'
+import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { cn } from '@/lib/core/utils/cn'
 import { getProviderDisplayName, type PollingProvider } from '@/lib/credential-sets/providers'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -58,8 +58,8 @@ export function CredentialSets() {
   const { data: subscriptionData } = useSubscriptionData()
 
   const activeOrganization = organizationsData?.activeOrganization
-  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
-  const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
+  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
+  const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const userRole = getUserRole(activeOrganization, session?.user?.email)
   const isAdmin = userRole === 'admin' || userRole === 'owner'
   const canManageCredentialSets = hasTeamPlan && isAdmin && !!activeOrganization?.id

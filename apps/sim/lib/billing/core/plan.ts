@@ -2,14 +2,19 @@ import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
-import { checkEnterprisePlan, checkProPlan, checkTeamPlan } from '@/lib/billing/subscriptions/utils'
+import {
+  checkEnterprisePlan,
+  checkProPlan,
+  checkTeamPlan,
+  ENTITLED_SUBSCRIPTION_STATUSES,
+} from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('PlanLookup')
 
 export type HighestPrioritySubscription = Awaited<ReturnType<typeof getHighestPrioritySubscription>>
 
 /**
- * Get the highest priority active subscription for a user
+ * Get the highest priority paid subscription for a user.
  * Priority: Enterprise > Team > Pro > Free
  */
 export async function getHighestPrioritySubscription(userId: string) {
@@ -17,7 +22,12 @@ export async function getHighestPrioritySubscription(userId: string) {
     const personalSubs = await db
       .select()
       .from(subscription)
-      .where(and(eq(subscription.referenceId, userId), eq(subscription.status, 'active')))
+      .where(
+        and(
+          eq(subscription.referenceId, userId),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
 
     const memberships = await db
       .select({ organizationId: member.organizationId })
@@ -41,7 +51,10 @@ export async function getHighestPrioritySubscription(userId: string) {
           .select()
           .from(subscription)
           .where(
-            and(inArray(subscription.referenceId, validOrgIds), eq(subscription.status, 'active'))
+            and(
+              inArray(subscription.referenceId, validOrgIds),
+              inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+            )
           )
       }
     }

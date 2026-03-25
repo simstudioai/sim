@@ -1,10 +1,10 @@
 import { db, webhook, workflow, workflowDeploymentVersion } from '@sim/db'
-import { credentialSet, subscription } from '@sim/db/schema'
+import { credentialSet } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { checkEnterprisePlan, checkTeamPlan } from '@/lib/billing/subscriptions/utils'
+import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { isProd } from '@/lib/core/config/feature-flags'
@@ -90,20 +90,7 @@ async function verifyCredentialSetBilling(credentialSetId: string): Promise<{
     return { valid: false, error: 'Credential set not found' }
   }
 
-  const [orgSub] = await db
-    .select()
-    .from(subscription)
-    .where(and(eq(subscription.referenceId, set.organizationId), eq(subscription.status, 'active')))
-    .limit(1)
-
-  if (!orgSub) {
-    return {
-      valid: false,
-      error: 'Credential sets require a Team or Enterprise plan. Please upgrade to continue.',
-    }
-  }
-
-  const hasTeamPlan = checkTeamPlan(orgSub) || checkEnterprisePlan(orgSub)
+  const hasTeamPlan = await isOrganizationOnTeamOrEnterprisePlan(set.organizationId)
   if (!hasTeamPlan) {
     return {
       valid: false,
