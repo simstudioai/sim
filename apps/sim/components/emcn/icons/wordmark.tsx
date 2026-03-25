@@ -1,4 +1,5 @@
 import type { SVGProps } from 'react'
+import { useId } from 'react'
 
 /**
  * Sim brand wordmark — icon (green) + "Sim" text as a single SVG.
@@ -6,6 +7,8 @@ import type { SVGProps } from 'react'
  * @param props - SVG properties including className, style, etc.
  */
 export function Wordmark(props: SVGProps<SVGSVGElement>) {
+  const gradientId = useId()
+
   return (
     <svg
       fill='none'
@@ -28,12 +31,12 @@ export function Wordmark(props: SVGProps<SVGSVGElement>) {
         />
         <path
           d='m275.293 171.18h-85.187c-10.327 0-18.7 8.432-18.7 18.834v84.749c0 10.402 8.373 18.833 18.7 18.833h85.187c10.328 0 18.701-8.431 18.701-18.833v-84.749c0-10.402-8.373-18.834-18.701-18.834z'
-          fill='url(#sim-wordmark-gradient)'
+          fill={`url(#${gradientId})`}
           fillOpacity='.2'
         />
         <defs>
           <linearGradient
-            id='sim-wordmark-gradient'
+            id={gradientId}
             gradientUnits='userSpaceOnUse'
             x1='171.406'
             x2='245.831'

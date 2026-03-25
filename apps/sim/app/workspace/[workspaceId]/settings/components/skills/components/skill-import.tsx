@@ -30,8 +30,8 @@ function isAcceptedFile(file: File): boolean {
 export function SkillImport({ onImport }: SkillImportProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [isDragging, setIsDragging] = useState(false)
   const [dragCounter, setDragCounter] = useState(0)
+  const isDragging = dragCounter > 0
   const [fileState, setFileState] = useState<ImportState>('idle')
   const [fileError, setFileError] = useState('')
 
@@ -86,21 +86,13 @@ export function SkillImport({ onImport }: SkillImportProps) {
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setDragCounter((prev) => {
-      const next = prev + 1
-      if (next === 1) setIsDragging(true)
-      return next
-    })
+    setDragCounter((prev) => prev + 1)
   }, [])
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setDragCounter((prev) => {
-      const next = prev - 1
-      if (next === 0) setIsDragging(false)
-      return next
-    })
+    setDragCounter((prev) => prev - 1)
   }, [])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -113,7 +105,6 @@ export function SkillImport({ onImport }: SkillImportProps) {
     (e: React.DragEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      setIsDragging(false)
       setDragCounter(0)
 
       const file = e.dataTransfer.files?.[0]

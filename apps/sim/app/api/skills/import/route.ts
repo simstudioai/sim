@@ -64,42 +64,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: message }, { status: 400 })
     }
 
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+    const response = await fetch(rawUrl, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: { Accept: 'text/plain' },
+    })
 
-    try {
-      const response = await fetch(rawUrl, {
-        signal: controller.signal,
-        headers: { Accept: 'text/plain' },
+    if (!response.ok) {
+      logger.warn(`[${requestId}] GitHub fetch failed`, {
+        status: response.status,
+        url: rawUrl,
       })
-
-      if (!response.ok) {
-        logger.warn(`[${requestId}] GitHub fetch failed`, {
-          status: response.status,
-          url: rawUrl,
-        })
-        return NextResponse.json(
-          { error: `Failed to fetch file (HTTP ${response.status}). Is the repository public?` },
-          { status: 502 }
-        )
-      }
-
-      const content = await response.text()
-
-      if (content.length > 100_000) {
-        return NextResponse.json({ error: 'File is too large (max 100KB)' }, { status: 400 })
-      }
-
-      return NextResponse.json({ content })
-    } finally {
-      clearTimeout(timeout)
+      return NextResponse.json(
+        { error: `Failed to fetch file (HTTP ${response.status}). Is the repository public?` },
+        { status: 502 }
+      )
     }
+
+    const content = await response.text()
+
+    if (content.length > 100_000) {
+      return NextResponse.json({ error: 'File is too large (max 100KB)' }, { status: 400 })
+    }
+
+    return NextResponse.json({ content })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid request', details: error.errors }, { status: 400 })
     }
 
-    if (error instanceof Error && error.name === 'AbortError') {
+    if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
       logger.warn(`[${requestId}] GitHub fetch timed out`)
       return NextResponse.json({ error: 'Request timed out' }, { status: 504 })
     }
