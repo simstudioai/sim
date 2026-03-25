@@ -34,7 +34,7 @@ export const hubspotSearchCompaniesTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" (e.g., "EQ", "CONTAINS"), and "value"',
+        'Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" (e.g., "EQ", "CONTAINS_TOKEN", "GT"), and "value"',
     },
     sorts: {
       type: 'array',
@@ -152,7 +152,7 @@ export const hubspotSearchCompaniesTool: ToolConfig<
       success: true,
       output: {
         companies: data.results || [],
-        total: data.total ?? null,
+        total: data.total ?? 0,
         paging: data.paging ?? null,
         metadata: {
           totalReturned: data.results?.length || 0,

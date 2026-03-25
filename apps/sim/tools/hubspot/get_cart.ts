@@ -1,14 +1,14 @@
 import { createLogger } from '@sim/logger'
-import type { HubSpotGetUsersParams, HubSpotGetUsersResponse } from '@/tools/hubspot/types'
-import { PAGING_OUTPUT, USERS_ARRAY_OUTPUT } from '@/tools/hubspot/types'
+import type { HubSpotGetCartParams, HubSpotGetCartResponse } from '@/tools/hubspot/types'
+import { GENERIC_CRM_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('HubSpotGetUsers')
+const logger = createLogger('HubSpotGetCart')
 
-export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUsersResponse> = {
-  id: 'hubspot_get_users',
-  name: 'Get Users from HubSpot',
-  description: 'Retrieve all users from HubSpot account',
+export const hubspotGetCartTool: ToolConfig<HubSpotGetCartParams, HubSpotGetCartResponse> = {
+  id: 'hubspot_get_cart',
+  name: 'Get Cart from HubSpot',
+  description: 'Retrieve a single cart by ID from HubSpot',
   version: '1.0.0',
 
   oauth: {
@@ -23,32 +23,32 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
       visibility: 'hidden',
       description: 'The access token for the HubSpot API',
     },
-    limit: {
+    cartId: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Number of results to return (default: 100, max: 100)',
+      description: 'The HubSpot cart ID to retrieve',
     },
-    after: {
+    properties: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Pagination cursor for next page of results (from previous response)',
+      description: 'Comma-separated list of HubSpot property names to return',
+    },
+    associations: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated list of object types to retrieve associated IDs for',
     },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = 'https://api.hubapi.com/crm/v3/objects/users'
+      const baseUrl = `https://api.hubapi.com/crm/v3/objects/carts/${params.cartId.trim()}`
       const queryParams = new URLSearchParams()
-
-      if (params.limit) {
-        queryParams.append('limit', params.limit)
-      }
-      if (params.after) {
-        queryParams.append('after', params.after)
-      }
-
+      if (params.properties) queryParams.append('properties', params.properties)
+      if (params.associations) queryParams.append('associations', params.associations)
       const queryString = queryParams.toString()
       return queryString ? `${baseUrl}?${queryString}` : baseUrl
     },
@@ -57,7 +57,6 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
       if (!params.accessToken) {
         throw new Error('Access token is required')
       }
-
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
@@ -67,29 +66,19 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
     if (!response.ok) {
       logger.error('HubSpot API request failed', { data, status: response.status })
-      throw new Error(data.message || 'Failed to fetch users from HubSpot')
+      throw new Error(data.message || 'Failed to get cart from HubSpot')
     }
-
-    const users = data.results || []
-
     return {
       success: true,
-      output: {
-        users,
-        paging: data.paging ?? null,
-        totalItems: users.length,
-        success: true,
-      },
+      output: { cart: data, cartId: data.id, success: true },
     }
   },
 
   outputs: {
-    users: USERS_ARRAY_OUTPUT,
-    paging: PAGING_OUTPUT,
-    totalItems: { type: 'number', description: 'Total number of users returned' },
+    cart: GENERIC_CRM_OBJECT_OUTPUT,
+    cartId: { type: 'string', description: 'The retrieved cart ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

@@ -1,14 +1,14 @@
 import { createLogger } from '@sim/logger'
-import type { HubSpotListDealsParams, HubSpotListDealsResponse } from '@/tools/hubspot/types'
-import { DEALS_ARRAY_OUTPUT, METADATA_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
+import type { HubSpotGetTicketParams, HubSpotGetTicketResponse } from '@/tools/hubspot/types'
+import { TICKET_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('HubSpotListDeals')
+const logger = createLogger('HubSpotGetTicket')
 
-export const hubspotListDealsTool: ToolConfig<HubSpotListDealsParams, HubSpotListDealsResponse> = {
-  id: 'hubspot_list_deals',
-  name: 'List Deals from HubSpot',
-  description: 'Retrieve all deals from HubSpot account with pagination support',
+export const hubspotGetTicketTool: ToolConfig<HubSpotGetTicketParams, HubSpotGetTicketResponse> = {
+  id: 'hubspot_get_ticket',
+  name: 'Get Ticket from HubSpot',
+  description: 'Retrieve a single ticket by ID from HubSpot',
   version: '1.0.0',
 
   oauth: {
@@ -23,24 +23,24 @@ export const hubspotListDealsTool: ToolConfig<HubSpotListDealsParams, HubSpotLis
       visibility: 'hidden',
       description: 'The access token for the HubSpot API',
     },
-    limit: {
+    ticketId: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results per page (max 100, default 10)',
+      description: 'The HubSpot ticket ID to retrieve',
     },
-    after: {
+    idProperty: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Pagination cursor for next page of results (from previous response)',
+      description: 'Property to use as unique identifier. If not specified, uses record ID',
     },
     properties: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of HubSpot property names to return (e.g., "dealname,amount,dealstage")',
+        'Comma-separated list of HubSpot property names to return (e.g., "subject,content,hs_ticket_priority")',
     },
     associations: {
       type: 'string',
@@ -53,22 +53,11 @@ export const hubspotListDealsTool: ToolConfig<HubSpotListDealsParams, HubSpotLis
 
   request: {
     url: (params) => {
-      const baseUrl = 'https://api.hubapi.com/crm/v3/objects/deals'
+      const baseUrl = `https://api.hubapi.com/crm/v3/objects/tickets/${params.ticketId.trim()}`
       const queryParams = new URLSearchParams()
-
-      if (params.limit) {
-        queryParams.append('limit', params.limit)
-      }
-      if (params.after) {
-        queryParams.append('after', params.after)
-      }
-      if (params.properties) {
-        queryParams.append('properties', params.properties)
-      }
-      if (params.associations) {
-        queryParams.append('associations', params.associations)
-      }
-
+      if (params.idProperty) queryParams.append('idProperty', params.idProperty)
+      if (params.properties) queryParams.append('properties', params.properties)
+      if (params.associations) queryParams.append('associations', params.associations)
       const queryString = queryParams.toString()
       return queryString ? `${baseUrl}?${queryString}` : baseUrl
     },
@@ -77,7 +66,6 @@ export const hubspotListDealsTool: ToolConfig<HubSpotListDealsParams, HubSpotLis
       if (!params.accessToken) {
         throw new Error('Access token is required')
       }
-
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
@@ -87,30 +75,19 @@ export const hubspotListDealsTool: ToolConfig<HubSpotListDealsParams, HubSpotLis
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
     if (!response.ok) {
       logger.error('HubSpot API request failed', { data, status: response.status })
-      throw new Error(data.message || 'Failed to list deals from HubSpot')
+      throw new Error(data.message || 'Failed to get ticket from HubSpot')
     }
-
     return {
       success: true,
-      output: {
-        deals: data.results || [],
-        paging: data.paging ?? null,
-        metadata: {
-          totalReturned: data.results?.length || 0,
-          hasMore: !!data.paging?.next,
-        },
-        success: true,
-      },
+      output: { ticket: data, ticketId: data.id, success: true },
     }
   },
 
   outputs: {
-    deals: DEALS_ARRAY_OUTPUT,
-    paging: PAGING_OUTPUT,
-    metadata: METADATA_OUTPUT,
+    ticket: TICKET_OBJECT_OUTPUT,
+    ticketId: { type: 'string', description: 'The retrieved ticket ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

@@ -1,20 +1,17 @@
 import { createLogger } from '@sim/logger'
-import type {
-  HubSpotSearchContactsParams,
-  HubSpotSearchContactsResponse,
-} from '@/tools/hubspot/types'
-import { CONTACTS_ARRAY_OUTPUT, METADATA_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
+import type { HubSpotSearchDealsParams, HubSpotSearchDealsResponse } from '@/tools/hubspot/types'
+import { DEALS_ARRAY_OUTPUT, METADATA_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('HubSpotSearchContacts')
+const logger = createLogger('HubSpotSearchDeals')
 
-export const hubspotSearchContactsTool: ToolConfig<
-  HubSpotSearchContactsParams,
-  HubSpotSearchContactsResponse
+export const hubspotSearchDealsTool: ToolConfig<
+  HubSpotSearchDealsParams,
+  HubSpotSearchDealsResponse
 > = {
-  id: 'hubspot_search_contacts',
-  name: 'Search Contacts in HubSpot',
-  description: 'Search for contacts in HubSpot using filters, sorting, and queries',
+  id: 'hubspot_search_deals',
+  name: 'Search Deals in HubSpot',
+  description: 'Search for deals in HubSpot using filters, sorting, and queries',
   version: '1.0.0',
 
   oauth: {
@@ -34,7 +31,7 @@ export const hubspotSearchContactsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" (e.g., "EQ", "CONTAINS_TOKEN", "GT"), and "value"',
+        'Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" (e.g., "EQ", "NEQ", "CONTAINS_TOKEN", "NOT_CONTAINS_TOKEN"), and "value"',
     },
     sorts: {
       type: 'array',
@@ -47,21 +44,20 @@ export const hubspotSearchContactsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Search query string to match against contact name, email, and other text fields',
+      description: 'Search query string to match against deal name and other text fields',
     },
     properties: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Array of HubSpot property names to return (e.g., ["email", "firstname", "lastname", "phone"])',
+        'Array of HubSpot property names to return (e.g., ["dealname", "amount", "dealstage"])',
     },
     limit: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results to return (max 100)',
+      description: 'Maximum number of results to return (max 200)',
     },
     after: {
       type: 'string',
@@ -72,86 +68,69 @@ export const hubspotSearchContactsTool: ToolConfig<
   },
 
   request: {
-    url: () => 'https://api.hubapi.com/crm/v3/objects/contacts/search',
+    url: () => 'https://api.hubapi.com/crm/v3/objects/deals/search',
     method: 'POST',
     headers: (params) => {
       if (!params.accessToken) {
         throw new Error('Access token is required')
       }
-
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
       }
     },
     body: (params) => {
-      const body: any = {}
-
+      const body: Record<string, unknown> = {}
       if (params.filterGroups) {
-        let parsedFilterGroups = params.filterGroups
-        if (typeof params.filterGroups === 'string') {
+        let parsed = params.filterGroups
+        if (typeof parsed === 'string') {
           try {
-            parsedFilterGroups = JSON.parse(params.filterGroups)
+            parsed = JSON.parse(parsed)
           } catch (e) {
             throw new Error(`Invalid JSON for filterGroups: ${(e as Error).message}`)
           }
         }
-        if (Array.isArray(parsedFilterGroups) && parsedFilterGroups.length > 0) {
-          body.filterGroups = parsedFilterGroups
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) body.filterGroups = parsed
       }
       if (params.sorts) {
-        let parsedSorts = params.sorts
-        if (typeof params.sorts === 'string') {
+        let parsed = params.sorts
+        if (typeof parsed === 'string') {
           try {
-            parsedSorts = JSON.parse(params.sorts)
+            parsed = JSON.parse(parsed)
           } catch (e) {
             throw new Error(`Invalid JSON for sorts: ${(e as Error).message}`)
           }
         }
-        if (Array.isArray(parsedSorts) && parsedSorts.length > 0) {
-          body.sorts = parsedSorts
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) body.sorts = parsed
       }
-      if (params.query) {
-        body.query = params.query
-      }
+      if (params.query) body.query = params.query
       if (params.properties) {
-        let parsedProperties = params.properties
-        if (typeof params.properties === 'string') {
+        let parsed = params.properties
+        if (typeof parsed === 'string') {
           try {
-            parsedProperties = JSON.parse(params.properties)
+            parsed = JSON.parse(parsed)
           } catch (e) {
             throw new Error(`Invalid JSON for properties: ${(e as Error).message}`)
           }
         }
-        if (Array.isArray(parsedProperties) && parsedProperties.length > 0) {
-          body.properties = parsedProperties
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) body.properties = parsed
       }
-      if (params.limit) {
-        body.limit = params.limit
-      }
-      if (params.after) {
-        body.after = params.after
-      }
-
+      if (params.limit) body.limit = params.limit
+      if (params.after) body.after = params.after
       return body
     },
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-
     if (!response.ok) {
       logger.error('HubSpot API request failed', { data, status: response.status })
-      throw new Error(data.message || 'Failed to search contacts in HubSpot')
+      throw new Error(data.message || 'Failed to search deals in HubSpot')
     }
-
     return {
       success: true,
       output: {
-        contacts: data.results || [],
+        deals: data.results || [],
         total: data.total ?? 0,
         paging: data.paging ?? null,
         metadata: {
@@ -164,8 +143,8 @@ export const hubspotSearchContactsTool: ToolConfig<
   },
 
   outputs: {
-    contacts: CONTACTS_ARRAY_OUTPUT,
-    total: { type: 'number', description: 'Total number of matching contacts', optional: true },
+    deals: DEALS_ARRAY_OUTPUT,
+    total: { type: 'number', description: 'Total number of matching deals', optional: true },
     paging: PAGING_OUTPUT,
     metadata: METADATA_OUTPUT,
     success: { type: 'boolean', description: 'Operation success status' },
