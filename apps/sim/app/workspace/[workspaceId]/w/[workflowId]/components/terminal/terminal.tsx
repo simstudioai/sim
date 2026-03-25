@@ -56,7 +56,7 @@ import { useShowTrainingControls } from '@/hooks/queries/general-settings'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import { sendMothershipMessage } from '@/stores/notifications/utils'
 import type { ConsoleEntry } from '@/stores/terminal'
-import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
+import { safeConsoleStringify, useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -706,11 +706,6 @@ export const Terminal = memo(function Terminal() {
     return selectedEntry.output
   }, [selectedEntry, showInput])
 
-  const outputDataStringified = useMemo(() => {
-    if (outputData === null || outputData === undefined) return ''
-    return JSON.stringify(outputData, null, 2)
-  }, [outputData])
-
   // Keep refs in sync for keyboard handler
   selectedEntryRef.current = selectedEntry
   navigableEntriesRef.current = navigableEntries
@@ -854,10 +849,12 @@ export const Terminal = memo(function Terminal() {
 
   const handleCopy = useCallback(() => {
     if (!selectedEntry) return
-    const textToCopy = shouldShowCodeDisplay ? selectedEntry.input.code : outputDataStringified
+    const textToCopy = shouldShowCodeDisplay
+      ? selectedEntry.input.code
+      : safeConsoleStringify(outputData)
     navigator.clipboard.writeText(textToCopy)
     setShowCopySuccess(true)
-  }, [selectedEntry, outputDataStringified, shouldShowCodeDisplay])
+  }, [selectedEntry, outputData, shouldShowCodeDisplay])
 
   const clearCurrentWorkflowConsole = useCallback(() => {
     if (activeWorkflowId) {
@@ -1465,7 +1462,6 @@ export const Terminal = memo(function Terminal() {
               handleExportConsole={handleExportConsole}
               handleClearConsole={handleClearConsole}
               shouldShowCodeDisplay={shouldShowCodeDisplay}
-              outputDataStringified={outputDataStringified}
               outputData={outputData}
               handleClearConsoleFromMenu={handleClearConsoleFromMenu}
             />

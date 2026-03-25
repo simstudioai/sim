@@ -33,7 +33,7 @@ import { ToggleButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/compo
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import type { ConsoleEntry } from '@/stores/terminal'
-import { useTerminalStore } from '@/stores/terminal'
+import { safeConsoleStringify, useTerminalStore } from '@/stores/terminal'
 
 interface OutputCodeContentProps {
   code: string
@@ -97,7 +97,6 @@ export interface OutputPanelProps {
   handleExportConsole: (e: React.MouseEvent) => void
   handleClearConsole: (e: React.MouseEvent) => void
   shouldShowCodeDisplay: boolean
-  outputDataStringified: string
   outputData: unknown
   handleClearConsoleFromMenu: () => void
 }
@@ -125,7 +124,6 @@ export const OutputPanel = React.memo(function OutputPanel({
   handleExportConsole,
   handleClearConsole,
   shouldShowCodeDisplay,
-  outputDataStringified,
   outputData,
   handleClearConsoleFromMenu,
 }: OutputPanelProps) {
@@ -275,6 +273,19 @@ export const OutputPanel = React.memo(function OutputPanel({
     () => (isOutputSearchActive ? outputSearchQuery : undefined),
     [isOutputSearchActive, outputSearchQuery]
   )
+
+  const outputDataStringified = useMemo(() => {
+    if (
+      structuredView ||
+      shouldShowCodeDisplay ||
+      outputData === null ||
+      outputData === undefined
+    ) {
+      return ''
+    }
+
+    return safeConsoleStringify(outputData)
+  }, [outputData, shouldShowCodeDisplay, structuredView])
 
   return (
     <>

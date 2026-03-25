@@ -9,14 +9,15 @@ import { useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
 import { indexedDBStorage } from '@/stores/terminal/console/storage'
 import type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from '@/stores/terminal/console/types'
+import {
+  normalizeConsoleError,
+  normalizeConsoleInput,
+  normalizeConsoleOutput,
+  safeConsoleStringify,
+  trimConsoleEntries,
+} from '@/stores/terminal/console/utils'
 
 const logger = createLogger('TerminalConsoleStore')
-
-/**
- * Maximum number of console entries to keep per workflow.
- * Keeps the stored data size reasonable and improves performance.
- */
-const MAX_ENTRIES_PER_WORKFLOW = 5000
 
 const updateBlockOutput = (
   existingOutput: NormalizedBlockOutput | undefined,
@@ -151,96 +152,49 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
         setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
 
         addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => {
+          if (shouldSkipEntry(entry.output)) {
+            return get().entries[0] as ConsoleEntry
+          }
+
+          const redactedEntry = { ...entry }
+          if (
+            !isStreamingOutput(entry.output) &&
+            redactedEntry.output &&
+            typeof redactedEntry.output === 'object'
+          ) {
+            redactedEntry.output = redactApiKeys(redactedEntry.output)
+          }
+          if (redactedEntry.input && typeof redactedEntry.input === 'object') {
+            redactedEntry.input = redactApiKeys(redactedEntry.input)
+          }
+
+          const createdEntry: ConsoleEntry = {
+            ...redactedEntry,
+            id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+            input: normalizeConsoleInput(redactedEntry.input),
+            output: normalizeConsoleOutput(redactedEntry.output),
+            error: normalizeConsoleError(redactedEntry.error),
+            warning:
+              typeof redactedEntry.warning === 'string'
+                ? (normalizeConsoleError(redactedEntry.warning) ?? undefined)
+                : redactedEntry.warning,
+          }
+
           set((state) => {
-            if (shouldSkipEntry(entry.output)) {
-              return { entries: state.entries }
-            }
-
-            const redactedEntry = { ...entry }
-            if (
-              !isStreamingOutput(entry.output) &&
-              redactedEntry.output &&
-              typeof redactedEntry.output === 'object'
-            ) {
-              redactedEntry.output = redactApiKeys(redactedEntry.output)
-            }
-            if (redactedEntry.input && typeof redactedEntry.input === 'object') {
-              redactedEntry.input = redactApiKeys(redactedEntry.input)
-            }
-
-            const newEntry: ConsoleEntry = {
-              ...redactedEntry,
-              id: crypto.randomUUID(),
-              timestamp: new Date().toISOString(),
-            }
-
-            const newEntries = [newEntry, ...state.entries]
-
-            const executionsToRemove = new Set<string>()
-
-            const workflowGroups = new Map<string, ConsoleEntry[]>()
-            for (const e of newEntries) {
-              const group = workflowGroups.get(e.workflowId) || []
-              group.push(e)
-              workflowGroups.set(e.workflowId, group)
-            }
-
-            for (const [workflowId, entries] of workflowGroups) {
-              if (entries.length <= MAX_ENTRIES_PER_WORKFLOW) continue
-
-              const execOrder: string[] = []
-              const seen = new Set<string>()
-              for (const e of entries) {
-                const execId = e.executionId ?? e.id
-                if (!seen.has(execId)) {
-                  execOrder.push(execId)
-                  seen.add(execId)
-                }
-              }
-
-              const counts = new Map<string, number>()
-              for (const e of entries) {
-                const execId = e.executionId ?? e.id
-                counts.set(execId, (counts.get(execId) || 0) + 1)
-              }
-
-              let total = 0
-              const toKeep = new Set<string>()
-              for (const execId of execOrder) {
-                const c = counts.get(execId) || 0
-                if (total + c <= MAX_ENTRIES_PER_WORKFLOW) {
-                  toKeep.add(execId)
-                  total += c
-                }
-              }
-
-              for (const execId of execOrder) {
-                if (!toKeep.has(execId)) {
-                  executionsToRemove.add(`${workflowId}:${execId}`)
-                }
-              }
-            }
-
-            const trimmedEntries = newEntries.filter((e) => {
-              const key = `${e.workflowId}:${e.executionId ?? e.id}`
-              return !executionsToRemove.has(key)
-            })
-
-            return { entries: trimmedEntries }
+            return { entries: trimConsoleEntries([createdEntry, ...state.entries]) }
           })
 
-          const newEntry = get().entries[0]
-
-          if (newEntry?.error && newEntry.blockType !== 'cancelled') {
+          if (createdEntry.error && createdEntry.blockType !== 'cancelled') {
             notifyBlockError({
-              error: newEntry.error,
-              blockName: newEntry.blockName || 'Unknown Block',
+              error: createdEntry.error,
+              blockName: createdEntry.blockName || 'Unknown Block',
               workflowId: entry.workflowId,
-              logContext: { entryId: newEntry.id },
+              logContext: { entryId: createdEntry.id },
             })
           }
 
-          return newEntry
+          return createdEntry
         },
 
         clearWorkflowConsole: (workflowId: string) => {
@@ -267,7 +221,8 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               return ''
             }
 
-            let stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value)
+            let stringValue =
+              typeof value === 'object' ? safeConsoleStringify(value) : String(value)
 
             if (
               stringValue.includes('"') ||
@@ -348,36 +303,41 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               }
 
               if (typeof update === 'string') {
-                const newOutput = updateBlockOutput(entry.output, update)
+                const newOutput = normalizeConsoleOutput(updateBlockOutput(entry.output, update))
                 return { ...entry, output: newOutput }
               }
 
               const updatedEntry = { ...entry }
 
               if (update.content !== undefined) {
-                updatedEntry.output = updateBlockOutput(entry.output, update.content)
+                updatedEntry.output = normalizeConsoleOutput(
+                  updateBlockOutput(entry.output, update.content)
+                )
               }
 
               if (update.replaceOutput !== undefined) {
-                updatedEntry.output =
+                const redactedOutput =
                   typeof update.replaceOutput === 'object' && update.replaceOutput !== null
                     ? redactApiKeys(update.replaceOutput)
                     : update.replaceOutput
+                updatedEntry.output = normalizeConsoleOutput(redactedOutput)
               } else if (update.output !== undefined) {
                 const mergedOutput = {
                   ...(entry.output || {}),
                   ...update.output,
                 }
                 updatedEntry.output =
-                  typeof mergedOutput === 'object' ? redactApiKeys(mergedOutput) : mergedOutput
+                  typeof mergedOutput === 'object'
+                    ? normalizeConsoleOutput(redactApiKeys(mergedOutput))
+                    : normalizeConsoleOutput(mergedOutput)
               }
 
               if (update.error !== undefined) {
-                updatedEntry.error = update.error
+                updatedEntry.error = normalizeConsoleError(update.error)
               }
 
               if (update.warning !== undefined) {
-                updatedEntry.warning = update.warning
+                updatedEntry.warning = normalizeConsoleError(update.warning) ?? undefined
               }
 
               if (update.success !== undefined) {
@@ -399,8 +359,8 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               if (update.input !== undefined) {
                 updatedEntry.input =
                   typeof update.input === 'object' && update.input !== null
-                    ? redactApiKeys(update.input)
-                    : update.input
+                    ? normalizeConsoleInput(redactApiKeys(update.input))
+                    : normalizeConsoleInput(update.input)
               }
 
               if (update.isRunning !== undefined) {
@@ -446,7 +406,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               return updatedEntry
             })
 
-            return { entries: updatedEntries }
+            return { entries: trimConsoleEntries(updatedEntries) }
           })
 
           if (typeof update === 'object' && update.error) {
@@ -480,7 +440,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
               }
               return entry
             })
-            return { entries: updatedEntries }
+            return { entries: trimConsoleEntries(updatedEntries) }
           })
         },
       }),
@@ -513,12 +473,22 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
             ) {
               updated = { ...updated, isRunning: false }
             }
+            updated = {
+              ...updated,
+              input: normalizeConsoleInput(updated.input),
+              output: normalizeConsoleOutput(updated.output),
+              error: normalizeConsoleError(updated.error),
+              warning:
+                typeof updated.warning === 'string'
+                  ? (normalizeConsoleError(updated.warning) ?? undefined)
+                  : updated.warning,
+            }
             return updated
           })
 
           return {
             ...currentState,
-            entries,
+            entries: trimConsoleEntries(entries),
             isOpen: persisted?.isOpen ?? currentState.isOpen,
           }
         },
