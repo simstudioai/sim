@@ -67,17 +67,15 @@ export const ResourceHeader = memo(function ResourceHeader({
     <div
       className={cn(
         'border-[var(--border)] border-b',
-        hasBreadcrumbs ? 'px-[16px] py-[8.5px]' : 'px-[24px] py-[10px]'
+        hasBreadcrumbs ? 'px-4 py-[8.5px]' : 'px-6 py-2.5'
       )}
     >
       <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-[12px]'>
+        <div className='flex items-center gap-3'>
           {hasBreadcrumbs ? (
             breadcrumbs.map((crumb, i) => (
               <Fragment key={i}>
-                {i > 0 && (
-                  <span className='select-none text-[14px] text-[var(--text-icon)]'>/</span>
-                )}
+                {i > 0 && <span className='select-none text-[var(--text-icon)] text-sm'>/</span>}
                 <BreadcrumbSegment
                   icon={i === 0 ? Icon : undefined}
                   label={crumb.label}
@@ -90,13 +88,11 @@ export const ResourceHeader = memo(function ResourceHeader({
           ) : (
             <>
               {Icon && <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />}
-              {title && (
-                <h1 className='font-medium text-[14px] text-[var(--text-body)]'>{title}</h1>
-              )}
+              {title && <h1 className='font-medium text-[var(--text-body)] text-sm'>{title}</h1>}
             </>
           )}
         </div>
-        <div className='flex items-center gap-[6px]'>
+        <div className='flex items-center gap-1.5'>
           {actions?.map((action) => {
             const ActionIcon = action.icon
             return (
@@ -105,13 +101,13 @@ export const ResourceHeader = memo(function ResourceHeader({
                 onClick={action.onClick}
                 disabled={action.disabled}
                 variant='subtle'
-                className='px-[8px] py-[4px] text-[12px]'
+                className='px-2 py-1 text-caption'
               >
                 {ActionIcon && (
                   <ActionIcon
                     className={cn(
                       'h-[14px] w-[14px] text-[var(--text-icon)]',
-                      action.label && 'mr-[6px]'
+                      action.label && 'mr-1.5'
                     )}
                   />
                 )}
@@ -124,9 +120,9 @@ export const ResourceHeader = memo(function ResourceHeader({
               onClick={create.onClick}
               disabled={create.disabled}
               variant='subtle'
-              className='px-[8px] py-[4px] text-[12px]'
+              className='px-2 py-1 text-caption'
             >
-              <Plus className='mr-[6px] h-[14px] w-[14px] text-[var(--text-icon)]' />
+              <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
               {create.label}
             </Button>
           )}
@@ -151,8 +147,8 @@ function BreadcrumbSegment({
 }) {
   if (editing?.isEditing) {
     return (
-      <span className='inline-flex items-center px-[8px] py-[4px]'>
-        {Icon && <Icon className='mr-[12px] h-[14px] w-[14px] text-[var(--text-icon)]' />}
+      <span className='inline-flex items-center px-2 py-1'>
+        {Icon && <Icon className='mr-3 h-[14px] w-[14px] text-[var(--text-icon)]' />}
         <InlineRenameInput
           value={editing.value}
           onChange={editing.onChange}
@@ -165,7 +161,7 @@ function BreadcrumbSegment({
 
   const content = (
     <>
-      {Icon && <Icon className='mr-[12px] h-[14px] w-[14px] text-[var(--text-icon)]' />}
+      {Icon && <Icon className='mr-3 h-[14px] w-[14px] text-[var(--text-icon)]' />}
       {label}
     </>
   )
@@ -174,9 +170,9 @@ function BreadcrumbSegment({
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant='subtle' className='px-[8px] py-[4px] font-medium text-[14px]'>
+          <Button variant='subtle' className='px-2 py-1 font-medium text-sm'>
             {content}
-            <ChevronDown className='ml-[8px] h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
+            <ChevronDown className='ml-2 h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start'>
@@ -196,18 +192,14 @@ function BreadcrumbSegment({
 
   if (onClick) {
     return (
-      <Button
-        variant='subtle'
-        className='px-[8px] py-[4px] font-medium text-[14px]'
-        onClick={onClick}
-      >
+      <Button variant='subtle' className='px-2 py-1 font-medium text-sm' onClick={onClick}>
         {content}
       </Button>
     )
   }
 
   return (
-    <span className='inline-flex items-center px-[8px] py-[4px] font-medium text-[14px] text-[var(--text-body)]'>
+    <span className='inline-flex items-center px-2 py-1 font-medium text-[var(--text-body)] text-sm'>
       {content}
     </span>
   )

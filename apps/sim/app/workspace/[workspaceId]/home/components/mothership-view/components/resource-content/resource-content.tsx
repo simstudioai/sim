@@ -41,7 +41,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
 
 const LOADING_SKELETON = (
-  <div className='flex h-full flex-col gap-[8px] p-[24px]'>
+  <div className='flex h-full flex-col gap-2 p-6'>
     <Skeleton className='h-[16px] w-[60%]' />
     <Skeleton className='h-[16px] w-[80%]' />
     <Skeleton className='h-[16px] w-[40%]' />
@@ -374,11 +374,11 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
 
   if (!workflowExists || hasLoadError) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
         <WorkflowX className='h-[32px] w-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-[4px]'>
+        <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
-          <p className='text-[13px] text-[var(--text-body)]'>
+          <p className='text-[var(--text-body)] text-small'>
             This workflow may have been deleted or moved
           </p>
         </div>
@@ -409,11 +409,11 @@ function EmbeddedFile({ workspaceId, fileId, previewMode, streamingContent }: Em
 
   if (!file) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
         <FileX className='h-[32px] w-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-[4px]'>
+        <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>File not found</h2>
-          <p className='text-[13px] text-[var(--text-body)]'>
+          <p className='text-[var(--text-body)] text-small'>
             This file may have been deleted or moved
           </p>
         </div>

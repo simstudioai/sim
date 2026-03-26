@@ -15,7 +15,7 @@ export function Options({ items, onSelect }: OptionsProps) {
           key={item.id}
           type='button'
           onClick={() => onSelect?.(item.id)}
-          className='rounded-full border border-[var(--divider)] bg-[var(--bg)] px-3.5 py-1.5 font-[430] font-[family-name:var(--font-inter)] text-[14px] text-[var(--text-primary)] leading-5 transition-colors hover:bg-[var(--surface-5)]'
+          className='rounded-full border border-[var(--divider)] bg-[var(--bg)] px-3.5 py-1.5 font-[430] font-[family-name:var(--font-inter)] text-[var(--text-primary)] text-sm leading-5 transition-colors hover-hover:bg-[var(--surface-5)]'
         >
           {item.label}
         </button>

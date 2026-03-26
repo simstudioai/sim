@@ -81,11 +81,11 @@ export function FilterRuleRow({
 
   const renderHeader = () => (
     <div
-      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-[10px] py-[5px]'
+      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
       onClick={() => onToggleCollapse(rule.id)}
     >
-      <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-        <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
+      <div className='flex min-w-0 flex-1 items-center gap-2'>
+        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
           {rule.collapsed && rule.column ? getColumnLabel(rule.column) : `Condition ${index + 1}`}
         </span>
         {rule.collapsed && rule.column && (
@@ -94,7 +94,7 @@ export function FilterRuleRow({
           </Badge>
         )}
       </div>
-      <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
+      <div className='flex items-center gap-2 pl-2' onClick={(e) => e.stopPropagation()}>
         <Button variant='ghost' onClick={onAdd} disabled={isReadOnly} className='h-auto p-0'>
           <Plus className='h-[14px] w-[14px]' />
           <span className='sr-only'>Add Condition</span>
@@ -103,7 +103,7 @@ export function FilterRuleRow({
           variant='ghost'
           onClick={() => onRemove(rule.id)}
           disabled={isReadOnly}
-          className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
+          className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
         >
           <Trash className='h-[14px] w-[14px]' />
           <span className='sr-only'>Delete Condition</span>
@@ -138,7 +138,7 @@ export function FilterRuleRow({
       <div
         ref={overlayRef}
         className={cn(
-          'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm',
+          'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
           !isReadOnly && 'pointer-events-none'
         )}
       >
@@ -165,10 +165,10 @@ export function FilterRuleRow({
   )
 
   const renderContent = () => (
-    <div className='flex flex-col gap-[8px] rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[10px] pt-[6px] pb-[10px]'>
+    <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
       {index > 0 && (
-        <div className='flex flex-col gap-[6px]'>
-          <Label className='text-[13px]'>Logic</Label>
+        <div className='flex flex-col gap-1.5'>
+          <Label className='text-small'>Logic</Label>
           <Combobox
             options={logicalOptions}
             value={rule.logicalOperator}
@@ -178,8 +178,8 @@ export function FilterRuleRow({
         </div>
       )}
 
-      <div className='flex flex-col gap-[6px]'>
-        <Label className='text-[13px]'>Column</Label>
+      <div className='flex flex-col gap-1.5'>
+        <Label className='text-small'>Column</Label>
         <Combobox
           options={columns}
           value={rule.column}
@@ -189,8 +189,8 @@ export function FilterRuleRow({
         />
       </div>
 
-      <div className='flex flex-col gap-[6px]'>
-        <Label className='text-[13px]'>Operator</Label>
+      <div className='flex flex-col gap-1.5'>
+        <Label className='text-small'>Operator</Label>
         <Combobox
           options={comparisonOptions}
           value={rule.operator}
@@ -200,8 +200,8 @@ export function FilterRuleRow({
         />
       </div>
 
-      <div className='flex flex-col gap-[6px]'>
-        <Label className='text-[13px]'>Value</Label>
+      <div className='flex flex-col gap-1.5'>
+        <Label className='text-small'>Value</Label>
         {renderValueInput()}
       </div>
     </div>
@@ -211,7 +211,7 @@ export function FilterRuleRow({
     <div
       data-filter-id={rule.id}
       className={cn(
-        'rounded-[4px] border border-[var(--border-1)]',
+        'rounded-sm border border-[var(--border-1)]',
         rule.collapsed ? 'overflow-hidden' : 'overflow-visible'
       )}
     >

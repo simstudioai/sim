@@ -125,7 +125,7 @@ export default function Testimonials() {
       className='flex hidden h-[150px] items-center sm:block'
       aria-label='Social proof testimonials'
     >
-      <div className='relative mx-auto h-full w-full max-w-[1289px] pl-[2px]'>
+      <div className='relative mx-auto h-full w-full max-w-[1289px] pl-0.5'>
         <div
           className='relative h-full w-full overflow-hidden'
           onMouseEnter={() => setIsPaused(true)}
@@ -146,7 +146,7 @@ export default function Testimonials() {
                 <div key={`${absoluteIndex}`} className='flex h-full w-1/4 flex-shrink-0'>
                   {/* Tweet container */}
                   <div
-                    className='group flex h-full w-full cursor-pointer flex-col px-[12px] py-[12px] transition-all duration-100 hover:bg-[#0A0A0A] sm:px-[14px]'
+                    className='group flex h-full w-full cursor-pointer flex-col px-3 py-3 transition-all duration-100 hover:bg-[#0A0A0A] sm:px-3.5'
                     onClick={() => window.open(tweet.tweetUrl, '_blank', 'noopener,noreferrer')}
                   >
                     {/* Top section with profile info */}
@@ -179,7 +179,7 @@ export default function Testimonials() {
                     </div>
 
                     {/* Tweet content below with padding */}
-                    <p className='mt-2 line-clamp-4 font-[380] text-[#0A0A0A] text-[13px] leading-[1.3] transition-colors duration-300 group-hover:text-white'>
+                    <p className='mt-2 line-clamp-4 font-[380] text-[#0A0A0A] text-small leading-[1.3] transition-colors duration-300 group-hover:text-white'>
                       {tweet.text}
                     </p>
                   </div>

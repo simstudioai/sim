@@ -67,7 +67,7 @@ function TourCard({
         <span className='text-[11px] text-[var(--text-muted)] [font-variant-numeric:tabular-nums]'>
           {step} / {totalSteps}
         </span>
-        <div className='flex items-center gap-[6px]'>
+        <div className='flex items-center gap-1.5'>
           <div className={cn(isFirst && 'invisible')}>
             <Button
               variant='default'

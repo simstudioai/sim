@@ -90,12 +90,12 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
         { url: '/favicon/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
         { url: '/favicon/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
         {
-          url: '/favicon/favicon-192x192.png',
+          url: '/favicon/android-chrome-192x192.png',
           sizes: '192x192',
           type: 'image/png',
         },
         {
-          url: '/favicon/favicon-512x512.png',
+          url: '/favicon/android-chrome-512x512.png',
           sizes: '512x512',
           type: 'image/png',
         },
@@ -117,7 +117,7 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
       'apple-mobile-web-app-capable': 'yes',
       'mobile-web-app-capable': 'yes',
       'msapplication-TileColor': '#701FFC', // Default Sim brand primary color
-      'msapplication-config': '/favicon/browserconfig.xml',
+      'msapplication-config': 'none',
     },
     ...override,
   }

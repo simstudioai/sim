@@ -127,10 +127,10 @@ export default function OAuthConsentPage() {
     return (
       <div className='flex flex-col items-center justify-center'>
         <div className='space-y-1 text-center'>
-          <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
+          <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
             Authorize Application
           </h1>
-          <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
+          <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
             Loading application details...
           </p>
         </div>
@@ -142,10 +142,10 @@ export default function OAuthConsentPage() {
     return (
       <div className='flex flex-col items-center justify-center'>
         <div className='space-y-1 text-center'>
-          <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
+          <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
             Authorization Error
           </h1>
-          <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
+          <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
             {error}
           </p>
         </div>
@@ -170,11 +170,11 @@ export default function OAuthConsentPage() {
             className='rounded-[10px]'
           />
         ) : (
-          <div className='flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#2A2A2A] font-medium text-[#999] text-[18px]'>
+          <div className='flex h-12 w-12 items-center justify-center rounded-[10px] bg-[var(--landing-bg-elevated)] font-medium text-[var(--landing-text-muted)] text-lg'>
             {(clientName ?? '?').charAt(0).toUpperCase()}
           </div>
         )}
-        <ArrowLeftRight className='h-5 w-5 text-[#999]' />
+        <ArrowLeftRight className='h-5 w-5 text-[var(--landing-text-muted)]' />
         <Image
           src='/new/logo/colorized-bg.svg'
           alt='Sim'
@@ -185,17 +185,17 @@ export default function OAuthConsentPage() {
       </div>
 
       <div className='space-y-1 text-center'>
-        <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
+        <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           Authorize Application
         </h1>
-        <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
-          <span className='font-medium text-[#ECECEC]'>{clientName}</span> is requesting access to
-          your account
+        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
+          <span className='font-medium text-[var(--landing-text)]'>{clientName}</span> is requesting
+          access to your account
         </p>
       </div>
 
       {session?.user && (
-        <div className='mt-5 flex items-center gap-3 rounded-lg border border-[#2A2A2A] px-4 py-3'>
+        <div className='mt-5 flex items-center gap-3 rounded-lg border border-[var(--landing-bg-elevated)] px-4 py-3'>
           {session.user.image ? (
             <Image
               src={session.user.image}
@@ -206,20 +206,22 @@ export default function OAuthConsentPage() {
               unoptimized
             />
           ) : (
-            <div className='flex h-8 w-8 items-center justify-center rounded-full bg-[#2A2A2A] font-medium text-[#999] text-[13px]'>
+            <div className='flex h-8 w-8 items-center justify-center rounded-full bg-[var(--landing-bg-elevated)] font-medium text-[var(--landing-text-muted)] text-small'>
               {(session.user.name ?? session.user.email ?? '?').charAt(0).toUpperCase()}
             </div>
           )}
           <div className='min-w-0'>
             {session.user.name && (
-              <p className='truncate font-medium text-[14px]'>{session.user.name}</p>
+              <p className='truncate font-medium text-sm'>{session.user.name}</p>
             )}
-            <p className='truncate text-[#999] text-[13px]'>{session.user.email}</p>
+            <p className='truncate text-[var(--landing-text-muted)] text-small'>
+              {session.user.email}
+            </p>
           </div>
           <button
             type='button'
             onClick={handleSwitchAccount}
-            className='ml-auto text-[#999] text-[13px] underline-offset-2 transition-colors hover:text-[#ECECEC] hover:underline'
+            className='ml-auto text-[var(--landing-text-muted)] text-small underline-offset-2 transition-colors hover:text-[var(--landing-text)] hover:underline'
           >
             Switch
           </button>
@@ -229,10 +231,13 @@ export default function OAuthConsentPage() {
       {scopes.length > 0 && (
         <div className='mt-5 w-full max-w-[410px]'>
           <div className='rounded-lg border p-4'>
-            <p className='mb-3 font-medium text-[14px]'>This will allow the application to:</p>
+            <p className='mb-3 font-medium text-sm'>This will allow the application to:</p>
             <ul className='space-y-2'>
               {scopes.map((s) => (
-                <li key={s} className='flex items-start gap-2 font-normal text-[#999] text-[13px]'>
+                <li
+                  key={s}
+                  className='flex items-start gap-2 font-normal text-[var(--landing-text-muted)] text-small'
+                >
                   <span className='mt-0.5 text-green-500'>&#10003;</span>
                   <span>{SCOPE_DESCRIPTIONS[s] ?? s}</span>
                 </li>

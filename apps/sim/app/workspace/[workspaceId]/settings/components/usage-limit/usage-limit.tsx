@@ -174,10 +174,10 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
     const inputWidthCh = Math.max(3, inputValue.length + 2)
 
     return (
-      <div className='flex items-center gap-[6px]'>
+      <div className='flex items-center gap-1.5'>
         {isEditing ? (
           <>
-            <span className='font-medium text-[15px] text-[var(--text-muted)]'>$</span>
+            <span className='font-medium text-[var(--text-muted)] text-base'>$</span>
             <input
               ref={inputRef}
               type='number'
@@ -192,7 +192,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
                 handleSubmit()
               }}
               className={cn(
-                'border-0 bg-transparent p-0 font-medium text-[15px] text-[var(--text-primary)] tabular-nums',
+                'border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-base tabular-nums',
                 'outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
                 '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
                 hasError && 'text-[var(--text-error)]'
@@ -222,7 +222,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
           </>
         ) : (
           <>
-            <span className='font-medium text-[15px] text-[var(--text-primary)] tabular-nums'>
+            <span className='font-medium text-[var(--text-primary)] text-base tabular-nums'>
               {formatCredits(pendingLimit !== null ? pendingLimit : currentLimit)}
               {(pendingLimit !== null ? pendingLimit : currentLimit) < ON_DEMAND_UNLIMITED &&
                 ' credits'}

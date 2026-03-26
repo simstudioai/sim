@@ -20,7 +20,7 @@ export const AttachedFilesList = React.memo(function AttachedFilesList({
   if (attachedFiles.length === 0) return null
 
   return (
-    <div className='mb-[6px] flex flex-wrap gap-[6px]'>
+    <div className='mb-1.5 flex flex-wrap gap-1.5'>
       {attachedFiles.map((file) => {
         const isImage = file.type.startsWith('image/')
         return (
@@ -37,7 +37,7 @@ export const AttachedFilesList = React.memo(function AttachedFilesList({
                     className='h-full w-full object-cover'
                   />
                 ) : (
-                  <div className='flex h-full w-full flex-col items-center justify-center gap-[2px] text-[var(--text-icon)]'>
+                  <div className='flex h-full w-full flex-col items-center justify-center gap-0.5 text-[var(--text-icon)]'>
                     {(() => {
                       const Icon = getDocumentIcon(file.type, file.name)
                       return <Icon className='h-[18px] w-[18px]' />

@@ -182,18 +182,18 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
 
   return (
     <AuthBackground className='dark font-[430] font-season'>
-      <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
-        <header className='shrink-0 bg-[#1C1C1C]'>
+      <main className='relative flex min-h-screen flex-col text-[var(--landing-text)]'>
+        <header className='shrink-0 bg-[var(--landing-bg)]'>
           <Navbar logoOnly />
         </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>
+                <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
                   {showOtpVerification ? 'Verify Your Email' : 'Email Verification'}
                 </h1>
-                <p className='font-[380] text-[#999] text-[16px]'>
+                <p className='font-[380] text-[var(--text-subtle)] text-md'>
                   {showOtpVerification
                     ? `A verification code has been sent to ${email}`
                     : 'This chat requires email verification'}
@@ -246,7 +246,7 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                   </form>
                 ) : (
                   <div className='space-y-6'>
-                    <p className='text-center text-[#999] text-sm'>
+                    <p className='text-center text-[var(--text-subtle)] text-sm'>
                       Enter the 6-digit code to verify your account. If you don't see it in your
                       inbox, check your spam folder.
                     </p>
@@ -301,7 +301,7 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                           </span>
                         ) : (
                           <button
-                            className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+                            className='font-medium text-[var(--brand-link)] underline-offset-4 transition hover:text-[var(--brand-link-hover)] hover:underline'
                             onClick={handleResendOtp}
                             disabled={isVerifyingOtp || isResendDisabled}
                           >
@@ -311,14 +311,14 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                       </p>
                     </div>
 
-                    <div className='text-center font-light text-[14px]'>
+                    <div className='text-center font-light text-sm'>
                       <button
                         onClick={() => {
                           setShowOtpVerification(false)
                           setOtpValue('')
                           setAuthError(null)
                         }}
-                        className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+                        className='font-medium text-[var(--brand-link)] underline-offset-4 transition hover:text-[var(--brand-link-hover)] hover:underline'
                       >
                         Change email
                       </button>

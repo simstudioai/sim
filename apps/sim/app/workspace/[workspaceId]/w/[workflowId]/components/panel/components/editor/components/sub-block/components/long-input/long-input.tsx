@@ -347,7 +347,7 @@ export function LongInput({
               <div
                 ref={overlayRef}
                 className={cn(
-                  'absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-[8px] py-[8px] font-medium font-sans text-sm',
+                  'absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-2 py-2 font-medium font-sans text-sm',
                   (isPreview || disabled) && 'opacity-50',
                   !(isPreview || disabled) && 'pointer-events-none'
                 )}
@@ -377,7 +377,7 @@ export function LongInput({
                     }
                     disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
                     aria-label='Generate content with AI'
-                    className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-foreground hover:shadow'
+                    className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
                   >
                     <Wand2 className='h-4 w-4' />
                   </Button>
@@ -387,7 +387,7 @@ export function LongInput({
               {/* Custom resize handle */}
               {!wandHook.isStreaming && (
                 <div
-                  className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                  className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
                   onMouseDown={startResize}
                   onDragStart={(e) => {
                     e.preventDefault()

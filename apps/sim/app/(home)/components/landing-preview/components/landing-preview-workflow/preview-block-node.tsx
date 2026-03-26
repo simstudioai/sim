@@ -150,10 +150,10 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
         transition={{ duration: 0.45, delay, ease: EASE_OUT }}
       >
         <div className='w-[280px] select-none rounded-[8px] border border-[#3d3d3d] bg-[#232323]'>
-          <div className='border-[#3d3d3d] border-b p-[8px]'>
+          <div className='border-[#3d3d3d] border-b p-2'>
             <span className='font-medium text-[#e6e6e6] text-[16px]'>Note</span>
           </div>
-          <div className='p-[10px]'>
+          <div className='p-2.5'>
             <NoteMarkdown content={markdown} />
           </div>
         </div>
@@ -186,9 +186,9 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
 
         {/* Header */}
         <div
-          className={`flex items-center justify-between p-[8px] ${hasContent ? 'border-[#3d3d3d] border-b' : ''}`}
+          className={`flex items-center justify-between p-2 ${hasContent ? 'border-[#3d3d3d] border-b' : ''}`}
         >
-          <div className='relative z-10 flex min-w-0 flex-1 items-center gap-[10px]'>
+          <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
             <div
               className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
               style={{ background: bgColor }}
@@ -201,17 +201,17 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
 
         {/* Sub-block rows + tools */}
         {hasContent && (
-          <div className='flex flex-col gap-[8px] p-[8px]'>
+          <div className='flex flex-col gap-2 p-2'>
             {rows.map((row) => {
               const modelEntry = row.title === 'Model' ? getModelIconEntry(row.value) : null
               const ModelIcon = modelEntry?.icon
               return (
-                <div key={row.title} className='flex items-center gap-[8px]'>
+                <div key={row.title} className='flex items-center gap-2'>
                   <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-[14px] capitalize'>
                     {row.title}
                   </span>
                   {row.value && (
-                    <span className='flex min-w-0 flex-1 items-center justify-end gap-[5px] font-normal text-[#e6e6e6] text-[14px]'>
+                    <span className='flex min-w-0 flex-1 items-center justify-end gap-2 font-normal text-[#e6e6e6] text-[14px]'>
                       {ModelIcon && (
                         <ModelIcon
                           className={`inline-block flex-shrink-0 text-[#e6e6e6] ${modelEntry.size ?? 'h-[14px] w-[14px]'}`}
@@ -226,15 +226,15 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
 
             {/* Tool chips — inline with label */}
             {tools && tools.length > 0 && (
-              <div className='flex items-center gap-[8px]'>
+              <div className='flex items-center gap-2'>
                 <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-[14px]'>Tools</span>
-                <div className='flex flex-1 flex-wrap items-center justify-end gap-[5px]'>
+                <div className='flex flex-1 flex-wrap items-center justify-end gap-2'>
                   {tools.map((tool) => {
                     const ToolIcon = BLOCK_ICONS[tool.type]
                     return (
                       <div
                         key={tool.type}
-                        className='flex items-center gap-[5px] rounded-[5px] border border-[#3d3d3d] bg-[#2a2a2a] px-[6px] py-[3px]'
+                        className='flex items-center gap-2 rounded-[5px] border border-[#3d3d3d] bg-[#2a2a2a] px-2 py-1'
                       >
                         <div
                           className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
@@ -277,13 +277,13 @@ function NoteMarkdown({ content }: { content: string }) {
   const lines = content.split('\n')
 
   return (
-    <div className='flex flex-col gap-[4px]'>
+    <div className='flex flex-col gap-1'>
       {lines.map((line, i) => {
         const trimmed = line.trim()
         if (!trimmed) return <div key={i} className='h-[4px]' />
 
         if (trimmed === '---') {
-          return <hr key={i} className='my-[4px] border-[#3d3d3d] border-t' />
+          return <hr key={i} className='my-1 border-[#3d3d3d] border-t' />
         }
 
         if (trimmed.startsWith('### ')) {

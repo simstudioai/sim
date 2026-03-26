@@ -25,17 +25,17 @@ interface TeamSeatsOverviewProps {
 
 function TeamSeatsSkeleton() {
   return (
-    <div className='overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-      <div className='flex flex-col gap-[8px] px-[14px] py-[12px]'>
+    <div className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
+      <div className='flex flex-col gap-2 px-3.5 py-3'>
         <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-[8px]'>
-            <Skeleton className='h-5 w-16 rounded-[4px]' />
-            <Skeleton className='h-4 w-20 rounded-[4px]' />
+          <div className='flex items-center gap-2'>
+            <Skeleton className='h-5 w-16 rounded-sm' />
+            <Skeleton className='h-4 w-20 rounded-sm' />
           </div>
-          <div className='flex items-center gap-[4px] text-[13px]'>
-            <Skeleton className='h-4 w-8 rounded-[4px]' />
+          <div className='flex items-center gap-1 text-small'>
+            <Skeleton className='h-4 w-8 rounded-sm' />
             <span className='text-[var(--text-muted)]'>/</span>
-            <Skeleton className='h-4 w-8 rounded-[4px]' />
+            <Skeleton className='h-4 w-8 rounded-sm' />
           </div>
         </div>
         <Skeleton className='h-[6px] w-full rounded-full' />
@@ -60,13 +60,13 @@ export function TeamSeatsOverview({
 
   if (!subscriptionData) {
     return (
-      <div className='overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-        <div className='flex flex-col items-center gap-[12px] px-[14px] py-[16px] text-center'>
-          <div className='flex flex-col gap-[4px]'>
-            <p className='font-medium text-[15px] text-[var(--text-primary)]'>
+      <div className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
+        <div className='flex flex-col items-center gap-3 px-3.5 py-4 text-center'>
+          <div className='flex flex-col gap-1'>
+            <p className='font-medium text-[var(--text-primary)] text-base'>
               No Team Subscription Found
             </p>
-            <p className='text-[13px] text-[var(--text-muted)]'>
+            <p className='text-[var(--text-muted)] text-small'>
               Your subscription may need to be transferred to this organization.
             </p>
           </div>
@@ -87,12 +87,12 @@ export function TeamSeatsOverview({
   const isEnterprise = checkEnterprisePlan(subscriptionData)
 
   return (
-    <div className='overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-      <div className='flex flex-col gap-[8px] px-[14px] py-[12px]'>
+    <div className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
+      <div className='flex flex-col gap-2 px-3.5 py-3'>
         {/* Top row - matching UsageHeader */}
         <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-[8px]'>
-            <span className='font-medium text-[15px] text-[var(--text-primary)]'>Seats</span>
+          <div className='flex items-center gap-2'>
+            <span className='font-medium text-[var(--text-primary)] text-base'>Seats</span>
             {!isEnterprise && (
               <Badge
                 variant='blue-secondary'
@@ -104,7 +104,7 @@ export function TeamSeatsOverview({
               </Badge>
             )}
           </div>
-          <div className='flex items-center gap-[4px] text-[13px] tabular-nums'>
+          <div className='flex items-center gap-1 text-small tabular-nums'>
             <span className='font-medium text-[var(--text-secondary)] tabular-nums'>
               {usedSeats} used
             </span>
@@ -116,7 +116,7 @@ export function TeamSeatsOverview({
         </div>
 
         {/* Pills row - one pill per seat */}
-        <div className='flex items-center gap-[4px]'>
+        <div className='flex items-center gap-1'>
           {Array.from({ length: totalSeats }).map((_, i) => {
             const isFilled = i < usedSeats
             return (
@@ -124,7 +124,7 @@ export function TeamSeatsOverview({
                 key={i}
                 className={cn(
                   'h-[6px] flex-1 rounded-full transition-colors',
-                  isFilled ? 'bg-[#34B5FF]' : 'bg-[var(--border)]'
+                  isFilled ? 'bg-[var(--indicator-seat-filled)]' : 'bg-[var(--border)]'
                 )}
               />
             )
@@ -133,8 +133,8 @@ export function TeamSeatsOverview({
 
         {/* Enterprise message */}
         {isEnterprise && (
-          <div className='pt-[4px] text-center'>
-            <p className='text-[13px] text-[var(--text-muted)]'>
+          <div className='pt-1 text-center'>
+            <p className='text-[var(--text-muted)] text-small'>
               Contact support for enterprise usage limit changes
             </p>
           </div>

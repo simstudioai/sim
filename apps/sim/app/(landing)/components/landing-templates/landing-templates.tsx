@@ -79,12 +79,12 @@ export default function LandingTemplates() {
   return (
     <section
       id='templates'
-      className='flex flex-col px-4 pt-[40px] sm:px-[50px] sm:pt-[34px]'
+      className='flex flex-col px-4 pt-10 sm:px-[50px] sm:pt-[34px]'
       aria-labelledby='templates-heading'
     >
       <h2
         id='templates-heading'
-        className='mb-[16px] font-medium text-[28px] text-foreground tracking-tight sm:mb-[24px]'
+        className='mb-4 font-medium text-[28px] text-foreground tracking-tight sm:mb-6'
       >
         Templates
       </h2>

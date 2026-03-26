@@ -2,7 +2,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { FooterCTA } from '@/app/(home)/components/footer/footer-cta'
 
-const LINK_CLASS = 'text-[14px] text-[#999] transition-colors hover:text-[#ECECEC]'
+const LINK_CLASS =
+  'text-sm text-[var(--landing-text-muted)] transition-colors hover:text-[var(--landing-text)]'
 
 interface FooterItem {
   label: string
@@ -81,8 +82,8 @@ const LEGAL_LINKS: FooterItem[] = [
 function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) {
   return (
     <div>
-      <h3 className='mb-[16px] font-medium text-[#ECECEC] text-[14px]'>{title}</h3>
-      <div className='flex flex-col gap-[10px]'>
+      <h3 className='mb-4 font-medium text-[var(--landing-text)] text-sm'>{title}</h3>
+      <div className='flex flex-col gap-2.5'>
         {items.map(({ label, href, external }) =>
           external ? (
             <a
@@ -113,16 +114,16 @@ export default function Footer({ hideCTA }: FooterProps) {
   return (
     <footer
       role='contentinfo'
-      className={`bg-[#F6F6F6] pb-[40px] font-[430] font-season text-[14px]${hideCTA ? ' pt-[40px]' : ''}`}
+      className={`bg-[var(--landing-bg-section)] pb-10 font-[430] font-season text-sm${hideCTA ? ' pt-10' : ''}`}
     >
       {!hideCTA && <FooterCTA />}
-      <div className='px-4 sm:px-8 md:px-[80px]'>
-        <div className='relative overflow-hidden rounded-lg bg-[#1C1C1C] px-6 pt-[40px] pb-[32px] sm:px-10 sm:pt-[48px] sm:pb-[40px]'>
+      <div className='px-4 sm:px-8 md:px-20'>
+        <div className='relative overflow-hidden rounded-lg bg-[var(--landing-bg)] px-6 pt-10 pb-8 sm:px-10 sm:pt-12 sm:pb-10'>
           <nav
             aria-label='Footer navigation'
             className='relative z-[1] grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:grid-cols-7'
           >
-            <div className='col-span-2 flex flex-col gap-[24px] sm:col-span-1'>
+            <div className='col-span-2 flex flex-col gap-6 sm:col-span-1'>
               <Link href='/' aria-label='Sim home'>
                 <Image
                   src='/logo/sim-landing.svg'

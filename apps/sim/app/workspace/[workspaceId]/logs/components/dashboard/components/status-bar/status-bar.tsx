@@ -48,7 +48,7 @@ function StatusBarInner({
   return (
     <div className='relative'>
       <div
-        className='flex select-none items-stretch gap-[2px]'
+        className='flex select-none items-stretch gap-0.5'
         onMouseLeave={() => setHoverIndex(null)}
       >
         {segments.map((segment, i) => {
@@ -60,16 +60,16 @@ function StatusBarInner({
           let hoverBrightness: string
           if (!segment.hasExecutions) {
             color = 'bg-gray-300/60 dark:bg-gray-500/40'
-            hoverBrightness = 'hover:brightness-200'
+            hoverBrightness = 'hover-hover:brightness-200'
           } else if (segment.successRate === 100) {
             color = 'bg-emerald-400/90'
-            hoverBrightness = 'hover:brightness-106'
+            hoverBrightness = 'hover-hover:brightness-106'
           } else if (segment.successRate >= 95) {
             color = 'bg-amber-400/90'
-            hoverBrightness = 'hover:brightness-106'
+            hoverBrightness = 'hover-hover:brightness-106'
           } else {
             color = 'bg-red-400/90'
-            hoverBrightness = 'hover:brightness-106'
+            hoverBrightness = 'hover-hover:brightness-106'
           }
 
           return (
@@ -97,7 +97,7 @@ function StatusBarInner({
 
       {hoverIndex !== null && segments[hoverIndex] && (
         <div
-          className={`-translate-x-1/2 pointer-events-none absolute z-20 w-max whitespace-nowrap rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-1)] px-[8px] py-[6px] text-center text-[11px] shadow-lg ${
+          className={`-translate-x-1/2 pointer-events-none absolute z-20 w-max whitespace-nowrap rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-2 py-1.5 text-center text-xs shadow-lg ${
             preferBelow ? '' : '-translate-y-full'
           }`}
           style={{

@@ -32,13 +32,13 @@ export function ErrorUI({
   if (!fullScreen) {
     return (
       <div className='flex h-full flex-1 items-center justify-center'>
-        <div className='flex flex-col items-center gap-[16px] text-center'>
-          <div className='flex flex-col gap-[8px]'>
-            <h2 className='font-semibold text-[16px] text-[var(--text-primary)]'>{title}</h2>
-            <p className='max-w-[300px] text-[13px] text-[var(--text-tertiary)]'>{message}</p>
+        <div className='flex flex-col items-center gap-4 text-center'>
+          <div className='flex flex-col gap-2'>
+            <h2 className='font-semibold text-[var(--text-primary)] text-md'>{title}</h2>
+            <p className='max-w-[300px] text-[var(--text-tertiary)] text-small'>{message}</p>
           </div>
           <Button variant='default' size='sm' onClick={onReset ?? (() => window.location.reload())}>
-            <RefreshCw className='mr-[6px] h-[14px] w-[14px]' />
+            <RefreshCw className='mr-1.5 h-[14px] w-[14px]' />
             Try again
           </Button>
         </div>
@@ -52,9 +52,9 @@ export function ErrorUI({
 
       <div className='relative flex flex-1'>
         <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
-          <div className='pointer-events-none flex flex-col items-center gap-[16px]'>
-            <h3 className='font-semibold text-[16px] text-[var(--text-primary)]'>{title}</h3>
-            <p className='max-w-sm text-center font-medium text-[14px] text-[var(--text-tertiary)]'>
+          <div className='pointer-events-none flex flex-col items-center gap-4'>
+            <h3 className='font-semibold text-[var(--text-primary)] text-md'>{title}</h3>
+            <p className='max-w-sm text-center font-medium text-[var(--text-tertiary)] text-sm'>
               {message}
             </p>
           </div>

@@ -23,7 +23,7 @@ export default function TableError({ error, reset }: TableErrorProps) {
       loggerName='TableError'
       secondaryAction={{
         label: 'Go back',
-        icon: <ArrowLeft className='mr-[6px] h-[14px] w-[14px]' />,
+        icon: <ArrowLeft className='mr-1.5 h-[14px] w-[14px]' />,
         onClick: () => router.push(`/workspace/${workspaceId}/tables`),
       }}
     />

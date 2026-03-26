@@ -64,7 +64,7 @@ export function TableFilter({ columns, onApply }: TableFilterProps) {
   }, [rules, onApply])
 
   return (
-    <div className='flex flex-col gap-[6px] p-[8px]'>
+    <div className='flex flex-col gap-1.5 p-2'>
       {rules.map((rule) => (
         <FilterRuleRow
           key={rule.id}
@@ -76,20 +76,20 @@ export function TableFilter({ columns, onApply }: TableFilterProps) {
         />
       ))}
 
-      <div className='flex items-center justify-between gap-[12px]'>
+      <div className='flex items-center justify-between gap-3'>
         <Button
           variant='ghost'
           size='sm'
           onClick={handleAdd}
           className={cn(
-            'border border-[var(--border)] border-dashed px-[8px] py-[3px] text-[11px] text-[var(--text-secondary)]'
+            'border border-[var(--border)] border-dashed px-2 py-[3px] text-[var(--text-secondary)] text-xs'
           )}
         >
-          <Plus className='mr-[4px] h-[10px] w-[10px]' />
+          <Plus className='mr-1 h-[10px] w-[10px]' />
           Add filter
         </Button>
 
-        <Button variant='default' size='sm' onClick={handleApply} className='text-[11px]'>
+        <Button variant='default' size='sm' onClick={handleApply} className='text-xs'>
           Apply filter
         </Button>
       </div>
@@ -107,12 +107,12 @@ interface FilterRuleRowProps {
 
 function FilterRuleRow({ rule, columns, onUpdate, onRemove, onApply }: FilterRuleRowProps) {
   return (
-    <div className='flex items-center gap-[4px]'>
+    <div className='flex items-center gap-1'>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className='flex h-[30px] min-w-[100px] items-center justify-between rounded-[5px] border border-[var(--border)] bg-transparent px-[8px] text-[11px] text-[var(--text-secondary)] outline-none hover:border-[var(--border-1)]'>
+          <button className='flex h-[30px] min-w-[100px] items-center justify-between rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none hover-hover:border-[var(--border-1)]'>
             <span className='truncate'>{rule.column || 'Column'}</span>
-            <ChevronDown className='ml-[4px] h-[10px] w-[10px] shrink-0 text-[var(--text-icon)]' />
+            <ChevronDown className='ml-1 h-[10px] w-[10px] shrink-0 text-[var(--text-icon)]' />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start'>
@@ -129,9 +129,9 @@ function FilterRuleRow({ rule, columns, onUpdate, onRemove, onApply }: FilterRul
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className='flex h-[30px] min-w-[50px] items-center justify-between rounded-[5px] border border-[var(--border)] bg-transparent px-[8px] text-[11px] text-[var(--text-secondary)] outline-none hover:border-[var(--border-1)]'>
+          <button className='flex h-[30px] min-w-[50px] items-center justify-between rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none hover-hover:border-[var(--border-1)]'>
             <span>{OPERATOR_LABELS[rule.operator] ?? rule.operator}</span>
-            <ChevronDown className='ml-[4px] h-[10px] w-[10px] shrink-0 text-[var(--text-icon)]' />
+            <ChevronDown className='ml-1 h-[10px] w-[10px] shrink-0 text-[var(--text-icon)]' />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start'>
@@ -154,12 +154,12 @@ function FilterRuleRow({ rule, columns, onUpdate, onRemove, onApply }: FilterRul
           if (e.key === 'Enter') handleApply()
         }}
         placeholder='Enter a value'
-        className='h-[30px] min-w-[160px] flex-1 rounded-[5px] border border-[var(--border)] bg-transparent px-[8px] text-[11px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-subtle)] hover:border-[var(--border-1)] focus:border-[var(--border-1)]'
+        className='h-[30px] min-w-[160px] flex-1 rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none placeholder:text-[var(--text-subtle)] hover-hover:border-[var(--border-1)] focus:border-[var(--border-1)]'
       />
 
       <button
         onClick={() => onRemove(rule.id)}
-        className='flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[5px] text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-4)] hover:text-[var(--text-primary)]'
+        className='flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[5px] text-[var(--text-tertiary)] transition-colors hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
       >
         <X className='h-[12px] w-[12px]' />
       </button>

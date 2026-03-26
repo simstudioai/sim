@@ -196,15 +196,15 @@ function SettingsTab({
   error,
 }: SettingsTabProps) {
   return (
-    <div className='flex flex-col gap-[12px]'>
+    <div className='flex flex-col gap-3'>
       {connectorConfig?.configFields.map((field) => (
-        <div key={field.id} className='flex flex-col gap-[4px]'>
+        <div key={field.id} className='flex flex-col gap-1'>
           <Label>
             {field.title}
-            {field.required && <span className='ml-[2px] text-[var(--text-error)]'>*</span>}
+            {field.required && <span className='ml-0.5 text-[var(--text-error)]'>*</span>}
           </Label>
           {field.description && (
-            <p className='text-[11px] text-[var(--text-muted)]'>{field.description}</p>
+            <p className='text-[var(--text-muted)] text-xs'>{field.description}</p>
           )}
           {field.type === 'dropdown' && field.options ? (
             <Combobox
@@ -227,7 +227,7 @@ function SettingsTab({
         </div>
       ))}
 
-      <div className='flex flex-col gap-[4px]'>
+      <div className='flex flex-col gap-1'>
         <Label>Sync Frequency</Label>
         <ButtonGroup
           value={String(syncInterval)}
@@ -241,7 +241,7 @@ function SettingsTab({
         </ButtonGroup>
       </div>
 
-      {error && <p className='text-[12px] text-[var(--text-error)] leading-tight'>{error}</p>}
+      {error && <p className='text-[var(--text-error)] text-caption leading-tight'>{error}</p>}
     </div>
   )
 }
@@ -270,7 +270,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
 
   if (isLoading) {
     return (
-      <div className='flex flex-col gap-[8px]'>
+      <div className='flex flex-col gap-2'>
         <Skeleton className='h-6 w-full' />
         <Skeleton className='h-6 w-full' />
         <Skeleton className='h-6 w-full' />
@@ -279,7 +279,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
   }
 
   return (
-    <div className='flex flex-col gap-[16px]'>
+    <div className='flex flex-col gap-4'>
       <ButtonGroup value={filter} onValueChange={(val) => setFilter(val as 'active' | 'excluded')}>
         <ButtonGroupItem value='active'>Active ({counts.active})</ButtonGroupItem>
         <ButtonGroupItem value='excluded'>Excluded ({counts.excluded})</ButtonGroupItem>
@@ -287,15 +287,15 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
 
       <div className='max-h-[320px] min-h-0 overflow-y-auto'>
         {documents.length === 0 ? (
-          <p className='py-[16px] text-center text-[13px] text-[var(--text-muted)]'>
+          <p className='py-4 text-center text-[var(--text-muted)] text-small'>
             {filter === 'excluded' ? 'No excluded documents' : 'No documents yet'}
           </p>
         ) : (
-          <div className='flex flex-col gap-[8px]'>
+          <div className='flex flex-col gap-2'>
             {documents.map((doc) => (
               <div key={doc.id} className='flex items-center justify-between'>
-                <div className='flex min-w-0 items-center gap-[6px]'>
-                  <span className='truncate text-[13px] text-[var(--text-primary)]'>
+                <div className='flex min-w-0 items-center gap-1.5'>
+                  <span className='truncate text-[var(--text-primary)] text-small'>
                     {doc.filename}
                   </span>
                   {doc.sourceUrl && (
@@ -303,7 +303,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                       href={doc.sourceUrl}
                       target='_blank'
                       rel='noopener noreferrer'
-                      className='flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                      className='flex-shrink-0 text-[var(--text-muted)] hover-hover:text-[var(--text-secondary)]'
                     >
                       <ExternalLink className='h-3 w-3' />
                     </a>

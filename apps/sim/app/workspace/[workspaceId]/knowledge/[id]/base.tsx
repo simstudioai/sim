@@ -814,16 +814,16 @@ export function KnowledgeBase({
 
   const filterContent = (
     <div className='w-[320px]'>
-      <div className='border-[var(--border-1)] border-b px-[12px] py-[8px]'>
-        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>Status</span>
+      <div className='border-[var(--border-1)] border-b px-3 py-2'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
       </div>
-      <div className='flex flex-col gap-[2px] px-[12px] py-[8px]'>
+      <div className='flex flex-col gap-0.5 px-3 py-2'>
         {(['all', 'enabled', 'disabled'] as const).map((value) => (
           <button
             key={value}
             type='button'
             className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--surface-active)]',
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
               enabledFilter === value && 'bg-[var(--surface-active)]'
             )}
             onClick={() => {
@@ -861,7 +861,7 @@ export function KnowledgeBase({
               key={connector.id}
               type='button'
               onClick={() => setShowConnectorsModal(true)}
-              className='flex shrink-0 cursor-pointer items-center gap-[6px] rounded-[6px] px-[8px] py-[4px] text-[12px] text-[var(--text-secondary)] shadow-[inset_0_0_0_1px_var(--border)] transition-colors hover:bg-[var(--surface-3)]'
+              className='flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption shadow-[inset_0_0_0_1px_var(--border)] transition-colors hover-hover:bg-[var(--surface-3)]'
             >
               {ConnectorIcon && <ConnectorIcon className='h-[14px] w-[14px]' />}
               {def?.name || connector.connectorType}
@@ -940,7 +940,7 @@ export function KnowledgeBase({
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <span
-                        className='block max-w-full truncate text-[12px] text-[var(--text-secondary)]'
+                        className='block max-w-full truncate text-[var(--text-secondary)] text-caption'
                         onClick={(e) => e.stopPropagation()}
                       >
                         {tagsDisplayText}
@@ -950,9 +950,9 @@ export function KnowledgeBase({
                       side='top'
                       className='max-h-[104px] max-w-[240px] overflow-y-auto'
                     >
-                      <div className='flex flex-col gap-[2px]'>
+                      <div className='flex flex-col gap-0.5'>
                         {tags.map((tag) => (
-                          <div key={tag.slot} className='text-[11px]'>
+                          <div key={tag.slot} className='text-xs'>
                             <span className='text-[var(--text-muted)]'>{tag.displayName}:</span>{' '}
                             {tag.value}
                           </div>
@@ -968,7 +968,7 @@ export function KnowledgeBase({
           cells: {
             name: {
               content: (
-                <span className='flex min-w-0 items-center gap-[12px] font-medium text-[14px] text-[var(--text-body)]'>
+                <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
                   <span className='flex-shrink-0 text-[var(--text-icon)]'>
                     <DocIcon className='h-[14px] w-[14px]' />
                   </span>
@@ -999,7 +999,7 @@ export function KnowledgeBase({
               content: (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
+                    <span className='font-medium text-[var(--text-secondary)] text-sm'>
                       {format(new Date(doc.uploadedAt), 'MMM d')}
                     </span>
                   </Tooltip.Trigger>
@@ -1025,13 +1025,13 @@ export function KnowledgeBase({
 
   if (error && !knowledgeBase) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
         <DatabaseX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
-        <div className='flex flex-col items-center gap-[4px]'>
+        <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>
             Knowledge base not found
           </h2>
-          <p className='text-[13px] text-[var(--text-muted)]'>
+          <p className='text-[var(--text-muted)] text-small'>
             This knowledge base may have been deleted or moved
           </p>
         </div>
@@ -1388,13 +1388,15 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
 
   return (
     <div className='border-[var(--border-1)] border-t'>
-      <div className='flex items-center justify-between px-[12px] py-[8px]'>
-        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>Filter by tags</span>
-        <div className='flex items-center gap-[4px]'>
+      <div className='flex items-center justify-between px-3 py-2'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>
+          Filter by tags
+        </span>
+        <div className='flex items-center gap-1'>
           {activeCount > 0 && (
             <Button
               variant='ghost'
-              className='h-auto px-[6px] py-[2px] text-[11px] text-[var(--text-muted)]'
+              className='h-auto px-1.5 py-0.5 text-[var(--text-muted)] text-xs'
               onClick={() => onChange([])}
             >
               Clear all
@@ -1406,7 +1408,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
         </div>
       </div>
 
-      <div className='flex max-h-[320px] flex-col gap-[8px] overflow-y-auto px-[12px] pb-[12px]'>
+      <div className='flex max-h-[320px] flex-col gap-2 overflow-y-auto px-3 pb-3'>
         {filtersToShow.map((entry) => {
           const operators = getOperatorsForFieldType(entry.fieldType)
           const operatorOptions: ComboboxOption[] = operators.map((op) => ({
@@ -1418,14 +1420,14 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
           return (
             <div
               key={entry.id}
-              className='flex flex-col gap-[6px] rounded-[6px] border border-[var(--border-1)] p-[8px]'
+              className='flex flex-col gap-1.5 rounded-md border border-[var(--border-1)] p-2'
             >
               <div className='flex items-center justify-between'>
-                <Label className='text-[11px] text-[var(--text-muted)]'>Tag</Label>
+                <Label className='text-[var(--text-muted)] text-xs'>Tag</Label>
                 <button
                   type='button'
                   onClick={() => removeFilter(entry.id)}
-                  className='text-[var(--text-muted)] transition-colors hover:text-[var(--text-error)]'
+                  className='text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-error)]'
                 >
                   <X className='h-3 w-3' />
                 </button>
@@ -1439,7 +1441,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
 
               {entry.tagSlot && (
                 <>
-                  <Label className='text-[11px] text-[var(--text-muted)]'>Operator</Label>
+                  <Label className='text-[var(--text-muted)] text-xs'>Operator</Label>
                   <Combobox
                     options={operatorOptions}
                     value={entry.operator}
@@ -1447,19 +1449,17 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
                     placeholder='Select operator'
                   />
 
-                  <Label className='text-[11px] text-[var(--text-muted)]'>Value</Label>
+                  <Label className='text-[var(--text-muted)] text-xs'>Value</Label>
                   {entry.fieldType === 'date' ? (
                     isBetween ? (
-                      <div className='flex items-center gap-[6px]'>
+                      <div className='flex items-center gap-1.5'>
                         <DatePicker
                           size='sm'
                           value={entry.value || undefined}
                           onChange={(v) => updateEntry(entry.id, { value: v })}
                           placeholder='From'
                         />
-                        <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>
-                          to
-                        </span>
+                        <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>to</span>
                         <DatePicker
                           size='sm'
                           value={entry.valueTo || undefined}
@@ -1476,19 +1476,19 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
                       />
                     )
                   ) : isBetween ? (
-                    <div className='flex items-center gap-[6px]'>
+                    <div className='flex items-center gap-1.5'>
                       <Input
                         value={entry.value}
                         onChange={(e) => updateEntry(entry.id, { value: e.target.value })}
                         placeholder='From'
-                        className='h-[28px] text-[12px]'
+                        className='h-[28px] text-caption'
                       />
-                      <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>to</span>
+                      <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>to</span>
                       <Input
                         value={entry.valueTo}
                         onChange={(e) => updateEntry(entry.id, { valueTo: e.target.value })}
                         placeholder='To'
-                        className='h-[28px] text-[12px]'
+                        className='h-[28px] text-caption'
                       />
                     </div>
                   ) : (
@@ -1502,7 +1502,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
                             ? 'Enter number'
                             : 'Enter value'
                       }
-                      className='h-[28px] text-[12px]'
+                      className='h-[28px] text-caption'
                     />
                   )}
                 </>

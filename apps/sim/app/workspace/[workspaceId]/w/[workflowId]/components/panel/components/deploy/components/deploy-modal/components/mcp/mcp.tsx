@@ -441,7 +441,7 @@ export function McpDeploy({
 
   if (!isDeployed) {
     return (
-      <div className='flex h-full items-center justify-center text-[13px] text-[var(--text-muted)]'>
+      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
         Deploy your workflow first to add it as an MCP tool.
       </div>
     )
@@ -450,18 +450,18 @@ export function McpDeploy({
   if (isLoadingServers) {
     return (
       <div className='-mx-1 space-y-4 px-1'>
-        <div className='space-y-[12px]'>
+        <div className='space-y-3'>
           <div>
             <Skeleton className='mb-[6.5px] h-[16px] w-[70px]' />
-            <Skeleton className='h-[34px] w-full rounded-[4px]' />
+            <Skeleton className='h-[34px] w-full rounded-sm' />
           </div>
           <div>
             <Skeleton className='mb-[6.5px] h-[16px] w-[80px]' />
-            <Skeleton className='h-[34px] w-full rounded-[4px]' />
+            <Skeleton className='h-[34px] w-full rounded-sm' />
           </div>
           <div>
             <Skeleton className='mb-[6.5px] h-[16px] w-[50px]' />
-            <Skeleton className='h-[34px] w-full rounded-[4px]' />
+            <Skeleton className='h-[34px] w-full rounded-sm' />
           </div>
         </div>
       </div>
@@ -497,7 +497,7 @@ export function McpDeploy({
   return (
     <form
       id='mcp-deploy-form'
-      className='-mx-1 space-y-[12px] px-1'
+      className='-mx-1 space-y-3 px-1'
       onSubmit={(e) => {
         e.preventDefault()
         handleSave()
@@ -517,7 +517,7 @@ export function McpDeploy({
       ))}
 
       <div>
-        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Tool name
         </Label>
         <Input
@@ -525,13 +525,13 @@ export function McpDeploy({
           onChange={(e) => setToolName(e.target.value)}
           placeholder='e.g., book_flight'
         />
-        <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
+        <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
           Use lowercase letters, numbers, and underscores only
         </p>
       </div>
 
       <div>
-        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Description
         </Label>
         <Textarea
@@ -544,18 +544,18 @@ export function McpDeploy({
 
       {inputFormat.length > 0 && (
         <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Parameters ({inputFormat.length})
           </Label>
-          <div className='flex flex-col gap-[8px]'>
+          <div className='flex flex-col gap-2'>
             {inputFormat.map((field) => (
               <div
                 key={field.name}
-                className='overflow-hidden rounded-[4px] border border-[var(--border-1)]'
+                className='overflow-hidden rounded-sm border border-[var(--border-1)]'
               >
-                <div className='flex items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'>
-                  <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-                    <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
+                <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
+                  <div className='flex min-w-0 flex-1 items-center gap-2'>
+                    <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
                       {field.name}
                     </span>
                     <Badge variant='type' size='sm'>
@@ -563,9 +563,9 @@ export function McpDeploy({
                     </Badge>
                   </div>
                 </div>
-                <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[10px] pt-[6px] pb-[10px]'>
-                  <div className='flex flex-col gap-[6px]'>
-                    <Label className='text-[13px]'>Description</Label>
+                <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+                  <div className='flex flex-col gap-1.5'>
+                    <Label className='text-small'>Description</Label>
                     <Input
                       value={parameterDescriptions[field.name] || ''}
                       onChange={(e) =>
@@ -585,7 +585,7 @@ export function McpDeploy({
       )}
 
       <div>
-        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Servers
         </Label>
         <Combobox
@@ -602,16 +602,16 @@ export function McpDeploy({
           }
         />
         {!toolName.trim() && (
-          <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
+          <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             Enter a tool name to select servers
           </p>
         )}
       </div>
 
       {saveErrors.length > 0 && (
-        <div className='mt-[6.5px] flex flex-col gap-[2px]'>
+        <div className='mt-[6.5px] flex flex-col gap-0.5'>
           {saveErrors.map((error) => (
-            <p key={error} className='text-[12px] text-[var(--text-error)]'>
+            <p key={error} className='text-[var(--text-error)] text-caption'>
               {error}
             </p>
           ))}

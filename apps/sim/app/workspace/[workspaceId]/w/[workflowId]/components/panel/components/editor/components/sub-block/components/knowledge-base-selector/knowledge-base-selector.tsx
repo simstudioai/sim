@@ -164,15 +164,15 @@ export function KnowledgeBaseSelector({
           {selectedKnowledgeBases.map((kb) => (
             <div
               key={kb.id}
-              className='inline-flex items-center rounded-md border border-[#00B0B0]/20 bg-[#00B0B0]/10 px-2 py-1 text-xs'
+              className='inline-flex items-center rounded-md border border-[color-mix(in_srgb,var(--brand-knowledge)_20%,transparent)] bg-[color-mix(in_srgb,var(--brand-knowledge)_10%,transparent)] px-2 py-1 text-xs'
             >
-              <PackageSearchIcon className='mr-1 h-3 w-3 text-[#00B0B0]' />
-              <span className='font-medium text-[#00B0B0]'>{kb.name}</span>
+              <PackageSearchIcon className='mr-1 h-3 w-3 text-[var(--brand-knowledge)]' />
+              <span className='font-medium text-[var(--brand-knowledge)]'>{kb.name}</span>
               {!disabled && !isPreview && (
                 <button
                   type='button'
                   onClick={() => handleRemoveKnowledgeBase(kb.id)}
-                  className='ml-1 text-[#00B0B0]/60 hover:text-[#00B0B0]'
+                  className='ml-1 text-[color-mix(in_srgb,var(--brand-knowledge)_60%,transparent)] hover-hover:text-[var(--brand-knowledge)]'
                   aria-label={`Remove ${kb.name}`}
                 >
                   <X className='h-3 w-3' />

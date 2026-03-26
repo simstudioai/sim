@@ -10,7 +10,7 @@ export function BackLink() {
   return (
     <Link
       href='/blog'
-      className='group flex items-center gap-1 text-[#999] text-sm hover:text-[#ECECEC]'
+      className='group flex items-center gap-1 text-[var(--landing-text-muted)] text-sm hover:text-[var(--landing-text)]'
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >

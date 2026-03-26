@@ -40,7 +40,7 @@ export interface PlusMenuHandle {
 export const TEXTAREA_BASE_CLASSES = cn(
   'm-0 box-border h-auto min-h-[24px] w-full resize-none',
   'overflow-y-auto overflow-x-hidden break-all border-0 bg-transparent',
-  'px-[4px] py-[4px] font-body text-[15px] leading-[24px] tracking-[-0.015em]',
+  'px-1 py-1 font-body text-[15px] leading-[24px] tracking-[-0.015em]',
   'text-transparent caret-[var(--text-primary)] outline-none',
   'placeholder:font-[380] placeholder:text-[var(--text-subtle)]',
   'focus-visible:ring-0 focus-visible:ring-offset-0',
@@ -50,15 +50,15 @@ export const TEXTAREA_BASE_CLASSES = cn(
 export const OVERLAY_CLASSES = cn(
   'pointer-events-none absolute top-0 left-0 m-0 box-border h-auto w-full resize-none',
   'overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all border-0 bg-transparent',
-  'px-[4px] py-[4px] font-body text-[15px] leading-[24px] tracking-[-0.015em]',
+  'px-1 py-1 font-body text-[15px] leading-[24px] tracking-[-0.015em]',
   'text-[var(--text-primary)] outline-none',
   '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 )
 
 export const SEND_BUTTON_BASE = 'h-[28px] w-[28px] rounded-full border-0 p-0 transition-colors'
 export const SEND_BUTTON_ACTIVE =
-  'bg-[var(--c-383838)] hover:bg-[var(--c-575757)] dark:bg-[var(--c-E0E0E0)] dark:hover:bg-[var(--c-CFCFCF)]'
-export const SEND_BUTTON_DISABLED = 'bg-[var(--c-808080)] dark:bg-[var(--c-808080)]'
+  'bg-[#383838] hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover:bg-[#CFCFCF]'
+export const SEND_BUTTON_DISABLED = 'bg-[#808080] dark:bg-[#808080]'
 
 export const MAX_CHAT_TEXTAREA_HEIGHT = 200
 export const SPEECH_RECOGNITION_LANG = 'en-US'

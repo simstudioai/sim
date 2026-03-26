@@ -77,7 +77,7 @@ export function getBlockRingStyles(options: BlockRingOptions): {
       !isPending &&
       !isDeletedBlock &&
       diffStatus === 'new' &&
-      'ring-[var(--brand-tertiary-2)]',
+      'ring-[var(--brand-accent)]',
     !isExecuting &&
       !isEditorOpen &&
       !isSelected &&

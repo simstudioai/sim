@@ -17,8 +17,8 @@ import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persiste
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
 import { VersionDescriptionModal } from './version-description-modal'
 
-const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-[12px]'
-const ROW_TEXT_CLASS = 'font-medium text-[var(--text-primary)] text-[12px]'
+const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-caption'
+const ROW_TEXT_CLASS = 'font-medium text-[var(--text-primary)] text-caption'
 const COLUMN_BASE_CLASS = 'flex-shrink-0'
 
 const COLUMN_WIDTHS = {
@@ -136,8 +136,8 @@ export function Versions({
 
   if (versionsLoading && versions.length === 0) {
     return (
-      <div className='overflow-hidden rounded-[4px] border border-[var(--border)]'>
-        <div className='flex h-[30px] items-center bg-[var(--surface-1)] px-[16px]'>
+      <div className='overflow-hidden rounded-sm border border-[var(--border)]'>
+        <div className='flex h-[30px] items-center bg-[var(--surface-1)] px-4'>
           <div className={clsx(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS)}>
             <Skeleton className='h-[12px] w-[50px]' />
           </div>
@@ -151,10 +151,10 @@ export function Versions({
         </div>
         <div className='bg-[var(--surface-2)]'>
           {[0, 1].map((i) => (
-            <div key={i} className='flex h-[36px] items-center px-[16px]'>
-              <div className={clsx(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS, 'min-w-0 pr-[8px]')}>
-                <div className='flex items-center gap-[16px]'>
-                  <Skeleton className='h-[6px] w-[6px] rounded-[2px]' />
+            <div key={i} className='flex h-[36px] items-center px-4'>
+              <div className={clsx(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS, 'min-w-0 pr-2')}>
+                <div className='flex items-center gap-4'>
+                  <Skeleton className='h-[6px] w-[6px] rounded-xs' />
                   <Skeleton className='h-[12px] w-[60px]' />
                 </div>
               </div>
@@ -168,11 +168,11 @@ export function Versions({
                 className={clsx(
                   COLUMN_WIDTHS.ACTIONS,
                   COLUMN_BASE_CLASS,
-                  'flex justify-end gap-[2px]'
+                  'flex justify-end gap-0.5'
                 )}
               >
-                <Skeleton className='h-[20px] w-[20px] rounded-[4px]' />
-                <Skeleton className='h-[20px] w-[20px] rounded-[4px]' />
+                <Skeleton className='h-[20px] w-[20px] rounded-sm' />
+                <Skeleton className='h-[20px] w-[20px] rounded-sm' />
               </div>
             </div>
           ))}
@@ -183,15 +183,15 @@ export function Versions({
 
   if (versions.length === 0) {
     return (
-      <div className='flex h-[120px] items-center justify-center rounded-[4px] border border-[var(--border)] text-[#8D8D8D] text-[13px]'>
+      <div className='flex h-[120px] items-center justify-center rounded-sm border border-[var(--border)] text-[var(--text-placeholder)] text-small'>
         No deployments yet
       </div>
     )
   }
 
   return (
-    <div className='overflow-hidden rounded-[4px] border border-[var(--border)]'>
-      <div className='flex h-[30px] items-center bg-[var(--surface-1)] px-[16px]'>
+    <div className='overflow-hidden rounded-sm border border-[var(--border)]'>
+      <div className='flex h-[30px] items-center bg-[var(--surface-1)] px-4'>
         <div className={clsx(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS)}>
           <span className={HEADER_TEXT_CLASS}>Version</span>
         </div>
@@ -212,19 +212,19 @@ export function Versions({
             <div
               key={v.id}
               className={clsx(
-                'flex h-[36px] cursor-pointer items-center px-[16px] transition-colors duration-100',
+                'flex h-[36px] cursor-pointer items-center px-4 transition-colors duration-100',
                 isSelected
-                  ? 'bg-[var(--accent)]/10 hover:bg-[var(--accent)]/15'
-                  : 'hover:bg-[var(--surface-6)] dark:hover:bg-[var(--border)]'
+                  ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] hover-hover:bg-[color-mix(in_srgb,var(--accent)_15%,transparent)]'
+                  : 'hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--border)]'
               )}
               onClick={() => handleRowClick(v.version)}
             >
-              <div className={clsx(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS, 'min-w-0 pr-[8px]')}>
-                <div className='flex items-center gap-[16px]'>
+              <div className={clsx(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS, 'min-w-0 pr-2')}>
+                <div className='flex items-center gap-4'>
                   <div
                     className={clsx(
-                      'h-[6px] w-[6px] shrink-0 rounded-[2px]',
-                      v.isActive ? 'bg-[#4ADE80]' : 'bg-[#B7B7B7]'
+                      'h-[6px] w-[6px] shrink-0 rounded-xs',
+                      v.isActive ? 'bg-[var(--indicator-active)]' : 'bg-[var(--indicator-inactive)]'
                     )}
                     title={v.isActive ? 'Live' : 'Inactive'}
                   />
@@ -245,7 +245,7 @@ export function Versions({
                       onClick={(e) => e.stopPropagation()}
                       onBlur={() => handleSaveRename(v.version)}
                       className={clsx(
-                        'w-full border-0 bg-transparent p-0 font-medium text-[12px] leading-5 outline-none',
+                        'w-full border-0 bg-transparent p-0 font-medium text-caption leading-5 outline-none',
                         'text-[var(--text-primary)] focus:outline-none focus:ring-0'
                       )}
                       maxLength={100}
@@ -257,7 +257,7 @@ export function Versions({
                     />
                   ) : (
                     <span
-                      className={clsx('block flex items-center gap-[4px] truncate', ROW_TEXT_CLASS)}
+                      className={clsx('block flex items-center gap-1 truncate', ROW_TEXT_CLASS)}
                     >
                       <span className='truncate'>{v.name || `v${v.version}`}</span>
                       {v.isActive && <span className='text-[var(--text-tertiary)]'> (live)</span>}
@@ -289,7 +289,7 @@ export function Versions({
                 className={clsx(
                   COLUMN_WIDTHS.ACTIONS,
                   COLUMN_BASE_CLASS,
-                  'flex items-center justify-end gap-[2px]'
+                  'flex items-center justify-end gap-0.5'
                 )}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -300,7 +300,7 @@ export function Versions({
                       className={clsx(
                         '!p-1',
                         !v.description &&
-                          'text-[var(--text-quaternary)] hover:text-[var(--text-tertiary)]'
+                          'text-[var(--text-quaternary)] hover-hover:text-[var(--text-tertiary)]'
                       )}
                       onClick={() => handleOpenDescriptionModal(v.version)}
                     >
@@ -309,9 +309,9 @@ export function Versions({
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top' className='max-w-[240px]'>
                     {v.description ? (
-                      <p className='line-clamp-3 text-[12px]'>{v.description}</p>
+                      <p className='line-clamp-3 text-caption'>{v.description}</p>
                     ) : (
-                      <p className='text-[12px]'>Add description</p>
+                      <p className='text-caption'>Add description</p>
                     )}
                   </Tooltip.Content>
                 </Tooltip.Root>

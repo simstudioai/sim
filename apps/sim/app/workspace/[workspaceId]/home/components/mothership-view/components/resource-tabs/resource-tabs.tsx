@@ -260,7 +260,7 @@ export function ResourceTabs({
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center border-[var(--border)] border-b px-[16px] py-[8.5px]',
+        'flex shrink-0 items-center border-[var(--border)] border-b px-4 py-[8.5px]',
         RESOURCE_TAB_GAP_CLASS
       )}
     >
@@ -333,12 +333,12 @@ export function ResourceTabs({
                       onMouseEnter={() => setHoveredTabId(resource.id)}
                       onMouseLeave={() => setHoveredTabId(null)}
                       className={cn(
-                        'group relative shrink-0 bg-transparent px-[8px] py-[4px] pr-[22px] text-[12px] transition-opacity duration-150',
+                        'group relative shrink-0 bg-transparent px-2 py-1 pr-[22px] text-caption transition-opacity duration-150',
                         isActive && 'bg-[var(--surface-4)]',
                         isDragging && 'opacity-30'
                       )}
                     >
-                      {config.renderTabIcon(resource, 'mr-[6px] h-[14px] w-[14px]')}
+                      {config.renderTabIcon(resource, 'mr-1.5 h-[14px] w-[14px]')}
                       {displayName}
                       {(isHovered || isActive) && chatId && (
                         <span
@@ -349,7 +349,7 @@ export function ResourceTabs({
                             if (e.key === 'Enter')
                               handleRemove(e as unknown as React.MouseEvent, resource)
                           }}
-                          className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-[4px] p-[1px] hover:bg-[var(--surface-5)]'
+                          className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-sm p-[1px] hover-hover:bg-[var(--surface-5)]'
                           aria-label={`Close ${displayName}`}
                         >
                           <svg

@@ -632,23 +632,23 @@ console.log(data);`
 
   if (isLoading) {
     return (
-      <div className='-mx-1 space-y-[12px] px-1'>
+      <div className='-mx-1 space-y-3 px-1'>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[80px]' />
-          <Skeleton className='h-[34px] w-full rounded-[4px]' />
+          <Skeleton className='h-[34px] w-full rounded-sm' />
           <Skeleton className='mt-[6.5px] h-[14px] w-[200px]' />
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[70px]' />
-          <Skeleton className='h-[80px] w-full rounded-[4px]' />
+          <Skeleton className='h-[80px] w-full rounded-sm' />
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[50px]' />
-          <Skeleton className='h-[34px] w-full rounded-[4px]' />
+          <Skeleton className='h-[34px] w-full rounded-sm' />
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[90px]' />
-          <Skeleton className='h-[34px] w-full rounded-[4px]' />
+          <Skeleton className='h-[34px] w-full rounded-sm' />
         </div>
       </div>
     )
@@ -661,13 +661,13 @@ console.log(data);`
         e.preventDefault()
         handleCreateOrUpdate()
       }}
-      className='-mx-1 space-y-[12px] overflow-y-auto px-1 pb-[16px]'
+      className='-mx-1 space-y-3 overflow-y-auto px-1 pb-4'
     >
       {/* Endpoint URL (shown when agent exists) */}
       {existingAgent && endpoint && (
         <div>
           <div className='mb-[6.5px] flex items-center justify-between'>
-            <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+            <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               URL
             </Label>
             <Tooltip.Root>
@@ -691,8 +691,8 @@ console.log(data);`
               </Tooltip.Content>
             </Tooltip.Root>
           </div>
-          <div className='relative flex items-stretch overflow-hidden rounded-[4px] border border-[var(--border-1)]'>
-            <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-[6px] pl-[8px] font-medium text-[var(--text-secondary)] text-sm dark:bg-[var(--surface-5)]'>
+          <div className='relative flex items-stretch overflow-hidden rounded-sm border border-[var(--border-1)]'>
+            <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-1.5 pl-2 font-medium text-[var(--text-secondary)] text-sm dark:bg-[var(--surface-5)]'>
               {baseUrl.replace(/^https?:\/\//, '')}/api/a2a/serve/
             </div>
             <div className='relative flex-1'>
@@ -703,7 +703,7 @@ console.log(data);`
               />
             </div>
           </div>
-          <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
+          <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             The A2A endpoint URL where clients can discover and call your agent
           </p>
         </div>
@@ -713,7 +713,7 @@ console.log(data);`
       <div>
         <Label
           htmlFor='a2a-name'
-          className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
+          className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
         >
           Agent name <span className='text-red-500'>*</span>
         </Label>
@@ -724,7 +724,7 @@ console.log(data);`
           placeholder='Enter agent name'
           required
         />
-        <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
+        <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
           Human-readable name shown in the Agent Card
         </p>
       </div>
@@ -733,7 +733,7 @@ console.log(data);`
       <div>
         <Label
           htmlFor='a2a-description'
-          className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
+          className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
         >
           Description <span className='text-red-500'>*</span>
         </Label>
@@ -749,7 +749,7 @@ console.log(data);`
 
       {/* Access */}
       <div>
-        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Access
         </Label>
         <ButtonGroup
@@ -759,7 +759,7 @@ console.log(data);`
           <ButtonGroupItem value='apiKey'>API Key</ButtonGroupItem>
           <ButtonGroupItem value='none'>Public</ButtonGroupItem>
         </ButtonGroup>
-        <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
+        <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
           {authScheme === 'none'
             ? 'Anyone can call this agent without authentication'
             : 'Requires X-API-Key header or API key query parameter'}
@@ -768,17 +768,17 @@ console.log(data);`
 
       {/* Capabilities */}
       <div>
-        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Capabilities
         </Label>
-        <div className='space-y-[8px]'>
-          <div className='flex items-center gap-[8px]'>
+        <div className='space-y-2'>
+          <div className='flex items-center gap-2'>
             <Checkbox
               id='a2a-push'
               checked={pushNotificationsEnabled}
               onCheckedChange={(checked) => setPushNotificationsEnabled(checked === true)}
             />
-            <label htmlFor='a2a-push' className='text-[13px] text-[var(--text-primary)]'>
+            <label htmlFor='a2a-push' className='text-[var(--text-primary)] text-small'>
               Push notifications (webhooks)
             </label>
           </div>
@@ -787,7 +787,7 @@ console.log(data);`
 
       {/* Tags */}
       <div>
-        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Tags
         </Label>
         <TagInput
@@ -814,7 +814,7 @@ console.log(data);`
         <>
           <div>
             <div className='mb-[6.5px] flex items-center justify-between'>
-              <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+              <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
                 Language
               </Label>
             </div>
@@ -829,11 +829,11 @@ console.log(data);`
 
           <div>
             <div className='mb-[6.5px] flex items-center justify-between'>
-              <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+              <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
                 Send message
               </Label>
-              <div className='flex items-center gap-[8px]'>
-                <div className='flex items-center gap-[6px]'>
+              <div className='flex items-center gap-2'>
+                <div className='flex items-center gap-1.5'>
                   <Checkbox
                     id='a2a-stream-example'
                     checked={useStreamingExample}
@@ -841,7 +841,7 @@ console.log(data);`
                   />
                   <label
                     htmlFor='a2a-stream-example'
-                    className='text-[12px] text-[var(--text-secondary)]'
+                    className='text-[var(--text-secondary)] text-caption'
                   >
                     Stream
                   </label>
@@ -872,18 +872,18 @@ console.log(data);`
               code={getCurlCommand()}
               language={LANGUAGE_SYNTAX[language]}
               wrapText
-              className='!min-h-0 rounded-[4px] border border-[var(--border-1)]'
+              className='!min-h-0 rounded-sm border border-[var(--border-1)]'
             />
             <div className='mt-[6.5px] flex items-start justify-between gap-2'>
-              <p className='text-[11px] text-[var(--text-secondary)]'>
+              <p className='text-[var(--text-secondary)] text-xs'>
                 External A2A clients can discover and call your agent. TextPart →{' '}
-                <code className='text-[10px]'>&lt;start.input&gt;</code>, DataPart →{' '}
-                <code className='text-[10px]'>&lt;start.data&gt;</code>, FilePart →{' '}
-                <code className='text-[10px]'>&lt;start.files&gt;</code>.
+                <code className='text-micro'>&lt;start.input&gt;</code>, DataPart →{' '}
+                <code className='text-micro'>&lt;start.data&gt;</code>, FilePart →{' '}
+                <code className='text-micro'>&lt;start.files&gt;</code>.
               </p>
               {missingFields.any && (
                 <div
-                  className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[9px] py-[2px] font-medium font-sans text-[12px] text-[var(--text-primary)] hover:bg-[var(--surface-7)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]'
+                  className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-[9px] py-0.5 font-medium font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-7)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]'
                   title='Add required A2A input fields to Start block'
                   onClick={handleAddA2AInputs}
                 >

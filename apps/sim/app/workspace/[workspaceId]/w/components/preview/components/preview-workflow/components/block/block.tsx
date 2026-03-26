@@ -29,8 +29,8 @@ interface SubBlockValueEntry {
  * Extracted to avoid recreating style objects on each render.
  */
 const HANDLE_STYLES = {
-  horizontal: '!border-none !bg-[var(--surface-7)] !h-5 !w-[7px] !rounded-[2px]',
-  vertical: '!border-none !bg-[var(--surface-7)] !h-[7px] !w-5 !rounded-[2px]',
+  horizontal: '!border-none !bg-[var(--surface-7)] !h-5 !w-[7px] !rounded-xs',
+  vertical: '!border-none !bg-[var(--surface-7)] !h-[7px] !w-5 !rounded-xs',
   right:
     '!z-[10] !border-none !bg-[var(--workflow-edge)] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none',
   error:
@@ -243,16 +243,16 @@ const SubBlockRow = memo(function SubBlockRow({
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (
-    <div className='flex items-center gap-[8px]'>
+    <div className='flex items-center gap-2'>
       <span
-        className='min-w-0 truncate text-[14px] text-[var(--text-tertiary)] capitalize'
+        className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
         title={title}
       >
         {title}
       </span>
       {displayValue !== undefined && (
         <span
-          className='flex-1 truncate text-right text-[14px] text-[var(--text-primary)]'
+          className='flex-1 truncate text-right text-[var(--text-primary)] text-sm'
           title={displayValue}
         >
           {displayValue}
@@ -432,18 +432,18 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
   const hasSuccess = executionStatus === 'success'
 
   return (
-    <div className='relative w-[250px] select-none rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)]'>
+    <div className='relative w-[250px] select-none rounded-lg border border-[var(--border-1)] bg-[var(--surface-2)]'>
       {/* Selection ring overlay (takes priority over execution rings) */}
       {isPreviewSelected && (
-        <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-[1.75px] ring-[var(--brand-secondary)]' />
+        <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[1.75px] ring-[var(--brand-secondary)]' />
       )}
       {/* Success ring overlay (only shown if not selected) */}
       {!isPreviewSelected && hasSuccess && (
-        <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-[1.75px] ring-[var(--brand-tertiary-2)]' />
+        <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[1.75px] ring-[var(--brand-accent)]' />
       )}
       {/* Error ring overlay (only shown if not selected) */}
       {!isPreviewSelected && hasError && (
-        <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-[1.75px] ring-[var(--text-error)]' />
+        <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[1.75px] ring-[var(--text-error)]' />
       )}
 
       {/* Target handle - not shown for triggers/starters */}
@@ -463,19 +463,19 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
 
       {/* Header - matches WorkflowBlock structure */}
       <div
-        className={`flex items-center justify-between p-[8px] ${hasContentBelowHeader ? 'border-[var(--border-1)] border-b' : ''}`}
+        className={`flex items-center justify-between p-2 ${hasContentBelowHeader ? 'border-[var(--border-1)] border-b' : ''}`}
       >
-        <div className='relative z-10 flex min-w-0 flex-1 items-center gap-[10px]'>
+        <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
           {!isNoteBlock && (
             <div
-              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
+              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-md'
               style={{ background: enabled ? blockConfig.bgColor : 'gray' }}
             >
               <IconComponent className='h-[16px] w-[16px] text-white' />
             </div>
           )}
           <span
-            className={`truncate font-medium text-[16px] ${!enabled ? 'text-[var(--text-muted)]' : ''}`}
+            className={`truncate font-medium text-md ${!enabled ? 'text-[var(--text-muted)]' : ''}`}
             title={name}
           >
             {name}
@@ -485,7 +485,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
 
       {/* Content area with subblocks */}
       {hasContentBelowHeader && (
-        <div className='flex flex-col gap-[8px] p-[8px]'>
+        <div className='flex flex-col gap-2 p-2'>
           {type === 'condition' ? (
             conditionRows.map((cond) => (
               <SubBlockRow

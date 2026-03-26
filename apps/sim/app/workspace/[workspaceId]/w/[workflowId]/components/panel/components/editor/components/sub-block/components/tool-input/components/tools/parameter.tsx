@@ -85,24 +85,24 @@ export function ParameterWithLabel({
   const isStreaming = wandControlRef.current?.isWandStreaming ?? false
 
   return (
-    <div key={paramId} className='relative min-w-0 space-y-[6px]'>
-      <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
-        <Label className='flex items-baseline gap-[6px] whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
+    <div key={paramId} className='relative min-w-0 space-y-1.5'>
+      <div className='flex items-center justify-between gap-1.5 pl-0.5'>
+        <Label className='flex items-baseline gap-1.5 whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
           {title}
           {isRequired && visibility === 'user-only' && <span className='ml-0.5'>*</span>}
         </Label>
-        <div className='flex min-w-0 flex-1 items-center justify-end gap-[6px]'>
+        <div className='flex min-w-0 flex-1 items-center justify-end gap-1.5'>
           {showWand &&
             (!isSearchActive ? (
               <Button
                 variant='active'
-                className='-my-1 h-5 px-2 py-0 text-[11px]'
+                className='-my-1 h-5 px-2 py-0 text-xs'
                 onClick={handleSearchClick}
               >
                 Generate
               </Button>
             ) : (
-              <div className='-my-1 flex min-w-[120px] max-w-[280px] flex-1 items-center gap-[4px]'>
+              <div className='-my-1 flex min-w-[120px] max-w-[280px] flex-1 items-center gap-1'>
                 <Input
                   ref={searchInputRef}
                   value={isStreaming ? 'Generating...' : searchQuery}
@@ -123,7 +123,7 @@ export function ParameterWithLabel({
                   }}
                   disabled={isStreaming}
                   className={cn(
-                    'h-5 min-w-[80px] flex-1 text-[11px]',
+                    'h-5 min-w-[80px] flex-1 text-xs',
                     isStreaming && 'text-muted-foreground'
                   )}
                   placeholder='Generate with AI...'

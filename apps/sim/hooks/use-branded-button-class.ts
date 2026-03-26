@@ -16,7 +16,7 @@ export function useBrandedButtonClass(): BrandedButtonClass {
   useEffect(() => {
     const checkCustomBrand = () => {
       const computedStyle = getComputedStyle(document.documentElement)
-      const brandAccent = computedStyle.getPropertyValue('--brand-accent-hex').trim()
+      const brandAccent = computedStyle.getPropertyValue('--brand-link').trim()
 
       if (brandAccent && brandAccent !== DEFAULT_BRAND_ACCENT) {
         setButtonClass('branded-button-custom')

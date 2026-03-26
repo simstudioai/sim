@@ -366,18 +366,18 @@ export function SearchModal({
         style={{ left: '50%' }}
       >
         <Command label='Search' shouldFilter={false}>
-          <div className='mx-[8px] mt-[8px] mb-[4px] flex items-center gap-[6px] rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] dark:bg-[var(--surface-4)]'>
+          <div className='mx-2 mt-2 mb-1 flex items-center gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
             <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-muted)]' />
             <Command.Input
               ref={inputRef}
               autoFocus
               onValueChange={handleSearchChange}
               placeholder='Search anything...'
-              className='w-full bg-transparent py-[6px] font-base text-[14px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
+              className='w-full bg-transparent py-1.5 font-base text-[var(--text-primary)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
             />
           </div>
-          <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto overflow-x-hidden p-[8px] [&_[cmdk-group]+[cmdk-group]]:mt-[10px]'>
-            <Command.Empty className='flex items-center justify-center px-[16px] py-[24px] text-[14px] text-[var(--text-subtle)]'>
+          <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto overflow-x-hidden p-2 [&_[cmdk-group]+[cmdk-group]]:mt-2.5'>
+            <Command.Empty className='flex items-center justify-center px-4 py-6 text-[var(--text-subtle)] text-sm'>
               No results found.
             </Command.Empty>
 
@@ -439,10 +439,10 @@ export function SearchModal({
                     key={workflow.id}
                     value={`${workflow.name} workflow-${workflow.id}`}
                     onSelect={() => handleWorkflowSelect(workflow)}
-                    className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
+                    className='group flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 text-left text-sm aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
                   >
                     <div
-                      className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px] border-[2px]'
+                      className='h-[14px] w-[14px] flex-shrink-0 rounded-sm border-[2px]'
                       style={{
                         backgroundColor: workflow.color,
                         borderColor: `${workflow.color}60`,
@@ -468,7 +468,7 @@ export function SearchModal({
                       router.push(task.href)
                       onOpenChange(false)
                     }}
-                    className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
+                    className='group flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 text-left text-sm aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
                   >
                     <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
                       <Blimp className='h-[14px] w-[14px] text-[var(--text-icon)]' />
@@ -503,7 +503,7 @@ export function SearchModal({
                     key={workspace.id}
                     value={`${workspace.name} workspace-${workspace.id}`}
                     onSelect={() => handleWorkspaceSelect(workspace)}
-                    className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
+                    className='group flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 text-left text-sm aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
                   >
                     <span className='truncate font-base text-[var(--text-body)]'>
                       {workspace.name}
@@ -540,7 +540,7 @@ export function SearchModal({
                       key={page.id}
                       value={`${page.name} page-${page.id}`}
                       onSelect={() => handlePageSelect(page)}
-                      className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
+                      className='group flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 text-left text-sm aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
                     >
                       <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
                         <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
@@ -549,7 +549,7 @@ export function SearchModal({
                         {page.name}
                       </span>
                       {page.shortcut && (
-                        <span className='ml-auto flex-shrink-0 font-base text-[13px] text-[var(--text-subtle)]'>
+                        <span className='ml-auto flex-shrink-0 font-base text-[var(--text-subtle)] text-small'>
                           {page.shortcut}
                         </span>
                       )}
@@ -567,7 +567,7 @@ export function SearchModal({
 }
 
 const groupHeadingClassName =
-  '[&_[cmdk-group-heading]]:px-[8px] [&_[cmdk-group-heading]]:pt-[2px] [&_[cmdk-group-heading]]:pb-[6px] [&_[cmdk-group-heading]]:font-base [&_[cmdk-group-heading]]:text-[12px] [&_[cmdk-group-heading]]:text-[var(--text-icon)]'
+  '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-0.5 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:font-base [&_[cmdk-group-heading]]:text-caption [&_[cmdk-group-heading]]:text-[var(--text-icon)]'
 
 interface CommandItemProps {
   value: string
@@ -593,10 +593,10 @@ const MemoizedCommandItem = memo(
       <Command.Item
         value={value}
         onSelect={onSelect}
-        className='group flex h-[30px] w-full cursor-pointer items-center gap-[8px] rounded-[8px] border border-transparent px-[8px] text-left text-[14px] aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
+        className='group flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 text-left text-sm aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'
       >
         <div
-          className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+          className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
           style={{ background: showColoredIcon ? bgColor : 'transparent' }}
         >
           <Icon

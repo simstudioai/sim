@@ -6,12 +6,12 @@ import { McpServerSkeleton } from '@/app/workspace/[workspaceId]/settings/compon
  */
 export function McpSkeleton() {
   return (
-    <div className='flex h-full flex-col gap-[18px]'>
-      <div className='flex items-center gap-[8px]'>
-        <Skeleton className='h-[30px] flex-1 rounded-[8px]' />
-        <Skeleton className='h-[30px] w-[64px] rounded-[6px]' />
+    <div className='flex h-full flex-col gap-4.5'>
+      <div className='flex items-center gap-2'>
+        <Skeleton className='h-[30px] flex-1 rounded-lg' />
+        <Skeleton className='h-[30px] w-[64px] rounded-md' />
       </div>
-      <div className='flex flex-col gap-[8px]'>
+      <div className='flex flex-col gap-2'>
         <McpServerSkeleton />
         <McpServerSkeleton />
         <McpServerSkeleton />

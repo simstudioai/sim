@@ -295,7 +295,7 @@ function InputOutputSection({
   }, [activateSearch, closeContextMenu])
 
   return (
-    <div className='relative flex min-w-0 flex-col gap-[6px] overflow-hidden'>
+    <div className='relative flex min-w-0 flex-col gap-1.5 overflow-hidden'>
       <div
         className='group flex cursor-pointer items-center justify-between'
         onClick={() => onToggle(sectionKey)}
@@ -312,7 +312,7 @@ function InputOutputSection({
       >
         <span
           className={cn(
-            'font-medium text-[12px] transition-colors',
+            'font-medium text-caption transition-colors',
             isError
               ? 'text-[var(--text-error)]'
               : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
@@ -333,7 +333,7 @@ function InputOutputSection({
             <Code.Viewer
               code={jsonString}
               language='json'
-              className='!bg-[var(--surface-4)] dark:!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
+              className='!bg-[var(--surface-4)] dark:!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-md border-0 [word-break:break-all]'
               wrapText
               searchQuery={isSearchActive ? searchQuery : undefined}
               currentMatchIndex={currentMatchIndex}
@@ -341,7 +341,7 @@ function InputOutputSection({
             />
             {/* Glass action buttons overlay */}
             {!isSearchActive && (
-              <div className='absolute top-[7px] right-[6px] z-10 flex gap-[4px]'>
+              <div className='absolute top-[7px] right-[6px] z-10 flex gap-1'>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
@@ -351,7 +351,7 @@ function InputOutputSection({
                         e.stopPropagation()
                         handleCopy()
                       }}
-                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
+                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                     >
                       {copied ? (
                         <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
@@ -371,7 +371,7 @@ function InputOutputSection({
                         e.stopPropagation()
                         activateSearch()
                       }}
-                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
+                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                     >
                       <Search className='h-[10px] w-[10px]' />
                     </Button>
@@ -385,7 +385,7 @@ function InputOutputSection({
           {/* Search Overlay */}
           {isSearchActive && (
             <div
-              className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-[6px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-1)] px-[6px] shadow-sm'
+              className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-sm'
               onClick={(e) => e.stopPropagation()}
             >
               <Input
@@ -394,11 +394,11 @@ function InputOutputSection({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder='Search...'
-                className='mr-[2px] h-[23px] w-[94px] text-[12px]'
+                className='mr-0.5 h-[23px] w-[94px] text-caption'
               />
               <span
                 className={cn(
-                  'min-w-[45px] text-center text-[11px]',
+                  'min-w-[45px] text-center text-xs',
                   matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
                 )}
               >
@@ -581,7 +581,7 @@ const TraceSpanNode = memo(function TraceSpanNode({
       {/* Node Header Row */}
       <div
         className={cn(
-          'group flex items-center justify-between gap-[8px] py-[6px]',
+          'group flex items-center justify-between gap-2 py-1.5',
           isToggleable && 'cursor-pointer'
         )}
         onClick={isToggleable ? () => onToggleNode(spanId) : undefined}
@@ -600,17 +600,17 @@ const TraceSpanNode = memo(function TraceSpanNode({
         aria-expanded={isToggleable ? isExpanded : undefined}
         aria-label={isToggleable ? (isExpanded ? 'Collapse' : 'Expand') : undefined}
       >
-        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
           {!isIterationType(span.type) && (
             <div
-              className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+              className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
               style={{ background: bgColor }}
             >
               {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
             </div>
           )}
           <span
-            className='min-w-0 max-w-[180px] truncate font-medium text-[12px]'
+            className='min-w-0 max-w-[180px] truncate font-medium text-caption'
             style={{ color: showErrorStyle ? 'var(--text-error)' : 'var(--text-secondary)' }}
           >
             {span.name}
@@ -624,14 +624,14 @@ const TraceSpanNode = memo(function TraceSpanNode({
             />
           )}
         </div>
-        <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
+        <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
           {formatDuration(duration, { precision: 2 })}
         </span>
       </div>
 
       {/* Expanded Content */}
       {isExpanded && (
-        <div className='flex min-w-0 flex-col gap-[10px]'>
+        <div className='flex min-w-0 flex-col gap-2.5'>
           {/* Progress Bar */}
           <ProgressBar
             span={span}
@@ -642,7 +642,7 @@ const TraceSpanNode = memo(function TraceSpanNode({
 
           {/* Input/Output Sections */}
           {(hasInput || hasOutput) && (
-            <div className='flex min-w-0 flex-col gap-[6px] overflow-hidden py-[2px]'>
+            <div className='flex min-w-0 flex-col gap-1.5 overflow-hidden py-0.5'>
               {hasInput && (
                 <InputOutputSection
                   label='Input'
@@ -675,9 +675,9 @@ const TraceSpanNode = memo(function TraceSpanNode({
 
           {/* Nested Children */}
           {hasChildren && (
-            <div className='flex min-w-0 flex-col gap-[2px] border-[var(--border)] border-l pl-[10px]'>
+            <div className='flex min-w-0 flex-col gap-0.5 border-[var(--border)] border-l pl-2.5'>
               {filteredChildren.map((child, index) => (
-                <div key={child.id || `${spanId}-child-${index}`} className='pl-[6px]'>
+                <div key={child.id || `${spanId}-child-${index}`} className='pl-1.5'>
                   <TraceSpanNode
                     span={child}
                     workflowStartTime={workflowStartTime}
@@ -740,7 +740,7 @@ export const TraceSpans = memo(function TraceSpans({ traceSpans }: TraceSpansPro
   )
 
   if (!traceSpans || traceSpans.length === 0) {
-    return <div className='text-[12px] text-[var(--text-secondary)]'>No trace data available</div>
+    return <div className='text-[var(--text-secondary)] text-caption'>No trace data available</div>
   }
 
   return (

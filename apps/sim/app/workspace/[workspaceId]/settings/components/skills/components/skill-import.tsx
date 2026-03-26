@@ -167,7 +167,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
   return (
     <div className='flex flex-col gap-[18px]'>
       {/* File drop zone */}
-      <div className='flex flex-col gap-[4px]'>
+      <div className='flex flex-col gap-1'>
         <Label className='font-medium text-[14px]'>Upload File</Label>
         <button
           type='button'
@@ -178,7 +178,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
           onDrop={handleDrop}
           disabled={fileState === 'loading'}
           className={cn(
-            'flex w-full cursor-pointer flex-col items-center justify-center gap-[8px] rounded-[8px] border border-dashed px-[16px] py-[32px] transition-colors',
+            'flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-[8px] border border-dashed px-4 py-8 transition-colors',
             'border-[var(--border-1)] bg-[var(--surface-1)] hover:bg-[var(--surface-4)]',
             isDragging && 'border-[var(--surface-7)] bg-[var(--surface-4)]',
             fileState === 'loading' && 'pointer-events-none opacity-60'
@@ -196,7 +196,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
           ) : (
             <Upload className='h-[20px] w-[20px] text-[var(--text-tertiary)]' />
           )}
-          <div className='flex flex-col gap-[2px] text-center'>
+          <div className='flex flex-col gap-0.5 text-center'>
             <span className='text-[14px] text-[var(--text-primary)]'>
               {isDragging ? 'Drop file here' : 'Drop file here or click to browse'}
             </span>
@@ -211,11 +211,11 @@ export function SkillImport({ onImport }: SkillImportProps) {
       <Divider />
 
       {/* GitHub URL */}
-      <div className='flex flex-col gap-[4px]'>
+      <div className='flex flex-col gap-1'>
         <Label htmlFor='skill-github-url' className='font-medium text-[14px]'>
           Import from GitHub
         </Label>
-        <div className='flex gap-[8px]'>
+        <div className='flex gap-2'>
           <Input
             id='skill-github-url'
             placeholder='https://github.com/owner/repo/blob/main/SKILL.md'
@@ -245,7 +245,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
       <Divider />
 
       {/* Paste content */}
-      <div className='flex flex-col gap-[4px]'>
+      <div className='flex flex-col gap-1'>
         <Label htmlFor='skill-paste' className='font-medium text-[14px]'>
           Paste SKILL.md Content
         </Label>
@@ -274,7 +274,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
 
 function Divider() {
   return (
-    <div className='flex items-center gap-[12px]'>
+    <div className='flex items-center gap-3'>
       <div className='h-px flex-1 bg-[var(--border-1)]' />
       <span className='text-[12px] text-[var(--text-tertiary)]'>or</span>
       <div className='h-px flex-1 bg-[var(--border-1)]' />

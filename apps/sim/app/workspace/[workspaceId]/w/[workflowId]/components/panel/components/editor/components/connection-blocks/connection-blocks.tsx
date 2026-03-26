@@ -79,18 +79,18 @@ function ConnectionItem({
   }
 
   return (
-    <div className='mb-[2px] last:mb-0' ref={connectionRef}>
+    <div className='mb-0.5 last:mb-0' ref={connectionRef}>
       <div
         draggable
         onDragStart={(e) => onConnectionDragStart(e, connection)}
         className={clsx(
-          'group flex h-[26px] cursor-grab items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover:bg-[var(--surface-5)]',
+          'group flex h-[26px] cursor-grab items-center gap-2 rounded-lg px-1.5 text-sm hover-hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover-hover:bg-[var(--surface-5)]',
           hasFields && 'cursor-pointer'
         )}
         onClick={() => hasFields && onToggleExpand(connection.id)}
       >
         <div
-          className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+          className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
           style={{ background: bgColor }}
         >
           {Icon && (
@@ -122,8 +122,8 @@ function ConnectionItem({
       </div>
 
       {isExpanded && hasFields && (
-        <div className='relative mt-[2px] ml-[12px] space-y-[2px] pl-[10px]'>
-          <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
+        <div className='relative mt-0.5 ml-3 space-y-0.5 pl-2.5'>
+          <div className='pointer-events-none absolute top-1 bottom-1 left-0 w-px bg-[var(--border)]' />
           {renderFieldTree(fields, '', 0, connection)}
         </div>
       )}
@@ -262,8 +262,8 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
               onToggleExpand={(p) => toggleFieldExpansion(connection.id, p)}
             />
             {hasChildren && expanded && (
-              <div className='relative mt-[2px] ml-[6px] space-y-[2px] pl-[10px]'>
-                <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
+              <div className='relative mt-0.5 ml-1.5 space-y-0.5 pl-2.5'>
+                <div className='pointer-events-none absolute top-1 bottom-1 left-0 w-px bg-[var(--border)]' />
                 {renderFieldTree(field.children!, fieldPath, level + 1, connection)}
               </div>
             )}
@@ -279,7 +279,7 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
   }
 
   return (
-    <div ref={scrollContainerRef} className='space-y-[2px]'>
+    <div ref={scrollContainerRef} className='space-y-0.5'>
       {connections.map((connection) => {
         const mergedSubBlocks = getMergedSubBlocks(connection.id)
         const sourceBlock = blocks[connection.id]

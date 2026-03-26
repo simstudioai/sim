@@ -301,7 +301,7 @@ export function Variables() {
       const isCollapsed = collapsedById[variable.id] ?? false
       return (
         <div
-          className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-[10px] py-[5px]'
+          className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
           onClick={() => toggleCollapsed(variable.id)}
           onKeyDown={(e) => handleHeaderKeyDown(e, variable.id)}
           role='button'
@@ -309,8 +309,8 @@ export function Variables() {
           aria-expanded={!isCollapsed}
           aria-controls={`variable-content-${variable.id}`}
         >
-          <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-            <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
+          <div className='flex min-w-0 flex-1 items-center gap-2'>
+            <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
               {variable.name || `Variable ${index + 1}`}
             </span>
             {variable.name && (
@@ -325,7 +325,7 @@ export function Variables() {
               e.stopPropagation()
               handleRemoveVariable(variable.id)
             }}
-            className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
+            className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
             aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
           >
             <Trash style={{ width: `${ICON_SIZE}px`, height: `${ICON_SIZE}px` }} />
@@ -410,7 +410,7 @@ export function Variables() {
   return (
     <div
       ref={preventZoomRef}
-      className='fixed z-30 flex flex-col overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] px-[10px] pt-[2px] pb-[8px]'
+      className='fixed z-30 flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -428,11 +428,11 @@ export function Variables() {
         onMouseDown={handleMouseDown}
       >
         <div className='flex items-center'>
-          <span className='flex-shrink-0 font-medium text-[14px] text-[var(--text-primary)]'>
+          <span className='flex-shrink-0 font-medium text-[var(--text-primary)] text-sm'>
             Variables
           </span>
         </div>
-        <div className='flex items-center gap-[8px]'>
+        <div className='flex items-center gap-2'>
           <Button
             variant='ghost'
             className='!p-1.5 -m-1.5'
@@ -456,19 +456,19 @@ export function Variables() {
       </div>
 
       {/* Content */}
-      <div className='flex flex-1 flex-col overflow-hidden pt-[8px]'>
+      <div className='flex flex-1 flex-col overflow-hidden pt-2'>
         {workflowVariables.length === 0 ? (
-          <div className='flex h-full items-center justify-center text-[#8D8D8D] text-[13px]'>
+          <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
             {STRINGS.emptyState}
           </div>
         ) : (
           <div className='h-full overflow-y-auto overflow-x-hidden'>
-            <div className='w-full max-w-full space-y-[8px] overflow-hidden'>
+            <div className='w-full max-w-full space-y-2 overflow-hidden'>
               {workflowVariables.map((variable, index) => (
                 <div
                   key={variable.id}
                   className={cn(
-                    'rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-1)]',
+                    'rounded-sm border border-[var(--border-1)] bg-[var(--surface-1)]',
                     (collapsedById[variable.id] ?? false) ? 'overflow-hidden' : 'overflow-visible'
                   )}
                 >
@@ -477,10 +477,10 @@ export function Variables() {
                   {!(collapsedById[variable.id] ?? false) && (
                     <div
                       id={`variable-content-${variable.id}`}
-                      className='flex flex-col gap-[6px] rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[10px] pt-[6px] pb-[10px]'
+                      className='flex flex-col gap-1.5 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'
                     >
-                      <div className='flex flex-col gap-[4px]'>
-                        <Label className='text-[13px]'>{STRINGS.labels.name}</Label>
+                      <div className='flex flex-col gap-1'>
+                        <Label className='text-small'>{STRINGS.labels.name}</Label>
                         <Input
                           name='name'
                           autoComplete='off'
@@ -497,8 +497,8 @@ export function Variables() {
                         )}
                       </div>
 
-                      <div className='space-y-[4px]'>
-                        <Label className='text-[13px]'>{STRINGS.labels.type}</Label>
+                      <div className='space-y-1'>
+                        <Label className='text-small'>{STRINGS.labels.type}</Label>
                         <Combobox
                           options={TYPE_OPTIONS}
                           value={variable.type}
@@ -506,8 +506,8 @@ export function Variables() {
                         />
                       </div>
 
-                      <div className='space-y-[4px]'>
-                        <Label className='text-[13px]'>{STRINGS.labels.value}</Label>
+                      <div className='space-y-1'>
+                        <Label className='text-small'>{STRINGS.labels.value}</Label>
                         <div className='relative'>{renderValueInput(variable)}</div>
                       </div>
                     </div>

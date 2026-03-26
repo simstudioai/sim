@@ -29,7 +29,7 @@ function BlogCard({
     <Link
       href={`/blog/${slug}`}
       className={cn(
-        'group/card flex flex-col overflow-hidden rounded-[5px] border border-[#2A2A2A] bg-[#1C1C1C] transition-colors hover:border-[#3D3D3D] hover:bg-[#2A2A2A]',
+        'group/card flex flex-col overflow-hidden rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] transition-colors hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-elevated)]',
         className
       )}
       prefetch={false}
@@ -44,9 +44,9 @@ function BlogCard({
           unoptimized
         />
       </div>
-      <div className='flex-shrink-0 px-[10px] py-[6px]'>
+      <div className='flex-shrink-0 px-2.5 py-1.5'>
         <span
-          className='font-[430] font-season text-[#cdcdcd] leading-[140%]'
+          className='font-[430] font-season text-[var(--landing-text-body)] leading-[140%]'
           style={{ fontSize: titleSize }}
         >
           {title}
@@ -66,8 +66,8 @@ export function BlogDropdown({ posts }: BlogDropdownProps) {
   if (!featured) return null
 
   return (
-    <div className='w-[560px] rounded-[5px] border border-[#2A2A2A] bg-[#1C1C1C] p-[16px] shadow-[0_16px_48px_rgba(0,0,0,0.4)]'>
-      <div className='grid grid-cols-3 gap-[8px]'>
+    <div className='w-[560px] rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] p-4 shadow-overlay'>
+      <div className='grid grid-cols-3 gap-2'>
         <BlogCard
           slug={featured.slug}
           image={featured.ogImage}

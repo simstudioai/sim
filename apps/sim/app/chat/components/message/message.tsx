@@ -146,7 +146,7 @@ export const ClientChatMessage = memo(
                                 {attachment.name}
                               </div>
                               {attachment.size && (
-                                <div className='text-[10px] text-gray-500 md:text-xs dark:text-gray-400'>
+                                <div className='text-gray-500 text-micro md:text-xs dark:text-gray-400'>
                                   {formatFileSize(attachment.size)}
                                 </div>
                               )}
@@ -163,7 +163,7 @@ export const ClientChatMessage = memo(
             {/* Only render message bubble if there's actual text content (not just file count message) */}
             {message.content && !String(message.content).startsWith('Sent') && (
               <div className='flex justify-end'>
-                <div className='max-w-[80%] rounded-3xl bg-[#F4F4F4] px-4 py-3 dark:bg-gray-600'>
+                <div className='max-w-[80%] rounded-3xl bg-[var(--surface-4)] px-4 py-3 dark:bg-gray-600'>
                   <div className='whitespace-pre-wrap break-words text-base text-gray-800 leading-relaxed dark:text-gray-100'>
                     {isJsonObject ? (
                       <pre>{JSON.stringify(message.content, null, 2)}</pre>

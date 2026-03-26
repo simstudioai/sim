@@ -33,18 +33,18 @@ export function PasswordAuth({ onSubmit, error }: PasswordAuthProps) {
 
   return (
     <AuthBackground className='dark font-[430] font-season'>
-      <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
-        <header className='shrink-0 bg-[#1C1C1C]'>
+      <main className='relative flex min-h-screen flex-col text-[var(--landing-text)]'>
+        <header className='shrink-0 bg-[var(--landing-bg)]'>
           <Navbar logoOnly />
         </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>
+                <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
                   Password Required
                 </h1>
-                <p className='font-[380] text-[#999] text-[16px]'>
+                <p className='font-[380] text-[var(--text-subtle)] text-md'>
                   Enter the password to access this form.
                 </p>
               </div>
@@ -65,12 +65,12 @@ export function PasswordAuth({ onSubmit, error }: PasswordAuthProps) {
                     <button
                       type='button'
                       onClick={() => setShowPassword(!showPassword)}
-                      className='-translate-y-1/2 absolute top-1/2 right-3 text-[#999] hover:text-[#ECECEC]'
+                      className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--text-subtle)] hover:text-[var(--landing-text)]'
                     >
                       {showPassword ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
                     </button>
                   </div>
-                  {error && <p className='text-[14px] text-red-500'>{error}</p>}
+                  {error && <p className='text-red-500 text-sm'>{error}</p>}
                 </div>
 
                 <BrandedButton

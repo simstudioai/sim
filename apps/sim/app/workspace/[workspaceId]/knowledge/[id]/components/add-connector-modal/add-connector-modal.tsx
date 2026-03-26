@@ -337,8 +337,8 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
 
           <ModalBody>
             {step === 'select-type' ? (
-              <div className='flex flex-col gap-[8px]'>
-                <div className='flex items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
+              <div className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
                   <Search
                     className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
                     strokeWidth={2}
@@ -351,7 +351,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                   />
                 </div>
                 <div className='min-h-[400px] overflow-y-auto'>
-                  <div className='flex flex-col gap-[2px]'>
+                  <div className='flex flex-col gap-0.5'>
                     {filteredEntries.map(([type, config]) => (
                       <ConnectorTypeCard
                         key={type}
@@ -360,7 +360,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                       />
                     ))}
                     {filteredEntries.length === 0 && (
-                      <div className='py-[16px] text-center text-[14px] text-[var(--text-muted)]'>
+                      <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                         {CONNECTOR_ENTRIES.length === 0
                           ? 'No connectors available.'
                           : `No sources found matching "${searchTerm}"`}
@@ -370,10 +370,10 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                 </div>
               </div>
             ) : connectorConfig ? (
-              <div className='flex flex-col gap-[12px]'>
+              <div className='flex flex-col gap-3'>
                 {/* Auth: API key input or OAuth credential selection */}
                 {isApiKeyMode ? (
-                  <div className='flex flex-col gap-[4px]'>
+                  <div className='flex flex-col gap-1'>
                     <Label>
                       {connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.label
                         ? connectorConfig.auth.label
@@ -394,10 +394,10 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                     />
                   </div>
                 ) : (
-                  <div className='flex flex-col gap-[4px]'>
+                  <div className='flex flex-col gap-1'>
                     <Label>Account</Label>
                     {credentialsLoading ? (
-                      <div className='flex items-center gap-2 text-[13px] text-[var(--text-muted)]'>
+                      <div className='flex items-center gap-2 text-[var(--text-muted)] text-small'>
                         <Loader2 className='h-4 w-4 animate-spin' />
                         Loading credentials...
                       </div>
@@ -442,12 +442,12 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                     canonicalId && (canonicalGroups.get(canonicalId)?.length ?? 0) === 2
 
                   return (
-                    <div key={field.id} className='flex flex-col gap-[4px]'>
+                    <div key={field.id} className='flex flex-col gap-1'>
                       <div className='flex items-center justify-between'>
                         <Label>
                           {field.title}
                           {field.required && (
-                            <span className='ml-[2px] text-[var(--text-error)]'>*</span>
+                            <span className='ml-0.5 text-[var(--text-error)]'>*</span>
                           )}
                         </Label>
                         {hasCanonicalPair && canonicalId && (
@@ -455,7 +455,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                             <Tooltip.Trigger asChild>
                               <button
                                 type='button'
-                                className='flex h-[18px] w-[18px] items-center justify-center rounded-[3px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-secondary)]'
+                                className='flex h-[18px] w-[18px] items-center justify-center rounded-[3px] text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
                                 onClick={() => toggleCanonicalMode(canonicalId)}
                               >
                                 <ArrowLeftRight className='h-[12px] w-[12px]' />
@@ -470,7 +470,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                         )}
                       </div>
                       {field.description && (
-                        <p className='text-[11px] text-[var(--text-muted)]'>{field.description}</p>
+                        <p className='text-[var(--text-muted)] text-xs'>{field.description}</p>
                       )}
                       {field.type === 'selector' && field.selectorKey ? (
                         <ConnectorSelectorField
@@ -507,12 +507,12 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
 
                 {/* Tag definitions (opt-out) */}
                 {connectorConfig.tagDefinitions && connectorConfig.tagDefinitions.length > 0 && (
-                  <div className='flex flex-col gap-[4px]'>
+                  <div className='flex flex-col gap-1'>
                     <Label>Metadata Tags</Label>
                     {connectorConfig.tagDefinitions.map((tagDef) => (
                       <div
                         key={tagDef.id}
-                        className='flex cursor-pointer items-center gap-[8px] rounded-[4px] px-[2px] py-[2px] text-[13px]'
+                        className='flex cursor-pointer items-center gap-2 rounded-sm px-0.5 py-0.5 text-small'
                         onClick={() => {
                           setDisabledTagIds((prev) => {
                             const next = new Set(prev)
@@ -541,7 +541,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                           }}
                         />
                         <span className='text-[var(--text-primary)]'>{tagDef.displayName}</span>
-                        <span className='text-[11px] text-[var(--text-muted)]'>
+                        <span className='text-[var(--text-muted)] text-xs'>
                           ({tagDef.fieldType})
                         </span>
                       </div>
@@ -550,7 +550,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                 )}
 
                 {/* Sync interval */}
-                <div className='flex flex-col gap-[4px]'>
+                <div className='flex flex-col gap-1'>
                   <Label>Sync Frequency</Label>
                   <ButtonGroup
                     value={String(syncInterval)}
@@ -565,7 +565,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                 </div>
 
                 {error && (
-                  <p className='text-[12px] text-[var(--text-error)] leading-tight'>{error}</p>
+                  <p className='text-[var(--text-error)] text-caption leading-tight'>{error}</p>
                 )}
               </div>
             ) : null}
@@ -619,15 +619,15 @@ function ConnectorTypeCard({ config, onClick }: ConnectorTypeCardProps) {
   return (
     <button
       type='button'
-      className='flex items-center gap-[10px] rounded-[6px] px-[10px] py-[8px] text-left transition-colors hover:bg-[var(--surface-3)]'
+      className='flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors hover-hover:bg-[var(--surface-3)]'
       onClick={onClick}
     >
       <Icon className='h-[18px] w-[18px] flex-shrink-0' />
       <div className='flex min-w-0 flex-col gap-[1px]'>
-        <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+        <span className='truncate font-medium text-[var(--text-primary)] text-small'>
           {config.name}
         </span>
-        <span className='truncate text-[11px] text-[var(--text-muted)]'>{config.description}</span>
+        <span className='truncate text-[var(--text-muted)] text-xs'>{config.description}</span>
       </div>
     </button>
   )

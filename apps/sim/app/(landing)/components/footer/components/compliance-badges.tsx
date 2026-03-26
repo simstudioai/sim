@@ -4,7 +4,7 @@ import { HIPAABadgeIcon } from '@/components/icons'
 
 export default function ComplianceBadges() {
   return (
-    <div className='mt-[6px] flex items-center gap-[12px]'>
+    <div className='mt-1.5 flex items-center gap-3'>
       {/* SOC2 badge */}
       <Link
         href='https://app.vanta.com/sim.ai/trust/v35ia0jil4l7dteqjgaktn'

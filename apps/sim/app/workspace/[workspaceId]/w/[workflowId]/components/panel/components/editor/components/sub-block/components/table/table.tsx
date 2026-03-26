@@ -153,7 +153,7 @@ export function Table({
           <th
             key={column}
             className={cn(
-              'bg-transparent px-[10px] py-[5px] text-left font-medium text-[14px] text-[var(--text-tertiary)]',
+              'bg-transparent px-2.5 py-[5px] text-left font-medium text-[var(--text-tertiary)] text-sm',
               index < columns.length - 1 && 'border-[var(--border-1)] border-r'
             )}
           >
@@ -246,7 +246,7 @@ export function Table({
             onFocus={handlers.onFocus}
             disabled={isPreview || disabled}
             autoComplete='off'
-            className='w-full border-0 bg-transparent px-[10px] py-[8px] font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='w-full border-0 bg-transparent px-2.5 py-2 font-medium text-sm text-transparent leading-[21px] caret-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div
             ref={(el) => {
@@ -255,7 +255,7 @@ export function Table({
             data-overlay={cellKey}
             className='scrollbar-hide pointer-events-none absolute top-0 right-[10px] bottom-0 left-[10px] overflow-x-auto overflow-y-hidden bg-transparent'
           >
-            <div className='whitespace-pre py-[8px] font-medium text-[var(--text-primary)] text-sm leading-[21px]'>
+            <div className='whitespace-pre py-2 font-medium text-[var(--text-primary)] text-sm leading-[21px]'>
               {formatDisplayText(cellValue, {
                 accessiblePrefixes,
                 highlightAll: !accessiblePrefixes,
@@ -316,7 +316,7 @@ export function Table({
 
   return (
     <div className='relative'>
-      <div className='overflow-visible rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-2)] dark:bg-[#1F1F1F]'>
+      <div className='overflow-visible rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] dark:bg-[var(--code-bg)]'>
         <table className='w-full bg-transparent'>
           {renderHeader()}
           <tbody className='bg-transparent'>

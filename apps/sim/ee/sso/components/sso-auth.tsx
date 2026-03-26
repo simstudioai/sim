@@ -97,18 +97,18 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
 
   return (
     <AuthBackground className='dark font-[430] font-season'>
-      <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
-        <header className='shrink-0 bg-[#1C1C1C]'>
+      <main className='relative flex min-h-screen flex-col text-[var(--text-primary)]'>
+        <header className='shrink-0 bg-[var(--landing-bg)]'>
           <Navbar logoOnly />
         </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>
+                <h1 className='font-[500] text-[32px] text-[var(--text-primary)] tracking-tight'>
                   SSO Authentication
                 </h1>
-                <p className='font-[380] text-[#999] text-[16px]'>
+                <p className='font-[380] text-[var(--text-subtle)] text-md'>
                   This chat requires SSO authentication
                 </p>
               </div>

@@ -123,10 +123,10 @@ export function ApiKeys() {
   }
 
   return (
-    <div className='flex h-full flex-col gap-[18px]'>
+    <div className='flex h-full flex-col gap-4.5'>
       {/* Search Input and Create Button */}
-      <div className='flex items-center gap-[8px]'>
-        <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
+      <div className='flex items-center gap-2'>
+        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-2 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
           <Search
             className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
             strokeWidth={2}
@@ -149,7 +149,7 @@ export function ApiKeys() {
           variant='primary'
           disabled={createButtonDisabled}
         >
-          <Plus className='mr-[6px] h-[13px] w-[13px]' />
+          <Plus className='mr-1.5 h-[13px] w-[13px]' />
           Create
         </Button>
       </div>
@@ -157,49 +157,47 @@ export function ApiKeys() {
       {/* Scrollable Content */}
       <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
         {isLoading ? (
-          <div className='flex flex-col gap-[18px]'>
-            <div className='flex flex-col gap-[8px]'>
+          <div className='flex flex-col gap-4.5'>
+            <div className='flex flex-col gap-2'>
               <Skeleton className='h-5 w-[70px]' />
-              <div className='text-[14px] text-[var(--text-muted)]'>
+              <div className='text-[var(--text-muted)] text-sm'>
                 <Skeleton className='h-5 w-[140px]' />
               </div>
             </div>
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               <Skeleton className='h-5 w-[55px]' />
               <ApiKeySkeleton />
               <ApiKeySkeleton />
             </div>
           </div>
         ) : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
-          <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
+          <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
             Click "Create" above to get started
           </div>
         ) : (
-          <div className='flex flex-col gap-[18px]'>
+          <div className='flex flex-col gap-4.5'>
             <>
               {/* Workspace section */}
               {!searchTerm.trim() ? (
-                <div className='flex flex-col gap-[8px]'>
-                  <div className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                    Workspace
-                  </div>
+                <div className='flex flex-col gap-2'>
+                  <div className='font-medium text-[var(--text-secondary)] text-sm'>Workspace</div>
                   {workspaceKeys.length === 0 ? (
-                    <div className='text-[14px] text-[var(--text-muted)]'>
+                    <div className='text-[var(--text-muted)] text-sm'>
                       No workspace Sim keys yet
                     </div>
                   ) : (
                     workspaceKeys.map((key) => (
-                      <div key={key.id} className='flex items-center justify-between gap-[12px]'>
+                      <div key={key.id} className='flex items-center justify-between gap-3'>
                         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                          <div className='flex items-center gap-[6px]'>
-                            <span className='max-w-[280px] truncate font-medium text-[15px]'>
+                          <div className='flex items-center gap-1.5'>
+                            <span className='max-w-[280px] truncate font-medium text-base'>
                               {key.name}
                             </span>
-                            <span className='text-[14px] text-[var(--text-secondary)]'>
+                            <span className='text-[var(--text-secondary)] text-sm'>
                               (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                             </span>
                           </div>
-                          <p className='truncate text-[14px] text-[var(--text-muted)]'>
+                          <p className='truncate text-[var(--text-muted)] text-sm'>
                             {key.displayKey || key.key}
                           </p>
                         </div>
@@ -219,22 +217,20 @@ export function ApiKeys() {
                   )}
                 </div>
               ) : filteredWorkspaceKeys.length > 0 ? (
-                <div className='flex flex-col gap-[8px]'>
-                  <div className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                    Workspace
-                  </div>
+                <div className='flex flex-col gap-2'>
+                  <div className='font-medium text-[var(--text-secondary)] text-sm'>Workspace</div>
                   {filteredWorkspaceKeys.map(({ key }) => (
-                    <div key={key.id} className='flex items-center justify-between gap-[12px]'>
+                    <div key={key.id} className='flex items-center justify-between gap-3'>
                       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                        <div className='flex items-center gap-[6px]'>
-                          <span className='max-w-[280px] truncate font-medium text-[15px]'>
+                        <div className='flex items-center gap-1.5'>
+                          <span className='max-w-[280px] truncate font-medium text-base'>
                             {key.name}
                           </span>
-                          <span className='text-[14px] text-[var(--text-secondary)]'>
+                          <span className='text-[var(--text-secondary)] text-sm'>
                             (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                           </span>
                         </div>
-                        <p className='truncate text-[14px] text-[var(--text-muted)]'>
+                        <p className='truncate text-[var(--text-muted)] text-sm'>
                           {key.displayKey || key.key}
                         </p>
                       </div>
@@ -256,25 +252,23 @@ export function ApiKeys() {
 
               {/* Personal section */}
               {(!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
-                <div className='flex flex-col gap-[8px]'>
-                  <div className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                    Personal
-                  </div>
+                <div className='flex flex-col gap-2'>
+                  <div className='font-medium text-[var(--text-secondary)] text-sm'>Personal</div>
                   {filteredPersonalKeys.map(({ key }) => {
                     const isConflict = conflicts.includes(key.name)
                     return (
-                      <div key={key.id} className='flex flex-col gap-[8px]'>
-                        <div className='flex items-center justify-between gap-[12px]'>
+                      <div key={key.id} className='flex flex-col gap-2'>
+                        <div className='flex items-center justify-between gap-3'>
                           <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                            <div className='flex items-center gap-[6px]'>
-                              <span className='max-w-[280px] truncate font-medium text-[15px]'>
+                            <div className='flex items-center gap-1.5'>
+                              <span className='max-w-[280px] truncate font-medium text-base'>
                                 {key.name}
                               </span>
-                              <span className='text-[14px] text-[var(--text-secondary)]'>
+                              <span className='text-[var(--text-secondary)] text-sm'>
                                 (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                               </span>
                             </div>
-                            <p className='truncate text-[14px] text-[var(--text-muted)]'>
+                            <p className='truncate text-[var(--text-muted)] text-sm'>
                               {key.displayKey || key.key}
                             </p>
                           </div>
@@ -290,7 +284,7 @@ export function ApiKeys() {
                           </Button>
                         </div>
                         {isConflict && (
-                          <div className='text-[13px] text-[var(--text-error)] leading-tight'>
+                          <div className='text-[var(--text-error)] text-small leading-tight'>
                             Workspace Sim key with the same name overrides this. Rename your
                             personal key to use it.
                           </div>
@@ -306,7 +300,7 @@ export function ApiKeys() {
                 filteredPersonalKeys.length === 0 &&
                 filteredWorkspaceKeys.length === 0 &&
                 (personalKeys.length > 0 || workspaceKeys.length > 0) && (
-                  <div className='py-[16px] text-center text-[14px] text-[var(--text-muted)]'>
+                  <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                     No Sim keys found matching "{searchTerm}"
                   </div>
                 )}
@@ -318,21 +312,21 @@ export function ApiKeys() {
       {/* Allow Personal API Keys Toggle - Fixed at bottom */}
       {!isLoading && canManageWorkspaceKeys && (
         <Tooltip.Provider delayDuration={150}>
-          <div className='mt-[24px] flex items-center justify-between'>
-            <div className='flex items-center gap-[8px]'>
-              <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
+          <div className='mt-6 flex items-center justify-between'>
+            <div className='flex items-center gap-2'>
+              <span className='font-medium text-[var(--text-secondary)] text-sm'>
                 Allow personal Sim keys
               </span>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <button
                     type='button'
-                    className='rounded-full p-[4px] text-[var(--text-muted)] transition hover:text-[var(--text-primary)]'
+                    className='rounded-full p-1 text-[var(--text-muted)] transition hover-hover:text-[var(--text-primary)]'
                   >
                     <Info className='h-[12px] w-[12px]' strokeWidth={2} />
                   </button>
                 </Tooltip.Trigger>
-                <Tooltip.Content side='top' className='max-w-xs text-[13px]'>
+                <Tooltip.Content side='top' className='max-w-xs text-small'>
                   Allow collaborators to create and use their own keys with billing charged to them.
                 </Tooltip.Content>
               </Tooltip.Root>

@@ -98,8 +98,8 @@ const logger = createLogger('Sidebar')
 
 function SidebarItemSkeleton() {
   return (
-    <div className='sidebar-collapse-hide mx-[2px] flex h-[30px] items-center px-[8px]'>
-      <Skeleton className='h-[24px] w-full rounded-[4px]' />
+    <div className='sidebar-collapse-hide mx-0.5 flex h-[30px] items-center px-2'>
+      <Skeleton className='h-[24px] w-full rounded-sm' />
     </div>
   )
 }
@@ -133,7 +133,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
         <Link
           href={task.href}
           className={cn(
-            'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
+            'group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm hover-hover:bg-[var(--surface-active)]',
             (isCurrentRoute || isSelected) && 'bg-[var(--surface-active)]'
           )}
           onClick={(e) => {
@@ -163,7 +163,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
                 <span className='absolute h-[7px] w-[7px] rounded-full bg-amber-400 group-hover:hidden' />
               )}
               {!isActive && isUnread && !isCurrentRoute && (
-                <span className='absolute h-[7px] w-[7px] rounded-full bg-[#33C482] group-hover:hidden' />
+                <span className='absolute h-[7px] w-[7px] rounded-full bg-[var(--brand-accent)] group-hover:hidden' />
               )}
               <button
                 type='button'
@@ -174,7 +174,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
                   e.stopPropagation()
                   onMoreClick(e, task.id)
                 }}
-                className='flex h-[18px] w-[18px] items-center justify-center rounded-[4px] opacity-0 hover:bg-[var(--surface-7)] group-hover:opacity-100'
+                className='flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 hover-hover:bg-[var(--surface-7)] group-hover:opacity-100'
               >
                 <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
               </button>
@@ -212,7 +212,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
 }) {
   const Icon = item.icon
   const baseClasses =
-    'group flex h-[30px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
+    'group flex h-[30px] items-center gap-2 rounded-lg mx-0.5 px-2 text-sm hover-hover:bg-[var(--surface-active)]'
   const activeClasses = active ? 'bg-[var(--surface-active)]' : ''
 
   const content = (
@@ -1101,13 +1101,13 @@ export const Sidebar = memo(function Sidebar() {
         aria-label='Workspace sidebar'
         onClick={handleSidebarClick}
       >
-        <div className='flex h-full flex-col pt-[12px]'>
+        <div className='flex h-full flex-col pt-3'>
           {/* Top bar: Logo + Collapse toggle */}
-          <div className='flex flex-shrink-0 items-center pr-[8px] pb-[8px] pl-[10px]'>
+          <div className='flex flex-shrink-0 items-center pr-2 pb-2 pl-2.5'>
             <div className='relative flex h-[30px] items-center'>
               <Link
                 href={`/workspace/${workspaceId}/home`}
-                className='sidebar-collapse-hide sidebar-collapse-remove flex h-[30px] items-center rounded-[8px] px-[6px] hover:bg-[var(--surface-active)]'
+                className='sidebar-collapse-hide sidebar-collapse-remove flex h-[30px] items-center rounded-[8px] px-1.5 hover:bg-[var(--surface-active)]'
                 tabIndex={isCollapsed ? -1 : 0}
               >
                 {brand.logoUrl ? (
@@ -1161,7 +1161,7 @@ export const Sidebar = memo(function Sidebar() {
                   type='button'
                   onClick={toggleCollapsed}
                   className={cn(
-                    'sidebar-collapse-btn ml-auto flex h-[30px] items-center justify-center overflow-hidden rounded-[8px] transition-all duration-200 hover:bg-[var(--surface-active)]',
+                    'sidebar-collapse-btn ml-auto flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 hover-hover:bg-[var(--surface-active)]',
                     isCollapsed ? 'w-0 opacity-0' : 'w-[30px] opacity-100'
                   )}
                   aria-label='Collapse sidebar'
@@ -1178,7 +1178,7 @@ export const Sidebar = memo(function Sidebar() {
           </div>
 
           {/* Workspace Header */}
-          <div className='flex-shrink-0 px-[10px]'>
+          <div className='flex-shrink-0 px-2.5'>
             <WorkspaceHeader
               activeWorkspace={activeWorkspace}
               workspaceId={workspaceId}
@@ -1210,7 +1210,7 @@ export const Sidebar = memo(function Sidebar() {
           ) : (
             <>
               {/* Top Navigation: Home, Search */}
-              <div className='mt-[10px] flex flex-shrink-0 flex-col gap-[2px] px-[8px]'>
+              <div className='mt-2.5 flex flex-shrink-0 flex-col gap-0.5 px-2'>
                 {topNavItems.map((item) => (
                   <SidebarNavItem
                     key={`${item.id}-${isCollapsed}`}
@@ -1223,11 +1223,11 @@ export const Sidebar = memo(function Sidebar() {
               </div>
 
               {/* Workspace */}
-              <div className='mt-[14px] flex flex-shrink-0 flex-col pb-[8px]'>
-                <div className='px-[16px] pb-[6px]'>
+              <div className='mt-3.5 flex flex-shrink-0 flex-col pb-2'>
+                <div className='px-4 pb-1.5'>
                   <div className='font-base text-[var(--text-icon)] text-small'>Workspace</div>
                 </div>
-                <div className='flex flex-col gap-[2px] px-[8px]'>
+                <div className='flex flex-col gap-0.5 px-2'>
                   {workspaceNavItems.map((item) => (
                     <SidebarNavItem
                       key={`${item.id}-${isCollapsed}`}
@@ -1244,21 +1244,21 @@ export const Sidebar = memo(function Sidebar() {
               <div
                 ref={isCollapsed ? undefined : scrollContainerRef}
                 className={cn(
-                  'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-[9px] transition-colors duration-150',
+                  'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-2.5 transition-colors duration-150',
                   !hasOverflowTop && 'border-transparent'
                 )}
               >
                 {/* Tasks */}
                 <div className='tasks-section flex flex-shrink-0 flex-col' data-tour='nav-tasks'>
-                  <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-[16px]'>
+                  <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
                     <div className='font-base text-[var(--text-icon)] text-small'>All tasks</div>
                     {!isCollapsed && (
-                      <div className='flex items-center justify-center gap-[8px]'>
+                      <div className='flex items-center justify-center gap-2'>
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
                             <Button
                               variant='ghost'
-                              className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
+                              className='h-[18px] w-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-active)]'
                               onClick={() => navigateToPage(`/workspace/${workspaceId}/home`)}
                             >
                               <Plus className='h-[16px] w-[16px]' />
@@ -1278,7 +1278,7 @@ export const Sidebar = memo(function Sidebar() {
                       }
                       hover={tasksHover}
                       ariaLabel='Tasks'
-                      className='mt-[6px]'
+                      className='mt-1.5'
                       primaryAction={{
                         label: 'New task',
                         onSelect: () => navigateToPage(`/workspace/${workspaceId}/home`),
@@ -1310,7 +1310,7 @@ export const Sidebar = memo(function Sidebar() {
                       )}
                     </CollapsedSidebarMenu>
                   ) : (
-                    <div className='mt-[6px] flex flex-col gap-[2px] px-[8px]'>
+                    <div className='mt-1.5 flex flex-col gap-0.5 px-2'>
                       {tasksLoading ? (
                         <SidebarItemSkeleton />
                       ) : (
@@ -1324,7 +1324,7 @@ export const Sidebar = memo(function Sidebar() {
                               return (
                                 <div
                                   key={task.id}
-                                  className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-active)] px-[8px] text-[14px]'
+                                  className='mx-0.5 flex h-[30px] items-center gap-2 rounded-lg bg-[var(--surface-active)] px-2 text-sm'
                                 >
                                   <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                                   <input
@@ -1359,7 +1359,7 @@ export const Sidebar = memo(function Sidebar() {
                             <button
                               type='button'
                               onClick={() => setVisibleTaskCount((prev) => prev + 5)}
-                              className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] text-[var(--text-icon)] hover:bg-[var(--surface-active)]'
+                              className='mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-[var(--text-icon)] text-sm hover-hover:bg-[var(--surface-active)]'
                             >
                               <MoreHorizontal className='h-[16px] w-[16px] flex-shrink-0' />
                               <span className='font-base'>See more</span>
@@ -1373,20 +1373,20 @@ export const Sidebar = memo(function Sidebar() {
 
                 {/* Workflows */}
                 <div
-                  className='workflows-section relative mt-[14px] flex flex-col'
+                  className='workflows-section relative mt-3.5 flex flex-col'
                   data-tour='nav-workflows'
                 >
-                  <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-[16px]'>
+                  <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
                     <div className='font-base text-[var(--text-icon)] text-small'>Workflows</div>
                     {!isCollapsed && (
-                      <div className='flex items-center justify-center gap-[8px]'>
+                      <div className='flex items-center justify-center gap-2'>
                         <DropdownMenu>
                           <Tooltip.Root>
                             <Tooltip.Trigger asChild>
                               <DropdownMenuTrigger asChild>
                                 <Button
                                   variant='ghost'
-                                  className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
+                                  className='h-[18px] w-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-active)]'
                                   disabled={!canEdit}
                                 >
                                   {isImporting || isCreatingFolder ? (
@@ -1426,7 +1426,7 @@ export const Sidebar = memo(function Sidebar() {
                           <Tooltip.Trigger asChild>
                             <Button
                               variant='ghost'
-                              className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
+                              className='h-[18px] w-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-active)]'
                               onClick={handleCreateWorkflow}
                               disabled={isCreatingWorkflow || !canEdit}
                             >
@@ -1454,7 +1454,7 @@ export const Sidebar = memo(function Sidebar() {
                       }
                       hover={workflowsHover}
                       ariaLabel='Workflows'
-                      className='mt-[6px]'
+                      className='mt-1.5'
                       primaryAction={{
                         label: 'New workflow',
                         onSelect: handleCreateWorkflow,
@@ -1507,7 +1507,7 @@ export const Sidebar = memo(function Sidebar() {
                       )}
                     </CollapsedSidebarMenu>
                   ) : (
-                    <div className='mt-[6px] px-[8px]'>
+                    <div className='mt-1.5 px-2'>
                       {workflowsLoading && regularWorkflows.length === 0 && <SidebarItemSkeleton />}
                       <WorkflowList
                         workspaceId={workspaceId}
@@ -1530,7 +1530,7 @@ export const Sidebar = memo(function Sidebar() {
               {/* Footer */}
               <div
                 className={cn(
-                  'flex flex-shrink-0 flex-col gap-[2px] border-t px-[8px] pt-[9px] pb-[8px] transition-colors duration-150',
+                  'flex flex-shrink-0 flex-col gap-0.5 border-t px-2 pt-[9px] pb-2 transition-colors duration-150',
                   !hasOverflowBottom && 'border-transparent'
                 )}
               >
@@ -1542,7 +1542,7 @@ export const Sidebar = memo(function Sidebar() {
                         <button
                           type='button'
                           data-item-id='help'
-                          className='group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
+                          className='group mx-0.5 flex h-[30px] items-center gap-2 rounded-[8px] px-2 text-[14px] hover:bg-[var(--surface-active)]'
                         >
                           <HelpCircle className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                           <span className='sidebar-collapse-hide truncate font-base text-[var(--text-body)]'>
