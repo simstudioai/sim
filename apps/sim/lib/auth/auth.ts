@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
@@ -44,6 +45,7 @@ import {
 } from '@/lib/billing/organization'
 import { isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
+import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
@@ -716,7 +718,7 @@ export const auth = betterAuth({
           captcha({
             provider: 'cloudflare-turnstile',
             secretKey: env.TURNSTILE_SECRET_KEY,
-            endpoints: ['/sign-up/email', '/sign-in/email'],
+            endpoints: ['/sign-up/email'],
           }),
         ]
       : []),
@@ -2998,7 +3000,7 @@ export const auth = betterAuth({
                 .where(eq(schema.subscription.referenceId, user.id))
 
               const hasTeamPlan = dbSubscriptions.some(
-                (sub) => sub.status === 'active' && isOrgPlan(sub.plan)
+                (sub) => hasPaidSubscriptionStatus(sub.status) && isOrgPlan(sub.plan)
               )
 
               return hasTeamPlan
@@ -3023,7 +3025,7 @@ export const auth = betterAuth({
   },
 })
 
-export async function getSession() {
+async function getSessionImpl() {
   if (isAuthDisabled) {
     await ensureAnonymousUserExists()
     return createAnonymousSession()
@@ -3034,6 +3036,8 @@ export async function getSession() {
     headers: hdrs,
   })
 }
+
+export const getSession = cache(getSessionImpl)
 
 export const signIn = auth.api.signInEmail
 export const signUp = auth.api.signUpEmail

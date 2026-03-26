@@ -1,6 +1,7 @@
 export { useAutoScroll } from './use-auto-scroll'
 export { useContextMenu } from './use-context-menu'
 export { type DropIndicator, useDragDrop } from './use-drag-drop'
+export { useFlyoutInlineRename } from './use-flyout-inline-rename'
 export { useFolderExpand } from './use-folder-expand'
 export { useFolderOperations } from './use-folder-operations'
 export { useFolderSelection } from './use-folder-selection'

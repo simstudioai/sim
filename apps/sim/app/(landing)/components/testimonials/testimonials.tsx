@@ -159,8 +159,8 @@ export default function Testimonials() {
                           width={34}
                           height={34}
                           className='h-[34px] w-[34px] rounded-full object-cover'
-                          quality={75}
                           loading='lazy'
+                          unoptimized
                         />
                         {/* Name and username stacked */}
                         <div className='flex flex-col'>

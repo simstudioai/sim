@@ -168,35 +168,35 @@
     "operations": [
       {
         "name": "List Bases",
-        "description": ""
+        "description": "List all bases the authenticated user has access to"
       },
       {
         "name": "List Tables",
-        "description": ""
+        "description": "List all tables and their schema in an Airtable base"
       },
       {
         "name": "Get Base Schema",
-        "description": ""
+        "description": "Get the schema of all tables, fields, and views in an Airtable base"
       },
       {
         "name": "List Records",
-        "description": ""
+        "description": "Read records from an Airtable table"
       },
       {
         "name": "Get Record",
-        "description": ""
+        "description": "Retrieve a single record from an Airtable table by its ID"
       },
       {
         "name": "Create Records",
-        "description": ""
+        "description": "Write new records to an Airtable table"
       },
       {
         "name": "Update Record",
-        "description": ""
+        "description": "Update an existing record in an Airtable table by ID"
       },
       {
         "name": "Update Multiple Records",
-        "description": ""
+        "description": "Update multiple existing records in an Airtable table"
       }
     ],
     "operationCount": 8,
@@ -287,11 +287,11 @@
       },
       {
         "name": "Delete Index",
-        "description": ""
+        "description": "Delete an entire Algolia index and all its records"
       },
       {
         "name": "Copy/Move Index",
-        "description": ""
+        "description": "Copy or move an Algolia index to a new destination"
       },
       {
         "name": "Clear Records",
@@ -609,7 +609,7 @@
       },
       {
         "name": "Add to Sequence",
-        "description": ""
+        "description": "Add contacts to an Apollo sequence"
       },
       {
         "name": "Create Task",
@@ -1399,7 +1399,7 @@
       },
       {
         "name": "List Event Types",
-        "description": ""
+        "description": "Retrieve a list of all event types"
       },
       {
         "name": "Update Event Type",
@@ -1508,7 +1508,7 @@
       },
       {
         "name": "List Event Types",
-        "description": ""
+        "description": "Retrieve a list of all event types for a user or organization"
       },
       {
         "name": "Get Event Type",
@@ -1758,11 +1758,11 @@
     "operations": [
       {
         "name": "Read Page",
-        "description": ""
+        "description": "Retrieve content from Confluence pages using the Confluence API."
       },
       {
         "name": "Create Page",
-        "description": ""
+        "description": "Create a new page in a Confluence space."
       },
       {
         "name": "Update Page",
@@ -1770,7 +1770,7 @@
       },
       {
         "name": "Delete Page",
-        "description": ""
+        "description": "Delete a Confluence page. By default moves to trash; use purge=true to permanently delete."
       },
       {
         "name": "List Pages in Space",
@@ -2635,15 +2635,15 @@
       },
       {
         "name": "Create Index",
-        "description": ""
+        "description": "Create a new index with optional settings and mappings."
       },
       {
         "name": "Delete Index",
-        "description": ""
+        "description": "Delete an index and all its documents. This operation is irreversible."
       },
       {
         "name": "Get Index Info",
-        "description": ""
+        "description": "Retrieve index information including settings, mappings, and aliases."
       },
       {
         "name": "List Indices",
@@ -3668,51 +3668,51 @@
     "operations": [
       {
         "name": "Send Email",
-        "description": ""
+        "description": "Send Gmail messages"
       },
       {
         "name": "Read Email",
-        "description": ""
+        "description": "Read Gmail messages"
       },
       {
         "name": "Draft Email",
-        "description": ""
+        "description": "Draft emails using Gmail"
       },
       {
         "name": "Search Email",
-        "description": ""
+        "description": "Search emails in Gmail"
       },
       {
         "name": "Move Email",
-        "description": ""
+        "description": "Move emails between Gmail labels/folders"
       },
       {
         "name": "Mark as Read",
-        "description": ""
+        "description": "Mark a Gmail message as read"
       },
       {
         "name": "Mark as Unread",
-        "description": ""
+        "description": "Mark a Gmail message as unread"
       },
       {
         "name": "Archive Email",
-        "description": ""
+        "description": "Archive a Gmail message (remove from inbox)"
       },
       {
         "name": "Unarchive Email",
-        "description": ""
+        "description": "Unarchive a Gmail message (move back to inbox)"
       },
       {
         "name": "Delete Email",
-        "description": ""
+        "description": "Delete a Gmail message (move to trash)"
       },
       {
         "name": "Add Label",
-        "description": ""
+        "description": "Add label(s) to a Gmail message"
       },
       {
         "name": "Remove Label",
-        "description": ""
+        "description": "Remove label(s) from a Gmail message"
       }
     ],
     "operationCount": 12,
@@ -4080,7 +4080,7 @@
       },
       {
         "name": "Create File",
-        "description": ""
+        "description": "Upload a file to Google Drive with complete metadata returned"
       },
       {
         "name": "Upload File",
@@ -4453,31 +4453,31 @@
       },
       {
         "name": "Clear Data",
-        "description": ""
+        "description": "Clear values from a specific range in a Google Sheets spreadsheet"
       },
       {
         "name": "Get Spreadsheet Info",
-        "description": ""
+        "description": "Get metadata about a Google Sheets spreadsheet including title and sheet list"
       },
       {
         "name": "Create Spreadsheet",
-        "description": ""
+        "description": "Create a new Google Sheets spreadsheet"
       },
       {
         "name": "Batch Read",
-        "description": ""
+        "description": "Read multiple ranges from a Google Sheets spreadsheet in a single request"
       },
       {
         "name": "Batch Update",
-        "description": ""
+        "description": "Update multiple ranges in a Google Sheets spreadsheet in a single request"
       },
       {
         "name": "Batch Clear",
-        "description": ""
+        "description": "Clear multiple ranges in a Google Sheets spreadsheet in a single request"
       },
       {
         "name": "Copy Sheet",
-        "description": ""
+        "description": "Copy a sheet from one spreadsheet to another"
       }
     ],
     "operationCount": 11,
@@ -4540,7 +4540,7 @@
       },
       {
         "name": "Reorder Slides",
-        "description": ""
+        "description": "Move one or more slides to a new position in a Google Slides presentation"
       },
       {
         "name": "Create Table",
@@ -4807,7 +4807,7 @@
       },
       {
         "name": "List Meeting Types",
-        "description": ""
+        "description": "List all meeting types in the workspace"
       },
       {
         "name": "Create Webhook",
@@ -5063,12 +5063,8 @@
     "docsUrl": "https://docs.sim.ai/tools/hubspot",
     "operations": [
       {
-        "name": "Get Users",
-        "description": "Retrieve all users from HubSpot account"
-      },
-      {
         "name": "Get Contacts",
-        "description": ""
+        "description": "Retrieve all contacts from HubSpot account with pagination support"
       },
       {
         "name": "Create Contact",
@@ -5084,7 +5080,7 @@
       },
       {
         "name": "Get Companies",
-        "description": ""
+        "description": "Retrieve all companies from HubSpot account with pagination support"
       },
       {
         "name": "Create Company",
@@ -5100,10 +5096,90 @@
       },
       {
         "name": "Get Deals",
-        "description": ""
+        "description": "Retrieve all deals from HubSpot account with pagination support"
+      },
+      {
+        "name": "Create Deal",
+        "description": "Create a new deal in HubSpot. Requires at least a dealname property"
+      },
+      {
+        "name": "Update Deal",
+        "description": "Update an existing deal in HubSpot by ID"
+      },
+      {
+        "name": "Search Deals",
+        "description": "Search for deals in HubSpot using filters, sorting, and queries"
+      },
+      {
+        "name": "Get Tickets",
+        "description": "Retrieve all tickets from HubSpot account with pagination support"
+      },
+      {
+        "name": "Create Ticket",
+        "description": "Create a new ticket in HubSpot. Requires subject and hs_pipeline_stage properties"
+      },
+      {
+        "name": "Update Ticket",
+        "description": "Update an existing ticket in HubSpot by ID"
+      },
+      {
+        "name": "Search Tickets",
+        "description": "Search for tickets in HubSpot using filters, sorting, and queries"
+      },
+      {
+        "name": "Get Line Items",
+        "description": "Retrieve all line items from HubSpot account with pagination support"
+      },
+      {
+        "name": "Create Line Item",
+        "description": "Create a new line item in HubSpot. Requires at least a name property"
+      },
+      {
+        "name": "Update Line Item",
+        "description": "Update an existing line item in HubSpot by ID"
+      },
+      {
+        "name": "Get Quotes",
+        "description": "Retrieve all quotes from HubSpot account with pagination support"
+      },
+      {
+        "name": "Get Appointments",
+        "description": "Retrieve all appointments from HubSpot account with pagination support"
+      },
+      {
+        "name": "Create Appointment",
+        "description": "Create a new appointment in HubSpot"
+      },
+      {
+        "name": "Update Appointment",
+        "description": "Update an existing appointment in HubSpot by ID"
+      },
+      {
+        "name": "Get Carts",
+        "description": "Retrieve all carts from HubSpot account with pagination support"
+      },
+      {
+        "name": "List Owners",
+        "description": "Retrieve all owners from HubSpot account with pagination support"
+      },
+      {
+        "name": "Get Marketing Events",
+        "description": "Retrieve all marketing events from HubSpot account with pagination support"
+      },
+      {
+        "name": "Get Lists",
+        "description": "Search and retrieve lists from HubSpot account"
+      },
+      {
+        "name": "Create List",
+        "description": "Create a new list in HubSpot. Specify the object type and processing type (MANUAL or DYNAMIC)"
+      },
+      {
+        "name": "Get Users",
+        "description": "Retrieve all users from HubSpot account"
       }
     ],
-    "operationCount": 10,
+    "operationCount": 29,
     "triggers": [
       {
         "id": "hubspot_contact_created",
@@ -5611,7 +5687,7 @@
       },
       {
         "name": "Update Ticket",
-        "description": ""
+        "description": "Update a ticket in Intercom (change state, assignment, attributes)"
       },
       {
         "name": "Create Message",
@@ -5619,59 +5695,59 @@
       },
       {
         "name": "List Admins",
-        "description": ""
+        "description": "Fetch a list of all admins for the workspace"
       },
       {
         "name": "Close Conversation",
-        "description": ""
+        "description": "Close a conversation in Intercom"
       },
       {
         "name": "Open Conversation",
-        "description": ""
+        "description": "Open a closed or snoozed conversation in Intercom"
       },
       {
         "name": "Snooze Conversation",
-        "description": ""
+        "description": "Snooze a conversation to reopen at a future time"
       },
       {
         "name": "Assign Conversation",
-        "description": ""
+        "description": "Assign a conversation to an admin or team in Intercom"
       },
       {
         "name": "List Tags",
-        "description": ""
+        "description": "Fetch a list of all tags in the workspace"
       },
       {
         "name": "Create Tag",
-        "description": ""
+        "description": "Create a new tag or update an existing tag name"
       },
       {
         "name": "Tag Contact",
-        "description": ""
+        "description": "Add a tag to a specific contact"
       },
       {
         "name": "Untag Contact",
-        "description": ""
+        "description": "Remove a tag from a specific contact"
       },
       {
         "name": "Tag Conversation",
-        "description": ""
+        "description": "Add a tag to a specific conversation"
       },
       {
         "name": "Create Note",
-        "description": ""
+        "description": "Add a note to a specific contact"
       },
       {
         "name": "Create Event",
-        "description": ""
+        "description": "Track a custom event for a contact in Intercom"
       },
       {
         "name": "Attach Contact to Company",
-        "description": ""
+        "description": "Attach a contact to a company in Intercom"
       },
       {
         "name": "Detach Contact from Company",
-        "description": ""
+        "description": "Remove a contact from a company in Intercom"
       }
     ],
     "operationCount": 31,
@@ -5721,7 +5797,7 @@
     "operations": [
       {
         "name": "Read Issue",
-        "description": ""
+        "description": "Retrieve detailed information about a specific Jira issue"
       },
       {
         "name": "Update Issue",
@@ -5733,19 +5809,19 @@
       },
       {
         "name": "Delete Issue",
-        "description": ""
+        "description": "Delete a Jira issue"
       },
       {
         "name": "Assign Issue",
-        "description": ""
+        "description": "Assign a Jira issue to a user"
       },
       {
         "name": "Transition Issue",
-        "description": ""
+        "description": "Move a Jira issue between workflow statuses (e.g., To Do -> In Progress)"
       },
       {
         "name": "Search Issues",
-        "description": ""
+        "description": "Search for Jira issues using JQL (Jira Query Language)"
       },
       {
         "name": "Add Comment",
@@ -5793,11 +5869,11 @@
       },
       {
         "name": "Create Issue Link",
-        "description": ""
+        "description": "Create a link relationship between two Jira issues"
       },
       {
         "name": "Delete Issue Link",
-        "description": ""
+        "description": "Delete a link between two Jira issues"
       },
       {
         "name": "Add Watcher",
@@ -5867,87 +5943,87 @@
     "operations": [
       {
         "name": "Get Service Desks",
-        "description": ""
+        "description": "Get all service desks from Jira Service Management"
       },
       {
         "name": "Get Request Types",
-        "description": ""
+        "description": "Get request types for a service desk in Jira Service Management"
       },
       {
         "name": "Create Request",
-        "description": ""
+        "description": "Create a new service request in Jira Service Management"
       },
       {
         "name": "Get Request",
-        "description": ""
+        "description": "Get a single service request from Jira Service Management"
       },
       {
         "name": "Get Requests",
-        "description": ""
+        "description": "Get multiple service requests from Jira Service Management"
       },
       {
         "name": "Add Comment",
-        "description": ""
+        "description": "Add a comment (public or internal) to a service request in Jira Service Management"
       },
       {
         "name": "Get Comments",
-        "description": ""
+        "description": "Get comments for a service request in Jira Service Management"
       },
       {
         "name": "Get Customers",
-        "description": ""
+        "description": "Get customers for a service desk in Jira Service Management"
       },
       {
         "name": "Add Customer",
-        "description": ""
+        "description": "Add customers to a service desk in Jira Service Management"
       },
       {
         "name": "Get Organizations",
-        "description": ""
+        "description": "Get organizations for a service desk in Jira Service Management"
       },
       {
         "name": "Create Organization",
-        "description": ""
+        "description": "Create a new organization in Jira Service Management"
       },
       {
         "name": "Add Organization",
-        "description": ""
+        "description": "Add an organization to a service desk in Jira Service Management"
       },
       {
         "name": "Get Queues",
-        "description": ""
+        "description": "Get queues for a service desk in Jira Service Management"
       },
       {
         "name": "Get SLA",
-        "description": ""
+        "description": "Get SLA information for a service request in Jira Service Management"
       },
       {
         "name": "Get Transitions",
-        "description": ""
+        "description": "Get available transitions for a service request in Jira Service Management"
       },
       {
         "name": "Transition Request",
-        "description": ""
+        "description": "Transition a service request to a new status in Jira Service Management"
       },
       {
         "name": "Get Participants",
-        "description": ""
+        "description": "Get participants for a request in Jira Service Management"
       },
       {
         "name": "Add Participants",
-        "description": ""
+        "description": "Add participants to a request in Jira Service Management"
       },
       {
         "name": "Get Approvals",
-        "description": ""
+        "description": "Get approvals for a request in Jira Service Management"
       },
       {
         "name": "Answer Approval",
-        "description": ""
+        "description": "Approve or decline an approval request in Jira Service Management"
       },
       {
         "name": "Get Request Type Fields",
-        "description": ""
+        "description": "Get the fields required to create a request of a specific type in Jira Service Management"
       }
     ],
     "operationCount": 21,
@@ -7823,7 +7899,7 @@
       },
       {
         "name": "Create File",
-        "description": ""
+        "description": "Upload a file to OneDrive"
       },
       {
         "name": "Upload File",
@@ -7862,39 +7938,39 @@
     "operations": [
       {
         "name": "Send Email",
-        "description": ""
+        "description": "Send emails using Outlook"
       },
       {
         "name": "Draft Email",
-        "description": ""
+        "description": "Draft emails using Outlook"
       },
       {
         "name": "Read Email",
-        "description": ""
+        "description": "Read emails from Outlook"
       },
       {
         "name": "Forward Email",
-        "description": ""
+        "description": "Forward an existing Outlook message to specified recipients"
       },
       {
         "name": "Move Email",
-        "description": ""
+        "description": "Move emails between Outlook folders"
       },
       {
         "name": "Mark as Read",
-        "description": ""
+        "description": "Mark an Outlook message as read"
       },
       {
         "name": "Mark as Unread",
-        "description": ""
+        "description": "Mark an Outlook message as unread"
       },
       {
         "name": "Delete Email",
-        "description": ""
+        "description": "Delete an Outlook message (move to Deleted Items)"
       },
       {
         "name": "Copy Email",
-        "description": ""
+        "description": "Copy an Outlook message to another folder"
       }
     ],
     "operationCount": 9,
@@ -7960,15 +8036,15 @@
     "operations": [
       {
         "name": "Search",
-        "description": ""
+        "description": "Search the web using Parallel AI. Provides comprehensive search results with intelligent processing and content extraction."
       },
       {
         "name": "Extract from URLs",
-        "description": ""
+        "description": "Extract targeted information from specific URLs using Parallel AI. Processes provided URLs to pull relevant content based on your objective."
       },
       {
         "name": "Deep Research",
-        "description": ""
+        "description": "Conduct comprehensive deep research across the web using Parallel AI. Synthesizes information from multiple sources with citations. Can take up to 45 minutes to complete."
       }
     ],
     "operationCount": 3,
@@ -8018,7 +8094,7 @@
     "operations": [
       {
         "name": "Generate Embeddings",
-        "description": ""
+        "description": "Generate embeddings from text using Pinecone"
       },
       {
         "name": "Upsert Text",
@@ -8499,15 +8575,15 @@
     "operations": [
       {
         "name": "Upsert",
-        "description": ""
+        "description": "Insert or update points in a Qdrant collection"
       },
       {
         "name": "Search",
-        "description": ""
+        "description": "Search for similar vectors in a Qdrant collection"
       },
       {
         "name": "Fetch",
-        "description": ""
+        "description": "Fetch points by ID from a Qdrant collection"
       }
     ],
     "operationCount": 3,
@@ -8872,6 +8948,101 @@
     "tags": ["payments", "subscriptions"]
   },
   {
+    "type": "rippling",
+    "slug": "rippling",
+    "name": "Rippling",
+    "description": "Manage employees, leave, departments, and company data in Rippling",
+    "longDescription": "Integrate Rippling into your workflow. Manage employees, departments, teams, leave requests, work locations, groups, candidates, and company information.",
+    "bgColor": "#FFCC1C",
+    "iconName": "RipplingIcon",
+    "docsUrl": "https://docs.sim.ai/tools/rippling",
+    "operations": [
+      {
+        "name": "List Employees",
+        "description": "List all employees in Rippling with optional pagination"
+      },
+      {
+        "name": "Get Employee",
+        "description": "Get details for a specific employee by ID"
+      },
+      {
+        "name": "List Employees (Including Terminated)",
+        "description": "List all employees in Rippling including terminated employees with optional pagination"
+      },
+      {
+        "name": "List Departments",
+        "description": "List all departments in the Rippling organization"
+      },
+      {
+        "name": "List Teams",
+        "description": "List all teams in Rippling"
+      },
+      {
+        "name": "List Levels",
+        "description": "List all position levels in Rippling"
+      },
+      {
+        "name": "List Work Locations",
+        "description": "List all work locations in Rippling"
+      },
+      {
+        "name": "Get Company",
+        "description": "Get details for the current company in Rippling"
+      },
+      {
+        "name": "Get Company Activity",
+        "description": "Get activity events for the current company in Rippling"
+      },
+      {
+        "name": "List Custom Fields",
+        "description": "List all custom fields defined in Rippling"
+      },
+      {
+        "name": "Get Current User",
+        "description": "Get the current authenticated user details"
+      },
+      {
+        "name": "List Leave Requests",
+        "description": "List leave requests in Rippling with optional filtering by date range and status"
+      },
+      {
+        "name": "Approve/Decline Leave Request",
+        "description": "Approve or decline a leave request in Rippling"
+      },
+      {
+        "name": "List Leave Balances",
+        "description": "List leave balances for all employees in Rippling"
+      },
+      {
+        "name": "Get Leave Balance",
+        "description": "Get leave balance for a specific employee by role ID"
+      },
+      {
+        "name": "List Leave Types",
+        "description": "List company leave types configured in Rippling"
+      },
+      {
+        "name": "Create Group",
+        "description": "Create a new group in Rippling"
+      },
+      {
+        "name": "Update Group",
+        "description": "Update an existing group in Rippling"
+      },
+      {
+        "name": "Push Candidate",
+        "description": "Push a candidate to onboarding in Rippling"
+      }
+    ],
+    "operationCount": 19,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "hr",
+    "tags": ["hiring"]
+  },
+  {
     "type": "s3",
     "slug": "s3",
     "name": "S3",
@@ -9030,7 +9201,7 @@
       },
       {
         "name": "List Report Types",
-        "description": ""
+        "description": "Get a list of available report types"
       },
       {
         "name": "List Dashboards",
@@ -9361,7 +9532,7 @@
       },
       {
         "name": "Read List",
-        "description": ""
+        "description": "Get metadata (and optionally columns/items) for a SharePoint list"
       },
       {
         "name": "Update List",
@@ -9538,11 +9709,11 @@
     "operations": [
       {
         "name": "Send Message",
-        "description": ""
+        "description": "Send messages to Slack channels or direct messages. Supports Slack mrkdwn formatting."
       },
       {
         "name": "Send Ephemeral Message",
-        "description": ""
+        "description": "Send an ephemeral message visible only to a specific user in a channel. Optionally reply in a thread. The message does not persist across sessions."
       },
       {
         "name": "Create Canvas",
@@ -9550,7 +9721,7 @@
       },
       {
         "name": "Read Messages",
-        "description": ""
+        "description": "Read the latest messages from Slack channels. Retrieve conversation history with filtering options."
       },
       {
         "name": "Get Message",
@@ -9582,19 +9753,19 @@
       },
       {
         "name": "Update Message",
-        "description": ""
+        "description": "Update a message previously sent by the bot in Slack"
       },
       {
         "name": "Delete Message",
-        "description": ""
+        "description": "Delete a message previously sent by the bot in Slack"
       },
       {
         "name": "Add Reaction",
-        "description": ""
+        "description": "Add an emoji reaction to a Slack message"
       },
       {
         "name": "Remove Reaction",
-        "description": ""
+        "description": "Remove an emoji reaction from a Slack message"
       },
       {
         "name": "Get Channel Info",
@@ -10435,67 +10606,67 @@
     "operations": [
       {
         "name": "Get",
-        "description": ""
+        "description": "Get the value of a key from Upstash Redis."
       },
       {
         "name": "Set",
-        "description": ""
+        "description": "Set the value of a key in Upstash Redis with an optional expiration time in seconds."
       },
       {
         "name": "Delete",
-        "description": ""
+        "description": "Delete a key from Upstash Redis."
       },
       {
         "name": "List Keys",
-        "description": ""
+        "description": "List keys matching a pattern in Upstash Redis. Defaults to listing all keys (*)."
       },
       {
         "name": "HSET",
-        "description": ""
+        "description": "Set a field in a hash stored at a key in Upstash Redis."
       },
       {
         "name": "HGET",
-        "description": ""
+        "description": "Get the value of a field in a hash stored at a key in Upstash Redis."
       },
       {
         "name": "HGETALL",
-        "description": ""
+        "description": "Get all fields and values of a hash stored at a key in Upstash Redis."
       },
       {
         "name": "INCR",
-        "description": ""
+        "description": "Atomically increment the integer value of a key by one in Upstash Redis. If the key does not exist, it is set to 0 before incrementing."
       },
       {
         "name": "INCRBY",
-        "description": ""
+        "description": "Increment the integer value of a key by a given amount. Use a negative value to decrement. If the key does not exist, it is set to 0 before the operation."
       },
       {
         "name": "EXISTS",
-        "description": ""
+        "description": "Check if a key exists in Upstash Redis. Returns true if the key exists, false otherwise."
       },
       {
         "name": "SETNX",
-        "description": ""
+        "description": "Set the value of a key only if it does not already exist. Returns true if the key was set, false if it already existed."
       },
       {
         "name": "LPUSH",
-        "description": ""
+        "description": "Prepend a value to the beginning of a list in Upstash Redis. Creates the list if it does not exist."
       },
       {
         "name": "LRANGE",
-        "description": ""
+        "description": "Get a range of elements from a list in Upstash Redis. Use 0 and -1 for start and stop to get all elements."
       },
       {
         "name": "EXPIRE",
-        "description": ""
+        "description": "Set a timeout on a key in Upstash Redis. After the timeout, the key is deleted."
       },
       {
         "name": "TTL",
-        "description": ""
+        "description": "Get the remaining time to live of a key in Upstash Redis. Returns -1 if the key has no expiration, -2 if the key does not exist."
       },
       {
         "name": "Command",
-        "description": ""
+        "description": "Execute an arbitrary Redis command against Upstash Redis. Pass the full command as a JSON array (e.g., ["
       }
     ],
     "operationCount": 16,
@@ -10816,23 +10987,23 @@
     "operations": [
       {
         "name": "List Items",
-        "description": ""
+        "description": "List all items from a Webflow CMS collection"
       },
       {
         "name": "Get Item",
-        "description": ""
+        "description": "Get a single item from a Webflow CMS collection"
       },
       {
         "name": "Create Item",
-        "description": ""
+        "description": "Create a new item in a Webflow CMS collection"
       },
       {
         "name": "Update Item",
-        "description": ""
+        "description": "Update an existing item in a Webflow CMS collection"
       },
       {
         "name": "Delete Item",
-        "description": ""
+        "description": "Delete an item from a Webflow CMS collection"
       }
     ],
     "operationCount": 5,

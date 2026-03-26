@@ -86,6 +86,20 @@ export async function getLatestRunForExecution(executionId: string) {
   return run ?? null
 }
 
+export async function getLatestRunForStream(streamId: string, userId?: string) {
+  const conditions = userId
+    ? and(eq(copilotRuns.streamId, streamId), eq(copilotRuns.userId, userId))
+    : eq(copilotRuns.streamId, streamId)
+  const [run] = await db
+    .select()
+    .from(copilotRuns)
+    .where(conditions)
+    .orderBy(desc(copilotRuns.startedAt))
+    .limit(1)
+
+  return run ?? null
+}
+
 export async function getRunSegment(runId: string) {
   const [run] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId)).limit(1)
   return run ?? null
@@ -121,6 +135,20 @@ export async function upsertAsyncToolCall(input: {
   status?: CopilotAsyncToolStatus
 }) {
   const existing = await getAsyncToolCall(input.toolCallId)
+  const incomingStatus = input.status ?? 'pending'
+  if (
+    existing &&
+    (isTerminalAsyncStatus(existing.status) || isDeliveredAsyncStatus(existing.status)) &&
+    !isTerminalAsyncStatus(incomingStatus) &&
+    !isDeliveredAsyncStatus(incomingStatus)
+  ) {
+    logger.info('Ignoring async tool upsert that would downgrade terminal state', {
+      toolCallId: input.toolCallId,
+      existingStatus: existing.status,
+      incomingStatus,
+    })
+    return existing
+  }
   const effectiveRunId = input.runId ?? existing?.runId ?? null
   if (!effectiveRunId) {
     logger.warn('upsertAsyncToolCall missing runId and no existing row', {
@@ -140,7 +168,7 @@ export async function upsertAsyncToolCall(input: {
       toolCallId: input.toolCallId,
       toolName: input.toolName,
       args: input.args ?? {},
-      status: input.status ?? 'pending',
+      status: incomingStatus,
       updatedAt: now,
     })
     .onConflictDoUpdate({
@@ -150,7 +178,7 @@ export async function upsertAsyncToolCall(input: {
         checkpointId: input.checkpointId ?? null,
         toolName: input.toolName,
         args: input.args ?? {},
-        status: input.status ?? 'pending',
+        status: incomingStatus,
         updatedAt: now,
       },
     })

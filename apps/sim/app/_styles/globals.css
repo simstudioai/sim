@@ -54,9 +54,21 @@ html[data-sidebar-collapsed] .sidebar-container .text-small {
   transition: opacity 60ms ease;
 }
 
+.sidebar-container .sidebar-collapse-show {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
 .sidebar-container[data-collapsed] .sidebar-collapse-hide,
 html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-hide {
   opacity: 0;
+}
+
+.sidebar-container[data-collapsed] .sidebar-collapse-show,
+html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-show {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-remove {

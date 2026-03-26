@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { DEFAULT_OVERAGE_THRESHOLD } from '@/lib/billing/constants'
+import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { calculateSubscriptionOverage, getPlanPricing } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
@@ -15,6 +16,10 @@ import {
   isTeam,
 } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import {
+  hasUsableSubscriptionAccess,
+  USABLE_SUBSCRIPTION_STATUSES,
+} from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('ThresholdBilling')
@@ -109,8 +114,12 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
     const threshold = OVERAGE_THRESHOLD
 
     const userSubscription = await getHighestPrioritySubscription(userId)
+    const billingStatus = await getEffectiveBillingStatus(userId)
 
-    if (!userSubscription || userSubscription.status !== 'active') {
+    if (
+      !userSubscription ||
+      !hasUsableSubscriptionAccess(userSubscription.status, billingStatus.billingBlocked)
+    ) {
       logger.debug('No active subscription for threshold billing', { userId })
       return
     }
@@ -288,12 +297,22 @@ export async function checkAndBillOrganizationOverageThreshold(
   try {
     const threshold = OVERAGE_THRESHOLD
 
+    if (await isOrganizationBillingBlocked(organizationId)) {
+      logger.debug('Organization billing blocked for threshold billing', { organizationId })
+      return
+    }
+
     logger.debug('Starting organization threshold billing check', { organizationId, threshold })
 
     const orgSubscriptions = await db
       .select()
       .from(subscription)
-      .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
+        )
+      )
       .limit(1)
 
     if (orgSubscriptions.length === 0) {

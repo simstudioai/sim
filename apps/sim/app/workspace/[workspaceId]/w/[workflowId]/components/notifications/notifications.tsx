@@ -26,7 +26,7 @@ const ACTION_LABELS: Record<NotificationAction['type'], string> = {
 } as const
 
 function isAutoDismissable(n: Notification): boolean {
-  return n.level === 'error' && !!n.workflowId
+  return !!n.workflowId
 }
 
 function NotificationCountdownRing({ onPause }: { onPause: () => void }) {
@@ -54,7 +54,7 @@ function NotificationCountdownRing({ onPause }: { onPause: () => void }) {
  * Positioned in the bottom-right workspace area, reactive to panel width and terminal height.
  * Shows both global notifications and workflow-specific notifications.
  *
- * Workflow error notifications auto-dismiss after {@link AUTO_DISMISS_MS}ms with a countdown
+ * Workflow-scoped notifications auto-dismiss after {@link AUTO_DISMISS_MS}ms with a countdown
  * ring. Clicking the ring pauses all timers until the notification stack clears.
  */
 interface NotificationsProps {

@@ -3,6 +3,7 @@
 import type React from 'react'
 import { useMemo } from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
@@ -80,7 +81,14 @@ export function OutputSelect({
   maxHeight = 200,
 }: OutputSelectProps) {
   const blocks = useWorkflowStore((state) => state.blocks)
-  const { isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore()
+  const { isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore(
+    useShallow((s) => ({
+      isShowingDiff: s.isShowingDiff,
+      isDiffReady: s.isDiffReady,
+      hasActiveDiff: s.hasActiveDiff,
+      baselineWorkflow: s.baselineWorkflow,
+    }))
+  )
   const subBlockValues = useSubBlockStore((state) =>
     workflowId ? state.workflowValues[workflowId] : null
   )

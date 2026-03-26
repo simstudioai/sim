@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Skeleton, type TagItem } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
+import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getPlanTierCredits, getPlanTierDollars } from '@/lib/billing/plan-helpers'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import {
@@ -45,8 +46,9 @@ export function TeamManagement() {
   const activeOrganization = organizationsData?.activeOrganization
 
   const { data: userSubscriptionData } = useSubscriptionData()
-  const hasTeamPlan = userSubscriptionData?.data?.isTeam ?? false
-  const hasEnterprisePlan = userSubscriptionData?.data?.isEnterprise ?? false
+  const subscriptionAccess = getSubscriptionAccessState(userSubscriptionData?.data)
+  const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
+  const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
 
   const {
     data: organization,

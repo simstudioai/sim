@@ -138,6 +138,7 @@ const RESOURCE_INVALIDATORS: Record<
   knowledgebase: (qc, _wId, id) => {
     qc.invalidateQueries({ queryKey: knowledgeKeys.lists() })
     qc.invalidateQueries({ queryKey: knowledgeKeys.detail(id) })
+    qc.invalidateQueries({ queryKey: knowledgeKeys.tagDefinitions(id) })
   },
 }
 

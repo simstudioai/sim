@@ -90,20 +90,32 @@ const nextConfig: NextConfig = {
   ],
   outputFileTracingIncludes: {
     '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
-    '/*': [
-      './node_modules/sharp/**/*',
-      './node_modules/@img/**/*',
-      // pptxgenjs and the PPTX worker are required at runtime by the subprocess.
-      // Neither has a static import that Next.js can trace, so we include them explicitly.
-      './node_modules/pptxgenjs/**/*',
-      './lib/execution/pptx-worker.cjs',
-    ],
+    '/*': ['./node_modules/sharp/**/*', './node_modules/@img/**/*', './dist/pptx-worker.cjs'],
   },
   experimental: {
     optimizeCss: true,
     turbopackSourceMaps: false,
     turbopackFileSystemCacheForDev: true,
     preloadEntriesOnStart: false,
+    optimizePackageImports: [
+      'lucide-react',
+      'lodash',
+      'framer-motion',
+      'reactflow',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-popover',
+      '@radix-ui/react-select',
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-tooltip',
+      '@radix-ui/react-accordion',
+      '@radix-ui/react-checkbox',
+      '@radix-ui/react-switch',
+      '@radix-ui/react-slider',
+      'react-markdown',
+      'zod',
+      'date-fns',
+    ],
   },
   ...(isDev && {
     allowedDevOrigins: [

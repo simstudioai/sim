@@ -1,12 +1,21 @@
 import { createLogger } from '@sim/logger'
-import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import { appendCopilotLogContext } from '@/lib/copilot/logging'
+import {
+  assertServerToolNotAborted,
+  type BaseServerTool,
+  type ServerToolContext,
+} from '@/lib/copilot/tools/server/base-tool'
 import { executeInE2B, type SandboxFile } from '@/lib/execution/e2b'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { getTableById, queryRows } from '@/lib/table/service'
+import { getServePathPrefix } from '@/lib/uploads'
 import {
   downloadWorkspaceFile,
   findWorkspaceFileRecord,
+  getSandboxWorkspaceFilePath,
+  getWorkspaceFile,
   listWorkspaceFiles,
+  updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -17,6 +26,7 @@ interface VisualizationArgs {
   inputTables?: string[]
   inputFiles?: string[]
   fileName?: string
+  overwriteFileId?: string
 }
 
 interface VisualizationResult {
@@ -41,39 +51,67 @@ const TEXT_EXTENSIONS = new Set(['csv', 'json', 'txt', 'md', 'html', 'xml', 'tsv
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const MAX_TOTAL_SIZE = 50 * 1024 * 1024
 
+function validateGeneratedWorkspaceFileName(fileName: string): string | null {
+  const trimmed = fileName.trim()
+  if (!trimmed) return 'File name cannot be empty'
+  if (trimmed.includes('/')) {
+    return 'Workspace files use a flat namespace. Use a plain file name like "chart.png", not a path like "charts/chart.png".'
+  }
+  return null
+}
+
 async function collectSandboxFiles(
   workspaceId: string,
   inputFiles?: string[],
-  inputTables?: string[]
+  inputTables?: string[],
+  messageId?: string
 ): Promise<SandboxFile[]> {
+  const withMessageId = (message: string) => appendCopilotLogContext(message, { messageId })
   const sandboxFiles: SandboxFile[] = []
   let totalSize = 0
 
   if (inputFiles?.length) {
     const allFiles = await listWorkspaceFiles(workspaceId)
-    for (const filePath of inputFiles) {
-      const fileName = filePath.replace(/^files\//, '')
-      const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
-      if (!TEXT_EXTENSIONS.has(ext)) {
-        logger.warn('Skipping non-text sandbox input file', { fileName, ext })
+    for (const fileRef of inputFiles) {
+      const record = findWorkspaceFileRecord(allFiles, fileRef)
+      if (!record) {
+        logger.warn(withMessageId('Sandbox input file not found'), { fileRef })
         continue
       }
-      const record = findWorkspaceFileRecord(allFiles, filePath)
-      if (!record) {
-        logger.warn('Sandbox input file not found', { fileName })
+      const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
+      if (!TEXT_EXTENSIONS.has(ext)) {
+        logger.warn(withMessageId('Skipping non-text sandbox input file'), {
+          fileId: record.id,
+          fileName: record.name,
+          ext,
+        })
         continue
       }
       if (record.size > MAX_FILE_SIZE) {
-        logger.warn('Sandbox input file exceeds size limit', { fileName, size: record.size })
+        logger.warn(withMessageId('Sandbox input file exceeds size limit'), {
+          fileId: record.id,
+          fileName: record.name,
+          size: record.size,
+        })
         continue
       }
       if (totalSize + record.size > MAX_TOTAL_SIZE) {
-        logger.warn('Sandbox input total size limit reached, skipping remaining files')
+        logger.warn(
+          withMessageId('Sandbox input total size limit reached, skipping remaining files')
+        )
         break
       }
       const buffer = await downloadWorkspaceFile(record)
       totalSize += buffer.length
-      sandboxFiles.push({ path: `/home/user/${fileName}`, content: buffer.toString('utf-8') })
+      const textContent = buffer.toString('utf-8')
+      sandboxFiles.push({
+        path: getSandboxWorkspaceFilePath(record),
+        content: textContent,
+      })
+      sandboxFiles.push({
+        path: `/home/user/${record.name}`,
+        content: textContent,
+      })
     }
   }
 
@@ -81,7 +119,7 @@ async function collectSandboxFiles(
     for (const tableId of inputTables) {
       const table = await getTableById(tableId)
       if (!table) {
-        logger.warn('Sandbox input table not found', { tableId })
+        logger.warn(withMessageId('Sandbox input table not found'), { tableId })
         continue
       }
       const { rows } = await queryRows(tableId, workspaceId, { limit: 10000 }, 'sandbox-input')
@@ -96,7 +134,9 @@ async function collectSandboxFiles(
       }
       const csvContent = csvLines.join('\n')
       if (totalSize + csvContent.length > MAX_TOTAL_SIZE) {
-        logger.warn('Sandbox input total size limit reached, skipping remaining tables')
+        logger.warn(
+          withMessageId('Sandbox input total size limit reached, skipping remaining tables')
+        )
         break
       }
       totalSize += csvContent.length
@@ -117,6 +157,9 @@ export const generateVisualizationServerTool: BaseServerTool<
     params: VisualizationArgs,
     context?: ServerToolContext
   ): Promise<VisualizationResult> {
+    const withMessageId = (message: string) =>
+      appendCopilotLogContext(message, { messageId: context?.messageId })
+
     if (!context?.userId) {
       throw new Error('Authentication required')
     }
@@ -134,7 +177,8 @@ export const generateVisualizationServerTool: BaseServerTool<
       const sandboxFiles = await collectSandboxFiles(
         workspaceId,
         params.inputFiles,
-        params.inputTables
+        params.inputTables,
+        context.messageId
       )
 
       const wrappedCode = [
@@ -177,7 +221,44 @@ export const generateVisualizationServerTool: BaseServerTool<
       }
 
       const fileName = params.fileName || 'chart.png'
+      const fileNameValidationError = validateGeneratedWorkspaceFileName(fileName)
+      if (fileNameValidationError) {
+        return { success: false, message: fileNameValidationError }
+      }
       const imageBuffer = Buffer.from(imageBase64, 'base64')
+
+      if (params.overwriteFileId) {
+        const existing = await getWorkspaceFile(workspaceId, params.overwriteFileId)
+        if (!existing) {
+          return {
+            success: false,
+            message: `File not found for overwrite: ${params.overwriteFileId}`,
+          }
+        }
+        assertServerToolNotAborted(context)
+        const updated = await updateWorkspaceFileContent(
+          workspaceId,
+          params.overwriteFileId,
+          context.userId,
+          imageBuffer,
+          'image/png'
+        )
+        logger.info(withMessageId('Chart image overwritten'), {
+          fileId: updated.id,
+          fileName: updated.name,
+          size: imageBuffer.length,
+        })
+        const pathPrefix = getServePathPrefix()
+        return {
+          success: true,
+          message: `Chart updated in "${updated.name}" (${imageBuffer.length} bytes)`,
+          fileId: updated.id,
+          fileName: updated.name,
+          downloadUrl: `${pathPrefix}${encodeURIComponent(updated.key)}?context=workspace`,
+        }
+      }
+
+      assertServerToolNotAborted(context)
       const uploaded = await uploadWorkspaceFile(
         workspaceId,
         context.userId,
@@ -186,7 +267,7 @@ export const generateVisualizationServerTool: BaseServerTool<
         'image/png'
       )
 
-      logger.info('Chart image saved', {
+      logger.info(withMessageId('Chart image saved'), {
         fileId: uploaded.id,
         fileName: uploaded.name,
         size: imageBuffer.length,
@@ -201,7 +282,7 @@ export const generateVisualizationServerTool: BaseServerTool<
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error'
-      logger.error('Visualization generation failed', { error: msg })
+      logger.error(withMessageId('Visualization generation failed'), { error: msg })
       return { success: false, message: `Failed to generate visualization: ${msg}` }
     }
   },

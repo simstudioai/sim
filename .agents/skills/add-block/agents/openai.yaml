@@ -1,0 +1,5 @@
+interface:
+  display_name: "Add Block"
+  short_description: "Build a Sim block definition"
+  brand_color: "#2563EB"
+  default_prompt: "Use $add-block to create or update the block for a Sim integration."

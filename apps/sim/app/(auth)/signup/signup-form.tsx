@@ -93,6 +93,8 @@ function SignupFormContent({
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
+  const captchaResolveRef = useRef<((token: string) => void) | null>(null)
+  const captchaRejectRef = useRef<((reason: Error) => void) | null>(null)
   const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
   const buttonClass = useBrandedButtonClass()
 
@@ -249,17 +251,30 @@ function SignupFormContent({
 
       const sanitizedName = trimmedName
 
-      // Execute Turnstile challenge on submit and get a fresh token
       let token: string | undefined
-      if (turnstileSiteKey && turnstileRef.current) {
+      const widget = turnstileRef.current
+      if (turnstileSiteKey && widget) {
+        let timeoutId: ReturnType<typeof setTimeout> | undefined
         try {
-          turnstileRef.current.reset()
-          turnstileRef.current.execute()
-          token = await turnstileRef.current.getResponsePromise(15_000)
+          widget.reset()
+          token = await Promise.race([
+            new Promise<string>((resolve, reject) => {
+              captchaResolveRef.current = resolve
+              captchaRejectRef.current = reject
+              widget.execute()
+            }),
+            new Promise<string>((_, reject) => {
+              timeoutId = setTimeout(() => reject(new Error('Captcha timed out')), 15_000)
+            }),
+          ])
         } catch {
           setFormError('Captcha verification failed. Please try again.')
           setIsLoading(false)
           return
+        } finally {
+          clearTimeout(timeoutId)
+          captchaResolveRef.current = null
+          captchaRejectRef.current = null
         }
       }
 
@@ -478,13 +493,14 @@ function SignupFormContent({
           </div>
 
           {turnstileSiteKey && (
-            <div className='absolute'>
-              <Turnstile
-                ref={turnstileRef}
-                siteKey={turnstileSiteKey}
-                options={{ size: 'invisible', execution: 'execute' }}
-              />
-            </div>
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              onSuccess={(token) => captchaResolveRef.current?.(token)}
+              onError={() => captchaRejectRef.current?.(new Error('Captcha verification failed'))}
+              onExpire={() => captchaRejectRef.current?.(new Error('Captcha token expired'))}
+              options={{ execution: 'execute' }}
+            />
           )}
 
           {formError && (

@@ -85,7 +85,7 @@ export function VariablesInput({
   const params = useParams()
   const workflowId = params.workflowId as string
   const [storeValue, setStoreValue] = useSubBlockValue<VariableAssignment[]>(blockId, subBlockId)
-  const { variables: workflowVariables } = useVariablesStore()
+  const workflowVariables = useVariablesStore((s) => s.variables)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   const [showTags, setShowTags] = useState(false)

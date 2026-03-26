@@ -27,7 +27,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const body = await req.json()
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid or missing JSON body' }, { status: 400 })
+    }
     const { code } = body as { code?: string }
 
     if (typeof code !== 'string' || code.trim().length === 0) {

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { usageLog } from '@sim/db/schema'
+import { usageLog, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, lte, type SQL, sql } from 'drizzle-orm'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('UsageLog')
@@ -32,224 +32,121 @@ export interface ModelUsageMetadata {
 }
 
 /**
- * Metadata for 'fixed' category charges (e.g., tool cost breakdown)
+ * Union type for all usage log metadata types
  */
-export type FixedUsageMetadata = Record<string, unknown>
+export type UsageLogMetadata = ModelUsageMetadata | Record<string, unknown> | null
 
 /**
- * Union type for all metadata types
+ * A single usage entry to be recorded in the usage_log table.
  */
-export type UsageLogMetadata = ModelUsageMetadata | FixedUsageMetadata | null
-
-/**
- * Parameters for logging model usage (token-based charges)
- */
-export interface LogModelUsageParams {
-  userId: string
-  source: UsageLogSource
-  model: string
-  inputTokens: number
-  outputTokens: number
-  cost: number
-  toolCost?: number
-  workspaceId?: string
-  workflowId?: string
-  executionId?: string
-}
-
-/**
- * Parameters for logging fixed charges (flat fees)
- */
-export interface LogFixedUsageParams {
-  userId: string
+export interface UsageEntry {
+  category: UsageLogCategory
   source: UsageLogSource
   description: string
   cost: number
-  workspaceId?: string
-  workflowId?: string
-  executionId?: string
-  /** Optional metadata (e.g., tool cost breakdown from API) */
-  metadata?: FixedUsageMetadata
+  metadata?: UsageLogMetadata
 }
 
 /**
- * Log a model usage charge (token-based)
+ * Parameters for the central recordUsage function.
+ * This is the single entry point for all billing mutations.
  */
-export async function logModelUsage(params: LogModelUsageParams): Promise<void> {
-  if (!isBillingEnabled || params.cost <= 0) {
-    return
-  }
-
-  try {
-    const metadata: ModelUsageMetadata = {
-      inputTokens: params.inputTokens,
-      outputTokens: params.outputTokens,
-      ...(params.toolCost != null && params.toolCost > 0 && { toolCost: params.toolCost }),
-    }
-
-    await db.insert(usageLog).values({
-      id: crypto.randomUUID(),
-      userId: params.userId,
-      category: 'model',
-      source: params.source,
-      description: params.model,
-      metadata,
-      cost: params.cost.toString(),
-      workspaceId: params.workspaceId ?? null,
-      workflowId: params.workflowId ?? null,
-      executionId: params.executionId ?? null,
-    })
-
-    logger.debug('Logged model usage', {
-      userId: params.userId,
-      source: params.source,
-      model: params.model,
-      cost: params.cost,
-    })
-  } catch (error) {
-    logger.error('Failed to log model usage', {
-      error: error instanceof Error ? error.message : String(error),
-      params,
-    })
-    // Don't throw - usage logging should not break the main flow
-  }
-}
-
-/**
- * Log a fixed charge (flat fee like base execution charge or search)
- */
-export async function logFixedUsage(params: LogFixedUsageParams): Promise<void> {
-  if (!isBillingEnabled || params.cost <= 0) {
-    return
-  }
-
-  try {
-    await db.insert(usageLog).values({
-      id: crypto.randomUUID(),
-      userId: params.userId,
-      category: 'fixed',
-      source: params.source,
-      description: params.description,
-      metadata: params.metadata ?? null,
-      cost: params.cost.toString(),
-      workspaceId: params.workspaceId ?? null,
-      workflowId: params.workflowId ?? null,
-      executionId: params.executionId ?? null,
-    })
-
-    logger.debug('Logged fixed usage', {
-      userId: params.userId,
-      source: params.source,
-      description: params.description,
-      cost: params.cost,
-    })
-  } catch (error) {
-    logger.error('Failed to log fixed usage', {
-      error: error instanceof Error ? error.message : String(error),
-      params,
-    })
-    // Don't throw - usage logging should not break the main flow
-  }
-}
-
-/**
- * Parameters for batch logging workflow usage
- */
-export interface LogWorkflowUsageBatchParams {
+export interface RecordUsageParams {
+  /** The user being charged */
   userId: string
+  /** One or more usage_log entries to record. Total cost is derived from these. */
+  entries: UsageEntry[]
+  /** Workspace context */
   workspaceId?: string
-  workflowId: string
+  /** Workflow context */
+  workflowId?: string
+  /** Execution context */
   executionId?: string
-  baseExecutionCharge?: number
-  models?: Record<
-    string,
-    {
-      total: number
-      tokens: { input: number; output: number }
-      toolCost?: number
-    }
-  >
+  /** Source-specific counter increments (e.g. totalCopilotCalls, totalManualExecutions) */
+  additionalStats?: Record<string, SQL>
 }
 
 /**
- * Log all workflow usage entries in a single batch insert (performance optimized)
+ * Records usage in a single atomic transaction.
+ *
+ * Inserts all entries into usage_log and updates userStats counters
+ * (totalCost, currentPeriodCost, lastActive) within one Postgres transaction.
+ * The total cost added to userStats is derived from summing entry costs,
+ * ensuring usage_log and currentPeriodCost can never drift apart.
+ *
+ * If billing is disabled, total cost is zero, or no entries have positive cost,
+ * this function returns early without writing anything.
  */
-export async function logWorkflowUsageBatch(params: LogWorkflowUsageBatchParams): Promise<void> {
+export async function recordUsage(params: RecordUsageParams): Promise<void> {
   if (!isBillingEnabled) {
     return
   }
 
-  const entries: Array<{
-    id: string
-    userId: string
-    category: 'model' | 'fixed'
-    source: 'workflow'
-    description: string
-    metadata: ModelUsageMetadata | null
-    cost: string
-    workspaceId: string | null
-    workflowId: string | null
-    executionId: string | null
-  }> = []
+  const { userId, entries, workspaceId, workflowId, executionId, additionalStats } = params
 
-  if (params.baseExecutionCharge && params.baseExecutionCharge > 0) {
-    entries.push({
-      id: crypto.randomUUID(),
-      userId: params.userId,
-      category: 'fixed',
-      source: 'workflow',
-      description: 'execution_fee',
-      metadata: null,
-      cost: params.baseExecutionCharge.toString(),
-      workspaceId: params.workspaceId ?? null,
-      workflowId: params.workflowId,
-      executionId: params.executionId ?? null,
-    })
-  }
+  const validEntries = entries.filter((e) => e.cost > 0)
+  const totalCost = validEntries.reduce((sum, e) => sum + e.cost, 0)
 
-  if (params.models) {
-    for (const [modelName, modelData] of Object.entries(params.models)) {
-      if (modelData.total > 0) {
-        entries.push({
-          id: crypto.randomUUID(),
-          userId: params.userId,
-          category: 'model',
-          source: 'workflow',
-          description: modelName,
-          metadata: {
-            inputTokens: modelData.tokens.input,
-            outputTokens: modelData.tokens.output,
-            ...(modelData.toolCost != null &&
-              modelData.toolCost > 0 && { toolCost: modelData.toolCost }),
-          },
-          cost: modelData.total.toString(),
-          workspaceId: params.workspaceId ?? null,
-          workflowId: params.workflowId,
-          executionId: params.executionId ?? null,
-        })
-      }
-    }
-  }
-
-  if (entries.length === 0) {
+  if (
+    validEntries.length === 0 &&
+    (!additionalStats || Object.keys(additionalStats).length === 0)
+  ) {
     return
   }
 
-  try {
-    await db.insert(usageLog).values(entries)
+  const RESERVED_KEYS = new Set(['totalCost', 'currentPeriodCost', 'lastActive'])
+  const safeStats = additionalStats
+    ? Object.fromEntries(Object.entries(additionalStats).filter(([k]) => !RESERVED_KEYS.has(k)))
+    : undefined
 
-    logger.debug('Logged workflow usage batch', {
-      userId: params.userId,
-      workflowId: params.workflowId,
-      entryCount: entries.length,
-    })
-  } catch (error) {
-    logger.error('Failed to log workflow usage batch', {
-      error: error instanceof Error ? error.message : String(error),
-      params,
-    })
-    // Don't throw - usage logging should not break the main flow
-  }
+  await db.transaction(async (tx) => {
+    if (validEntries.length > 0) {
+      await tx.insert(usageLog).values(
+        validEntries.map((entry) => ({
+          id: crypto.randomUUID(),
+          userId,
+          category: entry.category,
+          source: entry.source,
+          description: entry.description,
+          metadata: entry.metadata ?? null,
+          cost: entry.cost.toString(),
+          workspaceId: workspaceId ?? null,
+          workflowId: workflowId ?? null,
+          executionId: executionId ?? null,
+        }))
+      )
+    }
+
+    const updateFields: Record<string, SQL | Date> = {
+      lastActive: new Date(),
+      ...(totalCost > 0 && {
+        totalCost: sql`total_cost + ${totalCost}`,
+        currentPeriodCost: sql`current_period_cost + ${totalCost}`,
+      }),
+      ...safeStats,
+    }
+
+    const result = await tx
+      .update(userStats)
+      .set(updateFields)
+      .where(eq(userStats.userId, userId))
+      .returning({ userId: userStats.userId })
+
+    if (result.length === 0) {
+      logger.warn('recordUsage: userStats row not found, transaction will roll back', {
+        userId,
+        totalCost,
+      })
+      throw new Error(`userStats row not found for userId: ${userId}`)
+    }
+  })
+
+  logger.debug('Recorded usage', {
+    userId,
+    totalCost,
+    entryCount: validEntries.length,
+    sources: [...new Set(validEntries.map((e) => e.source))],
+  })
 }
 
 /**

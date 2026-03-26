@@ -23,7 +23,7 @@ export type SSEEventType =
 
 export interface SSEEvent {
   type: SSEEventType
-  /** Authoritative tool call state set by the Go backend */
+  /** Authoritative tool call state set by the server */
   state?: string
   data?: Record<string, unknown>
   /** Parent agent that produced this event */
@@ -58,6 +58,18 @@ export type ToolCallStatus =
   | 'skipped'
   | 'rejected'
   | 'cancelled'
+
+const TERMINAL_TOOL_STATUSES: ReadonlySet<ToolCallStatus> = new Set([
+  'success',
+  'error',
+  'cancelled',
+  'skipped',
+  'rejected',
+])
+
+export function isTerminalToolCallStatus(status?: string): boolean {
+  return TERMINAL_TOOL_STATUSES.has(status as ToolCallStatus)
+}
 
 export interface ToolCallState {
   id: string
@@ -152,6 +164,8 @@ export interface OrchestratorOptions {
   onComplete?: (result: OrchestratorResult) => void | Promise<void>
   onError?: (error: Error) => void | Promise<void>
   abortSignal?: AbortSignal
+  /** Fires only on explicit user stop, never on passive transport disconnect. */
+  userStopSignal?: AbortSignal
   interactive?: boolean
 }
 
@@ -183,9 +197,12 @@ export interface ExecutionContext {
   workflowId: string
   workspaceId?: string
   chatId?: string
+  messageId?: string
   executionId?: string
   runId?: string
   abortSignal?: AbortSignal
+  /** Fires only on explicit user stop, never on passive transport disconnect. */
+  userStopSignal?: AbortSignal
   userTimezone?: string
   userPermission?: string
   decryptedEnvVars?: Record<string, string>

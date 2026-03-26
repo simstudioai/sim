@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { ChevronDown, Skeleton, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
-import { getSubscriptionStatus } from '@/lib/billing/client'
+import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization'
@@ -27,12 +27,12 @@ const SKELETON_SECTIONS = [3, 2, 2] as const
 
 interface SettingsSidebarProps {
   isCollapsed?: boolean
-  showCollapsedContent?: boolean
+  showCollapsedTooltips?: boolean
 }
 
 export function SettingsSidebar({
   isCollapsed = false,
-  showCollapsedContent = false,
+  showCollapsedTooltips = false,
 }: SettingsSidebarProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -59,9 +59,9 @@ export function SettingsSidebar({
   const isOwner = userRole === 'owner'
   const isAdmin = userRole === 'admin'
   const isOrgAdminOrOwner = isOwner || isAdmin
-  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
-  const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
-  const hasEnterprisePlan = subscriptionStatus.isEnterprise
+  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
+  const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
+  const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
 
   const isSuperUser = session?.user?.role === 'admin'
 
@@ -111,6 +111,10 @@ export function SettingsSidebar({
         return false
       }
 
+      if (item.requiresMax && !subscriptionAccess.hasUsableMaxAccess && !item.showWhenLocked) {
+        return false
+      }
+
       if (item.requiresHosted && !isHosted) {
         return false
       }
@@ -130,6 +134,7 @@ export function SettingsSidebar({
   }, [
     hasTeamPlan,
     hasEnterprisePlan,
+    subscriptionAccess.hasUsableMaxAccess,
     isOrgAdminOrOwner,
     isSSOProviderOwner,
     ssoProvidersData?.providers?.length,
@@ -194,7 +199,7 @@ export function SettingsSidebar({
               <span className='truncate font-base text-[var(--text-body)]'>Back</span>
             </button>
           </Tooltip.Trigger>
-          {showCollapsedContent && (
+          {showCollapsedTooltips && (
             <Tooltip.Content side='right'>
               <p>Back</p>
             </Tooltip.Content>
@@ -252,6 +257,7 @@ export function SettingsSidebar({
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
+                    const isLocked = item.requiresMax && !subscriptionAccess.hasUsableMaxAccess
                     const itemClassName = cn(
                       'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
                       active && 'bg-[var(--surface-active)]'
@@ -259,9 +265,14 @@ export function SettingsSidebar({
                     const content = (
                       <>
                         <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                        <span className='truncate font-base text-[var(--text-body)]'>
+                        <span className='min-w-0 truncate font-base text-[var(--text-body)]'>
                           {item.label}
                         </span>
+                        {isLocked && (
+                          <span className='ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-[4px] py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
+                            Max
+                          </span>
+                        )}
                       </>
                     )
 
@@ -293,7 +304,7 @@ export function SettingsSidebar({
                     return (
                       <Tooltip.Root key={`${item.id}-${isCollapsed}`}>
                         <Tooltip.Trigger asChild>{element}</Tooltip.Trigger>
-                        {showCollapsedContent && (
+                        {showCollapsedTooltips && (
                           <Tooltip.Content side='right'>
                             <p>{item.label}</p>
                           </Tooltip.Content>

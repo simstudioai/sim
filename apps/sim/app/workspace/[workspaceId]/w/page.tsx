@@ -12,7 +12,8 @@ const logger = createLogger('WorkflowsPage')
 
 export default function WorkflowsPage() {
   const router = useRouter()
-  const { workflows, setActiveWorkflow } = useWorkflowRegistry()
+  const workflows = useWorkflowRegistry((s) => s.workflows)
+  const setActiveWorkflow = useWorkflowRegistry((s) => s.setActiveWorkflow)
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [isMounted, setIsMounted] = useState(false)

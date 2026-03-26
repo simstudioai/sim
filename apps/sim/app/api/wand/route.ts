@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
-import { userStats, workflow } from '@sim/db/schema'
+import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getSession } from '@/lib/auth'
-import { logModelUsage } from '@/lib/billing/core/usage-log'
+import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -134,23 +134,20 @@ async function updateUserStatsForWand(
       costToStore = modelCost * costMultiplier
     }
 
-    await db
-      .update(userStats)
-      .set({
-        totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
-        totalCost: sql`total_cost + ${costToStore}`,
-        currentPeriodCost: sql`current_period_cost + ${costToStore}`,
-        lastActive: new Date(),
-      })
-      .where(eq(userStats.userId, userId))
-
-    await logModelUsage({
+    await recordUsage({
       userId,
-      source: 'wand',
-      model: modelName,
-      inputTokens: promptTokens,
-      outputTokens: completionTokens,
-      cost: costToStore,
+      entries: [
+        {
+          category: 'model',
+          source: 'wand',
+          description: modelName,
+          cost: costToStore,
+          metadata: { inputTokens: promptTokens, outputTokens: completionTokens },
+        },
+      ],
+      additionalStats: {
+        totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
+      },
     })
 
     await checkAndBillOverageThreshold(userId)
@@ -341,7 +338,7 @@ export async function POST(req: NextRequest) {
             let finalUsage: any = null
             let usageRecorded = false
 
-            const recordUsage = async () => {
+            const flushUsage = async () => {
               if (usageRecorded || !finalUsage) {
                 return
               }
@@ -360,7 +357,7 @@ export async function POST(req: NextRequest) {
 
                 if (done) {
                   logger.info(`[${requestId}] Stream completed. Total chunks: ${chunkCount}`)
-                  await recordUsage()
+                  await flushUsage()
                   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`))
                   controller.close()
                   break
@@ -390,7 +387,7 @@ export async function POST(req: NextRequest) {
                   if (data === '[DONE]') {
                     logger.info(`[${requestId}] Received [DONE] signal`)
 
-                    await recordUsage()
+                    await flushUsage()
 
                     controller.enqueue(
                       encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`)
@@ -468,7 +465,7 @@ export async function POST(req: NextRequest) {
               })
 
               try {
-                await recordUsage()
+                await flushUsage()
               } catch (usageError) {
                 logger.warn(`[${requestId}] Failed to record usage after stream error`, usageError)
               }

@@ -1,5 +1,4 @@
 import {
-  BookOpen,
   Card,
   Connections,
   HexSimple,
@@ -38,7 +37,6 @@ export type SettingsSection =
   | 'skills'
   | 'workflow-mcp-servers'
   | 'inbox'
-  | 'docs'
   | 'admin'
   | 'recently-deleted'
 
@@ -58,10 +56,13 @@ export interface NavigationItem {
   hideWhenBillingDisabled?: boolean
   requiresTeam?: boolean
   requiresEnterprise?: boolean
+  requiresMax?: boolean
   requiresHosted?: boolean
   selfHostedOverride?: boolean
   requiresSuperUser?: boolean
   requiresAdminRole?: boolean
+  /** Show in the sidebar even when the user lacks the required plan, with an upgrade badge. */
+  showWhenLocked?: boolean
   externalUrl?: string
 }
 
@@ -71,6 +72,7 @@ const isAccessControlEnabled = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABL
 const isInboxEnabled = isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED'))
 
 export const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
+export { isCredentialSetsEnabled }
 
 export const sectionConfig: { key: NavigationSection; title: string }[] = [
   { key: 'account', title: 'Account' },
@@ -135,17 +137,21 @@ export const allNavigationItems: NavigationItem[] = [
     label: 'Sim Mailer',
     icon: Send,
     section: 'system',
+    requiresMax: true,
     requiresHosted: true,
     selfHostedOverride: isInboxEnabled,
+    showWhenLocked: true,
   },
-  {
-    id: 'credential-sets',
-    label: 'Email Polling',
-    icon: Mail,
-    section: 'system',
-    requiresHosted: true,
-    selfHostedOverride: isCredentialSetsEnabled,
-  },
+  ...(isCredentialSetsEnabled
+    ? [
+        {
+          id: 'credential-sets' as const,
+          label: 'Email Polling',
+          icon: Mail,
+          section: 'system' as const,
+        },
+      ]
+    : []),
   { id: 'recently-deleted', label: 'Recently Deleted', icon: TrashOutline, section: 'system' },
   {
     id: 'sso',
@@ -155,14 +161,6 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isSSOEnabled,
-  },
-  {
-    id: 'docs',
-    label: 'Docs',
-    icon: BookOpen,
-    section: 'system',
-    requiresHosted: true,
-    externalUrl: 'https://docs.sim.ai',
   },
   {
     id: 'admin',

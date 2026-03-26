@@ -20,11 +20,15 @@
  *   - durationInMonths: number (required when duration is 'repeating')
  *   - maxRedemptions: number (optional) — Total redemption cap
  *   - expiresAt: ISO 8601 string (optional) — Promotion code expiry
+ *   - appliesTo: ('pro' | 'team' | 'pro_6000' | 'pro_25000' | 'team_6000' | 'team_25000')[] (optional)
+ *       Restrict coupon to specific plans. Broad values ('pro', 'team') match all tiers.
  */
 
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
+import { isPro, isTeam } from '@/lib/billing/plan-helpers'
+import { getPlans } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
@@ -38,6 +42,17 @@ const logger = createLogger('AdminPromoCodes')
 const VALID_DURATIONS = ['once', 'repeating', 'forever'] as const
 type Duration = (typeof VALID_DURATIONS)[number]
 
+/** Broad categories match all tiers; specific plan names match exactly. */
+const VALID_APPLIES_TO = [
+  'pro',
+  'team',
+  'pro_6000',
+  'pro_25000',
+  'team_6000',
+  'team_25000',
+] as const
+type AppliesTo = (typeof VALID_APPLIES_TO)[number]
+
 interface PromoCodeResponse {
   id: string
   code: string
@@ -46,6 +61,7 @@ interface PromoCodeResponse {
   percentOff: number
   duration: string
   durationInMonths: number | null
+  appliesToProductIds: string[] | null
   maxRedemptions: number | null
   expiresAt: string | null
   active: boolean
@@ -62,6 +78,7 @@ function formatPromoCode(promo: {
     percent_off: number | null
     duration: string
     duration_in_months: number | null
+    applies_to?: { products: string[] }
   }
   max_redemptions: number | null
   expires_at: number | null
@@ -77,12 +94,61 @@ function formatPromoCode(promo: {
     percentOff: promo.coupon.percent_off ?? 0,
     duration: promo.coupon.duration,
     durationInMonths: promo.coupon.duration_in_months,
+    appliesToProductIds: promo.coupon.applies_to?.products ?? null,
     maxRedemptions: promo.max_redemptions,
     expiresAt: promo.expires_at ? new Date(promo.expires_at * 1000).toISOString() : null,
     active: promo.active,
     timesRedeemed: promo.times_redeemed,
     createdAt: new Date(promo.created * 1000).toISOString(),
   }
+}
+
+/**
+ * Resolve appliesTo values to unique Stripe product IDs.
+ * Broad categories ('pro', 'team') match all tiers via isPro/isTeam.
+ * Specific plan names ('pro_6000', 'team_25000') match exactly.
+ */
+async function resolveProductIds(stripe: Stripe, targets: AppliesTo[]): Promise<string[]> {
+  const plans = getPlans()
+  const priceIds: string[] = []
+
+  const broadMatchers: Record<string, (name: string) => boolean> = {
+    pro: isPro,
+    team: isTeam,
+  }
+
+  for (const plan of plans) {
+    const matches = targets.some((target) => {
+      const matcher = broadMatchers[target]
+      return matcher ? matcher(plan.name) : plan.name === target
+    })
+    if (!matches) continue
+    if (plan.priceId) priceIds.push(plan.priceId)
+    if (plan.annualDiscountPriceId) priceIds.push(plan.annualDiscountPriceId)
+  }
+
+  const results = await Promise.allSettled(
+    priceIds.map(async (priceId) => {
+      const price = await stripe.prices.retrieve(priceId)
+      return typeof price.product === 'string' ? price.product : price.product.id
+    })
+  )
+
+  const failures = results.filter((r) => r.status === 'rejected')
+  if (failures.length > 0) {
+    logger.error('Failed to resolve all Stripe products for appliesTo', {
+      failed: failures.length,
+      total: priceIds.length,
+    })
+    throw new Error('Could not resolve all Stripe products for the specified plan categories.')
+  }
+
+  const productIds = new Set<string>()
+  for (const r of results) {
+    if (r.status === 'fulfilled') productIds.add(r.value)
+  }
+
+  return [...productIds]
 }
 
 export const GET = withAdminAuth(async (request) => {
@@ -125,7 +191,16 @@ export const POST = withAdminAuth(async (request) => {
     const stripe = requireStripeClient()
     const body = await request.json()
 
-    const { name, percentOff, code, duration, durationInMonths, maxRedemptions, expiresAt } = body
+    const {
+      name,
+      percentOff,
+      code,
+      duration,
+      durationInMonths,
+      maxRedemptions,
+      expiresAt,
+      appliesTo,
+    } = body
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return badRequestResponse('name is required and must be a non-empty string')
@@ -186,11 +261,36 @@ export const POST = withAdminAuth(async (request) => {
       }
     }
 
+    if (appliesTo !== undefined && appliesTo !== null) {
+      if (!Array.isArray(appliesTo) || appliesTo.length === 0) {
+        return badRequestResponse('appliesTo must be a non-empty array')
+      }
+      const invalid = appliesTo.filter(
+        (v: unknown) => typeof v !== 'string' || !VALID_APPLIES_TO.includes(v as AppliesTo)
+      )
+      if (invalid.length > 0) {
+        return badRequestResponse(
+          `appliesTo contains invalid values: ${invalid.join(', ')}. Valid values: ${VALID_APPLIES_TO.join(', ')}`
+        )
+      }
+    }
+
+    let appliesToProducts: string[] | undefined
+    if (appliesTo?.length) {
+      appliesToProducts = await resolveProductIds(stripe, appliesTo as AppliesTo[])
+      if (appliesToProducts.length === 0) {
+        return badRequestResponse(
+          'Could not resolve any Stripe products for the specified plan categories. Ensure price IDs are configured.'
+        )
+      }
+    }
+
     const coupon = await stripe.coupons.create({
       name: name.trim(),
       percent_off: percentOff,
       duration: effectiveDuration,
       ...(effectiveDuration === 'repeating' ? { duration_in_months: durationInMonths } : {}),
+      ...(appliesToProducts ? { applies_to: { products: appliesToProducts } } : {}),
     })
 
     let promoCode
@@ -224,6 +324,7 @@ export const POST = withAdminAuth(async (request) => {
       couponId: coupon.id,
       percentOff,
       duration: effectiveDuration,
+      ...(appliesTo ? { appliesTo } : {}),
     })
 
     return singleResponse(formatPromoCode(promoCode))

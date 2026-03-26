@@ -7,6 +7,7 @@ export {
   avatarVariants,
 } from './avatar/avatar'
 export { Badge } from './badge/badge'
+export { Banner, type BannerProps } from './banner/banner'
 export { Breadcrumb, type BreadcrumbItem, type BreadcrumbProps } from './breadcrumb/breadcrumb'
 export { Button, type ButtonProps, buttonVariants } from './button/button'
 export {
@@ -55,6 +56,7 @@ export {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from './dropdown-menu/dropdown-menu'
+export { FormField, type FormFieldProps } from './form-field/form-field'
 export { Input, type InputProps, inputVariants } from './input/input'
 export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
 export { Label } from './label/label'
@@ -147,3 +149,10 @@ export { TimePicker, type TimePickerProps, timePickerVariants } from './time-pic
 export { CountdownRing } from './toast/countdown-ring'
 export { ToastProvider, toast, useToast } from './toast/toast'
 export { Tooltip } from './tooltip/tooltip'
+export {
+  TourCard,
+  type TourCardProps,
+  TourTooltip,
+  type TourTooltipPlacement,
+  type TourTooltipProps,
+} from './tour-tooltip/tour-tooltip'

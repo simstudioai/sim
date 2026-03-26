@@ -111,6 +111,9 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modu
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
 
+# Copy the bundled PPTX worker artifact
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/dist/pptx-worker.cjs ./apps/sim/dist/pptx-worker.cjs
+
 # Guardrails setup with pip caching
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/requirements.txt ./apps/sim/lib/guardrails/requirements.txt
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/validate_pii.py ./apps/sim/lib/guardrails/validate_pii.py

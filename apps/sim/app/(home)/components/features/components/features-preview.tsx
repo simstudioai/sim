@@ -608,9 +608,12 @@ const MOCK_KB_DATA = [
 
 const MD_COMPONENTS: Components = {
   h1: ({ children }) => (
-    <h1 className='mb-4 border-[#E5E5E5] border-b pb-2 font-semibold text-[#1C1C1C] text-[20px]'>
+    <p
+      role='presentation'
+      className='mb-4 border-[#E5E5E5] border-b pb-2 font-semibold text-[#1C1C1C] text-[20px]'
+    >
       {children}
-    </h1>
+    </p>
   ),
   h2: ({ children }) => (
     <h2 className='mt-5 mb-3 border-[#E5E5E5] border-b pb-1.5 font-semibold text-[#1C1C1C] text-[16px]'>

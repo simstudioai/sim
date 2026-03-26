@@ -1,0 +1,5 @@
+interface:
+  display_name: "Add Integration"
+  short_description: "Build a full Sim integration"
+  brand_color: "#7C3AED"
+  default_prompt: "Use $add-integration to add a complete Sim integration for a service."

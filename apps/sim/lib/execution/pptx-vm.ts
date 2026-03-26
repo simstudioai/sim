@@ -33,7 +33,11 @@ let cachedWorkerPath: string | undefined
 function getWorkerPath(): string {
   if (cachedWorkerPath) return cachedWorkerPath
   const candidates = [
+    path.join(currentDir, '..', '..', 'dist', 'pptx-worker.cjs'),
     path.join(currentDir, 'pptx-worker.cjs'),
+    path.join(process.cwd(), 'apps', 'sim', 'dist', 'pptx-worker.cjs'),
+    path.join(process.cwd(), 'apps', 'sim', 'lib', 'execution', 'pptx-worker.cjs'),
+    path.join(process.cwd(), 'dist', 'pptx-worker.cjs'),
     path.join(process.cwd(), 'lib', 'execution', 'pptx-worker.cjs'),
   ]
   const found = candidates.find((p) => fs.existsSync(p))

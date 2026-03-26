@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  markToolResultSeen,
   normalizeSseEvent,
   shouldSkipToolCallEvent,
   shouldSkipToolResultEvent,
@@ -37,6 +38,7 @@ describe('sse-utils', () => {
   it.concurrent('dedupes tool_result events', () => {
     const event = { type: 'tool_result', data: { id: 'tool_result_1', name: 'plan' } }
     expect(shouldSkipToolResultEvent(event as any)).toBe(false)
+    markToolResultSeen('tool_result_1')
     expect(shouldSkipToolResultEvent(event as any)).toBe(true)
   })
 })

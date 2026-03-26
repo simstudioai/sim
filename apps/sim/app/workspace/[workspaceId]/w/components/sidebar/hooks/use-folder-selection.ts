@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useFolderStore } from '@/stores/folders/store'
 
 interface UseFolderSelectionProps {
@@ -44,7 +45,15 @@ export function useFolderSelection({
     selectFolderOnly,
     selectFolderRange,
     toggleFolderSelection,
-  } = useFolderStore()
+  } = useFolderStore(
+    useShallow((s) => ({
+      selectedFolders: s.selectedFolders,
+      lastSelectedFolderId: s.lastSelectedFolderId,
+      selectFolderOnly: s.selectFolderOnly,
+      selectFolderRange: s.selectFolderRange,
+      toggleFolderSelection: s.toggleFolderSelection,
+    }))
+  )
 
   /**
    * Deselect any workflows whose folder (or any ancestor folder) is currently selected.

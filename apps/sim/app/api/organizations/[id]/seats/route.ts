@@ -1,13 +1,18 @@
 import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import {
+  hasUsableSubscriptionStatus,
+  USABLE_SUBSCRIPTION_STATUSES,
+} from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('OrganizationSeatsAPI')
@@ -66,7 +71,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const subscriptionRecord = await db
       .select()
       .from(subscription)
-      .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
+        )
+      )
       .limit(1)
 
     if (subscriptionRecord.length === 0) {
@@ -74,6 +84,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const orgSubscription = subscriptionRecord[0]
+
+    if (await isOrganizationBillingBlocked(organizationId)) {
+      return NextResponse.json({ error: 'An active subscription is required' }, { status: 400 })
+    }
 
     // Only team plans support seat changes (not enterprise - those are handled manually)
     if (!isTeam(orgSubscription.plan)) {
@@ -127,7 +141,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       orgSubscription.stripeSubscriptionId
     )
 
-    if (stripeSubscription.status !== 'active') {
+    if (!hasUsableSubscriptionStatus(stripeSubscription.status)) {
       return NextResponse.json({ error: 'Stripe subscription is not active' }, { status: 400 })
     }
 
