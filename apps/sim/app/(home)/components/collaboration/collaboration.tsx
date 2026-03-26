@@ -25,7 +25,7 @@ function DotGrid({ className, cols, rows, gap = 0 }: DotGridProps) {
       }}
     >
       {Array.from({ length: cols * rows }, (_, i) => (
-        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[var(--surface-4)]' />
+        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[var(--landing-bg-elevated)]' />
       ))}
     </div>
   )
@@ -222,7 +222,7 @@ export default function Collaboration() {
       <style dangerouslySetInnerHTML={{ __html: CURSOR_KEYFRAMES }} />
 
       <DotGrid
-        className='overflow-hidden border-[var(--surface-4)] border-y bg-[var(--landing-bg)] p-1.5'
+        className='overflow-hidden border-[var(--landing-bg-elevated)] border-y bg-[var(--landing-bg)] p-1.5'
         cols={120}
         rows={1}
         gap={6}
@@ -256,7 +256,7 @@ export default function Collaboration() {
 
             <Link
               href='/signup'
-              className='group/cta mt-3 inline-flex h-[32px] cursor-none items-center gap-1.5 rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)]'
+              className='group/cta mt-3 inline-flex h-[32px] cursor-none items-center gap-1.5 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
             >
               Build together
               <span className='relative h-[10px] w-[10px] shrink-0'>
@@ -306,7 +306,7 @@ export default function Collaboration() {
           href='/blog/multiplayer'
           target='_blank'
           rel='noopener noreferrer'
-          className='relative mx-4 mb-6 flex cursor-none items-center gap-3.5 rounded-[5px] border border-[var(--surface-4)] bg-[var(--landing-bg)] px-3 py-2.5 transition-colors hover:border-[var(--border-1)] hover:bg-[var(--surface-2)] sm:mx-8 md:absolute md:bottom-10 md:left-[80px] md:z-20 md:mx-0 md:mb-0'
+          className='relative mx-4 mb-6 flex cursor-none items-center gap-3.5 rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] px-3 py-2.5 transition-colors hover:border-[#3d3d3d] hover:bg-[var(--landing-bg-card)] sm:mx-8 md:absolute md:bottom-10 md:left-[80px] md:z-20 md:mx-0 md:mb-0'
         >
           <div className='relative h-7 w-11 shrink-0'>
             <Image src='/landing/multiplayer-cursors.svg' alt='' fill className='object-contain' />
@@ -323,7 +323,7 @@ export default function Collaboration() {
       </div>
 
       <DotGrid
-        className='overflow-hidden border-[var(--surface-4)] border-y bg-[var(--landing-bg)] p-1.5'
+        className='overflow-hidden border-[var(--landing-bg-elevated)] border-y bg-[var(--landing-bg)] p-1.5'
         cols={120}
         rows={1}
         gap={6}

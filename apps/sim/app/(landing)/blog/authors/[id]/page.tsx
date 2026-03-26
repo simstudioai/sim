@@ -59,7 +59,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
       <div className='grid grid-cols-1 gap-8 sm:grid-cols-2'>
         {posts.map((p) => (
           <Link key={p.slug} href={`/blog/${p.slug}`} className='group'>
-            <div className='overflow-hidden rounded-lg border border-[var(--surface-4)]'>
+            <div className='overflow-hidden rounded-lg border border-[var(--landing-bg-elevated)]'>
               <Image
                 src={p.ogImage}
                 alt={p.title}
@@ -68,7 +68,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
                 className='h-[160px] w-full object-cover transition-transform group-hover:scale-[1.02]'
               />
               <div className='p-3'>
-                <div className='mb-1 text-[var(--text-subtle)] text-xs'>
+                <div className='mb-1 text-[var(--landing-text-muted)] text-xs'>
                   {new Date(p.date).toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric',

@@ -7,7 +7,7 @@ export default async function ChangelogLayout({ children }: { children: React.Re
   const blogPosts = await getNavBlogPosts()
   return (
     <div
-      className={`${martianMono.variable} relative min-h-screen bg-[var(--text-primary)] font-[430] font-season text-[var(--landing-text)]`}
+      className={`${martianMono.variable} relative min-h-screen bg-[var(--landing-bg)] font-[430] font-season text-[var(--landing-text)]`}
     >
       <header>
         <Navbar blogPosts={blogPosts} />

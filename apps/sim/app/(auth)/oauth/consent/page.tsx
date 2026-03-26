@@ -195,7 +195,7 @@ export default function OAuthConsentPage() {
       </div>
 
       {session?.user && (
-        <div className='mt-5 flex items-center gap-3 rounded-lg border border-[var(--surface-4)] px-4 py-3'>
+        <div className='mt-5 flex items-center gap-3 rounded-lg border border-[var(--landing-bg-elevated)] px-4 py-3'>
           {session.user.image ? (
             <Image
               src={session.user.image}

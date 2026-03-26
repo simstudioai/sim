@@ -281,7 +281,7 @@ export default function TermsOfService() {
           Agreement. The arbitration will be conducted by JAMS, an established alternative dispute
           resolution provider.
         </p>
-        <p className='mb-4 border-[var(--border-1)] border-l-4 bg-[var(--surface-4)] p-3 text-[var(--landing-text)]'>
+        <p className='mb-4 border-[#3d3d3d] border-l-4 bg-[var(--landing-bg-elevated)] p-3 text-[var(--landing-text)]'>
           YOU AND COMPANY AGREE THAT EACH OF US MAY BRING CLAIMS AGAINST THE OTHER ONLY ON AN
           INDIVIDUAL BASIS AND NOT ON A CLASS, REPRESENTATIVE, OR COLLECTIVE BASIS. ONLY INDIVIDUAL
           RELIEF IS AVAILABLE, AND DISPUTES OF MORE THAN ONE CUSTOMER OR USER CANNOT BE ARBITRATED

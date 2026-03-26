@@ -65,13 +65,13 @@ const FEATURE_TAGS = [
 
 function TrustStrip() {
   return (
-    <div className='mx-6 mt-4 grid grid-cols-1 overflow-hidden rounded-lg border border-[var(--surface-4)] sm:grid-cols-3 md:mx-8'>
+    <div className='mx-6 mt-4 grid grid-cols-1 overflow-hidden rounded-lg border border-[var(--landing-bg-elevated)] sm:grid-cols-3 md:mx-8'>
       {/* SOC 2 + HIPAA combined */}
       <Link
         href='https://app.vanta.com/sim.ai/trust/v35ia0jil4l7dteqjgaktn'
         target='_blank'
         rel='noopener noreferrer'
-        className='group flex items-center gap-3 border-[var(--surface-4)] border-b px-4 py-3.5 transition-colors hover:bg-[var(--surface-1)] sm:border-r sm:border-b-0'
+        className='group flex items-center gap-3 border-[var(--landing-bg-elevated)] border-b px-4 py-3.5 transition-colors hover:bg-[var(--landing-bg-surface)] sm:border-r sm:border-b-0'
       >
         <Image
           src='/footer/soc2.png'
@@ -95,7 +95,7 @@ function TrustStrip() {
         href='https://github.com/simstudioai/sim'
         target='_blank'
         rel='noopener noreferrer'
-        className='group flex items-center gap-3 border-[var(--surface-4)] border-b px-4 py-3.5 transition-colors hover:bg-[var(--surface-1)] sm:border-r sm:border-b-0'
+        className='group flex items-center gap-3 border-[var(--landing-bg-elevated)] border-b px-4 py-3.5 transition-colors hover:bg-[var(--landing-bg-surface)] sm:border-r sm:border-b-0'
       >
         <div className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#FFCC02]/10'>
           <GithubIcon width={11} height={11} className='text-[#FFCC02]/75' />
@@ -148,7 +148,7 @@ export default function Enterprise() {
 
           <h2
             id='enterprise-heading'
-            className='max-w-[600px] font-[430] font-season text-[var(--landing-text)] text-[32px] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
+            className='max-w-[600px] font-[430] font-season text-[32px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
           >
             Enterprise features for
             <br />
@@ -191,7 +191,7 @@ export default function Enterprise() {
           <TrustStrip />
 
           {/* Scrolling feature ticker — keyframe loop; pause on hover. Tags use transitions for hover. */}
-          <div className='enterprise-feature-marquee relative mt-6 overflow-hidden border-[var(--surface-4)] border-t'>
+          <div className='enterprise-feature-marquee relative mt-6 overflow-hidden border-[var(--landing-bg-elevated)] border-t'>
             <style dangerouslySetInnerHTML={{ __html: ENTERPRISE_FEATURE_MARQUEE_STYLES }} />
             {/* Fade edges */}
             <div
@@ -210,7 +210,7 @@ export default function Enterprise() {
                 (tag, i) => (
                   <span
                     key={i}
-                    className='enterprise-feature-marquee-tag whitespace-nowrap border-[var(--surface-4)] border-r px-5 py-4 font-[430] font-season text-[var(--landing-text-subtle)]/40 text-small leading-none tracking-[0.02em] hover:bg-white/[0.04] hover:text-[var(--landing-text-subtle)]/55'
+                    className='enterprise-feature-marquee-tag whitespace-nowrap border-[var(--landing-bg-elevated)] border-r px-5 py-4 font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_40%,transparent)] text-small leading-none tracking-[0.02em] hover:bg-white/[0.04] hover:text-[color-mix(in_srgb,var(--landing-text-subtle)_55%,transparent)]'
                   >
                     {tag}
                   </span>
@@ -219,8 +219,8 @@ export default function Enterprise() {
             </div>
           </div>
 
-          <div className='flex items-center justify-between border-[var(--surface-4)] border-t px-6 py-5 md:px-8 md:py-6'>
-            <p className='font-[430] font-season text-[var(--landing-text-subtle)]/40 text-base leading-[150%] tracking-[0.02em]'>
+          <div className='flex items-center justify-between border-[var(--landing-bg-elevated)] border-t px-6 py-5 md:px-8 md:py-6'>
+            <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_40%,transparent)] text-base leading-[150%] tracking-[0.02em]'>
               Ready for growth?
             </p>
             <DemoRequestModal>

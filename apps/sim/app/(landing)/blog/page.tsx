@@ -53,7 +53,7 @@ export default async function BlogIndex({
       <h1 className='mb-3 font-[500] text-[40px] text-[var(--landing-text)] leading-tight sm:text-[56px]'>
         Blog
       </h1>
-      <p className='mb-10 text-[var(--text-subtle)] text-lg'>
+      <p className='mb-10 text-[var(--landing-text-muted)] text-lg'>
         Announcements, insights, and guides for building AI agent workflows.
       </p>
 
@@ -75,18 +75,18 @@ export default async function BlogIndex({
           {pageNum > 1 && (
             <Link
               href={`/blog?page=${pageNum - 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
-              className='rounded-[5px] border border-[var(--border-1)] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--surface-4)]'
+              className='rounded-[5px] border border-[#3d3d3d] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
             >
               Previous
             </Link>
           )}
-          <span className='text-[var(--text-subtle)] text-sm'>
+          <span className='text-[var(--landing-text-muted)] text-sm'>
             Page {pageNum} of {totalPages}
           </span>
           {pageNum < totalPages && (
             <Link
               href={`/blog?page=${pageNum + 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
-              className='rounded-[5px] border border-[var(--border-1)] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--surface-4)]'
+              className='rounded-[5px] border border-[#3d3d3d] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
             >
               Next
             </Link>

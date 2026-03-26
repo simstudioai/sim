@@ -107,21 +107,21 @@ function PricingCard({ tier }: PricingCardProps) {
 
   return (
     <article className='flex flex-1 flex-col' aria-labelledby={`${tier.id}-heading`}>
-      <div className='flex flex-1 flex-col gap-6 rounded-t-lg border border-[var(--surface-6)] border-b-0 bg-white p-5'>
+      <div className='flex flex-1 flex-col gap-6 rounded-t-lg border border-[#E5E5E5] border-b-0 bg-white p-5'>
         <div className='flex flex-col'>
           <h3
             id={`${tier.id}-heading`}
-            className='font-[430] font-season text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
+            className='font-[430] font-season text-[24px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em]'
           >
             {tier.name}
           </h3>
           <p className='mt-2 min-h-[44px] font-[430] font-season text-[#5c5c5c] text-sm leading-[125%] tracking-[0.02em]'>
             {tier.description}
           </p>
-          <p className='mt-4 flex items-center gap-1.5 font-[430] font-season text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'>
+          <p className='mt-4 flex items-center gap-1.5 font-[430] font-season text-[20px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em]'>
             {tier.price}
             {tier.billingPeriod && (
-              <span className='text-[var(--text-muted)] text-md'>{tier.billingPeriod}</span>
+              <span className='text-[#737373] text-md'>{tier.billingPeriod}</span>
             )}
           </p>
           <div className='mt-4'>
@@ -205,7 +205,7 @@ export default function Pricing() {
 
           <h2
             id='pricing-heading'
-            className='font-[430] font-season text-[32px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
+            className='font-[430] font-season text-[32px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
           >
             Pricing
           </h2>

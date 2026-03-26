@@ -149,11 +149,11 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
         animate={{ opacity: 1 }}
         transition={{ duration: 0.45, delay, ease: EASE_OUT }}
       >
-        <div className='w-[280px] select-none rounded-lg border border-[var(--border-1)] bg-[var(--surface-2)]'>
-          <div className='border-[var(--border-1)] border-b p-2'>
-            <span className='font-medium text-[var(--text-primary)] text-md'>Note</span>
+        <div className='w-[280px] select-none rounded-[8px] border border-[#3d3d3d] bg-[#232323]'>
+          <div className='border-[#3d3d3d] border-b p-[8px]'>
+            <span className='font-medium text-[#e6e6e6] text-[16px]'>Note</span>
           </div>
-          <div className='p-2.5'>
+          <div className='p-[10px]'>
             <NoteMarkdown content={markdown} />
           </div>
         </div>
@@ -170,7 +170,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
       animate={{ opacity: 1 }}
       transition={{ duration: 0.45, delay, ease: EASE_OUT }}
     >
-      <div className='relative z-[20] w-[250px] select-none rounded-lg border border-[var(--border-1)] bg-[var(--surface-2)]'>
+      <div className='relative z-[20] w-[250px] select-none rounded-[8px] border border-[#3d3d3d] bg-[#232323]'>
         {/* Target handle (left side) */}
         {!hideTargetHandle && (
           <Handle
@@ -186,35 +186,35 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
 
         {/* Header */}
         <div
-          className={`flex items-center justify-between p-2 ${hasContent ? 'border-[var(--border-1)] border-b' : ''}`}
+          className={`flex items-center justify-between p-[8px] ${hasContent ? 'border-[#3d3d3d] border-b' : ''}`}
         >
-          <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
+          <div className='relative z-10 flex min-w-0 flex-1 items-center gap-[10px]'>
             <div
-              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-md'
+              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
               style={{ background: bgColor }}
             >
               {Icon && <Icon className='h-[16px] w-[16px] text-white' />}
             </div>
-            <span className='truncate font-medium text-[var(--text-primary)] text-md'>{name}</span>
+            <span className='truncate font-medium text-[#e6e6e6] text-[16px]'>{name}</span>
           </div>
         </div>
 
         {/* Sub-block rows + tools */}
         {hasContent && (
-          <div className='flex flex-col gap-2 p-2'>
+          <div className='flex flex-col gap-[8px] p-[8px]'>
             {rows.map((row) => {
               const modelEntry = row.title === 'Model' ? getModelIconEntry(row.value) : null
               const ModelIcon = modelEntry?.icon
               return (
-                <div key={row.title} className='flex items-center gap-2'>
-                  <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-sm capitalize'>
+                <div key={row.title} className='flex items-center gap-[8px]'>
+                  <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-[14px] capitalize'>
                     {row.title}
                   </span>
                   {row.value && (
-                    <span className='flex min-w-0 flex-1 items-center justify-end gap-[5px] font-normal text-[var(--text-primary)] text-sm'>
+                    <span className='flex min-w-0 flex-1 items-center justify-end gap-[5px] font-normal text-[#e6e6e6] text-[14px]'>
                       {ModelIcon && (
                         <ModelIcon
-                          className={`inline-block flex-shrink-0 text-[var(--text-primary)] ${modelEntry.size ?? 'h-[14px] w-[14px]'}`}
+                          className={`inline-block flex-shrink-0 text-[#e6e6e6] ${modelEntry.size ?? 'h-[14px] w-[14px]'}`}
                         />
                       )}
                       <span className='truncate'>{row.value}</span>
@@ -226,25 +226,23 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
 
             {/* Tool chips — inline with label */}
             {tools && tools.length > 0 && (
-              <div className='flex items-center gap-2'>
-                <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-sm'>Tools</span>
+              <div className='flex items-center gap-[8px]'>
+                <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-[14px]'>Tools</span>
                 <div className='flex flex-1 flex-wrap items-center justify-end gap-[5px]'>
                   {tools.map((tool) => {
                     const ToolIcon = BLOCK_ICONS[tool.type]
                     return (
                       <div
                         key={tool.type}
-                        className='flex items-center gap-[5px] rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-4)] px-1.5 py-[3px]'
+                        className='flex items-center gap-[5px] rounded-[5px] border border-[#3d3d3d] bg-[#2a2a2a] px-[6px] py-[3px]'
                       >
                         <div
-                          className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+                          className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
                           style={{ background: tool.bgColor }}
                         >
                           {ToolIcon && <ToolIcon className='h-[10px] w-[10px] text-white' />}
                         </div>
-                        <span className='font-normal text-[var(--text-primary)] text-caption'>
-                          {tool.name}
-                        </span>
+                        <span className='font-normal text-[#e6e6e6] text-[12px]'>{tool.name}</span>
                       </div>
                     )
                   })}
@@ -279,18 +277,18 @@ function NoteMarkdown({ content }: { content: string }) {
   const lines = content.split('\n')
 
   return (
-    <div className='flex flex-col gap-1'>
+    <div className='flex flex-col gap-[4px]'>
       {lines.map((line, i) => {
         const trimmed = line.trim()
         if (!trimmed) return <div key={i} className='h-[4px]' />
 
         if (trimmed === '---') {
-          return <hr key={i} className='my-1 border-[var(--border-1)] border-t' />
+          return <hr key={i} className='my-[4px] border-[#3d3d3d] border-t' />
         }
 
         if (trimmed.startsWith('### ')) {
           return (
-            <p key={i} className='font-semibold text-[var(--text-primary)] text-md leading-[1.3]'>
+            <p key={i} className='font-semibold text-[#e6e6e6] text-[16px] leading-[1.3]'>
               {trimmed.slice(4)}
             </p>
           )
@@ -299,7 +297,7 @@ function NoteMarkdown({ content }: { content: string }) {
         return (
           <p
             key={i}
-            className='font-medium text-[var(--text-primary)] text-small leading-[1.5]'
+            className='font-medium text-[#e6e6e6] text-[13px] leading-[1.5]'
             dangerouslySetInnerHTML={{
               __html: trimmed
                 .replace(/\*\*_(.+?)_\*\*/g, '<strong><em>$1</em></strong>')

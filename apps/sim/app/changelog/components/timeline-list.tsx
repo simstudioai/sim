@@ -113,7 +113,7 @@ export default function ChangelogList({ initialEntries }: Props) {
                       title={`@${contributor}`}
                       className='block'
                     >
-                      <Avatar className='size-6 ring-2 ring-[var(--text-primary)]'>
+                      <Avatar className='size-6 ring-2 ring-[var(--landing-bg)]'>
                         <AvatarImage
                           src={`https://avatars.githubusercontent.com/${contributor}`}
                           alt={`@${contributor}`}
@@ -124,14 +124,14 @@ export default function ChangelogList({ initialEntries }: Props) {
                     </a>
                   ))}
                   {entry.contributors.length > 5 && (
-                    <div className='relative flex size-6 items-center justify-center rounded-full bg-[var(--surface-4)] text-[var(--landing-text)] text-micro ring-2 ring-[var(--text-primary)] hover:z-10'>
+                    <div className='relative flex size-6 items-center justify-center rounded-full bg-[var(--landing-bg-elevated)] text-[var(--landing-text)] text-micro ring-2 ring-[var(--landing-bg)] hover:z-10'>
                       +{entry.contributors.length - 5}
                     </div>
                   )}
                 </div>
               )}
             </div>
-            <div className='text-[var(--text-subtle)] text-xs'>
+            <div className='text-[var(--landing-text-muted)] text-xs'>
               {new Date(entry.date).toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: 'short',
@@ -170,7 +170,10 @@ export default function ChangelogList({ initialEntries }: Props) {
                   const text = String(children)
                   if (/^\s*contributors\s*:?\s*$/i.test(text)) return null
                   return (
-                    <li className='text-[var(--text-subtle)] text-small leading-relaxed' {...props}>
+                    <li
+                      className='text-[var(--landing-text-muted)] text-small leading-relaxed'
+                      {...props}
+                    >
                       {children}
                     </li>
                   )
@@ -178,7 +181,7 @@ export default function ChangelogList({ initialEntries }: Props) {
                 p: ({ children, ...props }) =>
                   /^\s*contributors\s*:?\s*$/i.test(String(children)) ? null : (
                     <p
-                      className='mb-3 text-[var(--text-subtle)] text-small leading-relaxed'
+                      className='mb-3 text-[var(--landing-text-muted)] text-small leading-relaxed'
                       {...props}
                     >
                       {children}
@@ -191,7 +194,7 @@ export default function ChangelogList({ initialEntries }: Props) {
                 ),
                 code: ({ children, ...props }) => (
                   <code
-                    className='rounded bg-[var(--surface-4)] px-1 py-0.5 font-mono text-[var(--landing-text)] text-xs'
+                    className='rounded bg-[var(--landing-bg-elevated)] px-1 py-0.5 font-mono text-[var(--landing-text)] text-xs'
                     {...props}
                   >
                     {children}
@@ -220,7 +223,7 @@ export default function ChangelogList({ initialEntries }: Props) {
             type='button'
             onClick={loadMore}
             disabled={loading}
-            className='rounded-[5px] border border-[var(--border-1)] px-3 py-1.5 text-[var(--landing-text)] text-small transition-colors hover:bg-[var(--surface-4)] disabled:opacity-60'
+            className='rounded-[5px] border border-[#3d3d3d] px-3 py-1.5 text-[var(--landing-text)] text-small transition-colors hover:bg-[var(--landing-bg-elevated)] disabled:opacity-60'
           >
             {loading ? 'Loading…' : 'Show more'}
           </button>

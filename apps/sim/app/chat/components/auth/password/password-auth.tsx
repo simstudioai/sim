@@ -81,7 +81,7 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
   return (
     <AuthBackground className='dark font-[430] font-season'>
       <main className='relative flex min-h-screen flex-col text-[var(--landing-text)]'>
-        <header className='shrink-0 bg-[var(--text-primary)]'>
+        <header className='shrink-0 bg-[var(--landing-bg)]'>
           <Navbar logoOnly />
         </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>

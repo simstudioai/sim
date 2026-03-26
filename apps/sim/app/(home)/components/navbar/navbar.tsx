@@ -96,7 +96,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
   return (
     <nav
       aria-label='Primary navigation'
-      className='relative flex h-[52px] border-[var(--surface-4)] border-b-[1px] bg-[var(--landing-bg)] font-[430] font-season text-[var(--landing-text)] text-sm'
+      className='relative flex h-[52px] border-[var(--landing-bg-elevated)] border-b-[1px] bg-[var(--landing-bg)] font-[430] font-season text-[var(--landing-text)] text-sm'
       itemScope
       itemType='https://schema.org/SiteNavigationElement'
     >
@@ -248,7 +248,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
           <div className='flex flex-1 items-center justify-end pr-5 lg:hidden'>
             <button
               type='button'
-              className='flex h-[32px] w-[32px] items-center justify-center rounded-[5px] transition-colors hover:bg-[var(--surface-4)]'
+              className='flex h-[32px] w-[32px] items-center justify-center rounded-[5px] transition-colors hover:bg-[var(--landing-bg-elevated)]'
               onClick={() => setMobileMenuOpen((prev) => !prev)}
               aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={mobileMenuOpen}
@@ -297,7 +297,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                   href='https://github.com/simstudioai/sim'
                   target='_blank'
                   rel='noopener noreferrer'
-                  className='flex items-center gap-2 px-5 py-3.5 text-[var(--landing-text)] transition-colors active:bg-[var(--surface-4)]'
+                  className='flex items-center gap-2 px-5 py-3.5 text-[var(--landing-text)] transition-colors active:bg-[var(--landing-bg-elevated)]'
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <GithubOutlineIcon className='h-[14px] w-[14px]' />
@@ -425,7 +425,7 @@ function ExternalArrowIcon() {
       height='12'
       viewBox='0 0 12 12'
       fill='none'
-      className='text-[var(--text-secondary)]'
+      className='text-[var(--landing-text-secondary)]'
     >
       <path
         d='M3.5 2.5H9.5V8.5M9 3L3 9'

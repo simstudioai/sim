@@ -12,7 +12,7 @@ export default async function LegalLayout({ title, children }: LegalLayoutProps)
   const blogPosts = await getNavBlogPosts()
 
   return (
-    <main className='min-h-screen bg-[var(--text-primary)] font-[430] font-season text-[var(--landing-text)]'>
+    <main className='min-h-screen bg-[var(--landing-bg)] font-[430] font-season text-[var(--landing-text)]'>
       <header>
         <Navbar blogPosts={blogPosts} />
       </header>
@@ -21,7 +21,7 @@ export default async function LegalLayout({ title, children }: LegalLayoutProps)
         <h1 className='mb-12 text-center font-[500] text-4xl text-[var(--landing-text)] md:text-5xl'>
           {title}
         </h1>
-        <div className='space-y-8 text-[var(--text-subtle)] text-base leading-[1.7] [&_h2]:mt-12 [&_h2]:mb-6 [&_h2]:text-[var(--landing-text)] [&_h3]:mt-8 [&_h3]:mb-4 [&_h3]:text-[var(--landing-text)] [&_li]:text-[var(--text-subtle)] [&_strong]:text-[var(--landing-text)]'>
+        <div className='space-y-8 text-[var(--landing-text-muted)] text-base leading-[1.7] [&_h2]:mt-12 [&_h2]:mb-6 [&_h2]:text-[var(--landing-text)] [&_h3]:mt-8 [&_h3]:mb-4 [&_h3]:text-[var(--landing-text)] [&_li]:text-[var(--landing-text-muted)] [&_strong]:text-[var(--landing-text)]'>
           {children}
         </div>
       </div>

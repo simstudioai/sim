@@ -42,13 +42,13 @@ export function FooterCTA() {
 
   return (
     <div className='flex flex-col items-center px-4 pt-[120px] pb-[100px] sm:px-8 md:px-[80px]'>
-      <h2 className='text-center font-[430] font-season text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] sm:text-[32px] md:text-[36px]'>
+      <h2 className='text-center font-[430] font-season text-[28px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em] sm:text-[32px] md:text-[36px]'>
         What should we get done?
       </h2>
 
       <div className='mt-8 w-full max-w-[42rem]'>
         <div
-          className='cursor-text rounded-[20px] border border-[var(--surface-6)] bg-white px-2.5 py-2 shadow-sm'
+          className='cursor-text rounded-[20px] border border-[var(--landing-bg-skeleton)] bg-white px-2.5 py-2 shadow-sm'
           onClick={() => textareaRef.current?.focus()}
         >
           <textarea
@@ -59,7 +59,7 @@ export function FooterCTA() {
             onInput={handleInput}
             placeholder={animatedPlaceholder}
             rows={2}
-            className='m-0 box-border min-h-[48px] w-full resize-none border-0 bg-transparent px-1 py-1 font-body text-[var(--text-primary)] text-base leading-[24px] tracking-[-0.015em] outline-none placeholder:font-[380] placeholder:text-[var(--text-subtle)] focus-visible:ring-0'
+            className='m-0 box-border min-h-[48px] w-full resize-none border-0 bg-transparent px-1 py-1 font-body text-[var(--landing-text-dark)] text-base leading-[24px] tracking-[-0.015em] outline-none placeholder:font-[380] placeholder:text-[var(--landing-text-muted)] focus-visible:ring-0'
             style={{ caretColor: '#1C1C1C', maxHeight: `${MAX_HEIGHT}px` }}
           />
           <div className='flex items-center justify-end'>
@@ -84,13 +84,13 @@ export function FooterCTA() {
           href='https://docs.sim.ai'
           target='_blank'
           rel='noopener noreferrer'
-          className={`${CTA_BUTTON} border-[var(--surface-7)] text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-6)]`}
+          className={`${CTA_BUTTON} border-[#D4D4D4] text-[var(--landing-text-dark)] transition-colors hover:bg-[var(--landing-bg-skeleton)]`}
         >
           Docs
         </a>
         <Link
           href='/signup'
-          className={`${CTA_BUTTON} gap-2 border-[var(--text-primary)] bg-[var(--landing-bg)] text-white transition-colors hover:border-[var(--border)] hover:bg-[var(--border)]`}
+          className={`${CTA_BUTTON} gap-2 border-[var(--landing-bg)] bg-[var(--landing-bg)] text-white transition-colors hover:border-[var(--landing-bg-elevated)] hover:bg-[var(--landing-bg-elevated)]`}
         >
           Get started
         </Link>

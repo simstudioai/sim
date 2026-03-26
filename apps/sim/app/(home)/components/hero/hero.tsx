@@ -20,7 +20,7 @@ const LandingPreview = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <div className='aspect-[1116/549] w-full rounded bg-[var(--bg)]' />,
+    loading: () => <div className='aspect-[1116/549] w-full rounded bg-[#1b1b1b]' />,
   }
 )
 
@@ -82,7 +82,7 @@ export default function Hero() {
           </DemoRequestModal>
           <Link
             href='/signup'
-            className={`${CTA_BASE} gap-2 border-[var(--white)] bg-[var(--white)] text-black transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)]`}
+            className={`${CTA_BASE} gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]`}
             aria-label='Get started with Sim'
           >
             Get started
@@ -119,7 +119,7 @@ export default function Hero() {
           <BlocksRightSideAnimated animState={blockStates.rightSide} />
         </div>
 
-        <div className='relative z-10 overflow-hidden rounded border border-[var(--surface-4)]'>
+        <div className='relative z-10 overflow-hidden rounded border border-[var(--landing-bg-elevated)]'>
           <LandingPreview />
         </div>
       </div>

@@ -84,7 +84,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                       href={a?.url || '#'}
                       target='_blank'
                       rel='noopener noreferrer author'
-                      className='text-[var(--text-subtle)] text-sm leading-[1.5] hover:text-[var(--landing-text)] sm:text-md'
+                      className='text-[var(--landing-text-muted)] text-sm leading-[1.5] hover:text-[var(--landing-text)] sm:text-md'
                       itemProp='author'
                       itemScope
                       itemType='https://schema.org/Person'
@@ -98,11 +98,11 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             </div>
           </div>
         </div>
-        <hr className='mt-8 border-[var(--surface-4)] border-t sm:mt-12' />
+        <hr className='mt-8 border-[var(--landing-bg-elevated)] border-t sm:mt-12' />
         <div className='flex flex-col gap-6 py-8 sm:flex-row sm:items-start sm:justify-between sm:gap-8 sm:py-10'>
           <div className='flex flex-shrink-0 items-center gap-4'>
             <time
-              className='block text-[var(--text-subtle)] text-sm leading-[1.5] sm:text-md'
+              className='block text-[var(--landing-text-muted)] text-sm leading-[1.5] sm:text-md'
               dateTime={post.date}
               itemProp='datePublished'
             >
@@ -115,7 +115,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             <meta itemProp='dateModified' content={post.updated ?? post.date} />
           </div>
           <div className='flex-1'>
-            <p className='m-0 block translate-y-[-4px] font-[400] text-[var(--text-subtle)] text-lg leading-[1.5] sm:text-[20px] md:text-[26px]'>
+            <p className='m-0 block translate-y-[-4px] font-[400] text-[var(--landing-text-muted)] text-lg leading-[1.5] sm:text-[20px] md:text-[26px]'>
               {post.description}
             </p>
           </div>
@@ -123,7 +123,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       </header>
 
       <div className='mx-auto max-w-[900px] px-6 pb-20 sm:px-8 md:px-12' itemProp='articleBody'>
-        <div className='prose prose-lg prose-invert max-w-none prose-blockquote:border-[var(--border-1)] prose-hr:border-[var(--surface-4)] prose-a:text-[var(--landing-text)] prose-blockquote:text-[var(--text-subtle)] prose-code:text-[var(--landing-text)] prose-headings:text-[var(--landing-text)] prose-li:text-[var(--text-subtle)] prose-p:text-[var(--text-subtle)] prose-strong:text-[var(--landing-text)]'>
+        <div className='prose prose-lg prose-invert max-w-none prose-blockquote:border-[#3d3d3d] prose-hr:border-[var(--landing-bg-elevated)] prose-a:text-[var(--landing-text)] prose-blockquote:text-[var(--landing-text-muted)] prose-code:text-[var(--landing-text)] prose-headings:text-[var(--landing-text)] prose-li:text-[var(--landing-text-muted)] prose-p:text-[var(--landing-text-muted)] prose-strong:text-[var(--landing-text)]'>
           <Article />
           {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
         </div>
@@ -134,7 +134,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3'>
             {related.map((p) => (
               <Link key={p.slug} href={`/blog/${p.slug}`} className='group'>
-                <div className='overflow-hidden rounded-lg border border-[var(--surface-4)]'>
+                <div className='overflow-hidden rounded-lg border border-[var(--landing-bg-elevated)]'>
                   <Image
                     src={p.ogImage}
                     alt={p.title}
@@ -145,7 +145,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     loading='lazy'
                   />
                   <div className='p-3'>
-                    <div className='mb-1 text-[var(--text-subtle)] text-xs'>
+                    <div className='mb-1 text-[var(--landing-text-muted)] text-xs'>
                       {new Date(p.date).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',

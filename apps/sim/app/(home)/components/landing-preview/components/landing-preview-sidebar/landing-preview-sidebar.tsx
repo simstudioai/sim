@@ -57,9 +57,9 @@ function StaticNavItem({
   label: string
 }) {
   return (
-    <div className='pointer-events-none mx-0.5 flex h-[28px] items-center gap-2 rounded-lg px-2'>
+    <div className='pointer-events-none mx-[2px] flex h-[28px] items-center gap-[8px] rounded-[8px] px-[8px]'>
       <Icon className='h-[14px] w-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
-      <span className='truncate text-small' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
+      <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
         {label}
       </span>
     </div>
@@ -82,16 +82,16 @@ export function LandingPreviewSidebar({
 
   return (
     <div
-      className='flex h-full w-[248px] flex-shrink-0 flex-col pt-3'
+      className='flex h-full w-[248px] flex-shrink-0 flex-col pt-[12px]'
       style={{ backgroundColor: C.SURFACE_1 }}
     >
       {/* Workspace Header */}
-      <div className='flex-shrink-0 px-2.5'>
+      <div className='flex-shrink-0 px-[10px]'>
         <div
-          className='pointer-events-none flex h-[32px] w-full items-center gap-2 rounded-lg border pr-2 pl-[5px]'
+          className='pointer-events-none flex h-[32px] w-full items-center gap-[8px] rounded-[8px] border pr-[8px] pl-[5px]'
           style={{ borderColor: C.BORDER, backgroundColor: C.SURFACE_2 }}
         >
-          <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm bg-white'>
+          <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-white'>
             <svg width='10' height='10' viewBox='0 0 10 10' fill='none'>
               <path
                 d='M1 9C1 4.58 4.58 1 9 1'
@@ -102,7 +102,7 @@ export function LandingPreviewSidebar({
             </svg>
           </div>
           <span
-            className='min-w-0 flex-1 truncate text-left font-medium text-small'
+            className='min-w-0 flex-1 truncate text-left font-medium text-[13px]'
             style={{ color: C.TEXT_PRIMARY }}
           >
             Superark
@@ -112,11 +112,11 @@ export function LandingPreviewSidebar({
       </div>
 
       {/* Top Navigation: Home (interactive), Search (static) */}
-      <div className='mt-2.5 flex flex-shrink-0 flex-col gap-0.5 px-2'>
+      <div className='mt-[10px] flex flex-shrink-0 flex-col gap-[2px] px-[8px]'>
         <button
           type='button'
           onClick={onSelectHome}
-          className='mx-0.5 flex h-[28px] items-center gap-2 rounded-lg px-2 transition-colors'
+          className='mx-[2px] flex h-[28px] items-center gap-[8px] rounded-[8px] px-[8px] transition-colors'
           style={{ backgroundColor: isHomeActive ? C.SURFACE_ACTIVE : 'transparent' }}
           onMouseEnter={(e) => {
             if (!isHomeActive) e.currentTarget.style.backgroundColor = C.SURFACE_ACTIVE
@@ -126,7 +126,7 @@ export function LandingPreviewSidebar({
           }}
         >
           <Home className='h-[14px] w-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
-          <span className='truncate text-small' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
+          <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
             Home
           </span>
         </button>
@@ -134,13 +134,13 @@ export function LandingPreviewSidebar({
       </div>
 
       {/* Workspace */}
-      <div className='mt-3.5 flex flex-shrink-0 flex-col'>
-        <div className='px-4 pb-1.5'>
-          <div className='font-base text-caption' style={{ color: C.TEXT_ICON }}>
+      <div className='mt-[14px] flex flex-shrink-0 flex-col'>
+        <div className='px-[16px] pb-[6px]'>
+          <div className='font-base text-[12px]' style={{ color: C.TEXT_ICON }}>
             Workspace
           </div>
         </div>
-        <div className='flex flex-col gap-0.5 px-2'>
+        <div className='flex flex-col gap-[2px] px-[8px]'>
           {WORKSPACE_NAV.map((item) => (
             <StaticNavItem key={item.id} icon={item.icon} label={item.label} />
           ))}
@@ -148,15 +148,15 @@ export function LandingPreviewSidebar({
       </div>
 
       {/* Scrollable Tasks + Workflows */}
-      <div className='flex flex-1 flex-col overflow-y-auto overflow-x-hidden pt-3.5'>
+      <div className='flex flex-1 flex-col overflow-y-auto overflow-x-hidden pt-[14px]'>
         {/* Workflows */}
         <div className='flex flex-col'>
-          <div className='px-4'>
-            <div className='font-base text-caption' style={{ color: C.TEXT_ICON }}>
+          <div className='px-[16px]'>
+            <div className='font-base text-[12px]' style={{ color: C.TEXT_ICON }}>
               Workflows
             </div>
           </div>
-          <div className='mt-1.5 flex flex-col gap-0.5 px-2'>
+          <div className='mt-[6px] flex flex-col gap-[2px] px-[8px]'>
             {workflows.map((workflow) => {
               const isActive = activeView === 'workflow' && workflow.id === activeWorkflowId
               return (
@@ -164,7 +164,7 @@ export function LandingPreviewSidebar({
                   key={workflow.id}
                   type='button'
                   onClick={() => onSelectWorkflow(workflow.id)}
-                  className='group mx-0.5 flex h-[28px] w-full items-center gap-2 rounded-lg px-2 transition-colors'
+                  className='group mx-[2px] flex h-[28px] w-full items-center gap-[8px] rounded-[8px] px-[8px] transition-colors'
                   style={{ backgroundColor: isActive ? C.SURFACE_ACTIVE : 'transparent' }}
                   onMouseEnter={(e) => {
                     if (!isActive) e.currentTarget.style.backgroundColor = C.SURFACE_ACTIVE
@@ -174,7 +174,7 @@ export function LandingPreviewSidebar({
                   }}
                 >
                   <div
-                    className='h-[14px] w-[14px] flex-shrink-0 rounded-sm border-[2.5px]'
+                    className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px] border-[2.5px]'
                     style={{
                       backgroundColor: workflow.color,
                       borderColor: `${workflow.color}60`,
@@ -182,7 +182,7 @@ export function LandingPreviewSidebar({
                     }}
                   />
                   <div
-                    className='min-w-0 flex-1 truncate text-left text-small'
+                    className='min-w-0 flex-1 truncate text-left text-[13px]'
                     style={{ color: C.TEXT_BODY, fontWeight: 450 }}
                   >
                     {workflow.name}
@@ -195,7 +195,7 @@ export function LandingPreviewSidebar({
       </div>
 
       {/* Footer */}
-      <div className='flex flex-shrink-0 flex-col gap-0.5 px-2 pt-[9px] pb-2'>
+      <div className='flex flex-shrink-0 flex-col gap-[2px] px-[8px] pt-[9px] pb-[8px]'>
         {FOOTER_NAV.map((item) => (
           <StaticNavItem key={item.id} icon={item.icon} label={item.label} />
         ))}

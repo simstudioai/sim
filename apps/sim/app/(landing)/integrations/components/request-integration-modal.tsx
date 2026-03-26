@@ -99,7 +99,7 @@ export function RequestIntegrationModal() {
                     <polyline points='20 6 9 17 4 12' />
                   </svg>
                 </div>
-                <p className='text-[14px] text-[var(--text-primary)]'>
+                <p className='text-[14px] text-[var(--landing-text)]'>
                   Request submitted — we&apos;ll follow up at{' '}
                   <span className='font-medium'>{email}</span>.
                 </p>

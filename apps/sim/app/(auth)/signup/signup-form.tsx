@@ -567,7 +567,7 @@ function SignupFormContent({
       })() && (
         <div className='relative my-6 font-light'>
           <div className='absolute inset-0 flex items-center'>
-            <div className='w-full border-[var(--surface-4)] border-t' />
+            <div className='w-full border-[var(--landing-bg-elevated)] border-t' />
           </div>
           <div className='relative flex justify-center text-sm'>
             <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--text-subtle)]'>

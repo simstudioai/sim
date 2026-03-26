@@ -31,7 +31,7 @@ export function useLandingSubmit() {
  * When submitted, stores the prompt and redirects to /signup (same as landing hero).
  *
  * Structure mirrors the real Panel component:
- *   aside > div.border-l.pt-3.5 > Header(px-8) > Tabs(px-8,pt-14) > Content(pt-12)
+ *   aside > div.border-l.pt-[14px] > Header(px-8) > Tabs(px-8,pt-14) > Content(pt-12)
  *     inside Content > Copilot > header-bar(mx-[-1px]) > UserInput(p-8)
  */
 export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
@@ -58,30 +58,30 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
   )
 
   return (
-    <div className='flex h-full w-[280px] flex-shrink-0 flex-col bg-[var(--surface-1)]'>
-      <div className='flex h-full flex-col border-[var(--surface-active)] border-l pt-3.5'>
+    <div className='flex h-full w-[280px] flex-shrink-0 flex-col bg-[#1e1e1e]'>
+      <div className='flex h-full flex-col border-[#2c2c2c] border-l pt-[14px]'>
         {/* Header — More + Chat | Deploy + Run */}
-        <div className='flex flex-shrink-0 items-center justify-between px-2'>
-          <div className='pointer-events-none flex gap-1.5'>
-            <div className='flex h-[30px] w-[30px] items-center justify-center rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-              <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-primary)]' />
+        <div className='flex flex-shrink-0 items-center justify-between px-[8px]'>
+          <div className='pointer-events-none flex gap-[6px]'>
+            <div className='flex h-[30px] w-[30px] items-center justify-center rounded-[5px] border border-[#3d3d3d] bg-[#363636]'>
+              <MoreHorizontal className='h-[14px] w-[14px] text-[#e6e6e6]' />
             </div>
-            <div className='flex h-[30px] w-[30px] items-center justify-center rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-              <BubbleChatPreview className='h-[14px] w-[14px] text-[var(--text-primary)]' />
+            <div className='flex h-[30px] w-[30px] items-center justify-center rounded-[5px] border border-[#3d3d3d] bg-[#363636]'>
+              <BubbleChatPreview className='h-[14px] w-[14px] text-[#e6e6e6]' />
             </div>
           </div>
           <Link
             href='/signup'
-            className='flex gap-1.5'
+            className='flex gap-[6px]'
             onMouseMove={(e) => setCursorPos({ x: e.clientX, y: e.clientY })}
             onMouseLeave={() => setCursorPos(null)}
           >
-            <div className='flex h-[30px] items-center rounded-[5px] bg-[var(--brand-tertiary-2)] px-2.5 transition-colors hover:bg-[#2DAC72]'>
-              <span className='font-medium text-[var(--bg)] text-caption'>Deploy</span>
+            <div className='flex h-[30px] items-center rounded-[5px] bg-[#33C482] px-[10px] transition-colors hover:bg-[#2DAC72]'>
+              <span className='font-medium text-[#1b1b1b] text-[12px]'>Deploy</span>
             </div>
-            <div className='flex h-[30px] items-center gap-2 rounded-[5px] bg-[var(--brand-tertiary-2)] px-2.5 transition-colors hover:bg-[#2DAC72]'>
-              <Play className='h-[11.5px] w-[11.5px] text-[var(--bg)]' />
-              <span className='font-medium text-[var(--bg)] text-caption'>Run</span>
+            <div className='flex h-[30px] items-center gap-[8px] rounded-[5px] bg-[#33C482] px-[10px] transition-colors hover:bg-[#2DAC72]'>
+              <Play className='h-[11.5px] w-[11.5px] text-[#1b1b1b]' />
+              <span className='font-medium text-[#1b1b1b] text-[12px]'>Run</span>
             </div>
           </Link>
           {cursorPos &&
@@ -101,9 +101,9 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
                   <div className='h-full w-[8px] bg-[#FA4EDF]' />
                   <div className='h-full w-[14px] bg-[#FA4EDF] opacity-60' />
                 </div>
-                <div className='flex items-center gap-[5px] bg-white px-1.5 py-1 font-medium text-[var(--text-primary)] text-xs'>
+                <div className='flex items-center gap-[5px] bg-white px-[6px] py-[4px] font-medium text-[#1C1C1C] text-[11px]'>
                   Get started
-                  <ChevronDown className='-rotate-90 h-[7px] w-[7px] text-[var(--text-primary)]' />
+                  <ChevronDown className='-rotate-90 h-[7px] w-[7px] text-[#1C1C1C]' />
                 </div>
               </div>,
               document.body
@@ -111,33 +111,31 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
         </div>
 
         {/* Tabs */}
-        <div className='flex flex-shrink-0 items-center px-2 pt-3.5'>
-          <div className='pointer-events-none flex gap-1'>
-            <div className='flex h-[28px] items-center rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-[5px]'>
-              <span className='font-medium text-[12.5px] text-[var(--text-primary)]'>Copilot</span>
+        <div className='flex flex-shrink-0 items-center px-[8px] pt-[14px]'>
+          <div className='pointer-events-none flex gap-[4px]'>
+            <div className='flex h-[28px] items-center rounded-[6px] border border-[#3d3d3d] bg-[#363636] px-[8px] py-[5px]'>
+              <span className='font-medium text-[#e6e6e6] text-[12.5px]'>Copilot</span>
             </div>
-            <div className='flex h-[28px] items-center rounded-md border border-transparent px-2 py-[5px]'>
-              <span className='font-medium text-[12.5px] text-[var(--text-muted)]'>Toolbar</span>
+            <div className='flex h-[28px] items-center rounded-[6px] border border-transparent px-[8px] py-[5px]'>
+              <span className='font-medium text-[#787878] text-[12.5px]'>Toolbar</span>
             </div>
-            <div className='flex h-[28px] items-center rounded-md border border-transparent px-2 py-[5px]'>
-              <span className='font-medium text-[12.5px] text-[var(--text-muted)]'>Editor</span>
+            <div className='flex h-[28px] items-center rounded-[6px] border border-transparent px-[8px] py-[5px]'>
+              <span className='font-medium text-[#787878] text-[12.5px]'>Editor</span>
             </div>
           </div>
         </div>
 
         {/* Tab content — copilot */}
-        <div className='flex flex-1 flex-col overflow-hidden pt-3'>
+        <div className='flex flex-1 flex-col overflow-hidden pt-[12px]'>
           <div className='flex h-full flex-col'>
             {/* Copilot header bar — matches mx-[-1px] in real copilot */}
-            <div className='pointer-events-none mx-[-1px] flex flex-shrink-0 items-center rounded-sm border border-[var(--surface-active)] bg-[#292929] px-3 py-1.5'>
-              <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
-                New Chat
-              </span>
+            <div className='pointer-events-none mx-[-1px] flex flex-shrink-0 items-center rounded-[4px] border border-[#2c2c2c] bg-[#292929] px-[12px] py-[6px]'>
+              <span className='truncate font-medium text-[#e6e6e6] text-[14px]'>New Chat</span>
             </div>
 
-            {/* User input — matches real UserInput at p-2 inside copilot welcome state */}
-            <div className='px-2 pt-3 pb-2'>
-              <div className='rounded-sm border border-[var(--border-1)] bg-[#292929] px-1.5 py-1.5'>
+            {/* User input — matches real UserInput at p-[8px] inside copilot welcome state */}
+            <div className='px-[8px] pt-[12px] pb-[8px]'>
+              <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-[6px] py-[6px]'>
                 <textarea
                   ref={textareaRef}
                   value={inputValue}
@@ -145,7 +143,7 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
                   onKeyDown={handleKeyDown}
                   placeholder='Build an AI agent...'
                   rows={2}
-                  className='mb-1.5 min-h-[48px] w-full cursor-text resize-none border-0 bg-transparent px-0.5 py-1 font-base text-[var(--text-primary)] text-sm leading-[1.25rem] placeholder-[#787878] caret-[#e6e6e6] outline-none'
+                  className='mb-[6px] min-h-[48px] w-full cursor-text resize-none border-0 bg-transparent px-[2px] py-1 font-base text-[#e6e6e6] text-sm leading-[1.25rem] placeholder-[#787878] caret-[#e6e6e6] outline-none'
                 />
                 <div className='flex items-center justify-end'>
                   <button

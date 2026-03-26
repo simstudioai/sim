@@ -19,7 +19,7 @@ const LandingPreviewWorkflow = dynamic(
     ).then((mod) => mod.LandingPreviewWorkflow),
   {
     ssr: false,
-    loading: () => <div className='h-full w-full bg-[var(--bg)]' />,
+    loading: () => <div className='h-full w-full bg-[#1b1b1b]' />,
   }
 )
 
@@ -337,7 +337,7 @@ function DotGrid({ className, cols, rows, gap = 0 }: DotGridProps) {
       }}
     >
       {Array.from({ length: cols * rows }, (_, i) => (
-        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[var(--surface-4)]' />
+        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[var(--landing-bg-elevated)]' />
       ))}
     </div>
   )
@@ -424,7 +424,7 @@ export default function Templates() {
 
       <div className='bg-[var(--landing-bg)]'>
         <DotGrid
-          className='overflow-hidden border-[var(--surface-4)] border-y bg-[var(--landing-bg)] p-1.5'
+          className='overflow-hidden border-[var(--landing-bg-elevated)] border-y bg-[var(--landing-bg)] p-1.5'
           cols={160}
           rows={1}
           gap={6}
@@ -479,11 +479,11 @@ export default function Templates() {
             </div>
           </div>
 
-          <div className='mt-10 flex border-[var(--surface-4)] border-y lg:mt-[73px]'>
+          <div className='mt-10 flex border-[var(--landing-bg-elevated)] border-y lg:mt-[73px]'>
             <div className='shrink-0'>
               <div className='h-full lg:hidden'>
                 <DotGrid
-                  className='h-full w-[24px] overflow-hidden border-[var(--surface-4)] border-r p-1'
+                  className='h-full w-[24px] overflow-hidden border-[var(--landing-bg-elevated)] border-r p-1'
                   cols={2}
                   rows={55}
                   gap={4}
@@ -491,7 +491,7 @@ export default function Templates() {
               </div>
               <div className='hidden h-full lg:block'>
                 <DotGrid
-                  className='h-full w-[80px] overflow-hidden border-[var(--surface-4)] border-r p-1.5'
+                  className='h-full w-[80px] overflow-hidden border-[var(--landing-bg-elevated)] border-r p-1.5'
                   cols={8}
                   rows={55}
                   gap={6}
@@ -503,7 +503,7 @@ export default function Templates() {
               <div
                 role='tablist'
                 aria-label='Workflow templates'
-                className='flex w-full shrink-0 flex-col border-[var(--surface-4)] lg:w-[300px] lg:border-r'
+                className='flex w-full shrink-0 flex-col border-[var(--landing-bg-elevated)] lg:w-[300px] lg:border-r'
               >
                 {TEMPLATE_WORKFLOWS.map((workflow, index) => {
                   const isActive = index === activeIndex
@@ -521,7 +521,7 @@ export default function Templates() {
                           isActive
                             ? 'z-10'
                             : cn(
-                                'flex items-center px-3 py-2.5 hover:bg-[var(--surface-2)]/50',
+                                'flex items-center px-3 py-2.5 hover:bg-[var(--landing-bg-card)]/50',
                                 index < TEMPLATE_WORKFLOWS.length - 1 &&
                                   'shadow-[inset_0_-1px_0_0_#2A2A2A]'
                               )
@@ -571,7 +571,7 @@ export default function Templates() {
                             transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
                             className='overflow-hidden'
                           >
-                            <div className='aspect-[16/10] w-full border-[var(--surface-4)] border-y bg-[var(--bg)]'>
+                            <div className='aspect-[16/10] w-full border-[var(--landing-bg-elevated)] border-y bg-[#1b1b1b]'>
                               <LandingPreviewWorkflow
                                 workflow={workflow}
                                 animate
@@ -583,7 +583,7 @@ export default function Templates() {
                                 type='button'
                                 onClick={handleUseTemplate}
                                 disabled={isPreparingTemplate}
-                                className='inline-flex h-[32px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-[5px] border border-[var(--white)] bg-[var(--white)] font-[430] font-season text-black text-sm transition-colors active:bg-[var(--border-1)]'
+                                className='inline-flex h-[32px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-[5px] border border-white bg-white font-[430] font-season text-black text-sm transition-colors active:bg-[#E0E0E0]'
                               >
                                 {isPreparingTemplate ? 'Preparing...' : 'Use template'}
                               </button>
@@ -614,7 +614,7 @@ export default function Templates() {
                   type='button'
                   onClick={handleUseTemplate}
                   disabled={isPreparingTemplate}
-                  className='group/cta absolute top-4 right-[16px] z-10 inline-flex h-[32px] cursor-pointer items-center gap-1.5 rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)]'
+                  className='group/cta absolute top-4 right-[16px] z-10 inline-flex h-[32px] cursor-pointer items-center gap-1.5 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                 >
                   {isPreparingTemplate ? 'Preparing...' : 'Use template'}
                   <span className='relative h-[10px] w-[10px] shrink-0'>
@@ -642,7 +642,7 @@ export default function Templates() {
             <div className='shrink-0'>
               <div className='h-full lg:hidden'>
                 <DotGrid
-                  className='h-full w-[24px] overflow-hidden border-[var(--surface-4)] border-l p-1'
+                  className='h-full w-[24px] overflow-hidden border-[var(--landing-bg-elevated)] border-l p-1'
                   cols={2}
                   rows={55}
                   gap={4}
@@ -650,7 +650,7 @@ export default function Templates() {
               </div>
               <div className='hidden h-full lg:block'>
                 <DotGrid
-                  className='h-full w-[80px] overflow-hidden border-[var(--surface-4)] border-l p-1.5'
+                  className='h-full w-[80px] overflow-hidden border-[var(--landing-bg-elevated)] border-l p-1.5'
                   cols={8}
                   rows={55}
                   gap={6}

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { FooterCTA } from '@/app/(home)/components/footer/footer-cta'
 
 const LINK_CLASS =
-  'text-sm text-[var(--text-subtle)] transition-colors hover:text-[var(--landing-text)]'
+  'text-sm text-[var(--landing-text-muted)] transition-colors hover:text-[var(--landing-text)]'
 
 interface FooterItem {
   label: string

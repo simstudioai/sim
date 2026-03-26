@@ -98,7 +98,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
   hr: (props: any) => (
     <hr
       {...props}
-      className={clsx('my-8 border-[var(--surface-4)]', props.className)}
+      className={clsx('my-8 border-[var(--landing-bg-elevated)]', props.className)}
       style={{ marginBottom: '1.5rem' }}
     />
   ),

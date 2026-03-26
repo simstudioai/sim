@@ -287,7 +287,7 @@ export default function Form({ identifier }: { identifier: string }) {
 
             <form onSubmit={handleSubmit} className='space-y-6'>
               {fields.length === 0 ? (
-                <div className='rounded-[10px] border border-[var(--surface-4)] bg-[var(--surface-4)] p-6 text-center text-[var(--text-subtle)]'>
+                <div className='rounded-[10px] border border-[var(--landing-bg-elevated)] bg-[var(--surface-4)] p-6 text-center text-[var(--text-subtle)]'>
                   This form has no fields configured.
                 </div>
               ) : (

@@ -11,7 +11,7 @@ export default async function NotFound() {
   return (
     <AuthBackground className='dark font-[430] font-season'>
       <main className='relative flex min-h-full flex-col text-[var(--landing-text)]'>
-        <header className='shrink-0 bg-[var(--text-primary)]'>
+        <header className='shrink-0 bg-[var(--landing-bg)]'>
           <Navbar blogPosts={blogPosts} />
         </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
@@ -19,13 +19,13 @@ export default async function NotFound() {
             <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
               Page not found
             </h1>
-            <p className='font-[430] font-season text-[color-mix(in_srgb,var(--text-primary)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
+            <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
               The page you&apos;re looking for doesn&apos;t exist or has been moved.
             </p>
             <div className='mt-3 flex items-center gap-2'>
               <Link
                 href='/'
-                className={`${CTA_BASE} gap-2 border-[var(--white)] bg-[var(--white)] text-black transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)]`}
+                className={`${CTA_BASE} gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]`}
               >
                 Return to Home
               </Link>
