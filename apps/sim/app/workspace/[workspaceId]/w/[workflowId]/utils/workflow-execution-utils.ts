@@ -118,7 +118,7 @@ export interface BlockEventHandlerConfig {
 }
 
 export interface BlockEventHandlerDeps {
-  addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry
+  addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry | undefined
   updateConsole: (blockId: string, update: string | ConsoleUpdate, executionId?: string) => void
   setActiveBlocks: (workflowId: string, blocks: Set<string>) => void
   setBlockRunStatus: (workflowId: string, blockId: string, status: 'success' | 'error') => void
@@ -407,7 +407,7 @@ export function createBlockEventHandlers(
   return { onBlockStarted, onBlockCompleted, onBlockError, onBlockChildWorkflowStarted }
 }
 
-type AddConsoleFn = (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry
+type AddConsoleFn = (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry | undefined
 type CancelRunningEntriesFn = (workflowId: string) => void
 
 export interface ExecutionTimingFields {

@@ -265,7 +265,9 @@ export function Chat() {
   )
 
   const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
-  const entries = useWorkflowConsoleEntries(hasConsoleHydrated ? activeWorkflowId : undefined)
+  const entries = useWorkflowConsoleEntries(
+    hasConsoleHydrated && typeof activeWorkflowId === 'string' ? activeWorkflowId : undefined
+  )
   const { isExecuting } = useCurrentWorkflowExecution()
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const { data: session } = useSession()

@@ -535,46 +535,6 @@ const EntryNodeRow = memo(function EntryNodeRow({
   )
 })
 
-/**
- * Execution group row component with dashed separator
- */
-const ExecutionGroupRow = memo(function ExecutionGroupRow({
-  group,
-  showSeparator,
-  selectedEntryId,
-  onSelectEntry,
-  expandedNodes,
-  onToggleNode,
-}: {
-  group: ExecutionGroup
-  showSeparator: boolean
-  selectedEntryId: string | null
-  onSelectEntry: (entry: ConsoleEntry) => void
-  expandedNodes: Set<string>
-  onToggleNode: (nodeId: string) => void
-}) {
-  return (
-    <div className='flex flex-col px-[6px]'>
-      {/* Separator between executions */}
-      {showSeparator && <div className='mx-[4px] mb-[6px] border-[var(--border)] border-t' />}
-
-      {/* Entry tree */}
-      <div className='ml-[4px] flex flex-col gap-[2px] pb-[6px]'>
-        {group.entryTree.map((node) => (
-          <EntryNodeRow
-            key={node.entry.id}
-            node={node}
-            selectedEntryId={selectedEntryId}
-            onSelectEntry={onSelectEntry}
-            expandedNodes={expandedNodes}
-            onToggleNode={onToggleNode}
-          />
-        ))}
-      </div>
-    </div>
-  )
-})
-
 interface TerminalLogListRowProps {
   rows: VisibleTerminalRow[]
   selectedEntryId: string | null
