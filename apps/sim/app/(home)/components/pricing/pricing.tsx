@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Badge } from '@/components/emcn'
+import { DemoRequestModal } from '@/app/(home)/components/demo-request/demo-request-modal'
 
 interface PricingTier {
   id: string
@@ -9,7 +10,7 @@ interface PricingTier {
   billingPeriod?: string
   color: string
   features: string[]
-  cta: { label: string; href: string }
+  cta: { label: string; href?: string; action?: 'demo-request' }
 }
 
 const PRICING_TIERS: PricingTier[] = [
@@ -78,7 +79,7 @@ const PRICING_TIERS: PricingTier[] = [
       'SSO & SCIM · SOC2 & HIPAA',
       'Self hosting · Dedicated support',
     ],
-    cta: { label: 'Book a demo', href: 'https://form.typeform.com/to/jqCO12pF' },
+    cta: { label: 'Book a demo', action: 'demo-request' },
   },
 ]
 
@@ -101,7 +102,7 @@ interface PricingCardProps {
 }
 
 function PricingCard({ tier }: PricingCardProps) {
-  const isEnterprise = tier.id === 'enterprise'
+  const isDemoRequest = tier.cta.action === 'demo-request'
   const isPro = tier.id === 'pro'
 
   return (
@@ -124,25 +125,25 @@ function PricingCard({ tier }: PricingCardProps) {
             )}
           </p>
           <div className='mt-4'>
-            {isEnterprise ? (
-              <a
-                href={tier.cta.href}
-                target='_blank'
-                rel='noopener noreferrer'
-                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#E5E5E5] px-[10px] font-[430] font-season text-[#1C1C1C] text-[14px] transition-colors hover:bg-[#F0F0F0]'
-              >
-                {tier.cta.label}
-              </a>
+            {isDemoRequest ? (
+              <DemoRequestModal theme='light'>
+                <button
+                  type='button'
+                  className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#E5E5E5] bg-transparent px-[10px] font-[430] font-season text-[#1C1C1C] text-[14px] transition-colors hover:bg-[#F0F0F0]'
+                >
+                  {tier.cta.label}
+                </button>
+              </DemoRequestModal>
             ) : isPro ? (
               <Link
-                href={tier.cta.href}
+                href={tier.cta.href || '/signup'}
                 className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-[10px] font-[430] font-season text-[14px] text-white transition-colors hover:border-[#2A2A2A] hover:bg-[#2A2A2A]'
               >
                 {tier.cta.label}
               </Link>
             ) : (
               <Link
-                href={tier.cta.href}
+                href={tier.cta.href || '/signup'}
                 className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#E5E5E5] px-[10px] font-[430] font-season text-[#1C1C1C] text-[14px] transition-colors hover:bg-[#F0F0F0]'
               >
                 {tier.cta.label}

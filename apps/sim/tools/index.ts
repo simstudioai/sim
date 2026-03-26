@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { generateInternalToken } from '@/lib/auth/internal'
-import { logFixedUsage } from '@/lib/billing/core/usage-log'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
@@ -285,31 +284,10 @@ async function processHostedKeyCost(
 
   if (!userId) return { cost, metadata }
 
-  const skipLog = !!ctx?.skipFixedUsageLog || !!tool.hosting?.skipFixedUsageLog
-  if (!skipLog) {
-    try {
-      await logFixedUsage({
-        userId,
-        source: 'workflow',
-        description: `tool:${tool.id}`,
-        cost,
-        workspaceId: wsId,
-        workflowId: wfId,
-        executionId: executionContext?.executionId,
-        metadata,
-      })
-      logger.debug(
-        `[${requestId}] Logged hosted key cost for ${tool.id}: $${cost}`,
-        metadata ? { metadata } : {}
-      )
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to log hosted key usage for ${tool.id}:`, error)
-    }
-  } else {
-    logger.debug(
-      `[${requestId}] Skipping fixed usage log for ${tool.id} (cost will be tracked via provider tool loop)`
-    )
-  }
+  logger.debug(
+    `[${requestId}] Hosted key cost for ${tool.id}: $${cost}`,
+    metadata ? { metadata } : {}
+  )
 
   return { cost, metadata }
 }
@@ -387,13 +365,6 @@ async function applyHostedKeyCostToResult(
   requestId: string
 ): Promise<void> {
   await reportCustomDimensionUsage(tool, params, finalResult.output, executionContext, requestId)
-
-  if (tool.hosting?.skipFixedUsageLog) {
-    const ctx = params._context as Record<string, unknown> | undefined
-    if (ctx) {
-      ctx.skipFixedUsageLog = true
-    }
-  }
 
   const { cost: hostedKeyCost, metadata } = await processHostedKeyCost(
     tool,

@@ -312,6 +312,4 @@ export interface ToolHostingConfig<P = Record<string, unknown>> {
   pricing: ToolHostingPricing<P>
   /** Hosted key rate limit configuration (required for hosted key distribution) */
   rateLimit: HostedKeyRateLimitConfig
-  /** When true, skip the fixed usage log entry (useful for tools that log custom dimensions instead) */
-  skipFixedUsageLog?: boolean
 }

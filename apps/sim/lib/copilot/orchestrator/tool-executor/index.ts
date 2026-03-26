@@ -3,6 +3,7 @@ import { credential, mcpServers, pendingCredentialDraft, user } from '@sim/db/sc
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, lt } from 'drizzle-orm'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import type {
   ExecutionContext,
   ToolCallResult,
@@ -321,12 +322,17 @@ async function executeManageCustomTool(
       error: `Unsupported operation for manage_custom_tool: ${operation}`,
     }
   } catch (error) {
-    logger.error('manage_custom_tool execution failed', {
-      operation,
-      workspaceId,
-      userId: context.userId,
-      error: error instanceof Error ? error.message : String(error),
-    })
+    logger.error(
+      appendCopilotLogContext('manage_custom_tool execution failed', {
+        messageId: context.messageId,
+      }),
+      {
+        operation,
+        workspaceId,
+        userId: context.userId,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    )
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to manage custom tool',
@@ -553,11 +559,16 @@ async function executeManageMcpTool(
 
     return { success: false, error: `Unsupported operation for manage_mcp_tool: ${operation}` }
   } catch (error) {
-    logger.error('manage_mcp_tool execution failed', {
-      operation,
-      workspaceId,
-      error: error instanceof Error ? error.message : String(error),
-    })
+    logger.error(
+      appendCopilotLogContext('manage_mcp_tool execution failed', {
+        messageId: context.messageId,
+      }),
+      {
+        operation,
+        workspaceId,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    )
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to manage MCP server',
@@ -716,11 +727,16 @@ async function executeManageSkill(
 
     return { success: false, error: `Unsupported operation for manage_skill: ${operation}` }
   } catch (error) {
-    logger.error('manage_skill execution failed', {
-      operation,
-      workspaceId,
-      error: error instanceof Error ? error.message : String(error),
-    })
+    logger.error(
+      appendCopilotLogContext('manage_skill execution failed', {
+        messageId: context.messageId,
+      }),
+      {
+        operation,
+        workspaceId,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    )
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to manage skill',
@@ -848,7 +864,6 @@ async function generateOAuthLink(
       },
     })
 
-  // Use Better Auth's server-side API with the real request headers (session cookie).
   const { auth } = await import('@/lib/auth/auth')
   const { headers: getHeaders } = await import('next/headers')
   const reqHeaders = await getHeaders()
@@ -992,10 +1007,15 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
         },
       }
     } catch (err) {
-      logger.warn('Failed to generate OAuth link, falling back to generic URL', {
-        providerName,
-        error: err instanceof Error ? err.message : String(err),
-      })
+      logger.warn(
+        appendCopilotLogContext('Failed to generate OAuth link, falling back to generic URL', {
+          messageId: c.messageId,
+        }),
+        {
+          providerName,
+          error: err instanceof Error ? err.message : String(err),
+        }
+      )
       const workspaceUrl = c.workspaceId
         ? `${baseUrl}/workspace/${c.workspaceId}`
         : `${baseUrl}/workspace`
@@ -1142,10 +1162,10 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
 /**
  * Check whether a tool can be executed on the Sim (TypeScript) side.
  *
- * Tools that are only available on the Go backend (e.g. search_patterns)
+ * Tools that are only available server-side (e.g. search_patterns)
  * will return false.  The subagent tool_call
  * handler uses this to decide whether to execute a tool locally or let the
- * Go backend's own tool_result SSE event handle it.
+ * server's own tool_result SSE event handle it.
  */
 export function isToolAvailableOnSimSide(toolName: string): boolean {
   if (SERVER_TOOLS.has(toolName)) return true
@@ -1179,7 +1199,12 @@ export async function executeToolServerSide(
 
   const toolConfig = getTool(resolvedToolName)
   if (!toolConfig) {
-    logger.warn('Tool not found in registry', { toolName, resolvedToolName })
+    logger.warn(
+      appendCopilotLogContext('Tool not found in registry', {
+        messageId: context.messageId,
+      }),
+      { toolName, resolvedToolName }
+    )
     return {
       success: false,
       error: `Tool not found: ${toolName}`,
@@ -1241,7 +1266,9 @@ async function executeServerToolDirect(
       workspaceId: context.workspaceId,
       userPermission: context.userPermission,
       chatId: context.chatId,
+      messageId: context.messageId,
       abortSignal: context.abortSignal,
+      userStopSignal: context.userStopSignal,
     })
 
     const resultRecord =
@@ -1266,10 +1293,15 @@ async function executeServerToolDirect(
 
     return { success: true, output: result }
   } catch (error) {
-    logger.error('Server tool execution failed', {
-      toolName,
-      error: error instanceof Error ? error.message : String(error),
-    })
+    logger.error(
+      appendCopilotLogContext('Server tool execution failed', {
+        messageId: context.messageId,
+      }),
+      {
+        toolName,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    )
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Server tool execution failed',
@@ -1320,7 +1352,8 @@ export async function markToolComplete(
   toolName: string,
   status: number,
   message?: unknown,
-  data?: unknown
+  data?: unknown,
+  messageId?: string
 ): Promise<boolean> {
   try {
     const controller = new AbortController()
@@ -1344,7 +1377,11 @@ export async function markToolComplete(
       })
 
       if (!response.ok) {
-        logger.warn('Mark-complete call failed', { toolCallId, toolName, status: response.status })
+        logger.warn(appendCopilotLogContext('Mark-complete call failed', { messageId }), {
+          toolCallId,
+          toolName,
+          status: response.status,
+        })
         return false
       }
 
@@ -1354,7 +1391,7 @@ export async function markToolComplete(
     }
   } catch (error) {
     const isTimeout = error instanceof DOMException && error.name === 'AbortError'
-    logger.error('Mark-complete call failed', {
+    logger.error(appendCopilotLogContext('Mark-complete call failed', { messageId }), {
       toolCallId,
       toolName,
       timedOut: isTimeout,

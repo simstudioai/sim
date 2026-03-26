@@ -64,6 +64,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
                 width={600}
                 height={315}
                 className='h-[160px] w-full object-cover transition-transform group-hover:scale-[1.02]'
+                unoptimized
               />
               <div className='p-3'>
                 <div className='mb-1 text-[#999] text-xs'>

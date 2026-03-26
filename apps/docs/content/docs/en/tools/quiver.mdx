@@ -59,8 +59,9 @@ Generate SVG images from text prompts using QuiverAI
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the SVG generation succeeded |
 | `output` | object | Generated SVG output |
-|   ↳ `file` | file | Generated SVG file |
-|   ↳ `svgContent` | string | Raw SVG markup content |
+|   ↳ `file` | file | First generated SVG file |
+|   ↳ `files` | json | All generated SVG files \(when n &gt; 1\) |
+|   ↳ `svgContent` | string | Raw SVG markup content of the first result |
 |   ↳ `id` | string | Generation request ID |
 |   ↳ `usage` | json | Token usage statistics |
 |     ↳ `totalTokens` | number | Total tokens used |
