@@ -331,7 +331,7 @@ const ModalTabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'px-1 pb-2 font-medium text-small text-[var(--text-secondary)] transition-colors',
+      'px-1 pb-2 font-medium text-[var(--text-secondary)] text-small transition-colors',
       'hover-hover:text-[var(--text-primary)] data-[state=active]:text-[var(--text-primary)]',
       className
     )}
@@ -373,7 +373,7 @@ const ModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
     <div
       ref={ref}
       className={cn(
-        'flex justify-end gap-2 rounded-b-xl border-t border-[var(--border)] bg-[var(--surface-3)]/50 px-4 py-3',
+        'flex justify-end gap-2 rounded-b-xl border-[var(--border)] border-t bg-[var(--surface-3)]/50 px-4 py-3',
         className
       )}
       {...props}

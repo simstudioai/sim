@@ -675,7 +675,7 @@ function LineChartComponent({
                 style={{ left, top }}
               >
                 {currentHoverDate && (
-                  <div className='mb-1 text-micro text-[var(--text-tertiary)]'>
+                  <div className='mb-1 text-[var(--text-tertiary)] text-micro'>
                     {currentHoverDate}
                   </div>
                 )}

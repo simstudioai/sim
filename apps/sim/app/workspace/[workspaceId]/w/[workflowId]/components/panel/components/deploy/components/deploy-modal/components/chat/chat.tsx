@@ -322,7 +322,7 @@ export function ChatDeploy({
         className='-mx-1 space-y-4 overflow-y-auto px-1'
       >
         {errors.general && (
-          <div className='flex items-center gap-2 rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-small text-red-400'>
+          <div className='flex items-center gap-2 rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-red-400 text-small'>
             <AlertTriangle className='h-4 w-4 flex-shrink-0' />
             <span>{errors.general}</span>
           </div>
@@ -341,7 +341,7 @@ export function ChatDeploy({
           <div>
             <Label
               htmlFor='title'
-              className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'
+              className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
             >
               Title
             </Label>
@@ -357,7 +357,7 @@ export function ChatDeploy({
           </div>
 
           <div>
-            <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+            <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               Output
             </Label>
             <OutputSelect
@@ -387,7 +387,7 @@ export function ChatDeploy({
           <div>
             <Label
               htmlFor='welcomeMessage'
-              className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'
+              className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
             >
               Welcome message
             </Label>
@@ -400,7 +400,7 @@ export function ChatDeploy({
               disabled={chatSubmitting}
               className='min-h-[80px] resize-none'
             />
-            <p className='mt-[6.5px] text-xs text-[var(--text-secondary)]'>
+            <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
               This message will be displayed when users first open the chat
             </p>
           </div>
@@ -527,7 +527,7 @@ function IdentifierInput({
     <div>
       <Label
         htmlFor='chat-url'
-        className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'
+        className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
       >
         URL
       </Label>
@@ -575,8 +575,8 @@ function IdentifierInput({
           )}
         </div>
       </div>
-      {error && <p className='mt-[6.5px] text-caption text-[var(--text-error)]'>{error}</p>}
-      <p className='mt-[6.5px] truncate text-xs text-[var(--text-secondary)]'>
+      {error && <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{error}</p>}
+      <p className='mt-[6.5px] truncate text-[var(--text-secondary)] text-xs'>
         {isEditingExisting && value ? (
           <>
             Live at:{' '}
@@ -688,7 +688,7 @@ function AuthSelector({
   return (
     <div className='space-y-4'>
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Access control
         </Label>
         <ButtonGroup
@@ -706,7 +706,7 @@ function AuthSelector({
 
       {authType === 'password' && (
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Password
           </Label>
           <div className='relative'>
@@ -778,7 +778,7 @@ function AuthSelector({
               </Tooltip.Root>
             </div>
           </div>
-          <p className='mt-[6.5px] text-xs text-[var(--text-secondary)]'>
+          <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             {isExistingChat
               ? 'Leave empty to keep the current password'
               : 'This password will be required to access your chat'}
@@ -788,7 +788,7 @@ function AuthSelector({
 
       {(authType === 'email' || authType === 'sso') && (
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             {authType === 'email' ? 'Allowed emails' : 'Allowed SSO emails'}
           </Label>
           <TagInput
@@ -800,9 +800,9 @@ function AuthSelector({
             disabled={disabled}
           />
           {emailError && (
-            <p className='mt-[6.5px] text-caption text-[var(--text-error)]'>{emailError}</p>
+            <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{emailError}</p>
           )}
-          <p className='mt-[6.5px] text-xs text-[var(--text-secondary)]'>
+          <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             {authType === 'email'
               ? 'Add specific emails or entire domains (@example.com)'
               : 'Add emails or domains that can access via SSO'}
@@ -810,7 +810,7 @@ function AuthSelector({
         </div>
       )}
 
-      {error && <p className='mt-[6.5px] text-caption text-[var(--text-error)]'>{error}</p>}
+      {error && <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{error}</p>}
     </div>
   )
 }

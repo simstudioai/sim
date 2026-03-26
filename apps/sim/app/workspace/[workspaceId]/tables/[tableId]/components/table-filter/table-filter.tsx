@@ -82,7 +82,7 @@ export function TableFilter({ columns, onApply }: TableFilterProps) {
           size='sm'
           onClick={handleAdd}
           className={cn(
-            'border border-[var(--border)] border-dashed px-2 py-[3px] text-xs text-[var(--text-secondary)]'
+            'border border-[var(--border)] border-dashed px-2 py-[3px] text-[var(--text-secondary)] text-xs'
           )}
         >
           <Plus className='mr-1 h-[10px] w-[10px]' />
@@ -110,7 +110,7 @@ function FilterRuleRow({ rule, columns, onUpdate, onRemove, onApply }: FilterRul
     <div className='flex items-center gap-1'>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className='flex h-[30px] min-w-[100px] items-center justify-between rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-xs text-[var(--text-secondary)] outline-none hover-hover:border-[var(--border-1)]'>
+          <button className='flex h-[30px] min-w-[100px] items-center justify-between rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none hover-hover:border-[var(--border-1)]'>
             <span className='truncate'>{rule.column || 'Column'}</span>
             <ChevronDown className='ml-1 h-[10px] w-[10px] shrink-0 text-[var(--text-icon)]' />
           </button>
@@ -129,7 +129,7 @@ function FilterRuleRow({ rule, columns, onUpdate, onRemove, onApply }: FilterRul
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className='flex h-[30px] min-w-[50px] items-center justify-between rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-xs text-[var(--text-secondary)] outline-none hover-hover:border-[var(--border-1)]'>
+          <button className='flex h-[30px] min-w-[50px] items-center justify-between rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none hover-hover:border-[var(--border-1)]'>
             <span>{OPERATOR_LABELS[rule.operator] ?? rule.operator}</span>
             <ChevronDown className='ml-1 h-[10px] w-[10px] shrink-0 text-[var(--text-icon)]' />
           </button>
@@ -154,7 +154,7 @@ function FilterRuleRow({ rule, columns, onUpdate, onRemove, onApply }: FilterRul
           if (e.key === 'Enter') handleApply()
         }}
         placeholder='Enter a value'
-        className='h-[30px] min-w-[160px] flex-1 rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-xs text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-subtle)] hover-hover:border-[var(--border-1)] focus:border-[var(--border-1)]'
+        className='h-[30px] min-w-[160px] flex-1 rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none placeholder:text-[var(--text-subtle)] hover-hover:border-[var(--border-1)] focus:border-[var(--border-1)]'
       />
 
       <button

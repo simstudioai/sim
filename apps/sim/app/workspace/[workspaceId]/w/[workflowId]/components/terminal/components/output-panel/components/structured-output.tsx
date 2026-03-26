@@ -66,8 +66,7 @@ const STYLES = {
   keyName: 'font-base text-sm text-[var(--text-primary)]',
   badge: 'rounded-sm px-1 py-[0px] text-xs',
   summary: 'text-sm text-[var(--text-secondary)]',
-  indent:
-    'mt-0.5 ml-[3px] flex min-w-0 flex-col gap-0.5 border-[var(--border)] border-l pl-[9px]',
+  indent: 'mt-0.5 ml-[3px] flex min-w-0 flex-col gap-0.5 border-[var(--border)] border-l pl-[9px]',
   value: 'min-w-0 py-0.5 text-sm text-[var(--text-primary)]',
   emptyValue: 'py-0.5 text-sm text-[var(--text-secondary)]',
   matchHighlight: 'bg-yellow-200/60 dark:bg-yellow-500/40',

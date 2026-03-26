@@ -496,7 +496,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                       <span className='text-[var(--text-primary)]'>
                         {isDragging ? 'Drop images here' : 'Drop images here or click to browse'}
                       </span>
-                      <span className='text-xs text-[var(--text-tertiary)]'>
+                      <span className='text-[var(--text-tertiary)] text-xs'>
                         PNG, JPEG, WebP, GIF (max 20MB each)
                       </span>
                     </div>

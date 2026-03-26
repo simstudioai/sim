@@ -265,7 +265,7 @@ export function Preview({
           </Tooltip.Root>
           {currentWorkflowName && (
             <div className='flex h-[28px] max-w-[200px] items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-sm'>
-              <span className='truncate font-medium text-caption text-[var(--text-secondary)]'>
+              <span className='truncate font-medium text-[var(--text-secondary)] text-caption'>
                 {currentWorkflowName}
               </span>
             </div>

@@ -118,12 +118,12 @@ export function VersionDescriptionModal({
             />
             <div className='flex items-center justify-between'>
               {(updateMutation.error || generateMutation.error) && (
-                <p className='text-caption text-[var(--text-error)]'>
+                <p className='text-[var(--text-error)] text-caption'>
                   {updateMutation.error?.message || generateMutation.error?.message}
                 </p>
               )}
               {!updateMutation.error && !generateMutation.error && <div />}
-              <p className='text-xs text-[var(--text-tertiary)]'>{description.length}/2000</p>
+              <p className='text-[var(--text-tertiary)] text-xs'>{description.length}/2000</p>
             </div>
           </ModalBody>
           <ModalFooter>
@@ -151,7 +151,7 @@ export function VersionDescriptionModal({
             <span>Unsaved Changes</span>
           </ModalHeader>
           <ModalBody>
-            <p className='text-sm text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)] text-sm'>
               You have unsaved changes. Are you sure you want to discard them?
             </p>
           </ModalBody>

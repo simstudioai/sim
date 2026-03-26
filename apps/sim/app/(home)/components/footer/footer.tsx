@@ -2,7 +2,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { FooterCTA } from '@/app/(home)/components/footer/footer-cta'
 
-const LINK_CLASS = 'text-sm text-[var(--text-subtle)] transition-colors hover:text-[var(--landing-text)]'
+const LINK_CLASS =
+  'text-sm text-[var(--text-subtle)] transition-colors hover:text-[var(--landing-text)]'
 
 interface FooterItem {
   label: string

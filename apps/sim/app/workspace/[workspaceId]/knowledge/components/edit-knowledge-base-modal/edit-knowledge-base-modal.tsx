@@ -118,7 +118,7 @@ export function EditKnowledgeBaseModal({
                   data-form-type='other'
                 />
                 {errors.name && (
-                  <p className='text-caption text-[var(--text-error)]'>{errors.name.message}</p>
+                  <p className='text-[var(--text-error)] text-caption'>{errors.name.message}</p>
                 )}
               </div>
 
@@ -132,7 +132,7 @@ export function EditKnowledgeBaseModal({
                   className={cn(errors.description && 'border-[var(--text-error)]')}
                 />
                 {errors.description && (
-                  <p className='text-caption text-[var(--text-error)]'>
+                  <p className='text-[var(--text-error)] text-caption'>
                     {errors.description.message}
                   </p>
                 )}
@@ -143,7 +143,7 @@ export function EditKnowledgeBaseModal({
           <ModalFooter>
             <div className='flex w-full items-center justify-between gap-3'>
               {error ? (
-                <p className='min-w-0 flex-1 truncate text-caption text-[var(--text-error)] leading-tight'>
+                <p className='min-w-0 flex-1 truncate text-[var(--text-error)] text-caption leading-tight'>
                   {error}
                 </p>
               ) : (

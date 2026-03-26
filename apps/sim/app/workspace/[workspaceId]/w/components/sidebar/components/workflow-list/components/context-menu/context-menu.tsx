@@ -205,7 +205,7 @@ function ColorPickerSubmenu({
               onKeyDown={handleHexKeyDown}
               onFocus={handleHexFocus}
               onClick={(e) => e.stopPropagation()}
-              className='h-[20px] min-w-0 flex-1 rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 font-medium text-xs text-[var(--text-primary)] uppercase transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='h-[20px] min-w-0 flex-1 rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 font-medium text-[var(--text-primary)] text-xs uppercase transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
             />
             <Button
               variant='primary'

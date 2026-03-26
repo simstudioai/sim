@@ -229,7 +229,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
             data-node-role={`${data.kind}-start`}
             data-extent='parent'
           >
-            <span className='font-medium text-sm text-[var(--text-primary)]'>Start</span>
+            <span className='font-medium text-[var(--text-primary)] text-sm'>Start</span>
 
             <Handle
               type='source'

@@ -48,10 +48,10 @@ export function NoOrganizationView({
         <div className='flex flex-col gap-5'>
           {/* Header - matching settings page style */}
           <div>
-            <h4 className='font-medium text-base text-[var(--text-primary)]'>
+            <h4 className='font-medium text-[var(--text-primary)] text-base'>
               Create Your Team Workspace
             </h4>
-            <p className='mt-1 text-small text-[var(--text-muted)]'>
+            <p className='mt-1 text-[var(--text-muted)] text-small'>
               You're subscribed to a {hasEnterprisePlan ? 'enterprise' : 'team'} plan. Create your
               workspace to start collaborating with your team.
             </p>
@@ -92,7 +92,7 @@ export function NoOrganizationView({
                 Team URL
               </Label>
               <div className='mt-1 flex items-center'>
-                <div className='rounded-l-[6px] border border-[var(--border-1)] border-r-0 bg-[var(--surface-4)] px-3 py-1.5 text-small text-[var(--text-muted)]'>
+                <div className='rounded-l-[6px] border border-[var(--border-1)] border-r-0 bg-[var(--surface-4)] px-3 py-1.5 text-[var(--text-muted)] text-small'>
                   sim.ai/team/
                 </div>
                 <Input
@@ -107,7 +107,7 @@ export function NoOrganizationView({
 
             <div className='flex flex-col gap-2'>
               {error && (
-                <p className='text-small text-[var(--text-error)] leading-tight'>{error}</p>
+                <p className='text-[var(--text-error)] text-small leading-tight'>{error}</p>
               )}
               <div className='flex justify-end'>
                 <Button
@@ -182,7 +182,7 @@ export function NoOrganizationView({
               </div>
             </div>
 
-            {error && <p className='text-small text-[var(--text-error)] leading-tight'>{error}</p>}
+            {error && <p className='text-[var(--text-error)] text-small leading-tight'>{error}</p>}
 
             <ModalFooter>
               <Button
@@ -209,8 +209,8 @@ export function NoOrganizationView({
   return (
     <div className='flex flex-col gap-5'>
       <div className='flex flex-col gap-2'>
-        <h3 className='font-medium text-base text-[var(--text-primary)]'>No Team Workspace</h3>
-        <p className='text-small text-[var(--text-secondary)]'>
+        <h3 className='font-medium text-[var(--text-primary)] text-base'>No Team Workspace</h3>
+        <p className='text-[var(--text-secondary)] text-small'>
           You don't have a team workspace yet. To collaborate with others, first upgrade to a team
           or enterprise plan.
         </p>

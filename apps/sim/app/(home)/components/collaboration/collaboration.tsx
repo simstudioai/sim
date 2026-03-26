@@ -256,7 +256,7 @@ export default function Collaboration() {
 
             <Link
               href='/signup'
-              className='group/cta mt-3 inline-flex h-[32px] cursor-none items-center gap-1.5 rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 font-[430] font-season text-sm text-black transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)]'
+              className='group/cta mt-3 inline-flex h-[32px] cursor-none items-center gap-1.5 rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)]'
             >
               Build together
               <span className='relative h-[10px] w-[10px] shrink-0'>

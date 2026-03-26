@@ -485,7 +485,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               <div>
                 <Label
                   htmlFor='invite-field'
-                  className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'
+                  className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
                 >
                   Email Addresses
                 </Label>
@@ -535,7 +535,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                 />
               </div>
               {errorMessage && (
-                <p className='mt-1 text-caption text-[var(--text-error)]'>{errorMessage}</p>
+                <p className='mt-1 text-[var(--text-error)] text-caption'>{errorMessage}</p>
               )}
             </div>
             <div className='mt-2'>

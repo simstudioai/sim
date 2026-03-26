@@ -75,9 +75,7 @@ export const ResourceHeader = memo(function ResourceHeader({
           {hasBreadcrumbs ? (
             breadcrumbs.map((crumb, i) => (
               <Fragment key={i}>
-                {i > 0 && (
-                  <span className='select-none text-sm text-[var(--text-icon)]'>/</span>
-                )}
+                {i > 0 && <span className='select-none text-[var(--text-icon)] text-sm'>/</span>}
                 <BreadcrumbSegment
                   icon={i === 0 ? Icon : undefined}
                   label={crumb.label}
@@ -90,9 +88,7 @@ export const ResourceHeader = memo(function ResourceHeader({
           ) : (
             <>
               {Icon && <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />}
-              {title && (
-                <h1 className='font-medium text-sm text-[var(--text-body)]'>{title}</h1>
-              )}
+              {title && <h1 className='font-medium text-[var(--text-body)] text-sm'>{title}</h1>}
             </>
           )}
         </div>
@@ -196,18 +192,14 @@ function BreadcrumbSegment({
 
   if (onClick) {
     return (
-      <Button
-        variant='subtle'
-        className='px-2 py-1 font-medium text-sm'
-        onClick={onClick}
-      >
+      <Button variant='subtle' className='px-2 py-1 font-medium text-sm' onClick={onClick}>
         {content}
       </Button>
     )
   }
 
   return (
-    <span className='inline-flex items-center px-2 py-1 font-medium text-sm text-[var(--text-body)]'>
+    <span className='inline-flex items-center px-2 py-1 font-medium text-[var(--text-body)] text-sm'>
       {content}
     </span>
   )

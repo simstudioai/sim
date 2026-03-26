@@ -225,7 +225,7 @@ function TemplateCardInner({
       </div>
 
       <div className='mt-2.5 flex items-center justify-between'>
-        <h3 className='truncate pr-2 pl-0.5 font-medium text-md text-[var(--text-primary)]'>
+        <h3 className='truncate pr-2 pl-0.5 font-medium text-[var(--text-primary)] text-md'>
           {title}
         </h3>
 
@@ -253,7 +253,7 @@ function TemplateCardInner({
                 className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--surface-7)]'
                 style={{ marginLeft: '-4px' }}
               >
-                <span className='font-medium text-micro text-[var(--text-primary)]'>
+                <span className='font-medium text-[var(--text-primary)] text-micro'>
                   +{blockTypes.length - 3}
                 </span>
               </div>
@@ -281,7 +281,7 @@ function TemplateCardInner({
       </div>
 
       {description && (
-        <p className='mt-1 truncate pl-0.5 text-caption text-[var(--text-tertiary)]'>
+        <p className='mt-1 truncate pl-0.5 text-[var(--text-tertiary)] text-caption'>
           {description}
         </p>
       )}
@@ -303,14 +303,14 @@ function TemplateCardInner({
             </div>
           )}
           <div className='flex min-w-0 items-center gap-1'>
-            <span className='truncate font-medium text-caption text-[var(--text-tertiary)]'>
+            <span className='truncate font-medium text-[var(--text-tertiary)] text-caption'>
               {author}
             </span>
             {isVerified && <VerifiedBadge size='sm' />}
           </div>
         </div>
 
-        <div className='flex flex-shrink-0 items-center gap-1.5 font-medium text-caption text-[var(--text-tertiary)]'>
+        <div className='flex flex-shrink-0 items-center gap-1.5 font-medium text-[var(--text-tertiary)] text-caption'>
           <User className='h-[12px] w-[12px]' />
           <span>{usageCount}</span>
           <Star

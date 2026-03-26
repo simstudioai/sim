@@ -634,7 +634,7 @@ function CodeRow({ index, style, ...props }: RowComponentProps<CodeRowProps>) {
       )}
       <pre
         className={cn(
-          'm-0 flex-1 pr-2 pl-2 font-mono text-small text-[var(--text-primary)] leading-[21px] dark:text-[var(--code-foreground)]',
+          'm-0 flex-1 pr-2 pl-2 font-mono text-[var(--text-primary)] text-small leading-[21px] dark:text-[var(--code-foreground)]',
           wrapText ? 'min-w-0 whitespace-pre-wrap break-words' : 'whitespace-pre'
         )}
         dangerouslySetInnerHTML={{ __html: line.html || '&nbsp;' }}
@@ -1152,7 +1152,7 @@ const ViewerInner = memo(function ViewerInner({
                   )}
                   <pre
                     className={cn(
-                      'm-0 min-w-0 pr-2 pl-2 font-mono text-small text-[var(--text-primary)] leading-[21px] dark:text-[var(--code-foreground)]',
+                      'm-0 min-w-0 pr-2 pl-2 font-mono text-[var(--text-primary)] text-small leading-[21px] dark:text-[var(--code-foreground)]',
                       whitespaceClass
                     )}
                     dangerouslySetInnerHTML={{ __html: html }}
@@ -1173,7 +1173,7 @@ const ViewerInner = memo(function ViewerInner({
         <pre
           className={cn(
             whitespaceClass,
-            'p-2 font-mono text-small text-[var(--text-primary)] leading-[21px] dark:text-[var(--code-foreground)]'
+            'p-2 font-mono text-[var(--text-primary)] text-small leading-[21px] dark:text-[var(--code-foreground)]'
           )}
           style={{ paddingLeft: paddingLeft > 0 ? paddingLeft : undefined }}
           dangerouslySetInnerHTML={{ __html: highlightedCode }}

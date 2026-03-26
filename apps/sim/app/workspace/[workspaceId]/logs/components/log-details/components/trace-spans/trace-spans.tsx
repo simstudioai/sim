@@ -624,7 +624,7 @@ const TraceSpanNode = memo(function TraceSpanNode({
             />
           )}
         </div>
-        <span className='flex-shrink-0 font-medium text-caption text-[var(--text-tertiary)]'>
+        <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
           {formatDuration(duration, { precision: 2 })}
         </span>
       </div>
@@ -740,7 +740,7 @@ export const TraceSpans = memo(function TraceSpans({ traceSpans }: TraceSpansPro
   )
 
   if (!traceSpans || traceSpans.length === 0) {
-    return <div className='text-caption text-[var(--text-secondary)]'>No trace data available</div>
+    return <div className='text-[var(--text-secondary)] text-caption'>No trace data available</div>
   }
 
   return (

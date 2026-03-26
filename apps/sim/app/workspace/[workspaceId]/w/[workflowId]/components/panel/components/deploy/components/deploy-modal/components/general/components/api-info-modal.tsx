@@ -216,7 +216,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
           </ModalHeader>
           <ModalBody className='space-y-3'>
             <div>
-              <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+              <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
                 Description
               </Label>
               <Textarea
@@ -229,7 +229,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
             {!isPublicApiDisabled && (
               <div>
-                <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+                <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
                   Access
                 </Label>
                 <ButtonGroup
@@ -239,7 +239,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                   <ButtonGroupItem value='api_key'>API Key</ButtonGroupItem>
                   <ButtonGroupItem value='public'>Public</ButtonGroupItem>
                 </ButtonGroup>
-                <p className='mt-1 text-caption text-[var(--text-secondary)]'>
+                <p className='mt-1 text-[var(--text-secondary)] text-caption'>
                   {accessMode === 'public'
                     ? 'Anyone can call this API without authentication. You will be billed for all usage.'
                     : 'Requires a valid API key to call this endpoint.'}
@@ -249,7 +249,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
             {inputFormat.length > 0 && (
               <div>
-                <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+                <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
                   Parameters ({inputFormat.length})
                 </Label>
                 <div className='flex flex-col gap-2'>
@@ -260,7 +260,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                     >
                       <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
                         <div className='flex min-w-0 flex-1 items-center gap-2'>
-                          <span className='block truncate font-medium text-sm text-[var(--text-tertiary)]'>
+                          <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
                             {field.name}
                           </span>
                           <Badge variant='type' size='sm'>
@@ -288,7 +288,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
           </ModalBody>
           <ModalFooter>
             {saveError && (
-              <p className='mr-auto text-caption text-[var(--text-error)]'>{saveError}</p>
+              <p className='mr-auto text-[var(--text-error)] text-caption'>{saveError}</p>
             )}
             <Button variant='default' onClick={handleCloseAttempt} disabled={isSaving}>
               Cancel
@@ -306,7 +306,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
             <span>Unsaved Changes</span>
           </ModalHeader>
           <ModalBody>
-            <p className='text-sm text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)] text-sm'>
               You have unsaved changes. Are you sure you want to discard them?
             </p>
           </ModalBody>

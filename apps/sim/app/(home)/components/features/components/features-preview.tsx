@@ -460,9 +460,18 @@ function TableCardBody() {
           key={i}
           className='flex items-center gap-1 border-[var(--surface-4)] border-b px-1.5 py-[3.5px]'
         >
-          <div className='h-[1.5px] rounded-full bg-[var(--divider)]' style={{ width: `${row[0]}%` }} />
-          <div className='h-[1.5px] rounded-full bg-[var(--divider)]' style={{ width: `${row[1]}%` }} />
-          <div className='h-[1.5px] rounded-full bg-[var(--divider)]' style={{ width: `${row[2]}%` }} />
+          <div
+            className='h-[1.5px] rounded-full bg-[var(--divider)]'
+            style={{ width: `${row[0]}%` }}
+          />
+          <div
+            className='h-[1.5px] rounded-full bg-[var(--divider)]'
+            style={{ width: `${row[1]}%` }}
+          />
+          <div
+            className='h-[1.5px] rounded-full bg-[var(--divider)]'
+            style={{ width: `${row[2]}%` }}
+          />
         </div>
       ))}
     </div>
@@ -506,7 +515,10 @@ function KnowledgeCardBody() {
       {KB_WIDTHS.map((w, i) => (
         <div key={i} className='flex items-center gap-1'>
           <div className='h-[3px] w-[3px] flex-shrink-0 rounded-full bg-[var(--surface-7)]' />
-          <div className='h-[1.5px] rounded-full bg-[var(--surface-6)]' style={{ width: `${w}%` }} />
+          <div
+            className='h-[1.5px] rounded-full bg-[var(--surface-6)]'
+            style={{ width: `${w}%` }}
+          />
         </div>
       ))}
     </div>
@@ -625,7 +637,9 @@ const MD_COMPONENTS: Components = {
   li: ({ children }) => (
     <li className='mb-1 text-[var(--text-primary)] text-sm leading-[1.6]'>{children}</li>
   ),
-  p: ({ children }) => <p className='mb-3 text-[var(--text-primary)] text-sm leading-[1.6]'>{children}</p>,
+  p: ({ children }) => (
+    <p className='mb-3 text-[var(--text-primary)] text-sm leading-[1.6]'>{children}</p>
+  ),
 }
 
 function MockFullFiles() {
@@ -638,7 +652,9 @@ function MockFullFiles() {
           <File className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
           <span className='text-[var(--text-subtle)] text-small'>Files</span>
           <span className='text-[var(--surface-7)] text-small'>/</span>
-          <span className='font-medium text-[var(--text-primary)] text-small'>meeting-notes.md</span>
+          <span className='font-medium text-[var(--text-primary)] text-small'>
+            meeting-notes.md
+          </span>
         </div>
       </div>
 
@@ -938,7 +954,9 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
                       </span>
                     </td>
                     <td className='px-6 py-2.5 align-middle'>
-                      <span className='font-medium text-[var(--text-subtle)] text-sm'>{row[1]}</span>
+                      <span className='font-medium text-[var(--text-subtle)] text-sm'>
+                        {row[1]}
+                      </span>
                     </td>
                     <td className='px-6 py-2.5 align-middle'>
                       <span
@@ -949,7 +967,9 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
                       </span>
                     </td>
                     <td className='px-6 py-2.5 align-middle'>
-                      <span className='font-medium text-[var(--text-subtle)] text-sm'>{row[3]}</span>
+                      <span className='font-medium text-[var(--text-subtle)] text-sm'>
+                        {row[3]}
+                      </span>
                     </td>
                     <td className='px-6 py-2.5 align-middle'>
                       <span className='rounded-sm bg-[var(--surface-4)] px-1.5 py-0.5 text-[var(--text-secondary)] text-xs'>
@@ -957,7 +977,9 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
                       </span>
                     </td>
                     <td className='px-6 py-2.5 align-middle'>
-                      <span className='font-medium text-[var(--text-subtle)] text-sm'>{row[5]}</span>
+                      <span className='font-medium text-[var(--text-subtle)] text-sm'>
+                        {row[5]}
+                      </span>
                     </td>
                   </motion.tr>
                 )
@@ -1050,7 +1072,9 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
                   backgroundClip: 'padding-box',
                 }}
               />
-              <span className='truncate font-medium text-[var(--text-secondary)] text-small'>{row[0]}</span>
+              <span className='truncate font-medium text-[var(--text-secondary)] text-small'>
+                {row[0]}
+              </span>
             </div>
           </div>
         </div>
@@ -1078,7 +1102,9 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
         </div>
 
         <div className='flex flex-col gap-1.5 rounded-md border border-[var(--surface-6)] bg-[var(--surface-1)] px-2.5 py-2'>
-          <span className='font-medium text-[var(--text-subtle)] text-caption'>Workflow Output</span>
+          <span className='font-medium text-[var(--text-subtle)] text-caption'>
+            Workflow Output
+          </span>
           <div className='rounded-md bg-[var(--surface-4)] p-2.5 font-mono text-[#555] text-xs leading-[1.5]'>
             {detail.output}
           </div>
@@ -1088,10 +1114,7 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
           <span className='font-medium text-[var(--text-subtle)] text-caption'>Trace Spans</span>
           <div className='flex flex-col gap-1.5'>
             {detail.spans.map((span, i) => (
-              <div
-                key={i}
-                className={cn('flex flex-col gap-[3px]', span.depth === 1 && 'ml-3')}
-              >
+              <div key={i} className={cn('flex flex-col gap-[3px]', span.depth === 1 && 'ml-3')}>
                 <div className='flex items-center justify-between'>
                   <span className='font-mono text-[#555] text-xs'>{span.name}</span>
                   <span className='font-medium text-[var(--text-subtle)] text-xs'>{span.ms}ms</span>
@@ -1202,7 +1225,9 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
                           )}
                         />
                       )}
-                      <span className='block truncate text-[var(--text-primary)] text-small'>{cell}</span>
+                      <span className='block truncate text-[var(--text-primary)] text-small'>
+                        {cell}
+                      </span>
                     </td>
                   ))}
                 </motion.tr>

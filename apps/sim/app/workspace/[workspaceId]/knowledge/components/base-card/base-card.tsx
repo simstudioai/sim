@@ -175,24 +175,22 @@ export function BaseCard({
       >
         <div className='group flex h-full flex-col gap-3 rounded-sm bg-[var(--surface-3)] px-2 py-1.5 transition-colors hover-hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover-hover:bg-[var(--surface-5)]'>
           <div className='flex items-center justify-between gap-2'>
-            <h3 className='min-w-0 flex-1 truncate font-medium text-sm text-[var(--text-primary)]'>
+            <h3 className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>
               {title}
             </h3>
-            {shortId && (
-              <Badge className='flex-shrink-0 rounded-sm text-caption'>{shortId}</Badge>
-            )}
+            {shortId && <Badge className='flex-shrink-0 rounded-sm text-caption'>{shortId}</Badge>}
           </div>
 
           <div className='flex flex-1 flex-col gap-2'>
             <div className='flex items-center justify-between'>
-              <span className='flex items-center gap-1.5 text-caption text-[var(--text-tertiary)]'>
+              <span className='flex items-center gap-1.5 text-[var(--text-tertiary)] text-caption'>
                 <DocumentAttachment className='h-[12px] w-[12px]' />
                 {docCount} {docCount === 1 ? 'doc' : 'docs'}
               </span>
               {updatedAt && (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <span className='text-caption text-[var(--text-tertiary)]'>
+                    <span className='text-[var(--text-tertiary)] text-caption'>
                       last updated: {formatRelativeTime(updatedAt)}
                     </span>
                   </Tooltip.Trigger>
@@ -204,7 +202,7 @@ export function BaseCard({
             <div className='h-0 w-full border-[var(--divider)] border-t' />
 
             <div className='flex items-start justify-between gap-2'>
-              <p className='line-clamp-2 h-[36px] flex-1 text-caption text-[var(--text-tertiary)] leading-[18px]'>
+              <p className='line-clamp-2 h-[36px] flex-1 text-[var(--text-tertiary)] text-caption leading-[18px]'>
                 {description}
               </p>
               {connectorTypes.length > 0 && (

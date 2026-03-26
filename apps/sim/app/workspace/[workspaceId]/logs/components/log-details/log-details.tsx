@@ -368,7 +368,7 @@ export const LogDetails = memo(function LogDetails({
           <div className='flex h-full flex-col px-3.5 pt-3'>
             {/* Header */}
             <div className='flex items-center justify-between'>
-              <h2 className='font-medium text-sm text-[var(--text-primary)]'>Log Details</h2>
+              <h2 className='font-medium text-[var(--text-primary)] text-sm'>Log Details</h2>
               <div className='flex items-center gap-[1px]'>
                 <Button
                   variant='ghost'
@@ -401,14 +401,14 @@ export const LogDetails = memo(function LogDetails({
                 <div className='flex min-w-0 items-center gap-4 px-[1px]'>
                   {/* Timestamp Card */}
                   <div className='flex w-[140px] flex-shrink-0 flex-col gap-2'>
-                    <div className='font-medium text-caption text-[var(--text-tertiary)]'>
+                    <div className='font-medium text-[var(--text-tertiary)] text-caption'>
                       Timestamp
                     </div>
                     <div className='flex items-center gap-1.5'>
-                      <span className='font-medium text-sm text-[var(--text-secondary)]'>
+                      <span className='font-medium text-[var(--text-secondary)] text-sm'>
                         {formattedTimestamp?.compactDate || 'N/A'}
                       </span>
-                      <span className='font-medium text-sm text-[var(--text-secondary)]'>
+                      <span className='font-medium text-[var(--text-secondary)] text-sm'>
                         {formattedTimestamp?.compactTime || 'N/A'}
                       </span>
                     </div>
@@ -416,7 +416,7 @@ export const LogDetails = memo(function LogDetails({
 
                   {/* Workflow Card */}
                   <div className='flex w-0 min-w-0 flex-1 flex-col gap-2'>
-                    <div className='font-medium text-caption text-[var(--text-tertiary)]'>
+                    <div className='font-medium text-[var(--text-tertiary)] text-caption'>
                       {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
                     </div>
                     <div className='flex min-w-0 items-center gap-2'>
@@ -437,7 +437,7 @@ export const LogDetails = memo(function LogDetails({
                           />
                         )
                       })()}
-                      <span className='min-w-0 flex-1 truncate font-medium text-sm text-[var(--text-secondary)]'>
+                      <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-secondary)] text-sm'>
                         {log.trigger === 'mothership'
                           ? log.jobTitle || 'Untitled Job'
                           : log.workflow?.name ||
@@ -450,10 +450,10 @@ export const LogDetails = memo(function LogDetails({
                 {/* Execution ID */}
                 {log.executionId && (
                   <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2'>
-                    <span className='font-medium text-caption text-[var(--text-tertiary)]'>
+                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                       Execution ID
                     </span>
-                    <span className='truncate font-medium text-sm text-[var(--text-secondary)]'>
+                    <span className='truncate font-medium text-[var(--text-secondary)] text-sm'>
                       {log.executionId}
                     </span>
                   </div>
@@ -463,7 +463,7 @@ export const LogDetails = memo(function LogDetails({
                 <div className='-my-1 flex min-w-0 flex-col overflow-hidden'>
                   {/* Level */}
                   <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-2'>
-                    <span className='font-medium text-caption text-[var(--text-tertiary)]'>
+                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                       Level
                     </span>
                     <StatusBadge status={logStatus} />
@@ -471,13 +471,13 @@ export const LogDetails = memo(function LogDetails({
 
                   {/* Trigger */}
                   <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-2'>
-                    <span className='font-medium text-caption text-[var(--text-tertiary)]'>
+                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                       Trigger
                     </span>
                     {log.trigger ? (
                       <TriggerBadge trigger={log.trigger} />
                     ) : (
-                      <span className='font-medium text-caption text-[var(--text-secondary)]'>
+                      <span className='font-medium text-[var(--text-secondary)] text-caption'>
                         —
                       </span>
                     )}
@@ -487,10 +487,10 @@ export const LogDetails = memo(function LogDetails({
                   <div
                     className={`flex h-[48px] items-center justify-between border-b p-2 ${log.deploymentVersion ? 'border-[var(--border)]' : 'border-transparent'}`}
                   >
-                    <span className='font-medium text-caption text-[var(--text-tertiary)]'>
+                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                       Duration
                     </span>
-                    <span className='font-medium text-small text-[var(--text-secondary)]'>
+                    <span className='font-medium text-[var(--text-secondary)] text-small'>
                       {formatDuration(log.duration, { precision: 2 }) || '—'}
                     </span>
                   </div>
@@ -498,7 +498,7 @@ export const LogDetails = memo(function LogDetails({
                   {/* Version */}
                   {log.deploymentVersion && (
                     <div className='flex h-[48px] items-center gap-2 p-2'>
-                      <span className='flex-shrink-0 font-medium text-caption text-[var(--text-tertiary)]'>
+                      <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
                         Version
                       </span>
                       <div className='flex w-0 flex-1 justify-end'>
@@ -516,7 +516,7 @@ export const LogDetails = memo(function LogDetails({
                   log.trigger !== 'mothership' &&
                   !permissionConfig.hideTraceSpans && (
                     <div className='-mt-2 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2'>
-                      <span className='font-medium text-caption text-[var(--text-tertiary)]'>
+                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                         Workflow State
                       </span>
                       <Button
@@ -552,7 +552,7 @@ export const LogDetails = memo(function LogDetails({
                   log.executionData?.traceSpans &&
                   !permissionConfig.hideTraceSpans && (
                     <div className='mt-1 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
-                      <span className='font-medium text-caption text-[var(--text-tertiary)]'>
+                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                         Trace Span
                       </span>
                       <TraceSpans traceSpans={log.executionData.traceSpans} />
@@ -567,33 +567,33 @@ export const LogDetails = memo(function LogDetails({
                 {/* Cost Breakdown */}
                 {hasCostInfo && (
                   <div className='flex flex-col gap-2'>
-                    <span className='px-[1px] font-medium text-caption text-[var(--text-tertiary)]'>
+                    <span className='px-[1px] font-medium text-[var(--text-tertiary)] text-caption'>
                       Cost Breakdown
                     </span>
 
                     <div className='flex flex-col gap-1 rounded-md border border-[var(--border)]'>
                       <div className='flex flex-col gap-2.5 rounded-md p-2.5'>
                         <div className='flex items-center justify-between'>
-                          <span className='font-medium text-caption text-[var(--text-tertiary)]'>
+                          <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                             Base Execution:
                           </span>
-                          <span className='font-medium text-caption text-[var(--text-secondary)]'>
+                          <span className='font-medium text-[var(--text-secondary)] text-caption'>
                             {formatCost(BASE_EXECUTION_CHARGE)}
                           </span>
                         </div>
                         <div className='flex items-center justify-between'>
-                          <span className='font-medium text-caption text-[var(--text-tertiary)]'>
+                          <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                             Model Input:
                           </span>
-                          <span className='font-medium text-caption text-[var(--text-secondary)]'>
+                          <span className='font-medium text-[var(--text-secondary)] text-caption'>
                             {formatCost(log.cost?.input || 0)}
                           </span>
                         </div>
                         <div className='flex items-center justify-between'>
-                          <span className='font-medium text-caption text-[var(--text-tertiary)]'>
+                          <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                             Model Output:
                           </span>
-                          <span className='font-medium text-caption text-[var(--text-secondary)]'>
+                          <span className='font-medium text-[var(--text-secondary)] text-caption'>
                             {formatCost(log.cost?.output || 0)}
                           </span>
                         </div>
@@ -603,18 +603,18 @@ export const LogDetails = memo(function LogDetails({
 
                       <div className='flex flex-col gap-2.5 rounded-md p-2.5'>
                         <div className='flex items-center justify-between'>
-                          <span className='font-medium text-caption text-[var(--text-tertiary)]'>
+                          <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                             Total:
                           </span>
-                          <span className='font-medium text-caption text-[var(--text-secondary)]'>
+                          <span className='font-medium text-[var(--text-secondary)] text-caption'>
                             {formatCost(log.cost?.total || 0)}
                           </span>
                         </div>
                         <div className='flex items-center justify-between'>
-                          <span className='font-medium text-caption text-[var(--text-tertiary)]'>
+                          <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                             Tokens:
                           </span>
-                          <span className='font-medium text-caption text-[var(--text-secondary)]'>
+                          <span className='font-medium text-[var(--text-secondary)] text-caption'>
                             {log.cost?.tokens?.input || log.cost?.tokens?.prompt || 0} in /{' '}
                             {log.cost?.tokens?.output || log.cost?.tokens?.completion || 0} out
                           </span>
@@ -623,7 +623,7 @@ export const LogDetails = memo(function LogDetails({
                     </div>
 
                     <div className='flex items-center justify-center rounded-md bg-[var(--surface-2)] p-2 text-center'>
-                      <p className='font-medium text-xs text-[var(--text-subtle)]'>
+                      <p className='font-medium text-[var(--text-subtle)] text-xs'>
                         Total cost includes a base execution charge of{' '}
                         {formatCost(BASE_EXECUTION_CHARGE)} plus any model usage costs.
                       </p>

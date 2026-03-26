@@ -66,10 +66,8 @@ export function InboxEnableToggle() {
     <>
       <div className='flex items-center justify-between'>
         <div className='flex flex-col gap-0.5'>
-          <span className='font-medium text-sm text-[var(--text-primary)]'>
-            Enable email inbox
-          </span>
-          <span className='text-small text-[var(--text-muted)]'>
+          <span className='font-medium text-[var(--text-primary)] text-sm'>Enable email inbox</span>
+          <span className='text-[var(--text-muted)] text-small'>
             Allow this workspace to receive tasks via email
           </span>
         </div>
@@ -89,7 +87,7 @@ export function InboxEnableToggle() {
               list can email it to create tasks.
             </p>
             <div className='mt-4 flex flex-col gap-2'>
-              <p className='font-medium text-sm text-[var(--text-secondary)]'>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>
                 Custom email prefix (optional)
               </p>
               <EmcnInput
@@ -99,7 +97,7 @@ export function InboxEnableToggle() {
                 className='h-9'
                 autoFocus
               />
-              <p className='text-caption text-[var(--text-muted)]'>
+              <p className='text-[var(--text-muted)] text-caption'>
                 Leave blank for an auto-generated address.
               </p>
             </div>

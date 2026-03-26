@@ -81,11 +81,11 @@ function WorkflowsListSkeleton({ rowCount = 5 }: { rowCount?: number }) {
     <div className='flex h-full flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-1)]'>
       <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-6 py-2.5 dark:bg-[var(--surface-3)]'>
         <div className='flex items-center gap-4'>
-          <span className='w-[160px] flex-shrink-0 font-medium text-caption text-[var(--text-tertiary)]'>
+          <span className='w-[160px] flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
             Workflow
           </span>
-          <span className='flex-1 font-medium text-caption text-[var(--text-tertiary)]'>Logs</span>
-          <span className='w-[100px] flex-shrink-0 pl-4 font-medium text-caption text-[var(--text-tertiary)]'>
+          <span className='flex-1 font-medium text-[var(--text-tertiary)] text-caption'>Logs</span>
+          <span className='w-[100px] flex-shrink-0 pl-4 font-medium text-[var(--text-tertiary)] text-caption'>
             Success Rate
           </span>
         </div>
@@ -464,9 +464,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
       <div className='mt-6 flex flex-1 items-center justify-center'>
         <div className='text-center text-[var(--text-secondary)]'>
           <p className='font-medium text-small'>No workflows</p>
-          <p className='mt-1 text-caption'>
-            Create a workflow to see its execution history here
-          </p>
+          <p className='mt-1 text-caption'>Create a workflow to see its execution history here</p>
         </div>
       </div>
     )

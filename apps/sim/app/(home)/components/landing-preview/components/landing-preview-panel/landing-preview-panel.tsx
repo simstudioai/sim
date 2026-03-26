@@ -114,13 +114,13 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
         <div className='flex flex-shrink-0 items-center px-2 pt-3.5'>
           <div className='pointer-events-none flex gap-1'>
             <div className='flex h-[28px] items-center rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-[5px]'>
-              <span className='font-medium text-[var(--text-primary)] text-[12.5px]'>Copilot</span>
+              <span className='font-medium text-[12.5px] text-[var(--text-primary)]'>Copilot</span>
             </div>
             <div className='flex h-[28px] items-center rounded-md border border-transparent px-2 py-[5px]'>
-              <span className='font-medium text-[var(--text-muted)] text-[12.5px]'>Toolbar</span>
+              <span className='font-medium text-[12.5px] text-[var(--text-muted)]'>Toolbar</span>
             </div>
             <div className='flex h-[28px] items-center rounded-md border border-transparent px-2 py-[5px]'>
-              <span className='font-medium text-[var(--text-muted)] text-[12.5px]'>Editor</span>
+              <span className='font-medium text-[12.5px] text-[var(--text-muted)]'>Editor</span>
             </div>
           </div>
         </div>
@@ -130,7 +130,9 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
           <div className='flex h-full flex-col'>
             {/* Copilot header bar — matches mx-[-1px] in real copilot */}
             <div className='pointer-events-none mx-[-1px] flex flex-shrink-0 items-center rounded-sm border border-[var(--surface-active)] bg-[#292929] px-3 py-1.5'>
-              <span className='truncate font-medium text-[var(--text-primary)] text-sm'>New Chat</span>
+              <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
+                New Chat
+              </span>
             </div>
 
             {/* User input — matches real UserInput at p-2 inside copilot welcome state */}

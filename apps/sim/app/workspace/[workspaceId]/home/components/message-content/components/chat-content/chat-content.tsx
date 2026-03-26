@@ -79,7 +79,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
     return (
       <th
         style={style}
-        className='whitespace-nowrap border-[var(--divider)] border-b px-3 py-2 text-left font-[600] text-sm text-[var(--text-primary)] leading-6'
+        className='whitespace-nowrap border-[var(--divider)] border-b px-3 py-2 text-left font-[600] text-[var(--text-primary)] text-sm leading-6'
       >
         {children}
       </th>
@@ -89,7 +89,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
     return (
       <td
         style={style}
-        className='whitespace-nowrap border-[var(--divider)] border-b px-3 py-2 text-sm text-[var(--text-primary)] leading-6'
+        className='whitespace-nowrap border-[var(--divider)] border-b px-3 py-2 text-[var(--text-primary)] text-sm leading-6'
       >
         {children}
       </td>
@@ -112,7 +112,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
 
     if (!codeString) {
       return (
-        <pre className='not-prose my-6 overflow-x-auto rounded-lg bg-[var(--surface-5)] p-4 font-[430] font-mono text-small text-[var(--text-primary)] leading-[21px] dark:bg-[var(--code-bg)]'>
+        <pre className='not-prose my-6 overflow-x-auto rounded-lg bg-[var(--surface-5)] p-4 font-[430] font-mono text-[var(--text-primary)] text-small leading-[21px] dark:bg-[var(--code-bg)]'>
           {children}
         </pre>
       )
@@ -131,7 +131,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
         )}
         <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
           <pre
-            className='m-0 overflow-x-auto whitespace-pre p-4 font-[430] font-mono text-small text-[var(--text-primary)] leading-[21px]'
+            className='m-0 overflow-x-auto whitespace-pre p-4 font-[430] font-mono text-[var(--text-primary)] text-small leading-[21px]'
             dangerouslySetInnerHTML={{ __html: html }}
           />
         </div>
@@ -162,13 +162,13 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
   li({ children, className }) {
     if (className?.includes('task-list-item')) {
       return (
-        <li className='flex list-none items-start gap-2 text-base text-[var(--text-primary)] leading-[25px]'>
+        <li className='flex list-none items-start gap-2 text-[var(--text-primary)] text-base leading-[25px]'>
           {children}
         </li>
       )
     }
     return (
-      <li className='my-1 text-base text-[var(--text-primary)] leading-[25px] marker:text-[var(--text-primary)]'>
+      <li className='my-1 text-[var(--text-primary)] text-base leading-[25px] marker:text-[var(--text-primary)]'>
         {children}
       </li>
     )

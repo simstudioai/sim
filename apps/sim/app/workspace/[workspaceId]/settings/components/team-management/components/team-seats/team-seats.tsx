@@ -89,7 +89,7 @@ export function TeamSeats({
             />
           </div>
 
-          <p className='mt-3 text-small text-[var(--text-muted)]'>
+          <p className='mt-3 text-[var(--text-muted)] text-small'>
             Your team will have {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} with a
             total of {(selectedSeats * seatCredits).toLocaleString()} inference credits per month.
           </p>
@@ -120,7 +120,7 @@ export function TeamSeats({
           )}
 
           {error && (
-            <p className='mt-3 text-small text-[var(--text-error)]'>
+            <p className='mt-3 text-[var(--text-error)] text-small'>
               {error instanceof Error && error.message ? error.message : String(error)}
             </p>
           )}

@@ -160,7 +160,7 @@ export function ApiKeys() {
           <div className='flex flex-col gap-4.5'>
             <div className='flex flex-col gap-2'>
               <Skeleton className='h-5 w-[70px]' />
-              <div className='text-sm text-[var(--text-muted)]'>
+              <div className='text-[var(--text-muted)] text-sm'>
                 <Skeleton className='h-5 w-[140px]' />
               </div>
             </div>
@@ -171,7 +171,7 @@ export function ApiKeys() {
             </div>
           </div>
         ) : personalKeys.length === 0 && workspaceKeys.length === 0 ? (
-          <div className='flex h-full items-center justify-center text-sm text-[var(--text-muted)]'>
+          <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
             Click "Create" above to get started
           </div>
         ) : (
@@ -180,11 +180,9 @@ export function ApiKeys() {
               {/* Workspace section */}
               {!searchTerm.trim() ? (
                 <div className='flex flex-col gap-2'>
-                  <div className='font-medium text-sm text-[var(--text-secondary)]'>
-                    Workspace
-                  </div>
+                  <div className='font-medium text-[var(--text-secondary)] text-sm'>Workspace</div>
                   {workspaceKeys.length === 0 ? (
-                    <div className='text-sm text-[var(--text-muted)]'>
+                    <div className='text-[var(--text-muted)] text-sm'>
                       No workspace Sim keys yet
                     </div>
                   ) : (
@@ -195,11 +193,11 @@ export function ApiKeys() {
                             <span className='max-w-[280px] truncate font-medium text-base'>
                               {key.name}
                             </span>
-                            <span className='text-sm text-[var(--text-secondary)]'>
+                            <span className='text-[var(--text-secondary)] text-sm'>
                               (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                             </span>
                           </div>
-                          <p className='truncate text-sm text-[var(--text-muted)]'>
+                          <p className='truncate text-[var(--text-muted)] text-sm'>
                             {key.displayKey || key.key}
                           </p>
                         </div>
@@ -220,9 +218,7 @@ export function ApiKeys() {
                 </div>
               ) : filteredWorkspaceKeys.length > 0 ? (
                 <div className='flex flex-col gap-2'>
-                  <div className='font-medium text-sm text-[var(--text-secondary)]'>
-                    Workspace
-                  </div>
+                  <div className='font-medium text-[var(--text-secondary)] text-sm'>Workspace</div>
                   {filteredWorkspaceKeys.map(({ key }) => (
                     <div key={key.id} className='flex items-center justify-between gap-3'>
                       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
@@ -230,11 +226,11 @@ export function ApiKeys() {
                           <span className='max-w-[280px] truncate font-medium text-base'>
                             {key.name}
                           </span>
-                          <span className='text-sm text-[var(--text-secondary)]'>
+                          <span className='text-[var(--text-secondary)] text-sm'>
                             (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                           </span>
                         </div>
-                        <p className='truncate text-sm text-[var(--text-muted)]'>
+                        <p className='truncate text-[var(--text-muted)] text-sm'>
                           {key.displayKey || key.key}
                         </p>
                       </div>
@@ -257,9 +253,7 @@ export function ApiKeys() {
               {/* Personal section */}
               {(!searchTerm.trim() || filteredPersonalKeys.length > 0) && (
                 <div className='flex flex-col gap-2'>
-                  <div className='font-medium text-sm text-[var(--text-secondary)]'>
-                    Personal
-                  </div>
+                  <div className='font-medium text-[var(--text-secondary)] text-sm'>Personal</div>
                   {filteredPersonalKeys.map(({ key }) => {
                     const isConflict = conflicts.includes(key.name)
                     return (
@@ -270,11 +264,11 @@ export function ApiKeys() {
                               <span className='max-w-[280px] truncate font-medium text-base'>
                                 {key.name}
                               </span>
-                              <span className='text-sm text-[var(--text-secondary)]'>
+                              <span className='text-[var(--text-secondary)] text-sm'>
                                 (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                               </span>
                             </div>
-                            <p className='truncate text-sm text-[var(--text-muted)]'>
+                            <p className='truncate text-[var(--text-muted)] text-sm'>
                               {key.displayKey || key.key}
                             </p>
                           </div>
@@ -290,7 +284,7 @@ export function ApiKeys() {
                           </Button>
                         </div>
                         {isConflict && (
-                          <div className='text-small text-[var(--text-error)] leading-tight'>
+                          <div className='text-[var(--text-error)] text-small leading-tight'>
                             Workspace Sim key with the same name overrides this. Rename your
                             personal key to use it.
                           </div>
@@ -306,7 +300,7 @@ export function ApiKeys() {
                 filteredPersonalKeys.length === 0 &&
                 filteredWorkspaceKeys.length === 0 &&
                 (personalKeys.length > 0 || workspaceKeys.length > 0) && (
-                  <div className='py-4 text-center text-sm text-[var(--text-muted)]'>
+                  <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                     No Sim keys found matching "{searchTerm}"
                   </div>
                 )}
@@ -320,7 +314,7 @@ export function ApiKeys() {
         <Tooltip.Provider delayDuration={150}>
           <div className='mt-6 flex items-center justify-between'>
             <div className='flex items-center gap-2'>
-              <span className='font-medium text-sm text-[var(--text-secondary)]'>
+              <span className='font-medium text-[var(--text-secondary)] text-sm'>
                 Allow personal Sim keys
               </span>
               <Tooltip.Root>

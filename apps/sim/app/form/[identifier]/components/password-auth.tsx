@@ -41,7 +41,7 @@ export function PasswordAuth({ onSubmit, error }: PasswordAuthProps) {
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1 className='font-[500] text-[var(--landing-text)] text-[32px] tracking-tight'>
+                <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
                   Password Required
                 </h1>
                 <p className='font-[380] text-[var(--text-subtle)] text-md'>
@@ -70,7 +70,7 @@ export function PasswordAuth({ onSubmit, error }: PasswordAuthProps) {
                       {showPassword ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
                     </button>
                   </div>
-                  {error && <p className='text-sm text-red-500'>{error}</p>}
+                  {error && <p className='text-red-500 text-sm'>{error}</p>}
                 </div>
 
                 <BrandedButton

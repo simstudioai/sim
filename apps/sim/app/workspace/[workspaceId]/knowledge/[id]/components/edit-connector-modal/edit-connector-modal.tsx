@@ -204,7 +204,7 @@ function SettingsTab({
             {field.required && <span className='ml-0.5 text-[var(--text-error)]'>*</span>}
           </Label>
           {field.description && (
-            <p className='text-xs text-[var(--text-muted)]'>{field.description}</p>
+            <p className='text-[var(--text-muted)] text-xs'>{field.description}</p>
           )}
           {field.type === 'dropdown' && field.options ? (
             <Combobox
@@ -241,7 +241,7 @@ function SettingsTab({
         </ButtonGroup>
       </div>
 
-      {error && <p className='text-caption text-[var(--text-error)] leading-tight'>{error}</p>}
+      {error && <p className='text-[var(--text-error)] text-caption leading-tight'>{error}</p>}
     </div>
   )
 }
@@ -287,7 +287,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
 
       <div className='max-h-[320px] min-h-0 overflow-y-auto'>
         {documents.length === 0 ? (
-          <p className='py-4 text-center text-small text-[var(--text-muted)]'>
+          <p className='py-4 text-center text-[var(--text-muted)] text-small'>
             {filter === 'excluded' ? 'No excluded documents' : 'No documents yet'}
           </p>
         ) : (
@@ -295,7 +295,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
             {documents.map((doc) => (
               <div key={doc.id} className='flex items-center justify-between'>
                 <div className='flex min-w-0 items-center gap-1.5'>
-                  <span className='truncate text-small text-[var(--text-primary)]'>
+                  <span className='truncate text-[var(--text-primary)] text-small'>
                     {doc.filename}
                   </span>
                   {doc.sourceUrl && (

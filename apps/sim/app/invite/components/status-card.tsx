@@ -32,7 +32,9 @@ export function InviteStatusCard({
     return (
       <>
         <div className='space-y-1 text-center'>
-          <h1 className='font-[500] text-[var(--landing-text)] text-[32px] tracking-tight'>Loading</h1>
+          <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
+            Loading
+          </h1>
           <p className='font-[380] text-[var(--text-subtle)] text-md'>{description}</p>
         </div>
         <div className='mt-8 flex w-full items-center justify-center py-8'>
@@ -45,7 +47,9 @@ export function InviteStatusCard({
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className='font-[500] text-[var(--landing-text)] text-[32px] tracking-tight'>{title}</h1>
+        <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
+          {title}
+        </h1>
         <p className='font-[380] text-[var(--text-subtle)] text-md'>{description}</p>
       </div>
 

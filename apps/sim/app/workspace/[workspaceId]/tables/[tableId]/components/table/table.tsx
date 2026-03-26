@@ -1583,7 +1583,7 @@ export function Table({
         <TableX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
         <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>Table not found</h2>
-          <p className='text-small text-[var(--text-muted)]'>
+          <p className='text-[var(--text-muted)] text-small'>
             This table may have been deleted or moved
           </p>
         </div>
@@ -1911,7 +1911,7 @@ const PositionGapRows = React.memo(
               >
                 <span
                   className={cn(
-                    'text-xs text-[var(--text-tertiary)] tabular-nums',
+                    'text-[var(--text-tertiary)] text-xs tabular-nums',
                     isGapChecked ? 'hidden' : 'block group-hover/checkbox:hidden'
                   )}
                 >
@@ -2154,7 +2154,7 @@ const DataRow = React.memo(function DataRow({
       >
         <span
           className={cn(
-            'text-xs text-[var(--text-tertiary)] tabular-nums',
+            'text-[var(--text-tertiary)] text-xs tabular-nums',
             isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
           )}
         >
@@ -2405,7 +2405,7 @@ function InlineDateEditor({
         onBlur={handleBlur}
         placeholder='mm/dd/yyyy'
         className={cn(
-          'w-full min-w-0 select-text border-none bg-transparent p-0 text-small text-[var(--text-primary)] outline-none'
+          'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
         )}
       />
       <div className='absolute top-full left-0 h-0 w-0'>
@@ -2499,7 +2499,7 @@ function InlineTextEditor({
       onKeyDown={handleKeyDown}
       onBlur={() => doSave('blur')}
       className={cn(
-        'w-full min-w-0 select-text border-none bg-transparent p-0 text-small text-[var(--text-primary)] outline-none'
+        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
       )}
     />
   )
@@ -2529,7 +2529,7 @@ const TableBodySkeleton = React.memo(function TableBodySkeleton({
         <tr key={rowIndex}>
           <td className={cn(CELL_CHECKBOX, 'text-center')}>
             <div className='flex min-h-[20px] items-center justify-center'>
-              <span className='text-xs text-[var(--text-tertiary)] tabular-nums'>
+              <span className='text-[var(--text-tertiary)] text-xs tabular-nums'>
                 {rowIndex + 1}
               </span>
             </div>
@@ -2722,7 +2722,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               if (e.key === 'Escape') onRenameCancel()
             }}
             onBlur={onRenameSubmit}
-            className='ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-small text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0'
+            className='ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-small outline-none focus:outline-none focus:ring-0'
           />
         </div>
       ) : readOnly ? (
@@ -2833,7 +2833,7 @@ const AddColumnButton = React.memo(function AddColumnButton({
         disabled={disabled}
       >
         <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='font-medium text-small text-[var(--text-body)]'>New column</span>
+        <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
       </button>
     </th>
   )
@@ -2848,7 +2848,7 @@ const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: ()
         onClick={onClick}
       >
         <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='font-medium text-small text-[var(--text-body)]'>New row</span>
+        <span className='font-medium text-[var(--text-body)] text-small'>New row</span>
       </button>
     </div>
   )

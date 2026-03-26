@@ -242,7 +242,9 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
                         >
                           {ToolIcon && <ToolIcon className='h-[10px] w-[10px] text-white' />}
                         </div>
-                        <span className='font-normal text-[var(--text-primary)] text-caption'>{tool.name}</span>
+                        <span className='font-normal text-[var(--text-primary)] text-caption'>
+                          {tool.name}
+                        </span>
                       </div>
                     )
                   })}

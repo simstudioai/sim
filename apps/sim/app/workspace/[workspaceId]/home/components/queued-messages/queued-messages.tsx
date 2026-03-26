@@ -29,7 +29,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
         ) : (
           <ChevronRight className='h-[14px] w-[14px] text-[var(--text-icon)]' />
         )}
-        <span className='font-medium text-small text-[var(--text-secondary)]'>
+        <span className='font-medium text-[var(--text-secondary)] text-small'>
           {messageQueue.length} Queued
         </span>
       </button>
@@ -46,7 +46,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
               </div>
 
               <div className='min-w-0 flex-1'>
-                <p className='truncate text-small text-[var(--text-primary)]'>{msg.content}</p>
+                <p className='truncate text-[var(--text-primary)] text-small'>{msg.content}</p>
               </div>
 
               <div className='flex shrink-0 items-center gap-0.5'>

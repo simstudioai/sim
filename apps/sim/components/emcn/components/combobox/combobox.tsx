@@ -643,7 +643,7 @@ const Combobox = memo(
                   <Search className='mr-[7px] ml-[1px] h-[13px] w-[13px] shrink-0 text-[var(--text-muted)]' />
                   <input
                     ref={searchInputRef}
-                    className='w-full bg-transparent font-base text-small text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none'
+                    className='w-full bg-transparent font-base text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
                     placeholder={searchPlaceholder}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -689,7 +689,7 @@ const Combobox = memo(
                   {isLoading ? (
                     <div className='flex items-center justify-center py-3.5'>
                       <Loader2 className='h-[16px] w-[16px] animate-spin text-[var(--text-muted)]' />
-                      <span className='ml-2 font-base text-caption text-[var(--text-muted)]'>
+                      <span className='ml-2 font-base text-[var(--text-muted)] text-caption'>
                         Loading options...
                       </span>
                     </div>
@@ -698,7 +698,7 @@ const Combobox = memo(
                       {error}
                     </div>
                   ) : filteredOptions.length === 0 ? (
-                    <div className='py-3.5 text-center font-base text-caption text-[var(--text-muted)]'>
+                    <div className='py-3.5 text-center font-base text-[var(--text-muted)] text-caption'>
                       {emptyMessage ||
                         (searchQuery || (editable && value)
                           ? 'No matching options found'
@@ -712,7 +712,7 @@ const Combobox = memo(
                           {group.sectionElement
                             ? group.sectionElement
                             : group.section && (
-                                <div className='px-1.5 py-1 font-base text-xs text-[var(--text-tertiary)] first:pt-1'>
+                                <div className='px-1.5 py-1 font-base text-[var(--text-tertiary)] text-xs first:pt-1'>
                                   {group.section}
                                 </div>
                               )}

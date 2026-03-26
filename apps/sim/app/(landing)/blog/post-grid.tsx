@@ -46,8 +46,12 @@ export function PostGrid({ posts }: { posts: Post[] }) {
                   year: 'numeric',
                 })}
               </div>
-              <h3 className='mb-1 font-[500] text-[var(--landing-text)] text-lg leading-tight'>{p.title}</h3>
-              <p className='mb-3 line-clamp-3 flex-1 text-[var(--text-subtle)] text-sm'>{p.description}</p>
+              <h3 className='mb-1 font-[500] text-[var(--landing-text)] text-lg leading-tight'>
+                {p.title}
+              </h3>
+              <p className='mb-3 line-clamp-3 flex-1 text-[var(--text-subtle)] text-sm'>
+                {p.description}
+              </p>
               <div className='flex items-center gap-2'>
                 <div className='-space-x-1.5 flex'>
                   {(p.authors && p.authors.length > 0 ? p.authors : [p.author])

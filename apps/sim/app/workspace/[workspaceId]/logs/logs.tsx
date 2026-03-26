@@ -907,7 +907,7 @@ export default function Logs() {
             )}
             {sections.map((section) => (
               <div key={section.title}>
-                <div className='px-3 py-1.5 font-medium text-caption text-[var(--text-tertiary)] uppercase tracking-wide'>
+                <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
                   {section.title}
                 </div>
                 {section.suggestions.map((suggestion) => {
@@ -931,7 +931,7 @@ export default function Logs() {
         ) : (
           <div className='py-1'>
             {suggestionType === 'filters' && (
-              <div className='px-3 py-1.5 font-medium text-caption text-[var(--text-tertiary)] uppercase tracking-wide'>
+              <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
                 SUGGESTED FILTERS
               </div>
             )}
@@ -1337,7 +1337,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   return (
     <div className='flex flex-col gap-3 p-3'>
       <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-caption text-[var(--text-secondary)]'>Status</span>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
         <Combobox
           options={statusOptions}
           multiSelect
@@ -1363,7 +1363,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
       </div>
 
       <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-caption text-[var(--text-secondary)]'>Workflow</span>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Workflow</span>
         <Combobox
           options={workflowOptions}
           multiSelect
@@ -1395,7 +1395,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
       </div>
 
       <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-caption text-[var(--text-secondary)]'>Folder</span>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Folder</span>
         <Combobox
           options={folderOptions}
           multiSelect
@@ -1415,7 +1415,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
       </div>
 
       <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-caption text-[var(--text-secondary)]'>Trigger</span>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Trigger</span>
         <Combobox
           options={triggerOptions}
           multiSelect
@@ -1435,7 +1435,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
       </div>
 
       <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-caption text-[var(--text-secondary)]'>Time Range</span>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Time Range</span>
         <DropdownMenu open={datePickerOpen} onOpenChange={setDatePickerOpen}>
           <DropdownMenuTrigger asChild>
             <div>
@@ -1515,14 +1515,14 @@ function SuggestionButton({
       <div className='flex items-center justify-between gap-3'>
         <div className='min-w-0 flex-1 truncate text-small'>{suggestion.label}</div>
         {showCategory && suggestion.value !== suggestion.label && (
-          <div className='shrink-0 font-mono text-xs text-[var(--text-muted)]'>
+          <div className='shrink-0 font-mono text-[var(--text-muted)] text-xs'>
             {suggestion.category === 'workflow' || suggestion.category === 'folder'
               ? `${suggestion.category}:`
               : ''}
           </div>
         )}
         {!showCategory && suggestion.description && (
-          <div className='shrink-0 text-xs text-[var(--text-muted)]'>{suggestion.value}</div>
+          <div className='shrink-0 text-[var(--text-muted)] text-xs'>{suggestion.value}</div>
         )}
       </div>
     </button>

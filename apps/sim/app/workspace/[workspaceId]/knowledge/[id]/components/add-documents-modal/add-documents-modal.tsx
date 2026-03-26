@@ -238,7 +238,7 @@ export function AddDocumentsModal({
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='space-y-3'>
               {fileError && (
-                <p className='text-caption text-[var(--text-error)] leading-tight'>{fileError}</p>
+                <p className='text-[var(--text-error)] text-caption leading-tight'>{fileError}</p>
               )}
 
               <div className='flex flex-col gap-2'>
@@ -268,7 +268,7 @@ export function AddDocumentsModal({
                     <span className='text-[var(--text-primary)]'>
                       {isDragging ? 'Drop files here' : 'Drop files here or click to browse'}
                     </span>
-                    <span className='text-xs text-[var(--text-tertiary)]'>
+                    <span className='text-[var(--text-tertiary)] text-xs'>
                       PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max 100MB each)
                     </span>
                   </div>
@@ -302,7 +302,7 @@ export function AddDocumentsModal({
                           >
                             {file.name}
                           </span>
-                          <span className='flex-shrink-0 text-xs text-[var(--text-muted)]'>
+                          <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
                             {formatFileSize(file.size)}
                           </span>
                           <div className='flex flex-shrink-0 items-center gap-1'>
@@ -346,7 +346,7 @@ export function AddDocumentsModal({
         <ModalFooter>
           <div className='flex w-full items-center justify-between gap-3'>
             {uploadError ? (
-              <p className='min-w-0 flex-1 truncate text-caption text-[var(--text-error)] leading-tight'>
+              <p className='min-w-0 flex-1 truncate text-[var(--text-error)] text-caption leading-tight'>
                 {uploadError.message}
               </p>
             ) : (

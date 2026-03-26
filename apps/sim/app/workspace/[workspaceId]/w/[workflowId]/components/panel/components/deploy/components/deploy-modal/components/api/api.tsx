@@ -429,7 +429,7 @@ console.log(limits);`
     <div className='space-y-4'>
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Language
           </Label>
         </div>
@@ -444,7 +444,7 @@ console.log(limits);`
 
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Run workflow
           </Label>
           <Tooltip.Root>
@@ -473,7 +473,7 @@ console.log(limits);`
 
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Run workflow (stream response)
           </Label>
           <div className='flex items-center gap-1.5'>
@@ -516,7 +516,7 @@ console.log(limits);`
 
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Run workflow (async)
           </Label>
           <div className='flex items-center gap-1.5'>

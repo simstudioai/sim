@@ -55,7 +55,7 @@ export function ActionBar({
       style={{ left: '50%' }}
     >
       <div className='flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
-        <span className='px-1 text-small text-[var(--text-secondary)]'>
+        <span className='px-1 text-[var(--text-secondary)] text-small'>
           {isAllSelected ? totalCount : selectedCount} selected
           {showSelectAllOption && (
             <>

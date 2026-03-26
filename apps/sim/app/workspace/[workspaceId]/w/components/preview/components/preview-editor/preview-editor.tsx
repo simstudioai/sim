@@ -229,7 +229,7 @@ function CollapsibleSection({
         <>
           {isEmpty ? (
             <div className='rounded-md bg-[var(--surface-3)] px-2.5 py-2'>
-              <span className='text-caption text-[var(--text-tertiary)]'>{emptyMessage}</span>
+              <span className='text-[var(--text-tertiary)] text-caption'>{emptyMessage}</span>
             </div>
           ) : (
             children
@@ -347,7 +347,7 @@ function ConnectionsSection({
         <ChevronUp
           className={cn('h-[14px] w-[14px] transition-transform', !isAtMinHeight && 'rotate-180')}
         />
-        <div className='font-medium text-small text-[var(--text-primary)]'>Connections</div>
+        <div className='font-medium text-[var(--text-primary)] text-small'>Connections</div>
       </div>
 
       {/* Content - styled like ConnectionBlocks */}
@@ -625,7 +625,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
     <div className='flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-2'>
       {/* Type Selection - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           {isLoop ? 'Loop Type' : 'Parallel Type'}
         </Label>
         <Combobox
@@ -650,7 +650,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
 
       {/* Configuration - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           {getConfigLabel()}
         </Label>
 
@@ -675,7 +675,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
                   {isConditionMode ? '<counter.value> < 10' : "['item1', 'item2', 'item3']"}
                 </Code.Placeholder>
                 <div
-                  className='min-h-[24px] whitespace-pre-wrap break-all px-3 py-2 font-mono text-small text-[var(--text-secondary)]'
+                  className='min-h-[24px] whitespace-pre-wrap break-all px-3 py-2 font-mono text-[var(--text-secondary)] text-small'
                   style={{ pointerEvents: 'none' }}
                 >
                   {editorValue || (
@@ -1100,7 +1100,7 @@ function PreviewEditorContent({
           >
             <SubflowIcon className='h-[12px] w-[12px] text-white' />
           </div>
-          <span className='min-w-0 flex-1 truncate font-medium text-sm text-[var(--text-primary)]'>
+          <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>
             {subflowName}
           </span>
           {onClose && (
@@ -1128,12 +1128,12 @@ function PreviewEditorContent({
       <div className='flex h-full w-80 flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         <div className='mx-[-1px] flex items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex h-[18px] w-[18px] items-center justify-center rounded-sm bg-[var(--surface-3)]' />
-          <span className='font-medium text-sm text-[var(--text-primary)]'>
+          <span className='font-medium text-[var(--text-primary)] text-sm'>
             {block.name || 'Unknown Block'}
           </span>
         </div>
         <div className='p-3'>
-          <p className='text-small text-[var(--text-secondary)]'>Block configuration not found.</p>
+          <p className='text-[var(--text-secondary)] text-small'>Block configuration not found.</p>
         </div>
       </div>
     )
@@ -1192,7 +1192,7 @@ function PreviewEditorContent({
             />
           </div>
         )}
-        <span className='min-w-0 flex-1 truncate font-medium text-sm text-[var(--text-primary)]'>
+        <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>
           {block.name || blockConfig.name}
         </span>
         {onClose && (
@@ -1227,7 +1227,7 @@ function PreviewEditorContent({
                   </Badge>
                 )}
                 {executionData.durationMs !== undefined && (
-                  <span className='font-medium text-caption text-[var(--text-tertiary)]'>
+                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                     {formatDuration(executionData.durationMs, { precision: 2 })}
                   </span>
                 )}
@@ -1382,7 +1382,7 @@ function PreviewEditorContent({
             {isWorkflowBlock && childWorkflowId && (
               <div className='px-2 pt-3'>
                 <div className='subblock-content flex flex-col gap-[9.5px]'>
-                  <div className='pl-0.5 font-medium text-small text-[var(--text-primary)] leading-none'>
+                  <div className='pl-0.5 font-medium text-[var(--text-primary)] text-small leading-none'>
                     Workflow Preview
                   </div>
                   <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
@@ -1434,7 +1434,7 @@ function PreviewEditorContent({
                       </>
                     ) : (
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
-                        <span className='text-small text-[var(--text-tertiary)]'>
+                        <span className='text-[var(--text-tertiary)] text-small'>
                           {isBlockNotExecuted
                             ? 'Not Executed'
                             : isMissingChildWorkflow
@@ -1491,7 +1491,7 @@ function PreviewEditorContent({
                 </div>
               ) : (
                 <div className='py-4 text-center'>
-                  <p className='text-small text-[var(--text-secondary)]'>
+                  <p className='text-[var(--text-secondary)] text-small'>
                     No configurable fields for this block.
                   </p>
                 </div>

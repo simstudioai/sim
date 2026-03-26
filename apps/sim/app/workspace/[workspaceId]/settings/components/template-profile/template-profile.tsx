@@ -301,7 +301,7 @@ export function TemplateProfile() {
           {/* Profile Selection - only show if user has organizations */}
           {organizations.length > 0 && (
             <div className='flex flex-col gap-2'>
-              <span className='font-medium text-sm text-[var(--text-secondary)]'>Profile</span>
+              <span className='font-medium text-[var(--text-secondary)] text-sm'>Profile</span>
               <Combobox
                 options={[
                   { label: 'Personal', value: userId },
@@ -327,7 +327,7 @@ export function TemplateProfile() {
 
           {/* Display */}
           <div className='flex flex-col gap-2'>
-            <span className='font-medium text-sm text-[var(--text-secondary)]'>
+            <span className='font-medium text-[var(--text-secondary)] text-sm'>
               Display<span className='ml-1.5 text-[var(--text-secondary)]'>*</span>
             </span>
             <div className='flex items-center gap-2.5'>
@@ -359,7 +359,7 @@ export function TemplateProfile() {
                     const initials = getInitials(formData.name)
                     if (initials) {
                       return (
-                        <span className='font-medium text-base text-[var(--text-primary)]'>
+                        <span className='font-medium text-[var(--text-primary)] text-base'>
                           {initials}
                         </span>
                       )
@@ -411,12 +411,12 @@ export function TemplateProfile() {
                 data-form-type='other'
               />
             </div>
-            {uploadError && <p className='text-small text-[var(--text-error)]'>{uploadError}</p>}
+            {uploadError && <p className='text-[var(--text-error)] text-small'>{uploadError}</p>}
           </div>
 
           {/* About */}
           <div className='flex flex-col gap-2'>
-            <span className='font-medium text-sm text-[var(--text-secondary)]'>About</span>
+            <span className='font-medium text-[var(--text-secondary)] text-sm'>About</span>
             <Textarea
               placeholder='Tell people about yourself or your organization'
               value={formData.about}
@@ -427,7 +427,7 @@ export function TemplateProfile() {
 
           {/* Social Links */}
           <div className='flex flex-col gap-2'>
-            <span className='font-medium text-sm text-[var(--text-secondary)]'>Socials</span>
+            <span className='font-medium text-[var(--text-secondary)] text-sm'>Socials</span>
 
             <div>
               <div className='relative'>
@@ -440,7 +440,7 @@ export function TemplateProfile() {
                 />
               </div>
               {fieldErrors.xUrl && (
-                <p className='mt-1 text-small text-[var(--text-error)]'>{fieldErrors.xUrl}</p>
+                <p className='mt-1 text-[var(--text-error)] text-small'>{fieldErrors.xUrl}</p>
               )}
             </div>
 
@@ -455,7 +455,7 @@ export function TemplateProfile() {
                 />
               </div>
               {fieldErrors.linkedinUrl && (
-                <p className='mt-1 text-small text-[var(--text-error)]'>
+                <p className='mt-1 text-[var(--text-error)] text-small'>
                   {fieldErrors.linkedinUrl}
                 </p>
               )}
@@ -472,9 +472,7 @@ export function TemplateProfile() {
                 />
               </div>
               {fieldErrors.websiteUrl && (
-                <p className='mt-1 text-small text-[var(--text-error)]'>
-                  {fieldErrors.websiteUrl}
-                </p>
+                <p className='mt-1 text-[var(--text-error)] text-small'>{fieldErrors.websiteUrl}</p>
               )}
             </div>
 
@@ -490,7 +488,7 @@ export function TemplateProfile() {
                 />
               </div>
               {fieldErrors.contactEmail && (
-                <p className='mt-1 text-small text-[var(--text-error)]'>
+                <p className='mt-1 text-[var(--text-error)] text-small'>
                   {fieldErrors.contactEmail}
                 </p>
               )}
@@ -500,7 +498,7 @@ export function TemplateProfile() {
       </div>
 
       <div className='mt-auto flex items-center justify-end gap-2'>
-        {saveError && <p className='mr-auto text-small text-[var(--text-error)]'>{saveError}</p>}
+        {saveError && <p className='mr-auto text-[var(--text-error)] text-small'>{saveError}</p>}
         <Button
           onClick={handleSubmit}
           disabled={saveStatus === 'saving' || !isFormValid}

@@ -63,10 +63,10 @@ export function TeamSeatsOverview({
       <div className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
         <div className='flex flex-col items-center gap-3 px-3.5 py-4 text-center'>
           <div className='flex flex-col gap-1'>
-            <p className='font-medium text-base text-[var(--text-primary)]'>
+            <p className='font-medium text-[var(--text-primary)] text-base'>
               No Team Subscription Found
             </p>
-            <p className='text-small text-[var(--text-muted)]'>
+            <p className='text-[var(--text-muted)] text-small'>
               Your subscription may need to be transferred to this organization.
             </p>
           </div>
@@ -92,7 +92,7 @@ export function TeamSeatsOverview({
         {/* Top row - matching UsageHeader */}
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
-            <span className='font-medium text-base text-[var(--text-primary)]'>Seats</span>
+            <span className='font-medium text-[var(--text-primary)] text-base'>Seats</span>
             {!isEnterprise && (
               <Badge
                 variant='blue-secondary'
@@ -134,7 +134,7 @@ export function TeamSeatsOverview({
         {/* Enterprise message */}
         {isEnterprise && (
           <div className='pt-1 text-center'>
-            <p className='text-small text-[var(--text-muted)]'>
+            <p className='text-[var(--text-muted)] text-small'>
               Contact support for enterprise usage limit changes
             </p>
           </div>

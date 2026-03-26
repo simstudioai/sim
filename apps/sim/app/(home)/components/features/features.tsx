@@ -195,10 +195,7 @@ export default function Features() {
       </div>
 
       <div className='relative z-10 pt-[60px] lg:pt-[100px]'>
-        <div
-          ref={sectionRef}
-          className='flex flex-col items-start gap-5 px-6 lg:px-[80px]'
-        >
+        <div ref={sectionRef} className='flex flex-col items-start gap-5 px-6 lg:px-[80px]'>
           <Badge
             variant='blue'
             size='md'
@@ -216,7 +213,7 @@ export default function Features() {
           </Badge>
           <h2
             id='features-heading'
-            className='max-w-[900px] font-[430] font-season text-[var(--text-primary)] text-[28px] leading-[110%] tracking-[-0.02em] md:text-[40px]'
+            className='max-w-[900px] font-[430] font-season text-[28px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em] md:text-[40px]'
           >
             {HEADING_LETTERS.map((char, i) => (
               <ScrollLetter key={i} scrollYProgress={scrollYProgress} charIndex={i}>
@@ -301,7 +298,7 @@ export default function Features() {
           <div className='mt-8 flex flex-col gap-6 px-6 lg:mt-[60px] lg:grid lg:grid-cols-[1fr_2.8fr] lg:gap-[60px] lg:px-[120px]'>
             <div className='flex flex-col items-start justify-between gap-6 pt-5 lg:h-[560px] lg:gap-0'>
               <div className='flex flex-col items-start gap-4'>
-                <h3 className='font-[430] font-season text-[var(--text-primary)] text-[24px] leading-[120%] tracking-[-0.02em] lg:text-[28px]'>
+                <h3 className='font-[430] font-season text-[24px] text-[var(--text-primary)] leading-[120%] tracking-[-0.02em] lg:text-[28px]'>
                   {FEATURE_TABS[activeTab].title}
                 </h3>
                 <p className='font-[430] font-season text-[var(--landing-text-subtle)]/50 text-md leading-[150%] tracking-[0.02em] lg:text-lg'>

@@ -245,14 +245,14 @@ const SubBlockRow = memo(function SubBlockRow({
   return (
     <div className='flex items-center gap-2'>
       <span
-        className='min-w-0 truncate text-sm text-[var(--text-tertiary)] capitalize'
+        className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
         title={title}
       >
         {title}
       </span>
       {displayValue !== undefined && (
         <span
-          className='flex-1 truncate text-right text-sm text-[var(--text-primary)]'
+          className='flex-1 truncate text-right text-[var(--text-primary)] text-sm'
           title={displayValue}
         >
           {displayValue}

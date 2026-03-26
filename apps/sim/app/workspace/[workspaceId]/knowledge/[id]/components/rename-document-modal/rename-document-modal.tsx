@@ -108,7 +108,7 @@ export function RenameDocumentModal({
           <ModalFooter>
             <div className='flex w-full items-center justify-between gap-3'>
               {error ? (
-                <p className='min-w-0 flex-1 truncate text-caption text-[var(--text-error)] leading-tight'>
+                <p className='min-w-0 flex-1 truncate text-[var(--text-error)] text-caption leading-tight'>
                   {error}
                 </p>
               ) : (

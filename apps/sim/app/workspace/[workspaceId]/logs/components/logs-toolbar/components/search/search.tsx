@@ -284,7 +284,7 @@ export function AutocompleteSearch({
 
                   {sections.map((section) => (
                     <div key={section.title}>
-                      <div className='px-3 py-1.5 font-medium text-caption text-[var(--text-tertiary)] uppercase tracking-wide'>
+                      <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
                         {section.title}
                       </div>
                       {section.suggestions.map((suggestion) => {
@@ -313,7 +313,7 @@ export function AutocompleteSearch({
                                 {suggestion.label}
                               </div>
                               {suggestion.value !== suggestion.label && (
-                                <div className='shrink-0 font-mono text-xs text-[var(--text-muted)]'>
+                                <div className='shrink-0 font-mono text-[var(--text-muted)] text-xs'>
                                   {suggestion.category === 'workflow' ||
                                   suggestion.category === 'folder'
                                     ? `${suggestion.category}:`
@@ -331,7 +331,7 @@ export function AutocompleteSearch({
                 // Single section layout
                 <div className='py-1'>
                   {suggestionType === 'filters' && (
-                    <div className='px-3 py-1.5 font-medium text-caption text-[var(--text-tertiary)] uppercase tracking-wide'>
+                    <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
                       SUGGESTED FILTERS
                     </div>
                   )}
@@ -354,7 +354,7 @@ export function AutocompleteSearch({
                       <div className='flex items-center justify-between gap-3'>
                         <div className='min-w-0 flex-1 text-small'>{suggestion.label}</div>
                         {suggestion.description && (
-                          <div className='shrink-0 text-xs text-[var(--text-muted)]'>
+                          <div className='shrink-0 text-[var(--text-muted)] text-xs'>
                             {suggestion.value}
                           </div>
                         )}

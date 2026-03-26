@@ -88,7 +88,7 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1 className='font-[500] text-[var(--landing-text)] text-[32px] tracking-tight'>
+                <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
                   Password Required
                 </h1>
                 <p className='font-[380] text-[var(--text-subtle)] text-md'>

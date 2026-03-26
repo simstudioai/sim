@@ -91,7 +91,7 @@ export function InboxTaskList() {
           <DropdownMenuTrigger asChild>
             <Button
               variant='ghost'
-              className='h-[32px] gap-1 px-2 text-small text-[var(--text-secondary)]'
+              className='h-[32px] gap-1 px-2 text-[var(--text-secondary)] text-small'
             >
               {STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label ?? 'All statuses'}
               <ChevronDown className='h-[12px] w-[12px]' />
@@ -117,7 +117,7 @@ export function InboxTaskList() {
             ))}
           </div>
         ) : filteredTasks.length === 0 ? (
-          <div className='flex h-[200px] items-center justify-center text-sm text-[var(--text-muted)]'>
+          <div className='flex h-[200px] items-center justify-center text-[var(--text-muted)] text-sm'>
             {searchTerm.trim()
               ? `No tasks matching "${searchTerm}"`
               : config?.address
@@ -147,20 +147,20 @@ export function InboxTaskList() {
                   }}
                 >
                   <div className='flex items-center justify-between'>
-                    <span className='max-w-[70%] truncate font-medium text-sm text-[var(--text-primary)]'>
+                    <span className='max-w-[70%] truncate font-medium text-[var(--text-primary)] text-sm'>
                       {task.subject}
                     </span>
                     <div className='flex items-center gap-1.5'>
                       {task.hasAttachments && (
                         <Paperclip className='h-[12px] w-[12px] text-[var(--text-muted)]' />
                       )}
-                      <span className='whitespace-nowrap text-caption text-[var(--text-muted)]'>
+                      <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
                         {formatRelativeTime(task.createdAt)}
                       </span>
                     </div>
                   </div>
                   <div className='flex items-center justify-between'>
-                    <span className='max-w-[60%] truncate text-caption text-[var(--text-muted)]'>
+                    <span className='max-w-[60%] truncate text-[var(--text-muted)] text-caption'>
                       {task.fromName || task.fromEmail}
                     </span>
                     <Badge variant={statusBadge.variant} className='text-xs'>
@@ -171,17 +171,17 @@ export function InboxTaskList() {
                     </Badge>
                   </div>
                   {task.status === 'rejected' && task.rejectionReason && (
-                    <span className='text-caption text-[var(--text-muted)] line-through'>
+                    <span className='text-[var(--text-muted)] text-caption line-through'>
                       {formatRejectionReason(task.rejectionReason)}
                     </span>
                   )}
                   {task.status === 'failed' && task.errorMessage && (
-                    <span className='truncate text-caption text-[var(--text-error)]'>
+                    <span className='truncate text-[var(--text-error)] text-caption'>
                       {task.errorMessage}
                     </span>
                   )}
                   {task.status === 'completed' && task.resultSummary && (
-                    <span className='truncate text-caption text-[var(--text-muted)]'>
+                    <span className='truncate text-[var(--text-muted)] text-caption'>
                       {task.resultSummary}
                     </span>
                   )}
@@ -189,7 +189,7 @@ export function InboxTaskList() {
                     task.status !== 'failed' &&
                     task.status !== 'rejected' &&
                     task.bodyPreview && (
-                      <span className='truncate text-caption text-[var(--text-muted)]'>
+                      <span className='truncate text-[var(--text-muted)] text-caption'>
                         {task.bodyPreview}
                       </span>
                     )}

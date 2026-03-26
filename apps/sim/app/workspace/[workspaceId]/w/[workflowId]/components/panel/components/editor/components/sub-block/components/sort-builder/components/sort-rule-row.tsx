@@ -42,7 +42,7 @@ export function SortRuleRow({
       onClick={() => onToggleCollapse(rule.id)}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate font-medium text-sm text-[var(--text-tertiary)]'>
+        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
           {rule.collapsed && rule.column ? getColumnLabel(rule.column) : `Sort ${index + 1}`}
         </span>
         {rule.collapsed && rule.column && (

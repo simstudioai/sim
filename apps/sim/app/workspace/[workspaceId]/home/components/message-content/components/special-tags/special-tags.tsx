@@ -344,7 +344,7 @@ export function PendingTagIndicator() {
           />
         ))}
       </div>
-      <span className='font-base text-sm text-[var(--text-body)]'>Thinking…</span>
+      <span className='font-base text-[var(--text-body)] text-sm'>Thinking…</span>
     </div>
   )
 }
@@ -362,7 +362,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
 
   return (
     <div className='animate-stream-fade-in'>
-      <span className='font-base text-sm text-[var(--text-body)]'>Suggested follow-ups</span>
+      <span className='font-base text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
       <div className='mt-1.5 flex flex-col'>
         {entries.map(([key, value], i) => {
           const title = value.title
@@ -380,9 +380,9 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
               )}
             >
               <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-                <span className='font-base text-sm text-[var(--text-icon)]'>{i + 1}</span>
+                <span className='font-base text-[var(--text-icon)] text-sm'>{i + 1}</span>
               </div>
-              <span className='flex-1 font-base text-sm text-[var(--text-body)]'>{title}</span>
+              <span className='flex-1 font-base text-[var(--text-body)] text-sm'>{title}</span>
               <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
             </button>
           )
@@ -440,7 +440,7 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
       className='flex animate-stream-fade-in items-center gap-2 rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
     >
       {createElement(Icon, { className: 'h-[16px] w-[16px] shrink-0' })}
-      <span className='flex-1 font-base text-sm text-[var(--text-body)]'>
+      <span className='flex-1 font-base text-[var(--text-body)] text-sm'>
         Connect {data.provider}
       </span>
       <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
@@ -481,16 +481,16 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
           <path d='M8 6.5v3' stroke='currentColor' strokeWidth='1.3' strokeLinecap='round' />
           <circle cx='8' cy='11.5' r='0.75' fill='currentColor' />
         </svg>
-        <span className='font-[500] text-sm text-amber-800 leading-5 dark:text-amber-300'>
+        <span className='font-[500] text-amber-800 text-sm leading-5 dark:text-amber-300'>
           Usage Limit Reached
         </span>
       </div>
-      <p className='mt-1.5 text-small text-amber-700/90 leading-[20px] dark:text-amber-400/80'>
+      <p className='mt-1.5 text-amber-700/90 text-small leading-[20px] dark:text-amber-400/80'>
         {data.message}
       </p>
       <a
         href={settingsPath}
-        className='mt-2 inline-flex items-center gap-1 font-[500] text-small text-amber-700 underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
+        className='mt-2 inline-flex items-center gap-1 font-[500] text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
       >
         {buttonLabel}
         <ArrowRight className='h-3 w-3' />

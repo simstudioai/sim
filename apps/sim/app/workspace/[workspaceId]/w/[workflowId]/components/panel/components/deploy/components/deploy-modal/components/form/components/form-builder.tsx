@@ -206,7 +206,7 @@ export function FormBuilder({
             placeholder='Form Title'
             maxLength={MAX_LENGTHS.FORM_TITLE}
             className={cn(
-              'min-w-0 flex-1 bg-transparent font-medium text-sm text-[var(--text-primary)] outline-none',
+              'min-w-0 flex-1 bg-transparent font-medium text-[var(--text-primary)] text-sm outline-none',
               'placeholder:text-[var(--text-muted)]',
               titleError && 'text-[var(--text-error)]'
             )}
@@ -215,9 +215,7 @@ export function FormBuilder({
             <CharacterCounter current={title.length} max={MAX_LENGTHS.FORM_TITLE} />
           )}
         </div>
-        {titleError && (
-          <p className='mt-1 text-caption text-[var(--text-error)]'>{titleError}</p>
-        )}
+        {titleError && <p className='mt-1 text-[var(--text-error)] text-caption'>{titleError}</p>}
         <div className='mt-1 flex items-center gap-1.5'>
           <input
             type='text'
@@ -231,7 +229,7 @@ export function FormBuilder({
             onBlur={() => setFocusedInput(null)}
             placeholder='Description'
             maxLength={MAX_LENGTHS.FORM_DESCRIPTION}
-            className='min-w-0 flex-1 bg-transparent text-caption text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-muted)]'
+            className='min-w-0 flex-1 bg-transparent text-[var(--text-secondary)] text-caption outline-none placeholder:text-[var(--text-muted)]'
           />
           {focusedInput === 'description' && (
             <CharacterCounter current={description.length} max={MAX_LENGTHS.FORM_DESCRIPTION} />
@@ -292,13 +290,13 @@ export function FormBuilder({
                   onBlur={() => setFocusedInput(null)}
                   placeholder='Label'
                   maxLength={MAX_LENGTHS.FIELD_LABEL}
-                  className='min-w-0 flex-1 bg-transparent font-medium text-small text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]'
+                  className='min-w-0 flex-1 bg-transparent font-medium text-[var(--text-primary)] text-small outline-none placeholder:text-[var(--text-muted)]'
                 />
                 {focusedInput === `field-label-${index}` && (
                   <CharacterCounter current={config.label.length} max={MAX_LENGTHS.FIELD_LABEL} />
                 )}
                 <div className='flex items-center gap-1.5'>
-                  <span className='text-xs text-[var(--text-tertiary)]'>Required</span>
+                  <span className='text-[var(--text-tertiary)] text-xs'>Required</span>
                   <Switch
                     checked={config.required ?? false}
                     onCheckedChange={(checked) => updateFieldConfig(index, { required: checked })}
@@ -320,7 +318,7 @@ export function FormBuilder({
                   onBlur={() => setFocusedInput(null)}
                   placeholder='Description...'
                   maxLength={MAX_LENGTHS.FIELD_DESCRIPTION}
-                  className='min-w-0 flex-1 bg-transparent text-xs text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-muted)]'
+                  className='min-w-0 flex-1 bg-transparent text-[var(--text-secondary)] text-xs outline-none placeholder:text-[var(--text-muted)]'
                 />
                 {focusedInput === `field-desc-${index}` && (
                   <CharacterCounter
@@ -332,14 +330,14 @@ export function FormBuilder({
 
               {/* Field mapping */}
               <div className='mt-1.5 ml-4.5 flex items-center justify-between border-[var(--border-1)] border-t border-dashed pt-1.5'>
-                <span className='text-micro text-[var(--text-muted)]'>
+                <span className='text-[var(--text-muted)] text-micro'>
                   {config.name ? (
                     <>
                       maps to <code>{config.name}</code>
                     </>
                   ) : null}
                 </span>
-                <span className='text-micro text-[var(--text-muted)]'>{config.type}</span>
+                <span className='text-[var(--text-muted)] text-micro'>{config.type}</span>
               </div>
             </div>
           )

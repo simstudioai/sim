@@ -831,7 +831,7 @@ try {
                       JSON Schema
                     </Label>
                     {schemaError && (
-                      <div className='ml-2 flex min-w-0 items-center gap-1 text-caption text-[var(--text-error)]'>
+                      <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
                         <AlertCircle className='h-3 w-3 flex-shrink-0' />
                         <span className='truncate'>{schemaError}</span>
                       </div>
@@ -923,7 +923,7 @@ try {
                       Code
                     </Label>
                     {codeError && !codeGeneration.isStreaming && (
-                      <div className='ml-2 flex min-w-0 items-center gap-1 text-caption text-[var(--text-error)]'>
+                      <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
                         <AlertCircle className='h-3 w-3 flex-shrink-0' />
                         <span className='truncate'>{codeError}</span>
                       </div>
@@ -1106,7 +1106,7 @@ try {
                                 {param.name}
                               </span>
                               {param.type && param.type !== 'any' && (
-                                <span className='ml-auto text-micro text-[var(--text-secondary)]'>
+                                <span className='ml-auto text-[var(--text-secondary)] text-micro'>
                                   {param.type}
                                 </span>
                               )}

@@ -393,7 +393,7 @@ function CalendarMonth({
         ) : (
           <div className='h-[24px] w-[24px]' />
         )}
-        <span className='font-medium text-small text-[var(--text-primary)]'>
+        <span className='font-medium text-[var(--text-primary)] text-small'>
           {MONTHS[viewMonth]} {viewYear}
         </span>
         {showNavigation === 'right' || showNavigation === 'both' ? (
@@ -414,7 +414,7 @@ function CalendarMonth({
         {DAYS.map((day) => (
           <div
             key={day}
-            className='flex h-[28px] items-center justify-center text-xs text-[var(--text-muted)]'
+            className='flex h-[28px] items-center justify-center text-[var(--text-muted)] text-xs'
           >
             {day}
           </div>

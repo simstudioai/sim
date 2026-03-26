@@ -275,11 +275,13 @@ export default function Form({ identifier }: { identifier: string }) {
           <div className='w-full max-w-[410px]'>
             {/* Form title */}
             <div className='mb-8 text-center'>
-              <h1 className='font-[500] text-[var(--landing-text)] text-[28px] tracking-tight'>
+              <h1 className='font-[500] text-[28px] text-[var(--landing-text)] tracking-tight'>
                 {formConfig.title}
               </h1>
               {formConfig.description && (
-                <p className='mt-2 font-[380] text-[var(--text-subtle)] text-base'>{formConfig.description}</p>
+                <p className='mt-2 font-[380] text-[var(--text-subtle)] text-base'>
+                  {formConfig.description}
+                </p>
               )}
             </div>
 

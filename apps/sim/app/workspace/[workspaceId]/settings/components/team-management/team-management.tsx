@@ -429,7 +429,7 @@ export function TeamManagement() {
         {/* Single Organization Notice */}
         {adminOrOwner && (
           <div className='rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-3.5 py-2.5'>
-            <p className='text-small text-[var(--text-muted)]'>
+            <p className='text-[var(--text-muted)] text-small'>
               <span className='font-medium'>Note:</span> Users can only be part of one organization
               at a time.
             </p>
@@ -438,7 +438,7 @@ export function TeamManagement() {
 
         {/* Team Information */}
         <details className='group overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
-          <summary className='flex cursor-pointer items-center justify-between px-3.5 py-2.5 font-medium text-base text-[var(--text-primary)] hover-hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
+          <summary className='flex cursor-pointer items-center justify-between px-3.5 py-2.5 font-medium text-[var(--text-primary)] text-base hover-hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
             <span>Team Information</span>
             <svg
               className='h-4 w-4 transition-transform group-open:rotate-180'
@@ -457,7 +457,7 @@ export function TeamManagement() {
           <div className='flex flex-col gap-2 border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3 text-small'>
             <div className='flex justify-between'>
               <span className='text-[var(--text-muted)]'>Team ID:</span>
-              <span className='font-mono text-micro text-[var(--text-primary)]'>
+              <span className='font-mono text-[var(--text-primary)] text-micro'>
                 {displayOrganization.id}
               </span>
             </div>
@@ -477,7 +477,7 @@ export function TeamManagement() {
         {/* Team Billing Information (only show for Team Plan, not Enterprise) */}
         {hasTeamPlan && !hasEnterprisePlan && (
           <details className='group overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
-            <summary className='flex cursor-pointer items-center justify-between px-3.5 py-2.5 font-medium text-base text-[var(--text-primary)] hover-hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
+            <summary className='flex cursor-pointer items-center justify-between px-3.5 py-2.5 font-medium text-[var(--text-primary)] text-base hover-hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
               <span>Billing Information</span>
               <svg
                 className='h-4 w-4 transition-transform group-open:rotate-180'
@@ -494,7 +494,7 @@ export function TeamManagement() {
               </svg>
             </summary>
             <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3'>
-              <ul className='ml-4 flex list-disc flex-col gap-2 text-small text-[var(--text-muted)]'>
+              <ul className='ml-4 flex list-disc flex-col gap-2 text-[var(--text-muted)] text-small'>
                 <li>
                   Your team is billed a minimum of $
                   {((subscriptionData?.seats ?? 0) * costPerSeat).toLocaleString()}/month for{' '}

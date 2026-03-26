@@ -360,7 +360,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                       />
                     ))}
                     {filteredEntries.length === 0 && (
-                      <div className='py-4 text-center text-sm text-[var(--text-muted)]'>
+                      <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                         {CONNECTOR_ENTRIES.length === 0
                           ? 'No connectors available.'
                           : `No sources found matching "${searchTerm}"`}
@@ -397,7 +397,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                   <div className='flex flex-col gap-1'>
                     <Label>Account</Label>
                     {credentialsLoading ? (
-                      <div className='flex items-center gap-2 text-small text-[var(--text-muted)]'>
+                      <div className='flex items-center gap-2 text-[var(--text-muted)] text-small'>
                         <Loader2 className='h-4 w-4 animate-spin' />
                         Loading credentials...
                       </div>
@@ -470,7 +470,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                         )}
                       </div>
                       {field.description && (
-                        <p className='text-xs text-[var(--text-muted)]'>{field.description}</p>
+                        <p className='text-[var(--text-muted)] text-xs'>{field.description}</p>
                       )}
                       {field.type === 'selector' && field.selectorKey ? (
                         <ConnectorSelectorField
@@ -541,7 +541,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                           }}
                         />
                         <span className='text-[var(--text-primary)]'>{tagDef.displayName}</span>
-                        <span className='text-xs text-[var(--text-muted)]'>
+                        <span className='text-[var(--text-muted)] text-xs'>
                           ({tagDef.fieldType})
                         </span>
                       </div>
@@ -565,7 +565,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                 </div>
 
                 {error && (
-                  <p className='text-caption text-[var(--text-error)] leading-tight'>{error}</p>
+                  <p className='text-[var(--text-error)] text-caption leading-tight'>{error}</p>
                 )}
               </div>
             ) : null}
@@ -624,10 +624,10 @@ function ConnectorTypeCard({ config, onClick }: ConnectorTypeCardProps) {
     >
       <Icon className='h-[18px] w-[18px] flex-shrink-0' />
       <div className='flex min-w-0 flex-col gap-[1px]'>
-        <span className='truncate font-medium text-small text-[var(--text-primary)]'>
+        <span className='truncate font-medium text-[var(--text-primary)] text-small'>
           {config.name}
         </span>
-        <span className='truncate text-xs text-[var(--text-muted)]'>{config.description}</span>
+        <span className='truncate text-[var(--text-muted)] text-xs'>{config.description}</span>
       </div>
     </button>
   )

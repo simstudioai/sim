@@ -146,7 +146,7 @@ export const ClientChatMessage = memo(
                                 {attachment.name}
                               </div>
                               {attachment.size && (
-                                <div className='text-micro text-gray-500 md:text-xs dark:text-gray-400'>
+                                <div className='text-gray-500 text-micro md:text-xs dark:text-gray-400'>
                                   {formatFileSize(attachment.size)}
                                 </div>
                               )}

@@ -142,7 +142,7 @@ export const PermissionsTable = ({
   if (isSaving) {
     return (
       <div className='space-y-3'>
-        <h3 className='font-medium text-sm text-[var(--text-primary)]'>Member Permissions</h3>
+        <h3 className='font-medium text-[var(--text-primary)] text-sm'>Member Permissions</h3>
         <div className='rounded-lg border border-[var(--border-1)] bg-[var(--surface-3)]'>
           <div className='flex items-center justify-center py-12'>
             <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
@@ -151,7 +151,7 @@ export const PermissionsTable = ({
             </div>
           </div>
         </div>
-        <p className='flex min-h-[2rem] items-start text-caption text-[var(--text-tertiary)]'>
+        <p className='flex min-h-[2rem] items-start text-[var(--text-tertiary)] text-caption'>
           Please wait while we update the permissions.
         </p>
       </div>
@@ -194,7 +194,7 @@ export const PermissionsTable = ({
               <div key={uniqueKey} className='flex items-center justify-between gap-2 py-2'>
                 <div className='min-w-0 flex-1'>
                   <div className='flex items-center gap-2'>
-                    <span className='truncate font-medium text-small text-[var(--text-primary)]'>
+                    <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                       {user.email}
                     </span>
                     {isPendingInvitation && (

@@ -158,7 +158,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
           <ModalHeader>Delete {isSingleRow ? 'Row' : `${deleteCount} Rows`}</ModalHeader>
           <ModalBody>
             {error && (
-              <div className='rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3.5 py-3 text-small text-[var(--status-error-text)]'>
+              <div className='rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3.5 py-3 text-[var(--status-error-text)] text-small'>
                 {error}
               </div>
             )}
@@ -190,7 +190,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
         <ModalHeader>
           <div className='flex flex-col gap-1'>
             <h2 className='font-semibold text-md'>{isAddMode ? 'Add New Row' : 'Edit Row'}</h2>
-            <p className='font-normal text-small text-[var(--text-tertiary)]'>
+            <p className='font-normal text-[var(--text-tertiary)] text-small'>
               {isAddMode ? 'Fill in the values for' : 'Update values for'} {table?.name ?? 'table'}
             </p>
           </div>
@@ -244,7 +244,7 @@ function ErrorMessage({ error }: { error: string | null }) {
   if (!error) return null
 
   return (
-    <div className='rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3.5 py-3 text-small text-[var(--status-error-text)]'>
+    <div className='rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3.5 py-3 text-[var(--status-error-text)] text-small'>
       {error}
     </div>
   )
@@ -263,9 +263,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
         {column.name}
         {column.required && <span className='text-[var(--text-error)]'> *</span>}
         {column.unique && (
-          <span className='ml-1.5 font-normal text-xs text-[var(--text-tertiary)]'>
-            (unique)
-          </span>
+          <span className='ml-1.5 font-normal text-[var(--text-tertiary)] text-xs'>(unique)</span>
         )}
       </Label>
 
@@ -278,7 +276,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
           />
           <Label
             htmlFor={column.name}
-            className='font-normal text-small text-[var(--text-tertiary)]'
+            className='font-normal text-[var(--text-tertiary)] text-small'
           >
             {value ? 'True' : 'False'}
           </Label>
@@ -312,7 +310,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
         />
       )}
 
-      <div className='text-caption text-[var(--text-tertiary)]'>
+      <div className='text-[var(--text-tertiary)] text-caption'>
         Type: {column.type}
         {!column.required && ' (optional)'}
       </div>

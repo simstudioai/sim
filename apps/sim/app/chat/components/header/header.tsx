@@ -40,7 +40,7 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
               className='h-6 w-6 rounded-md object-cover'
             />
           )}
-          <h2 className='font-medium text-lg text-foreground'>
+          <h2 className='font-medium text-foreground text-lg'>
             {chatConfig?.customizations?.headerText || chatConfig?.title || 'Chat'}
           </h2>
         </div>

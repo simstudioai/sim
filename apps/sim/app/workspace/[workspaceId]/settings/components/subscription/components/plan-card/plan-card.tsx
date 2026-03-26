@@ -44,11 +44,9 @@ export function PlanCard({
     if (typeof price === 'string') {
       return (
         <>
-          <span className='font-medium text-base text-[var(--text-primary)]'>{price}</span>
+          <span className='font-medium text-[var(--text-primary)] text-base'>{price}</span>
           {priceSubtext && (
-            <span className='ml-1 text-small text-[var(--text-secondary)]'>
-              {priceSubtext}
-            </span>
+            <span className='ml-1 text-[var(--text-secondary)] text-small'>{priceSubtext}</span>
           )}
         </>
       )
@@ -66,7 +64,7 @@ export function PlanCard({
       >
         <div className='flex items-center justify-between gap-2 px-3.5 py-2.5'>
           <div className='flex items-baseline gap-2'>
-            <span className='font-medium text-base text-[var(--text-primary)]'>{name}</span>
+            <span className='font-medium text-[var(--text-primary)] text-base'>{name}</span>
             <div className='flex items-baseline'>{renderPrice()}</div>
           </div>
           <Button
@@ -83,7 +81,7 @@ export function PlanCard({
             return (
               <li key={`${feature.text}-${index}`} className='flex items-center gap-2'>
                 <Icon className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
-                <span className='text-small text-[var(--text-primary)]'>{feature.text}</span>
+                <span className='text-[var(--text-primary)] text-small'>{feature.text}</span>
               </li>
             )
           })}
@@ -100,7 +98,7 @@ export function PlanCard({
       )}
     >
       <div className='flex items-center justify-between gap-2 px-3.5 py-2.5'>
-        <span className='font-medium text-base text-[var(--text-primary)]'>{name}</span>
+        <span className='font-medium text-[var(--text-primary)] text-base'>{name}</span>
         <div className='flex items-baseline'>{renderPrice()}</div>
       </div>
       <div
@@ -114,9 +112,7 @@ export function PlanCard({
         <ul
           className={cn(
             'flex gap-3.5',
-            inlineButton
-              ? 'flex-row flex-wrap items-center gap-x-4 gap-y-2'
-              : 'flex-1 flex-col'
+            inlineButton ? 'flex-row flex-wrap items-center gap-x-4 gap-y-2' : 'flex-1 flex-col'
           )}
         >
           {features.map((feature, index) => {
@@ -124,7 +120,7 @@ export function PlanCard({
             return (
               <li key={`${feature.text}-${index}`} className='flex items-center gap-2'>
                 <Icon className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
-                <span className='text-small text-[var(--text-primary)]'>{feature.text}</span>
+                <span className='text-[var(--text-primary)] text-small'>{feature.text}</span>
               </li>
             )
           })}

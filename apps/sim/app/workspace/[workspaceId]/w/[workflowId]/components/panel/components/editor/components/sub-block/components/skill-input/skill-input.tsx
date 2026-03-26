@@ -153,7 +153,7 @@ export function SkillInput({
                     >
                       <AgentSkillsIcon className='h-[10px] w-[10px] text-[var(--border)]' />
                     </div>
-                    <span className='truncate font-medium text-small text-[var(--text-primary)]'>
+                    <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                       {resolveSkillName(stored)}
                     </span>
                   </div>

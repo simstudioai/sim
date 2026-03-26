@@ -233,7 +233,7 @@ export function BYOK() {
           </div>
         </div>
 
-        <p className='text-sm text-[var(--text-secondary)]'>
+        <p className='text-[var(--text-secondary)] text-sm'>
           Use your own API keys for hosted model providers.
         </p>
 
@@ -258,7 +258,7 @@ export function BYOK() {
                       </div>
                       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                         <span className='font-medium text-base'>{provider.name}</span>
-                        <p className='truncate text-sm text-[var(--text-muted)]'>
+                        <p className='truncate text-[var(--text-muted)] text-sm'>
                           {provider.description}
                         </p>
                       </div>
@@ -285,7 +285,7 @@ export function BYOK() {
                 )
               })}
               {showNoResults && (
-                <div className='py-4 text-center text-sm text-[var(--text-muted)]'>
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                   No providers found matching "{searchTerm}"
                 </div>
               )}
@@ -321,9 +321,7 @@ export function BYOK() {
             </p>
 
             <div className='mt-4 flex flex-col gap-2'>
-              <p className='font-medium text-sm text-[var(--text-secondary)]'>
-                Enter your API key
-              </p>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>Enter your API key</p>
               {/* Hidden decoy fields to prevent browser autofill */}
               <input
                 type='text'
@@ -369,7 +367,7 @@ export function BYOK() {
                 </Button>
               </div>
               {error && (
-                <p className='text-small text-[var(--text-error)] leading-tight'>{error}</p>
+                <p className='text-[var(--text-error)] text-small leading-tight'>{error}</p>
               )}
             </div>
           </ModalBody>

@@ -65,7 +65,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           </div>
           <div className='flex flex-1 flex-col justify-between'>
             <h1
-              className='font-[500] text-[var(--landing-text)] text-[36px] leading-tight tracking-tight sm:text-[48px] md:text-[56px] lg:text-[64px]'
+              className='font-[500] text-[36px] text-[var(--landing-text)] leading-tight tracking-tight sm:text-[48px] md:text-[56px] lg:text-[64px]'
               itemProp='headline'
             >
               {post.title}
@@ -130,7 +130,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       </div>
       {related.length > 0 && (
         <div className='mx-auto max-w-[900px] px-6 pb-24 sm:px-8 md:px-12'>
-          <h2 className='mb-4 font-[500] text-[var(--landing-text)] text-[24px]'>Related posts</h2>
+          <h2 className='mb-4 font-[500] text-[24px] text-[var(--landing-text)]'>Related posts</h2>
           <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3'>
             {related.map((p) => (
               <Link key={p.slug} href={`/blog/${p.slug}`} className='group'>
@@ -152,7 +152,9 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                         year: 'numeric',
                       })}
                     </div>
-                    <div className='font-[500] text-[var(--landing-text)] text-sm leading-tight'>{p.title}</div>
+                    <div className='font-[500] text-[var(--landing-text)] text-sm leading-tight'>
+                      {p.title}
+                    </div>
                   </div>
                 </div>
               </Link>

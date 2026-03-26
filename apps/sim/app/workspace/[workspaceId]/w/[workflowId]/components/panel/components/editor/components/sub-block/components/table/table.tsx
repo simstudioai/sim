@@ -153,7 +153,7 @@ export function Table({
           <th
             key={column}
             className={cn(
-              'bg-transparent px-2.5 py-[5px] text-left font-medium text-sm text-[var(--text-tertiary)]',
+              'bg-transparent px-2.5 py-[5px] text-left font-medium text-[var(--text-tertiary)] text-sm',
               index < columns.length - 1 && 'border-[var(--border-1)] border-r'
             )}
           >

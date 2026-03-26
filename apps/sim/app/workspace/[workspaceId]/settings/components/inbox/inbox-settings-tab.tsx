@@ -99,11 +99,9 @@ export function InboxSettingsTab() {
       <div className='flex flex-col gap-6'>
         {config?.address && (
           <div className='flex flex-col gap-1.5'>
-            <div className='font-medium text-sm text-[var(--text-secondary)]'>
-              Sim&apos;s email
-            </div>
+            <div className='font-medium text-[var(--text-secondary)] text-sm'>Sim&apos;s email</div>
             <div className='flex items-center justify-between'>
-              <p className='text-small text-[var(--text-muted)]'>
+              <p className='text-[var(--text-muted)] text-small'>
                 Send emails here to create tasks.
               </p>
               <div className='flex items-center gap-1.5'>
@@ -156,10 +154,8 @@ export function InboxSettingsTab() {
         )}
 
         <div className='flex flex-col gap-1.5'>
-          <div className='font-medium text-sm text-[var(--text-secondary)]'>
-            Allowed senders
-          </div>
-          <p className='text-small text-[var(--text-muted)]'>
+          <div className='font-medium text-[var(--text-secondary)] text-sm'>Allowed senders</div>
+          <p className='text-[var(--text-muted)] text-small'>
             Only emails from these addresses can create tasks.
           </p>
 
@@ -176,7 +172,7 @@ export function InboxSettingsTab() {
                     className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2.5 last:border-b-0'
                   >
                     <div className='flex items-center gap-2'>
-                      <span className='text-small text-[var(--text-primary)]'>{member.email}</span>
+                      <span className='text-[var(--text-primary)] text-small'>{member.email}</span>
                       <Badge variant='gray' className='text-xs'>
                         member
                       </Badge>
@@ -190,9 +186,9 @@ export function InboxSettingsTab() {
                     className='flex items-center justify-between border-[var(--border)] border-b px-3 py-2.5 last:border-b-0'
                   >
                     <div className='flex items-center gap-2'>
-                      <span className='text-small text-[var(--text-primary)]'>{sender.email}</span>
+                      <span className='text-[var(--text-primary)] text-small'>{sender.email}</span>
                       {sender.label && (
-                        <span className='text-caption text-[var(--text-muted)]'>
+                        <span className='text-[var(--text-muted)] text-caption'>
                           ({sender.label})
                         </span>
                       )}
@@ -209,7 +205,7 @@ export function InboxSettingsTab() {
 
                 {sendersData?.workspaceMembers.length === 0 &&
                   sendersData?.senders.length === 0 && (
-                    <div className='px-3 py-2.5 text-small text-[var(--text-muted)]'>
+                    <div className='px-3 py-2.5 text-[var(--text-muted)] text-small'>
                       No allowed senders configured.
                     </div>
                   )}
@@ -218,7 +214,7 @@ export function InboxSettingsTab() {
           </div>
 
           {removeSenderError && (
-            <p className='px-3 text-small text-[var(--text-error)] leading-tight'>
+            <p className='px-3 text-[var(--text-error)] text-small leading-tight'>
               {removeSenderError}
             </p>
           )}
@@ -245,9 +241,7 @@ export function InboxSettingsTab() {
           <ModalBody>
             <div className='flex flex-col gap-3'>
               <div className='flex flex-col gap-1'>
-                <p className='font-medium text-sm text-[var(--text-secondary)]'>
-                  Email address
-                </p>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Email address</p>
                 <EmcnInput
                   value={newSenderEmail}
                   onChange={(e) => {
@@ -260,9 +254,7 @@ export function InboxSettingsTab() {
                 />
               </div>
               <div className='flex flex-col gap-1'>
-                <p className='font-medium text-sm text-[var(--text-secondary)]'>
-                  Label (optional)
-                </p>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Label (optional)</p>
                 <EmcnInput
                   value={newSenderLabel}
                   onChange={(e) => setNewSenderLabel(e.target.value)}
@@ -271,7 +263,7 @@ export function InboxSettingsTab() {
                 />
               </div>
               {addSenderError && (
-                <p className='text-small text-[var(--text-error)] leading-tight'>
+                <p className='text-[var(--text-error)] text-small leading-tight'>
                   {addSenderError}
                 </p>
               )}
@@ -303,9 +295,7 @@ export function InboxSettingsTab() {
               </span>
             </p>
             <div className='mt-4 flex flex-col gap-1'>
-              <p className='font-medium text-sm text-[var(--text-secondary)]'>
-                New email prefix
-              </p>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>New email prefix</p>
               <EmcnInput
                 value={newUsername}
                 onChange={(e) => {
@@ -317,7 +307,7 @@ export function InboxSettingsTab() {
                 autoFocus
               />
               {editAddressError && (
-                <p className='text-small text-[var(--text-error)] leading-tight'>
+                <p className='text-[var(--text-error)] text-small leading-tight'>
                   {editAddressError}
                 </p>
               )}

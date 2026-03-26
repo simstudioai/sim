@@ -632,7 +632,7 @@ const PopoverContent = React.forwardRef<
       >
         {showArrow ? (
           <div
-            className='overflow-auto flex-1 flex flex-col'
+            className='flex flex-1 flex-col overflow-auto'
             style={{ maxHeight: `${maxHeight || 400}px` }}
           >
             {children}

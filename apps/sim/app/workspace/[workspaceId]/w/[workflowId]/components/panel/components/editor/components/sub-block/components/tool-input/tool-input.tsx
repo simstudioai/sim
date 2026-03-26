@@ -1708,7 +1708,7 @@ export const ToolInput = memo(function ToolInput({
                       />
                     )}
                   </div>
-                  <span className='truncate font-medium text-small text-[var(--text-primary)]'>
+                  <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                     {isCustomTool ? customToolTitle : tool.title}
                   </span>
                   {isMcpTool &&
@@ -1753,7 +1753,7 @@ export const ToolInput = memo(function ToolInput({
                     >
                       <PopoverTrigger asChild>
                         <button
-                          className='flex items-center justify-center font-medium text-caption text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
+                          className='flex items-center justify-center font-medium text-[var(--text-tertiary)] text-caption transition-colors hover-hover:text-[var(--text-primary)]'
                           onClick={(e: React.MouseEvent) => e.stopPropagation()}
                           aria-label='Tool usage control'
                         >
@@ -1878,7 +1878,7 @@ export const ToolInput = memo(function ToolInput({
 
                     return hasOperations && operationOptions.length > 0 ? (
                       <div className='relative space-y-1.5'>
-                        <div className='font-medium text-small text-[var(--text-primary)]'>
+                        <div className='font-medium text-[var(--text-primary)] text-small'>
                           Operation
                         </div>
                         <Combobox
@@ -2003,9 +2003,7 @@ export const ToolInput = memo(function ToolInput({
                         )
                       })
 
-                      return (
-                        <div className='flex flex-col gap-3.5 pt-1'>{renderedElements}</div>
-                      )
+                      return <div className='flex flex-col gap-3.5 pt-1'>{renderedElements}</div>
                     }
 
                     const filteredParams = displayParams.filter((param) =>

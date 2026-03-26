@@ -830,7 +830,7 @@ const SubBlockRow = memo(function SubBlockRow({
   return (
     <div className='flex items-center gap-2'>
       <span
-        className='min-w-0 truncate text-sm text-[var(--text-tertiary)] capitalize'
+        className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
         title={title}
       >
         {title}
@@ -838,7 +838,7 @@ const SubBlockRow = memo(function SubBlockRow({
       {displayValue !== undefined && (
         <span
           className={cn(
-            'flex-1 truncate text-right text-sm text-[var(--text-primary)]',
+            'flex-1 truncate text-right text-[var(--text-primary)] text-sm',
             isMonospaceField && 'font-mono'
           )}
           title={displayValue}
@@ -1556,9 +1556,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           </>
         )}
         {hasRing && (
-          <div
-            className={cn('pointer-events-none absolute inset-0 z-40 rounded-lg', ringStyles)}
-          />
+          <div className={cn('pointer-events-none absolute inset-0 z-40 rounded-lg', ringStyles)} />
         )}
       </div>
     </div>

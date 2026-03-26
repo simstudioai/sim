@@ -378,7 +378,7 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
         <WorkflowX className='h-[32px] w-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
-          <p className='text-small text-[var(--text-body)]'>
+          <p className='text-[var(--text-body)] text-small'>
             This workflow may have been deleted or moved
           </p>
         </div>
@@ -413,7 +413,7 @@ function EmbeddedFile({ workspaceId, fileId, previewMode, streamingContent }: Em
         <FileX className='h-[32px] w-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>File not found</h2>
-          <p className='text-small text-[var(--text-body)]'>
+          <p className='text-[var(--text-body)] text-small'>
             This file may have been deleted or moved
           </p>
         </div>

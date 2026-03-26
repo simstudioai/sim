@@ -134,8 +134,12 @@ export default function SSOForm() {
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className={'font-[500] text-[var(--text-primary)] text-[32px] tracking-tight'}>Sign in with SSO</h1>
-        <p className={'font-[380] text-[var(--text-subtle)] text-md'}>Enter your work email to continue</p>
+        <h1 className={'font-[500] text-[32px] text-[var(--text-primary)] tracking-tight'}>
+          Sign in with SSO
+        </h1>
+        <p className={'font-[380] text-[var(--text-subtle)] text-md'}>
+          Enter your work email to continue
+        </p>
       </div>
 
       <form onSubmit={onSubmit} className={'mt-8 space-y-8'}>
@@ -189,7 +193,9 @@ export default function SSOForm() {
               <div className='w-full border-[var(--border)] border-t' />
             </div>
             <div className='relative flex justify-center text-sm'>
-              <span className='bg-[var(--text-primary)] px-4 font-[340] text-[var(--text-subtle)]'>Or</span>
+              <span className='bg-[var(--text-primary)] px-4 font-[340] text-[var(--text-subtle)]'>
+                Or
+              </span>
             </div>
           </div>
 

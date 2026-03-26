@@ -846,7 +846,7 @@ export function ConditionInput({
                   : 'rounded-t-[4px] border-[var(--border-1)] border-b'
             )}
           >
-            <span className='font-medium text-sm text-[var(--text-tertiary)]'>
+            <span className='font-medium text-[var(--text-tertiary)] text-sm'>
               {isRouterMode ? `Route ${index + 1}` : block.title}
             </span>
             <div className='flex items-center gap-2'>

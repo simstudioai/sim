@@ -143,7 +143,7 @@ export default function Templates({
               </div>
               <h1 className='font-medium text-lg'>Templates</h1>
             </div>
-            <p className='mt-2.5 text-sm text-[var(--text-tertiary)]'>
+            <p className='mt-2.5 text-[var(--text-tertiary)] text-sm'>
               Grab a template and start building, or make one from scratch.
             </p>
           </div>

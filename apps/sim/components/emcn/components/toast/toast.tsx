@@ -177,12 +177,12 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
     >
       <div className='flex items-start gap-2'>
         <div className='min-w-0 flex-1'>
-          <div className='line-clamp-2 font-medium text-small leading-[18px] text-[var(--text-body)]'>
+          <div className='line-clamp-2 font-medium text-[var(--text-body)] text-small leading-[18px]'>
             {t.variant === 'error' && (
-              <span className='mb-0.5 mr-2 inline-block h-2 w-2 rounded-[2px] bg-[var(--text-error)] align-middle' />
+              <span className='mr-2 mb-0.5 inline-block h-2 w-2 rounded-[2px] bg-[var(--text-error)] align-middle' />
             )}
             {t.variant === 'success' && (
-              <span className='mb-0.5 mr-2 inline-block h-2 w-2 rounded-[2px] bg-[var(--text-success)] align-middle' />
+              <span className='mr-2 mb-0.5 inline-block h-2 w-2 rounded-[2px] bg-[var(--text-success)] align-middle' />
             )}
             {t.message}
           </div>

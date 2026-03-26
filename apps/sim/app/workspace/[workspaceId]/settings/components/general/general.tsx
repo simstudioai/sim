@@ -275,7 +275,7 @@ export function General() {
                 )
               }
               return (
-                <span className='font-medium text-base text-[var(--text-primary)]'>
+                <span className='font-medium text-[var(--text-primary)] text-base'>
                   {getInitials(profile?.name) || ''}
                 </span>
               )
@@ -351,10 +351,10 @@ export function General() {
               </>
             )}
           </div>
-          <p className='text-sm text-[var(--text-tertiary)]'>{profile?.email || ''}</p>
+          <p className='text-[var(--text-tertiary)] text-sm'>{profile?.email || ''}</p>
         </div>
       </div>
-      {uploadError && <p className='text-sm text-[var(--text-error)]'>{uploadError}</p>}
+      {uploadError && <p className='text-[var(--text-error)] text-sm'>{uploadError}</p>}
 
       <div className='flex items-center justify-between border-b pb-3'>
         <Label htmlFor='theme-select'>Theme</Label>
@@ -462,7 +462,7 @@ export function General() {
         />
       </div>
 
-      <p className='-mt-2 text-small text-[var(--text-muted)]'>
+      <p className='-mt-2 text-[var(--text-muted)] text-small'>
         We use OpenTelemetry to collect anonymous usage data to improve Sim. You can opt-out at any
         time.
       </p>
@@ -511,7 +511,7 @@ export function General() {
               Click the link in the email to create a new password.
             </p>
             {resetPassword.error && (
-              <p className='mt-2 text-small text-[var(--text-error)]'>
+              <p className='mt-2 text-[var(--text-error)] text-small'>
                 {resetPassword.error.message}
               </p>
             )}

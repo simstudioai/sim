@@ -59,25 +59,21 @@ export function UsageHeader({
     <div className='flex flex-col gap-3'>
       <div className='flex items-center justify-between'>
         <div className='flex flex-col gap-1'>
-          <span className='font-medium text-small text-[var(--text-secondary)]'>
+          <span className='font-medium text-[var(--text-secondary)] text-small'>
             {title}
-            {seatsText && (
-              <span className='ml-1.5 text-[var(--text-tertiary)]'>({seatsText})</span>
-            )}
+            {seatsText && <span className='ml-1.5 text-[var(--text-tertiary)]'>({seatsText})</span>}
           </span>
           <div className='flex items-center gap-1'>
             {isBlocked ? (
-              <span className='font-medium text-base text-[var(--text-error)]'>
-                Payment failed
-              </span>
+              <span className='font-medium text-[var(--text-error)] text-base'>Payment failed</span>
             ) : (
               <>
-                <span className='font-medium text-base text-[var(--text-primary)] tabular-nums'>
+                <span className='font-medium text-[var(--text-primary)] text-base tabular-nums'>
                   {formatCredits(current)}
                 </span>
-                <span className='font-medium text-base text-[var(--text-primary)]'>/</span>
+                <span className='font-medium text-[var(--text-primary)] text-base'>/</span>
                 {rightContent ?? (
-                  <span className='font-medium text-base text-[var(--text-primary)] tabular-nums'>
+                  <span className='font-medium text-[var(--text-primary)] text-base tabular-nums'>
                     {formatCredits(limit)}
                     {limit < ON_DEMAND_UNLIMITED && ' credits'}
                   </span>
@@ -88,10 +84,7 @@ export function UsageHeader({
         </div>
 
         <div
-          className={cn(
-            'flex flex-col gap-2',
-            showOnDemandBadge ? 'items-center' : 'items-end'
-          )}
+          className={cn('flex flex-col gap-2', showOnDemandBadge ? 'items-center' : 'items-end')}
         >
           {showOnDemandBadge ? (
             <Badge

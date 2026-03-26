@@ -127,10 +127,7 @@ const SModalSidebarHeader = React.forwardRef<HTMLDivElement, React.HTMLAttribute
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn(
-        'mb-4 px-3 font-medium text-md text-[var(--text-primary)]',
-        className
-      )}
+      className={cn('mb-4 px-3 font-medium text-[var(--text-primary)] text-md', className)}
       {...props}
     />
   )
@@ -143,11 +140,7 @@ SModalSidebarHeader.displayName = 'SModalSidebarHeader'
  */
 const SModalSidebarSection = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn('flex flex-col gap-1 px-3 [&+&]:mt-3', className)}
-      {...props}
-    />
+    <div ref={ref} className={cn('flex flex-col gap-1 px-3 [&+&]:mt-3', className)} {...props} />
   )
 )
 
@@ -162,7 +155,7 @@ const SModalSidebarSectionTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('mb-0.5 font-medium text-caption text-[var(--text-muted)]', className)}
+    className={cn('mb-0.5 font-medium text-[var(--text-muted)] text-caption', className)}
     {...props}
   />
 ))
@@ -231,7 +224,7 @@ SModalMain.displayName = 'SModalMain'
 const SModalMainHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => (
     <div ref={ref} className={cn('flex items-center justify-between', className)} {...props}>
-      <span className='font-base text-sm text-[var(--text-muted)]'>{children}</span>
+      <span className='font-base text-[var(--text-muted)] text-sm'>{children}</span>
       <DialogPrimitive.Close asChild>
         <Button
           variant='ghost'
@@ -351,7 +344,7 @@ const SModalTabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'px-1 pb-2 font-medium text-small text-[var(--text-secondary)] transition-colors',
+      'px-1 pb-2 font-medium text-[var(--text-secondary)] text-small transition-colors',
       'hover-hover:text-[var(--text-primary)] data-[state=active]:text-[var(--text-primary)]',
       className
     )}

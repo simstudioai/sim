@@ -54,7 +54,10 @@ export function RequestResetForm({
         {/* Status message display */}
         {statusType && statusMessage && (
           <div
-            className={cn('text-xs', statusType === 'success' ? 'text-[var(--success)]' : 'text-red-400')}
+            className={cn(
+              'text-xs',
+              statusType === 'success' ? 'text-[var(--success)]' : 'text-red-400'
+            )}
           >
             <p>{statusMessage}</p>
           </div>

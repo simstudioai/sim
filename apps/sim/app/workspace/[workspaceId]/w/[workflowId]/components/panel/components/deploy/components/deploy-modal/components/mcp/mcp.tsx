@@ -441,7 +441,7 @@ export function McpDeploy({
 
   if (!isDeployed) {
     return (
-      <div className='flex h-full items-center justify-center text-small text-[var(--text-muted)]'>
+      <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
         Deploy your workflow first to add it as an MCP tool.
       </div>
     )
@@ -517,7 +517,7 @@ export function McpDeploy({
       ))}
 
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Tool name
         </Label>
         <Input
@@ -525,13 +525,13 @@ export function McpDeploy({
           onChange={(e) => setToolName(e.target.value)}
           placeholder='e.g., book_flight'
         />
-        <p className='mt-[6.5px] text-xs text-[var(--text-secondary)]'>
+        <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
           Use lowercase letters, numbers, and underscores only
         </p>
       </div>
 
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Description
         </Label>
         <Textarea
@@ -544,7 +544,7 @@ export function McpDeploy({
 
       {inputFormat.length > 0 && (
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Parameters ({inputFormat.length})
           </Label>
           <div className='flex flex-col gap-2'>
@@ -555,7 +555,7 @@ export function McpDeploy({
               >
                 <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
                   <div className='flex min-w-0 flex-1 items-center gap-2'>
-                    <span className='block truncate font-medium text-sm text-[var(--text-tertiary)]'>
+                    <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
                       {field.name}
                     </span>
                     <Badge variant='type' size='sm'>
@@ -585,7 +585,7 @@ export function McpDeploy({
       )}
 
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Servers
         </Label>
         <Combobox
@@ -602,7 +602,7 @@ export function McpDeploy({
           }
         />
         {!toolName.trim() && (
-          <p className='mt-[6.5px] text-xs text-[var(--text-secondary)]'>
+          <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             Enter a tool name to select servers
           </p>
         )}
@@ -611,7 +611,7 @@ export function McpDeploy({
       {saveErrors.length > 0 && (
         <div className='mt-[6.5px] flex flex-col gap-0.5'>
           {saveErrors.map((error) => (
-            <p key={error} className='text-caption text-[var(--text-error)]'>
+            <p key={error} className='text-[var(--text-error)] text-caption'>
               {error}
             </p>
           ))}

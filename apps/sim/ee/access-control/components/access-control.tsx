@@ -125,7 +125,7 @@ function AddMembersModal({
         <ModalHeader>Add Members</ModalHeader>
         <ModalBody className='!pb-4'>
           {availableMembers.length === 0 ? (
-            <p className='text-sm text-[var(--text-muted)]'>
+            <p className='text-[var(--text-muted)] text-sm'>
               All organization members are already in this group.
             </p>
           ) : (
@@ -147,7 +147,7 @@ function AddMembersModal({
 
               <div className='max-h-[280px] overflow-y-auto'>
                 {filteredMembers.length === 0 ? (
-                  <p className='py-4 text-center text-sm text-[var(--text-muted)]'>
+                  <p className='py-4 text-center text-[var(--text-muted)] text-sm'>
                     No members found matching "{searchTerm}"
                   </p>
                 ) : (
@@ -178,12 +178,10 @@ function AddMembersModal({
                             </AvatarFallback>
                           </Avatar>
                           <div className='min-w-0 flex-1 text-left'>
-                            <div className='truncate text-sm text-[var(--text-primary)]'>
+                            <div className='truncate text-[var(--text-primary)] text-sm'>
                               {name}
                             </div>
-                            <div className='truncate text-xs text-[var(--text-muted)]'>
-                              {email}
-                            </div>
+                            <div className='truncate text-[var(--text-muted)] text-xs'>{email}</div>
                           </div>
                         </button>
                       )
@@ -716,7 +714,7 @@ export function AccessControl() {
         <div className='flex h-full flex-col gap-4.5'>
           <div className='flex flex-col gap-1'>
             <div className='flex items-center justify-between'>
-              <h3 className='font-medium text-base text-[var(--text-primary)]'>
+              <h3 className='font-medium text-[var(--text-primary)] text-base'>
                 {viewingGroup.name}
               </h3>
               <Button variant='default' onClick={handleOpenConfigModal}>
@@ -724,16 +722,16 @@ export function AccessControl() {
               </Button>
             </div>
             {viewingGroup.description && (
-              <p className='text-sm text-[var(--text-muted)]'>{viewingGroup.description}</p>
+              <p className='text-[var(--text-muted)] text-sm'>{viewingGroup.description}</p>
             )}
           </div>
 
           <div className='flex items-center justify-between'>
             <div className='flex flex-col gap-0.5'>
-              <span className='font-medium text-sm text-[var(--text-primary)]'>
+              <span className='font-medium text-[var(--text-primary)] text-sm'>
                 Auto-add new members
               </span>
-              <span className='text-small text-[var(--text-muted)]'>
+              <span className='text-[var(--text-muted)] text-small'>
                 Automatically add new organization members to this group
               </span>
             </div>
@@ -747,9 +745,7 @@ export function AccessControl() {
           <div className='min-h-0 flex-1 overflow-y-auto'>
             <div className='flex flex-col gap-2'>
               <div className='flex items-center justify-between'>
-                <span className='font-medium text-sm text-[var(--text-secondary)]'>
-                  Members
-                </span>
+                <span className='font-medium text-[var(--text-secondary)] text-sm'>Members</span>
                 <Button variant='primary' onClick={handleOpenAddMembersModal}>
                   <Plus className='mr-1.5 h-[13px] w-[13px]' />
                   Add
@@ -771,7 +767,7 @@ export function AccessControl() {
                   ))}
                 </div>
               ) : members.length === 0 ? (
-                <p className='text-sm text-[var(--text-muted)]'>
+                <p className='text-[var(--text-muted)] text-sm'>
                   No members yet. Click "Add" to get started.
                 </p>
               ) : (
@@ -797,11 +793,11 @@ export function AccessControl() {
 
                           <div className='min-w-0'>
                             <div className='flex items-center gap-2'>
-                              <span className='truncate font-medium text-base text-[var(--text-primary)]'>
+                              <span className='truncate font-medium text-[var(--text-primary)] text-base'>
                                 {name}
                               </span>
                             </div>
-                            <div className='truncate text-small text-[var(--text-muted)]'>
+                            <div className='truncate text-[var(--text-muted)] text-small'>
                               {member.userEmail}
                             </div>
                           </div>
@@ -1056,7 +1052,7 @@ export function AccessControl() {
                     <div className='grid max-h-[340px] grid-cols-3 gap-x-6 gap-y-4 overflow-y-auto'>
                       {Object.entries(platformCategories).map(([category, features]) => (
                         <div key={category} className='flex flex-col gap-2'>
-                          <span className='font-medium text-xs text-[var(--text-tertiary)] uppercase tracking-wide'>
+                          <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
                             {category}
                           </span>
                           <div className='flex flex-col gap-2'>
@@ -1189,11 +1185,11 @@ export function AccessControl() {
 
         <div className='relative min-h-0 flex-1 overflow-y-auto'>
           {filteredGroups.length === 0 && searchTerm.trim() ? (
-            <div className='py-4 text-center text-sm text-[var(--text-muted)]'>
+            <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
               No results found matching "{searchTerm}"
             </div>
           ) : permissionGroups.length === 0 ? (
-            <div className='flex h-full items-center justify-center text-sm text-[var(--text-muted)]'>
+            <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
               Click "Create" above to get started
             </div>
           ) : (
@@ -1204,12 +1200,12 @@ export function AccessControl() {
                     <div className='flex items-center gap-2'>
                       <span className='font-medium text-base'>{group.name}</span>
                       {group.autoAddNewMembers && (
-                        <span className='rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-micro text-[var(--text-muted)]'>
+                        <span className='rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
                           Auto-enrolls
                         </span>
                       )}
                     </div>
-                    <span className='text-sm text-[var(--text-muted)]'>
+                    <span className='text-[var(--text-muted)] text-sm'>
                       {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
                     </span>
                   </div>
@@ -1266,7 +1262,7 @@ export function AccessControl() {
                   Auto-add new organization members
                 </Label>
               </div>
-              {createError && <p className='text-small text-[var(--text-error)]'>{createError}</p>}
+              {createError && <p className='text-[var(--text-error)] text-small'>{createError}</p>}
             </div>
           </ModalBody>
           <ModalFooter>

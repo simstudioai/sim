@@ -318,7 +318,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
         <ModalBody>
           <div className='flex flex-col gap-4.5'>
             <div className='flex flex-col gap-2'>
-              <p className='font-medium text-sm text-[var(--text-secondary)]'>Title</p>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>Title</p>
               <EmcnInput
                 value={title}
                 onChange={(e) => {
@@ -333,9 +333,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             </div>
 
             <div className='flex flex-col gap-2'>
-              <p className='font-medium text-sm text-[var(--text-secondary)]'>
-                Task description
-              </p>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>Task description</p>
               <Textarea
                 value={prompt}
                 onChange={(e) => {
@@ -348,7 +346,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             </div>
 
             <div className='flex flex-col gap-2'>
-              <p className='font-medium text-sm text-[var(--text-secondary)]'>Run frequency</p>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>Run frequency</p>
               <Combobox
                 options={SCHEDULE_TYPE_OPTIONS}
                 value={scheduleType}
@@ -359,7 +357,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
 
             {scheduleType === 'minutes' && (
               <div className='flex flex-col gap-2'>
-                <p className='font-medium text-sm text-[var(--text-secondary)]'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>
                   Interval (minutes)
                 </p>
                 <EmcnInput
@@ -376,9 +374,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
 
             {scheduleType === 'hourly' && (
               <div className='flex flex-col gap-2'>
-                <p className='font-medium text-sm text-[var(--text-secondary)]'>
-                  Minute of hour
-                </p>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Minute of hour</p>
                 <EmcnInput
                   type='number'
                   value={hourlyMinute}
@@ -393,7 +389,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
 
             {scheduleType === 'daily' && (
               <div className='flex flex-col gap-2'>
-                <p className='font-medium text-sm text-[var(--text-secondary)]'>Time</p>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
                 <TimePicker value={dailyTime} onChange={setDailyTime} />
               </div>
             )}
@@ -401,13 +397,11 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             {scheduleType === 'weekly' && (
               <div className='flex gap-3'>
                 <div className='flex flex-1 flex-col gap-2'>
-                  <p className='font-medium text-sm text-[var(--text-secondary)]'>
-                    Day of week
-                  </p>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Day of week</p>
                   <Combobox options={WEEKDAY_OPTIONS} value={weeklyDay} onChange={setWeeklyDay} />
                 </div>
                 <div className='flex flex-1 flex-col gap-2'>
-                  <p className='font-medium text-sm text-[var(--text-secondary)]'>Time</p>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
                   <TimePicker value={weeklyDayTime} onChange={setWeeklyDayTime} />
                 </div>
               </div>
@@ -416,9 +410,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             {scheduleType === 'monthly' && (
               <div className='flex gap-3'>
                 <div className='flex flex-1 flex-col gap-2'>
-                  <p className='font-medium text-sm text-[var(--text-secondary)]'>
-                    Day of month
-                  </p>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Day of month</p>
                   <EmcnInput
                     type='number'
                     value={monthlyDay}
@@ -430,7 +422,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
                   />
                 </div>
                 <div className='flex flex-1 flex-col gap-2'>
-                  <p className='font-medium text-sm text-[var(--text-secondary)]'>Time</p>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
                   <TimePicker value={monthlyTime} onChange={setMonthlyTime} />
                 </div>
               </div>
@@ -438,9 +430,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
 
             {scheduleType === 'custom' && (
               <div className='flex flex-col gap-2'>
-                <p className='font-medium text-sm text-[var(--text-secondary)]'>
-                  Cron expression
-                </p>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Cron expression</p>
                 <EmcnInput
                   value={cronExpression}
                   onChange={(e) => setCronExpression(e.target.value)}
@@ -453,7 +443,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
 
             {showTimezone && (
               <div className='flex flex-col gap-2'>
-                <p className='font-medium text-sm text-[var(--text-secondary)]'>Timezone</p>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Timezone</p>
                 <Combobox
                   options={TIMEZONE_OPTIONS}
                   value={timezone}
@@ -467,7 +457,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
 
             {!isEditing && (
               <div className='flex flex-col gap-2'>
-                <p className='font-medium text-sm text-[var(--text-secondary)]'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>
                   Start date
                   <span className='ml-1 font-normal text-[var(--text-muted)]'>(optional)</span>
                 </p>
@@ -480,7 +470,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             )}
 
             <div className='flex flex-col gap-2'>
-              <p className='font-medium text-sm text-[var(--text-secondary)]'>Lifecycle</p>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>Lifecycle</p>
               <ButtonGroup
                 value={lifecycle}
                 onValueChange={(value) => setLifecycle(value as 'persistent' | 'until_complete')}
@@ -492,7 +482,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
 
             {lifecycle === 'until_complete' && (
               <div className='flex flex-col gap-2'>
-                <p className='font-medium text-sm text-[var(--text-secondary)]'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>
                   Max runs
                   <span className='ml-1 font-normal text-[var(--text-muted)]'>(optional)</span>
                 </p>
@@ -510,14 +500,14 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             {computedCron && schedulePreview && (
               <div>
                 {'error' in schedulePreview ? (
-                  <p className='text-small text-[var(--text-error)]'>{schedulePreview.error}</p>
+                  <p className='text-[var(--text-error)] text-small'>{schedulePreview.error}</p>
                 ) : (
                   <div className='flex flex-col gap-1'>
-                    <p className='text-small text-[var(--text-secondary)]'>
+                    <p className='text-[var(--text-secondary)] text-small'>
                       {schedulePreview.humanReadable}
                     </p>
                     {schedulePreview.nextRun && (
-                      <p className='text-caption text-[var(--text-muted)]'>
+                      <p className='text-[var(--text-muted)] text-caption'>
                         Next run:{' '}
                         {schedulePreview.nextRun.toLocaleString(undefined, {
                           dateStyle: 'medium',
@@ -531,7 +521,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             )}
 
             {submitError && (
-              <p className='text-small text-[var(--text-error)] leading-tight'>{submitError}</p>
+              <p className='text-[var(--text-error)] text-small leading-tight'>{submitError}</p>
             )}
           </div>
         </ModalBody>

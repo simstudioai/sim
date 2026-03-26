@@ -633,7 +633,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
           {/* Template name and action buttons */}
           <div className='mt-3.5 flex items-center justify-between'>
-            <h1 className='font-medium text-lg text-[var(--text-primary)]'>{template.name}</h1>
+            <h1 className='font-medium text-[var(--text-primary)] text-lg'>{template.name}</h1>
 
             {/* Action buttons */}
             <div className='flex items-center gap-2'>
@@ -700,7 +700,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                             >
                               <div className='flex flex-col'>
                                 <span>{workspace.name}</span>
-                                <span className='text-xs text-[var(--text-tertiary)] capitalize'>
+                                <span className='text-[var(--text-tertiary)] text-xs capitalize'>
                                   {workspace.permissions} access
                                 </span>
                               </div>
@@ -779,7 +779,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
 
           {/* Template tagline */}
           {template.details?.tagline && (
-            <p className='mt-1 line-clamp-2 max-w-[40vw] font-medium text-sm text-[var(--text-tertiary)]'>
+            <p className='mt-1 line-clamp-2 max-w-[40vw] font-medium text-[var(--text-tertiary)] text-sm'>
               {template.details.tagline}
             </p>
           )}
@@ -795,15 +795,13 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                 starTemplate.isPending && 'opacity-50'
               )}
             />
-            <span className='font-medium text-sm text-[var(--text-muted)]'>
+            <span className='font-medium text-[var(--text-muted)] text-sm'>
               {template.stars || 0}
             </span>
 
             {/* Users icon and count */}
             <ChartNoAxesColumn className='h-[16px] w-[16px] text-[var(--text-muted)]' />
-            <span className='font-medium text-sm text-[var(--text-muted)]'>
-              {template.views}
-            </span>
+            <span className='font-medium text-[var(--text-muted)] text-sm'>{template.views}</span>
 
             {/* Vertical divider */}
             <div className='mx-1 mb-[-1.5px] h-[18px] w-[1.25px] rounded-full bg-[var(--border)]' />
@@ -824,7 +822,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
             )}
             {/* Creator name */}
             <div className='flex items-center gap-1'>
-              <span className='font-medium text-sm text-[var(--text-muted)]'>
+              <span className='font-medium text-[var(--text-muted)] text-sm'>
                 {template.creator?.name || 'Unknown'}
               </span>
               {template.creator?.verified && <VerifiedBadge size='md' />}
@@ -834,7 +832,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
           {/* Credentials needed */}
           {Array.isArray(template.requiredCredentials) &&
             template.requiredCredentials.length > 0 && (
-              <p className='mt-3 font-medium text-caption text-[var(--text-muted)]'>
+              <p className='mt-3 font-medium text-[var(--text-muted)] text-caption'>
                 Credentials needed:{' '}
                 {template.requiredCredentials
                   .map((cred: CredentialRequirement) => {
@@ -860,7 +858,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
             {/* Last updated overlay */}
             {template.updatedAt && (
               <div className='pointer-events-none absolute right-[12px] bottom-3 rounded-sm bg-[var(--bg)]/80 px-2 py-1 backdrop-blur-sm'>
-                <span className='font-medium text-caption text-[var(--text-muted)]'>
+                <span className='font-medium text-[var(--text-muted)] text-caption'>
                   Last updated{' '}
                   {formatDistanceToNow(new Date(template.updatedAt), {
                     addSuffix: true,

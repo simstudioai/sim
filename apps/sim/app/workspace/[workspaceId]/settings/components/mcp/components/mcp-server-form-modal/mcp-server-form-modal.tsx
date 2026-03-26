@@ -610,7 +610,7 @@ export function McpServerFormModal({
                 }}
                 className='min-h-[200px] font-mono text-small'
               />
-              {jsonError && <p className='text-caption text-[var(--text-error)]'>{jsonError}</p>}
+              {jsonError && <p className='text-[var(--text-error)] text-caption'>{jsonError}</p>}
             </div>
           ) : (
             <div className='flex flex-col gap-2'>
@@ -646,16 +646,14 @@ export function McpServerFormModal({
                   onScroll={setUrlScrollLeft}
                 />
                 {isDomainBlocked && (
-                  <p className='mt-1 text-caption text-[var(--text-error)]'>
+                  <p className='mt-1 text-[var(--text-error)] text-caption'>
                     Domain not permitted by server policy
                   </p>
                 )}
               </FormField>
 
               <div className='flex flex-col gap-2'>
-                <span className='font-medium text-small text-[var(--text-secondary)]'>
-                  Headers
-                </span>
+                <span className='font-medium text-[var(--text-secondary)] text-small'>Headers</span>
                 <div className='flex max-h-[140px] flex-col gap-2 overflow-y-auto'>
                   {(formData.headers || []).map((header, index) => (
                     <HeaderRow
@@ -683,7 +681,7 @@ export function McpServerFormModal({
         </ModalBody>
         <ModalFooter>
           {submitError && (
-            <p className='mb-2 w-full text-small text-[var(--text-error)]'>{submitError}</p>
+            <p className='mb-2 w-full text-[var(--text-error)] text-small'>{submitError}</p>
           )}
           <div className='flex w-full items-center justify-between'>
             <div className='flex items-center gap-2'>

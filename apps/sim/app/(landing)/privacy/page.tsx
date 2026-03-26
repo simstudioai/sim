@@ -596,7 +596,10 @@ export default function PrivacyPolicy() {
           sharing practices (such as analytics or advertising services) may be considered a "sale"
           or "share" under CCPA/CPRA. You have the right to opt-out of such data sharing. To
           exercise this right, contact us at{' '}
-          <Link href='mailto:privacy@sim.ai' className='text-[var(--landing-text)] underline hover:text-white'>
+          <Link
+            href='mailto:privacy@sim.ai'
+            className='text-[var(--landing-text)] underline hover:text-white'
+          >
             privacy@sim.ai
           </Link>
           .
@@ -682,7 +685,10 @@ export default function PrivacyPolicy() {
           Sim interacts with are not covered by this policy and should be reported directly to the
           solution vendor in accordance with their disclosure policy (if any). Before beginning your
           inquiry, email us at{' '}
-          <Link href='mailto:security@sim.ai' className='text-[var(--landing-text)] underline hover:text-white'>
+          <Link
+            href='mailto:security@sim.ai'
+            className='text-[var(--landing-text)] underline hover:text-white'
+          >
             security@sim.ai
           </Link>{' '}
           if you're unsure whether a system or endpoint is in scope.
@@ -701,7 +707,10 @@ export default function PrivacyPolicy() {
         <h3 className='mb-2 font-medium text-xl'>Reporting a vulnerability</h3>
         <p className='mb-4'>
           To report any security flaws, send an email to{' '}
-          <Link href='mailto:security@sim.ai' className='text-[var(--landing-text)] underline hover:text-white'>
+          <Link
+            href='mailto:security@sim.ai'
+            className='text-[var(--landing-text)] underline hover:text-white'
+          >
             security@sim.ai
           </Link>
           . The next business day, we'll acknowledge receipt of your vulnerability report and keep

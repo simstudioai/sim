@@ -105,7 +105,7 @@ const LogRow = memo(
           </div>
 
           <span
-            className={`${LOG_COLUMNS.date.width} ${LOG_COLUMNS.date.minWidth} font-medium text-caption text-[var(--text-primary)]`}
+            className={`${LOG_COLUMNS.date.width} ${LOG_COLUMNS.date.minWidth} font-medium text-[var(--text-primary)] text-caption`}
           >
             {formattedDate.compactDate} {formattedDate.compactTime}
           </span>
@@ -115,7 +115,7 @@ const LogRow = memo(
           </div>
 
           <span
-            className={`${LOG_COLUMNS.cost.width} ${LOG_COLUMNS.cost.minWidth} font-medium text-caption text-[var(--text-primary)]`}
+            className={`${LOG_COLUMNS.cost.width} ${LOG_COLUMNS.cost.minWidth} font-medium text-[var(--text-primary)] text-caption`}
           >
             {typeof log.cost?.total === 'number'
               ? `${dollarsToCredits(log.cost.total).toLocaleString()} credits`
@@ -126,7 +126,7 @@ const LogRow = memo(
             {log.trigger ? (
               <TriggerBadge trigger={log.trigger} />
             ) : (
-              <span className='font-medium text-caption text-[var(--text-primary)]'>—</span>
+              <span className='font-medium text-[var(--text-primary)] text-caption'>—</span>
             )}
           </div>
 

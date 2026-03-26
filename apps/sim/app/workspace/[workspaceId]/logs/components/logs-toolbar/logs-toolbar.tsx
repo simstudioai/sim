@@ -501,10 +501,7 @@ export const LogsToolbar = memo(function LogsToolbar({
           {/* Filters dropdown - Small screens only */}
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant='active'
-                className='h-[32px] gap-1.5 rounded-md px-2.5 xl:hidden'
-              >
+              <Button variant='active' className='h-[32px] gap-1.5 rounded-md px-2.5 xl:hidden'>
                 <span>Filters</span>
               </Button>
             </DropdownMenuTrigger>
@@ -512,7 +509,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               <div className='flex flex-col gap-3'>
                 {/* Status Filter */}
                 <div className='flex flex-col gap-1.5'>
-                  <span className='font-medium text-caption text-[var(--text-secondary)]'>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Status
                   </span>
                   <Combobox
@@ -541,7 +538,7 @@ export const LogsToolbar = memo(function LogsToolbar({
 
                 {/* Workflow Filter */}
                 <div className='flex flex-col gap-1.5'>
-                  <span className='font-medium text-caption text-[var(--text-secondary)]'>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Workflow
                   </span>
                   <Combobox
@@ -576,7 +573,7 @@ export const LogsToolbar = memo(function LogsToolbar({
 
                 {/* Folder Filter */}
                 <div className='flex flex-col gap-1.5'>
-                  <span className='font-medium text-caption text-[var(--text-secondary)]'>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Folder
                   </span>
                   <Combobox
@@ -601,7 +598,7 @@ export const LogsToolbar = memo(function LogsToolbar({
 
                 {/* Trigger Filter */}
                 <div className='flex flex-col gap-1.5'>
-                  <span className='font-medium text-caption text-[var(--text-secondary)]'>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Trigger
                   </span>
                   <Combobox
@@ -626,7 +623,7 @@ export const LogsToolbar = memo(function LogsToolbar({
 
                 {/* Time Filter */}
                 <div className='flex flex-col gap-1.5'>
-                  <span className='font-medium text-caption text-[var(--text-secondary)]'>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Time Range
                   </span>
                   <Combobox

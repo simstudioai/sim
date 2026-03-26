@@ -337,7 +337,7 @@ export function FormDeploy({
 
   if (inputFields.length === 0) {
     return (
-      <div className='flex h-full items-center justify-center text-small text-[var(--text-secondary)]'>
+      <div className='flex h-full items-center justify-center text-[var(--text-secondary)] text-small'>
         Add input fields to the Start block to create a form.
       </div>
     )
@@ -351,7 +351,7 @@ export function FormDeploy({
       <div className='space-y-3'>
         {/* URL Input - matching chat style */}
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             URL
           </Label>
           <div
@@ -373,8 +373,7 @@ export function FormDeploy({
                 placeholder='my-form'
                 className={cn(
                   'rounded-none border-0 pl-0 shadow-none',
-                  (isCheckingIdentifier || (identifierValidationPassed && identifier)) &&
-                    'pr-8'
+                  (isCheckingIdentifier || (identifierValidationPassed && identifier)) && 'pr-8'
                 )}
               />
               {isCheckingIdentifier ? (
@@ -399,11 +398,11 @@ export function FormDeploy({
             </div>
           </div>
           {(identifierError || errors.identifier) && (
-            <p className='mt-[6.5px] text-caption text-[var(--text-error)]'>
+            <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>
               {identifierError || errors.identifier}
             </p>
           )}
-          <p className='mt-[6.5px] truncate text-xs text-[var(--text-secondary)]'>
+          <p className='mt-[6.5px] truncate text-[var(--text-secondary)] text-xs'>
             {existingForm && identifier ? (
               <>
                 Live at:{' '}
@@ -424,7 +423,7 @@ export function FormDeploy({
 
         {/* Form Builder Preview */}
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Form builder
           </Label>
           <FormBuilder
@@ -443,7 +442,7 @@ export function FormDeploy({
 
         {/* Access Control */}
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Access control
           </Label>
           <ButtonGroup
@@ -458,7 +457,7 @@ export function FormDeploy({
 
         {authType === 'password' && (
           <div>
-            <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+            <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               Password
             </Label>
             <div className='relative'>
@@ -483,9 +482,9 @@ export function FormDeploy({
               </button>
             </div>
             {errors.password && (
-              <p className='mt-[6.5px] text-caption text-[var(--text-error)]'>{errors.password}</p>
+              <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{errors.password}</p>
             )}
-            <p className='mt-[6.5px] text-xs text-[var(--text-secondary)]'>
+            <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
               {existingForm?.hasPassword
                 ? 'Leave empty to keep the current password'
                 : 'This password will be required to access your form'}
@@ -495,7 +494,7 @@ export function FormDeploy({
 
         {authType === 'email' && (
           <div>
-            <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+            <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               Allowed emails
             </Label>
             <TagInput
@@ -520,9 +519,9 @@ export function FormDeploy({
               placeholderWithTags='Add another'
             />
             {errors.emails && (
-              <p className='mt-[6.5px] text-caption text-[var(--text-error)]'>{errors.emails}</p>
+              <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{errors.emails}</p>
             )}
-            <p className='mt-[6.5px] text-xs text-[var(--text-secondary)]'>
+            <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
               Add specific emails or entire domains (@example.com)
             </p>
           </div>
@@ -530,7 +529,7 @@ export function FormDeploy({
 
         {/* Thank You Message */}
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Thank you message
           </Label>
           <Textarea
@@ -540,7 +539,7 @@ export function FormDeploy({
             rows={2}
             className='min-h-[60px] resize-none'
           />
-          <p className='mt-[6.5px] text-xs text-[var(--text-secondary)]'>
+          <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             This message will be displayed after form submission
           </p>
         </div>
@@ -551,7 +550,7 @@ export function FormDeploy({
         )}
 
         {errors.general && (
-          <p className='mt-[6.5px] text-caption text-[var(--text-error)]'>{errors.general}</p>
+          <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{errors.general}</p>
         )}
 
         <button type='button' data-delete-trigger onClick={handleDelete} className='hidden' />

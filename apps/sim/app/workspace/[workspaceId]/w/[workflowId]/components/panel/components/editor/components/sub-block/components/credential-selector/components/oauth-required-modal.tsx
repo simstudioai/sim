@@ -137,10 +137,10 @@ export function OAuthRequiredModal({
                 <ProviderIcon className='h-[18px] w-[18px]' />
               </div>
               <div className='flex-1'>
-                <p className='font-medium text-small text-[var(--text-primary)]'>
+                <p className='font-medium text-[var(--text-primary)] text-small'>
                   Connect your {providerName} account
                 </p>
-                <p className='text-caption text-[var(--text-tertiary)]'>
+                <p className='text-[var(--text-tertiary)] text-caption'>
                   The "{toolName}" tool requires access to your account
                 </p>
               </div>
@@ -149,7 +149,7 @@ export function OAuthRequiredModal({
             {displayScopes.length > 0 && (
               <div className='rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)]'>
                 <div className='border-[var(--border-1)] border-b px-3.5 py-2.5'>
-                  <h4 className='font-medium text-caption text-[var(--text-primary)]'>
+                  <h4 className='font-medium text-[var(--text-primary)] text-caption'>
                     Permissions requested
                   </h4>
                 </div>
@@ -159,7 +159,7 @@ export function OAuthRequiredModal({
                       <div className='mt-0.5 flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
                         <Check className='h-[10px] w-[10px] text-[var(--text-primary)]' />
                       </div>
-                      <div className='flex flex-1 items-center gap-2 text-caption text-[var(--text-primary)]'>
+                      <div className='flex flex-1 items-center gap-2 text-[var(--text-primary)] text-caption'>
                         <span>{getScopeDescription(scope)}</span>
                         {newScopesSet.has(scope) && (
                           <Badge variant='amber' size='sm'>
@@ -173,7 +173,7 @@ export function OAuthRequiredModal({
               </div>
             )}
 
-            {error && <p className='text-caption text-[var(--text-error)]'>{error}</p>}
+            {error && <p className='text-[var(--text-error)] text-caption'>{error}</p>}
           </div>
         </ModalBody>
         <ModalFooter>

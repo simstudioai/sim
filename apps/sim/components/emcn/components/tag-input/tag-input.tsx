@@ -402,7 +402,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
         )}
         {isDragging && (
           <div className='absolute inset-0 flex items-center justify-center rounded-sm bg-[var(--surface-5)]/90'>
-            <span className='text-small text-[var(--text-tertiary)]'>Drop file here</span>
+            <span className='text-[var(--text-tertiary)] text-small'>Drop file here</span>
           </div>
         )}
         {items.map((item, index) => (
@@ -449,7 +449,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
               className={cn(
                 'border-none bg-transparent font-medium font-sans outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50',
                 inputValue.trim()
-                  ? 'absolute top-0 left-0 h-full w-full p-0 text-small text-inherit leading-[20px]'
+                  ? 'absolute top-0 left-0 h-full w-full p-0 text-inherit text-small leading-[20px]'
                   : 'w-auto min-w-0 p-0 text-foreground text-sm',
                 inputClassName
               )}
@@ -491,7 +491,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   e.stopPropagation()
                   fileInputRef.current?.click()
                 }}
-                className='absolute right-[8px] bottom-[9px] p-1.5 -m-1.5 text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-secondary)]'
+                className='-m-1.5 absolute right-[8px] bottom-[9px] p-1.5 text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-secondary)]'
                 aria-label={fileInputOptions?.tooltip ?? 'Upload file'}
               >
                 <FileIcon className='h-[14px] w-[14px]' strokeWidth={2} />

@@ -124,9 +124,7 @@ export function CreateApiKeyModal({
             <div className='mt-4 flex flex-col gap-4.5'>
               {canManageWorkspaceKeys && (
                 <div className='flex flex-col gap-2'>
-                  <p className='font-medium text-sm text-[var(--text-secondary)]'>
-                    Sim Key Type
-                  </p>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Sim Key Type</p>
                   <ButtonGroup
                     value={keyType}
                     onValueChange={(value) => {
@@ -142,7 +140,7 @@ export function CreateApiKeyModal({
                 </div>
               )}
               <div className='flex flex-col gap-2'>
-                <p className='font-medium text-sm text-[var(--text-secondary)]'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>
                   Enter a name for your Sim key to help you identify it later.
                 </p>
                 {/* Hidden decoy fields to prevent browser autofill */}
@@ -176,9 +174,7 @@ export function CreateApiKeyModal({
                   data-form-type='other'
                 />
                 {createError && (
-                  <p className='text-small text-[var(--text-error)] leading-tight'>
-                    {createError}
-                  </p>
+                  <p className='text-[var(--text-error)] text-small leading-tight'>{createError}</p>
                 )}
               </div>
             </div>
@@ -228,7 +224,7 @@ export function CreateApiKeyModal({
             {newKey && (
               <div className='relative mt-2.5'>
                 <div className='flex h-9 items-center rounded-md border bg-[var(--surface-1)] px-2.5 pr-10'>
-                  <code className='flex-1 truncate font-mono text-sm text-[var(--text-primary)]'>
+                  <code className='flex-1 truncate font-mono text-[var(--text-primary)] text-sm'>
                     {newKey.key}
                   </code>
                 </div>

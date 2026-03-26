@@ -217,7 +217,7 @@ export function Copilot() {
               <CopilotKeySkeleton />
             </div>
           ) : showEmptyState ? (
-            <div className='flex h-full items-center justify-center text-sm text-[var(--text-muted)]'>
+            <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
               Click "Create" above to get started
             </div>
           ) : (
@@ -229,13 +229,11 @@ export function Copilot() {
                       <span className='max-w-[280px] truncate font-medium text-base'>
                         {key.name || 'Unnamed Key'}
                       </span>
-                      <span className='text-sm text-[var(--text-secondary)]'>
+                      <span className='text-[var(--text-secondary)] text-sm'>
                         (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                       </span>
                     </div>
-                    <p className='truncate text-sm text-[var(--text-muted)]'>
-                      {key.displayKey}
-                    </p>
+                    <p className='truncate text-[var(--text-muted)] text-sm'>{key.displayKey}</p>
                   </div>
                   <Button
                     variant='ghost'
@@ -250,7 +248,7 @@ export function Copilot() {
                 </div>
               ))}
               {showNoResults && (
-                <div className='py-4 text-center text-sm text-[var(--text-muted)]'>
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                   No API keys found matching "{searchTerm}"
                 </div>
               )}
@@ -270,7 +268,7 @@ export function Copilot() {
             </p>
 
             <div className='mt-4 flex flex-col gap-2'>
-              <p className='font-medium text-sm text-[var(--text-secondary)]'>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>
                 Enter a name for your API key to help you identify it later.
               </p>
               <EmcnInput
@@ -284,7 +282,7 @@ export function Copilot() {
                 autoFocus
               />
               {createError && (
-                <p className='text-small text-[var(--text-error)] leading-tight'>{createError}</p>
+                <p className='text-[var(--text-error)] text-small leading-tight'>{createError}</p>
               )}
             </div>
           </ModalBody>
@@ -336,7 +334,7 @@ export function Copilot() {
             {newKey && (
               <div className='relative mt-2.5'>
                 <div className='flex h-9 items-center rounded-md border bg-[var(--surface-1)] px-2.5 pr-10'>
-                  <code className='flex-1 truncate font-mono text-sm text-[var(--text-primary)]'>
+                  <code className='flex-1 truncate font-mono text-[var(--text-primary)] text-sm'>
                     {newKey}
                   </code>
                 </div>

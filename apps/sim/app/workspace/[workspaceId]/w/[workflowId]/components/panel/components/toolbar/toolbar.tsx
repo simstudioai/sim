@@ -710,7 +710,7 @@ export const Toolbar = memo(
           className='mx-[-1px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-sm border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'
           onClick={handleSearchClick}
         >
-          <h2 className='font-medium text-sm text-[var(--text-primary)]'>Toolbar</h2>
+          <h2 className='font-medium text-[var(--text-primary)] text-sm'>Toolbar</h2>
           <div className='flex shrink-0 items-center gap-2'>
             {!isSearchActive ? (
               <Button
@@ -728,7 +728,7 @@ export const Toolbar = memo(
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onBlur={handleSearchBlur}
-                className='w-full border-none bg-transparent pr-0.5 text-right font-medium text-small text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none'
+                className='w-full border-none bg-transparent pr-0.5 text-right font-medium text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
               />
             )}
           </div>
@@ -746,7 +746,7 @@ export const Toolbar = memo(
           >
             <div
               ref={triggersHeaderRef}
-              className='px-2.5 pt-[5px] pb-[5px] font-medium text-small text-[var(--text-primary)]'
+              className='px-2.5 pt-[5px] pb-[5px] font-medium text-[var(--text-primary)] text-small'
             >
               Triggers
             </div>
@@ -780,7 +780,7 @@ export const Toolbar = memo(
             <div
               ref={blocksHeaderRef}
               onClick={handleBlocksHeaderClick}
-              className='cursor-pointer px-2.5 pt-[5px] pb-[5px] font-medium text-small text-[var(--text-primary)]'
+              className='cursor-pointer px-2.5 pt-[5px] pb-[5px] font-medium text-[var(--text-primary)] text-small'
             >
               Blocks
             </div>

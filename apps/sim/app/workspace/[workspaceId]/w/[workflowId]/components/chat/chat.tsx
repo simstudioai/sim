@@ -918,7 +918,7 @@ export function Chat() {
         className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >
-        <span className='flex-shrink-0 pr-0.5 font-medium text-sm text-[var(--text-primary)]'>
+        <span className='flex-shrink-0 pr-0.5 font-medium text-[var(--text-primary)] text-sm'>
           Chat
         </span>
 
@@ -929,7 +929,7 @@ export function Chat() {
         >
           {shouldShowConfigureStartInputsButton && (
             <div
-              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-[9px] py-0.5 font-medium font-sans text-caption text-[var(--text-primary)] hover-hover:bg-[var(--surface-7)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]'
+              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-[9px] py-0.5 font-medium font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-7)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]'
               title='Add chat inputs to Start block'
               onMouseDown={(e) => {
                 e.stopPropagation()
@@ -1036,12 +1036,12 @@ export function Chat() {
                 <div className='flex items-start gap-2'>
                   <AlertCircle className='mt-0.5 h-3 w-3 shrink-0 text-[var(--text-error)]' />
                   <div className='flex-1'>
-                    <div className='mb-1 font-medium text-caption text-[var(--text-error)]'>
+                    <div className='mb-1 font-medium text-[var(--text-error)] text-caption'>
                       File upload error
                     </div>
                     <div className='space-y-1'>
                       {uploadErrors.map((err, idx) => (
-                        <div key={idx} className='text-micro text-[var(--text-error)]'>
+                        <div key={idx} className='text-[var(--text-error)] text-micro'>
                           {err}
                         </div>
                       ))}
@@ -1082,7 +1082,7 @@ export function Chat() {
                         />
                       ) : (
                         <div className='min-w-0 flex-1'>
-                          <div className='truncate font-medium text-micro text-[var(--white)]'>
+                          <div className='truncate font-medium text-[var(--white)] text-micro'>
                             {file.name}
                           </div>
                           <div className='text-[9px] text-[var(--text-tertiary)]'>

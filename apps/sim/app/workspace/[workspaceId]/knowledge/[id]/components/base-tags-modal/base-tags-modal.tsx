@@ -55,18 +55,15 @@ function DocumentList({ documents, totalCount }: DocumentListProps) {
         {documents.slice(0, displayLimit).map((doc) => {
           const DocumentIcon = getDocumentIcon('', doc.name)
           return (
-            <div
-              key={doc.id}
-              className='flex items-center gap-2 border-b p-2 last:border-b-0'
-            >
+            <div key={doc.id} className='flex items-center gap-2 border-b p-2 last:border-b-0'>
               <DocumentIcon className='h-4 w-4 flex-shrink-0 text-[var(--text-muted)]' />
-              <span className='min-w-0 max-w-[120px] truncate text-caption text-[var(--text-primary)]'>
+              <span className='min-w-0 max-w-[120px] truncate text-[var(--text-primary)] text-caption'>
                 {doc.name}
               </span>
               {doc.tagValue && (
                 <>
                   <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
-                  <span className='min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]'>
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-xs'>
                     {doc.tagValue}
                   </span>
                 </>
@@ -75,7 +72,7 @@ function DocumentList({ documents, totalCount }: DocumentListProps) {
           )
         })}
         {hasMore && (
-          <div className='p-2 text-xs text-[var(--text-muted)]'>
+          <div className='p-2 text-[var(--text-muted)] text-xs'>
             and {totalCount - displayLimit} more documents
           </div>
         )}
@@ -283,7 +280,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
                 {kbTagDefinitions.length === 0 && !isCreatingTag && (
                   <div className='rounded-md border p-4 text-center'>
-                    <p className='text-caption text-[var(--text-tertiary)]'>
+                    <p className='text-[var(--text-tertiary)] text-caption'>
                       No tag definitions yet. Create your first tag to organize documents.
                     </p>
                   </div>
@@ -297,14 +294,14 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                       className='flex cursor-pointer items-center gap-2 rounded-sm border p-2 hover-hover:bg-[var(--surface-2)]'
                       onClick={() => handleViewDocuments(tag)}
                     >
-                      <span className='min-w-0 truncate text-caption text-[var(--text-primary)]'>
+                      <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
                         {tag.displayName}
                       </span>
-                      <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-micro text-[var(--text-muted)]'>
+                      <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
                         {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
                       </span>
                       <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
-                      <span className='min-w-0 flex-1 text-xs text-[var(--text-muted)]'>
+                      <span className='min-w-0 flex-1 text-[var(--text-muted)] text-xs'>
                         {usage.documentCount} document{usage.documentCount !== 1 ? 's' : ''}
                       </span>
                       <div className='flex flex-shrink-0 items-center gap-1'>
@@ -358,7 +355,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         }}
                       />
                       {tagNameConflict && (
-                        <span className='text-caption text-[var(--text-error)]'>
+                        <span className='text-[var(--text-error)] text-caption'>
                           A tag with this name already exists
                         </span>
                       )}
@@ -375,7 +372,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         placeholder='Select type'
                       />
                       {!hasAvailableSlots(createTagForm.fieldType) && (
-                        <span className='text-caption text-[var(--text-error)]'>
+                        <span className='text-[var(--text-error)] text-caption'>
                           No available slots for this type. Choose a different type.
                         </span>
                       )}

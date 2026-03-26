@@ -126,7 +126,8 @@ function VerificationForm({
                 Didn't receive a code?{' '}
                 {countdown > 0 ? (
                   <span>
-                    Resend in <span className='font-medium text-[var(--landing-text)]'>{countdown}s</span>
+                    Resend in{' '}
+                    <span className='font-medium text-[var(--landing-text)]'>{countdown}s</span>
                   </span>
                 ) : (
                   <button

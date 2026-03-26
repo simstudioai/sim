@@ -420,7 +420,13 @@ function MobileMenuIcon({ open }: { open: boolean }) {
 
 function ExternalArrowIcon() {
   return (
-    <svg width='12' height='12' viewBox='0 0 12 12' fill='none' className='text-[var(--text-secondary)]'>
+    <svg
+      width='12'
+      height='12'
+      viewBox='0 0 12 12'
+      fill='none'
+      className='text-[var(--text-secondary)]'
+    >
       <path
         d='M3.5 2.5H9.5V8.5M9 3L3 9'
         stroke='currentColor'

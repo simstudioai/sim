@@ -138,11 +138,13 @@ export function ExecutionSnapshot({
             <AlertCircle className='h-[20px] w-[20px]' />
             <span className='font-medium text-base'>Logged State Not Found</span>
           </div>
-          <div className='max-w-md text-center text-small text-[var(--text-secondary)]'>
+          <div className='max-w-md text-center text-[var(--text-secondary)] text-small'>
             This log was migrated from the old logging system. The workflow state at execution time
             is not available.
           </div>
-          <div className='text-caption text-[var(--text-tertiary)]'>Note: {workflowState._note}</div>
+          <div className='text-[var(--text-tertiary)] text-caption'>
+            Note: {workflowState._note}
+          </div>
         </div>
       )
     }

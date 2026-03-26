@@ -121,7 +121,7 @@ export function CustomTools() {
               <CustomToolSkeleton />
             </div>
           ) : showEmptyState ? (
-            <div className='flex h-full items-center justify-center text-sm text-[var(--text-muted)]'>
+            <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
               Click "Add" above to get started
             </div>
           ) : (
@@ -133,7 +133,7 @@ export function CustomTools() {
                       {tool.title || 'Unnamed Tool'}
                     </span>
                     {tool.schema?.function?.description && (
-                      <p className='truncate text-sm text-[var(--text-muted)]'>
+                      <p className='truncate text-[var(--text-muted)] text-sm'>
                         {tool.schema.function.description}
                       </p>
                     )}
@@ -153,7 +153,7 @@ export function CustomTools() {
                 </div>
               ))}
               {showNoResults && (
-                <div className='py-4 text-center text-sm text-[var(--text-muted)]'>
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                   No tools found matching "{searchTerm}"
                 </div>
               )}

@@ -270,7 +270,7 @@ export function RecentlyDeleted() {
             <DeletedItemSkeleton />
           </div>
         ) : filtered.length === 0 ? (
-          <div className='flex h-full items-center justify-center text-sm text-[var(--text-muted)]'>
+          <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
             {showNoResults
               ? `No items found matching \u201c${searchTerm}\u201d`
               : 'No deleted items'}
@@ -289,10 +289,10 @@ export function RecentlyDeleted() {
                   <ResourceIcon resource={resource} />
 
                   <div className='flex min-w-0 flex-1 flex-col'>
-                    <span className='truncate font-medium text-small text-[var(--text-primary)]'>
+                    <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                       {resource.name}
                     </span>
-                    <span className='text-caption text-[var(--text-tertiary)]'>
+                    <span className='text-[var(--text-tertiary)] text-caption'>
                       {TYPE_LABEL[resource.type]}
                       {' \u00b7 '}
                       Deleted {formatDate(resource.deletedAt)}
@@ -301,7 +301,7 @@ export function RecentlyDeleted() {
 
                   {isRestored ? (
                     <div className='flex shrink-0 items-center gap-2'>
-                      <span className='text-small text-[var(--text-tertiary)]'>Restored</span>
+                      <span className='text-[var(--text-tertiary)] text-small'>Restored</span>
                       <Button
                         variant='primary'
                         size='sm'

@@ -57,11 +57,11 @@ export function RemoveMemberDialog({
                   checked={shouldReduceSeats}
                   onCheckedChange={(checked) => onShouldReduceSeatsChange(checked === true)}
                 />
-                <label htmlFor='reduce-seats' className='text-small text-[var(--text-primary)]'>
+                <label htmlFor='reduce-seats' className='text-[var(--text-primary)] text-small'>
                   Also reduce seat count in my subscription
                 </label>
               </div>
-              <p className='mt-1 text-small text-[var(--text-muted)]'>
+              <p className='mt-1 text-[var(--text-muted)] text-small'>
                 If selected, your team seat count will be reduced by 1, lowering your monthly
                 billing.
               </p>
@@ -70,7 +70,7 @@ export function RemoveMemberDialog({
 
           {error && (
             <div className='mt-2'>
-              <p className='text-small text-[var(--text-error)] leading-tight'>
+              <p className='text-[var(--text-error)] text-small leading-tight'>
                 {error instanceof Error && error.message ? error.message : String(error)}
               </p>
             </div>

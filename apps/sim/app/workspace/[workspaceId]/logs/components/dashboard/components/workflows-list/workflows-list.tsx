@@ -43,11 +43,11 @@ function WorkflowsListInner({
       {/* Table header */}
       <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-6 py-2.5 dark:bg-[var(--surface-3)]'>
         <div className='flex items-center gap-4'>
-          <span className='w-[160px] flex-shrink-0 font-medium text-caption text-[var(--text-tertiary)]'>
+          <span className='w-[160px] flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
             Workflow
           </span>
-          <span className='flex-1 font-medium text-caption text-[var(--text-tertiary)]'>Logs</span>
-          <span className='w-[100px] flex-shrink-0 pl-4 font-medium text-caption text-[var(--text-tertiary)]'>
+          <span className='flex-1 font-medium text-[var(--text-tertiary)] text-caption'>Logs</span>
+          <span className='w-[100px] flex-shrink-0 pl-4 font-medium text-[var(--text-tertiary)] text-caption'>
             Success Rate
           </span>
         </div>
@@ -57,7 +57,7 @@ function WorkflowsListInner({
       <div className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden'>
         {filteredExecutions.length === 0 ? (
           <div className='flex items-center justify-center py-8'>
-            <span className='text-small text-[var(--text-secondary)]'>
+            <span className='text-[var(--text-secondary)] text-small'>
               {searchQuery ? `No workflows found matching "${searchQuery}"` : 'No workflows found'}
             </span>
           </div>
@@ -95,7 +95,7 @@ function WorkflowsListInner({
                         backgroundClip: 'padding-box',
                       }}
                     />
-                    <span className='min-w-0 truncate font-medium text-caption text-[var(--text-primary)]'>
+                    <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-caption'>
                       {workflow.workflowName}
                     </span>
                   </div>
@@ -113,7 +113,7 @@ function WorkflowsListInner({
                   </div>
 
                   {/* Success rate */}
-                  <span className='w-[100px] flex-shrink-0 pl-4 font-medium text-caption text-[var(--text-primary)]'>
+                  <span className='w-[100px] flex-shrink-0 pl-4 font-medium text-[var(--text-primary)] text-caption'>
                     {workflow.overallSuccessRate.toFixed(1)}%
                   </span>
                 </div>

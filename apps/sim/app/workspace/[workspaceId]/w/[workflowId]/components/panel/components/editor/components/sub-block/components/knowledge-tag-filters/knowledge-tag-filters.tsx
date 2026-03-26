@@ -239,7 +239,7 @@ export function KnowledgeTagFilters({
       onClick={() => toggleCollapse(filter.id)}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate font-medium text-sm text-[var(--text-tertiary)]'>
+        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
           {filter.collapsed ? filter.tagName || `Filter ${index + 1}` : `Filter ${index + 1}`}
         </span>
         {filter.collapsed && filter.tagName && (

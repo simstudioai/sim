@@ -111,7 +111,7 @@ function SubscriptionSkeleton() {
             </div>
             <div className='flex h-[21px] items-center gap-1'>
               <Skeleton className='h-[14px] w-[50px] rounded-sm' />
-              <span className='font-medium text-base text-[var(--text-primary)]'>/</span>
+              <span className='font-medium text-[var(--text-primary)] text-base'>/</span>
               <Skeleton className='h-[14px] w-[50px] rounded-sm' />
             </div>
           </div>
@@ -198,28 +198,26 @@ function CreditPlanCard({
           <span className='font-medium text-[14px] text-[var(--text-primary)]'>
             ${isAnnual ? discountedMonthly : dollars}
           </span>
-          <span className='text-caption text-[var(--text-secondary)]'>{perUnit}/mo</span>
+          <span className='text-[var(--text-secondary)] text-caption'>{perUnit}/mo</span>
           {isAnnual && (
-            <span className='ml-0.5 text-xs text-[var(--text-muted)] line-through'>
-              ${dollars}
-            </span>
+            <span className='ml-0.5 text-[var(--text-muted)] text-xs line-through'>${dollars}</span>
           )}
         </div>
       </div>
 
       <div className='flex items-center gap-[12px] rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[10px]'>
         <div className='flex flex-col'>
-          <span className='font-semibold text-lg text-[var(--text-primary)]'>
+          <span className='font-semibold text-[var(--text-primary)] text-lg'>
             {credits.toLocaleString()}
           </span>
-          <span className='text-xs text-[var(--text-secondary)]'>credits/mo</span>
+          <span className='text-[var(--text-secondary)] text-xs'>credits/mo</span>
         </div>
         <div className='h-[28px] w-[1px] bg-[var(--border-1)]' />
         <div className='flex flex-col'>
-          <span className='font-semibold text-sm text-[var(--text-primary)]'>
+          <span className='font-semibold text-[var(--text-primary)] text-sm'>
             +{dailyRefresh.toLocaleString()}
           </span>
-          <span className='text-xs text-[var(--text-secondary)]'>daily refresh</span>
+          <span className='text-[var(--text-secondary)] text-xs'>daily refresh</span>
         </div>
       </div>
 
@@ -228,7 +226,7 @@ function CreditPlanCard({
           {features.map((feature, idx) => (
             <li key={idx} className='flex items-center gap-2'>
               <feature.icon className='h-[13px] w-[13px] flex-shrink-0 text-[var(--text-muted)]' />
-              <span className='text-caption text-[var(--text-secondary)]'>{feature.text}</span>
+              <span className='text-[var(--text-secondary)] text-caption'>{feature.text}</span>
             </li>
           ))}
         </ul>
@@ -646,7 +644,7 @@ export function Subscription() {
         />
       ) : (
         <div className='flex items-center'>
-          <span className='font-medium text-base text-[var(--text-primary)]'>
+          <span className='font-medium text-[var(--text-primary)] text-base'>
             {formatPlanName(subscription.plan)}
           </span>
         </div>
@@ -954,7 +952,7 @@ export function Subscription() {
             !permissions.isEnterpriseMember && (
               <div className='flex items-center justify-between gap-[16px]'>
                 <Label>{isCancelledAtPeriodEnd ? 'Access Until' : 'Next Billing Date'}</Label>
-                <span className='text-small text-[var(--text-secondary)]'>
+                <span className='text-[var(--text-secondary)] text-small'>
                   {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
                 </span>
               </div>
@@ -1020,7 +1018,7 @@ export function Subscription() {
                 </Tooltip.Root>
               </div>
               {workspaceAdmins.length === 0 ? (
-                <div className='rounded-md border border-[var(--border)] border-dashed px-3 py-1.5 text-small text-[var(--text-muted)]'>
+                <div className='rounded-md border border-[var(--border)] border-dashed px-3 py-1.5 text-[var(--text-muted)] text-small'>
                   No admins available
                 </div>
               ) : (
@@ -1108,10 +1106,8 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
                 )}
                 onClick={() => setSelectedTier(PRO_TIER.credits)}
               >
-                <span className='block font-medium text-small text-[var(--text-primary)]'>
-                  Pro
-                </span>
-                <span className='block text-caption text-[var(--text-secondary)]'>
+                <span className='block font-medium text-[var(--text-primary)] text-small'>Pro</span>
+                <span className='block text-[var(--text-secondary)] text-caption'>
                   {PRO_TIER.credits.toLocaleString()} credits/seat &middot; ${PRO_TIER.dollars}
                   /seat/mo
                 </span>
@@ -1126,10 +1122,8 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
                 )}
                 onClick={() => setSelectedTier(MAX_TIER.credits)}
               >
-                <span className='block font-medium text-small text-[var(--text-primary)]'>
-                  Max
-                </span>
-                <span className='block text-caption text-[var(--text-secondary)]'>
+                <span className='block font-medium text-[var(--text-primary)] text-small'>Max</span>
+                <span className='block text-[var(--text-secondary)] text-caption'>
                   {MAX_TIER.credits.toLocaleString()} credits/seat &middot; ${MAX_TIER.dollars}
                   /seat/mo
                 </span>
@@ -1330,10 +1324,10 @@ function ManagePlanModal({
                 )}
               >
                 <div className='min-w-0 flex-1'>
-                  <span className='font-medium text-small text-[var(--text-primary)]'>
+                  <span className='font-medium text-[var(--text-primary)] text-small'>
                     {action.title}
                   </span>
-                  <span className='block text-caption text-[var(--text-secondary)]'>
+                  <span className='block text-[var(--text-secondary)] text-caption'>
                     {action.description}
                   </span>
                 </div>
@@ -1350,7 +1344,7 @@ function ManagePlanModal({
           </div>
 
           {error && (
-            <span className='mt-1 block text-caption text-[var(--text-error)]'>{error}</span>
+            <span className='mt-1 block text-[var(--text-error)] text-caption'>{error}</span>
           )}
         </ModalBody>
         <ModalFooter>
@@ -1388,9 +1382,7 @@ function BillingUsageNotificationsToggle() {
     <div className='flex items-center justify-between'>
       <div className='flex flex-col gap-1'>
         <Label htmlFor='usage-notifications'>Usage notifications</Label>
-        <span className='text-small text-[var(--text-muted)]'>
-          Email me when I reach 80% usage
-        </span>
+        <span className='text-[var(--text-muted)] text-small'>Email me when I reach 80% usage</span>
       </div>
       <Switch
         id='usage-notifications'

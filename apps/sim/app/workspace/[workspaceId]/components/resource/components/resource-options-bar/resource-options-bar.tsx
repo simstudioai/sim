@@ -77,12 +77,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
   if (!hasContent) return null
 
   return (
-    <div
-      className={cn(
-        'border-[var(--border)] border-b py-2.5',
-        search ? 'px-6' : 'px-4'
-      )}
-    >
+    <div className={cn('border-[var(--border)] border-b py-2.5', search ? 'px-6' : 'px-4')}>
       <div className='flex items-center justify-between'>
         {search && (
           <div className='relative flex flex-1 items-center'>
@@ -100,7 +95,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
                   onClick={tag.onRemove}
                 >
                   {tag.label}: {tag.value}
-                  <span className='ml-1 text-micro text-[var(--text-icon)]'>✕</span>
+                  <span className='ml-1 text-[var(--text-icon)] text-micro'>✕</span>
                 </Button>
               ))}
               <input
@@ -112,7 +107,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
                 onFocus={search.onFocus}
                 onBlur={search.onBlur}
                 placeholder={search.tags?.length ? '' : (search.placeholder ?? 'Search...')}
-                className='min-w-[80px] flex-1 bg-transparent py-1 text-caption text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-subtle)]'
+                className='min-w-[80px] flex-1 bg-transparent py-1 text-[var(--text-secondary)] text-caption outline-none placeholder:text-[var(--text-subtle)]'
               />
             </div>
             {search.tags?.length || search.value ? (
@@ -144,7 +139,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
               onClick={tag.onRemove}
             >
               {tag.label}
-              <span className='ml-1 text-micro text-[var(--text-icon)]'>✕</span>
+              <span className='ml-1 text-[var(--text-icon)] text-micro'>✕</span>
             </Button>
           ))}
           {filter && (

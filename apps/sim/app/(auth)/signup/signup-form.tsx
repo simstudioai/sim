@@ -570,7 +570,9 @@ function SignupFormContent({
             <div className='w-full border-[var(--surface-4)] border-t' />
           </div>
           <div className='relative flex justify-center text-sm'>
-            <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--text-subtle)]'>Or continue with</span>
+            <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--text-subtle)]'>
+              Or continue with
+            </span>
           </div>
         </div>
       )}

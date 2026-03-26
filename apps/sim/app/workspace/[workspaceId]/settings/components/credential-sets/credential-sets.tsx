@@ -415,21 +415,15 @@ export function CredentialSets() {
             <div className='flex flex-col gap-4.5'>
               <div className='flex items-center gap-4.5'>
                 <div className='flex items-center gap-2'>
-                  <span className='font-medium text-sm text-[var(--text-primary)]'>
-                    Group Name
-                  </span>
-                  <span className='text-sm text-[var(--text-secondary)]'>
-                    {viewingSet.name}
-                  </span>
+                  <span className='font-medium text-[var(--text-primary)] text-sm'>Group Name</span>
+                  <span className='text-[var(--text-secondary)] text-sm'>{viewingSet.name}</span>
                 </div>
                 <div className='h-4 w-px bg-[var(--border)]' />
                 <div className='flex items-center gap-2'>
-                  <span className='font-medium text-sm text-[var(--text-primary)]'>
-                    Provider
-                  </span>
+                  <span className='font-medium text-[var(--text-primary)] text-sm'>Provider</span>
                   <div className='flex items-center gap-1.5'>
                     {getProviderIcon(viewingSet.providerId)}
-                    <span className='text-sm text-[var(--text-secondary)]'>
+                    <span className='text-[var(--text-secondary)] text-sm'>
                       {getProviderDisplayName(viewingSet.providerId as PollingProvider)}
                     </span>
                   </div>
@@ -456,11 +450,11 @@ export function CredentialSets() {
                     {createInvitation.isPending ? 'Sending...' : 'Invite'}
                   </Button>
                 </div>
-                {emailError && <p className='text-small text-[var(--text-error)]'>{emailError}</p>}
+                {emailError && <p className='text-[var(--text-error)] text-small'>{emailError}</p>}
               </div>
 
               <div className='flex flex-col gap-4.5'>
-                <h4 className='font-medium text-base text-[var(--text-primary)]'>Members</h4>
+                <h4 className='font-medium text-[var(--text-primary)] text-base'>Members</h4>
 
                 {membersLoading || pendingInvitationsLoading ? (
                   <div className='flex flex-col gap-4.5'>
@@ -477,7 +471,7 @@ export function CredentialSets() {
                     ))}
                   </div>
                 ) : totalCount === 0 ? (
-                  <p className='text-sm text-[var(--text-muted)]'>
+                  <p className='text-[var(--text-muted)] text-sm'>
                     No members yet. Send invitations above.
                   </p>
                 ) : (
@@ -505,7 +499,7 @@ export function CredentialSets() {
 
                             <div className='min-w-0'>
                               <div className='flex items-center gap-2'>
-                                <span className='truncate font-medium text-base text-[var(--text-primary)]'>
+                                <span className='truncate font-medium text-[var(--text-primary)] text-base'>
                                   {name}
                                 </span>
                                 {member.credentials.length === 0 && (
@@ -514,7 +508,7 @@ export function CredentialSets() {
                                   </Badge>
                                 )}
                               </div>
-                              <div className='truncate text-small text-[var(--text-muted)]'>
+                              <div className='truncate text-[var(--text-muted)] text-small'>
                                 {member.userEmail}
                               </div>
                             </div>
@@ -553,14 +547,14 @@ export function CredentialSets() {
 
                             <div className='min-w-0'>
                               <div className='flex items-center gap-2'>
-                                <span className='truncate font-medium text-base text-[var(--text-primary)]'>
+                                <span className='truncate font-medium text-[var(--text-primary)] text-base'>
                                   {emailPrefix}
                                 </span>
                                 <Badge variant='gray-secondary' size='sm'>
                                   Pending
                                 </Badge>
                               </div>
-                              <div className='truncate text-small text-[var(--text-muted)]'>
+                              <div className='truncate text-[var(--text-muted)] text-small'>
                                 {email}
                               </div>
                             </div>
@@ -638,19 +632,19 @@ export function CredentialSets() {
 
         <div className='relative min-h-0 flex-1 overflow-y-auto'>
           {hasNoContent && !canManageCredentialSets ? (
-            <div className='absolute inset-0 flex items-center justify-center text-sm text-[var(--text-muted)]'>
+            <div className='absolute inset-0 flex items-center justify-center text-[var(--text-muted)] text-sm'>
               You're not a member of any polling groups yet. When someone invites you, it will
               appear here.
             </div>
           ) : hasNoResults ? (
-            <div className='py-4 text-center text-sm text-[var(--text-muted)]'>
+            <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
               No results found matching "{searchTerm}"
             </div>
           ) : (
             <div className='flex flex-col gap-4.5'>
               {filteredInvitations.length > 0 && (
                 <div className='flex flex-col gap-2'>
-                  <div className='font-medium text-sm text-[var(--text-secondary)]'>
+                  <div className='font-medium text-[var(--text-secondary)] text-sm'>
                     Pending Invitations
                   </div>
                   {filteredInvitations.map((invitation) => (
@@ -666,7 +660,7 @@ export function CredentialSets() {
                           <span className='font-medium text-base'>
                             {invitation.credentialSetName}
                           </span>
-                          <span className='text-sm text-[var(--text-muted)]'>
+                          <span className='text-[var(--text-muted)] text-sm'>
                             {invitation.organizationName}
                           </span>
                         </div>
@@ -685,7 +679,7 @@ export function CredentialSets() {
 
               {filteredMemberships.length > 0 && (
                 <div className='flex flex-col gap-2'>
-                  <div className='font-medium text-sm text-[var(--text-secondary)]'>
+                  <div className='font-medium text-[var(--text-secondary)] text-sm'>
                     My Memberships
                   </div>
                   {filteredMemberships.map((membership) => (
@@ -701,7 +695,7 @@ export function CredentialSets() {
                           <span className='font-medium text-base'>
                             {membership.credentialSetName}
                           </span>
-                          <span className='text-sm text-[var(--text-muted)]'>
+                          <span className='text-[var(--text-muted)] text-sm'>
                             {membership.organizationName}
                           </span>
                         </div>
@@ -725,9 +719,7 @@ export function CredentialSets() {
                   ownedSetsLoading ||
                   (!searchTerm.trim() && ownedSets.length === 0)) && (
                   <div className='flex flex-col gap-2'>
-                    <div className='font-medium text-sm text-[var(--text-secondary)]'>
-                      Manage
-                    </div>
+                    <div className='font-medium text-[var(--text-secondary)] text-sm'>Manage</div>
                     {ownedSetsLoading ? (
                       <>
                         {[1, 2].map((i) => (
@@ -743,7 +735,7 @@ export function CredentialSets() {
                         ))}
                       </>
                     ) : !searchTerm.trim() && ownedSets.length === 0 ? (
-                      <div className='text-sm text-[var(--text-muted)]'>
+                      <div className='text-[var(--text-muted)] text-sm'>
                         No polling groups created yet
                       </div>
                     ) : (
@@ -755,7 +747,7 @@ export function CredentialSets() {
                             </div>
                             <div className='flex flex-col'>
                               <span className='font-medium text-base'>{set.name}</span>
-                              <span className='text-sm text-[var(--text-muted)]'>
+                              <span className='text-[var(--text-muted)] text-sm'>
                                 {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
                               </span>
                             </div>
@@ -832,11 +824,11 @@ export function CredentialSets() {
                     Outlook
                   </Button>
                 </div>
-                <p className='mt-1 text-xs text-[var(--text-tertiary)]'>
+                <p className='mt-1 text-[var(--text-tertiary)] text-xs'>
                   Members will connect their {getProviderDisplayName(newSetProvider)} account
                 </p>
               </div>
-              {createError && <p className='text-small text-[var(--text-error)]'>{createError}</p>}
+              {createError && <p className='text-[var(--text-error)] text-small'>{createError}</p>}
             </div>
           </ModalBody>
           <ModalFooter>

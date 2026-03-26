@@ -189,8 +189,8 @@ export default function OAuthConsentPage() {
           Authorize Application
         </h1>
         <p className='font-[430] font-season text-[var(--text-primary)]/60 text-lg leading-[125%] tracking-[0.02em]'>
-          <span className='font-medium text-[var(--landing-text)]'>{clientName}</span> is requesting access to
-          your account
+          <span className='font-medium text-[var(--landing-text)]'>{clientName}</span> is requesting
+          access to your account
         </p>
       </div>
 
@@ -232,7 +232,10 @@ export default function OAuthConsentPage() {
             <p className='mb-3 font-medium text-sm'>This will allow the application to:</p>
             <ul className='space-y-2'>
               {scopes.map((s) => (
-                <li key={s} className='flex items-start gap-2 font-normal text-[var(--text-subtle)] text-small'>
+                <li
+                  key={s}
+                  className='flex items-start gap-2 font-normal text-[var(--text-subtle)] text-small'
+                >
                   <span className='mt-0.5 text-green-500'>&#10003;</span>
                   <span>{SCOPE_DESCRIPTIONS[s] ?? s}</span>
                 </li>

@@ -583,7 +583,7 @@ export default function Templates() {
                                 type='button'
                                 onClick={handleUseTemplate}
                                 disabled={isPreparingTemplate}
-                                className='inline-flex h-[32px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-[5px] border border-[var(--white)] bg-[var(--white)] font-[430] font-season text-sm text-black transition-colors active:bg-[var(--border-1)]'
+                                className='inline-flex h-[32px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-[5px] border border-[var(--white)] bg-[var(--white)] font-[430] font-season text-black text-sm transition-colors active:bg-[var(--border-1)]'
                               >
                                 {isPreparingTemplate ? 'Preparing...' : 'Use template'}
                               </button>
@@ -614,7 +614,7 @@ export default function Templates() {
                   type='button'
                   onClick={handleUseTemplate}
                   disabled={isPreparingTemplate}
-                  className='group/cta absolute top-4 right-[16px] z-10 inline-flex h-[32px] cursor-pointer items-center gap-1.5 rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 font-[430] font-season text-sm text-black transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)]'
+                  className='group/cta absolute top-4 right-[16px] z-10 inline-flex h-[32px] cursor-pointer items-center gap-1.5 rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)]'
                 >
                   {isPreparingTemplate ? 'Preparing...' : 'Use template'}
                   <span className='relative h-[10px] w-[10px] shrink-0'>

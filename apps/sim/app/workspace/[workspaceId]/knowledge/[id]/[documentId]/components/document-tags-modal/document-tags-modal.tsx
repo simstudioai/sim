@@ -401,14 +401,14 @@ export function DocumentTagsModal({
                     className='flex cursor-pointer items-center gap-2 rounded-sm border p-2 hover-hover:bg-[var(--surface-2)]'
                     onClick={() => startEditingTag(index)}
                   >
-                    <span className='min-w-0 truncate text-caption text-[var(--text-primary)]'>
+                    <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
                       {tag.displayName}
                     </span>
-                    <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-micro text-[var(--text-muted)]'>
+                    <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
                       {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
                     </span>
                     <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
-                    <span className='min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]'>
+                    <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-xs'>
                       {formatValueForDisplay(tag.value, tag.fieldType)}
                     </span>
                     <div className='flex flex-shrink-0 items-center gap-1'>
@@ -477,7 +477,7 @@ export function DocumentTagsModal({
                           />
                         )}
                         {tagNameConflict && (
-                          <span className='text-caption text-[var(--text-error)]'>
+                          <span className='text-[var(--text-error)] text-caption'>
                             A tag with this name already exists
                           </span>
                         )}
@@ -630,7 +630,7 @@ export function DocumentTagsModal({
                       />
                     )}
                     {tagNameConflict && (
-                      <span className='text-caption text-[var(--text-error)]'>
+                      <span className='text-[var(--text-error)] text-caption'>
                         A tag with this name already exists
                       </span>
                     )}

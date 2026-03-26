@@ -353,7 +353,7 @@ export function WorkspaceHeader({
                 </div>
                 {!isCollapsed && (
                   <>
-                    <span className='min-w-0 flex-1 truncate text-left font-base text-sm text-[var(--text-primary)]'>
+                    <span className='min-w-0 flex-1 truncate text-left font-base text-[var(--text-primary)] text-sm'>
                       {activeWorkspace?.name || 'Loading...'}
                     </span>
                     <ChevronDown className='sidebar-collapse-hide h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]' />
@@ -381,7 +381,7 @@ export function WorkspaceHeader({
               onCloseAutoFocus={(e) => e.preventDefault()}
             >
               {isWorkspacesLoading ? (
-                <div className='px-2 py-[5px] font-medium text-caption text-[var(--text-secondary)]'>
+                <div className='px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption'>
                   Loading workspaces...
                 </div>
               ) : (
@@ -396,12 +396,10 @@ export function WorkspaceHeader({
                       {workspaceInitial}
                     </div>
                     <div className='flex min-w-0 flex-col'>
-                      <span className='truncate font-medium text-small text-[var(--text-primary)]'>
+                      <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                         {activeWorkspace?.name || 'Loading...'}
                       </span>
-                      <span className='text-xs text-[var(--text-tertiary)]'>
-                        {planDisplayName}
-                      </span>
+                      <span className='text-[var(--text-tertiary)] text-xs'>{planDisplayName}</span>
                     </div>
                   </div>
 
@@ -450,7 +448,7 @@ export function WorkspaceHeader({
                                   }
                                   setEditingWorkspaceId(null)
                                 }}
-                                className='w-full border-0 bg-transparent p-0 font-medium text-caption text-[var(--text-primary)] outline-none selection:bg-[#add6ff] selection:text-[var(--bg)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[var(--brand-blue-dark)] dark:selection:text-white'
+                                className='w-full border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-caption outline-none selection:bg-[#add6ff] selection:text-[var(--bg)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[var(--brand-blue-dark)] dark:selection:text-white'
                                 maxLength={100}
                                 autoComplete='off'
                                 autoCorrect='off'
@@ -465,7 +463,7 @@ export function WorkspaceHeader({
                           ) : (
                             <div
                               className={cn(
-                                'group flex cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-caption text-[var(--text-body)] outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+                                'group flex cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
                                 workspace.id === workspaceId && 'bg-[var(--surface-active)]'
                               )}
                               onClick={() => onWorkspaceSwitch(workspace)}
@@ -498,7 +496,7 @@ export function WorkspaceHeader({
                   <div className='mt-1 flex flex-col gap-0.5'>
                     <button
                       type='button'
-                      className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-caption text-[var(--text-body)] outline-none transition-colors hover-hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
+                      className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
                       onClick={(e) => {
                         e.stopPropagation()
                         setIsWorkspaceMenuOpen(false)
@@ -516,7 +514,7 @@ export function WorkspaceHeader({
                       <DropdownMenuSeparator />
                       <button
                         type='button'
-                        className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-caption text-[var(--text-body)] outline-none transition-colors hover-hover:bg-[var(--surface-active)]'
+                        className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]'
                         onClick={() => {
                           setIsInviteModalOpen(true)
                           setIsWorkspaceMenuOpen(false)
@@ -550,7 +548,7 @@ export function WorkspaceHeader({
             </div>
             {!isCollapsed && (
               <>
-                <span className='min-w-0 flex-1 truncate text-left font-base text-sm text-[var(--text-primary)]'>
+                <span className='min-w-0 flex-1 truncate text-left font-base text-[var(--text-primary)] text-sm'>
                   {activeWorkspace?.name || 'Loading...'}
                 </span>
                 <ChevronDown className='sidebar-collapse-hide h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)]' />

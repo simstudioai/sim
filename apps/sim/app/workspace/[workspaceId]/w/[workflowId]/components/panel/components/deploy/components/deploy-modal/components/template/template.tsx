@@ -235,7 +235,7 @@ export function TemplateDeploy({
       <form id='template-deploy-form' onSubmit={handleSubmit} className='space-y-3'>
         {existingTemplate?.state && (
           <div>
-            <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+            <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               Live Template
             </Label>
             <div
@@ -252,7 +252,7 @@ export function TemplateDeploy({
         )}
 
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Name <span className='text-[var(--text-error)]'>*</span>
           </Label>
           <Input
@@ -264,7 +264,7 @@ export function TemplateDeploy({
         </div>
 
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Tagline
           </Label>
           <Input
@@ -277,7 +277,7 @@ export function TemplateDeploy({
         </div>
 
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Description
           </Label>
           <Textarea
@@ -290,12 +290,12 @@ export function TemplateDeploy({
         </div>
 
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Creator <span className='text-[var(--text-error)]'>*</span>
           </Label>
           {creatorProfiles.length === 0 && !loadingCreators ? (
             <div className='space-y-2'>
-              <p className='text-caption text-[var(--text-tertiary)]'>
+              <p className='text-[var(--text-tertiary)] text-caption'>
                 A creator profile is required to publish templates.
               </p>
               <Button
@@ -327,7 +327,7 @@ export function TemplateDeploy({
         </div>
 
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Tags
           </Label>
           <TagInput

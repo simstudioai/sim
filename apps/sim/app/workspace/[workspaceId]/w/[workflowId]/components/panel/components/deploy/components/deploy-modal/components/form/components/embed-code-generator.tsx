@@ -29,7 +29,7 @@ export function EmbedCodeGenerator({ formUrl }: EmbedCodeGeneratorProps) {
   return (
     <div className='pb-3'>
       <div className='mb-[6.5px] flex items-center justify-between'>
-        <Label className='block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+        <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Embed Code
         </Label>
         <Tooltip.Root>

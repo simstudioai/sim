@@ -32,7 +32,7 @@ export function CredentialsSkeleton() {
       </div>
       <div className='flex flex-col gap-2'>
         <Skeleton className='h-5 w-[70px]' />
-        <div className='text-small text-[var(--text-muted)]'>
+        <div className='text-[var(--text-muted)] text-small'>
           <Skeleton className='h-5 w-[160px]' />
         </div>
       </div>

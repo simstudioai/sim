@@ -177,7 +177,10 @@ export default function ChangelogList({ initialEntries }: Props) {
                 },
                 p: ({ children, ...props }) =>
                   /^\s*contributors\s*:?\s*$/i.test(String(children)) ? null : (
-                    <p className='mb-3 text-[var(--text-subtle)] text-small leading-relaxed' {...props}>
+                    <p
+                      className='mb-3 text-[var(--text-subtle)] text-small leading-relaxed'
+                      {...props}
+                    >
                       {children}
                     </p>
                   ),

@@ -111,14 +111,14 @@ function PricingCard({ tier }: PricingCardProps) {
         <div className='flex flex-col'>
           <h3
             id={`${tier.id}-heading`}
-            className='font-[430] font-season text-[var(--text-primary)] text-[24px] leading-[100%] tracking-[-0.02em]'
+            className='font-[430] font-season text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'
           >
             {tier.name}
           </h3>
           <p className='mt-2 min-h-[44px] font-[430] font-season text-[#5c5c5c] text-sm leading-[125%] tracking-[0.02em]'>
             {tier.description}
           </p>
-          <p className='mt-4 flex items-center gap-1.5 font-[430] font-season text-[var(--text-primary)] text-[20px] leading-[100%] tracking-[-0.02em]'>
+          <p className='mt-4 flex items-center gap-1.5 font-[430] font-season text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em]'>
             {tier.price}
             {tier.billingPeriod && (
               <span className='text-[var(--text-muted)] text-md'>{tier.billingPeriod}</span>
@@ -187,7 +187,11 @@ function PricingCard({ tier }: PricingCardProps) {
  */
 export default function Pricing() {
   return (
-    <section id='pricing' aria-labelledby='pricing-heading' className='bg-[var(--landing-bg-section)]'>
+    <section
+      id='pricing'
+      aria-labelledby='pricing-heading'
+      className='bg-[var(--landing-bg-section)]'
+    >
       <div className='px-4 pt-[60px] pb-10 sm:px-8 sm:pt-[80px] sm:pb-0 md:px-[80px] md:pt-[100px]'>
         <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-5'>
           <Badge
@@ -201,7 +205,7 @@ export default function Pricing() {
 
           <h2
             id='pricing-heading'
-            className='font-[430] font-season text-[var(--text-primary)] text-[32px] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
+            className='font-[430] font-season text-[32px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
           >
             Pricing
           </h2>

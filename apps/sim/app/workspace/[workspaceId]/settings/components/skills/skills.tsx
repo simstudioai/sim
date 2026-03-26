@@ -115,7 +115,7 @@ export function Skills() {
               <SkillSkeleton />
             </div>
           ) : showEmptyState ? (
-            <div className='flex h-full items-center justify-center text-sm text-[var(--text-muted)]'>
+            <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
               Click "Add" above to get started
             </div>
           ) : (
@@ -124,7 +124,7 @@ export function Skills() {
                 <div key={s.id} className='flex items-center justify-between gap-3'>
                   <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                     <span className='truncate font-medium text-base'>{s.name}</span>
-                    <p className='truncate text-sm text-[var(--text-muted)]'>{s.description}</p>
+                    <p className='truncate text-[var(--text-muted)] text-sm'>{s.description}</p>
                   </div>
                   <div className='flex flex-shrink-0 items-center gap-2'>
                     <Button variant='default' onClick={() => setEditingSkill(s)}>
@@ -141,7 +141,7 @@ export function Skills() {
                 </div>
               ))}
               {showNoResults && (
-                <div className='py-4 text-center text-sm text-[var(--text-muted)]'>
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                   No skills found matching "{searchTerm}"
                 </div>
               )}

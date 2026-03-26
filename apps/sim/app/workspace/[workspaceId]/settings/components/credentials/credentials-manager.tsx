@@ -246,7 +246,7 @@ function NewWorkspaceVariableRow({ envVar, index, onUpdate }: NewWorkspaceVariab
       </Tooltip.Root>
       {keyError && (
         <div
-          className={`${COL_SPAN_ALL} mt-[-4px] text-caption text-[var(--text-error)] leading-tight`}
+          className={`${COL_SPAN_ALL} mt-[-4px] text-[var(--text-error)] text-caption leading-tight`}
         >
           {keyError}
         </div>
@@ -1066,14 +1066,14 @@ export function CredentialsManager() {
           </Tooltip.Root>
           {keyError && (
             <div
-              className={`${COL_SPAN_ALL} mt-[-4px] text-caption text-[var(--text-error)] leading-tight`}
+              className={`${COL_SPAN_ALL} mt-[-4px] text-[var(--text-error)] text-caption leading-tight`}
             >
               {keyError}
             </div>
           )}
           {isConflict && !keyError && (
             <div
-              className={`${COL_SPAN_ALL} mt-[-4px] text-caption text-[var(--text-error)] leading-tight`}
+              className={`${COL_SPAN_ALL} mt-[-4px] text-[var(--text-error)] text-caption leading-tight`}
             >
               Workspace variable with the same name overrides this. Rename your personal key to use
               it.
@@ -1110,7 +1110,7 @@ export function CredentialsManager() {
                 </div>
                 <div className='min-w-0 flex-1'>
                   <div className='flex items-center gap-2'>
-                    <p className='truncate font-medium text-base text-[var(--text-primary)]'>
+                    <p className='truncate font-medium text-[var(--text-primary)] text-base'>
                       {selectedCredential.envKey || selectedCredential.displayName}
                     </p>
                     <Badge variant='gray-secondary' size='sm'>
@@ -1122,7 +1122,7 @@ export function CredentialsManager() {
                       </Badge>
                     )}
                   </div>
-                  <p className='text-small text-[var(--text-muted)]'>
+                  <p className='text-[var(--text-muted)] text-small'>
                     {selectedCredential.type === 'env_personal'
                       ? 'Personal secret'
                       : 'Workspace secret'}
@@ -1183,7 +1183,7 @@ export function CredentialsManager() {
               </div>
 
               {detailsError && (
-                <div className='rounded-lg border border-[var(--status-red)]/40 bg-[var(--status-red)]/10 px-2.5 py-2 text-small text-[var(--status-red)]'>
+                <div className='rounded-lg border border-[var(--status-red)]/40 bg-[var(--status-red)]/10 px-2.5 py-2 text-[var(--status-red)] text-small'>
                   {detailsError}
                 </div>
               )}
@@ -1215,10 +1215,10 @@ export function CredentialsManager() {
                             </AvatarFallback>
                           </Avatar>
                           <div className='min-w-0'>
-                            <p className='truncate font-medium text-sm text-[var(--text-primary)]'>
+                            <p className='truncate font-medium text-[var(--text-primary)] text-sm'>
                               {member.userName || member.userEmail || member.userId}
                             </p>
-                            <p className='truncate text-caption text-[var(--text-tertiary)]'>
+                            <p className='truncate text-[var(--text-tertiary)] text-caption'>
                               {member.userEmail || member.userId}
                             </p>
                           </div>
@@ -1436,7 +1436,7 @@ export function CredentialsManager() {
               <>
                 <div className='flex flex-col gap-2'>
                   <Skeleton className='h-5 w-[70px]' />
-                  <div className='text-small text-[var(--text-muted)]'>
+                  <div className='text-[var(--text-muted)] text-small'>
                     <Skeleton className='h-5 w-[160px]' />
                   </div>
                 </div>
@@ -1460,7 +1460,7 @@ export function CredentialsManager() {
                   filteredNewWorkspaceRows.length > 0) && (
                   <>
                     <div
-                      className={`${COL_SPAN_ALL} font-medium text-small text-[var(--text-secondary)]`}
+                      className={`${COL_SPAN_ALL} font-medium text-[var(--text-secondary)] text-small`}
                     >
                       Workspace
                     </div>
@@ -1500,7 +1500,7 @@ export function CredentialsManager() {
                 {(!searchTerm.trim() || filteredEnvVars.length > 0) && (
                   <>
                     <div
-                      className={`${COL_SPAN_ALL} font-medium text-small text-[var(--text-secondary)]`}
+                      className={`${COL_SPAN_ALL} font-medium text-[var(--text-secondary)] text-small`}
                     >
                       Personal
                     </div>
@@ -1519,7 +1519,7 @@ export function CredentialsManager() {
                     Object.keys(workspaceVars).length > 0 ||
                     newWorkspaceRows.length > 0) && (
                     <div
-                      className={`${COL_SPAN_ALL} py-4 text-center text-small text-[var(--text-muted)]`}
+                      className={`${COL_SPAN_ALL} py-4 text-center text-[var(--text-muted)] text-small`}
                     >
                       No secrets found matching &ldquo;{searchTerm}&rdquo;
                     </div>

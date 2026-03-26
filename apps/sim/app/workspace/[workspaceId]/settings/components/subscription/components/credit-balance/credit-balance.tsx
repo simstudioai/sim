@@ -129,7 +129,7 @@ export function CreditBalance({
     <div className='flex items-center justify-between'>
       <div className='flex items-center gap-2'>
         <Label>Additional Credits Balance:</Label>
-        <span className='text-small text-[var(--text-secondary)]'>
+        <span className='text-[var(--text-secondary)] text-small'>
           {isLoading ? '...' : `${formatCredits(balance)} credits`}
         </span>
       </div>
@@ -143,7 +143,7 @@ export function CreditBalance({
             <ModalHeader>Add Credits</ModalHeader>
             <ModalBody>
               {purchaseCredits.isSuccess ? (
-                <p className='text-center text-small text-[var(--text-primary)]'>
+                <p className='text-center text-[var(--text-primary)] text-small'>
                   Credits added successfully!
                 </p>
               ) : (
@@ -151,7 +151,7 @@ export function CreditBalance({
                   <div className='flex flex-col gap-2'>
                     <Label htmlFor='credit-amount'>Amount (USD)</Label>
                     <div className='relative'>
-                      <span className='-translate-y-1/2 absolute top-1/2 left-[12px] text-small text-[var(--text-muted)]'>
+                      <span className='-translate-y-1/2 absolute top-1/2 left-[12px] text-[var(--text-muted)] text-small'>
                         $
                       </span>
                       <Input
@@ -166,12 +166,12 @@ export function CreditBalance({
                       />
                     </div>
                     {dollarAmount > 0 && !displayError && (
-                      <span className='text-caption text-[var(--text-secondary)]'>
+                      <span className='text-[var(--text-secondary)] text-caption'>
                         You'll receive {creditPreview.toLocaleString()} credits
                       </span>
                     )}
                     {displayError && (
-                      <span className='text-small text-[var(--text-error)]'>{displayError}</span>
+                      <span className='text-[var(--text-error)] text-small'>{displayError}</span>
                     )}
                   </div>
 

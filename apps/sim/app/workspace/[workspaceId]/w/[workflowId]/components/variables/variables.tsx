@@ -310,7 +310,7 @@ export function Variables() {
           aria-controls={`variable-content-${variable.id}`}
         >
           <div className='flex min-w-0 flex-1 items-center gap-2'>
-            <span className='block truncate font-medium text-sm text-[var(--text-tertiary)]'>
+            <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
               {variable.name || `Variable ${index + 1}`}
             </span>
             {variable.name && (
@@ -428,7 +428,7 @@ export function Variables() {
         onMouseDown={handleMouseDown}
       >
         <div className='flex items-center'>
-          <span className='flex-shrink-0 font-medium text-sm text-[var(--text-primary)]'>
+          <span className='flex-shrink-0 font-medium text-[var(--text-primary)] text-sm'>
             Variables
           </span>
         </div>

@@ -131,7 +131,7 @@ export function Admin() {
       <div className='h-px bg-[var(--border-secondary)]' />
 
       <div className='flex flex-col gap-2'>
-        <p className='text-sm text-[var(--text-secondary)]'>
+        <p className='text-[var(--text-secondary)] text-sm'>
           Import a workflow by ID along with its associated copilot chats.
         </p>
         <div className='flex gap-2'>
@@ -153,10 +153,10 @@ export function Admin() {
           </Button>
         </div>
         {importWorkflow.error && (
-          <p className='text-small text-[var(--text-error)]'>{importWorkflow.error.message}</p>
+          <p className='text-[var(--text-error)] text-small'>{importWorkflow.error.message}</p>
         )}
         {importWorkflow.isSuccess && (
-          <p className='text-small text-[var(--text-secondary)]'>
+          <p className='text-[var(--text-secondary)] text-small'>
             Workflow imported successfully (new ID: {importWorkflow.data.newWorkflowId},{' '}
             {importWorkflow.data.copilotChatsImported ?? 0} copilot chats imported)
           </p>
@@ -166,7 +166,7 @@ export function Admin() {
       <div className='h-px bg-[var(--border-secondary)]' />
 
       <div className='flex flex-col gap-3'>
-        <p className='font-medium text-sm text-[var(--text-primary)]'>User Management</p>
+        <p className='font-medium text-[var(--text-primary)] text-sm'>User Management</p>
         <div className='flex gap-2'>
           <EmcnInput
             value={searchInput}
@@ -180,7 +180,7 @@ export function Admin() {
         </div>
 
         {usersError && (
-          <p className='text-small text-[var(--text-error)]'>
+          <p className='text-[var(--text-error)] text-small'>
             {usersError instanceof Error ? usersError.message : 'Failed to fetch users'}
           </p>
         )}
@@ -209,7 +209,7 @@ export function Admin() {
         {searchQuery.length > 0 && usersData && (
           <>
             <div className='flex flex-col gap-0.5'>
-              <div className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-caption text-[var(--text-tertiary)]'>
+              <div className='flex items-center gap-3 border-[var(--border-secondary)] border-b px-3 py-2 text-[var(--text-tertiary)] text-caption'>
                 <span className='w-[200px]'>Name</span>
                 <span className='flex-1'>Email</span>
                 <span className='w-[80px]'>Role</span>
@@ -218,7 +218,7 @@ export function Admin() {
               </div>
 
               {usersData.users.length === 0 && (
-                <div className='py-4 text-center text-small text-[var(--text-tertiary)]'>
+                <div className='py-4 text-center text-[var(--text-tertiary)] text-small'>
                   No users found.
                 </div>
               )}
@@ -331,7 +331,7 @@ export function Admin() {
                         ) : (
                           <Button
                             variant='active'
-                            className='h-[28px] px-2 text-caption text-[var(--text-error)]'
+                            className='h-[28px] px-2 text-[var(--text-error)] text-caption'
                             onClick={() => {
                               setBanUserId(u.id)
                               setBanReason('')
@@ -349,7 +349,7 @@ export function Admin() {
             </div>
 
             {totalPages > 1 && (
-              <div className='flex items-center justify-between text-small text-[var(--text-secondary)]'>
+              <div className='flex items-center justify-between text-[var(--text-secondary)] text-small'>
                 <span>
                   Page {currentPage} of {totalPages} ({usersData.total} users)
                 </span>

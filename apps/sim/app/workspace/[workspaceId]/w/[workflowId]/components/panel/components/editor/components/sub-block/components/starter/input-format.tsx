@@ -312,7 +312,7 @@ export function FieldFormat({
       onClick={() => toggleCollapse(field.id)}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate font-medium text-sm text-[var(--text-tertiary)]'>
+        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
           {field.name || `${title} ${index + 1}`}
         </span>
         {field.name && showType && (
@@ -546,7 +546,7 @@ export function FieldFormat({
         <div
           key={field.id}
           data-field-id={field.id}
-          className='rounded-sm border border-[var(--border-1)] overflow-hidden'
+          className='overflow-hidden rounded-sm border border-[var(--border-1)]'
         >
           {renderFieldHeader(field, index)}
 

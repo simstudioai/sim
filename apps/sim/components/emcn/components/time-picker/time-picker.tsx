@@ -256,7 +256,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
             <div className='flex items-center gap-1.5'>
               <input
                 ref={hourInputRef}
-                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-medium font-sans text-small text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus-visible:border-[var(--text-muted)]'
+                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-medium font-sans text-[var(--text-primary)] text-small outline-none transition-colors placeholder:text-[var(--text-muted)] focus-visible:border-[var(--text-muted)]'
                 value={hour}
                 onChange={handleHourChange}
                 onBlur={handleHourBlur}
@@ -266,9 +266,9 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
                 maxLength={2}
                 autoComplete='off'
               />
-              <span className='font-medium text-small text-[var(--text-muted)]'>:</span>
+              <span className='font-medium text-[var(--text-muted)] text-small'>:</span>
               <input
-                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-medium font-sans text-small text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus-visible:border-[var(--text-muted)]'
+                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-medium font-sans text-[var(--text-primary)] text-small outline-none transition-colors placeholder:text-[var(--text-muted)] focus-visible:border-[var(--text-muted)]'
                 value={minute}
                 onChange={handleMinuteChange}
                 onBlur={handleMinuteBlur}

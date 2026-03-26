@@ -463,10 +463,7 @@ export const Dropdown = memo(function Dropdown({
     return (
       <div className='flex items-center gap-1 overflow-hidden whitespace-nowrap'>
         {multiValues.map((selectedValue: string) => (
-          <Badge
-            key={selectedValue}
-            className='shrink-0 rounded-lg py-1 text-caption leading-none'
-          >
+          <Badge key={selectedValue} className='shrink-0 rounded-lg py-1 text-caption leading-none'>
             {(optionMap.get(selectedValue) || selectedValue).toLowerCase()}
           </Badge>
         ))}

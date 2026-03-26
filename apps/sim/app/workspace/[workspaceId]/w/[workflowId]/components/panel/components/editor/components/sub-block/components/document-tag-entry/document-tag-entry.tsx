@@ -246,7 +246,7 @@ export function DocumentTagEntry({
       onClick={() => toggleCollapse(tag.id)}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate font-medium text-sm text-[var(--text-tertiary)]'>
+        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
           {tag.collapsed ? tag.tagName || `Tag ${index + 1}` : `Tag ${index + 1}`}
         </span>
         {tag.collapsed && tag.tagName && (

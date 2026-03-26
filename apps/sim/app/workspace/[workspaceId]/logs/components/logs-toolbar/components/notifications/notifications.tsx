@@ -554,7 +554,7 @@ export const NotificationSettings = memo(function NotificationSettings({
       <div key={subscription.id} className='rounded-md border p-2.5'>
         <div className='flex items-center justify-between gap-3'>
           <div className='flex min-w-0 flex-1 flex-col gap-1.5'>
-            <p className='truncate font-medium text-small text-[var(--text-primary)]'>
+            <p className='truncate font-medium text-[var(--text-primary)] text-small'>
               {identifier}
             </p>
             <div className='flex flex-wrap items-center gap-1.5 text-xs'>
@@ -571,7 +571,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                 </Badge>
               ))}
               {subscription.alertConfig && (
-                <Badge className='rounded-sm bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'>
+                <Badge className='rounded-sm bg-amber-100 px-1.5 py-0.5 text-amber-800 text-xs dark:bg-amber-900/30 dark:text-amber-400'>
                   {formatAlertConfigLabel(subscription.alertConfig)}
                 </Badge>
               )}
@@ -612,7 +612,7 @@ export const NotificationSettings = memo(function NotificationSettings({
     <div className='flex h-full flex-col gap-4'>
       <div className='min-h-0 flex-1 overflow-y-auto'>
         {formErrors.general && (
-          <p className='mb-4 text-caption text-[var(--text-error)]'>{formErrors.general}</p>
+          <p className='mb-4 text-[var(--text-error)] text-caption'>{formErrors.general}</p>
         )}
 
         <div className='flex flex-col gap-4'>
@@ -642,7 +642,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                   }}
                 />
                 {formErrors.webhookUrl && (
-                  <p className='text-caption text-[var(--text-error)]'>{formErrors.webhookUrl}</p>
+                  <p className='text-[var(--text-error)] text-caption'>{formErrors.webhookUrl}</p>
                 )}
               </div>
               <div className='flex flex-col gap-2'>
@@ -669,7 +669,9 @@ export const NotificationSettings = memo(function NotificationSettings({
                 placeholderWithTags='Add email'
               />
               {formErrors.emailRecipients && (
-                <p className='text-caption text-[var(--text-error)]'>{formErrors.emailRecipients}</p>
+                <p className='text-[var(--text-error)] text-caption'>
+                  {formErrors.emailRecipients}
+                </p>
               )}
             </div>
           )}
@@ -716,7 +718,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                   />
                 )}
                 {formErrors.slackAccountId && (
-                  <p className='text-caption text-[var(--text-error)]'>
+                  <p className='text-[var(--text-error)] text-caption'>
                     {formErrors.slackAccountId}
                   </p>
                 )}
@@ -785,7 +787,7 @@ export const NotificationSettings = memo(function NotificationSettings({
               allOptionLabel='All levels'
             />
             {formErrors.levelFilter && (
-              <p className='text-caption text-[var(--text-error)]'>{formErrors.levelFilter}</p>
+              <p className='text-[var(--text-error)] text-caption'>{formErrors.levelFilter}</p>
             )}
           </div>
 
@@ -825,10 +827,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                       </Badge>
                     ))}
                     {formData.triggerFilter.length > 6 && (
-                      <Badge
-                        variant='outline'
-                        className='rounded-md px-2 py-0.5 text-xs'
-                      >
+                      <Badge variant='outline' className='rounded-md px-2 py-0.5 text-xs'>
                         +{formData.triggerFilter.length - 6}
                       </Badge>
                     )}
@@ -839,7 +838,7 @@ export const NotificationSettings = memo(function NotificationSettings({
               allOptionLabel='All triggers'
             />
             {formErrors.triggerFilter && (
-              <p className='text-caption text-[var(--text-error)]'>{formErrors.triggerFilter}</p>
+              <p className='text-[var(--text-error)] text-caption'>{formErrors.triggerFilter}</p>
             )}
           </div>
 
@@ -908,10 +907,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                       </Badge>
                     ))}
                     {selected.length > 2 && (
-                      <Badge
-                        variant='outline'
-                        className='rounded-md px-2 py-0.5 text-xs'
-                      >
+                      <Badge variant='outline' className='rounded-md px-2 py-0.5 text-xs'>
                         +{selected.length - 2}
                       </Badge>
                     )}
@@ -934,7 +930,7 @@ export const NotificationSettings = memo(function NotificationSettings({
               onChange={(value) => setFormData({ ...formData, alertRule: value as AlertRule })}
               placeholder='Select rule'
             />
-            <p className='text-caption text-[var(--text-muted)]'>
+            <p className='text-[var(--text-muted)] text-caption'>
               {ALERT_RULES.find((r) => r.value === formData.alertRule)?.description}
             </p>
           </div>
@@ -955,7 +951,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                 }
               />
               {formErrors.consecutiveFailures && (
-                <p className='text-caption text-[var(--text-error)]'>
+                <p className='text-[var(--text-error)] text-caption'>
                   {formErrors.consecutiveFailures}
                 </p>
               )}
@@ -979,7 +975,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                   }
                 />
                 {formErrors.failureRatePercent && (
-                  <p className='text-caption text-[var(--text-error)]'>
+                  <p className='text-[var(--text-error)] text-caption'>
                     {formErrors.failureRatePercent}
                   </p>
                 )}
@@ -999,7 +995,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                   }
                 />
                 {formErrors.windowHours && (
-                  <p className='text-caption text-[var(--text-error)]'>{formErrors.windowHours}</p>
+                  <p className='text-[var(--text-error)] text-caption'>{formErrors.windowHours}</p>
                 )}
               </div>
             </div>
@@ -1021,7 +1017,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                 }
               />
               {formErrors.durationThresholdMs && (
-                <p className='text-caption text-[var(--text-error)]'>
+                <p className='text-[var(--text-error)] text-caption'>
                   {formErrors.durationThresholdMs}
                 </p>
               )}
@@ -1045,7 +1041,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                   }
                 />
                 {formErrors.latencySpikePercent && (
-                  <p className='text-caption text-[var(--text-error)]'>
+                  <p className='text-[var(--text-error)] text-caption'>
                     {formErrors.latencySpikePercent}
                   </p>
                 )}
@@ -1065,7 +1061,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                   }
                 />
                 {formErrors.windowHours && (
-                  <p className='text-caption text-[var(--text-error)]'>{formErrors.windowHours}</p>
+                  <p className='text-[var(--text-error)] text-caption'>{formErrors.windowHours}</p>
                 )}
               </div>
             </div>
@@ -1088,7 +1084,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                 }
               />
               {formErrors.costThresholdDollars && (
-                <p className='text-caption text-[var(--text-error)]'>
+                <p className='text-[var(--text-error)] text-caption'>
                   {formErrors.costThresholdDollars}
                 </p>
               )}
@@ -1111,7 +1107,9 @@ export const NotificationSettings = memo(function NotificationSettings({
                 }
               />
               {formErrors.inactivityHours && (
-                <p className='text-caption text-[var(--text-error)]'>{formErrors.inactivityHours}</p>
+                <p className='text-[var(--text-error)] text-caption'>
+                  {formErrors.inactivityHours}
+                </p>
               )}
             </div>
           )}
@@ -1133,7 +1131,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                   }
                 />
                 {formErrors.errorCountThreshold && (
-                  <p className='text-caption text-[var(--text-error)]'>
+                  <p className='text-[var(--text-error)] text-caption'>
                     {formErrors.errorCountThreshold}
                   </p>
                 )}
@@ -1153,7 +1151,7 @@ export const NotificationSettings = memo(function NotificationSettings({
                   }
                 />
                 {formErrors.windowHours && (
-                  <p className='text-caption text-[var(--text-error)]'>{formErrors.windowHours}</p>
+                  <p className='text-[var(--text-error)] text-caption'>{formErrors.windowHours}</p>
                 )}
               </div>
             </div>
@@ -1269,7 +1267,7 @@ export const NotificationSettings = memo(function NotificationSettings({
         <ModalContent size='sm'>
           <ModalHeader>Delete Notification</ModalHeader>
           <ModalBody>
-            <p className='text-caption text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)] text-caption'>
               This will permanently remove the notification and stop all deliveries.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>

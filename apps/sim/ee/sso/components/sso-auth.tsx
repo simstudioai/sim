@@ -105,7 +105,7 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1 className='font-[500] text-[var(--text-primary)] text-[32px] tracking-tight'>
+                <h1 className='font-[500] text-[32px] text-[var(--text-primary)] tracking-tight'>
                   SSO Authentication
                 </h1>
                 <p className='font-[380] text-[var(--text-subtle)] text-md'>

@@ -10,7 +10,9 @@ export default async function TagsIndex() {
   const tags = await getAllTags()
   return (
     <main className='mx-auto max-w-[900px] px-6 py-10 sm:px-8 md:px-12'>
-      <h1 className='mb-6 font-[500] text-[var(--landing-text)] text-[32px] leading-tight'>Browse by tag</h1>
+      <h1 className='mb-6 font-[500] text-[32px] text-[var(--landing-text)] leading-tight'>
+        Browse by tag
+      </h1>
       <div className='flex flex-wrap gap-3'>
         <Link
           href='/blog'

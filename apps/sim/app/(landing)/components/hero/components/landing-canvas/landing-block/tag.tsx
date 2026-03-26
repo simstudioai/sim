@@ -35,10 +35,7 @@ export const SubBlockRow = React.memo(function SubBlockRow({ label, value }: Sub
         {title}
       </span>
       {displayValue && (
-        <span
-          className='flex-1 truncate text-right text-[#171717] text-sm'
-          title={displayValue}
-        >
+        <span className='flex-1 truncate text-right text-[#171717] text-sm' title={displayValue}>
           {displayValue}
         </span>
       )}

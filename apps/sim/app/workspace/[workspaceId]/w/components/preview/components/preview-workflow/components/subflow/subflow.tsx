@@ -101,10 +101,7 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
             <BlockIcon className='h-[16px] w-[16px] text-white' />
           </div>
           <span
-            className={cn(
-              'truncate font-medium text-md',
-              !enabled && 'text-[var(--text-muted)]'
-            )}
+            className={cn('truncate font-medium text-md', !enabled && 'text-[var(--text-muted)]')}
             title={blockName}
           >
             {blockName}
@@ -120,7 +117,7 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
       >
         {/* Subflow Start - connects to first block in subflow */}
         <div className='absolute top-4 left-[16px] flex items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-2)] px-3 py-1.5'>
-          <span className='font-medium text-sm text-[var(--text-primary)]'>Start</span>
+          <span className='font-medium text-[var(--text-primary)] text-sm'>Start</span>
           <Handle
             type='source'
             position={Position.Right}

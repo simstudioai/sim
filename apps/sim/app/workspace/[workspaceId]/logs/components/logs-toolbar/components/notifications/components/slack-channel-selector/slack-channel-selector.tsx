@@ -104,11 +104,11 @@ export function SlackChannelSelector({
         searchPlaceholder='Search channels...'
       />
       {selectedChannel && !fetchError && (
-        <p className='text-caption text-[var(--text-muted)]'>
+        <p className='text-[var(--text-muted)] text-caption'>
           {selectedChannel.isPrivate ? 'Private' : 'Public'} channel: #{selectedChannel.name}
         </p>
       )}
-      {error && <p className='text-caption text-[var(--text-error)]'>{error}</p>}
+      {error && <p className='text-[var(--text-error)] text-caption'>{error}</p>}
     </div>
   )
 }

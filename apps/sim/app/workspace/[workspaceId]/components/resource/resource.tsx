@@ -242,7 +242,7 @@ export const ResourceTable = memo(function ResourceTable({
   if (rows.length === 0 && emptyMessage) {
     return (
       <div className='flex min-h-0 flex-1 items-center justify-center'>
-        <span className='text-small text-[var(--text-secondary)]'>{emptyMessage}</span>
+        <span className='text-[var(--text-secondary)] text-small'>{emptyMessage}</span>
       </div>
     )
   }
@@ -270,7 +270,7 @@ export const ResourceTable = memo(function ResourceTable({
                   return (
                     <th
                       key={col.id}
-                      className='h-10 px-6 py-1.5 text-left align-middle font-base text-caption text-[var(--text-muted)]'
+                      className='h-10 px-6 py-1.5 text-left align-middle font-base text-[var(--text-muted)] text-caption'
                     >
                       {col.header}
                     </th>
@@ -361,7 +361,7 @@ export const ResourceTable = memo(function ResourceTable({
                 onClick={create.disabled ? undefined : create.onClick}
               >
                 <td colSpan={totalColSpan} className='px-6 py-2.5 align-middle'>
-                  <span className='flex items-center gap-3 font-medium text-sm text-[var(--text-secondary)]'>
+                  <span className='flex items-center gap-3 font-medium text-[var(--text-secondary)] text-sm'>
                     <Plus className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
                     {create.label}
                   </span>

@@ -129,9 +129,7 @@ function PreviewKnowledge() {
             <span className='text-[7px] text-[var(--text-tertiary)] leading-[1.2]'>{row[2]}</span>
           </div>
           <div className='flex flex-1 items-center px-1.5 py-[2.5px]'>
-            <span
-              className={`inline-block rounded-full px-1 py-px text-[6px] ${KB_BADGE[row[3]]}`}
-            >
+            <span className={`inline-block rounded-full px-1 py-px text-[6px] ${KB_BADGE[row[3]]}`}>
               {row[3]}
             </span>
           </div>
@@ -332,7 +330,7 @@ export function TemplatePrompts({ onSelect }: TemplatePromptsProps) {
           className='flex flex-col gap-3'
           style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 200px' }}
         >
-          <h3 className='font-medium text-small text-[var(--text-secondary)]'>{group.label}</h3>
+          <h3 className='font-medium text-[var(--text-secondary)] text-small'>{group.label}</h3>
           <div className='grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3'>
             {group.templates.map((template) => (
               <TemplateCard key={template.title} template={template} onSelect={onSelect} />
@@ -375,7 +373,7 @@ const TemplateCard = memo(function TemplateCard({ template, onSelect }: Template
         </div>
         <div className='flex items-center gap-1.5 border-[var(--border-1)] border-t bg-[var(--white)] px-3 py-2 transition-colors group-hover:bg-[var(--surface-2)] dark:bg-[var(--surface-4)]'>
           <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-          <span className='text-small text-[var(--text-body)]'>{template.title}</span>
+          <span className='text-[var(--text-body)] text-small'>{template.title}</span>
         </div>
       </div>
     </button>

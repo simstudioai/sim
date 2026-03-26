@@ -230,7 +230,7 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
           >
             <div className='flex flex-col gap-2 p-2'>
               <div className='flex items-start gap-2'>
-                <div className='line-clamp-2 min-w-0 flex-1 font-medium text-caption text-[var(--text-body)]'>
+                <div className='line-clamp-2 min-w-0 flex-1 font-medium text-[var(--text-body)] text-caption'>
                   {notification.level === 'error' && (
                     <span className='mr-2 mb-0.5 inline-block h-[8px] w-[8px] rounded-xs bg-[var(--text-error)] align-middle' />
                   )}

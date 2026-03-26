@@ -857,7 +857,7 @@ export function IntegrationsManager() {
             <div className='mt-3 rounded-lg border border-red-500/50 bg-red-50 p-3 dark:bg-red-950/30'>
               <div className='flex items-start gap-2.5'>
                 <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
-                <p className='text-small text-red-700 dark:text-red-300'>{deleteError}</p>
+                <p className='text-red-700 text-small dark:text-red-300'>{deleteError}</p>
               </div>
             </div>
           )}
@@ -912,14 +912,14 @@ export function IntegrationsManager() {
                       className: 'h-[18px] w-[18px]',
                     })
                   ) : (
-                    <span className='font-medium text-small text-[var(--text-tertiary)]'>
+                    <span className='font-medium text-[var(--text-tertiary)] text-small'>
                       {resolveProviderLabel(selectedCredential.providerId).slice(0, 1)}
                     </span>
                   )}
                 </div>
                 <div className='min-w-0 flex-1'>
                   <div className='flex items-center gap-2'>
-                    <p className='truncate font-medium text-base text-[var(--text-primary)]'>
+                    <p className='truncate font-medium text-[var(--text-primary)] text-base'>
                       {resolveProviderLabel(selectedCredential.providerId) || 'Unknown service'}
                     </p>
                     <Badge variant='gray-secondary' size='sm'>
@@ -931,7 +931,7 @@ export function IntegrationsManager() {
                       </Badge>
                     )}
                   </div>
-                  <p className='text-small text-[var(--text-muted)]'>Connected service</p>
+                  <p className='text-[var(--text-muted)] text-small'>Connected service</p>
                 </div>
               </div>
 
@@ -988,7 +988,7 @@ export function IntegrationsManager() {
               </div>
 
               {detailsError && (
-                <div className='rounded-lg border border-[var(--status-red)]/40 bg-[var(--status-red)]/10 px-2.5 py-2 text-small text-[var(--status-red)]'>
+                <div className='rounded-lg border border-[var(--status-red)]/40 bg-[var(--status-red)]/10 px-2.5 py-2 text-[var(--status-red)] text-small'>
                   {detailsError}
                 </div>
               )}
@@ -1020,10 +1020,10 @@ export function IntegrationsManager() {
                             </AvatarFallback>
                           </Avatar>
                           <div className='min-w-0'>
-                            <p className='truncate font-medium text-sm text-[var(--text-primary)]'>
+                            <p className='truncate font-medium text-[var(--text-primary)] text-sm'>
                               {member.userName || member.userEmail || member.userId}
                             </p>
-                            <p className='truncate text-caption text-[var(--text-tertiary)]'>
+                            <p className='truncate text-[var(--text-tertiary)] text-caption'>
                               {member.userEmail || member.userId}
                             </p>
                           </div>
@@ -1221,7 +1221,7 @@ export function IntegrationsManager() {
                         <span className='truncate font-medium text-base'>
                           {credential.displayName}
                         </span>
-                        <p className='truncate text-sm text-[var(--text-muted)]'>
+                        <p className='truncate text-[var(--text-muted)] text-sm'>
                           {credential.description || resolveProviderLabel(credential.providerId)}
                         </p>
                       </div>
@@ -1245,7 +1245,7 @@ export function IntegrationsManager() {
               })}
 
               {showNoResults && (
-                <div className='py-4 text-center text-sm text-[var(--text-muted)]'>
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                   No integrations found matching &ldquo;{searchTerm}&rdquo;
                 </div>
               )}

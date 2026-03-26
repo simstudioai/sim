@@ -342,9 +342,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             <SModalTabsContent value='workflows'>
               <div className='flex flex-col gap-4.5'>
                 <div className='flex items-center justify-between'>
-                  <span className='font-medium text-sm text-[var(--text-primary)]'>
-                    Workflows
-                  </span>
+                  <span className='font-medium text-[var(--text-primary)] text-sm'>Workflows</span>
                   {showAddDisabledTooltip ? (
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
@@ -376,7 +374,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                 </div>
 
                 {tools.length === 0 ? (
-                  <p className='text-sm text-[var(--text-muted)]'>
+                  <p className='text-[var(--text-muted)] text-sm'>
                     No workflows added yet. Click "Add" to add a deployed workflow.
                   </p>
                 ) : (
@@ -385,7 +383,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                       <div key={tool.id} className='flex items-center justify-between gap-3'>
                         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
                           <span className='font-medium text-base'>{tool.toolName}</span>
-                          <p className='truncate text-sm text-[var(--text-muted)]'>
+                          <p className='truncate text-[var(--text-muted)] text-sm'>
                             {tool.toolDescription || 'No description'}
                           </p>
                         </div>
@@ -407,7 +405,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                 )}
 
                 {deployedWorkflows.length === 0 && !isLoadingWorkflows && (
-                  <p className='mt-1 text-xs text-[var(--text-muted)]'>
+                  <p className='mt-1 text-[var(--text-muted)] text-xs'>
                     Deploy a workflow first to add it to this server.
                   </p>
                 )}
@@ -418,22 +416,20 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
               <div className='flex flex-col gap-4.5'>
                 <div className='grid grid-cols-[1fr_1fr_1fr] gap-x-6 gap-y-3.5'>
                   <div className='flex flex-col gap-1'>
-                    <span className='font-medium text-sm text-[var(--text-primary)]'>
+                    <span className='font-medium text-[var(--text-primary)] text-sm'>
                       Server Name
                     </span>
-                    <p className='text-base text-[var(--text-secondary)]'>{server.name}</p>
+                    <p className='text-[var(--text-secondary)] text-base'>{server.name}</p>
                   </div>
                   <div className='flex flex-col gap-1'>
-                    <span className='font-medium text-sm text-[var(--text-primary)]'>
+                    <span className='font-medium text-[var(--text-primary)] text-sm'>
                       Transport
                     </span>
-                    <p className='text-base text-[var(--text-secondary)]'>Streamable-HTTP</p>
+                    <p className='text-[var(--text-secondary)] text-base'>Streamable-HTTP</p>
                   </div>
                   <div className='flex flex-col gap-1'>
-                    <span className='font-medium text-sm text-[var(--text-primary)]'>
-                      Access
-                    </span>
-                    <p className='text-base text-[var(--text-secondary)]'>
+                    <span className='font-medium text-[var(--text-primary)] text-sm'>Access</span>
+                    <p className='text-[var(--text-secondary)] text-base'>
                       {server.isPublic ? 'Public' : 'API Key'}
                     </p>
                   </div>
@@ -441,23 +437,21 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
 
                 {server.description?.trim() && (
                   <div className='flex flex-col gap-1'>
-                    <span className='font-medium text-sm text-[var(--text-primary)]'>
+                    <span className='font-medium text-[var(--text-primary)] text-sm'>
                       Description
                     </span>
-                    <p className='text-base text-[var(--text-secondary)]'>{server.description}</p>
+                    <p className='text-[var(--text-secondary)] text-base'>{server.description}</p>
                   </div>
                 )}
 
                 <div className='flex flex-col gap-1'>
-                  <span className='font-medium text-sm text-[var(--text-primary)]'>URL</span>
-                  <p className='break-all text-base text-[var(--text-secondary)]'>
-                    {mcpServerUrl}
-                  </p>
+                  <span className='font-medium text-[var(--text-primary)] text-sm'>URL</span>
+                  <p className='break-all text-[var(--text-secondary)] text-base'>{mcpServerUrl}</p>
                 </div>
 
                 <div>
                   <div className='mb-[6.5px] flex items-center justify-between'>
-                    <span className='block pl-0.5 font-medium text-sm text-[var(--text-primary)]'>
+                    <span className='block pl-0.5 font-medium text-[var(--text-primary)] text-sm'>
                       MCP Client
                     </span>
                   </div>
@@ -476,7 +470,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                 {activeConfigTab === 'sim' ? (
                   <div className='rounded-lg border border-[var(--border-1)] p-4'>
                     <div className='flex flex-col gap-3'>
-                      <p className='text-small text-[var(--text-secondary)]'>
+                      <p className='text-[var(--text-secondary)] text-small'>
                         Add this MCP server to your workspace so you can use its tools in other
                         workflows via the MCP block.
                       </p>
@@ -525,7 +519,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                         )}
                       </Button>
                       {addToWorkspaceMutation.isError && (
-                        <p className='text-xs text-[var(--text-error)]'>
+                        <p className='text-[var(--text-error)] text-xs'>
                           {addToWorkspaceMutation.error?.message || 'Failed to add server'}
                         </p>
                       )}
@@ -534,7 +528,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                 ) : (
                   <div>
                     <div className='mb-[6.5px] flex items-center justify-between'>
-                      <span className='block pl-0.5 font-medium text-sm text-[var(--text-primary)]'>
+                      <span className='block pl-0.5 font-medium text-[var(--text-primary)] text-sm'>
                         Configuration
                       </span>
                       <Button
@@ -570,7 +564,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                       )}
                     </div>
                     {!server.isPublic && (
-                      <p className='mt-2 text-xs text-[var(--text-muted)]'>
+                      <p className='mt-2 text-[var(--text-muted)] text-xs'>
                         Replace $SIM_API_KEY with your API key, or{' '}
                         <button
                           type='button'
@@ -668,7 +662,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
           <ModalBody>
             <div className='flex flex-col gap-4.5'>
               <div>
-                <Label className='mb-[6.5px] block pl-0.5 font-medium text-sm text-[var(--text-primary)]'>
+                <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-sm'>
                   Description
                 </Label>
                 <Textarea
@@ -687,7 +681,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                 const hasParams = properties && Object.keys(properties).length > 0
                 return (
                   <div>
-                    <Label className='mb-[6.5px] block pl-0.5 font-medium text-sm text-[var(--text-primary)]'>
+                    <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-sm'>
                       Parameters
                     </Label>
                     {hasParams ? (
@@ -699,7 +693,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                           >
                             <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
                               <div className='flex min-w-0 flex-1 items-center gap-2'>
-                                <span className='block truncate font-medium text-base text-[var(--text-tertiary)]'>
+                                <span className='block truncate font-medium text-[var(--text-tertiary)] text-base'>
                                   {name}
                                 </span>
                                 <Badge variant='type' size='sm'>
@@ -726,7 +720,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                         ))}
                       </div>
                     ) : (
-                      <p className='text-sm text-[var(--text-muted)]'>
+                      <p className='text-[var(--text-muted)] text-sm'>
                         No inputs configured for this workflow.
                       </p>
                     )}
@@ -822,7 +816,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
             </p>
 
             <div className='mt-4 flex flex-col gap-2'>
-              <Label className='font-medium text-sm text-[var(--text-secondary)]'>
+              <Label className='font-medium text-[var(--text-secondary)] text-sm'>
                 Select Workflow
               </Label>
               <Combobox
@@ -842,7 +836,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                 }
               />
               {addToolMutation.isError && (
-                <p className='text-small text-[var(--text-error)] leading-tight'>
+                <p className='text-[var(--text-error)] text-small leading-tight'>
                   {addToolMutation.error?.message || 'Failed to add workflow'}
                 </p>
               )}
@@ -909,7 +903,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                   <ButtonGroupItem value='public'>Public</ButtonGroupItem>
                 </ButtonGroup>
               </FormField>
-              <p className='text-xs text-[var(--text-muted)]'>
+              <p className='text-[var(--text-muted)] text-xs'>
                 {editServerIsPublic
                   ? 'Anyone with the URL can call this server without authentication'
                   : 'Requests must include your Sim API key in the X-API-Key header'}
@@ -1081,9 +1075,7 @@ export function WorkflowMcpServers() {
             </div>
           ) : !hasServers ? (
             <div className='flex h-full items-center justify-center'>
-              <p className='text-sm text-[var(--text-muted)]'>
-                Click "Add" above to get started
-              </p>
+              <p className='text-[var(--text-muted)] text-sm'>Click "Add" above to get started</p>
             </div>
           ) : (
             <div className='flex flex-col gap-2'>
@@ -1104,7 +1096,7 @@ export function WorkflowMcpServers() {
                           </Badge>
                         )}
                       </div>
-                      <p className='truncate text-sm text-[var(--text-muted)]'>{toolsLabel}</p>
+                      <p className='truncate text-[var(--text-muted)] text-sm'>{toolsLabel}</p>
                     </div>
                     <div className='flex flex-shrink-0 items-center gap-1'>
                       <Button variant='default' onClick={() => setSelectedServerId(server.id)}>
@@ -1122,7 +1114,7 @@ export function WorkflowMcpServers() {
                 )
               })}
               {showNoResults && (
-                <div className='py-4 text-center text-sm text-[var(--text-muted)]'>
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                   No servers found matching "{searchTerm}"
                 </div>
               )}
@@ -1189,7 +1181,7 @@ export function WorkflowMcpServers() {
                     <ButtonGroupItem value='public'>Public</ButtonGroupItem>
                   </ButtonGroup>
                   {formData.isPublic && (
-                    <span className='text-xs text-[var(--text-muted)]'>
+                    <span className='text-[var(--text-muted)] text-xs'>
                       No authentication required
                     </span>
                   )}

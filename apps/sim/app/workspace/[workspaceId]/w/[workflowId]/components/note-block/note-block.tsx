@@ -561,9 +561,7 @@ export const NoteBlock = memo(function NoteBlock({
           </div>
         </div>
         {hasRing && (
-          <div
-            className={cn('pointer-events-none absolute inset-0 z-40 rounded-lg', ringStyles)}
-          />
+          <div className={cn('pointer-events-none absolute inset-0 z-40 rounded-lg', ringStyles)} />
         )}
       </div>
     </div>

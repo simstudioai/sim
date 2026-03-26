@@ -131,17 +131,12 @@ export function ConnectorsSection({
 
   return (
     <div className='mt-4'>
-      {error && (
-        <p className='mt-2 text-caption text-[var(--text-error)] leading-tight'>{error}</p>
-      )}
+      {error && <p className='mt-2 text-[var(--text-error)] text-caption leading-tight'>{error}</p>}
 
       {isLoading ? (
         <div className='mt-2 flex flex-col gap-2'>
           {Array.from({ length: 2 }).map((_, i) => (
-            <div
-              key={i}
-              className='rounded-lg border border-[var(--border-1)] px-3 py-2.5'
-            >
+            <div key={i} className='rounded-lg border border-[var(--border-1)] px-3 py-2.5'>
               <div className='flex items-center gap-2.5'>
                 <Skeleton className='h-5 w-5 flex-shrink-0 rounded-sm' />
                 <div className='flex flex-col gap-1'>
@@ -156,7 +151,7 @@ export function ConnectorsSection({
           ))}
         </div>
       ) : connectors.length === 0 ? (
-        <p className='mt-2 text-small text-[var(--text-muted)]'>
+        <p className='mt-2 text-[var(--text-muted)] text-small'>
           No connected sources yet. Connect an external source to automatically sync documents.
         </p>
       ) : (
@@ -210,7 +205,7 @@ export function ConnectorsSection({
         <ModalContent size='sm'>
           <ModalHeader>Delete Connector</ModalHeader>
           <ModalBody>
-            <p className='text-sm text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)] text-sm'>
               Are you sure you want to remove this connected source? Documents already synced will
               remain in the knowledge base.
             </p>
@@ -311,7 +306,7 @@ function ConnectorCard({
           {Icon && <Icon className='h-5 w-5 flex-shrink-0' />}
           <div className='flex flex-col gap-0.5'>
             <div className='flex items-center gap-2'>
-              <span className='font-medium text-small text-[var(--text-primary)]'>
+              <span className='font-medium text-[var(--text-primary)] text-small'>
                 {connectorDef?.name || connector.connectorType}
               </span>
               <Badge variant={statusConfig.variant} className='text-micro'>
@@ -321,7 +316,7 @@ function ConnectorCard({
                 {statusConfig.label}
               </Badge>
             </div>
-            <div className='flex items-center gap-1.5 text-xs text-[var(--text-muted)]'>
+            <div className='flex items-center gap-1.5 text-[var(--text-muted)] text-xs'>
               {connector.lastSyncAt && (
                 <span>Last sync: {format(new Date(connector.lastSyncAt), 'MMM d, h:mm a')}</span>
               )}
@@ -498,7 +493,7 @@ interface SyncHistoryProps {
 function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
   if (isLoading) {
     return (
-      <div className='flex items-center gap-2 py-1 text-xs text-[var(--text-muted)]'>
+      <div className='flex items-center gap-2 py-1 text-[var(--text-muted)] text-xs'>
         <Loader2 className='h-3 w-3 animate-spin' />
         Loading sync history...
       </div>
@@ -506,7 +501,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
   }
 
   if (logs.length === 0) {
-    return <p className='py-1 text-xs text-[var(--text-muted)]'>No sync history yet.</p>
+    return <p className='py-1 text-[var(--text-muted)] text-xs'>No sync history yet.</p>
   }
 
   return (

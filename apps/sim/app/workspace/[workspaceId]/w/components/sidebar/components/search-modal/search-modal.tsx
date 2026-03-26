@@ -373,11 +373,11 @@ export function SearchModal({
               autoFocus
               onValueChange={handleSearchChange}
               placeholder='Search anything...'
-              className='w-full bg-transparent py-1.5 font-base text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
+              className='w-full bg-transparent py-1.5 font-base text-[var(--text-primary)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
             />
           </div>
           <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto overflow-x-hidden p-2 [&_[cmdk-group]+[cmdk-group]]:mt-2.5'>
-            <Command.Empty className='flex items-center justify-center px-4 py-6 text-sm text-[var(--text-subtle)]'>
+            <Command.Empty className='flex items-center justify-center px-4 py-6 text-[var(--text-subtle)] text-sm'>
               No results found.
             </Command.Empty>
 
@@ -549,7 +549,7 @@ export function SearchModal({
                         {page.name}
                       </span>
                       {page.shortcut && (
-                        <span className='ml-auto flex-shrink-0 font-base text-small text-[var(--text-subtle)]'>
+                        <span className='ml-auto flex-shrink-0 font-base text-[var(--text-subtle)] text-small'>
                           {page.shortcut}
                         </span>
                       )}

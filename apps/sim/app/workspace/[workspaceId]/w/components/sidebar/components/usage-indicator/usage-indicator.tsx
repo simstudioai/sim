@@ -468,7 +468,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     return (
       <div className='flex flex-shrink-0 flex-col border-t px-[13.5px] pt-2 pb-2.5'>
         <div className='flex h-[18px] items-center'>
-          <span className='font-base text-caption text-[var(--text-primary)]'>
+          <span className='font-base text-[var(--text-primary)] text-caption'>
             {PLAN_NAMES[planType]}
           </span>
         </div>
@@ -490,7 +490,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           <div className='flex min-w-0 flex-1 items-center gap-1.5'>
             {showPlanText && (
               <>
-                <span className='flex-shrink-0 font-base text-caption text-[var(--text-primary)]'>
+                <span className='flex-shrink-0 font-base text-[var(--text-primary)] text-caption'>
                   {PLAN_NAMES[planType]}
                 </span>
                 <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
@@ -498,16 +498,16 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
             )}
             <div className='flex min-w-0 flex-1 items-center gap-1'>
               {statusText.isError ? (
-                <span className='font-base text-caption text-[var(--text-error)]'>
+                <span className='font-base text-[var(--text-error)] text-caption'>
                   {statusText.text}
                 </span>
               ) : (
                 <>
-                  <span className='font-base text-caption text-[var(--text-secondary)] tabular-nums'>
+                  <span className='font-base text-[var(--text-secondary)] text-caption tabular-nums'>
                     {dollarsToCredits(usage.current).toLocaleString()}
                   </span>
-                  <span className='font-base text-caption text-[var(--text-secondary)]'>/</span>
-                  <span className='font-base text-caption text-[var(--text-secondary)] tabular-nums'>
+                  <span className='font-base text-[var(--text-secondary)] text-caption'>/</span>
+                  <span className='font-base text-[var(--text-secondary)] text-caption tabular-nums'>
                     {dollarsToCredits(usage.limit).toLocaleString()} credits
                   </span>
                 </>

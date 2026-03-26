@@ -1359,7 +1359,7 @@ export const Sidebar = memo(function Sidebar() {
                             <button
                               type='button'
                               onClick={() => setVisibleTaskCount((prev) => prev + 5)}
-                              className='mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm text-[var(--text-icon)] hover-hover:bg-[var(--surface-active)]'
+                              className='mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-[var(--text-icon)] text-sm hover-hover:bg-[var(--surface-active)]'
                             >
                               <MoreHorizontal className='h-[16px] w-[16px] flex-shrink-0' />
                               <span className='font-base'>See more</span>

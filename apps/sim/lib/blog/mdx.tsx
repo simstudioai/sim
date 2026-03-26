@@ -53,7 +53,10 @@ export const mdxComponents: MDXRemoteProps['components'] = {
     <ul
       {...props}
       style={{ fontSize: '19px', marginBottom: '1rem', fontWeight: '400' }}
-      className={clsx('list-outside list-disc pl-6 text-[var(--text-subtle)] leading-relaxed', props.className)}
+      className={clsx(
+        'list-outside list-disc pl-6 text-[var(--text-subtle)] leading-relaxed',
+        props.className
+      )}
     />
   ),
   ol: (props: any) => (
@@ -68,7 +71,10 @@ export const mdxComponents: MDXRemoteProps['components'] = {
   ),
   li: (props: any) => <li {...props} className={clsx('mb-1', props.className)} />,
   strong: (props: any) => (
-    <strong {...props} className={clsx('font-semibold text-[var(--landing-text)]', props.className)} />
+    <strong
+      {...props}
+      className={clsx('font-semibold text-[var(--landing-text)]', props.className)}
+    />
   ),
   em: (props: any) => <em {...props} className={clsx('text-[#bbb] italic', props.className)} />,
   a: (props: any) => {
@@ -79,7 +85,10 @@ export const mdxComponents: MDXRemoteProps['components'] = {
     return (
       <a
         {...props}
-        className={clsx('font-medium text-[var(--landing-text)] underline hover:text-white', props.className)}
+        className={clsx(
+          'font-medium text-[var(--landing-text)] underline hover:text-white',
+          props.className
+        )}
       />
     )
   },
@@ -133,7 +142,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
         <code
           {...props}
           className={clsx(
-            'rounded bg-[var(--surface-4)] px-1.5 py-0.5 font-mono font-normal text-[var(--landing-text)] text-[0.9em]',
+            'rounded bg-[var(--surface-4)] px-1.5 py-0.5 font-mono font-normal text-[0.9em] text-[var(--landing-text)]',
             props.className
           )}
           style={{ fontWeight: 400 }}

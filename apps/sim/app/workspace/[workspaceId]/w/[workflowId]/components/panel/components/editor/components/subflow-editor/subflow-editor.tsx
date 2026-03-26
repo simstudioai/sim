@@ -71,7 +71,7 @@ export function SubflowEditor({
         <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-[9px] pb-2'>
           {/* Type Selection */}
           <div>
-            <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+            <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
             </Label>
             <Combobox
@@ -96,7 +96,7 @@ export function SubflowEditor({
 
           {/* Configuration */}
           <div>
-            <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
+            <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               {isCountMode
                 ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
                 : isConditionMode
@@ -198,7 +198,7 @@ export function SubflowEditor({
                 (!isConnectionsAtMinHeight ? ' rotate-180' : '')
               }
             />
-            <div className='font-medium text-small text-[var(--text-primary)]'>Connections</div>
+            <div className='font-medium text-[var(--text-primary)] text-small'>Connections</div>
           </div>
 
           {/* Connections Content - Always visible */}

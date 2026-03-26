@@ -95,7 +95,7 @@ export function FormField({
               onCheckedChange={onChange}
               style={value ? { backgroundColor: primaryColor } : undefined}
             />
-            <span className={'text-sm text-muted-foreground'}>{value ? 'Yes' : 'No'}</span>
+            <span className={'text-muted-foreground text-sm'}>{value ? 'Yes' : 'No'}</span>
           </div>
         )
 
@@ -156,7 +156,7 @@ export function FormField({
                 className='mb-2 h-6 w-6 text-muted-foreground'
                 style={isDragging ? { color: primaryColor } : undefined}
               />
-              <p className={'text-center text-sm text-muted-foreground'}>
+              <p className={'text-center text-muted-foreground text-sm'}>
                 <span style={{ color: primaryColor }} className='font-medium'>
                   Click to upload
                 </span>{' '}
@@ -172,7 +172,7 @@ export function FormField({
                     className='flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2'
                   >
                     <div className='min-w-0 flex-1'>
-                      <p className={'truncate font-medium text-small text-foreground'}>
+                      <p className={'truncate font-medium text-foreground text-small'}>
                         {file.name}
                       </p>
                       <p className={'text-caption text-muted-foreground'}>
@@ -212,7 +212,7 @@ export function FormField({
 
   return (
     <div className='space-y-2'>
-      <Label className={'font-medium text-sm text-foreground'}>
+      <Label className={'font-medium text-foreground text-sm'}>
         {displayLabel}
         {isRequired && <span className='ml-0.5 text-[var(--text-error)]'>*</span>}
       </Label>
