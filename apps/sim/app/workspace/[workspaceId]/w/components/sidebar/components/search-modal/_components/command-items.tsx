@@ -7,9 +7,6 @@ import { cn } from '@/lib/core/utils/cn'
 import type { CommandItemProps } from '../utils'
 import { COMMAND_ITEM_CLASSNAME } from '../utils'
 
-// onSelect is safe to exclude from memo comparison: cmdk stores it in a ref
-// (useAsRef) internally, so the latest closure is always invoked regardless
-// of whether React re-renders this component.
 export const MemoizedCommandItem = memo(
   function CommandItem({
     value,

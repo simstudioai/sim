@@ -305,7 +305,6 @@ export function SearchModal({
 
   return createPortal(
     <>
-      {/* Overlay */}
       <div
         className={cn(
           'fixed inset-0 z-40 transition-opacity duration-100',
