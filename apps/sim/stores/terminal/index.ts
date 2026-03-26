@@ -1,5 +1,6 @@
 export type { ConsoleEntry, ConsoleStore, ConsoleUpdate } from './console'
 export {
+  consolePersistence,
   normalizeConsoleError,
   normalizeConsoleInput,
   normalizeConsoleOutput,

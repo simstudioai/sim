@@ -33,7 +33,7 @@ import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
 import type { ChatContext } from '@/stores/panel'
-import { useTerminalConsoleStore } from '@/stores/terminal'
+import { consolePersistence, useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type {
   ChatMessage,
@@ -1512,6 +1512,7 @@ export function useChat(
       })
 
       executionStream.cancel(workflowId)
+      consolePersistence.executionEnded()
       execState.setIsExecuting(workflowId, false)
       execState.setIsDebugging(workflowId, false)
       execState.setActiveBlocks(workflowId, new Set())

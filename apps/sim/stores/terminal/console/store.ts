@@ -8,11 +8,7 @@ import type { NormalizedBlockOutput } from '@/executor/types'
 import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/general-settings'
 import { useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
-import {
-  flushConsolePersist,
-  loadConsoleData,
-  scheduleConsolePersist,
-} from '@/stores/terminal/console/storage'
+import { consolePersistence, loadConsoleData } from '@/stores/terminal/console/storage'
 import type {
   ConsoleEntry,
   ConsoleEntryLocation,
@@ -294,8 +290,6 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
     isOpen: false,
     _hasHydrated: false,
 
-    setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
-
     addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => {
       if (shouldSkipEntry(entry.output)) {
         return get().getWorkflowEntries(entry.workflowId)[0] as ConsoleEntry
@@ -347,6 +341,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
     clearWorkflowConsole: (workflowId: string) => {
       set((state) => replaceWorkflowEntries(state, workflowId, EMPTY_CONSOLE_ENTRIES))
       useExecutionStore.getState().clearRunPath(workflowId)
+      consolePersistence.persist()
     },
 
     clearExecutionEntries: (executionId: string) =>
@@ -685,9 +680,26 @@ async function hydrateConsoleStore(): Promise<void> {
       ])
     )
 
+    const currentState = useTerminalConsoleStore.getState()
+    const mergedWorkflowEntries = { ...workflowEntries }
+
+    for (const [wfId, currentEntries] of Object.entries(currentState.workflowEntries)) {
+      if (currentEntries.length > 0) {
+        const persistedEntries = mergedWorkflowEntries[wfId] ?? []
+        const persistedIds = new Set(persistedEntries.map((e) => e.id))
+        const newEntries = currentEntries.filter((e) => !persistedIds.has(e.id))
+        if (newEntries.length > 0) {
+          mergedWorkflowEntries[wfId] = trimWorkflowConsoleEntries([
+            ...newEntries,
+            ...persistedEntries,
+          ])
+        }
+      }
+    }
+
     useTerminalConsoleStore.setState({
-      workflowEntries,
-      ...rebuildWorkflowStateMaps(workflowEntries),
+      workflowEntries: mergedWorkflowEntries,
+      ...rebuildWorkflowStateMaps(mergedWorkflowEntries),
       isOpen: data.isOpen,
       _hasHydrated: true,
     })
@@ -698,17 +710,17 @@ async function hydrateConsoleStore(): Promise<void> {
 }
 
 if (typeof window !== 'undefined') {
-  hydrateConsoleStore()
-
-  useTerminalConsoleStore.subscribe((state) => {
-    if (!state._hasHydrated) return
-    scheduleConsolePersist({
+  consolePersistence.bind(() => {
+    const state = useTerminalConsoleStore.getState()
+    return {
       workflowEntries: state.workflowEntries,
       isOpen: state.isOpen,
-    })
+    }
   })
 
-  window.addEventListener('pagehide', flushConsolePersist)
+  hydrateConsoleStore()
+
+  window.addEventListener('pagehide', () => consolePersistence.persist())
 }
 
 export function useWorkflowConsoleEntries(workflowId?: string): ConsoleEntry[] {

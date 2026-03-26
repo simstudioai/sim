@@ -77,5 +77,4 @@ export interface ConsoleStore {
   updateConsole: (blockId: string, update: string | ConsoleUpdate, executionId?: string) => void
   cancelRunningEntries: (workflowId: string) => void
   _hasHydrated: boolean
-  setHasHydrated: (hasHydrated: boolean) => void
 }

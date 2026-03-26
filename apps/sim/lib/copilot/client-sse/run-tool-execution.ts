@@ -4,6 +4,7 @@ import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
+import { consolePersistence } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CopilotRunToolExecution')
@@ -148,6 +149,7 @@ async function doExecuteRunTool(
   const abortController = new AbortController()
   activeRunAbortByWorkflowId.set(targetWorkflowId, abortController)
 
+  consolePersistence.executionStarted()
   setIsExecuting(targetWorkflowId, true)
   const executionId = uuidv4()
   setCurrentExecutionId(targetWorkflowId, executionId)
@@ -241,6 +243,7 @@ async function doExecuteRunTool(
     }
     const { setCurrentExecutionId: clearExecId } = useExecutionStore.getState()
     clearExecId(targetWorkflowId, null)
+    consolePersistence.executionEnded()
     setIsExecuting(targetWorkflowId, false)
   }
 }

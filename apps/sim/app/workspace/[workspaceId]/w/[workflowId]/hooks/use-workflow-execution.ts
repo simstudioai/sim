@@ -36,7 +36,7 @@ import { useCurrentWorkflowExecution, useExecutionStore } from '@/stores/executi
 import { useNotificationStore } from '@/stores/notifications'
 import { useVariablesStore } from '@/stores/panel'
 import { useEnvironmentStore } from '@/stores/settings/environment'
-import { useTerminalConsoleStore } from '@/stores/terminal'
+import { consolePersistence, useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -123,7 +123,19 @@ export function useWorkflowExecution() {
     useCurrentWorkflowExecution()
   const setCurrentExecutionId = useExecutionStore((s) => s.setCurrentExecutionId)
   const getCurrentExecutionId = useExecutionStore((s) => s.getCurrentExecutionId)
-  const setIsExecuting = useExecutionStore((s) => s.setIsExecuting)
+  const rawSetIsExecuting = useExecutionStore((s) => s.setIsExecuting)
+
+  const setIsExecuting = useCallback(
+    (workflowId: string, executing: boolean) => {
+      if (executing) {
+        consolePersistence.executionStarted()
+      } else {
+        consolePersistence.executionEnded()
+      }
+      rawSetIsExecuting(workflowId, executing)
+    },
+    [rawSetIsExecuting]
+  )
   const setIsDebugging = useExecutionStore((s) => s.setIsDebugging)
   const setPendingBlocks = useExecutionStore((s) => s.setPendingBlocks)
   const setExecutor = useExecutionStore((s) => s.setExecutor)
@@ -1804,6 +1816,7 @@ export function useWorkflowExecution() {
     )
     if (otherExecutionIds.size > 0) {
       cancelRunningEntries(activeWorkflowId)
+      consolePersistence.persist()
     }
 
     setCurrentExecutionId(activeWorkflowId, executionId)
@@ -1965,6 +1978,7 @@ export function useWorkflowExecution() {
         for (const entry of originalEntries) {
           addConsole(entry)
         }
+        consolePersistence.persist()
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

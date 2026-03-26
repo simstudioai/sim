@@ -1,12 +1,18 @@
 import { createLogger } from '@sim/logger'
-import { del, get, set } from 'idb-keyval'
+import { get, set } from 'idb-keyval'
 import type { ConsoleEntry } from './types'
 
 const logger = createLogger('ConsoleStorage')
 
 const STORE_KEY = 'terminal-console-store'
 const MIGRATION_KEY = 'terminal-console-store-migrated'
-const WRITE_DEBOUNCE_MS = 750
+
+/**
+ * Safety-net interval for persisting during very long executions.
+ * Only fires while an execution is active. Much longer than a debounce
+ * because intermediate writes during execution are low-value.
+ */
+const LONG_EXECUTION_PERSIST_INTERVAL_MS = 30_000
 
 /**
  * Shape of terminal console data persisted to IndexedDB.
@@ -88,63 +94,95 @@ export async function loadConsoleData(): Promise<PersistedConsoleData | null> {
   }
 }
 
-let pendingData: PersistedConsoleData | null = null
-let writeTimer: ReturnType<typeof setTimeout> | null = null
+let writeSequence = 0
+let activeWrite: Promise<void> | null = null
 
-function executeWrite(): void {
-  writeTimer = null
-  const data = pendingData
-  pendingData = null
-  if (!data) return
+function writeToIndexedDB(data: PersistedConsoleData): void {
+  const seq = ++writeSequence
 
-  try {
-    const serialized = JSON.stringify(data)
-    set(STORE_KEY, serialized).catch((error) => {
+  const doWrite = async () => {
+    try {
+      const serialized = JSON.stringify(data)
+      if (seq !== writeSequence) return
+      await set(STORE_KEY, serialized)
+    } catch (error) {
       logger.warn('IndexedDB write failed', { error })
-    })
-  } catch (error) {
-    logger.warn('Failed to serialize console data for persistence', { error })
+    }
   }
+
+  activeWrite = (activeWrite ?? Promise.resolve()).then(doWrite)
 }
 
 /**
- * Schedules a debounced write of console data to IndexedDB.
- * Only stores a reference until the timer fires, so no serialization
- * happens on the calling thread.
+ * Execution-aware persistence manager for the terminal console store.
+ *
+ * Writes happen only at meaningful lifecycle boundaries:
+ * - When an execution ends (success, error, cancel)
+ * - On explicit user actions (clear console)
+ * - On page hide (crash safety)
+ * - Every 30s during very long active executions (safety net)
+ *
+ * During normal execution, no serialization or IndexedDB writes occur,
+ * keeping the hot path completely free of persistence overhead.
  */
-export function scheduleConsolePersist(data: PersistedConsoleData): void {
-  if (typeof window === 'undefined') return
-  pendingData = data
-  if (writeTimer !== null) return
-  writeTimer = setTimeout(executeWrite, WRITE_DEBOUNCE_MS)
+class ConsolePersistenceManager {
+  private dataProvider: (() => PersistedConsoleData) | null = null
+  private safetyTimer: ReturnType<typeof setTimeout> | null = null
+  private activeExecutions = 0
+
+  /**
+   * Binds the data provider function used to snapshot current state.
+   * Called once during store initialization.
+   */
+  bind(provider: () => PersistedConsoleData): void {
+    this.dataProvider = provider
+  }
+
+  /**
+   * Signals that a workflow execution has started.
+   * Starts the long-execution safety-net timer if this is the first active execution.
+   */
+  executionStarted(): void {
+    this.activeExecutions++
+    if (this.activeExecutions === 1) {
+      this.startSafetyTimer()
+    }
+  }
+
+  /**
+   * Signals that a workflow execution has ended (success, error, or cancel).
+   * Triggers an immediate persist and stops the safety timer if no executions remain.
+   */
+  executionEnded(): void {
+    this.activeExecutions = Math.max(0, this.activeExecutions - 1)
+    this.persist()
+    if (this.activeExecutions === 0) {
+      this.stopSafetyTimer()
+    }
+  }
+
+  /**
+   * Triggers an immediate persist. Used for explicit user actions
+   * like clearing the console, and for page-hide durability.
+   */
+  persist(): void {
+    if (!this.dataProvider) return
+    writeToIndexedDB(this.dataProvider())
+  }
+
+  private startSafetyTimer(): void {
+    this.stopSafetyTimer()
+    this.safetyTimer = setInterval(() => {
+      this.persist()
+    }, LONG_EXECUTION_PERSIST_INTERVAL_MS)
+  }
+
+  private stopSafetyTimer(): void {
+    if (this.safetyTimer !== null) {
+      clearInterval(this.safetyTimer)
+      this.safetyTimer = null
+    }
+  }
 }
 
-/**
- * Immediately flushes any pending console data to IndexedDB.
- * Used on page hide to avoid data loss.
- */
-export function flushConsolePersist(): void {
-  if (writeTimer !== null) {
-    clearTimeout(writeTimer)
-  }
-  executeWrite()
-}
-
-/**
- * Removes all persisted console data from IndexedDB.
- */
-export async function clearPersistedConsoleData(): Promise<void> {
-  if (typeof window === 'undefined') return
-
-  if (writeTimer !== null) {
-    clearTimeout(writeTimer)
-    writeTimer = null
-  }
-  pendingData = null
-
-  try {
-    await del(STORE_KEY)
-  } catch (error) {
-    logger.warn('IndexedDB delete failed', { error })
-  }
-}
+export const consolePersistence = new ConsolePersistenceManager()
