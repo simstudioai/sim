@@ -116,6 +116,7 @@ export async function orchestrateCopilotStream(
   execContext.executionId = executionId
   execContext.runId = runId
   execContext.abortSignal = options.abortSignal
+  execContext.userStopSignal = options.userStopSignal
 
   const payloadMsgId = requestPayload?.messageId
   const messageId = typeof payloadMsgId === 'string' ? payloadMsgId : crypto.randomUUID()

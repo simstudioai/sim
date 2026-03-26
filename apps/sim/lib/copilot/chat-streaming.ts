@@ -23,9 +23,12 @@ const CHAT_STREAM_LOCK_TTL_SECONDS = 2 * 60 * 60
 const STREAM_ABORT_TTL_SECONDS = 10 * 60
 const STREAM_ABORT_POLL_MS = 1000
 
-// Registry of in-flight Sim→Go streams so the explicit abort endpoint can
-// reach them. Keyed by streamId, cleaned up when the stream completes.
-const activeStreams = new Map<string, AbortController>()
+interface ActiveStreamEntry {
+  abortController: AbortController
+  userStopController: AbortController
+}
+
+const activeStreams = new Map<string, ActiveStreamEntry>()
 
 // Tracks in-flight streams by chatId so that a subsequent request for the
 // same chat can force-abort the previous stream and wait for it to settle
@@ -184,9 +187,10 @@ export async function abortActiveStream(streamId: string): Promise<boolean> {
       })
     }
   }
-  const controller = activeStreams.get(streamId)
-  if (!controller) return published
-  controller.abort()
+  const entry = activeStreams.get(streamId)
+  if (!entry) return published
+  entry.userStopController.abort()
+  entry.abortController.abort()
   activeStreams.delete(streamId)
   return true
 }
@@ -285,7 +289,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   let eventWriter: ReturnType<typeof createStreamEventWriter> | null = null
   let clientDisconnected = false
   const abortController = new AbortController()
-  activeStreams.set(streamId, abortController)
+  const userStopController = new AbortController()
+  activeStreams.set(streamId, { abortController, userStopController })
 
   if (chatId && !pendingChatStreamAlreadyRegistered) {
     registerPendingChatStream(chatId, streamId)
@@ -348,6 +353,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             try {
               const shouldAbort = await redis.get(getStreamAbortKey(streamId))
               if (shouldAbort && !abortController.signal.aborted) {
+                userStopController.abort()
                 abortController.abort()
                 await redis.del(getStreamAbortKey(streamId))
               }
@@ -449,6 +455,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           executionId,
           runId,
           abortSignal: abortController.signal,
+          userStopSignal: userStopController.signal,
           onEvent: async (event) => {
             await pushEvent(event)
           },

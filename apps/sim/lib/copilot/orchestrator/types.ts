@@ -164,6 +164,8 @@ export interface OrchestratorOptions {
   onComplete?: (result: OrchestratorResult) => void | Promise<void>
   onError?: (error: Error) => void | Promise<void>
   abortSignal?: AbortSignal
+  /** Fires only on explicit user stop, never on passive transport disconnect. */
+  userStopSignal?: AbortSignal
   interactive?: boolean
 }
 
@@ -199,6 +201,8 @@ export interface ExecutionContext {
   executionId?: string
   runId?: string
   abortSignal?: AbortSignal
+  /** Fires only on explicit user stop, never on passive transport disconnect. */
+  userStopSignal?: AbortSignal
   userTimezone?: string
   userPermission?: string
   decryptedEnvVars?: Record<string, string>
