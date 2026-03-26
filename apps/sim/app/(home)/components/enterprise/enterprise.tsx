@@ -197,12 +197,12 @@ export default function Enterprise() {
             <div
               aria-hidden='true'
               className='pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-24'
-              style={{ background: 'linear-gradient(to right, #1C1C1C, transparent)' }}
+              style={{ background: 'linear-gradient(to right, var(--landing-bg), transparent)' }}
             />
             <div
               aria-hidden='true'
               className='pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-24'
-              style={{ background: 'linear-gradient(to left, #1C1C1C, transparent)' }}
+              style={{ background: 'linear-gradient(to left, var(--landing-bg), transparent)' }}
             />
             {/* Duplicate tags for seamless loop */}
             <div className='enterprise-feature-marquee-track flex w-max'>
