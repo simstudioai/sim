@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { ChevronDown, Skeleton, Tooltip } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
-import { getSubscriptionStatus } from '@/lib/billing/client'
+import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization'
@@ -59,9 +59,9 @@ export function SettingsSidebar({
   const isOwner = userRole === 'owner'
   const isAdmin = userRole === 'admin'
   const isOrgAdminOrOwner = isOwner || isAdmin
-  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
-  const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
-  const hasEnterprisePlan = subscriptionStatus.isEnterprise
+  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
+  const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
+  const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
 
   const isSuperUser = session?.user?.role === 'admin'
 
@@ -111,6 +111,10 @@ export function SettingsSidebar({
         return false
       }
 
+      if (item.requiresMax && !subscriptionAccess.hasUsableMaxAccess) {
+        return false
+      }
+
       if (item.requiresHosted && !isHosted) {
         return false
       }
@@ -130,6 +134,7 @@ export function SettingsSidebar({
   }, [
     hasTeamPlan,
     hasEnterprisePlan,
+    subscriptionAccess.hasUsableMaxAccess,
     isOrgAdminOrOwner,
     isSSOProviderOwner,
     ssoProvidersData?.providers?.length,

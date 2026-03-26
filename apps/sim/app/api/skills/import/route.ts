@@ -79,6 +79,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const contentLength = response.headers.get('content-length')
+    if (contentLength && Number.parseInt(contentLength, 10) > 100_000) {
+      return NextResponse.json({ error: 'File is too large (max 100KB)' }, { status: 400 })
+    }
+
     const content = await response.text()
 
     if (content.length > 100_000) {

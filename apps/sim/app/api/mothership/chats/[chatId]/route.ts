@@ -120,7 +120,8 @@ export async function PATCH(
       updates.title = title
       updates.updatedAt = now
       updates.lastSeenAt = now
-    } else if (isUnread !== undefined) {
+    }
+    if (isUnread !== undefined) {
       updates.lastSeenAt = isUnread ? null : sql`GREATEST(${copilotChats.updatedAt}, NOW())`
     }
 
