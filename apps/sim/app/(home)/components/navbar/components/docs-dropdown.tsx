@@ -54,6 +54,7 @@ export function DocsDropdown() {
                 fill
                 sizes='220px'
                 className='scale-[1.04] object-cover transition-transform duration-200 group-hover/card:scale-[1.06]'
+                unoptimized
               />
             </div>
             <div className='px-[10px] py-[8px]'>

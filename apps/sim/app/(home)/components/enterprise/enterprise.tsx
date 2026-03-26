@@ -65,6 +65,7 @@ function TrustStrip() {
           width={22}
           height={22}
           className='shrink-0 object-contain'
+          unoptimized
         />
         <div className='flex flex-col gap-[3px]'>
           <strong className='font-[430] font-season text-[13px] text-white leading-none'>

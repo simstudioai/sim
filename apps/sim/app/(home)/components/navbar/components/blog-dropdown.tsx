@@ -41,6 +41,7 @@ function BlogCard({
           fill
           sizes={sizes}
           className='object-cover transition-transform duration-200 group-hover/card:scale-[1.02]'
+          unoptimized
         />
       </div>
       <div className='flex-shrink-0 px-[10px] py-[6px]'>

@@ -18,7 +18,7 @@ export default function ComplianceBadges() {
           height={54}
           className='object-contain'
           loading='lazy'
-          quality={75}
+          unoptimized
         />
       </Link>
       {/* HIPAA badge */}
