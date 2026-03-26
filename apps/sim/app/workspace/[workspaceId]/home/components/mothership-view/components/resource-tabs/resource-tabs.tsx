@@ -349,7 +349,7 @@ export function ResourceTabs({
                             if (e.key === 'Enter')
                               handleRemove(e as unknown as React.MouseEvent, resource)
                           }}
-                          className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-[4px] p-[1px] hover:bg-[var(--surface-5)]'
+                          className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-[4px] p-[1px] hover-hover:bg-[var(--surface-5)]'
                           aria-label={`Close ${displayName}`}
                         >
                           <svg

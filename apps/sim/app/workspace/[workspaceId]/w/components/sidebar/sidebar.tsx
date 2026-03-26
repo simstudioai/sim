@@ -133,7 +133,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
         <Link
           href={task.href}
           className={cn(
-            'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
+            'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover-hover:bg-[var(--surface-active)]',
             (isCurrentRoute || isSelected) && 'bg-[var(--surface-active)]'
           )}
           onClick={(e) => {
@@ -174,7 +174,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
                   e.stopPropagation()
                   onMoreClick(e, task.id)
                 }}
-                className='flex h-[18px] w-[18px] items-center justify-center rounded-[4px] opacity-0 hover:bg-[var(--surface-7)] group-hover:opacity-100'
+                className='flex h-[18px] w-[18px] items-center justify-center rounded-[4px] opacity-0 hover-hover:bg-[var(--surface-7)] group-hover:opacity-100'
               >
                 <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
               </button>
@@ -212,7 +212,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
 }) {
   const Icon = item.icon
   const baseClasses =
-    'group flex h-[30px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
+    'group flex h-[30px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover-hover:bg-[var(--surface-active)]'
   const activeClasses = active ? 'bg-[var(--surface-active)]' : ''
 
   const content = (
@@ -1161,7 +1161,7 @@ export const Sidebar = memo(function Sidebar() {
                   type='button'
                   onClick={toggleCollapsed}
                   className={cn(
-                    'sidebar-collapse-btn ml-auto flex h-[30px] items-center justify-center overflow-hidden rounded-[8px] transition-all duration-200 hover:bg-[var(--surface-active)]',
+                    'sidebar-collapse-btn ml-auto flex h-[30px] items-center justify-center overflow-hidden rounded-[8px] transition-all duration-200 hover-hover:bg-[var(--surface-active)]',
                     isCollapsed ? 'w-0 opacity-0' : 'w-[30px] opacity-100'
                   )}
                   aria-label='Collapse sidebar'
@@ -1258,7 +1258,7 @@ export const Sidebar = memo(function Sidebar() {
                           <Tooltip.Trigger asChild>
                             <Button
                               variant='ghost'
-                              className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
+                              className='h-[18px] w-[18px] rounded-[4px] p-0 hover-hover:bg-[var(--surface-active)]'
                               onClick={() => navigateToPage(`/workspace/${workspaceId}/home`)}
                             >
                               <Plus className='h-[16px] w-[16px]' />
@@ -1359,7 +1359,7 @@ export const Sidebar = memo(function Sidebar() {
                             <button
                               type='button'
                               onClick={() => setVisibleTaskCount((prev) => prev + 5)}
-                              className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] text-[var(--text-icon)] hover:bg-[var(--surface-active)]'
+                              className='mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] text-[var(--text-icon)] hover-hover:bg-[var(--surface-active)]'
                             >
                               <MoreHorizontal className='h-[16px] w-[16px] flex-shrink-0' />
                               <span className='font-base'>See more</span>
@@ -1386,7 +1386,7 @@ export const Sidebar = memo(function Sidebar() {
                               <DropdownMenuTrigger asChild>
                                 <Button
                                   variant='ghost'
-                                  className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
+                                  className='h-[18px] w-[18px] rounded-[4px] p-0 hover-hover:bg-[var(--surface-active)]'
                                   disabled={!canEdit}
                                 >
                                   {isImporting || isCreatingFolder ? (
@@ -1426,7 +1426,7 @@ export const Sidebar = memo(function Sidebar() {
                           <Tooltip.Trigger asChild>
                             <Button
                               variant='ghost'
-                              className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
+                              className='h-[18px] w-[18px] rounded-[4px] p-0 hover-hover:bg-[var(--surface-active)]'
                               onClick={handleCreateWorkflow}
                               disabled={isCreatingWorkflow || !canEdit}
                             >

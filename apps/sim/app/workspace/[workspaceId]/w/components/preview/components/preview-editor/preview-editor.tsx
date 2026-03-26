@@ -364,7 +364,7 @@ function ConnectionsSection({
               {/* Block header - styled like ConnectionItem */}
               <div
                 className={cn(
-                  'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
+                  'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]',
                   hasFields && 'cursor-pointer'
                 )}
                 onClick={() => hasFields && toggleBlock(connection.blockId)}
@@ -409,7 +409,7 @@ function ConnectionsSection({
                   {connection.fields.map((field) => (
                     <div
                       key={field.tag}
-                      className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                      className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
                       onContextMenu={(e) => handleValueContextMenu(e, field.value)}
                     >
                       <span
@@ -435,7 +435,7 @@ function ConnectionsSection({
         {workflowVars.length > 0 && (
           <div className='mb-[2px] last:mb-0'>
             <div
-              className='group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+              className='group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
               onClick={() => setExpandedVariables(!expandedVariables)}
             >
               <div className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px] bg-[#8B5CF6]'>
@@ -463,7 +463,7 @@ function ConnectionsSection({
                 {workflowVars.map((v) => (
                   <div
                     key={v.ref}
-                    className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                    className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
                     onContextMenu={(e) => handleValueContextMenu(e, v.value)}
                   >
                     <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
@@ -481,7 +481,7 @@ function ConnectionsSection({
         {envVars.length > 0 && (
           <div className='mb-[2px] last:mb-0'>
             <div
-              className='group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+              className='group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
               onClick={() => setExpandedEnvVars(!expandedEnvVars)}
             >
               <div className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px] bg-[#6B7280]'>
@@ -509,7 +509,7 @@ function ConnectionsSection({
                 {envVars.map((v) => (
                   <div
                     key={v.ref}
-                    className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                    className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
                   >
                     <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
                       {v.name}
@@ -1271,7 +1271,7 @@ function PreviewEditorContent({
                               e.stopPropagation()
                               handleCopySection(formatValueAsJson(executionData.input), 'input')
                             }}
-                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
                           >
                             {copiedSection === 'input' ? (
                               <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
@@ -1293,7 +1293,7 @@ function PreviewEditorContent({
                               e.stopPropagation()
                               activateSearch()
                             }}
-                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
                           >
                             <Search className='h-[10px] w-[10px]' />
                           </Button>
@@ -1343,7 +1343,7 @@ function PreviewEditorContent({
                               e.stopPropagation()
                               handleCopySection(formatValueAsJson(executionData.output), 'output')
                             }}
-                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
                           >
                             {copiedSection === 'output' ? (
                               <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
@@ -1365,7 +1365,7 @@ function PreviewEditorContent({
                               e.stopPropagation()
                               activateSearch()
                             }}
-                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
                           >
                             <Search className='h-[10px] w-[10px]' />
                           </Button>
@@ -1418,7 +1418,7 @@ function PreviewEditorContent({
                               type='button'
                               variant='ghost'
                               onClick={handleExpandChildWorkflow}
-                              className='absolute right-[6px] bottom-[6px] z-10 h-[24px] w-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover:bg-[var(--surface-4)]'
+                              className='absolute right-[6px] bottom-[6px] z-10 h-[24px] w-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
                             >
                               {isExecutionMode && onDrillDown ? (
                                 <Maximize2 className='h-[12px] w-[12px]' />

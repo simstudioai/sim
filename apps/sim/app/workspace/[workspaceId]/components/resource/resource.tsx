@@ -282,7 +282,7 @@ export const ResourceTable = memo(function ResourceTable({
                   <th key={col.id} className='h-10 px-[16px] py-[6px] text-left align-middle'>
                     <Button
                       variant='subtle'
-                      className='px-[8px] py-[4px] font-base text-[var(--text-muted)] hover:text-[var(--text-muted)]'
+                      className='px-[8px] py-[4px] font-base text-[var(--text-muted)] hover-hover:text-[var(--text-muted)]'
                       onClick={() =>
                         handleSort(
                           col.id,
@@ -314,7 +314,7 @@ export const ResourceTable = memo(function ResourceTable({
                   data-resource-row
                   data-row-id={row.id}
                   className={cn(
-                    'transition-colors hover:bg-[var(--surface-3)]',
+                    'transition-colors hover-hover:bg-[var(--surface-3)]',
                     onRowClick && 'cursor-pointer',
                     (selectedRowId === row.id || isSelected) && 'bg-[var(--surface-3)]'
                   )}
@@ -356,7 +356,7 @@ export const ResourceTable = memo(function ResourceTable({
                   'transition-colors',
                   create.disabled
                     ? 'cursor-not-allowed'
-                    : 'cursor-pointer hover:bg-[var(--surface-3)]'
+                    : 'cursor-pointer hover-hover:bg-[var(--surface-3)]'
                 )}
                 onClick={create.disabled ? undefined : create.onClick}
               >
@@ -428,7 +428,7 @@ function Pagination({
                 type='button'
                 onClick={() => onPageChange(page)}
                 className={cn(
-                  'font-medium text-sm transition-colors hover:text-[var(--text-body)]',
+                  'font-medium text-sm transition-colors hover-hover:text-[var(--text-body)]',
                   page === currentPage ? 'text-[var(--text-body)]' : 'text-[var(--text-secondary)]'
                 )}
               >

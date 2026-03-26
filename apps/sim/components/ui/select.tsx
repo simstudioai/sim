@@ -43,7 +43,7 @@ const SelectScrollUpButton = React.forwardRef<
     )}
     {...props}
   >
-    <ChevronUp className='h-4 w-4 opacity-70 transition-opacity hover:opacity-100' />
+    <ChevronUp className='h-4 w-4 opacity-70 transition-opacity hover-hover:opacity-100' />
   </SelectPrimitive.ScrollUpButton>
 ))
 SelectScrollUpButton.displayName = SelectPrimitive.ScrollUpButton.displayName
@@ -60,7 +60,7 @@ const SelectScrollDownButton = React.forwardRef<
     )}
     {...props}
   >
-    <ChevronDown className='h-4 w-4 opacity-70 transition-opacity hover:opacity-100' />
+    <ChevronDown className='h-4 w-4 opacity-70 transition-opacity hover-hover:opacity-100' />
   </SelectPrimitive.ScrollDownButton>
 ))
 SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayName

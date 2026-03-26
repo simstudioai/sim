@@ -398,7 +398,7 @@ export function DocumentTagsModal({
               {documentTags.map((tag, index) => (
                 <div key={index} className='space-y-[8px]'>
                   <div
-                    className='flex cursor-pointer items-center gap-2 rounded-[4px] border p-[8px] hover:bg-[var(--surface-2)]'
+                    className='flex cursor-pointer items-center gap-2 rounded-[4px] border p-[8px] hover-hover:bg-[var(--surface-2)]'
                     onClick={() => startEditingTag(index)}
                   >
                     <span className='min-w-0 truncate text-[12px] text-[var(--text-primary)]'>
@@ -418,7 +418,7 @@ export function DocumentTagsModal({
                           e.stopPropagation()
                           handleRemoveTag(index)
                         }}
-                        className='h-4 w-4 p-0 text-[var(--text-muted)] hover:text-[var(--text-error)]'
+                        className='h-4 w-4 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
                       >
                         <Trash className='h-3 w-3' />
                       </Button>

@@ -390,105 +390,139 @@ function SignupFormContent({
 
       {/* Email/Password Form - show unless explicitly disabled */}
       {!isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && (
-        <form onSubmit={onSubmit} className='mt-8 space-y-8'>
+        <form onSubmit={onSubmit} className='mt-8 space-y-10'>
           <div className='space-y-6'>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
                 <Label htmlFor='name'>Full name</Label>
               </div>
-              <Input
-                id='name'
-                name='name'
-                placeholder='Enter your name'
-                type='text'
-                autoCapitalize='words'
-                autoComplete='name'
-                title='Name can only contain letters, spaces, hyphens, and apostrophes'
-                value={name}
-                onChange={handleNameChange}
-                className={cn(
-                  showNameValidationError &&
-                    nameErrors.length > 0 &&
-                    'border-red-500 focus:border-red-500'
-                )}
-              />
-              {showNameValidationError && nameErrors.length > 0 && (
-                <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                  {nameErrors.map((error, index) => (
-                    <p key={index}>{error}</p>
-                  ))}
+              <div className='relative'>
+                <Input
+                  id='name'
+                  name='name'
+                  placeholder='Enter your name'
+                  type='text'
+                  autoCapitalize='words'
+                  autoComplete='name'
+                  title='Name can only contain letters, spaces, hyphens, and apostrophes'
+                  value={name}
+                  onChange={handleNameChange}
+                  className={cn(
+                    showNameValidationError &&
+                      nameErrors.length > 0 &&
+                      'border-red-500 focus:border-red-500'
+                  )}
+                />
+                <div
+                  className={cn(
+                    'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',
+                    showNameValidationError && nameErrors.length > 0
+                      ? 'grid-rows-[1fr]'
+                      : 'grid-rows-[0fr]'
+                  )}
+                  aria-live='polite'
+                >
+                  <div className='overflow-hidden'>
+                    <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                      {nameErrors.map((error, index) => (
+                        <p key={index}>{error}</p>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
                 <Label htmlFor='email'>Email</Label>
               </div>
-              <Input
-                id='email'
-                name='email'
-                placeholder='Enter your email'
-                autoCapitalize='none'
-                autoComplete='email'
-                autoCorrect='off'
-                value={email}
-                onChange={handleEmailChange}
-                className={cn(
-                  (emailError || (showEmailValidationError && emailErrors.length > 0)) &&
-                    'border-red-500 focus:border-red-500'
-                )}
-              />
-              {showEmailValidationError && emailErrors.length > 0 && (
-                <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                  {emailErrors.map((error, index) => (
-                    <p key={index}>{error}</p>
-                  ))}
+              <div className='relative'>
+                <Input
+                  id='email'
+                  name='email'
+                  placeholder='Enter your email'
+                  autoCapitalize='none'
+                  autoComplete='email'
+                  autoCorrect='off'
+                  value={email}
+                  onChange={handleEmailChange}
+                  className={cn(
+                    (emailError || (showEmailValidationError && emailErrors.length > 0)) &&
+                      'border-red-500 focus:border-red-500'
+                  )}
+                />
+                <div
+                  className={cn(
+                    'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',
+                    (showEmailValidationError && emailErrors.length > 0) ||
+                      (emailError && !showEmailValidationError)
+                      ? 'grid-rows-[1fr]'
+                      : 'grid-rows-[0fr]'
+                  )}
+                  aria-live='polite'
+                >
+                  <div className='overflow-hidden'>
+                    <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                      {showEmailValidationError && emailErrors.length > 0 ? (
+                        emailErrors.map((error, index) => <p key={index}>{error}</p>)
+                      ) : emailError && !showEmailValidationError ? (
+                        <p>{emailError}</p>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
-              )}
-              {emailError && !showEmailValidationError && (
-                <div className='mt-1 text-red-400 text-xs'>
-                  <p>{emailError}</p>
-                </div>
-              )}
+              </div>
             </div>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
                 <Label htmlFor='password'>Password</Label>
               </div>
               <div className='relative'>
-                <Input
-                  id='password'
-                  name='password'
-                  type={showPassword ? 'text' : 'password'}
-                  autoCapitalize='none'
-                  autoComplete='new-password'
-                  placeholder='Enter your password'
-                  autoCorrect='off'
-                  value={password}
-                  onChange={handlePasswordChange}
-                  className={cn(
-                    'pr-10',
-                    showValidationError &&
-                      passwordErrors.length > 0 &&
-                      'border-red-500 focus:border-red-500'
-                  )}
-                />
-                <button
-                  type='button'
-                  onClick={() => setShowPassword(!showPassword)}
-                  className='-translate-y-1/2 absolute top-1/2 right-3 text-[#999] transition hover:text-[#ECECEC]'
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              {showValidationError && passwordErrors.length > 0 && (
-                <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                  {passwordErrors.map((error, index) => (
-                    <p key={index}>{error}</p>
-                  ))}
+                <div className='relative'>
+                  <Input
+                    id='password'
+                    name='password'
+                    type={showPassword ? 'text' : 'password'}
+                    autoCapitalize='none'
+                    autoComplete='new-password'
+                    placeholder='Enter your password'
+                    autoCorrect='off'
+                    value={password}
+                    onChange={handlePasswordChange}
+                    className={cn(
+                      'pr-10',
+                      showValidationError &&
+                        passwordErrors.length > 0 &&
+                        'border-red-500 focus:border-red-500'
+                    )}
+                  />
+                  <button
+                    type='button'
+                    onClick={() => setShowPassword(!showPassword)}
+                    className='-translate-y-1/2 absolute top-1/2 right-3 text-[#999] transition hover:text-[#ECECEC]'
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
-              )}
+                <div
+                  className={cn(
+                    'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',
+                    showValidationError && passwordErrors.length > 0
+                      ? 'grid-rows-[1fr]'
+                      : 'grid-rows-[0fr]'
+                  )}
+                  aria-live='polite'
+                >
+                  <div className='overflow-hidden'>
+                    <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                      {passwordErrors.map((error, index) => (
+                        <p key={index}>{error}</p>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -514,6 +548,7 @@ function SignupFormContent({
             disabled={isLoading}
             loading={isLoading}
             loadingText='Creating account'
+            className='!mt-6'
           >
             Create account
           </BrandedButton>

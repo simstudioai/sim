@@ -172,7 +172,7 @@ export function KnowledgeBaseSelector({
                 <button
                   type='button'
                   onClick={() => handleRemoveKnowledgeBase(kb.id)}
-                  className='ml-1 text-[#00B0B0]/60 hover:text-[#00B0B0]'
+                  className='ml-1 text-[#00B0B0]/60 hover-hover:text-[#00B0B0]'
                   aria-label={`Remove ${kb.name}`}
                 >
                   <X className='h-3 w-3' />

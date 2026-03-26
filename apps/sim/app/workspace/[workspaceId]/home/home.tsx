@@ -393,7 +393,7 @@ export function Home({ chatId }: HomeProps = {}) {
           <button
             type='button'
             onClick={expandResource}
-            className='flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover:bg-[var(--surface-active)]'
+            className='flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover-hover:bg-[var(--surface-active)]'
             aria-label='Expand resource view'
           >
             <PanelLeft className='h-[16px] w-[16px] text-[var(--text-icon)]' />

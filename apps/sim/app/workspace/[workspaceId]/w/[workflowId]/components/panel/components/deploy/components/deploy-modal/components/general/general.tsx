@@ -197,7 +197,7 @@ export function GeneralDeploy({
                       type='button'
                       variant='default'
                       onClick={() => setShowExpandedPreview(true)}
-                      className='absolute right-[8px] bottom-[8px] z-10 h-[28px] w-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
+                      className='absolute right-[8px] bottom-[8px] z-10 h-[28px] w-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                     >
                       <Expand className='h-[14px] w-[14px]' />
                     </Button>

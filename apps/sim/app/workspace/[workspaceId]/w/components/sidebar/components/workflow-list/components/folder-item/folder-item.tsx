@@ -448,7 +448,7 @@ export function FolderItem({
         aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
         className={clsx(
           'group mx-[2px] flex h-[30px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[8px] text-[14px]',
-          !isAnyDragActive && 'hover:bg-[var(--surface-active)]',
+          !isAnyDragActive && 'hover-hover:bg-[var(--surface-active)]',
           isSelected ? 'bg-[var(--surface-active)]' : '',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
@@ -511,7 +511,7 @@ export function FolderItem({
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
               className={clsx(
-                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)]',
+                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover-hover:bg-[var(--surface-7)]',
                 !isAnyDragActive && 'group-hover:opacity-100'
               )}
             >

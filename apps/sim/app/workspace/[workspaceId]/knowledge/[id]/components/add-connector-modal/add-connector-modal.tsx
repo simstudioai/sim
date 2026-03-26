@@ -338,7 +338,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
           <ModalBody>
             {step === 'select-type' ? (
               <div className='flex flex-col gap-[8px]'>
-                <div className='flex items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
+                <div className='flex items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
                   <Search
                     className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
                     strokeWidth={2}
@@ -455,7 +455,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                             <Tooltip.Trigger asChild>
                               <button
                                 type='button'
-                                className='flex h-[18px] w-[18px] items-center justify-center rounded-[3px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-secondary)]'
+                                className='flex h-[18px] w-[18px] items-center justify-center rounded-[3px] text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
                                 onClick={() => toggleCanonicalMode(canonicalId)}
                               >
                                 <ArrowLeftRight className='h-[12px] w-[12px]' />
@@ -619,7 +619,7 @@ function ConnectorTypeCard({ config, onClick }: ConnectorTypeCardProps) {
   return (
     <button
       type='button'
-      className='flex items-center gap-[10px] rounded-[6px] px-[10px] py-[8px] text-left transition-colors hover:bg-[var(--surface-3)]'
+      className='flex items-center gap-[10px] rounded-[6px] px-[10px] py-[8px] text-left transition-colors hover-hover:bg-[var(--surface-3)]'
       onClick={onClick}
     >
       <Icon className='h-[18px] w-[18px] flex-shrink-0' />

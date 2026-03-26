@@ -219,7 +219,7 @@ export function CommandList() {
               {/* Right side: Keyboard Shortcut */}
               <div className='flex items-center gap-[4px]'>
                 <Button
-                  className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-[12px] hover:translate-y-0 hover:text-[var(--text-tertiary)] hover:shadow-[0_2px_0_0_rgba(48,48,48,1)] group-hover:text-[var(--text-primary)] group-hover:shadow-[0_4px_0_0_rgba(48,48,48,1)]'
+                  className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-[12px] hover-hover:translate-y-0 hover-hover:text-[var(--text-tertiary)] hover-hover:shadow-[0_2px_0_0_rgba(48,48,48,1)] group-hover:text-[var(--text-primary)] group-hover:shadow-[0_4px_0_0_rgba(48,48,48,1)]'
                   variant='3d'
                 >
                   <span>⌘</span>
@@ -227,7 +227,7 @@ export function CommandList() {
                 {shortcuts.map((key, index) => (
                   <Button
                     key={index}
-                    className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-[12px] hover:translate-y-0 hover:text-[var(--text-tertiary)] hover:shadow-[0_2px_0_0_rgba(48,48,48,1)] group-hover:text-[var(--text-primary)] group-hover:shadow-[0_4px_0_0_rgba(48,48,48,1)]'
+                    className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-[12px] hover-hover:translate-y-0 hover-hover:text-[var(--text-tertiary)] hover-hover:shadow-[0_2px_0_0_rgba(48,48,48,1)] group-hover:text-[var(--text-primary)] group-hover:shadow-[0_4px_0_0_rgba(48,48,48,1)]'
                     variant='3d'
                   >
                     {key}

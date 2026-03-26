@@ -165,7 +165,7 @@ export function SkillInput({
                           e.stopPropagation()
                           handleRemove(stored.skillId)
                         }}
-                        className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                        className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                         aria-label='Remove skill'
                       >
                         <XIcon className='h-[13px] w-[13px]' />

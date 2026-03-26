@@ -28,7 +28,7 @@ export function TemplateCardSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'h-[268px] w-full rounded-[8px] bg-[var(--surface-3)] p-[8px] transition-colors hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:bg-[var(--surface-5)]',
+        'h-[268px] w-full rounded-[8px] bg-[var(--surface-3)] p-[8px] transition-colors hover-hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover-hover:bg-[var(--surface-5)]',
         className
       )}
     >
@@ -200,7 +200,7 @@ function TemplateCardInner({
     <div
       onClick={handleCardClick}
       className={cn(
-        'w-full cursor-pointer rounded-[8px] bg-[var(--surface-3)] p-[8px] transition-colors hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:bg-[var(--surface-5)]',
+        'w-full cursor-pointer rounded-[8px] bg-[var(--surface-3)] p-[8px] transition-colors hover-hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover-hover:bg-[var(--surface-5)]',
         className
       )}
     >

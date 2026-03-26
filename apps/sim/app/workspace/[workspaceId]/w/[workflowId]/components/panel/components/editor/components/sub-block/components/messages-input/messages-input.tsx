@@ -579,9 +579,9 @@ export function MessagesInput({
                         type='button'
                         disabled={isPreview || disabled}
                         className={cn(
-                          'group -ml-1.5 -my-1 flex items-center gap-1 rounded px-1.5 py-1 font-medium text-[13px] text-[var(--text-primary)] leading-none transition-colors hover:bg-[var(--surface-5)] hover:text-[var(--text-secondary)]',
+                          'group -ml-1.5 -my-1 flex items-center gap-1 rounded px-1.5 py-1 font-medium text-[13px] text-[var(--text-primary)] leading-none transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]',
                           (isPreview || disabled) &&
-                            'cursor-default hover:bg-transparent hover:text-[var(--text-primary)]'
+                            'cursor-default hover-hover:bg-transparent hover-hover:text-[var(--text-primary)]'
                         )}
                         onClick={(e) => e.stopPropagation()}
                         aria-label='Select message role'

@@ -10,6 +10,8 @@ import {
   Combobox,
   type ComboboxOption,
   calculateGutterWidth,
+  Expandable,
+  ExpandableContent,
   getCodeEditorProps,
   highlight,
   Input,
@@ -306,7 +308,7 @@ export function FieldFormat({
    */
   const renderFieldHeader = (field: Field, index: number) => (
     <div
-      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-[10px] py-[5px]'
+      className='flex cursor-pointer items-center justify-between rounded-t-[3px] bg-[var(--surface-4)] px-[10px] py-[5px]'
       onClick={() => toggleCollapse(field.id)}
     >
       <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
@@ -328,7 +330,7 @@ export function FieldFormat({
           variant='ghost'
           onClick={() => removeField(field.id)}
           disabled={isReadOnly}
-          className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
+          className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)] hover-hover:opacity-90'
         >
           <Trash className='h-[14px] w-[14px]' />
           <span className='sr-only'>Delete Field</span>
@@ -544,52 +546,51 @@ export function FieldFormat({
         <div
           key={field.id}
           data-field-id={field.id}
-          className={cn(
-            'rounded-[4px] border border-[var(--border-1)]',
-            field.collapsed ? 'overflow-hidden' : 'overflow-visible'
-          )}
+          className='rounded-[4px] border border-[var(--border-1)] overflow-hidden'
         >
           {renderFieldHeader(field, index)}
 
-          {!field.collapsed && (
-            <div className='flex flex-col gap-[8px] rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[10px] pt-[6px] pb-[10px]'>
-              <div className='flex flex-col gap-[6px]'>
-                <Label className='text-[13px]'>Name</Label>
-                <div className='relative'>{renderNameInput(field)}</div>
+          <Expandable expanded={!field.collapsed}>
+            <ExpandableContent>
+              <div className='flex flex-col gap-[8px] rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[10px] pt-[6px] pb-[10px]'>
+                <div className='flex flex-col gap-[6px]'>
+                  <Label className='text-[13px]'>Name</Label>
+                  <div className='relative'>{renderNameInput(field)}</div>
+                </div>
+
+                {showType && (
+                  <div className='flex flex-col gap-[6px]'>
+                    <Label className='text-[13px]'>Type</Label>
+                    <Combobox
+                      options={TYPE_OPTIONS}
+                      value={field.type}
+                      onChange={(value) => updateField(field.id, 'type', value)}
+                      disabled={isReadOnly}
+                    />
+                  </div>
+                )}
+
+                {showDescription && (
+                  <div className='flex flex-col gap-[6px]'>
+                    <Label className='text-[13px]'>Description</Label>
+                    <Input
+                      value={field.description ?? ''}
+                      onChange={(e) => updateField(field.id, 'description', e.target.value)}
+                      placeholder={descriptionPlaceholder}
+                      disabled={isReadOnly}
+                    />
+                  </div>
+                )}
+
+                {showValue && (
+                  <div className='flex flex-col gap-[6px]'>
+                    <Label className='text-[13px]'>Value</Label>
+                    <div className='relative'>{renderValueInput(field)}</div>
+                  </div>
+                )}
               </div>
-
-              {showType && (
-                <div className='flex flex-col gap-[6px]'>
-                  <Label className='text-[13px]'>Type</Label>
-                  <Combobox
-                    options={TYPE_OPTIONS}
-                    value={field.type}
-                    onChange={(value) => updateField(field.id, 'type', value)}
-                    disabled={isReadOnly}
-                  />
-                </div>
-              )}
-
-              {showDescription && (
-                <div className='flex flex-col gap-[6px]'>
-                  <Label className='text-[13px]'>Description</Label>
-                  <Input
-                    value={field.description ?? ''}
-                    onChange={(e) => updateField(field.id, 'description', e.target.value)}
-                    placeholder={descriptionPlaceholder}
-                    disabled={isReadOnly}
-                  />
-                </div>
-              )}
-
-              {showValue && (
-                <div className='flex flex-col gap-[6px]'>
-                  <Label className='text-[13px]'>Value</Label>
-                  <div className='relative'>{renderValueInput(field)}</div>
-                </div>
-              )}
-            </div>
-          )}
+            </ExpandableContent>
+          </Expandable>
         </div>
       ))}
     </div>

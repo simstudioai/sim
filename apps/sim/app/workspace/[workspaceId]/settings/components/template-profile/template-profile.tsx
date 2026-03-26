@@ -333,7 +333,7 @@ export function TemplateProfile() {
             <div className='flex items-center gap-[10px]'>
               <div className='relative'>
                 <div
-                  className={`group relative flex h-9 w-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border transition-all hover:bg-[var(--bg)] ${
+                  className={`group relative flex h-9 w-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border transition-all hover-hover:bg-[var(--bg)] ${
                     profilePictureUrl && !imageLoadError
                       ? 'border-transparent'
                       : 'border-[var(--border)]'

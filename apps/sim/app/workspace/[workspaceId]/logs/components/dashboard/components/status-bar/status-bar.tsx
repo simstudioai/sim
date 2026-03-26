@@ -60,16 +60,16 @@ function StatusBarInner({
           let hoverBrightness: string
           if (!segment.hasExecutions) {
             color = 'bg-gray-300/60 dark:bg-gray-500/40'
-            hoverBrightness = 'hover:brightness-200'
+            hoverBrightness = 'hover-hover:brightness-200'
           } else if (segment.successRate === 100) {
             color = 'bg-emerald-400/90'
-            hoverBrightness = 'hover:brightness-106'
+            hoverBrightness = 'hover-hover:brightness-106'
           } else if (segment.successRate >= 95) {
             color = 'bg-amber-400/90'
-            hoverBrightness = 'hover:brightness-106'
+            hoverBrightness = 'hover-hover:brightness-106'
           } else {
             color = 'bg-red-400/90'
-            hoverBrightness = 'hover:brightness-106'
+            hoverBrightness = 'hover-hover:brightness-106'
           }
 
           return (

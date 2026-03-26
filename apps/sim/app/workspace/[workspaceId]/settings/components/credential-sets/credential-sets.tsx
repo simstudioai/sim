@@ -616,7 +616,7 @@ export function CredentialSets() {
     <>
       <div className='flex h-full flex-col gap-[18px]'>
         <div className='flex items-center gap-[8px]'>
-          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
+          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
@@ -815,7 +815,7 @@ export function CredentialSets() {
                     className={cn(
                       'rounded-r-none px-[8px] py-[4px] text-[13px]',
                       newSetProvider === 'google-email' &&
-                        'bg-[var(--border-1)] hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]'
+                        'bg-[var(--border-1)] hover-hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover-hover:bg-[var(--border-1)]'
                     )}
                   >
                     Gmail
@@ -826,7 +826,7 @@ export function CredentialSets() {
                     className={cn(
                       'rounded-l-none px-[8px] py-[4px] text-[13px]',
                       newSetProvider === 'outlook' &&
-                        'bg-[var(--border-1)] hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]'
+                        'bg-[var(--border-1)] hover-hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover-hover:bg-[var(--border-1)]'
                     )}
                   >
                     Outlook

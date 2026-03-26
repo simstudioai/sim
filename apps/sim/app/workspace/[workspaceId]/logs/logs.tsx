@@ -1503,7 +1503,7 @@ function SuggestionButton({
     <button
       data-index={index}
       className={cn(
-        'w-full rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-5)]',
+        'w-full rounded-[6px] px-3 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
         highlighted && 'bg-[var(--surface-5)]'
       )}
       onMouseEnter={() => onHover(index)}

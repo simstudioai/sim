@@ -153,7 +153,7 @@ export function EvalInput({
               variant='ghost'
               onClick={() => removeMetric(metric.id)}
               disabled={isPreview || disabled || metrics.length === 1}
-              className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
+              className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
             >
               <Trash className='h-[14px] w-[14px]' />
               <span className='sr-only'>Delete Metric</span>

@@ -41,7 +41,7 @@ function ColorGrid({
   hexInput,
   setHexInput,
   onColorChange,
-  buttonRefs,
+  buttonRefs: cellButtonRefs,
 }: {
   hexInput: string
   setHexInput: (color: string) => void
@@ -49,7 +49,6 @@ function ColorGrid({
   buttonRefs: RefObject<(HTMLButtonElement | null)[]>
 }) {
   const [focusedIndex, setFocusedIndex] = useState(-1)
-  const gridRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const selectedIndex = WORKFLOW_COLORS.findIndex(
@@ -58,9 +57,9 @@ function ColorGrid({
     const idx = selectedIndex >= 0 ? selectedIndex : 0
     setFocusedIndex(idx)
     requestAnimationFrame(() => {
-      buttonRefs.current[idx]?.focus()
+      cellButtonRefs.current[idx]?.focus()
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial roving focus when submenu content mounts
   }, [])
 
   const handleKeyDown = useCallback(
@@ -98,19 +97,19 @@ function ColorGrid({
 
       if (newIndex !== index) {
         setFocusedIndex(newIndex)
-        buttonRefs.current[newIndex]?.focus()
+        cellButtonRefs.current[newIndex]?.focus()
       }
     },
     [setHexInput, onColorChange]
   )
 
   return (
-    <div ref={gridRef} className='grid grid-cols-6 gap-[4px]' role='grid'>
+    <div className='grid grid-cols-6 gap-[4px]' role='grid'>
       {WORKFLOW_COLORS.map(({ color, name }, index) => (
         <button
           key={color}
           ref={(el) => {
-            buttonRefs.current[index] = el
+            cellButtonRefs.current[index] = el
           }}
           type='button'
           role='gridcell'
@@ -340,6 +339,7 @@ export function ContextMenu({
 
   const handleHexKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
+      e.stopPropagation()
       if (e.key === 'Enter') {
         e.preventDefault()
         handleHexSubmit()

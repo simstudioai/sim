@@ -199,7 +199,7 @@ export function InboxSettingsTab() {
                     </div>
                     <Button
                       variant='ghost'
-                      className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover:text-[var(--text-error)]'
+                      className='h-[28px] w-[28px] p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
                       onClick={() => handleRemoveSender(sender.id)}
                     >
                       <Trash2 className='h-[14px] w-[14px]' />

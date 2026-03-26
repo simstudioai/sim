@@ -411,7 +411,7 @@ export function FormDeploy({
                   href={fullUrl}
                   target='_blank'
                   rel='noopener noreferrer'
-                  className='text-[var(--text-primary)] hover:underline'
+                  className='text-[var(--text-primary)] hover-hover:underline'
                 >
                   {displayUrl}
                 </a>

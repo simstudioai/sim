@@ -234,7 +234,7 @@ export function CreateApiKeyModal({
                 </div>
                 <Button
                   variant='ghost'
-                  className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] rounded-[4px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] rounded-[4px] text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
                   onClick={() => copyToClipboard(newKey.key)}
                 >
                   {copySuccess ? (

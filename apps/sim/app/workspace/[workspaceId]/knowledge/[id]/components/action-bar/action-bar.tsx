@@ -63,7 +63,7 @@ export function ActionBar({
               <button
                 type='button'
                 onClick={onSelectAll}
-                className='text-[var(--brand-primary)] hover:underline'
+                className='text-[var(--brand-primary)] hover-hover:underline'
               >
                 Select all
               </button>
@@ -75,7 +75,7 @@ export function ActionBar({
               <button
                 type='button'
                 onClick={onClearSelectAll}
-                className='text-[var(--brand-primary)] hover:underline'
+                className='text-[var(--brand-primary)] hover-hover:underline'
               >
                 Clear
               </button>
@@ -91,7 +91,7 @@ export function ActionBar({
                   variant='ghost'
                   onClick={onEnable}
                   disabled={isLoading}
-                  className='hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
+                  className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
                 >
                   <Circle className='h-[12px] w-[12px]' />
                 </Button>
@@ -107,7 +107,7 @@ export function ActionBar({
                   variant='ghost'
                   onClick={onDisable}
                   disabled={isLoading}
-                  className='hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
+                  className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
                 >
                   <CircleOff className='h-[12px] w-[12px]' />
                 </Button>
@@ -123,7 +123,7 @@ export function ActionBar({
                   variant='ghost'
                   onClick={onDelete}
                   disabled={isLoading}
-                  className='hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover:bg-[var(--brand-secondary)]'
+                  className='hover-hover:!text-[var(--text-inverse)] h-[28px] w-[28px] rounded-[8px] bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
                 >
                   <Trash2 className='h-[12px] w-[12px]' />
                 </Button>

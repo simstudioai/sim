@@ -29,7 +29,7 @@ interface BaseCardProps {
  */
 export function BaseCardSkeleton() {
   return (
-    <div className='group flex h-full cursor-pointer flex-col gap-[12px] rounded-[4px] bg-[var(--surface-3)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:bg-[var(--surface-5)]'>
+    <div className='group flex h-full cursor-pointer flex-col gap-[12px] rounded-[4px] bg-[var(--surface-3)] px-[8px] py-[6px] transition-colors hover-hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover-hover:bg-[var(--surface-5)]'>
       <div className='flex items-center justify-between gap-[8px]'>
         <div className='h-[17px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
         <div className='h-[22px] w-[90px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
@@ -173,7 +173,7 @@ export function BaseCard({
         onContextMenu={handleContextMenu}
         data-kb-card
       >
-        <div className='group flex h-full flex-col gap-[12px] rounded-[4px] bg-[var(--surface-3)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:bg-[var(--surface-5)]'>
+        <div className='group flex h-full flex-col gap-[12px] rounded-[4px] bg-[var(--surface-3)] px-[8px] py-[6px] transition-colors hover-hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover-hover:bg-[var(--surface-5)]'>
           <div className='flex items-center justify-between gap-[8px]'>
             <h3 className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
               {title}

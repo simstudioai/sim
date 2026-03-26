@@ -105,7 +105,7 @@ export function PlanCard({
       </div>
       <div
         className={cn(
-          'flex rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px]',
+          'flex border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px]',
           inlineButton
             ? 'items-center justify-between gap-[18px] py-[12px]'
             : 'flex-1 flex-col gap-[18px] py-[16px]'

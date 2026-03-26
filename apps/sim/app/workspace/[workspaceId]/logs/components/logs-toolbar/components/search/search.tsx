@@ -240,7 +240,7 @@ export function AutocompleteSearch({
             {(hasFilters || hasTextSearch) && (
               <button
                 type='button'
-                className='mr-[8px] ml-[6px] flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover:text-[var(--text-secondary)]'
+                className='mr-[8px] ml-[6px] flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover-hover:text-[var(--text-secondary)]'
                 onClick={clearAll}
               >
                 <X className='h-[14px] w-[14px]' />
@@ -269,7 +269,7 @@ export function AutocompleteSearch({
                       data-index={0}
                       className={cn(
                         'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
-                        'hover:bg-[var(--surface-5)]',
+                        'hover-hover:bg-[var(--surface-5)]',
                         highlightedIndex === 0 && 'bg-[var(--surface-5)]'
                       )}
                       onMouseEnter={() => setHighlightedIndex(0)}
@@ -299,7 +299,7 @@ export function AutocompleteSearch({
                             data-index={index}
                             className={cn(
                               'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
-                              'hover:bg-[var(--surface-5)]',
+                              'hover-hover:bg-[var(--surface-5)]',
                               isHighlighted && 'bg-[var(--surface-5)]'
                             )}
                             onMouseEnter={() => setHighlightedIndex(index)}
@@ -342,7 +342,7 @@ export function AutocompleteSearch({
                       data-index={index}
                       className={cn(
                         'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
-                        'hover:bg-[var(--surface-5)]',
+                        'hover-hover:bg-[var(--surface-5)]',
                         index === highlightedIndex && 'bg-[var(--surface-5)]'
                       )}
                       onMouseEnter={() => setHighlightedIndex(index)}

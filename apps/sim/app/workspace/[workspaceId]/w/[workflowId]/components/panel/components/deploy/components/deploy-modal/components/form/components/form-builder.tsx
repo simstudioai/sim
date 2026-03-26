@@ -276,7 +276,7 @@ export function FormBuilder({
                   draggable
                   onDragStart={(e) => handleDragStart(e, index)}
                   onDragEnd={handleDragEnd}
-                  className='-my-[6px] -ml-[6px] flex cursor-grab items-center py-[6px] pl-[6px] text-[var(--text-muted)] hover:text-[var(--text-tertiary)] active:cursor-grabbing'
+                  className='-my-[6px] -ml-[6px] flex cursor-grab items-center py-[6px] pl-[6px] text-[var(--text-muted)] hover-hover:text-[var(--text-tertiary)] active:cursor-grabbing'
                 >
                   <GripVertical className='h-[12px] w-[12px]' />
                 </div>

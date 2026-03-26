@@ -303,7 +303,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                       href={doc.sourceUrl}
                       target='_blank'
                       rel='noopener noreferrer'
-                      className='flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                      className='flex-shrink-0 text-[var(--text-muted)] hover-hover:text-[var(--text-secondary)]'
                     >
                       <ExternalLink className='h-3 w-3' />
                     </a>

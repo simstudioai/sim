@@ -75,7 +75,7 @@ function WorkflowsListInner({
                 <div
                   key={workflow.workflowId}
                   className={cn(
-                    'flex h-[44px] items-center gap-[16px] px-[24px] hover:bg-[var(--surface-3)] dark:hover:bg-[var(--surface-4)]',
+                    'flex h-[44px] items-center gap-[16px] px-[24px] hover-hover:bg-[var(--surface-3)] dark:hover-hover:bg-[var(--surface-4)]',
                     canToggle ? 'cursor-pointer' : 'cursor-default',
                     isSelected && 'bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'
                   )}

@@ -118,7 +118,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
             {search.tags?.length || search.value ? (
               <button
                 type='button'
-                className='mr-[2px] flex h-[14px] w-[14px] shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover:text-[var(--text-secondary)]'
+                className='mr-[2px] flex h-[14px] w-[14px] shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover-hover:text-[var(--text-secondary)]'
                 onClick={search.onClearAll}
               >
                 <span className='text-[12px]'>✕</span>

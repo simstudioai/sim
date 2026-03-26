@@ -255,7 +255,7 @@ export function Preview({
               <Button
                 variant='ghost'
                 onClick={handleGoBack}
-                className='flex h-[28px] items-center gap-[5px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] text-[var(--text-secondary)] shadow-sm hover:bg-[var(--surface-4)] hover:text-[var(--text-primary)]'
+                className='flex h-[28px] items-center gap-[5px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] text-[var(--text-secondary)] shadow-sm hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
               >
                 <ArrowLeft className='h-[12px] w-[12px]' />
                 <span className='font-medium text-[12px]'>Back</span>

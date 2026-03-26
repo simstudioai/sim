@@ -17,7 +17,7 @@ export default async function NotFound() {
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
           <div className='flex flex-col items-center gap-[12px]'>
             <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
-              Page Not Found
+              Page not found
             </h1>
             <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
               The page you&apos;re looking for doesn&apos;t exist or has been moved.

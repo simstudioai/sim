@@ -109,7 +109,7 @@ const ToolbarItem = memo(function ToolbarItem({
       onContextMenu={handleContextMenu}
       className={clsx(
         'group flex h-[28px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
-        'cursor-pointer hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover:bg-[var(--surface-5)]',
+        'cursor-pointer hover-hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover-hover:bg-[var(--surface-5)]',
         'focus-visible:bg-[var(--surface-6)] focus-visible:outline-none dark:focus-visible:bg-[var(--surface-5)]'
       )}
       onKeyDown={handleKeyDown}

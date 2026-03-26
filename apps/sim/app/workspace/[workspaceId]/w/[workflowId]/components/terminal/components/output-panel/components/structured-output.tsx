@@ -60,7 +60,7 @@ const BADGE_VARIANTS: Record<ValueType, BadgeVariant> = {
  * Styling constants matching the original non-virtualized implementation.
  */
 const STYLES = {
-  row: 'group flex min-h-[30px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[8px] -mx-[8px] hover:bg-[var(--surface-active)]',
+  row: 'group flex min-h-[30px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[8px] -mx-[8px] hover-hover:bg-[var(--surface-active)]',
   chevron:
     'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
   keyName: 'font-base text-[14px] text-[var(--text-primary)]',

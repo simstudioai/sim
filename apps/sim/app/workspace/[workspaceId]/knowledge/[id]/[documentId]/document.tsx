@@ -573,7 +573,7 @@ export function Document({
             key={value}
             type='button'
             className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--surface-active)]',
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)] outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
               enabledFilter === value && 'bg-[var(--surface-active)]'
             )}
             onClick={() => {

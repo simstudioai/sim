@@ -37,7 +37,7 @@ function NotificationCountdownRing({ onPause }: { onPause: () => void }) {
           variant='ghost'
           onClick={onPause}
           aria-label='Keep notifications visible'
-          className='!p-[4px] -m-[2px] shrink-0 rounded-[5px] text-[var(--text-icon)] hover:bg-[var(--surface-active)]'
+          className='!p-[4px] -m-[2px] shrink-0 rounded-[5px] text-[var(--text-icon)] hover-hover:bg-[var(--surface-active)]'
         >
           <CountdownRing duration={AUTO_DISMISS_MS} />
         </Button>
@@ -244,7 +244,7 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
                         variant='ghost'
                         onClick={() => removeNotification(notification.id)}
                         aria-label='Dismiss notification'
-                        className='!p-[4px] -m-[2px] shrink-0 rounded-[5px] hover:bg-[var(--surface-active)]'
+                        className='!p-[4px] -m-[2px] shrink-0 rounded-[5px] hover-hover:bg-[var(--surface-active)]'
                       >
                         <X className='h-[14px] w-[14px] text-[var(--text-icon)]' />
                       </Button>

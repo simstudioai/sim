@@ -387,7 +387,7 @@ export function WorkflowItem({
         className={clsx(
           'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px]',
           active && 'bg-[var(--surface-active)]',
-          !active && !isAnyDragActive && 'hover:bg-[var(--surface-active)]',
+          !active && !isAnyDragActive && 'hover-hover:bg-[var(--surface-active)]',
           isSelected && selectedWorkflows.size > 1 && !active && 'bg-[var(--surface-active)]',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
@@ -445,7 +445,7 @@ export function WorkflowItem({
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
               className={clsx(
-                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)]',
+                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover-hover:bg-[var(--surface-7)]',
                 !isAnyDragActive && 'group-hover:opacity-100'
               )}
             >

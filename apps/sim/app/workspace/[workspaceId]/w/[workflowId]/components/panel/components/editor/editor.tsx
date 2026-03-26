@@ -511,7 +511,7 @@ export function Editor() {
                                 type='button'
                                 variant='ghost'
                                 onClick={handleOpenChildWorkflow}
-                                className='absolute right-[6px] bottom-[6px] z-10 h-[24px] w-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover:bg-[var(--surface-4)]'
+                                className='absolute right-[6px] bottom-[6px] z-10 h-[24px] w-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
                               >
                                 <ExternalLink className='h-[12px] w-[12px]' />
                               </Button>
@@ -606,7 +606,7 @@ export function Editor() {
                       <button
                         type='button'
                         onClick={handleToggleAdvancedMode}
-                        className='flex items-center gap-[6px] whitespace-nowrap font-medium text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                        className='flex items-center gap-[6px] whitespace-nowrap font-medium text-[13px] text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]'
                       >
                         {displayAdvancedOptions
                           ? 'Hide additional fields'

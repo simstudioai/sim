@@ -1753,7 +1753,7 @@ export const ToolInput = memo(function ToolInput({
                     >
                       <PopoverTrigger asChild>
                         <button
-                          className='flex items-center justify-center font-medium text-[12px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                          className='flex items-center justify-center font-medium text-[12px] text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                           onClick={(e: React.MouseEvent) => e.stopPropagation()}
                           aria-label='Tool usage control'
                         >
@@ -1822,7 +1822,7 @@ export const ToolInput = memo(function ToolInput({
                             e.stopPropagation()
                             setMcpRemovePopoverIndex(toolIndex)
                           }}
-                          className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                          className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                           aria-label='Remove tool'
                         >
                           <XIcon className='h-[13px] w-[13px]' />
@@ -1860,7 +1860,7 @@ export const ToolInput = memo(function ToolInput({
                         e.stopPropagation()
                         handleRemoveTool(toolIndex)
                       }}
-                      className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                      className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                       aria-label='Remove tool'
                     >
                       <XIcon className='h-[13px] w-[13px]' />

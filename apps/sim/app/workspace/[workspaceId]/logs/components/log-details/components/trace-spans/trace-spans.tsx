@@ -351,7 +351,7 @@ function InputOutputSection({
                         e.stopPropagation()
                         handleCopy()
                       }}
-                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
+                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                     >
                       {copied ? (
                         <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
@@ -371,7 +371,7 @@ function InputOutputSection({
                         e.stopPropagation()
                         activateSearch()
                       }}
-                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
+                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                     >
                       <Search className='h-[10px] w-[10px]' />
                     </Button>

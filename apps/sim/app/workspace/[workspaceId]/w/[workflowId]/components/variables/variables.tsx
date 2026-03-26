@@ -325,7 +325,7 @@ export function Variables() {
               e.stopPropagation()
               handleRemoveVariable(variable.id)
             }}
-            className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
+            className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
             aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
           >
             <Trash style={{ width: `${ICON_SIZE}px`, height: `${ICON_SIZE}px` }} />

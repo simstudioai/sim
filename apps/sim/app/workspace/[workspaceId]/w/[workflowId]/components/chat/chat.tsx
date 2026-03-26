@@ -929,7 +929,7 @@ export function Chat() {
         >
           {shouldShowConfigureStartInputsButton && (
             <div
-              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[9px] py-[2px] font-medium font-sans text-[12px] text-[var(--text-primary)] hover:bg-[var(--surface-7)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]'
+              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[9px] py-[2px] font-medium font-sans text-[12px] text-[var(--text-primary)] hover-hover:bg-[var(--surface-7)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]'
               title='Add chat inputs to Start block'
               onMouseDown={(e) => {
                 e.stopPropagation()
@@ -1143,7 +1143,7 @@ export function Chat() {
                 {isStreaming ? (
                   <Button
                     onClick={handleStopStreaming}
-                    className='!bg-[var(--c-C0C0C0)] hover:!bg-[var(--c-D0D0D0)] h-[22px] w-[22px] rounded-full p-0 transition-colors'
+                    className='!bg-[var(--c-C0C0C0)] hover-hover:!bg-[var(--c-D0D0D0)] h-[22px] w-[22px] rounded-full p-0 transition-colors'
                   >
                     <Square className='h-2.5 w-2.5 fill-black text-black' />
                   </Button>
@@ -1159,7 +1159,7 @@ export function Chat() {
                     className={cn(
                       'h-[22px] w-[22px] rounded-full p-0 transition-colors',
                       chatMessage.trim() || chatFiles.length > 0
-                        ? '!bg-[var(--c-C0C0C0)] hover:!bg-[var(--c-D0D0D0)]'
+                        ? '!bg-[var(--c-C0C0C0)] hover-hover:!bg-[var(--c-D0D0D0)]'
                         : '!bg-[var(--c-C0C0C0)]'
                     )}
                   >

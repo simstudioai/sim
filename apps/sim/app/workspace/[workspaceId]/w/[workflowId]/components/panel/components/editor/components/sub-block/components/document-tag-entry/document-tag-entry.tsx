@@ -269,7 +269,7 @@ export function DocumentTagEntry({
           variant='ghost'
           onClick={() => removeTag(tag.id)}
           disabled={isReadOnly}
-          className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
+          className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
         >
           <Trash className='h-[14px] w-[14px]' />
           <span className='sr-only'>Delete Tag</span>

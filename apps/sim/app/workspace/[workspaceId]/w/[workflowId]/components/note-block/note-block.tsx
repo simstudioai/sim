@@ -376,7 +376,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
                   href={href}
                   target='_blank'
                   rel='noopener noreferrer'
-                  className='mb-1 block break-all text-[var(--brand-secondary)] underline-offset-2 hover:underline'
+                  className='mb-1 block break-all text-[var(--brand-secondary)] underline-offset-2 hover-hover:underline'
                 >
                   {children}
                 </a>
@@ -428,7 +428,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
               href={href}
               target='_blank'
               rel='noopener noreferrer'
-              className='break-all text-[var(--brand-secondary)] underline-offset-2 hover:underline'
+              className='break-all text-[var(--brand-secondary)] underline-offset-2 hover-hover:underline'
             >
               {children}
             </a>

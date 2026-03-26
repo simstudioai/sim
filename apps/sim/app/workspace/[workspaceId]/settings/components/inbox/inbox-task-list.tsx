@@ -75,7 +75,7 @@ export function InboxTaskList() {
   return (
     <div className='flex flex-col gap-[12px]'>
       <div className='flex items-center gap-[8px]'>
-        <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
+        <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
           <Search
             className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
             strokeWidth={2}
@@ -134,7 +134,7 @@ export function InboxTaskList() {
                 <div
                   key={task.id}
                   className={`flex flex-col gap-[4px] rounded-[8px] border border-[var(--border)] p-[12px] transition-colors ${
-                    isClickable ? 'cursor-pointer hover:bg-[var(--surface-2)]' : ''
+                    isClickable ? 'cursor-pointer hover-hover:bg-[var(--surface-2)]' : ''
                   }`}
                   role={isClickable ? 'button' : undefined}
                   tabIndex={isClickable ? 0 : undefined}

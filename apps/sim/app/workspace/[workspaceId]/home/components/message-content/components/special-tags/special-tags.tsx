@@ -375,7 +375,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
               onClick={() => onSelect?.(title)}
               className={cn(
                 'flex items-center gap-[8px] border-[var(--divider)] px-[8px] py-[8px] text-left transition-colors',
-                disabled ? 'cursor-not-allowed' : 'hover:bg-[var(--surface-5)]',
+                disabled ? 'cursor-not-allowed' : 'hover-hover:bg-[var(--surface-5)]',
                 i > 0 && 'border-t'
               )}
             >
@@ -437,7 +437,7 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
       href={data.value}
       target='_blank'
       rel='noopener noreferrer'
-      className='flex animate-stream-fade-in items-center gap-[8px] rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover:bg-[var(--surface-5)]'
+      className='flex animate-stream-fade-in items-center gap-[8px] rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
     >
       {createElement(Icon, { className: 'h-[16px] w-[16px] shrink-0' })}
       <span className='flex-1 font-base text-[14px] text-[var(--text-body)]'>
@@ -490,7 +490,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
       </p>
       <a
         href={settingsPath}
-        className='mt-2 inline-flex items-center gap-1 font-[500] text-[13px] text-amber-700 underline decoration-dashed underline-offset-2 transition-colors hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-200'
+        className='mt-2 inline-flex items-center gap-1 font-[500] text-[13px] text-amber-700 underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
       >
         {buttonLabel}
         <ArrowRight className='h-3 w-3' />

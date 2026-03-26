@@ -214,8 +214,8 @@ export function Versions({
               className={clsx(
                 'flex h-[36px] cursor-pointer items-center px-[16px] transition-colors duration-100',
                 isSelected
-                  ? 'bg-[var(--accent)]/10 hover:bg-[var(--accent)]/15'
-                  : 'hover:bg-[var(--surface-6)] dark:hover:bg-[var(--border)]'
+                  ? 'bg-[var(--accent)]/10 hover-hover:bg-[var(--accent)]/15'
+                  : 'hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--border)]'
               )}
               onClick={() => handleRowClick(v.version)}
             >
@@ -300,7 +300,7 @@ export function Versions({
                       className={clsx(
                         '!p-1',
                         !v.description &&
-                          'text-[var(--text-quaternary)] hover:text-[var(--text-tertiary)]'
+                          'text-[var(--text-quaternary)] hover-hover:text-[var(--text-tertiary)]'
                       )}
                       onClick={() => handleOpenDescriptionModal(v.version)}
                     >

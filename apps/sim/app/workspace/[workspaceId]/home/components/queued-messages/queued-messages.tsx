@@ -22,7 +22,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
       <button
         type='button'
         onClick={() => setIsExpanded(!isExpanded)}
-        className='flex w-full items-center gap-[6px] px-[14px] py-[8px] transition-colors hover:bg-[var(--surface-active)]'
+        className='flex w-full items-center gap-[6px] px-[14px] py-[8px] transition-colors hover-hover:bg-[var(--surface-active)]'
       >
         {isExpanded ? (
           <ChevronDown className='h-[14px] w-[14px] text-[var(--text-icon)]' />
@@ -39,7 +39,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
           {messageQueue.map((msg) => (
             <div
               key={msg.id}
-              className='flex items-center gap-[8px] px-[14px] py-[6px] transition-colors hover:bg-[var(--surface-active)]'
+              className='flex items-center gap-[8px] px-[14px] py-[6px] transition-colors hover-hover:bg-[var(--surface-active)]'
             >
               <div className='flex h-[16px] w-[16px] shrink-0 items-center justify-center'>
                 <div className='h-[10px] w-[10px] rounded-full border-[1.5px] border-[var(--text-tertiary)]/40' />
@@ -58,7 +58,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
                         e.stopPropagation()
                         onEdit(msg.id)
                       }}
-                      className='rounded-[6px] p-[5px] text-[var(--text-icon)] transition-colors hover:bg-[var(--surface-active)] hover:text-[var(--text-primary)]'
+                      className='rounded-[6px] p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                     >
                       <Pencil className='h-[13px] w-[13px]' />
                     </button>
@@ -76,7 +76,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
                         e.stopPropagation()
                         void onSendNow(msg.id)
                       }}
-                      className='rounded-[6px] p-[5px] text-[var(--text-icon)] transition-colors hover:bg-[var(--surface-active)] hover:text-[var(--text-primary)]'
+                      className='rounded-[6px] p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                     >
                       <ArrowUp className='h-[13px] w-[13px]' />
                     </button>
@@ -94,7 +94,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
                         e.stopPropagation()
                         onRemove(msg.id)
                       }}
-                      className='rounded-[6px] p-[5px] text-[var(--text-icon)] transition-colors hover:bg-[var(--surface-active)] hover:text-[var(--text-primary)]'
+                      className='rounded-[6px] p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                     >
                       <Trash2 className='h-[13px] w-[13px]' />
                     </button>

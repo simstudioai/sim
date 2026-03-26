@@ -124,7 +124,7 @@ function SingleFileSelector({
         {isDeleting ? (
           <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
         ) : (
-          <X className='h-4 w-4 opacity-50 hover:opacity-100' />
+          <X className='h-4 w-4 opacity-50 hover-hover:opacity-100' />
         )}
       </Button>
     </div>
@@ -553,7 +553,7 @@ export function FileUpload({
     return (
       <div
         key={fileKey}
-        className='relative rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] hover:border-[var(--surface-7)] hover:bg-[var(--surface-5)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]'
+        className='relative rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] hover-hover:border-[var(--surface-7)] hover-hover:bg-[var(--surface-5)] dark:bg-[var(--surface-5)] dark:hover-hover:bg-[var(--border-1)]'
       >
         <div className='truncate pr-[24px] text-sm' title={file.name}>
           <span className='text-[var(--text-primary)]'>{truncateMiddle(file.name)}</span>

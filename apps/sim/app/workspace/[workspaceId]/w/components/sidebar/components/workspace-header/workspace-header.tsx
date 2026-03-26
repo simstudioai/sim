@@ -333,7 +333,7 @@ export function WorkspaceHeader({
                 type='button'
                 aria-label='Switch workspace'
                 className={cn(
-                  'group flex h-[32px] min-w-0 items-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] pl-[5px] transition-colors hover:bg-[var(--surface-5)]',
+                  'group flex h-[32px] min-w-0 items-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] pl-[5px] transition-colors hover-hover:bg-[var(--surface-5)]',
                   isCollapsed ? 'w-[32px]' : 'w-full cursor-pointer gap-[8px] pr-[8px]'
                 )}
                 title={activeWorkspace?.name || 'Loading...'}
@@ -465,7 +465,7 @@ export function WorkspaceHeader({
                           ) : (
                             <div
                               className={cn(
-                                'group flex cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)]',
+                                'group flex cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
                                 workspace.id === workspaceId && 'bg-[var(--surface-active)]'
                               )}
                               onClick={() => onWorkspaceSwitch(workspace)}
@@ -484,7 +484,7 @@ export function WorkspaceHeader({
                                   const rect = e.currentTarget.getBoundingClientRect()
                                   openContextMenuAt(workspace, rect.right, rect.top)
                                 }}
-                                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] group-hover:opacity-100'
+                                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover-hover:bg-[var(--surface-7)] group-hover:opacity-100'
                               >
                                 <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
                               </button>
@@ -498,7 +498,7 @@ export function WorkspaceHeader({
                   <div className='mt-[4px] flex flex-col gap-[2px]'>
                     <button
                       type='button'
-                      className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
+                      className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover-hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
                       onClick={(e) => {
                         e.stopPropagation()
                         setIsWorkspaceMenuOpen(false)
@@ -516,7 +516,7 @@ export function WorkspaceHeader({
                       <DropdownMenuSeparator />
                       <button
                         type='button'
-                        className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)]'
+                        className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover-hover:bg-[var(--surface-active)]'
                         onClick={() => {
                           setIsInviteModalOpen(true)
                           setIsWorkspaceMenuOpen(false)

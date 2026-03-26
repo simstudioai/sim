@@ -914,7 +914,7 @@ export function ConditionInput({
                     disabled={
                       isPreview || disabled || conditionalBlocks.length <= (isRouterMode ? 1 : 2)
                     }
-                    className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
+                    className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
                   >
                     <Trash className='h-[14px] w-[14px]' />
                     <span className='sr-only'>Delete Block</span>

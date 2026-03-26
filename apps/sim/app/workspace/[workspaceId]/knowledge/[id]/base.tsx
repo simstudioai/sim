@@ -823,7 +823,7 @@ export function KnowledgeBase({
             key={value}
             type='button'
             className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--surface-active)]',
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)] outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
               enabledFilter === value && 'bg-[var(--surface-active)]'
             )}
             onClick={() => {
@@ -861,7 +861,7 @@ export function KnowledgeBase({
               key={connector.id}
               type='button'
               onClick={() => setShowConnectorsModal(true)}
-              className='flex shrink-0 cursor-pointer items-center gap-[6px] rounded-[6px] px-[8px] py-[4px] text-[12px] text-[var(--text-secondary)] shadow-[inset_0_0_0_1px_var(--border)] transition-colors hover:bg-[var(--surface-3)]'
+              className='flex shrink-0 cursor-pointer items-center gap-[6px] rounded-[6px] px-[8px] py-[4px] text-[12px] text-[var(--text-secondary)] shadow-[inset_0_0_0_1px_var(--border)] transition-colors hover-hover:bg-[var(--surface-3)]'
             >
               {ConnectorIcon && <ConnectorIcon className='h-[14px] w-[14px]' />}
               {def?.name || connector.connectorType}
@@ -1425,7 +1425,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
                 <button
                   type='button'
                   onClick={() => removeFilter(entry.id)}
-                  className='text-[var(--text-muted)] transition-colors hover:text-[var(--text-error)]'
+                  className='text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-error)]'
                 >
                   <X className='h-3 w-3' />
                 </button>
