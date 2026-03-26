@@ -50,7 +50,7 @@ const ExpandableContent = React.forwardRef<
   <CollapsiblePrimitive.Content
     ref={ref}
     className={cn(
-      'overflow-hidden transition-[height] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down',
+      'overflow-hidden transition-[height] duration-300 ease-in-out data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down',
       className
     )}
     {...props}
