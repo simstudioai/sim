@@ -94,7 +94,40 @@ async function getOTP(email: string, chatId: string): Promise<string | null> {
   return record?.value ?? null
 }
 
-async function updateOTPValue(email: string, chatId: string, value: string): Promise<void> {
+/**
+ * Lua script for atomic OTP attempt increment.
+ * Returns: "LOCKED" if max attempts reached (key deleted), new encoded value otherwise, nil if key missing.
+ */
+const ATOMIC_INCREMENT_SCRIPT = `
+local val = redis.call('GET', KEYS[1])
+if not val then return nil end
+local colon = val:find(':([^:]*$)')
+local otp, attempts
+if colon then
+  otp = val:sub(1, colon - 1)
+  attempts = tonumber(val:sub(colon + 1)) or 0
+else
+  otp = val
+  attempts = 0
+end
+attempts = attempts + 1
+if attempts >= tonumber(ARGV[1]) then
+  redis.call('DEL', KEYS[1])
+  return 'LOCKED'
+end
+local newVal = otp .. ':' .. attempts
+redis.call('SET', KEYS[1], newVal, 'KEEPTTL')
+return newVal
+`
+
+/**
+ * Atomically increments OTP attempts. Returns 'locked' if max reached, 'incremented' otherwise.
+ */
+async function incrementOTPAttempts(
+  email: string,
+  chatId: string,
+  currentValue: string
+): Promise<'locked' | 'incremented'> {
   const identifier = `chat-otp:${chatId}:${email}`
   const storageMethod = getStorageMethod()
 
@@ -104,13 +137,35 @@ async function updateOTPValue(email: string, chatId: string, value: string): Pro
       throw new Error('Redis configured but client unavailable')
     }
     const key = `otp:${email}:${chatId}`
-    await redis.set(key, value, 'KEEPTTL')
-  } else {
-    await db
-      .update(verification)
-      .set({ value, updatedAt: new Date() })
-      .where(eq(verification.identifier, identifier))
+    const result = await redis.eval(ATOMIC_INCREMENT_SCRIPT, 1, key, MAX_OTP_ATTEMPTS)
+    return result === 'LOCKED' ? 'locked' : 'incremented'
   }
+
+  // DB path: optimistic locking — only update if value hasn't changed since we read it
+  const { otp, attempts } = decodeOTPValue(currentValue)
+  const newAttempts = attempts + 1
+
+  if (newAttempts >= MAX_OTP_ATTEMPTS) {
+    await db.delete(verification).where(eq(verification.identifier, identifier))
+    return 'locked'
+  }
+
+  const newValue = encodeOTPValue(otp, newAttempts)
+  const updated = await db
+    .update(verification)
+    .set({ value: newValue, updatedAt: new Date() })
+    .where(and(eq(verification.identifier, identifier), eq(verification.value, currentValue)))
+    .returning({ id: verification.id })
+
+  // If no rows updated, another request already incremented — re-read to check state
+  if (updated.length === 0) {
+    const fresh = await getOTP(email, chatId)
+    if (!fresh) return 'locked'
+    const { attempts: freshAttempts } = decodeOTPValue(fresh)
+    return freshAttempts >= MAX_OTP_ATTEMPTS ? 'locked' : 'incremented'
+  }
+
+  return 'incremented'
 }
 
 async function deleteOTP(email: string, chatId: string): Promise<void> {
@@ -257,18 +312,14 @@ export async function PUT(
     const { otp: storedOTP, attempts } = decodeOTPValue(storedValue)
 
     if (storedOTP !== otp) {
-      const newAttempts = attempts + 1
-      if (newAttempts >= MAX_OTP_ATTEMPTS) {
-        await deleteOTP(email, deployment.id)
-        logger.warn(
-          `[${requestId}] OTP invalidated after ${newAttempts} failed attempts for ${email}`
-        )
+      const result = await incrementOTPAttempts(email, deployment.id, storedValue)
+      if (result === 'locked') {
+        logger.warn(`[${requestId}] OTP invalidated after max failed attempts for ${email}`)
         return addCorsHeaders(
           createErrorResponse('Too many failed attempts. Please request a new code.', 429),
           request
         )
       }
-      await updateOTPValue(email, deployment.id, encodeOTPValue(storedOTP, newAttempts))
       return addCorsHeaders(createErrorResponse('Invalid verification code', 400), request)
     }
 

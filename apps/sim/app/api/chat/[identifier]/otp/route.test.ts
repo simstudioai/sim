@@ -11,6 +11,7 @@ const {
   mockRedisGet,
   mockRedisDel,
   mockRedisTtl,
+  mockRedisEval,
   mockGetRedisClient,
   mockRedisClient,
   mockDbSelect,
@@ -32,11 +33,13 @@ const {
   const mockRedisGet = vi.fn()
   const mockRedisDel = vi.fn()
   const mockRedisTtl = vi.fn()
+  const mockRedisEval = vi.fn()
   const mockRedisClient = {
     set: mockRedisSet,
     get: mockRedisGet,
     del: mockRedisDel,
     ttl: mockRedisTtl,
+    eval: mockRedisEval,
   }
   const mockGetRedisClient = vi.fn()
   const mockDbSelect = vi.fn()
@@ -59,6 +62,7 @@ const {
     mockRedisGet,
     mockRedisDel,
     mockRedisTtl,
+    mockRedisEval,
     mockGetRedisClient,
     mockRedisClient,
     mockDbSelect,
@@ -573,9 +577,9 @@ describe('Chat OTP API Route', () => {
       mockGetStorageMethod.mockReturnValue('redis')
     })
 
-    it('should update stored value with incremented attempts on wrong OTP', async () => {
+    it('should atomically increment attempts on wrong OTP', async () => {
       mockRedisGet.mockResolvedValue('654321:0')
-      mockRedisTtl.mockResolvedValue(600)
+      mockRedisEval.mockResolvedValue('654321:1')
 
       mockDbSelect.mockImplementationOnce(() => ({
         from: vi.fn().mockReturnValue({
@@ -592,16 +596,18 @@ describe('Chat OTP API Route', () => {
 
       await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
 
-      expect(mockRedisSet).toHaveBeenCalledWith(
+      expect(mockRedisEval).toHaveBeenCalledWith(
+        expect.any(String),
+        1,
         `otp:${mockEmail}:${mockChatId}`,
-        '654321:1',
-        'KEEPTTL'
+        5
       )
       expect(mockCreateErrorResponse).toHaveBeenCalledWith('Invalid verification code', 400)
     })
 
-    it('should invalidate OTP and return 429 after 5 failed attempts', async () => {
+    it('should invalidate OTP and return 429 after max failed attempts', async () => {
       mockRedisGet.mockResolvedValue('654321:4')
+      mockRedisEval.mockResolvedValue('LOCKED')
 
       mockDbSelect.mockImplementationOnce(() => ({
         from: vi.fn().mockReturnValue({
@@ -618,7 +624,7 @@ describe('Chat OTP API Route', () => {
 
       await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
 
-      expect(mockRedisDel).toHaveBeenCalledWith(`otp:${mockEmail}:${mockChatId}`)
+      expect(mockRedisEval).toHaveBeenCalled()
       expect(mockCreateErrorResponse).toHaveBeenCalledWith(
         'Too many failed attempts. Please request a new code.',
         429
