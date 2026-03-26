@@ -17,15 +17,13 @@ export type {
 
 const logger = createLogger('CopilotResources')
 
-type ChatResource = MothershipResource
-
 /**
  * Appends resources to a chat's JSONB resources column, deduplicating by type+id.
  * Updates the title of existing resources if the new title is more specific.
  */
 export async function persistChatResources(
   chatId: string,
-  newResources: ChatResource[]
+  newResources: MothershipResource[]
 ): Promise<void> {
   const toMerge = newResources.filter((r) => r.id !== 'streaming-file')
   if (toMerge.length === 0) return
@@ -39,8 +37,8 @@ export async function persistChatResources(
 
     if (!chat) return
 
-    const existing = Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
-    const map = new Map<string, ChatResource>()
+    const existing = Array.isArray(chat.resources) ? (chat.resources as MothershipResource[]) : []
+    const map = new Map<string, MothershipResource>()
     const GENERIC = new Set(['Table', 'File', 'Workflow', 'Knowledge Base'])
 
     for (const r of existing) {
@@ -72,7 +70,10 @@ export async function persistChatResources(
 /**
  * Removes resources from a chat's JSONB resources column by type+id.
  */
-export async function removeChatResources(chatId: string, toRemove: ChatResource[]): Promise<void> {
+export async function removeChatResources(
+  chatId: string,
+  toRemove: MothershipResource[]
+): Promise<void> {
   if (toRemove.length === 0) return
 
   try {
@@ -84,7 +85,7 @@ export async function removeChatResources(chatId: string, toRemove: ChatResource
 
     if (!chat) return
 
-    const existing = Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
+    const existing = Array.isArray(chat.resources) ? (chat.resources as MothershipResource[]) : []
     const removeKeys = new Set(toRemove.map((r) => `${r.type}:${r.id}`))
     const filtered = existing.filter((r) => !removeKeys.has(`${r.type}:${r.id}`))
 

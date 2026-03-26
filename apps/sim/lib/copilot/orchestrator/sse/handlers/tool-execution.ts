@@ -747,11 +747,11 @@ export async function executeToolAndReport(
     }
 
     // Fire-and-forget: notify the copilot backend that the tool completed.
-    // IMPORTANT: We must NOT await this — the Go backend may block on the
+    // IMPORTANT: We must NOT await this — the server may block on the
     // mark-complete handler until it can write back on the SSE stream, but
     // the SSE reader (our for-await loop) is paused while we're in this
-    // handler.  Awaiting here would deadlock: sim waits for Go's response,
-    // Go waits for sim to drain the SSE stream.
+    // handler.  Awaiting here would deadlock: sim waits for the server's response,
+    // the server waits for sim to drain the SSE stream.
     markToolComplete(
       toolCall.id,
       toolCall.name,

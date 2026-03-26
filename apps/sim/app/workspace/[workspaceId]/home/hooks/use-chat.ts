@@ -166,6 +166,13 @@ function buildReplayStream(events: StreamEventEnvelope[]): ReadableStream<Uint8A
 }
 
 function mapStoredBlock(block: TaskStoredContentBlock): ContentBlock {
+  if (block.type === 'thinking') {
+    return {
+      type: 'text',
+      content: block.content ? `<thinking>${block.content}</thinking>` : '',
+    }
+  }
+
   const mapped: ContentBlock = {
     type: block.type as ContentBlockType,
     content: block.content,
@@ -1075,6 +1082,36 @@ export function useChat(
                   lastContentSource = contentSource
                   streamingContentRef.current = runningText
                   flush()
+                }
+                break
+              }
+              case 'reasoning': {
+                const d = (
+                  parsed.data && typeof parsed.data === 'object' ? parsed.data : {}
+                ) as Record<string, unknown>
+                const phase = d.phase as string | undefined
+                if (phase === 'start') {
+                  const tb = ensureTextBlock()
+                  tb.content = `${tb.content ?? ''}<thinking>`
+                  runningText += '<thinking>'
+                  streamingContentRef.current = runningText
+                  flush()
+                } else if (phase === 'end') {
+                  const tb = ensureTextBlock()
+                  tb.content = `${tb.content ?? ''}</thinking>`
+                  runningText += '</thinking>'
+                  streamingContentRef.current = runningText
+                  flush()
+                } else {
+                  const chunk =
+                    typeof d.data === 'string' ? d.data : (parsed.content as string | undefined)
+                  if (chunk) {
+                    const tb = ensureTextBlock()
+                    tb.content = (tb.content ?? '') + chunk
+                    runningText += chunk
+                    streamingContentRef.current = runningText
+                    flush()
+                  }
                 }
                 break
               }

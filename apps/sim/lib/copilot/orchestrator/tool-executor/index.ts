@@ -864,7 +864,6 @@ async function generateOAuthLink(
       },
     })
 
-  // Use Better Auth's server-side API with the real request headers (session cookie).
   const { auth } = await import('@/lib/auth/auth')
   const { headers: getHeaders } = await import('next/headers')
   const reqHeaders = await getHeaders()
@@ -1163,10 +1162,10 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
 /**
  * Check whether a tool can be executed on the Sim (TypeScript) side.
  *
- * Tools that are only available on the Go backend (e.g. search_patterns)
+ * Tools that are only available server-side (e.g. search_patterns)
  * will return false.  The subagent tool_call
  * handler uses this to decide whether to execute a tool locally or let the
- * Go backend's own tool_result SSE event handle it.
+ * server's own tool_result SSE event handle it.
  */
 export function isToolAvailableOnSimSide(toolName: string): boolean {
   if (SERVER_TOOLS.has(toolName)) return true

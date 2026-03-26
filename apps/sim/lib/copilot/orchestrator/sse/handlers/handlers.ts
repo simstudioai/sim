@@ -78,7 +78,7 @@ function abortPendingToolIfStreamDead(
 }
 
 /**
- * Extract the `ui` object from a Go SSE event. The Go backend enriches
+ * Extract the `ui` object from an SSE event. The server enriches
  * tool_call events with `ui: { requiresConfirmation, clientExecutable, ... }`.
  */
 function getEventUI(event: SSEEvent): {
@@ -206,7 +206,7 @@ function handleClientCompletion(
 
 /**
  * Emit a synthetic tool_result SSE event to the client after a client-executable
- * tool completes. The Go backend's actual tool_result is skipped (markToolResultSeen),
+ * tool completes. The server's actual tool_result is skipped (markToolResultSeen),
  * so the client would never learn the outcome without this.
  */
 async function emitSyntheticToolResult(
@@ -580,7 +580,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     context.currentThinkingBlock.content = `${context.currentThinkingBlock.content || ''}${chunk}`
   },
   content: (event, context) => {
-    // Go backend sends content as a plain string in event.data, not wrapped in an object.
+    // Server sends content as a plain string in event.data, not wrapped in an object.
     let chunk: string | undefined
     if (typeof event.data === 'string') {
       chunk = event.data
@@ -639,7 +639,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
   content: (event, context) => {
     const parentToolCallId = context.subAgentParentToolCallId
     if (!parentToolCallId || !event.data) return
-    // Go backend sends content as a plain string in event.data
+    // Server sends content as a plain string in event.data
     let chunk: string | undefined
     if (typeof event.data === 'string') {
       chunk = event.data
