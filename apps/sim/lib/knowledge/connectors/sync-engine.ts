@@ -456,12 +456,21 @@ export async function executeSync(
               syncContext
             )
             if (!fullDoc?.content.trim()) return null
+            const hydratedHash = fullDoc.contentHash ?? op.extDoc.contentHash
+            if (
+              op.type === 'update' &&
+              existingByExternalId.get(op.extDoc.externalId)?.contentHash === hydratedHash
+            ) {
+              result.docsUnchanged++
+              return null
+            }
             return {
               ...op,
               extDoc: {
                 ...op.extDoc,
+                title: fullDoc.title || op.extDoc.title,
                 content: fullDoc.content,
-                contentHash: fullDoc.contentHash ?? op.extDoc.contentHash,
+                contentHash: hydratedHash,
                 contentDeferred: false,
                 metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
               },
