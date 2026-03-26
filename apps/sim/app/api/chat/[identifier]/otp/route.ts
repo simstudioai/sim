@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { randomInt, randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { chat, verification } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -7,7 +7,7 @@ import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { renderOTPEmail } from '@/components/emails'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { addCorsHeaders } from '@/lib/core/security/deployment'
+import { addCorsHeaders, isEmailAllowed } from '@/lib/core/security/deployment'
 import { getStorageMethod } from '@/lib/core/storage'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -16,12 +16,29 @@ import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/
 
 const logger = createLogger('ChatOtpAPI')
 
-function generateOTP() {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+function generateOTP(): string {
+  return randomInt(100000, 1000000).toString()
 }
 
 const OTP_EXPIRY = 15 * 60 // 15 minutes
 const OTP_EXPIRY_MS = OTP_EXPIRY * 1000
+const MAX_OTP_ATTEMPTS = 5
+
+/**
+ * OTP values are stored as "code:attempts" (e.g. "654321:0").
+ * This keeps the attempt counter in the same key/row as the OTP itself.
+ */
+function encodeOTPValue(otp: string, attempts: number): string {
+  return `${otp}:${attempts}`
+}
+
+function decodeOTPValue(value: string): { otp: string; attempts: number } {
+  const lastColon = value.lastIndexOf(':')
+  return {
+    otp: value.slice(0, lastColon),
+    attempts: parseInt(value.slice(lastColon + 1), 10),
+  }
+}
 
 /**
  * Stores OTP in Redis or database depending on storage method.
@@ -30,14 +47,14 @@ const OTP_EXPIRY_MS = OTP_EXPIRY * 1000
 async function storeOTP(email: string, chatId: string, otp: string): Promise<void> {
   const identifier = `chat-otp:${chatId}:${email}`
   const storageMethod = getStorageMethod()
+  const value = encodeOTPValue(otp, 0)
 
   if (storageMethod === 'redis') {
     const redis = getRedisClient()
     if (!redis) {
       throw new Error('Redis configured but client unavailable')
     }
-    const key = `otp:${email}:${chatId}`
-    await redis.set(key, otp, 'EX', OTP_EXPIRY)
+    await redis.set(`otp:${email}:${chatId}`, value, 'EX', OTP_EXPIRY)
   } else {
     const now = new Date()
     const expiresAt = new Date(now.getTime() + OTP_EXPIRY_MS)
@@ -47,7 +64,7 @@ async function storeOTP(email: string, chatId: string, otp: string): Promise<voi
       await tx.insert(verification).values({
         id: randomUUID(),
         identifier,
-        value: otp,
+        value,
         expiresAt,
         createdAt: now,
         updatedAt: now,
@@ -65,23 +82,36 @@ async function getOTP(email: string, chatId: string): Promise<string | null> {
     if (!redis) {
       throw new Error('Redis configured but client unavailable')
     }
-    const key = `otp:${email}:${chatId}`
-    return redis.get(key)
+    return redis.get(`otp:${email}:${chatId}`)
   }
 
   const now = new Date()
   const [record] = await db
-    .select({
-      value: verification.value,
-      expiresAt: verification.expiresAt,
-    })
+    .select({ value: verification.value })
     .from(verification)
     .where(and(eq(verification.identifier, identifier), gt(verification.expiresAt, now)))
     .limit(1)
 
-  if (!record) return null
+  return record?.value ?? null
+}
 
-  return record.value
+async function updateOTPValue(email: string, chatId: string, value: string): Promise<void> {
+  const identifier = `chat-otp:${chatId}:${email}`
+  const storageMethod = getStorageMethod()
+
+  if (storageMethod === 'redis') {
+    const redis = getRedisClient()
+    if (!redis) {
+      throw new Error('Redis configured but client unavailable')
+    }
+    const key = `otp:${email}:${chatId}`
+    await redis.set(key, value, 'KEEPTTL')
+  } else {
+    await db
+      .update(verification)
+      .set({ value, updatedAt: new Date() })
+      .where(eq(verification.identifier, identifier))
+  }
 }
 
 async function deleteOTP(email: string, chatId: string): Promise<void> {
@@ -93,8 +123,7 @@ async function deleteOTP(email: string, chatId: string): Promise<void> {
     if (!redis) {
       throw new Error('Redis configured but client unavailable')
     }
-    const key = `otp:${email}:${chatId}`
-    await redis.del(key)
+    await redis.del(`otp:${email}:${chatId}`)
   } else {
     await db.delete(verification).where(eq(verification.identifier, identifier))
   }
@@ -149,17 +178,7 @@ export async function POST(
       ? deployment.allowedEmails
       : []
 
-    const isEmailAllowed =
-      allowedEmails.includes(email) ||
-      allowedEmails.some((allowed: string) => {
-        if (allowed.startsWith('@')) {
-          const domain = email.split('@')[1]
-          return domain && allowed === `@${domain}`
-        }
-        return false
-      })
-
-    if (!isEmailAllowed) {
+    if (!isEmailAllowed(email, allowedEmails)) {
       return addCorsHeaders(createErrorResponse('Email not authorized for this chat', 403), request)
     }
 
@@ -228,15 +247,27 @@ export async function PUT(
 
     const deployment = deploymentResult[0]
 
-    const storedOTP = await getOTP(email, deployment.id)
-    if (!storedOTP) {
+    const storedValue = await getOTP(email, deployment.id)
+    if (!storedValue) {
       return addCorsHeaders(
         createErrorResponse('No verification code found, request a new one', 400),
         request
       )
     }
 
+    const { otp: storedOTP, attempts } = decodeOTPValue(storedValue)
+
     if (storedOTP !== otp) {
+      const newAttempts = attempts + 1
+      if (newAttempts >= MAX_OTP_ATTEMPTS) {
+        await deleteOTP(email, deployment.id)
+        logger.warn(`[${requestId}] OTP invalidated after ${newAttempts} failed attempts for ${email}`)
+        return addCorsHeaders(
+          createErrorResponse('Too many failed attempts. Please request a new code.', 429),
+          request
+        )
+      }
+      await updateOTPValue(email, deployment.id, encodeOTPValue(storedOTP, newAttempts))
       return addCorsHeaders(createErrorResponse('Invalid verification code', 400), request)
     }
 

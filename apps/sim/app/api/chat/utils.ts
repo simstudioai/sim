@@ -16,10 +16,9 @@ const logger = createLogger('ChatAuthUtils')
 export function setChatAuthCookie(
   response: NextResponse,
   chatId: string,
-  type: string,
-  encryptedPassword?: string | null
+  type: string
 ): void {
-  setDeploymentAuthCookie(response, 'chat', chatId, type, encryptedPassword)
+  setDeploymentAuthCookie(response, 'chat', chatId, type)
 }
 
 /**
@@ -98,7 +97,7 @@ export async function validateChatAuth(
   const cookieName = `chat_auth_${deployment.id}`
   const authCookie = request.cookies.get(cookieName)
 
-  if (authCookie && validateAuthToken(authCookie.value, deployment.id, deployment.password)) {
+  if (authCookie && validateAuthToken(authCookie.value, deployment.id)) {
     return { authorized: true }
   }
 

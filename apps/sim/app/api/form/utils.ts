@@ -16,10 +16,9 @@ const logger = createLogger('FormAuthUtils')
 export function setFormAuthCookie(
   response: NextResponse,
   formId: string,
-  type: string,
-  encryptedPassword?: string | null
+  type: string
 ): void {
-  setDeploymentAuthCookie(response, 'form', formId, type, encryptedPassword)
+  setDeploymentAuthCookie(response, 'form', formId, type)
 }
 
 /**
@@ -95,7 +94,7 @@ export async function validateFormAuth(
   const cookieName = `form_auth_${deployment.id}`
   const authCookie = request.cookies.get(cookieName)
 
-  if (authCookie && validateAuthToken(authCookie.value, deployment.id, deployment.password)) {
+  if (authCookie && validateAuthToken(authCookie.value, deployment.id)) {
     return { authorized: true }
   }
 

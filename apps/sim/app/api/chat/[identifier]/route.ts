@@ -141,7 +141,7 @@ export async function POST(
     if ((password || email) && !input) {
       const response = addCorsHeaders(createSuccessResponse({ authenticated: true }), request)
 
-      setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
+      setChatAuthCookie(response, deployment.id, deployment.authType)
 
       return response
     }
@@ -327,7 +327,7 @@ export async function GET(
     if (
       deployment.authType !== 'public' &&
       authCookie &&
-      validateAuthToken(authCookie.value, deployment.id, deployment.password)
+      validateAuthToken(authCookie.value, deployment.id)
     ) {
       return addCorsHeaders(
         createSuccessResponse({
