@@ -1883,6 +1883,7 @@ export function useChat(
                 assistantId,
                 gen,
                 fromEventId: lastEventIdRef.current,
+                signal: abortController.signal,
               })
               return
             } catch (reconnectErr) {
@@ -1899,6 +1900,7 @@ export function useChat(
             streamId: activeStreamId,
             maxAttempts: MAX_RECONNECT_ATTEMPTS,
           })
+          setIsReconnecting(false)
         }
 
         setError(errorMessage)
