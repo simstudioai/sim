@@ -562,8 +562,7 @@ export async function executeSync(
         .map((d) => d.id)
 
       if (removedIds.length > 0) {
-        const deletionRatio =
-          existingDocs.length > 0 ? removedIds.length / existingDocs.length : 0
+        const deletionRatio = existingDocs.length > 0 ? removedIds.length / existingDocs.length : 0
 
         if (deletionRatio > 0.5 && removedIds.length > 5 && !options?.fullSync) {
           logger.warn(
