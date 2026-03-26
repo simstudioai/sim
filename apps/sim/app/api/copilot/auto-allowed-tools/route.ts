@@ -6,7 +6,7 @@ import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('CopilotAutoAllowedToolsAPI')
 
-/** Headers for server-to-server calls to the Go copilot backend. */
+/** Headers for server-to-server calls to the copilot backend. */
 function copilotHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -36,7 +36,7 @@ export async function GET() {
     )
 
     if (!res.ok) {
-      logger.warn('Go backend returned error for list auto-allowed', { status: res.status })
+      logger.warn('Copilot returned error for list auto-allowed', { status: res.status })
       return NextResponse.json({ autoAllowedTools: [] })
     }
 
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!res.ok) {
-      logger.warn('Go backend returned error for add auto-allowed', { status: res.status })
+      logger.warn('Copilot returned error for add auto-allowed', { status: res.status })
       return NextResponse.json({ error: 'Failed to add tool' }, { status: 500 })
     }
 
@@ -113,7 +113,7 @@ export async function DELETE(request: NextRequest) {
     )
 
     if (!res.ok) {
-      logger.warn('Go backend returned error for remove auto-allowed', { status: res.status })
+      logger.warn('Copilot returned error for remove auto-allowed', { status: res.status })
       return NextResponse.json({ error: 'Failed to remove tool' }, { status: 500 })
     }
 

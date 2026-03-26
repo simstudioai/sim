@@ -23,7 +23,7 @@ export type SSEEventType =
 
 export interface SSEEvent {
   type: SSEEventType
-  /** Authoritative tool call state set by the Go backend */
+  /** Authoritative tool call state set by the server */
   state?: string
   data?: Record<string, unknown>
   /** Parent agent that produced this event */

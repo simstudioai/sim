@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
     const workflowId = resolved.workflowId
     const workflowResolvedName = resolved.workflowName
 
-    // Resolve workspace from workflow so it can be sent as implicit context to the Go backend.
+    // Resolve workspace from workflow so it can be sent as implicit context to the copilot.
     let resolvedWorkspaceId: string | undefined
     try {
       const { getWorkflowById } = await import('@/lib/workflows/utils')
