@@ -34,10 +34,9 @@ function encodeOTPValue(otp: string, attempts: number): string {
 
 function decodeOTPValue(value: string): { otp: string; attempts: number } {
   const lastColon = value.lastIndexOf(':')
-  return {
-    otp: value.slice(0, lastColon),
-    attempts: Number.parseInt(value.slice(lastColon + 1), 10),
-  }
+  if (lastColon === -1) return { otp: value, attempts: 0 }
+  const attempts = Number.parseInt(value.slice(lastColon + 1), 10)
+  return { otp: value.slice(0, lastColon), attempts: Number.isNaN(attempts) ? 0 : attempts }
 }
 
 /**
