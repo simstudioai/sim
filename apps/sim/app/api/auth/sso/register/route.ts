@@ -198,6 +198,25 @@ export async function POST(request: NextRequest) {
           oidcConfig.userInfoEndpoint = oidcConfig.userInfoEndpoint || discovery.userinfo_endpoint
           oidcConfig.jwksEndpoint = oidcConfig.jwksEndpoint || discovery.jwks_uri
 
+          // Validate discovered endpoints against SSRF — these are fetched server-side
+          const endpointsToValidate = [
+            { name: 'tokenEndpoint', url: oidcConfig.tokenEndpoint },
+            { name: 'userInfoEndpoint', url: oidcConfig.userInfoEndpoint },
+            { name: 'jwksEndpoint', url: oidcConfig.jwksEndpoint },
+          ]
+          for (const { name, url } of endpointsToValidate) {
+            if (typeof url === 'string') {
+              const result = await validateUrlWithDNS(url, `OIDC ${name}`)
+              if (!result.isValid) {
+                logger.warn(`Discovered OIDC ${name} failed SSRF validation`, {
+                  url,
+                  error: result.error,
+                })
+                return NextResponse.json({ error: result.error }, { status: 400 })
+              }
+            }
+          }
+
           logger.info('Merged OIDC endpoints (user-provided + discovery)', {
             providerId,
             issuer,
