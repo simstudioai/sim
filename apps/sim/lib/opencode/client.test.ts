@@ -49,4 +49,18 @@ describe('createOpenCodeClient', () => {
     expect(recreatedClient).toBe(secondClient)
     expect(mockCreateOpencodeClient).toHaveBeenCalledTimes(2)
   })
+
+  it('recreates the client when credentials change at runtime', () => {
+    const firstClient = { session: { id: 'first' } }
+    const secondClient = { session: { id: 'second' } }
+    mockCreateOpencodeClient.mockReturnValueOnce(firstClient).mockReturnValueOnce(secondClient)
+
+    const initialClient = createOpenCodeClient()
+    vi.stubEnv('OPENCODE_SERVER_PASSWORD', 'rotated-password')
+    const refreshedClient = createOpenCodeClient()
+
+    expect(initialClient).toBe(firstClient)
+    expect(refreshedClient).toBe(secondClient)
+    expect(mockCreateOpencodeClient).toHaveBeenCalledTimes(2)
+  })
 })

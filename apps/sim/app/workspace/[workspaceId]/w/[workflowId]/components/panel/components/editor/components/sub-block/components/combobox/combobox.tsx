@@ -170,9 +170,10 @@ export const ComboBox = memo(function ComboBox({
         setFetchedOptions([])
       } finally {
         isOptionsFetchInFlightRef.current = false
+        const replacementFetch = fetchOptionsIfNeededRef.current
 
-        if (shouldTriggerReplacementFetch) {
-          void fetchOptionsIfNeededRef.current?.(true)
+        if (shouldTriggerReplacementFetch && replacementFetch) {
+          void replacementFetch(true)
         } else {
           setIsLoadingOptions(false)
         }
