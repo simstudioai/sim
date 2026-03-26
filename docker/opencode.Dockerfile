@@ -31,6 +31,11 @@ COPY docker/opencode/entrypoint.sh /usr/local/bin/opencode-entrypoint.sh
 COPY docker/opencode/git-askpass.sh /usr/local/bin/git-askpass.sh
 COPY docker/opencode/healthcheck.sh /usr/local/bin/opencode-healthcheck.sh
 COPY docker/opencode/sync-repos.sh /usr/local/bin/sync-repos.sh
+RUN chmod 755 \
+    /usr/local/bin/opencode-entrypoint.sh \
+    /usr/local/bin/git-askpass.sh \
+    /usr/local/bin/opencode-healthcheck.sh \
+    /usr/local/bin/sync-repos.sh
 
 ENV HOME=/home/opencode
 ENV OPENCODE_PORT=4096
