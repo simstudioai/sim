@@ -4931,6 +4931,18 @@ export function KalshiIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function KetchIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 224 213' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='m133.1 43.92 28.76-29.48h-70.38l-77.79 78.08 77.64 76.26-30.05 29.13h70.98l77.64-77.58-76.8-76.41z'
+        fill='#fff'
+      />
+      <path d='m91.71 86.79v81.44l40.38-41.7v-82.02l-40.38 42.28z' fill='#9B5CFF' />
+    </svg>
+  )
+}
+
 export function PolymarketIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='51 209 123 155'>

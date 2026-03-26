@@ -1260,6 +1260,13 @@ import {
   kalshiGetTradesV2Tool,
 } from '@/tools/kalshi'
 import {
+  ketchGetConsentTool,
+  ketchGetSubscriptionsTool,
+  ketchInvokeRightTool,
+  ketchSetConsentTool,
+  ketchSetSubscriptionsTool,
+} from '@/tools/ketch'
+import {
   knowledgeCreateDocumentTool,
   knowledgeDeleteChunkTool,
   knowledgeDeleteDocumentTool,
@@ -2678,6 +2685,11 @@ export const tools: Record<string, ToolConfig> = {
   hex_run_project: hexRunProjectTool,
   hex_update_project: hexUpdateProjectTool,
   jina_read_url: jinaReadUrlTool,
+  ketch_get_consent: ketchGetConsentTool,
+  ketch_get_subscriptions: ketchGetSubscriptionsTool,
+  ketch_invoke_right: ketchInvokeRightTool,
+  ketch_set_consent: ketchSetConsentTool,
+  ketch_set_subscriptions: ketchSetSubscriptionsTool,
   jina_search: jinaSearchTool,
   linkup_search: linkupSearchTool,
   loops_create_contact: loopsCreateContactTool,
