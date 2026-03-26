@@ -126,6 +126,7 @@ export const ComboBox = memo(function ComboBox({
   const [hasAttemptedOptionsFetch, setHasAttemptedOptionsFetch] = useState(false)
   const [hydratedOption, setHydratedOption] = useState<{ label: string; id: string } | null>(null)
   const previousDependencyValuesRef = useRef<string>('')
+  const optionsFetchVersionRef = useRef(0)
   const isOptionsFetchInFlightRef = useRef(false)
   const hasAttemptedOptionsFetchRef = useRef(false)
 
@@ -144,6 +145,7 @@ export const ComboBox = memo(function ComboBox({
         return
       }
 
+      const fetchVersion = optionsFetchVersionRef.current
       isOptionsFetchInFlightRef.current = true
       hasAttemptedOptionsFetchRef.current = true
       setHasAttemptedOptionsFetch(true)
@@ -151,8 +153,14 @@ export const ComboBox = memo(function ComboBox({
       setFetchError(null)
       try {
         const options = await fetchOptions(blockId, subBlockId)
+        if (fetchVersion !== optionsFetchVersionRef.current) {
+          return
+        }
         setFetchedOptions(options)
       } catch (error) {
+        if (fetchVersion !== optionsFetchVersionRef.current) {
+          return
+        }
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
         setFetchError(errorMessage)
         setFetchedOptions([])
@@ -325,6 +333,7 @@ export const ComboBox = memo(function ComboBox({
         previousDependencyValuesStr &&
         currentDependencyValuesStr !== previousDependencyValuesStr
       ) {
+        optionsFetchVersionRef.current += 1
         setFetchedOptions([])
         setFetchError(null)
         hasAttemptedOptionsFetchRef.current = false
