@@ -106,7 +106,6 @@ export async function GET(
       return await handleLocalFilePublic(fullPath)
     }
 
-    const contextParam = request.nextUrl.searchParams.get('context')
     const raw = request.nextUrl.searchParams.get('raw') === '1'
 
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -122,7 +121,7 @@ export async function GET(
     const userId = authResult.userId
 
     if (isUsingCloudStorage()) {
-      return await handleCloudProxy(cloudKey, userId, contextParam, raw)
+      return await handleCloudProxy(cloudKey, userId, raw)
     }
 
     return await handleLocalFile(cloudKey, userId, raw)
@@ -194,19 +193,11 @@ async function handleLocalFile(
 async function handleCloudProxy(
   cloudKey: string,
   userId: string,
-  contextParam?: string | null,
   raw = false
 ): Promise<NextResponse> {
   try {
-    let context: StorageContext
-
-    if (contextParam) {
-      context = contextParam as StorageContext
-      logger.info(`Using explicit context: ${context} for key: ${cloudKey}`)
-    } else {
-      context = inferContextFromKey(cloudKey)
-      logger.info(`Inferred context: ${context} from key pattern: ${cloudKey}`)
-    }
+    const context = inferContextFromKey(cloudKey)
+    logger.info(`Inferred context: ${context} from key pattern: ${cloudKey}`)
 
     const hasAccess = await verifyFileAccess(
       cloudKey,
