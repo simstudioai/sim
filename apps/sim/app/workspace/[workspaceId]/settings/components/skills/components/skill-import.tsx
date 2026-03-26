@@ -57,6 +57,11 @@ export function SkillImport({ onImport }: SkillImportProps) {
         let rawContent: string
 
         if (file.name.toLowerCase().endsWith('.zip')) {
+          if (file.size > 5 * 1024 * 1024) {
+            setFileError('ZIP file is too large (max 5 MB)')
+            setFileState('error')
+            return
+          }
           rawContent = await extractSkillFromZip(file)
         } else {
           rawContent = await file.text()
