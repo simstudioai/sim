@@ -19,4 +19,17 @@ describe('getOpenCodeRouteError', () => {
     })
     expect(error.message).not.toContain('http://opencode:4096')
   })
+
+  it('prioritizes connectivity errors over auth substring matches', () => {
+    const error = getOpenCodeRouteError(
+      new Error('fetch failed for http://127.0.0.1:4013/session'),
+      'repositories'
+    )
+
+    expect(error).toEqual({
+      status: 503,
+      message:
+        'OpenCode server is unreachable. Check OPENCODE_BASE_URL and the runtime network configuration.',
+    })
+  })
 })

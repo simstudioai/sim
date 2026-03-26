@@ -50,14 +50,6 @@ export function getOpenCodeRouteError(error: unknown, resourceName: string): Ope
     }
   }
 
-  if (includesAny(normalized, ['401', '403', 'unauthorized', 'forbidden'])) {
-    return {
-      status: 502,
-      message:
-        'OpenCode authentication failed. Align OPENCODE_SERVER_USERNAME and OPENCODE_SERVER_PASSWORD with the running OpenCode server.',
-    }
-  }
-
   if (
     includesAny(normalized, [
       'econnrefused',
@@ -72,6 +64,14 @@ export function getOpenCodeRouteError(error: unknown, resourceName: string): Ope
       status: 503,
       message:
         'OpenCode server is unreachable. Check OPENCODE_BASE_URL and the runtime network configuration.',
+    }
+  }
+
+  if (includesAny(normalized, ['401', '403', 'unauthorized', 'forbidden'])) {
+    return {
+      status: 502,
+      message:
+        'OpenCode authentication failed. Align OPENCODE_SERVER_USERNAME and OPENCODE_SERVER_PASSWORD with the running OpenCode server.',
     }
   }
 
