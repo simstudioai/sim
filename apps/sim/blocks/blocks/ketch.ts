@@ -75,6 +75,15 @@ export const KetchBlock: BlockConfig<KetchResponse> = {
       required: true,
     },
     {
+      id: 'purposesFilter',
+      title: 'Purposes Filter',
+      type: 'code',
+      placeholder: '{"analytics": {}, "marketing": {}}',
+      language: 'json',
+      condition: { field: 'operation', value: 'get_consent' },
+      mode: 'advanced',
+    },
+    {
       id: 'purposes',
       title: 'Purposes',
       type: 'code',
@@ -162,6 +171,13 @@ export const KetchBlock: BlockConfig<KetchResponse> = {
             typeof params.identities === 'string'
               ? JSON.parse(params.identities)
               : params.identities
+        }
+
+        if (params.operation === 'get_consent' && params.purposesFilter) {
+          result.purposes =
+            typeof params.purposesFilter === 'string'
+              ? JSON.parse(params.purposesFilter)
+              : params.purposesFilter
         }
 
         if (params.operation === 'set_consent' && params.purposes) {
