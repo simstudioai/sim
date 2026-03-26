@@ -311,6 +311,15 @@ export async function PUT(
 
     const { otp: storedOTP, attempts } = decodeOTPValue(storedValue)
 
+    if (attempts >= MAX_OTP_ATTEMPTS) {
+      await deleteOTP(email, deployment.id)
+      logger.warn(`[${requestId}] OTP already locked out for ${email}`)
+      return addCorsHeaders(
+        createErrorResponse('Too many failed attempts. Please request a new code.', 429),
+        request
+      )
+    }
+
     if (storedOTP !== otp) {
       const result = await incrementOTPAttempts(email, deployment.id, storedValue)
       if (result === 'locked') {
