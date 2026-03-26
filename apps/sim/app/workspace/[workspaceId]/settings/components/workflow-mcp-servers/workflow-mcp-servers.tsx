@@ -691,7 +691,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                             key={name}
                             className='overflow-hidden rounded-sm border border-[var(--border-1)]'
                           >
-                            <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-1.25'>
+                            <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
                               <div className='flex min-w-0 flex-1 items-center gap-2'>
                                 <span className='block truncate font-medium text-[var(--text-tertiary)] text-base'>
                                   {name}

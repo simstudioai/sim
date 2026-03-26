@@ -115,7 +115,7 @@ export default function IntegrationsPage() {
               const integration = allIntegrations.find((int) => int.name === name)
               const Icon = integration ? blockTypeToIconMap[integration.type] : undefined
               return (
-                <span key={name} className='inline-flex items-center gap-1.25'>
+                <span key={name} className='inline-flex items-center gap-[5px]'>
                   {Icon && (
                     <span
                       aria-hidden='true'

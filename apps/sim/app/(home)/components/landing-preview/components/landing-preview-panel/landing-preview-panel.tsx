@@ -101,7 +101,7 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
                   <div className='h-full w-[8px] bg-[#FA4EDF]' />
                   <div className='h-full w-[14px] bg-[#FA4EDF] opacity-60' />
                 </div>
-                <div className='flex items-center gap-1.25 bg-white px-1.5 py-1 font-medium text-[#1C1C1C] text-[11px]'>
+                <div className='flex items-center gap-[5px] bg-white px-1.5 py-1 font-medium text-[#1C1C1C] text-[11px]'>
                   Get started
                   <ChevronDown className='-rotate-90 h-[7px] w-[7px] text-[#1C1C1C]' />
                 </div>
@@ -113,13 +113,13 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
         {/* Tabs */}
         <div className='flex flex-shrink-0 items-center px-2 pt-3.5'>
           <div className='pointer-events-none flex gap-1'>
-            <div className='flex h-[28px] items-center rounded-[6px] border border-[#3d3d3d] bg-[#363636] px-2 py-1.25'>
+            <div className='flex h-[28px] items-center rounded-[6px] border border-[#3d3d3d] bg-[#363636] px-2 py-[5px]'>
               <span className='font-medium text-[#e6e6e6] text-[12.5px]'>Copilot</span>
             </div>
-            <div className='flex h-[28px] items-center rounded-[6px] border border-transparent px-2 py-1.25'>
+            <div className='flex h-[28px] items-center rounded-[6px] border border-transparent px-2 py-[5px]'>
               <span className='font-medium text-[#787878] text-[12.5px]'>Toolbar</span>
             </div>
-            <div className='flex h-[28px] items-center rounded-[6px] border border-transparent px-2 py-1.25'>
+            <div className='flex h-[28px] items-center rounded-[6px] border border-transparent px-2 py-[5px]'>
               <span className='font-medium text-[#787878] text-[12.5px]'>Editor</span>
             </div>
           </div>

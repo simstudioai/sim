@@ -644,7 +644,7 @@ export function IntegrationsManager() {
             <ModalHeader>Connect Integration</ModalHeader>
             <ModalBody>
               <div className='flex flex-col gap-3'>
-                <div className='flex items-center gap-2 rounded-[8px] border border-[var(--border)] bg-transparent px-2 py-1.25'>
+                <div className='flex items-center gap-2 rounded-[8px] border border-[var(--border)] bg-transparent px-2 py-[5px]'>
                   <Search
                     className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
                     strokeWidth={2}

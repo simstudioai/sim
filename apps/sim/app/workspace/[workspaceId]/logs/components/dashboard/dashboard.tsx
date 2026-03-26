@@ -34,7 +34,7 @@ const SKELETON_BAR_HEIGHTS = [
 function GraphCardSkeleton({ title }: { title: string }) {
   return (
     <div className='flex flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
-      <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-2.25 dark:bg-[var(--surface-3)]'>
+      <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-[9px] dark:bg-[var(--surface-3)]'>
         <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
           {title}
         </span>
@@ -475,7 +475,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
       <div className='mb-4 flex-shrink-0'>
         <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
           <div className='flex flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
-            <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-2.25 dark:bg-[var(--surface-3)]'>
+            <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
                 Runs
               </span>
@@ -502,7 +502,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
           </div>
 
           <div className='flex flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
-            <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-2.25 dark:bg-[var(--surface-3)]'>
+            <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
                 Errors
               </span>
@@ -529,7 +529,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
           </div>
 
           <div className='flex flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
-            <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-2.25 dark:bg-[var(--surface-3)]'>
+            <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
                 Latency
               </span>

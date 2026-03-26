@@ -49,7 +49,7 @@ import { cn } from '@/lib/core/utils/cn'
  * Uses colored badge-style variants (blue for valid, red for invalid).
  */
 const tagVariants = cva(
-  'flex w-auto cursor-default items-center gap-0.75 rounded-sm px-1 font-medium font-sans text-small leading-[20px] transition-colors',
+  'flex w-auto cursor-default items-center gap-[3px] rounded-sm px-1 font-medium font-sans text-small leading-[20px] transition-colors',
   {
     variants: {
       variant: {
@@ -473,7 +473,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   inputRef.current?.focus()
                 }
               }}
-              className='relative flex items-center px-0.75 opacity-80 transition-opacity before:absolute before:inset-[-10px] before:content-[""] hover-hover:opacity-100 focus:outline-none'
+              className='relative flex items-center px-[3px] opacity-80 transition-opacity before:absolute before:inset-[-10px] before:content-[""] hover-hover:opacity-100 focus:outline-none'
               disabled={disabled}
               aria-label='Add tag'
             >
@@ -490,7 +490,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   e.stopPropagation()
                   fileInputRef.current?.click()
                 }}
-                className='-m-1.5 absolute right-2 bottom-2.25 p-1.5 text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-secondary)]'
+                className='-m-1.5 absolute right-2 bottom-[9px] p-1.5 text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-secondary)]'
                 aria-label={fileInputOptions?.tooltip ?? 'Upload file'}
               >
                 <FileIcon className='h-3.5 w-3.5' strokeWidth={2} />

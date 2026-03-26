@@ -225,7 +225,7 @@ export function CollapsedTaskFlyoutItem({
       <Link
         href={task.href}
         className={cn(
-          'flex min-h-[30px] min-w-0 items-center rounded-[5px] px-2 py-1.25 pr-[30px] font-medium text-[12px] text-[var(--text-body)] hover:bg-[var(--surface-active)] group-focus-within:bg-[var(--surface-active)] group-hover:bg-[var(--surface-active)]',
+          'flex min-h-[30px] min-w-0 items-center rounded-[5px] px-2 py-[5px] pr-[30px] font-medium text-[12px] text-[var(--text-body)] hover:bg-[var(--surface-active)] group-focus-within:bg-[var(--surface-active)] group-hover:bg-[var(--surface-active)]',
           isCurrentRoute && 'bg-[var(--surface-active)]'
         )}
         onContextMenu={
@@ -303,7 +303,7 @@ export function CollapsedWorkflowFlyoutItem({
       <Link
         href={href}
         className={cn(
-          'flex min-h-[30px] min-w-0 items-center gap-2 rounded-[5px] px-2 py-1.25 pr-[30px] font-medium text-[12px] text-[var(--text-body)] hover:bg-[var(--surface-active)] group-focus-within:bg-[var(--surface-active)] group-hover:bg-[var(--surface-active)]',
+          'flex min-h-[30px] min-w-0 items-center gap-2 rounded-[5px] px-2 py-[5px] pr-[30px] font-medium text-[12px] text-[var(--text-body)] hover:bg-[var(--surface-active)] group-focus-within:bg-[var(--surface-active)] group-hover:bg-[var(--surface-active)]',
           isCurrentRoute && 'bg-[var(--surface-active)]'
         )}
         onContextMenu={onContextMenu ? (e) => onContextMenu(e, workflow) : undefined}

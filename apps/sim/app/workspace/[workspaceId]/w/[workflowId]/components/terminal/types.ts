@@ -53,7 +53,7 @@ export const ROW_STYLES = {
   base: 'group flex cursor-pointer items-center justify-between gap-2 rounded-lg px-2',
   selected: 'bg-[var(--surface-active)]',
   hover: 'hover:bg-[var(--surface-active)]',
-  nested: 'mt-0.5 ml-0.75 flex min-w-0 flex-col gap-0.5 border-[var(--border)] border-l pl-2.25',
+  nested: 'mt-0.5 ml-[3px] flex min-w-0 flex-col gap-0.5 border-[var(--border)] border-l pl-[9px]',
   iconButton: '!p-1.5 -m-1.5',
 } as const
 

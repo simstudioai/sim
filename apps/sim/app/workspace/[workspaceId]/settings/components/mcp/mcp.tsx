@@ -551,7 +551,7 @@ export function MCP({ initialServerId }: MCPProps) {
                                         )}
                                       </div>
                                       {paramDesc && (
-                                        <p className='mt-0.75 text-[var(--text-tertiary)] text-xs leading-relaxed'>
+                                        <p className='mt-[3px] text-[var(--text-tertiary)] text-xs leading-relaxed'>
                                           {paramDesc}
                                         </p>
                                       )}

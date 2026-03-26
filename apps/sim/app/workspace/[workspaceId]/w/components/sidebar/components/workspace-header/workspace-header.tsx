@@ -381,7 +381,7 @@ export function WorkspaceHeader({
               onCloseAutoFocus={(e) => e.preventDefault()}
             >
               {isWorkspacesLoading ? (
-                <div className='px-2 py-1.25 font-medium text-[var(--text-secondary)] text-caption'>
+                <div className='px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption'>
                   Loading workspaces...
                 </div>
               ) : (
@@ -408,7 +408,7 @@ export function WorkspaceHeader({
                       {workspaces.map((workspace) => (
                         <div key={workspace.id}>
                           {editingWorkspaceId === workspace.id ? (
-                            <div className='flex items-center gap-2 rounded-[5px] bg-[var(--surface-active)] px-2 py-1.25'>
+                            <div className='flex items-center gap-2 rounded-[5px] bg-[var(--surface-active)] px-2 py-[5px]'>
                               <input
                                 ref={(el) => {
                                   if (el && !hasInputFocusedRef.current) {
@@ -463,7 +463,7 @@ export function WorkspaceHeader({
                           ) : (
                             <div
                               className={cn(
-                                'group flex cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.25 font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+                                'group flex cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
                                 workspace.id === workspaceId && 'bg-[var(--surface-active)]'
                               )}
                               onClick={() => onWorkspaceSwitch(workspace)}
@@ -496,7 +496,7 @@ export function WorkspaceHeader({
                   <div className='mt-1 flex flex-col gap-0.5'>
                     <button
                       type='button'
-                      className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.25 font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
+                      className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
                       onClick={(e) => {
                         e.stopPropagation()
                         setIsWorkspaceMenuOpen(false)
@@ -514,7 +514,7 @@ export function WorkspaceHeader({
                       <DropdownMenuSeparator />
                       <button
                         type='button'
-                        className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.25 font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]'
+                        className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]'
                         onClick={() => {
                           setIsInviteModalOpen(true)
                           setIsWorkspaceMenuOpen(false)
@@ -534,7 +534,7 @@ export function WorkspaceHeader({
             type='button'
             aria-label='Switch workspace'
             className={cn(
-              'flex h-[32px] min-w-0 items-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] pl-1.25',
+              'flex h-[32px] min-w-0 items-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] pl-[5px]',
               isCollapsed ? 'w-[32px]' : 'w-full gap-2 pr-2'
             )}
             title={activeWorkspace?.name || 'Loading...'}

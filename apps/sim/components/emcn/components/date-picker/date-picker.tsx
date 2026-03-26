@@ -48,7 +48,7 @@ const datePickerVariants = cva(
       },
       size: {
         default: 'py-1.5 text-sm',
-        sm: 'py-1.25 text-caption',
+        sm: 'py-[5px] text-caption',
       },
     },
     defaultVariants: {

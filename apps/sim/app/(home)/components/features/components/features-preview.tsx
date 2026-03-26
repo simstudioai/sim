@@ -427,11 +427,11 @@ function PromptCardBody() {
 
 function FileCardBody() {
   return (
-    <div className='flex flex-col gap-0.75 px-2 py-1.5'>
+    <div className='flex flex-col gap-[3px] px-2 py-1.5'>
       <div className='h-[2px] w-[78%] rounded-full bg-[#E8E8E8]' />
       <div className='h-[2px] w-[92%] rounded-full bg-[#E8E8E8]' />
       <div className='h-[2px] w-[62%] rounded-full bg-[#E8E8E8]' />
-      <div className='mt-0.75 h-[2px] w-[70%] rounded-full bg-[#F0F0F0]' />
+      <div className='mt-[3px] h-[2px] w-[70%] rounded-full bg-[#F0F0F0]' />
       <div className='h-[2px] w-[85%] rounded-full bg-[#F0F0F0]' />
       <div className='h-[2px] w-[50%] rounded-full bg-[#F0F0F0]' />
     </div>
@@ -450,7 +450,7 @@ const TABLE_ROW_WIDTHS = [
 function TableCardBody() {
   return (
     <div className='flex flex-col'>
-      <div className='flex items-center gap-1 bg-[#FAFAFA] px-1.5 py-0.75'>
+      <div className='flex items-center gap-1 bg-[#FAFAFA] px-1.5 py-[3px]'>
         <div className='h-[2px] flex-1 rounded-full bg-[#D4D4D4]' />
         <div className='h-[2px] flex-1 rounded-full bg-[#D4D4D4]' />
         <div className='h-[2px] flex-1 rounded-full bg-[#D4D4D4]' />
@@ -502,7 +502,7 @@ const KB_WIDTHS = [70, 85, 55, 80, 48] as const
 
 function KnowledgeCardBody() {
   return (
-    <div className='flex flex-col gap-1.25 px-2 py-1.5'>
+    <div className='flex flex-col gap-[5px] px-2 py-1.5'>
       {KB_WIDTHS.map((w, i) => (
         <div key={i} className='flex items-center gap-1'>
           <div className='h-[3px] w-[3px] flex-shrink-0 rounded-full bg-[#D4D4D4]' />
@@ -524,7 +524,7 @@ const LOG_ENTRIES = [
 
 function LogsCardBody() {
   return (
-    <div className='flex flex-col gap-0.75 px-1.5 py-1'>
+    <div className='flex flex-col gap-[3px] px-1.5 py-1'>
       {LOG_ENTRIES.map((entry, i) => (
         <div key={i} className='flex items-center gap-1 py-[1px]'>
           <div
@@ -716,7 +716,7 @@ function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
           </colgroup>
           <thead>
             <tr>
-              <th className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-1 py-1.75 text-center align-middle'>
+              <th className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-1 py-[7px] text-center align-middle'>
                 <div className='flex items-center justify-center'>
                   <div className='h-[13px] w-[13px] rounded-[2px] border border-[#D4D4D4]' />
                 </div>
@@ -724,7 +724,7 @@ function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
               {MOCK_KB_COLUMNS.map((col) => (
                 <th
                   key={col}
-                  className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-2 py-1.75 text-left align-middle'
+                  className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-2 py-[7px] text-left align-middle'
                 >
                   <span className='font-base text-[#999] text-[13px]'>{col}</span>
                 </th>
@@ -742,10 +742,10 @@ function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, ease: 'easeOut' }}
                 >
-                  <td className='border-[#E5E5E5] border-r border-b px-1 py-1.75 text-center align-middle'>
+                  <td className='border-[#E5E5E5] border-r border-b px-1 py-[7px] text-center align-middle'>
                     <span className='text-[#999] text-[11px] tabular-nums'>{i + 1}</span>
                   </td>
-                  <td className='border-[#E5E5E5] border-r border-b px-2 py-1.75 align-middle'>
+                  <td className='border-[#E5E5E5] border-r border-b px-2 py-[7px] align-middle'>
                     <span className='flex items-center gap-2 text-[#1C1C1C] text-[13px]'>
                       <DocIcon className='h-[14px] w-[14px] shrink-0' />
                       <span className='truncate'>{row[0]}</span>
@@ -754,12 +754,12 @@ function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
                   {row.slice(1, 4).map((cell, j) => (
                     <td
                       key={j}
-                      className='border-[#E5E5E5] border-r border-b px-2 py-1.75 align-middle'
+                      className='border-[#E5E5E5] border-r border-b px-2 py-[7px] align-middle'
                     >
                       <span className='text-[#999] text-[13px]'>{cell}</span>
                     </td>
                   ))}
-                  <td className='border-[#E5E5E5] border-r border-b px-2 py-1.75 align-middle'>
+                  <td className='border-[#E5E5E5] border-r border-b px-2 py-[7px] align-middle'>
                     <span
                       className='inline-flex items-center rounded-full px-2 py-0.5 font-medium text-[11px]'
                       style={{ backgroundColor: status.bg, color: status.text }}
@@ -1088,7 +1088,7 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
           <span className='font-medium text-[#999] text-[12px]'>Trace Spans</span>
           <div className='flex flex-col gap-1.5'>
             {detail.spans.map((span, i) => (
-              <div key={i} className={cn('flex flex-col gap-0.75', span.depth === 1 && 'ml-3')}>
+              <div key={i} className={cn('flex flex-col gap-[3px]', span.depth === 1 && 'ml-3')}>
                 <div className='flex items-center justify-between'>
                   <span className='font-mono text-[#555] text-[11px]'>{span.name}</span>
                   <span className='font-medium text-[#999] text-[11px]'>{span.ms}ms</span>
@@ -1143,7 +1143,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
           </colgroup>
           <thead>
             <tr>
-              <th className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-1 py-1.75 text-center align-middle'>
+              <th className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-1 py-[7px] text-center align-middle'>
                 <div className='flex items-center justify-center'>
                   <div className='h-[13px] w-[13px] rounded-[2px] border border-[#D4D4D4]' />
                 </div>
@@ -1151,7 +1151,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
               {MOCK_TABLE_COLUMNS.map((col) => (
                 <th
                   key={col}
-                  className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-2 py-1.75 text-left align-middle'
+                  className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-2 py-[7px] text-left align-middle'
                 >
                   <div className='flex items-center gap-1.5'>
                     <ColumnTypeIcon />
@@ -1176,7 +1176,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
                 >
                   <td
                     className={cn(
-                      'border-[#E5E5E5] border-r border-b px-1 py-1.75 text-center align-middle',
+                      'border-[#E5E5E5] border-r border-b px-1 py-[7px] text-center align-middle',
                       isSelected ? 'bg-[rgba(37,99,235,0.06)]' : 'hover:bg-[#FAFAFA]'
                     )}
                   >
@@ -1186,7 +1186,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
                     <td
                       key={j}
                       className={cn(
-                        'relative border-[#E5E5E5] border-r border-b px-2 py-1.75 align-middle',
+                        'relative border-[#E5E5E5] border-r border-b px-2 py-[7px] align-middle',
                         isSelected ? 'bg-[rgba(37,99,235,0.06)]' : 'hover:bg-[#FAFAFA]'
                       )}
                     >

@@ -1530,7 +1530,7 @@ export const Sidebar = memo(function Sidebar() {
               {/* Footer */}
               <div
                 className={cn(
-                  'flex flex-shrink-0 flex-col gap-0.5 border-t px-2 pt-2.25 pb-2 transition-colors duration-150',
+                  'flex flex-shrink-0 flex-col gap-0.5 border-t px-2 pt-[9px] pb-2 transition-colors duration-150',
                   !hasOverflowBottom && 'border-transparent'
                 )}
               >

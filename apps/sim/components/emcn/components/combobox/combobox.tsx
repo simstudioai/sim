@@ -640,7 +640,7 @@ const Combobox = memo(
             >
               {searchable && (
                 <div className='flex items-center px-2.5 pt-2 pb-1'>
-                  <Search className='mr-1.75 ml-[1px] h-[13px] w-[13px] shrink-0 text-[var(--text-muted)]' />
+                  <Search className='mr-[7px] ml-[1px] h-[13px] w-[13px] shrink-0 text-[var(--text-muted)]' />
                   <input
                     ref={searchInputRef}
                     className='w-full bg-transparent font-base text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
@@ -745,7 +745,7 @@ const Combobox = memo(
                                 }
                                 className={cn(
                                   'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-medium font-sans',
-                                  size === 'sm' ? 'py-1.25 text-caption' : 'py-1.5 text-sm',
+                                  size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
                                   'hover-hover:bg-[var(--border-1)]',
                                   (isHighlighted || isSelected) && 'bg-[var(--border-1)]',
                                   option.disabled && 'cursor-not-allowed opacity-50'
@@ -785,7 +785,7 @@ const Combobox = memo(
                           onMouseEnter={() => setHighlightedIndex(-1)}
                           className={cn(
                             'relative flex cursor-pointer select-none items-center rounded-sm px-1.5 font-medium font-sans',
-                            size === 'sm' ? 'py-1.25 text-caption' : 'py-1.5 text-sm',
+                            size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
                             'hover-hover:bg-[var(--border-1)]',
                             !multiSelectValues?.length && 'bg-[var(--border-1)]'
                           )}
@@ -819,7 +819,7 @@ const Combobox = memo(
                             onMouseEnter={() => !option.disabled && setHighlightedIndex(index)}
                             className={cn(
                               'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-medium font-sans',
-                              size === 'sm' ? 'py-1.25 text-caption' : 'py-1.5 text-sm',
+                              size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
                               'hover-hover:bg-[var(--border-1)]',
                               (isHighlighted || isSelected) && 'bg-[var(--border-1)]',
                               option.disabled && 'cursor-not-allowed opacity-50'

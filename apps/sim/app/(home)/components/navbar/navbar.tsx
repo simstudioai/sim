@@ -225,7 +225,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
             {isAuthenticated ? (
               <Link
                 href='/workspace'
-                className='inline-flex h-[30px] items-center gap-1.75 rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.25 text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-[9px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                 aria-label='Go to app'
               >
                 Go to App
@@ -241,7 +241,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                 </Link>
                 <Link
                   href='/signup'
-                  className='inline-flex h-[30px] items-center gap-1.75 rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                  className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                   aria-label='Get started with Sim'
                 >
                   Get started

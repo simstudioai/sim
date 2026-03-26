@@ -29,9 +29,9 @@ const badgeVariants = cva(
         'gray-secondary': `${STATUS_BASE} bg-[var(--surface-4)] text-[var(--text-secondary)]`,
       },
       size: {
-        sm: 'px-1.75 py-[1px] text-xs',
-        md: 'px-2.25 py-0.5 text-caption',
-        lg: 'px-2.25 py-[2.25px] text-caption',
+        sm: 'px-[7px] py-[1px] text-xs',
+        md: 'px-[9px] py-0.5 text-caption',
+        lg: 'px-[9px] py-[2.25px] text-caption',
       },
     },
     defaultVariants: {

@@ -80,7 +80,7 @@ function TrustStrip() {
           height={22}
           className='shrink-0 object-contain'
         />
-        <div className='flex flex-col gap-0.75'>
+        <div className='flex flex-col gap-[3px]'>
           <strong className='font-[430] font-season text-small text-white leading-none'>
             SOC 2 & HIPAA
           </strong>
@@ -100,7 +100,7 @@ function TrustStrip() {
         <div className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#FFCC02]/10'>
           <GithubIcon width={11} height={11} className='text-[#FFCC02]/75' />
         </div>
-        <div className='flex flex-col gap-0.75'>
+        <div className='flex flex-col gap-[3px]'>
           <strong className='font-[430] font-season text-small text-white leading-none'>
             Open Source
           </strong>
@@ -115,7 +115,7 @@ function TrustStrip() {
         <div className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#2ABBF8]/10'>
           <Lock className='h-[14px] w-[14px] text-[#2ABBF8]/75' />
         </div>
-        <div className='flex flex-col gap-0.75'>
+        <div className='flex flex-col gap-[3px]'>
           <strong className='font-[430] font-season text-small text-white leading-none'>
             SSO & SCIM
           </strong>

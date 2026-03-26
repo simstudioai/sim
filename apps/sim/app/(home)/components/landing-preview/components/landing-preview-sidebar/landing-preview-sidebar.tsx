@@ -88,7 +88,7 @@ export function LandingPreviewSidebar({
       {/* Workspace Header */}
       <div className='flex-shrink-0 px-2.5'>
         <div
-          className='pointer-events-none flex h-[32px] w-full items-center gap-2 rounded-[8px] border pr-2 pl-1.25'
+          className='pointer-events-none flex h-[32px] w-full items-center gap-2 rounded-[8px] border pr-2 pl-[5px]'
           style={{ borderColor: C.BORDER, backgroundColor: C.SURFACE_2 }}
         >
           <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-white'>
@@ -195,7 +195,7 @@ export function LandingPreviewSidebar({
       </div>
 
       {/* Footer */}
-      <div className='flex flex-shrink-0 flex-col gap-0.5 px-2 pt-2.25 pb-2'>
+      <div className='flex flex-shrink-0 flex-col gap-0.5 px-2 pt-[9px] pb-2'>
         {FOOTER_NAV.map((item) => (
           <StaticNavItem key={item.id} icon={item.icon} label={item.label} />
         ))}

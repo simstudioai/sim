@@ -89,7 +89,7 @@ function VikhyathCursor() {
         <div className='absolute top-0 left-[56.02px]'>
           <CursorArrow fill='#2ABBF8' />
         </div>
-        <div className='-left-[4px] absolute top-4.5 flex items-center rounded bg-[#2ABBF8] px-1.25 py-0.75 font-[420] font-season text-[var(--landing-text-dark)] text-sm leading-[100%] tracking-[-0.02em]'>
+        <div className='-left-[4px] absolute top-4.5 flex items-center rounded bg-[#2ABBF8] px-[5px] py-[3px] font-[420] font-season text-[var(--landing-text-dark)] text-sm leading-[100%] tracking-[-0.02em]'>
           Vikhyath
         </div>
       </div>
@@ -113,7 +113,7 @@ function AlexaCursor() {
         <div className='absolute top-0 left-0'>
           <CursorArrow fill='#FFCC02' />
         </div>
-        <div className='absolute top-4 left-[23px] flex items-center rounded bg-[#FFCC02] px-1.25 py-0.75 font-[420] font-season text-[var(--landing-text-dark)] text-sm leading-[100%] tracking-[-0.02em]'>
+        <div className='absolute top-4 left-[23px] flex items-center rounded bg-[#FFCC02] px-[5px] py-[3px] font-[420] font-season text-[var(--landing-text-dark)] text-sm leading-[100%] tracking-[-0.02em]'>
           Alexa
         </div>
       </div>
@@ -143,7 +143,7 @@ function YouCursor({ x, y, visible }: YouCursorProps) {
       <svg width='23.15' height='21.1' viewBox='0 0 17.5 16.4' fill='none'>
         <path d={CURSOR_ARROW_MIRRORED_PATH} fill='#33C482' />
       </svg>
-      <div className='absolute top-4 left-[23px] flex items-center rounded bg-[var(--brand-accent)] px-1.25 py-0.75 font-[420] font-season text-[var(--landing-text-dark)] text-sm leading-[100%] tracking-[-0.02em]'>
+      <div className='absolute top-4 left-[23px] flex items-center rounded bg-[var(--brand-accent)] px-[5px] py-[3px] font-[420] font-season text-[var(--landing-text-dark)] text-sm leading-[100%] tracking-[-0.02em]'>
         You
       </div>
     </div>
