@@ -60,7 +60,7 @@ export { Expandable, ExpandableContent } from './expandable/expandable'
 export { FormField, type FormFieldProps } from './form-field/form-field'
 export { Input, type InputProps, inputVariants } from './input/input'
 export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
-export { Label } from './label/label'
+export { Label, type LabelProps, labelVariants } from './label/label'
 export {
   MODAL_SIZES,
   Modal,
@@ -122,9 +122,9 @@ export {
   SModalTabsTrigger,
   SModalTrigger,
 } from './s-modal/s-modal'
-export { Skeleton } from './skeleton/skeleton'
+export { Skeleton, type SkeletonProps, skeletonVariants } from './skeleton/skeleton'
 export { Slider, type SliderProps } from './slider/slider'
-export { Switch } from './switch/switch'
+export { Switch, type SwitchProps, switchThumbVariants, switchVariants } from './switch/switch'
 export {
   Table,
   TableBody,
@@ -145,7 +145,7 @@ export {
   tagInputVariants,
   tagVariants,
 } from './tag-input/tag-input'
-export { Textarea } from './textarea/textarea'
+export { Textarea, type TextareaProps, textareaVariants } from './textarea/textarea'
 export { TimePicker, type TimePickerProps, timePickerVariants } from './time-picker/time-picker'
 export { CountdownRing } from './toast/countdown-ring'
 export { ToastProvider, toast, useToast } from './toast/toast'

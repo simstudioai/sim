@@ -5,11 +5,25 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { Button, type ButtonProps } from '@/components/emcn/components/button/button'
 import { cn } from '@/lib/core/utils/cn'
 
+/**
+ * Variant styles for the Banner component.
+ *
+ * @remarks
+ * Supports semantic variants:
+ * - **default** - Neutral surface background for informational banners
+ * - **destructive** - Red background for error/danger messages
+ * - **warning** - Amber/orange background for caution messages
+ * - **info** - Blue background for informational highlights
+ * - **success** - Green background for positive confirmations
+ */
 const bannerVariants = cva('shrink-0 px-6 py-2.5', {
   variants: {
     variant: {
       default: 'bg-[var(--surface-active)]',
       destructive: 'bg-red-50 dark:bg-red-950/30',
+      warning: 'bg-amber-50 dark:bg-amber-950/30',
+      info: 'bg-blue-50 dark:bg-blue-950/30',
+      success: 'bg-green-50 dark:bg-green-950/30',
     },
   },
   defaultVariants: {

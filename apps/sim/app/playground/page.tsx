@@ -8,6 +8,7 @@ import {
   AvatarFallback,
   AvatarImage,
   Badge,
+  Banner,
   Breadcrumb,
   BubbleChatClose,
   BubbleChatPreview,
@@ -30,6 +31,7 @@ import {
   Eye,
   FolderCode,
   FolderPlus,
+  FormField,
   Hand,
   HexSimple,
   Input,
@@ -64,6 +66,7 @@ import {
   PopoverTrigger,
   Redo,
   Rocket,
+  Skeleton,
   Slider,
   SModal,
   SModalContent,
@@ -228,6 +231,9 @@ export default function PlaygroundPage() {
             <VariantRow label='ghost'>
               <Button variant='ghost'>Ghost</Button>
             </VariantRow>
+            <VariantRow label='subtle'>
+              <Button variant='subtle'>Subtle</Button>
+            </VariantRow>
             <VariantRow label='ghost-secondary'>
               <Button variant='ghost-secondary'>Ghost Secondary</Button>
             </VariantRow>
@@ -337,6 +343,9 @@ export default function PlaygroundPage() {
             <VariantRow label='gray'>
               <Badge variant='gray'>Gray</Badge>
             </VariantRow>
+            <VariantRow label='pink'>
+              <Badge variant='pink'>Pink</Badge>
+            </VariantRow>
             <VariantRow label='gray-secondary'>
               <Badge variant='gray-secondary'>Gray Secondary</Badge>
             </VariantRow>
@@ -351,6 +360,18 @@ export default function PlaygroundPage() {
           <Section title='Input'>
             <VariantRow label='default'>
               <Input placeholder='Enter text...' className='max-w-xs' />
+            </VariantRow>
+            <VariantRow label='error'>
+              <Input variant='error' placeholder='Invalid value' className='max-w-xs' />
+            </VariantRow>
+            <VariantRow label='ghost'>
+              <Input variant='ghost' placeholder='Inline edit...' className='max-w-xs' />
+            </VariantRow>
+            <VariantRow label='size sm'>
+              <Input size='sm' placeholder='Small input' className='max-w-xs' />
+            </VariantRow>
+            <VariantRow label='size md'>
+              <Input size='md' placeholder='Medium input' className='max-w-xs' />
             </VariantRow>
             <VariantRow label='disabled'>
               <Input placeholder='Disabled' disabled className='max-w-xs' />
@@ -417,15 +438,85 @@ export default function PlaygroundPage() {
 
           {/* Textarea */}
           <Section title='Textarea'>
-            <Textarea placeholder='Enter your message...' className='max-w-md' rows={4} />
+            <VariantRow label='default'>
+              <Textarea placeholder='Enter your message...' className='max-w-md' rows={3} />
+            </VariantRow>
+            <VariantRow label='error'>
+              <Textarea
+                variant='error'
+                placeholder='Invalid content'
+                className='max-w-md'
+                rows={3}
+              />
+            </VariantRow>
+            <VariantRow label='ghost'>
+              <Textarea
+                variant='ghost'
+                placeholder='Inline edit...'
+                className='max-w-md'
+                rows={3}
+              />
+            </VariantRow>
           </Section>
 
           {/* Label */}
           <Section title='Label'>
-            <div className='flex flex-col gap-2'>
-              <Label htmlFor='demo-input'>Label Text</Label>
-              <Input id='demo-input' placeholder='Input with label' className='max-w-xs' />
-            </div>
+            <VariantRow label='default'>
+              <Label>Label Text</Label>
+            </VariantRow>
+            <VariantRow label='required'>
+              <Label required>Required Field</Label>
+            </VariantRow>
+            <VariantRow label='size sm'>
+              <Label size='sm'>Small Label</Label>
+            </VariantRow>
+            <VariantRow label='size md'>
+              <Label size='md'>Medium Label</Label>
+            </VariantRow>
+            <VariantRow label='size lg'>
+              <Label size='lg'>Large Label</Label>
+            </VariantRow>
+            <VariantRow label='with input'>
+              <div className='flex flex-col gap-2'>
+                <Label htmlFor='demo-input' required>
+                  Email Address
+                </Label>
+                <Input id='demo-input' placeholder='Input with label' className='max-w-xs' />
+              </div>
+            </VariantRow>
+          </Section>
+
+          {/* FormField */}
+          <Section title='FormField'>
+            <VariantRow label='default'>
+              <FormField label='Username' htmlFor='ff-user'>
+                <Input id='ff-user' placeholder='Enter username' className='max-w-xs' />
+              </FormField>
+            </VariantRow>
+            <VariantRow label='optional'>
+              <FormField label='Bio' htmlFor='ff-bio' optional>
+                <Textarea
+                  id='ff-bio'
+                  placeholder='Tell us about yourself'
+                  className='max-w-xs'
+                  rows={2}
+                />
+              </FormField>
+            </VariantRow>
+            <VariantRow label='with error'>
+              <FormField
+                label='Email'
+                htmlFor='ff-email'
+                error='Please enter a valid email address'
+              >
+                <Input
+                  id='ff-email'
+                  variant='error'
+                  placeholder='Enter email'
+                  className='max-w-xs'
+                />
+              </FormField>
+            </VariantRow>
           </Section>
 
           {/* Switch */}
@@ -435,6 +526,22 @@ export default function PlaygroundPage() {
               <span className='text-[var(--text-secondary)] text-sm'>
                 {switchValue ? 'On' : 'Off'}
               </span>
+            </VariantRow>
+            <VariantRow label='size sm'>
+              <Switch size='sm' />
+              <span className='text-[var(--text-secondary)] text-sm'>Small</span>
+            </VariantRow>
+            <VariantRow label='size md'>
+              <Switch size='md' />
+              <span className='text-[var(--text-secondary)] text-sm'>Medium (default)</span>
+            </VariantRow>
+            <VariantRow label='size lg'>
+              <Switch size='lg' />
+              <span className='text-[var(--text-secondary)] text-sm'>Large</span>
+            </VariantRow>
+            <VariantRow label='disabled'>
+              <Switch disabled />
+              <Switch disabled checked />
             </VariantRow>
           </Section>
 
@@ -471,6 +578,18 @@ export default function PlaygroundPage() {
                 <Slider value={sliderValue} onValueChange={setSliderValue} max={100} step={1} />
               </div>
               <span className='text-[var(--text-secondary)] text-sm'>{sliderValue[0]}</span>
+            </VariantRow>
+            <VariantRow label='size sm'>
+              <div className='w-48'>
+                <Slider size='sm' value={[50]} max={100} step={1} />
+              </div>
+              <span className='text-[var(--text-secondary)] text-sm'>Small</span>
+            </VariantRow>
+            <VariantRow label='size lg'>
+              <div className='w-48'>
+                <Slider size='lg' value={[70]} max={100} step={1} />
+              </div>
+              <span className='text-[var(--text-secondary)] text-sm'>Large</span>
             </VariantRow>
             <VariantRow label='disabled'>
               <div className='w-48'>
@@ -991,6 +1110,45 @@ export default function PlaygroundPage() {
                   showGutter
                   wrapText
                 />
+              </div>
+            </VariantRow>
+          </Section>
+
+          {/* Banner */}
+          <Section title='Banner'>
+            <Banner text='Default informational banner' variant='default' />
+            <Banner text='Error: Something went wrong' variant='destructive' />
+            <Banner text='Warning: Please review before continuing' variant='warning' />
+            <Banner text='Info: A new version is available' variant='info' />
+            <Banner text='Success: Your changes have been saved' variant='success' />
+            <Banner
+              text='Banner with action'
+              variant='info'
+              actionLabel='Update now'
+              onAction={() => {}}
+            />
+          </Section>
+
+          {/* Skeleton */}
+          <Section title='Skeleton'>
+            <VariantRow label='line (default)'>
+              <Skeleton className='h-4 w-48' />
+              <Skeleton className='h-4 w-32' />
+            </VariantRow>
+            <VariantRow label='circle'>
+              <Skeleton variant='circle' className='h-8 w-8' />
+              <Skeleton variant='circle' className='h-10 w-10' />
+            </VariantRow>
+            <VariantRow label='rectangle'>
+              <Skeleton variant='rectangle' className='h-20 w-32' />
+            </VariantRow>
+            <VariantRow label='composition'>
+              <div className='flex items-center gap-3'>
+                <Skeleton variant='circle' className='h-10 w-10' />
+                <div className='space-y-2'>
+                  <Skeleton className='h-4 w-32' />
+                  <Skeleton className='h-3 w-48' />
+                </div>
               </div>
             </VariantRow>
           </Section>

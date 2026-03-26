@@ -97,7 +97,7 @@ export interface ComboboxProps
   /** Additional input props for editable mode */
   inputProps?: Omit<
     React.InputHTMLAttributes<HTMLInputElement>,
-    'value' | 'onChange' | 'disabled' | 'placeholder'
+    'value' | 'onChange' | 'disabled' | 'placeholder' | 'size'
   >
   /** Ref for the input element in editable mode */
   inputRef?: React.RefObject<HTMLInputElement | null>
