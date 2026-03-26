@@ -388,7 +388,7 @@ async function fetchCustomToolFromAPI(
     if (typeof window === 'undefined') {
       try {
         const { generateInternalToken } = await import('@/lib/auth/internal')
-        const internalToken = await generateInternalToken()
+        const internalToken = await generateInternalToken(userId)
         headers.Authorization = `Bearer ${internalToken}`
       } catch (error) {
         logger.warn('Failed to generate internal token for custom tools fetch', { error })

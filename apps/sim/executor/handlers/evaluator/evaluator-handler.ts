@@ -134,7 +134,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
       const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: await buildAuthHeaders(),
+        headers: await buildAuthHeaders(ctx.userId),
         body: stringifyJSON(providerRequest),
       })
 

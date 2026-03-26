@@ -1017,12 +1017,13 @@ async function addInternalAuthIfNeeded(
   headers: Headers | Record<string, string>,
   isInternalRoute: boolean,
   requestId: string,
-  context: string
+  context: string,
+  userId?: string
 ): Promise<void> {
   if (typeof window === 'undefined') {
     if (isInternalRoute) {
       try {
-        const internalToken = await generateInternalToken()
+        const internalToken = await generateInternalToken(userId)
         if (headers instanceof Headers) {
           headers.set('Authorization', `Bearer ${internalToken}`)
         } else {
@@ -1163,7 +1164,13 @@ async function executeToolRequest(
     }
 
     const headers = new Headers(requestParams.headers)
-    await addInternalAuthIfNeeded(headers, isInternalRoute, requestId, toolId)
+    await addInternalAuthIfNeeded(
+      headers,
+      isInternalRoute,
+      requestId,
+      toolId,
+      params._context?.userId
+    )
 
     const shouldPropagateCallChain = isInternalRoute || isSelfOriginUrl(fullUrl)
     if (shouldPropagateCallChain) {
@@ -1518,7 +1525,7 @@ async function executeMcpTool(
 
     if (typeof window === 'undefined') {
       try {
-        const internalToken = await generateInternalToken()
+        const internalToken = await generateInternalToken(executionContext?.userId)
         headers.Authorization = `Bearer ${internalToken}`
       } catch (error) {
         logger.error(`[${actualRequestId}] Failed to generate internal token:`, error)
