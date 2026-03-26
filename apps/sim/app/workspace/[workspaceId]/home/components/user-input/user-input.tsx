@@ -672,7 +672,7 @@ export function UserInput({
       </div>
 
       <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-[6px]'>
+        <div className='flex items-center gap-1.5'>
           <PlusMenuDropdown
             ref={plusMenuRef}
             availableResources={availableResources}
@@ -683,7 +683,7 @@ export function UserInput({
             pendingCursorRef={pendingCursorRef}
           />
         </div>
-        <div className='flex items-center gap-[6px]'>
+        <div className='flex items-center gap-1.5'>
           <MicButton isListening={isListening} onToggle={toggleListening} />
           <SendButton
             isSending={isSending}

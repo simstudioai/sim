@@ -259,7 +259,7 @@ export function SettingsSidebar({
                     const active = activeSection === item.id
                     const isLocked = item.requiresMax && !subscriptionAccess.hasUsableMaxAccess
                     const itemClassName = cn(
-                      'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
+                      'group mx-0.5 flex h-[30px] items-center gap-2 rounded-[8px] px-2 text-[14px] hover:bg-[var(--surface-active)]',
                       active && 'bg-[var(--surface-active)]'
                     )
                     const content = (
@@ -269,7 +269,7 @@ export function SettingsSidebar({
                           {item.label}
                         </span>
                         {isLocked && (
-                          <span className='ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-[4px] py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
+                          <span className='ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
                             Max
                           </span>
                         )}

@@ -41,7 +41,7 @@ export function FooterCTA() {
   }, [])
 
   return (
-    <div className='flex flex-col items-center px-4 pt-[120px] pb-[100px] sm:px-8 md:px-[80px]'>
+    <div className='flex flex-col items-center px-4 pt-[120px] pb-[100px] sm:px-8 md:px-20'>
       <h2 className='text-balance text-center font-[430] font-season text-[28px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em] sm:text-[32px] md:text-[36px]'>
         What should we get done?
       </h2>
@@ -84,7 +84,7 @@ export function FooterCTA() {
           href='https://docs.sim.ai'
           target='_blank'
           rel='noopener noreferrer'
-          className={`${CTA_BUTTON} border-[#D4D4D4] text-[var(--landing-text-dark)] transition-colors hover:bg-[var(--landing-bg-skeleton)]`}
+          className={`${CTA_BUTTON} border-[var(--landing-border-subtle)] text-[var(--landing-text-dark)] transition-colors hover:bg-[var(--landing-bg-skeleton)]`}
         >
           Docs
         </a>

@@ -29,12 +29,12 @@ export function Inbox() {
 
   if (isBillingEnabled && !subscriptionAccess.hasUsableMaxAccess) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-4 py-[80px]'>
+      <div className='flex h-full flex-col items-center justify-center gap-4 py-20'>
         <div className='text-center'>
           <h3 className='font-medium text-[16px] text-[var(--text-primary)]'>
             Sim Mailer requires an active Max plan
           </h3>
-          <p className='mt-[6px] text-[14px] text-[var(--text-muted)]'>
+          <p className='mt-1.5 text-[14px] text-[var(--text-muted)]'>
             Upgrade to Max and ensure billing is active to receive tasks via email and let Sim work
             on your behalf.
           </p>

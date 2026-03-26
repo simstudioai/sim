@@ -20,7 +20,7 @@ export function TemplateCardButton({ prompt, children }: TemplateCardButtonProps
     <button
       type='button'
       onClick={handleClick}
-      className='group flex w-full flex-col items-start rounded-lg border border-[#2A2A2A] bg-[#242424] p-5 text-left transition-colors hover:border-[#3d3d3d] hover:bg-[#2A2A2A]'
+      className='group flex w-full flex-col items-start rounded-lg border border-[var(--landing-border)] bg-[var(--landing-bg-card)] p-5 text-left transition-colors hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-elevated)]'
     >
       {children}
     </button>

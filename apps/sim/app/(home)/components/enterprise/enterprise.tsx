@@ -80,7 +80,7 @@ function TrustStrip() {
           height={22}
           className='shrink-0 object-contain'
         />
-        <div className='flex flex-col gap-[3px]'>
+        <div className='flex flex-col gap-0.75'>
           <strong className='font-[430] font-season text-small text-white leading-none'>
             SOC 2 & HIPAA
           </strong>
@@ -100,7 +100,7 @@ function TrustStrip() {
         <div className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#FFCC02]/10'>
           <GithubIcon width={11} height={11} className='text-[#FFCC02]/75' />
         </div>
-        <div className='flex flex-col gap-[3px]'>
+        <div className='flex flex-col gap-0.75'>
           <strong className='font-[430] font-season text-small text-white leading-none'>
             Open Source
           </strong>
@@ -115,7 +115,7 @@ function TrustStrip() {
         <div className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#2ABBF8]/10'>
           <Lock className='h-[14px] w-[14px] text-[#2ABBF8]/75' />
         </div>
-        <div className='flex flex-col gap-[3px]'>
+        <div className='flex flex-col gap-0.75'>
           <strong className='font-[430] font-season text-small text-white leading-none'>
             SSO & SCIM
           </strong>
@@ -135,7 +135,7 @@ export default function Enterprise() {
       aria-labelledby='enterprise-heading'
       className='bg-[var(--landing-bg-section)]'
     >
-      <div className='px-4 pt-[60px] pb-10 sm:px-8 sm:pt-[80px] sm:pb-0 md:px-[80px] md:pt-[100px]'>
+      <div className='px-4 pt-[60px] pb-10 sm:px-8 sm:pt-20 sm:pb-0 md:px-20 md:pt-[100px]'>
         <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-5'>
           <Badge
             variant='blue'
@@ -156,10 +156,10 @@ export default function Enterprise() {
           </h2>
         </div>
 
-        <div className='mt-8 overflow-hidden rounded-[12px] bg-[#1C1C1C] sm:mt-10 md:mt-12'>
-          <div className='grid grid-cols-1 border-[#2A2A2A] border-b lg:grid-cols-[1fr_420px]'>
+        <div className='mt-8 overflow-hidden rounded-[12px] bg-[var(--landing-bg)] sm:mt-10 md:mt-12'>
+          <div className='grid grid-cols-1 border-[var(--landing-border)] border-b lg:grid-cols-[1fr_420px]'>
             {/* Audit Trail */}
-            <div className='border-[#2A2A2A] lg:border-r'>
+            <div className='border-[var(--landing-border)] lg:border-r'>
               <div className='px-6 pt-6 md:px-8 md:pt-8'>
                 <h3 className='font-[430] font-season text-[16px] text-white leading-[120%] tracking-[-0.01em]'>
                   Audit Trail
@@ -173,12 +173,12 @@ export default function Enterprise() {
             </div>
 
             {/* Access Control */}
-            <div className='border-[#2A2A2A] border-t lg:border-t-0'>
+            <div className='border-[var(--landing-border)] border-t lg:border-t-0'>
               <div className='px-6 pt-6 md:px-8 md:pt-8'>
                 <h3 className='font-[430] font-season text-[16px] text-white leading-[120%] tracking-[-0.01em]'>
                   Access Control
                 </h3>
-                <p className='mt-[6px] font-[430] font-season text-[#F6F6F6]/50 text-[14px] leading-[150%] tracking-[0.02em]'>
+                <p className='mt-1.5 font-[430] font-season text-[#F6F6F6]/50 text-[14px] leading-[150%] tracking-[0.02em]'>
                   Restrict providers, surfaces, and tools per group.
                 </p>
               </div>
@@ -226,7 +226,7 @@ export default function Enterprise() {
             <DemoRequestModal>
               <button
                 type='button'
-                className='group/cta inline-flex h-[32px] cursor-pointer items-center gap-[6px] rounded-[5px] border border-white bg-white px-[10px] font-[430] font-season text-[14px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                className='group/cta inline-flex h-[32px] cursor-pointer items-center gap-1.5 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-[14px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
               >
                 Book a demo
                 <span className='relative h-[10px] w-[10px] shrink-0'>

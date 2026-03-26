@@ -29,7 +29,7 @@ function BlogCard({
     <Link
       href={`/blog/${slug}`}
       className={cn(
-        'group/card flex flex-col overflow-hidden rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] transition-colors hover:border-[#3D3D3D] hover:bg-[var(--landing-bg-elevated)]',
+        'group/card flex flex-col overflow-hidden rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] transition-colors hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-elevated)]',
         className
       )}
       prefetch={false}

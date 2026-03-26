@@ -502,7 +502,7 @@ export const LogDetails = memo(function LogDetails({
                         Version
                       </span>
                       <div className='flex w-0 flex-1 justify-end'>
-                        <span className='max-w-full truncate rounded-md bg-[#bbf7d0] px-[9px] py-0.5 font-medium text-[#15803d] text-caption dark:bg-[#14291B] dark:text-[#86EFAC]'>
+                        <span className='max-w-full truncate rounded-md bg-[var(--badge-success-bg)] px-2.25 py-0.5 font-medium text-[var(--badge-success-text)] text-caption'>
                           {log.deploymentVersionName || `v${log.deploymentVersion}`}
                         </span>
                       </div>

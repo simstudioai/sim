@@ -123,7 +123,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       </header>
 
       <div className='mx-auto max-w-[900px] px-6 pb-20 sm:px-8 md:px-12' itemProp='articleBody'>
-        <div className='prose prose-lg prose-invert max-w-none prose-blockquote:border-[#3d3d3d] prose-hr:border-[var(--landing-bg-elevated)] prose-a:text-[var(--landing-text)] prose-blockquote:text-[var(--landing-text-muted)] prose-code:text-[var(--landing-text)] prose-headings:text-[var(--landing-text)] prose-li:text-[var(--landing-text-muted)] prose-p:text-[var(--landing-text-muted)] prose-strong:text-[var(--landing-text)]'>
+        <div className='prose prose-lg prose-invert max-w-none prose-blockquote:border-[var(--landing-border-strong)] prose-hr:border-[var(--landing-bg-elevated)] prose-a:text-[var(--landing-text)] prose-blockquote:text-[var(--landing-text-muted)] prose-code:text-[var(--landing-text)] prose-headings:text-[var(--landing-text)] prose-li:text-[var(--landing-text-muted)] prose-p:text-[var(--landing-text-muted)] prose-strong:text-[var(--landing-text)]'>
           <Article />
           {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
         </div>

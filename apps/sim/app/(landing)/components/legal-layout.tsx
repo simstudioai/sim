@@ -17,7 +17,7 @@ export default async function LegalLayout({ title, children }: LegalLayoutProps)
         <Navbar blogPosts={blogPosts} />
       </header>
 
-      <div className='mx-auto max-w-[800px] px-6 pt-[60px] pb-[80px] sm:px-12'>
+      <div className='mx-auto max-w-[800px] px-6 pt-[60px] pb-20 sm:px-12'>
         <h1 className='mb-12 text-balance text-center font-[500] text-4xl text-[var(--landing-text)] md:text-5xl'>
           {title}
         </h1>

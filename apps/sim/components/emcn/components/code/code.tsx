@@ -452,7 +452,7 @@ export function getCodeEditorProps(options?: {
       'border-none bg-transparent outline-none resize-none',
       'focus:outline-none focus:ring-0',
       // Selection styling - light and dark modes
-      'selection:bg-[#add6ff] selection:text-[var(--bg)]',
+      'selection:bg-[var(--selection-bg)] selection:text-[var(--bg)]',
       'dark:selection:bg-[var(--selection-dark)] dark:selection:text-white',
       // Caret color - adapts to mode
       'caret-[var(--text-primary)] dark:caret-white',
@@ -676,7 +676,7 @@ function applySearchHighlightingToLine(
         matchesInLine++
 
         const bgClass = isCurrentMatch
-          ? 'bg-[#F6AD55] text-[var(--text-primary)] dark:bg-[#F6AD55] dark:text-[var(--text-primary)]'
+          ? 'bg-[var(--highlight-search-active)] text-[var(--text-primary)]'
           : 'bg-[#FCD34D]/40 dark:bg-[#FCD34D]/30'
 
         return `<mark class="${bgClass} rounded-xs" data-search-match>${match}</mark>`
@@ -764,7 +764,7 @@ function applySearchHighlighting(
         matchCounter.count++
 
         const bgClass = isCurrentMatch
-          ? 'bg-[#F6AD55] text-[var(--text-primary)] dark:bg-[#F6AD55] dark:text-[var(--text-primary)]'
+          ? 'bg-[var(--highlight-search-active)] text-[var(--text-primary)]'
           : 'bg-[#FCD34D]/40 dark:bg-[#FCD34D]/30'
 
         return `<mark class="${bgClass} rounded-xs" data-search-match>${match}</mark>`

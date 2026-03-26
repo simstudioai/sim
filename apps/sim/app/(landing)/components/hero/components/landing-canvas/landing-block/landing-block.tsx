@@ -44,11 +44,11 @@ export const LandingBlock = React.memo(function LandingBlock({
 
   return (
     <div
-      className={`z-10 flex w-[250px] flex-col rounded-lg border border-[#E5E5E5] bg-white ${className ?? ''}`}
+      className={`z-10 flex w-[250px] flex-col rounded-lg border border-[var(--landing-border-light)] bg-white ${className ?? ''}`}
     >
       {/* Header - matches workflow-block.tsx header styling */}
       <div
-        className={`flex items-center justify-between p-2 ${hasContentBelowHeader ? 'border-[#E5E5E5] border-b' : ''}`}
+        className={`flex items-center justify-between p-2 ${hasContentBelowHeader ? 'border-[var(--landing-border-light)] border-b' : ''}`}
       >
         <div className='flex min-w-0 flex-1 items-center gap-2.5'>
           <div

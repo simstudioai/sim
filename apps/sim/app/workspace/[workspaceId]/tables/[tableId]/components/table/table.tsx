@@ -2726,9 +2726,9 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           />
         </div>
       ) : readOnly ? (
-        <div className='flex h-full w-full min-w-0 items-center px-[8px] py-[7px]'>
+        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon type={column.type} />
-          <span className='ml-[6px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
+          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
             {column.name}
           </span>
         </div>

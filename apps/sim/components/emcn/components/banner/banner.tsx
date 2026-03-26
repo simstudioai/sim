@@ -5,7 +5,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { Button, type ButtonProps } from '@/components/emcn/components/button/button'
 import { cn } from '@/lib/core/utils/cn'
 
-const bannerVariants = cva('shrink-0 px-[24px] py-[10px]', {
+const bannerVariants = cva('shrink-0 px-6 py-2.5', {
   variants: {
     variant: {
       default: 'bg-[var(--surface-active)]',
@@ -52,7 +52,7 @@ export function Banner({
       {children ?? (
         <div
           className={cn(
-            'mx-auto flex max-w-[1400px] items-center justify-between gap-[12px]',
+            'mx-auto flex max-w-[1400px] items-center justify-between gap-3',
             contentClassName
           )}
         >
@@ -60,7 +60,7 @@ export function Banner({
           {actionLabel ? (
             <Button
               variant={actionVariant}
-              className={cn('h-[28px] shrink-0 px-[8px] text-[12px]', actionClassName)}
+              className={cn('h-[28px] shrink-0 px-2 text-[12px]', actionClassName)}
               onClick={onAction}
               disabled={actionDisabled}
               {...actionProps}

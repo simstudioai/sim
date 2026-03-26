@@ -45,7 +45,7 @@ export function DocsDropdown() {
             href={card.href}
             target='_blank'
             rel='noopener noreferrer'
-            className='group/card overflow-hidden rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] transition-colors hover:border-[#3D3D3D] hover:bg-[var(--landing-bg-elevated)]'
+            className='group/card overflow-hidden rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] transition-colors hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-elevated)]'
           >
             <div className='relative h-[120px] w-full overflow-hidden bg-[#141414]'>
               <Image
@@ -74,7 +74,7 @@ export function DocsDropdown() {
               href={card.href}
               target='_blank'
               rel='noopener noreferrer'
-              className='flex flex-col gap-1 rounded-[5px] border border-[var(--landing-bg-elevated)] px-2.5 py-2 transition-colors hover:border-[#3D3D3D] hover:bg-[var(--landing-bg-card)]'
+              className='flex flex-col gap-1 rounded-[5px] border border-[var(--landing-bg-elevated)] px-2.5 py-2 transition-colors hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-card)]'
             >
               <div className='flex items-center gap-1.5'>
                 <Icon className='h-[13px] w-[13px] flex-shrink-0 text-[var(--landing-text-icon)]' />

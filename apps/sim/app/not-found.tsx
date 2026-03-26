@@ -31,7 +31,7 @@ export default async function NotFound() {
             <div className='mt-3 flex items-center gap-2'>
               <Link
                 href='/'
-                className={`${CTA_BASE} gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]`}
+                className={`${CTA_BASE} gap-2 border-white bg-white text-black transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)]`}
               >
                 Return to Home
               </Link>

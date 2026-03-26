@@ -312,7 +312,7 @@ export function MessageContent({
   if (segments.length === 0) {
     if (isStreaming) {
       return (
-        <div className='space-y-[10px]'>
+        <div className='space-y-2.5'>
           <PendingTagIndicator />
         </div>
       )

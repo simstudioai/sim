@@ -746,7 +746,7 @@ export const Toolbar = memo(
           >
             <div
               ref={triggersHeaderRef}
-              className='px-2.5 pt-[5px] pb-[5px] font-medium text-[var(--text-primary)] text-small'
+              className='px-2.5 pt-1.25 pb-1.25 font-medium text-[var(--text-primary)] text-small'
             >
               Triggers
             </div>
@@ -780,7 +780,7 @@ export const Toolbar = memo(
             <div
               ref={blocksHeaderRef}
               onClick={handleBlocksHeaderClick}
-              className='cursor-pointer px-2.5 pt-[5px] pb-[5px] font-medium text-[var(--text-primary)] text-small'
+              className='cursor-pointer px-2.5 pt-1.25 pb-1.25 font-medium text-[var(--text-primary)] text-small'
             >
               Blocks
             </div>

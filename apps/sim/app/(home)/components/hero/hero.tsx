@@ -20,7 +20,7 @@ const LandingPreview = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <div className='aspect-[1116/549] w-full rounded bg-[#1b1b1b]' />,
+    loading: () => <div className='aspect-[1116/549] w-full rounded bg-[var(--landing-bg)]' />,
   }
 )
 
@@ -70,11 +70,11 @@ export default function Hero() {
           Sim is the AI Workspace for Agent Builders.
         </p>
 
-        <div className='mt-[12px] flex items-center gap-[8px]'>
+        <div className='mt-3 flex items-center gap-2'>
           <DemoRequestModal>
             <button
               type='button'
-              className={`${CTA_BASE} border-[#3d3d3d] bg-transparent text-[#ECECEC] transition-colors hover:bg-[#2A2A2A]`}
+              className={`${CTA_BASE} border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]`}
               aria-label='Get a demo'
             >
               Get a demo

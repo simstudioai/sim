@@ -245,12 +245,12 @@ export function Admin() {
                       <Badge variant='green'>Active</Badge>
                     )}
                   </span>
-                  <span className='flex w-[250px] justify-end gap-[4px]'>
+                  <span className='flex w-[250px] justify-end gap-1'>
                     {u.id !== session?.user?.id && (
                       <>
                         <Button
                           variant='active'
-                          className='h-[28px] px-[8px] text-[12px]'
+                          className='h-[28px] px-2 text-[12px]'
                           onClick={() => handleImpersonate(u.id)}
                           disabled={pendingUserIds.has(u.id)}
                         >
@@ -263,7 +263,7 @@ export function Admin() {
                         </Button>
                         <Button
                           variant='active'
-                          className='h-[28px] px-[8px] text-[12px]'
+                          className='h-[28px] px-2 text-[12px]'
                           onClick={() => {
                             setUserRole.reset()
                             setUserRole.mutate({

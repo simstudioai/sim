@@ -192,9 +192,9 @@ function CreditPlanCard({
 
   return (
     <article className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-      <div className='flex min-h-[44px] items-center justify-between gap-[8px] px-[14px] py-[10px]'>
+      <div className='flex min-h-[44px] items-center justify-between gap-2 px-3.5 py-2.5'>
         <span className='font-medium text-[14px] text-[var(--text-primary)]'>{name}</span>
-        <div className='flex shrink-0 items-baseline gap-[4px] whitespace-nowrap'>
+        <div className='flex shrink-0 items-baseline gap-1 whitespace-nowrap'>
           <span className='font-medium text-[14px] text-[var(--text-primary)]'>
             ${isAnnual ? discountedMonthly : dollars}
           </span>
@@ -205,7 +205,7 @@ function CreditPlanCard({
         </div>
       </div>
 
-      <div className='flex items-center gap-[12px] rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[10px]'>
+      <div className='flex items-center gap-3 rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-2.5'>
         <div className='flex flex-col'>
           <span className='font-semibold text-[var(--text-primary)] text-lg tabular-nums'>
             {credits.toLocaleString()}
@@ -240,7 +240,7 @@ function CreditPlanCard({
         </div>
       )}
 
-      <div className='flex min-h-[60px] items-center border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[14px]'>
+      <div className='flex min-h-[60px] items-center border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3.5'>
         {isCurrentPlan ? (
           <Button onClick={onManagePlan} className='h-[32px] w-full' variant='default'>
             {isCancelledAtPeriodEnd ? 'Restore Subscription' : 'Manage plan'}
@@ -679,7 +679,7 @@ export function Subscription() {
                 onClick={() => setIsAnnual(true)}
               >
                 Annual
-                <span className='rounded-[3px] bg-[#10b981] px-1 py-[1px] font-semibold text-micro text-white'>
+                <span className='rounded-[3px] bg-[var(--success)] px-1 py-[1px] font-semibold text-micro text-white'>
                   -15%
                 </span>
               </button>
@@ -709,7 +709,7 @@ export function Subscription() {
             const showProCard = !isOnMaxTier
 
             return (
-              <div className='grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-[10px]'>
+              <div className='grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-2.5'>
                 {showProCard && (
                   <CreditPlanCard
                     name='Pro'
@@ -931,7 +931,7 @@ export function Subscription() {
 
       {/* Billing details section */}
       {(subscription.isPaid || (!isLoading && isTeamAdmin)) && (
-        <div className='flex flex-col gap-[16px]'>
+        <div className='flex flex-col gap-4'>
           {subscription.isPaid && permissions.canViewUsageInfo && (
             <div>
               <CreditBalance
@@ -950,7 +950,7 @@ export function Subscription() {
             subscriptionData?.data?.periodEnd &&
             !permissions.showTeamMemberView &&
             !permissions.isEnterpriseMember && (
-              <div className='flex items-center justify-between gap-[16px]'>
+              <div className='flex items-center justify-between gap-4'>
                 <Label>{isCancelledAtPeriodEnd ? 'Access Until' : 'Next Billing Date'}</Label>
                 <span className='text-[var(--text-secondary)] text-small'>
                   {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
@@ -967,7 +967,7 @@ export function Subscription() {
           {subscription.isPaid &&
             !permissions.showTeamMemberView &&
             !permissions.isEnterpriseMember && (
-              <div className='flex items-center justify-between gap-[16px]'>
+              <div className='flex items-center justify-between gap-4'>
                 <Label>Invoices</Label>
                 <Button
                   variant='active'
@@ -1005,8 +1005,8 @@ export function Subscription() {
             )}
 
           {!isLoading && isTeamAdmin && (
-            <div className='flex items-center justify-between gap-[16px]'>
-              <div className='flex items-center gap-[6px]'>
+            <div className='flex items-center justify-between gap-4'>
+              <div className='flex items-center gap-1.5'>
                 <Label htmlFor='billed-account'>Billed Account</Label>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>

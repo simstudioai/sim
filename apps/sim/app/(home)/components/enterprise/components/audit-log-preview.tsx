@@ -125,7 +125,7 @@ function AuditRow({ entry, index }: AuditRowProps) {
   const timeAgo = formatTimeAgo(entry.insertedAt)
 
   return (
-    <div className='group relative overflow-hidden border-[#2A2A2A] border-b bg-[#1C1C1C] transition-colors duration-150 last:border-b-0 hover:bg-[#212121]'>
+    <div className='group relative overflow-hidden border-[var(--landing-border)] border-b bg-[var(--landing-bg)] transition-colors duration-150 last:border-b-0 hover:bg-[#212121]'>
       {/* Left accent bar -- brightness encodes recency */}
       <div
         aria-hidden='true'

@@ -376,7 +376,7 @@ export function General() {
       </div>
 
       <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-[6px]'>
+        <div className='flex items-center gap-1.5'>
           <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
@@ -400,7 +400,7 @@ export function General() {
       </div>
 
       <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-[6px]'>
+        <div className='flex items-center gap-1.5'>
           <Label htmlFor='error-notifications'>Canvas error notifications</Label>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>

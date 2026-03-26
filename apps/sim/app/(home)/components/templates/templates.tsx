@@ -19,7 +19,7 @@ const LandingPreviewWorkflow = dynamic(
     ).then((mod) => mod.LandingPreviewWorkflow),
   {
     ssr: false,
-    loading: () => <div className='h-full w-full bg-[#1b1b1b]' />,
+    loading: () => <div className='h-full w-full bg-[var(--landing-bg)]' />,
   }
 )
 
@@ -412,7 +412,7 @@ export default function Templates() {
       ref={sectionRef}
       id='templates'
       aria-labelledby='templates-heading'
-      className='mt-10 mb-[80px]'
+      className='mt-10 mb-20'
     >
       <p className='sr-only'>
         Sim includes {TEMPLATE_WORKFLOWS.length} pre-built workflow templates covering OCR
@@ -449,7 +449,7 @@ export default function Templates() {
             </svg>
           </div>
 
-          <div className='px-5 pt-[60px] lg:px-[80px] lg:pt-[100px]'>
+          <div className='px-5 pt-[60px] lg:px-20 lg:pt-[100px]'>
             <div className='flex flex-col items-start gap-5'>
               <Badge
                 variant='blue'
@@ -543,7 +543,7 @@ export default function Templates() {
                                   className='absolute right-[-8px] bottom-0 left-2 h-2'
                                   style={buildBottomWallStyle(depth)}
                                 />
-                                <div className='-translate-y-2 relative flex translate-x-2 items-center bg-[#242424] px-3 py-2.5 shadow-[inset_0_0_0_1.5px_#3E3E3E]'>
+                                <div className='-translate-y-2 relative flex translate-x-2 items-center bg-[var(--landing-bg-card)] px-3 py-2.5 shadow-[inset_0_0_0_1.5px_#3E3E3E]'>
                                   <span className='flex-1 font-[430] font-season text-md text-white'>
                                     {workflow.name}
                                   </span>
@@ -571,7 +571,7 @@ export default function Templates() {
                             transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
                             className='overflow-hidden'
                           >
-                            <div className='aspect-[16/10] w-full border-[var(--landing-bg-elevated)] border-y bg-[#1b1b1b]'>
+                            <div className='aspect-[16/10] w-full border-[var(--landing-bg-elevated)] border-y bg-[var(--landing-bg)]'>
                               <LandingPreviewWorkflow
                                 workflow={workflow}
                                 animate

@@ -537,7 +537,7 @@ console.log(limits);`
             </Tooltip.Root>
             <Combobox
               size='sm'
-              className='!w-fit !py-0.5 min-w-[100px] rounded-md px-[9px]'
+              className='!w-fit !py-0.5 min-w-[100px] rounded-md px-2.25'
               options={[
                 { label: 'Execute Job', value: 'execute' },
                 { label: 'Check Status', value: 'status' },

@@ -643,8 +643,8 @@ export function IntegrationsManager() {
           <>
             <ModalHeader>Connect Integration</ModalHeader>
             <ModalBody>
-              <div className='flex flex-col gap-[12px]'>
-                <div className='flex items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px]'>
+              <div className='flex flex-col gap-3'>
+                <div className='flex items-center gap-2 rounded-[8px] border border-[var(--border)] bg-transparent px-2 py-1.25'>
                   <Search
                     className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
                     strokeWidth={2}
@@ -669,7 +669,7 @@ export function IntegrationsManager() {
                           setCreateStep(2)
                           setServiceSearch('')
                         }}
-                        className='flex items-center gap-[10px] rounded-[6px] px-[8px] py-[8px] text-left hover:bg-[var(--surface-5)]'
+                        className='flex items-center gap-2.5 rounded-[6px] px-2 py-2 text-left hover:bg-[var(--surface-5)]'
                       >
                         <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
                           {config ? (
@@ -687,7 +687,7 @@ export function IntegrationsManager() {
                     )
                   })}
                   {filteredServices.length === 0 && (
-                    <div className='py-[24px] text-center text-[13px] text-[var(--text-muted)]'>
+                    <div className='py-6 text-center text-[13px] text-[var(--text-muted)]'>
                       No services found
                     </div>
                   )}
@@ -703,7 +703,7 @@ export function IntegrationsManager() {
         ) : (
           <>
             <ModalHeader>
-              <div className='flex items-center gap-[10px]'>
+              <div className='flex items-center gap-2.5'>
                 <button
                   type='button'
                   onClick={() => {
@@ -736,8 +736,8 @@ export function IntegrationsManager() {
                   )}
                 </div>
               )}
-              <div className='flex flex-col gap-[16px]'>
-                <div className='flex items-center gap-[12px]'>
+              <div className='flex flex-col gap-4'>
+                <div className='flex items-center gap-3'>
                   <div className='flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[var(--surface-5)]'>
                     {selectedOAuthService &&
                       createElement(selectedOAuthService.icon, { className: 'h-[18px] w-[18px]' })}
@@ -754,15 +754,15 @@ export function IntegrationsManager() {
 
                 {createDisplayScopes.length > 0 && (
                   <div className='rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-                    <div className='border-[var(--border-1)] border-b px-[14px] py-[10px]'>
+                    <div className='border-[var(--border-1)] border-b px-3.5 py-2.5'>
                       <h4 className='font-medium text-[12px] text-[var(--text-primary)]'>
                         Permissions requested
                       </h4>
                     </div>
-                    <ul className='max-h-[200px] space-y-[10px] overflow-y-auto px-[14px] py-[12px]'>
+                    <ul className='max-h-[200px] space-y-2.5 overflow-y-auto px-3.5 py-3'>
                       {createDisplayScopes.map((scope) => (
-                        <li key={scope} className='flex items-start gap-[10px]'>
-                          <div className='mt-[2px] flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+                        <li key={scope} className='flex items-start gap-2.5'>
+                          <div className='mt-0.5 flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
                             <Check className='h-[10px] w-[10px] text-[var(--text-primary)]' />
                           </div>
                           <span className='text-[12px] text-[var(--text-primary)]'>
@@ -784,7 +784,7 @@ export function IntegrationsManager() {
                     placeholder='Integration name'
                     autoComplete='off'
                     data-lpignore='true'
-                    className='mt-[6px]'
+                    className='mt-1.5'
                     autoFocus
                   />
                 </div>
@@ -797,7 +797,7 @@ export function IntegrationsManager() {
                     maxLength={500}
                     autoComplete='off'
                     data-lpignore='true'
-                    className='mt-[6px] min-h-[80px] resize-none'
+                    className='mt-1.5 min-h-[80px] resize-none'
                   />
                 </div>
               </div>
@@ -1173,7 +1173,7 @@ export function IntegrationsManager() {
     <>
       <div className='flex h-full flex-col gap-4.5'>
         <div className='flex items-center gap-2'>
-          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
@@ -1252,9 +1252,9 @@ export function IntegrationsManager() {
 
               {filteredAvailableIntegrations.length > 0 && (
                 <div
-                  className={`flex flex-col gap-[8px]${hasCredentials || showNoResults ? ' mt-[8px] border-[var(--border)] border-t pt-[16px]' : ''}`}
+                  className={`flex flex-col gap-2${hasCredentials || showNoResults ? ' mt-2 border-[var(--border)] border-t pt-4' : ''}`}
                 >
-                  <p className='mb-[4px] font-medium text-[12px] text-[var(--text-muted)]'>
+                  <p className='mb-1 font-medium text-[12px] text-[var(--text-muted)]'>
                     Available integrations
                   </p>
                   {filteredAvailableIntegrations.map((service) => {
@@ -1263,9 +1263,9 @@ export function IntegrationsManager() {
                     return (
                       <div
                         key={service.providerId}
-                        className='flex items-center justify-between gap-[12px]'
+                        className='flex items-center justify-between gap-3'
                       >
-                        <div className='flex min-w-0 items-center gap-[10px]'>
+                        <div className='flex min-w-0 items-center gap-2.5'>
                           {serviceConfig && (
                             <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
                               {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}

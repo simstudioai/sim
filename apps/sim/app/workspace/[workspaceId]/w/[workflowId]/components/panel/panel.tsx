@@ -685,7 +685,7 @@ export const Panel = memo(function Panel() {
             <div className='flex gap-1'>
               {!permissionConfig.hideCopilot && (
                 <Button
-                  className={`h-[28px] truncate rounded-md border px-2 py-[5px] text-[12.5px] ${
+                  className={`h-[28px] truncate rounded-md border px-2 py-1.25 text-[12.5px] ${
                     _hasHydrated && activeTab === 'copilot'
                       ? 'border-[var(--border-1)]'
                       : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
@@ -699,7 +699,7 @@ export const Panel = memo(function Panel() {
                 </Button>
               )}
               <Button
-                className={`h-[28px] rounded-md border px-2 py-[5px] text-[12.5px] ${
+                className={`h-[28px] rounded-md border px-2 py-1.25 text-[12.5px] ${
                   _hasHydrated && activeTab === 'toolbar'
                     ? 'border-[var(--border-1)]'
                     : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
@@ -712,7 +712,7 @@ export const Panel = memo(function Panel() {
                 Toolbar
               </Button>
               <Button
-                className={`h-[28px] rounded-md border px-2 py-[5px] text-[12.5px] ${
+                className={`h-[28px] rounded-md border px-2 py-1.25 text-[12.5px] ${
                   _hasHydrated && activeTab === 'editor'
                     ? 'border-[var(--border-1)]'
                     : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
@@ -741,11 +741,11 @@ export const Panel = memo(function Panel() {
                 data-tab-content='copilot'
               >
                 {/* Copilot Header */}
-                <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between gap-[8px] border border-[var(--border)] bg-[var(--surface-4)] px-[12px] py-[6px]'>
+                <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between gap-2 border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
                   <h2 className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
                     {copilotChatTitle || 'New Chat'}
                   </h2>
-                  <div className='flex items-center gap-[8px]'>
+                  <div className='flex items-center gap-2'>
                     <Button variant='ghost' className='p-0' onClick={handleCopilotNewChat}>
                       <Plus className='h-[14px] w-[14px]' />
                     </Button>
@@ -763,7 +763,7 @@ export const Panel = memo(function Panel() {
                       </PopoverTrigger>
                       <PopoverContent align='end' side='bottom' sideOffset={8} maxHeight={280}>
                         {copilotChatList.length === 0 ? (
-                          <div className='px-[6px] py-[16px] text-center text-[12px] text-muted-foreground'>
+                          <div className='px-1.5 py-4 text-center text-[12px] text-muted-foreground'>
                             No chats yet
                           </div>
                         ) : (
@@ -782,7 +782,7 @@ export const Panel = memo(function Panel() {
                                       titleClassName='text-[13px]'
                                       actions={
                                         <div
-                                          className={`flex flex-shrink-0 items-center gap-[4px] ${copilotChatId !== chat.id ? 'opacity-0 transition-opacity group-hover:opacity-100' : ''}`}
+                                          className={`flex flex-shrink-0 items-center gap-1 ${copilotChatId !== chat.id ? 'opacity-0 transition-opacity group-hover:opacity-100' : ''}`}
                                         >
                                           <Button
                                             variant='ghost'

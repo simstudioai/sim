@@ -363,7 +363,7 @@ export default function Hero() {
   return (
     <section
       id='hero'
-      className='flex w-full flex-col items-center justify-center pt-9 sm:pt-[80px]'
+      className='flex w-full flex-col items-center justify-center pt-9 sm:pt-20'
       aria-labelledby='hero-heading'
     >
       <h1

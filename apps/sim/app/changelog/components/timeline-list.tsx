@@ -223,7 +223,7 @@ export default function ChangelogList({ initialEntries }: Props) {
             type='button'
             onClick={loadMore}
             disabled={loading}
-            className='rounded-[5px] border border-[#3d3d3d] px-3 py-1.5 text-[var(--landing-text)] text-small transition-colors hover:bg-[var(--landing-bg-elevated)] disabled:opacity-60'
+            className='rounded-[5px] border border-[var(--landing-border-strong)] px-3 py-1.5 text-[var(--landing-text)] text-small transition-colors hover:bg-[var(--landing-bg-elevated)] disabled:opacity-60'
           >
             {loading ? 'Loading…' : 'Show more'}
           </button>

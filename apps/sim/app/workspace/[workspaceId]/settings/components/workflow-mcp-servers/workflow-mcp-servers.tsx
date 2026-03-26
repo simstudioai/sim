@@ -691,7 +691,7 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
                             key={name}
                             className='overflow-hidden rounded-sm border border-[var(--border-1)]'
                           >
-                            <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
+                            <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-1.25'>
                               <div className='flex min-w-0 flex-1 items-center gap-2'>
                                 <span className='block truncate font-medium text-[var(--text-tertiary)] text-base'>
                                   {name}
@@ -1042,7 +1042,7 @@ export function WorkflowMcpServers() {
     <>
       <div className='flex h-full flex-col gap-4.5'>
         <div className='flex items-center gap-2'>
-          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}

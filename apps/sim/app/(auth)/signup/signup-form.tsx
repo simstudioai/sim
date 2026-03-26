@@ -366,7 +366,7 @@ function SignupFormContent({
         <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           Create an account
         </h1>
-        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--text-primary)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
+        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
           Create an account or log in
         </p>
       </div>
@@ -504,7 +504,7 @@ function SignupFormContent({
                   <button
                     type='button'
                     onClick={() => setShowPassword(!showPassword)}
-                    className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--text-subtle)] transition hover:text-[var(--landing-text)]'
+                    className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] transition hover:text-[var(--landing-text)]'
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -575,7 +575,7 @@ function SignupFormContent({
             <div className='w-full border-[var(--landing-bg-elevated)] border-t' />
           </div>
           <div className='relative flex justify-center text-sm'>
-            <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--text-subtle)]'>
+            <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--landing-text-muted)]'>
               Or continue with
             </span>
           </div>
@@ -622,7 +622,7 @@ function SignupFormContent({
         </Link>
       </div>
 
-      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[var(--landing-text-muted)] text-small leading-relaxed sm:px-8 md:px-[44px]'>
+      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[var(--landing-text-muted)] text-small leading-relaxed sm:px-8 md:px-11'>
         By creating an account, you agree to our{' '}
         <Link
           href='/terms'

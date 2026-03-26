@@ -70,7 +70,7 @@ export function InviteStatusCard({
             showArrow={false}
             className={
               index !== 0
-                ? 'border-[#3d3d3d] bg-transparent text-[var(--landing-text)] hover:border-[#3d3d3d] hover:bg-[var(--landing-bg-elevated)]'
+                ? 'border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-elevated)]'
                 : undefined
             }
           >

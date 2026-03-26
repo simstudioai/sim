@@ -279,6 +279,45 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --terminal-status-warning-border: #facc15;
     --terminal-status-warning-color: #a16207;
 
+    /* Badge semantic colors */
+    --badge-success-bg: #bbf7d0;
+    --badge-success-text: #15803d;
+    --badge-error-bg: #fecaca;
+    --badge-error-text: #dc2626;
+    --badge-gray-bg: #e7e5e4;
+    --badge-gray-text: #57534e;
+    --badge-blue-bg: #bfdbfe;
+    --badge-blue-text: #1d4ed8;
+    --badge-blue-secondary-bg: #bae6fd;
+    --badge-blue-secondary-text: #0369a1;
+    --badge-purple-bg: #e9d5ff;
+    --badge-purple-text: #7c3aed;
+    --badge-orange-bg: #fed7aa;
+    --badge-orange-text: #c2410c;
+    --badge-amber-bg: #fde68a;
+    --badge-amber-text: #a16207;
+    --badge-teal-bg: #99f6e4;
+    --badge-teal-text: #0f766e;
+    --badge-cyan-bg: #cffafe;
+    --badge-cyan-text: #0891b2;
+    --badge-pink-bg: #fbcfe8;
+    --badge-pink-text: #be185d;
+
+    /* Search/highlight */
+    --highlight-search-active: #f6ad55;
+    --highlight-search: #fcd34d;
+    --highlight-match-bg: #bae6fd;
+    --highlight-match-text: #0369a1;
+
+    /* Selection */
+    --selection-bg: #add6ff;
+
+    /* Active indicator */
+    --indicator-online: #33c482;
+    --indicator-active: #4ade80;
+    --indicator-inactive: #b7b7b7;
+    --indicator-seat-filled: #34b5ff;
+
     /* Scrollbar colors */
     --scrollbar-thumb-color: #c0c0c0;
     --scrollbar-thumb-hover-color: #a8a8a8;
@@ -360,6 +399,45 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --terminal-status-warning-bg: #3d3520;
     --terminal-status-warning-border: #5c4d1f;
     --terminal-status-warning-color: #d4a72c;
+
+    /* Badge semantic colors */
+    --badge-success-bg: rgba(34, 197, 94, 0.2);
+    --badge-success-text: #86efac;
+    --badge-error-bg: #551a1a;
+    --badge-error-text: #fca5a5;
+    --badge-gray-bg: #3a3a3a;
+    --badge-gray-text: #a8a8a8;
+    --badge-blue-bg: rgba(59, 130, 246, 0.2);
+    --badge-blue-text: #93c5fd;
+    --badge-blue-secondary-bg: rgba(51, 180, 255, 0.2);
+    --badge-blue-secondary-text: #7dd3fc;
+    --badge-purple-bg: rgba(168, 85, 247, 0.2);
+    --badge-purple-text: #d8b4fe;
+    --badge-orange-bg: rgba(249, 115, 22, 0.2);
+    --badge-orange-text: #fdba74;
+    --badge-amber-bg: rgba(245, 158, 11, 0.2);
+    --badge-amber-text: #fcd34d;
+    --badge-teal-bg: rgba(20, 184, 166, 0.2);
+    --badge-teal-text: #5eead4;
+    --badge-cyan-bg: rgba(14, 165, 233, 0.2);
+    --badge-cyan-text: #7dd3fc;
+    --badge-pink-bg: rgba(236, 72, 153, 0.2);
+    --badge-pink-text: #f9a8d4;
+
+    /* Search/highlight */
+    --highlight-search-active: #f6ad55;
+    --highlight-search: #fcd34d;
+    --highlight-match-bg: rgba(51, 180, 255, 0.2);
+    --highlight-match-text: #7dd3fc;
+
+    /* Selection */
+    --selection-bg: #264f78;
+
+    /* Active indicator */
+    --indicator-online: #33c482;
+    --indicator-active: #4ade80;
+    --indicator-inactive: #b7b7b7;
+    --indicator-seat-filled: #34b5ff;
 
     /* Scrollbar colors */
     --scrollbar-thumb-color: #5a5a5a;

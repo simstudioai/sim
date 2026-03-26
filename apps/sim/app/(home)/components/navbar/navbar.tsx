@@ -32,7 +32,7 @@ const NAV_LINKS: NavLink[] = [
   { label: 'Enterprise', href: 'https://form.typeform.com/to/jqCO12pF', external: true },
 ]
 
-const LOGO_CELL = 'flex items-center pl-5 lg:pl-[80px] pr-5'
+const LOGO_CELL = 'flex items-center pl-5 lg:pl-20 pr-5'
 const LINK_CELL = 'flex items-center px-3.5'
 
 interface NavbarProps {
@@ -225,7 +225,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
             {isAuthenticated ? (
               <Link
                 href='/workspace'
-                className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[9px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                className='inline-flex h-[30px] items-center gap-1.75 rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.25 text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                 aria-label='Go to app'
               >
                 Go to App
@@ -241,7 +241,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                 </Link>
                 <Link
                   href='/signup'
-                  className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-[9px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                  className='inline-flex h-[30px] items-center gap-1.75 rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                   aria-label='Get started with Sim'
                 >
                   Get started
@@ -273,13 +273,13 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                 const href =
                   useHomeLinks && rawHref.startsWith('/#') ? `/?home${rawHref.slice(1)}` : rawHref
                 return (
-                  <li key={label} className='border-[#2A2A2A] border-b'>
+                  <li key={label} className='border-[var(--landing-border)] border-b'>
                     {external ? (
                       <a
                         href={href}
                         target='_blank'
                         rel='noopener noreferrer'
-                        className='flex items-center justify-between px-[20px] py-[14px] text-[#ECECEC] transition-colors active:bg-[#2A2A2A]'
+                        className='flex items-center justify-between px-5 py-3.5 text-[var(--landing-text)] transition-colors active:bg-[var(--landing-bg-elevated)]'
                         onClick={() => setMobileMenuOpen(false)}
                       >
                         {label}
@@ -288,7 +288,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                     ) : (
                       <Link
                         href={href}
-                        className='flex items-center px-[20px] py-[14px] text-[#ECECEC] transition-colors active:bg-[#2A2A2A]'
+                        className='flex items-center px-5 py-3.5 text-[var(--landing-text)] transition-colors active:bg-[var(--landing-bg-elevated)]'
                         onClick={() => setMobileMenuOpen(false)}
                       >
                         {label}
@@ -297,7 +297,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                   </li>
                 )
               })}
-              <li className='border-[#2A2A2A] border-b'>
+              <li className='border-[var(--landing-border)] border-b'>
                 <a
                   href='https://github.com/simstudioai/sim'
                   target='_blank'
@@ -312,15 +312,12 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
             </ul>
 
             <div
-              className={cn(
-                'mt-auto flex flex-col gap-[10px] p-[20px]',
-                isSessionPending && 'invisible'
-              )}
+              className={cn('mt-auto flex flex-col gap-2.5 p-5', isSessionPending && 'invisible')}
             >
               {isAuthenticated ? (
                 <Link
                   href='/workspace'
-                  className='flex h-[32px] items-center justify-center rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
+                  className='flex h-[32px] items-center justify-center rounded-[5px] border border-[var(--white)] bg-[var(--white)] text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
                   onClick={() => setMobileMenuOpen(false)}
                   aria-label='Go to app'
                 >
@@ -330,7 +327,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                 <>
                   <Link
                     href='/login'
-                    className='flex h-[32px] items-center justify-center rounded-[5px] border border-[#3d3d3d] text-[#ECECEC] text-[14px] transition-colors active:bg-[#2A2A2A]'
+                    className='flex h-[32px] items-center justify-center rounded-[5px] border border-[var(--landing-border-strong)] text-[14px] text-[var(--landing-text)] transition-colors active:bg-[var(--landing-bg-elevated)]'
                     onClick={() => setMobileMenuOpen(false)}
                     aria-label='Log in'
                   >
@@ -338,7 +335,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                   </Link>
                   <Link
                     href='/signup'
-                    className='flex h-[32px] items-center justify-center rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
+                    className='flex h-[32px] items-center justify-center rounded-[5px] border border-[var(--white)] bg-[var(--white)] text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
                     onClick={() => setMobileMenuOpen(false)}
                     aria-label='Get started with Sim'
                   >

@@ -75,7 +75,7 @@ export default async function BlogIndex({
           {pageNum > 1 && (
             <Link
               href={`/blog?page=${pageNum - 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
-              className='rounded-[5px] border border-[#3d3d3d] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
+              className='rounded-[5px] border border-[var(--landing-border-strong)] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
             >
               Previous
             </Link>
@@ -86,7 +86,7 @@ export default async function BlogIndex({
           {pageNum < totalPages && (
             <Link
               href={`/blog?page=${pageNum + 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
-              className='rounded-[5px] border border-[#3d3d3d] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
+              className='rounded-[5px] border border-[var(--landing-border-strong)] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
             >
               Next
             </Link>

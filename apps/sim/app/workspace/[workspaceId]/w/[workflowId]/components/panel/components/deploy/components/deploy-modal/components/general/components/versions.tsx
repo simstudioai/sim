@@ -224,7 +224,7 @@ export function Versions({
                   <div
                     className={clsx(
                       'h-[6px] w-[6px] shrink-0 rounded-xs',
-                      v.isActive ? 'bg-[#4ADE80]' : 'bg-[#B7B7B7]'
+                      v.isActive ? 'bg-[var(--indicator-active)]' : 'bg-[var(--indicator-inactive)]'
                     )}
                     title={v.isActive ? 'Live' : 'Inactive'}
                   />

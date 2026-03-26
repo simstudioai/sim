@@ -50,7 +50,7 @@ const Content = React.forwardRef<
       collisionPadding={8}
       avoidCollisions={true}
       className={cn(
-        'z-[var(--z-tooltip)] max-w-[260px] rounded-[4px] bg-[#1b1b1b] px-[8px] py-[3.5px] font-base text-white text-xs shadow-sm dark:bg-[#fdfdfd] dark:text-black',
+        'z-[var(--z-tooltip)] max-w-[260px] rounded-[4px] bg-[#1b1b1b] px-2 py-[3.5px] font-base text-white text-xs shadow-sm dark:bg-[#fdfdfd] dark:text-black',
         className
       )}
       {...props}
@@ -122,9 +122,7 @@ const Preview = ({ src, alt = '', width = 240, height, loop = true, className }:
   const isVideo = VIDEO_EXTENSIONS.some((ext) => pathname.endsWith(ext))
 
   return (
-    <div
-      className={cn('-mx-[8px] -mb-[3.5px] mt-[4px] overflow-hidden rounded-b-[4px]', className)}
-    >
+    <div className={cn('-mx-2 -mb-[3.5px] mt-1 overflow-hidden rounded-b-[4px]', className)}>
       {isVideo ? (
         <video
           src={src}

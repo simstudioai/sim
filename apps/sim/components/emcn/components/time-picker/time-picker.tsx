@@ -48,7 +48,7 @@ const timePickerVariants = cva(
       },
       size: {
         default: 'py-1.5 text-sm',
-        sm: 'py-[5px] text-caption',
+        sm: 'py-1.25 text-caption',
       },
     },
     defaultVariants: {
@@ -256,7 +256,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
             <div className='flex items-center gap-1.5'>
               <input
                 ref={hourInputRef}
-                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-medium font-sans text-[var(--text-primary)] text-small outline-none transition-colors placeholder:text-[var(--text-muted)] focus-visible:border-[var(--text-muted)]'
+                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-1.25 text-center font-medium font-sans text-[var(--text-primary)] text-small outline-none transition-colors placeholder:text-[var(--text-muted)] focus-visible:border-[var(--text-muted)]'
                 value={hour}
                 onChange={handleHourChange}
                 onBlur={handleHourBlur}
@@ -268,7 +268,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
               />
               <span className='font-medium text-[var(--text-muted)] text-small'>:</span>
               <input
-                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-medium font-sans text-[var(--text-primary)] text-small outline-none transition-colors placeholder:text-[var(--text-muted)] focus-visible:border-[var(--text-muted)]'
+                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-1.25 text-center font-medium font-sans text-[var(--text-primary)] text-small outline-none transition-colors placeholder:text-[var(--text-muted)] focus-visible:border-[var(--text-muted)]'
                 value={minute}
                 onChange={handleMinuteChange}
                 onBlur={handleMinuteBlur}
@@ -288,7 +288,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
                       updateTime(undefined, undefined, period)
                     }}
                     className={cn(
-                      'px-2 py-[5px] font-medium font-sans text-caption transition-colors',
+                      'px-2 py-1.25 font-medium font-sans text-caption transition-colors',
                       ampm === period
                         ? 'bg-[var(--brand-secondary)] text-[var(--bg)]'
                         : 'bg-[var(--surface-5)] text-[var(--text-secondary)] hover-hover:bg-[var(--surface-7)] hover-hover:text-[var(--text-primary)] dark:hover-hover:bg-[var(--surface-5)]'

@@ -107,7 +107,7 @@ function PricingCard({ tier }: PricingCardProps) {
 
   return (
     <article className='flex flex-1 flex-col' aria-labelledby={`${tier.id}-heading`}>
-      <div className='flex flex-1 flex-col gap-6 rounded-t-lg border border-[#E5E5E5] border-b-0 bg-white p-5'>
+      <div className='flex flex-1 flex-col gap-6 rounded-t-lg border border-[var(--landing-border-light)] border-b-0 bg-white p-5'>
         <div className='flex flex-col'>
           <h3
             id={`${tier.id}-heading`}
@@ -129,7 +129,7 @@ function PricingCard({ tier }: PricingCardProps) {
               <DemoRequestModal theme='light'>
                 <button
                   type='button'
-                  className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#E5E5E5] bg-transparent px-[10px] font-[430] font-season text-[#1C1C1C] text-[14px] transition-colors hover:bg-[#F0F0F0]'
+                  className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--landing-border-light)] bg-transparent px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text-dark)] transition-colors hover:bg-[var(--landing-bg-hover)]'
                 >
                   {tier.cta.label}
                 </button>
@@ -137,14 +137,14 @@ function PricingCard({ tier }: PricingCardProps) {
             ) : isPro ? (
               <Link
                 href={tier.cta.href || '/signup'}
-                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-[10px] font-[430] font-season text-[14px] text-white transition-colors hover:border-[#2A2A2A] hover:bg-[#2A2A2A]'
+                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-2.5 font-[430] font-season text-[14px] text-white transition-colors hover:border-[var(--landing-border)] hover:bg-[var(--landing-bg-elevated)]'
               >
                 {tier.cta.label}
               </Link>
             ) : (
               <Link
                 href={tier.cta.href || '/signup'}
-                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#E5E5E5] px-[10px] font-[430] font-season text-[#1C1C1C] text-[14px] transition-colors hover:bg-[#F0F0F0]'
+                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--landing-border-light)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text-dark)] transition-colors hover:bg-[var(--landing-bg-hover)]'
               >
                 {tier.cta.label}
               </Link>
@@ -192,7 +192,7 @@ export default function Pricing() {
       aria-labelledby='pricing-heading'
       className='bg-[var(--landing-bg-section)]'
     >
-      <div className='px-4 pt-[60px] pb-10 sm:px-8 sm:pt-[80px] sm:pb-0 md:px-[80px] md:pt-[100px]'>
+      <div className='px-4 pt-[60px] pb-10 sm:px-8 sm:pt-20 sm:pb-0 md:px-20 md:pt-[100px]'>
         <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-5'>
           <Badge
             variant='blue'

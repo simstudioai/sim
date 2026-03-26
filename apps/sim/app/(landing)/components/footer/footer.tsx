@@ -21,7 +21,7 @@ export default function Footer({ fullWidth = false }: FooterProps) {
             : 'px-4 pt-10 pb-10 sm:px-[50px] sm:pt-[34px] sm:pb-[340px]'
         }
       >
-        <div className={`flex gap-[80px] ${fullWidth ? 'justify-center' : ''}`}>
+        <div className={`flex gap-20 ${fullWidth ? 'justify-center' : ''}`}>
           {/* Logo and social links */}
           <div className='flex flex-col gap-6'>
             <Logo />
@@ -124,7 +124,7 @@ export default function Footer({ fullWidth = false }: FooterProps) {
           {/* Tools section - split into columns */}
           <div className='hidden sm:block'>
             <h2 className='mb-4 font-medium text-foreground text-sm'>Tools</h2>
-            <div className='flex gap-[80px]'>
+            <div className='flex gap-20'>
               {/* First column */}
               <div className='flex flex-col gap-3'>
                 {FOOTER_TOOLS.slice(0, Math.ceil(FOOTER_TOOLS.length / 4)).map((tool) => (

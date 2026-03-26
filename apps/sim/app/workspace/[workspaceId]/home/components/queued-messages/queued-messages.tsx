@@ -58,7 +58,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
                         e.stopPropagation()
                         onEdit(msg.id)
                       }}
-                      className='rounded-md p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
+                      className='rounded-md p-1.25 text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                     >
                       <Pencil className='h-[13px] w-[13px]' />
                     </button>
@@ -76,7 +76,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
                         e.stopPropagation()
                         void onSendNow(msg.id)
                       }}
-                      className='rounded-md p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
+                      className='rounded-md p-1.25 text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                     >
                       <ArrowUp className='h-[13px] w-[13px]' />
                     </button>
@@ -94,7 +94,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
                         e.stopPropagation()
                         onRemove(msg.id)
                       }}
-                      className='rounded-md p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
+                      className='rounded-md p-1.25 text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                     >
                       <Trash2 className='h-[13px] w-[13px]' />
                     </button>

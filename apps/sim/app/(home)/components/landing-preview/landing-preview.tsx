@@ -81,7 +81,7 @@ export function LandingPreview() {
 
   return (
     <motion.div
-      className='dark flex aspect-[1116/549] w-full overflow-hidden rounded bg-[#1e1e1e] antialiased'
+      className='dark flex aspect-[1116/549] w-full overflow-hidden rounded bg-[var(--landing-bg-surface)] antialiased'
       initial='hidden'
       animate='visible'
       variants={containerVariants}
@@ -95,8 +95,8 @@ export function LandingPreview() {
           onSelectHome={handleSelectHome}
         />
       </motion.div>
-      <div className='flex min-w-0 flex-1 flex-col py-[8px] pr-[8px] pl-[8px] lg:pl-0'>
-        <div className='flex flex-1 overflow-hidden rounded-[8px] border border-[#2c2c2c] bg-[#1b1b1b]'>
+      <div className='flex min-w-0 flex-1 flex-col py-2 pr-2 pl-2 lg:pl-0'>
+        <div className='flex flex-1 overflow-hidden rounded-[8px] border border-[#2c2c2c] bg-[var(--landing-bg)]'>
           <div
             className={
               isWorkflowView

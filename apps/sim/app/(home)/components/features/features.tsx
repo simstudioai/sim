@@ -152,7 +152,7 @@ function DotGrid({
   return (
     <div
       aria-hidden='true'
-      className={`h-full shrink-0 bg-[var(--landing-bg-section)] p-1.5 ${borderLeft ? 'border-[#ededed] border-l' : ''}`}
+      className={`h-full shrink-0 bg-[var(--landing-bg-section)] p-1.5 ${borderLeft ? 'border-[var(--divider)] border-l' : ''}`}
       style={{
         width: width ? `${width}px` : undefined,
         display: 'grid',
@@ -195,7 +195,7 @@ export default function Features() {
       </div>
 
       <div className='relative z-10 pt-[60px] lg:pt-[100px]'>
-        <div ref={sectionRef} className='flex flex-col items-start gap-5 px-6 lg:px-[80px]'>
+        <div ref={sectionRef} className='flex flex-col items-start gap-5 px-6 lg:px-20'>
           <Badge
             variant='blue'
             size='md'
@@ -227,17 +227,17 @@ export default function Features() {
           </h2>
         </div>
 
-        <div className='relative mt-10 pb-10 lg:mt-[73px] lg:pb-[80px]'>
+        <div className='relative mt-10 pb-10 lg:mt-[73px] lg:pb-20'>
           <div
             aria-hidden='true'
-            className='absolute top-0 bottom-0 left-[80px] z-20 hidden w-px bg-[#ededed] lg:block'
+            className='absolute top-0 bottom-0 left-[80px] z-20 hidden w-px bg-[var(--divider)] lg:block'
           />
           <div
             aria-hidden='true'
-            className='absolute top-0 right-[80px] bottom-0 z-20 hidden w-px bg-[#ededed] lg:block'
+            className='absolute top-0 right-[80px] bottom-0 z-20 hidden w-px bg-[var(--divider)] lg:block'
           />
 
-          <div className='flex h-[68px] border border-[#ededed] lg:overflow-hidden'>
+          <div className='flex h-[68px] border border-[var(--divider)] lg:overflow-hidden'>
             <div className='h-full shrink-0'>
               <div className='h-full lg:hidden'>
                 <DotGrid cols={3} rows={8} width={24} />
@@ -255,7 +255,7 @@ export default function Features() {
                   role='tab'
                   aria-selected={index === activeTab}
                   onClick={() => setActiveTab(index)}
-                  className={`relative h-full flex-1 items-center justify-center whitespace-nowrap px-3 font-medium font-season text-[var(--landing-text-dark)] text-caption uppercase lg:px-0 lg:text-sm${tab.hideOnMobile ? ' hidden lg:flex' : ' flex'}${index > 0 ? ' border-[#ededed] border-l' : ''}`}
+                  className={`relative h-full flex-1 items-center justify-center whitespace-nowrap px-3 font-medium font-season text-[var(--landing-text-dark)] text-caption uppercase lg:px-0 lg:text-sm${tab.hideOnMobile ? ' hidden lg:flex' : ' flex'}${index > 0 ? ' border-[var(--divider)] border-l' : ''}`}
                   style={{ backgroundColor: index === activeTab ? '#FDFDFD' : '#F6F6F6' }}
                 >
                   {tab.mobileLabel ? (
@@ -333,7 +333,7 @@ export default function Features() {
             <FeaturesPreview activeTab={activeTab} />
           </div>
 
-          <div aria-hidden='true' className='mt-[60px] hidden h-px bg-[#ededed] lg:block' />
+          <div aria-hidden='true' className='mt-[60px] hidden h-px bg-[var(--divider)] lg:block' />
         </div>
       </div>
     </section>

@@ -1103,11 +1103,11 @@ export const Sidebar = memo(function Sidebar() {
       >
         <div className='flex h-full flex-col pt-3'>
           {/* Top bar: Logo + Collapse toggle */}
-          <div className='flex flex-shrink-0 items-center pr-[8px] pb-[8px] pl-[10px]'>
+          <div className='flex flex-shrink-0 items-center pr-2 pb-2 pl-2.5'>
             <div className='relative flex h-[30px] items-center'>
               <Link
                 href={`/workspace/${workspaceId}/home`}
-                className='sidebar-collapse-hide sidebar-collapse-remove flex h-[30px] items-center rounded-[8px] px-[6px] hover:bg-[var(--surface-active)]'
+                className='sidebar-collapse-hide sidebar-collapse-remove flex h-[30px] items-center rounded-[8px] px-1.5 hover:bg-[var(--surface-active)]'
                 tabIndex={isCollapsed ? -1 : 0}
               >
                 {brand.logoUrl ? (
@@ -1244,13 +1244,13 @@ export const Sidebar = memo(function Sidebar() {
               <div
                 ref={isCollapsed ? undefined : scrollContainerRef}
                 className={cn(
-                  'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-[9px] transition-colors duration-150',
+                  'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-2.5 transition-colors duration-150',
                   !hasOverflowTop && 'border-transparent'
                 )}
               >
                 {/* Tasks */}
                 <div className='tasks-section flex flex-shrink-0 flex-col' data-tour='nav-tasks'>
-                  <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-[16px]'>
+                  <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
                     <div className='font-base text-[var(--text-icon)] text-small'>All tasks</div>
                     {!isCollapsed && (
                       <div className='flex items-center justify-center gap-2'>
@@ -1278,7 +1278,7 @@ export const Sidebar = memo(function Sidebar() {
                       }
                       hover={tasksHover}
                       ariaLabel='Tasks'
-                      className='mt-[6px]'
+                      className='mt-1.5'
                       primaryAction={{
                         label: 'New task',
                         onSelect: () => navigateToPage(`/workspace/${workspaceId}/home`),
@@ -1373,10 +1373,10 @@ export const Sidebar = memo(function Sidebar() {
 
                 {/* Workflows */}
                 <div
-                  className='workflows-section relative mt-[14px] flex flex-col'
+                  className='workflows-section relative mt-3.5 flex flex-col'
                   data-tour='nav-workflows'
                 >
-                  <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-[16px]'>
+                  <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
                     <div className='font-base text-[var(--text-icon)] text-small'>Workflows</div>
                     {!isCollapsed && (
                       <div className='flex items-center justify-center gap-2'>
@@ -1454,7 +1454,7 @@ export const Sidebar = memo(function Sidebar() {
                       }
                       hover={workflowsHover}
                       ariaLabel='Workflows'
-                      className='mt-[6px]'
+                      className='mt-1.5'
                       primaryAction={{
                         label: 'New workflow',
                         onSelect: handleCreateWorkflow,
@@ -1530,7 +1530,7 @@ export const Sidebar = memo(function Sidebar() {
               {/* Footer */}
               <div
                 className={cn(
-                  'flex flex-shrink-0 flex-col gap-0.5 border-t px-2 pt-[9px] pb-2 transition-colors duration-150',
+                  'flex flex-shrink-0 flex-col gap-0.5 border-t px-2 pt-2.25 pb-2 transition-colors duration-150',
                   !hasOverflowBottom && 'border-transparent'
                 )}
               >
@@ -1542,7 +1542,7 @@ export const Sidebar = memo(function Sidebar() {
                         <button
                           type='button'
                           data-item-id='help'
-                          className='group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
+                          className='group mx-0.5 flex h-[30px] items-center gap-2 rounded-[8px] px-2 text-[14px] hover:bg-[var(--surface-active)]'
                         >
                           <HelpCircle className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                           <span className='sidebar-collapse-hide truncate font-base text-[var(--text-body)]'>
