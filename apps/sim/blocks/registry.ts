@@ -92,6 +92,7 @@ import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
 import { JiraServiceManagementBlock } from '@/blocks/blocks/jira_service_management'
 import { KalshiBlock, KalshiV2Block } from '@/blocks/blocks/kalshi'
+import { KetchBlock } from '@/blocks/blocks/ketch'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LangsmithBlock } from '@/blocks/blocks/langsmith'
 import { LemlistBlock } from '@/blocks/blocks/lemlist'
@@ -314,6 +315,7 @@ export const registry: Record<string, BlockConfig> = {
   jira_service_management: JiraServiceManagementBlock,
   kalshi: KalshiBlock,
   kalshi_v2: KalshiV2Block,
+  ketch: KetchBlock,
   knowledge: KnowledgeBlock,
   langsmith: LangsmithBlock,
   lemlist: LemlistBlock,

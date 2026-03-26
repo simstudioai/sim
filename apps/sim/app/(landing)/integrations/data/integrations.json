@@ -6149,6 +6149,45 @@
     "tags": ["prediction-markets", "data-analytics"]
   },
   {
+    "type": "ketch",
+    "slug": "ketch",
+    "name": "Ketch",
+    "description": "Manage privacy consent, subscriptions, and data subject rights",
+    "longDescription": "Integrate Ketch into the workflow. Retrieve and update consent preferences, manage subscription topics and controls, and submit data subject rights requests for access, deletion, correction, or processing restriction.",
+    "bgColor": "#9B5CFF",
+    "iconName": "KetchIcon",
+    "docsUrl": "https://docs.sim.ai/tools/ketch",
+    "operations": [
+      {
+        "name": "Get Consent",
+        "description": "Retrieve consent status for a data subject. Returns the current consent preferences for each configured purpose."
+      },
+      {
+        "name": "Set Consent",
+        "description": "Update consent preferences for a data subject. Sets the consent status for specified purposes with the appropriate legal basis."
+      },
+      {
+        "name": "Get Subscriptions",
+        "description": "Retrieve subscription preferences for a data subject. Returns the current subscription topic and control statuses."
+      },
+      {
+        "name": "Set Subscriptions",
+        "description": "Update subscription preferences for a data subject. Sets topic and control statuses for email, SMS, and other contact methods."
+      },
+      {
+        "name": "Invoke Right",
+        "description": "Submit a data subject rights request (e.g., access, delete, correct, restrict processing). Initiates a privacy rights workflow in Ketch."
+      }
+    ],
+    "operationCount": 5,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationType": "security",
+    "tags": ["identity"]
+  },
+  {
     "type": "knowledge",
     "slug": "knowledge",
     "name": "Knowledge",
