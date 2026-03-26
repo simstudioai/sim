@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Button,
   Input,
@@ -39,9 +39,54 @@ export function CreditBalance({
   const [validationError, setValidationError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
   const purchaseCredits = usePurchaseCredits()
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const dollarAmount = Number.parseInt(amount, 10) || 0
   const creditPreview = dollarsToCredits(dollarAmount)
+
+  const clearCloseTimeout = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current)
+      closeTimeoutRef.current = null
+    }
+  }
+
+  const resetModalState = () => {
+    setAmount('')
+    setValidationError(null)
+    purchaseCredits.reset()
+  }
+
+  const openModal = () => {
+    clearCloseTimeout()
+    resetModalState()
+    setRequestId(crypto.randomUUID())
+    setIsOpen(true)
+  }
+
+  const closeModal = () => {
+    clearCloseTimeout()
+    setIsOpen(false)
+    setRequestId(null)
+    resetModalState()
+  }
+
+  useEffect(() => {
+    return () => {
+      clearCloseTimeout()
+    }
+  }, [])
+
+  const handleOpenChange = (open: boolean) => {
+    if (open) {
+      openModal()
+      return
+    }
+
+    if (!purchaseCredits.isPending) {
+      closeModal()
+    }
+  }
 
   const handleAmountChange = (value: string) => {
     const numericValue = value.replace(/[^0-9]/g, '')
@@ -68,25 +113,14 @@ export function CreditBalance({
       { amount: numAmount, requestId },
       {
         onSuccess: () => {
-          setTimeout(() => {
-            setIsOpen(false)
-            onPurchaseComplete?.()
+          onPurchaseComplete?.()
+          clearCloseTimeout()
+          closeTimeoutRef.current = setTimeout(() => {
+            closeModal()
           }, 1500)
         },
       }
     )
-  }
-
-  const handleOpenChange = (open: boolean) => {
-    setIsOpen(open)
-    if (open) {
-      setRequestId(crypto.randomUUID())
-    } else {
-      setAmount('')
-      setValidationError(null)
-      purchaseCredits.reset()
-      setRequestId(null)
-    }
   }
 
   const displayError = validationError || purchaseCredits.error?.message
@@ -103,9 +137,7 @@ export function CreditBalance({
       {canPurchase && (
         <Modal open={isOpen} onOpenChange={handleOpenChange}>
           <ModalTrigger asChild>
-            <Button variant='active' className='h-[32px] text-[13px]'>
-              Add Credits
-            </Button>
+            <Button variant='active'>Add Credits</Button>
           </ModalTrigger>
           <ModalContent size='sm'>
             <ModalHeader>Add Credits</ModalHeader>
