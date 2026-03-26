@@ -18,17 +18,17 @@ import { coerceOpenCodeBoolean } from '@/lib/opencode/utils'
 
 const logger = createLogger('OpenCodePromptToolAPI')
 
-const optionalTrimmedStringSchema = z.preprocess(
+const optionalNullableStringSchema = z.preprocess(
   (value) => (value === null ? undefined : value),
   z.string().optional()
 )
 
 const OpenCodePromptSchema = z.object({
   repository: z.string().min(1, 'repository is required'),
-  systemPrompt: optionalTrimmedStringSchema,
+  systemPrompt: optionalNullableStringSchema,
   providerId: z.string().min(1, 'providerId is required'),
   modelId: z.string().min(1, 'modelId is required'),
-  agent: optionalTrimmedStringSchema,
+  agent: optionalNullableStringSchema,
   prompt: z.string().min(1, 'prompt is required'),
   newThread: z.union([z.boolean(), z.string()]).optional(),
   _context: z

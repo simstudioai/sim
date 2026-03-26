@@ -32,20 +32,22 @@ function getOpenCodeBaseUrl(): string {
 }
 
 function getOpenCodeClientKey(): string {
-  return JSON.stringify({
-    baseUrl: getOpenCodeBaseUrl(),
-    authorization: getOpenCodeBasicAuthHeader(),
-  })
+  const baseUrl = getOpenCodeBaseUrl()
+  const authorization = getOpenCodeBasicAuthHeader()
+
+  return JSON.stringify({ baseUrl, authorization })
 }
 
 export function createOpenCodeClient() {
-  const clientKey = getOpenCodeClientKey()
+  const baseUrl = getOpenCodeBaseUrl()
+  const authorization = getOpenCodeBasicAuthHeader()
+  const clientKey = JSON.stringify({ baseUrl, authorization })
 
   if (!cachedOpenCodeClient || cachedOpenCodeClientKey !== clientKey) {
     cachedOpenCodeClient = createOpencodeClient({
-      baseUrl: JSON.parse(clientKey).baseUrl,
+      baseUrl,
       headers: {
-        Authorization: JSON.parse(clientKey).authorization,
+        Authorization: authorization,
       },
     })
     cachedOpenCodeClientKey = clientKey
