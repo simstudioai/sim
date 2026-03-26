@@ -85,7 +85,7 @@ const STYLES = {
   /** Color scheme variants */
   colorScheme: {
     default: {
-      text: 'text-[var(--text-primary)]',
+      text: 'text-[var(--text-body)]',
       section: 'text-[var(--text-tertiary)]',
       search: 'text-[var(--text-muted)]',
       searchInput: 'text-[var(--text-primary)] placeholder:text-[var(--text-muted)]',
@@ -116,9 +116,8 @@ const STYLES = {
   /** Interactive state styles: default, secondary (brand), inverted (dark bg in light mode) */
   states: {
     default: {
-      active: 'bg-[var(--border-1)] text-[var(--text-primary)] [&_svg]:text-[var(--text-primary)]',
-      hover:
-        'hover-hover:bg-[var(--border-1)] hover-hover:text-[var(--text-primary)] hover-hover:[&_svg]:text-[var(--text-primary)]',
+      active: 'bg-[var(--border-1)]',
+      hover: 'hover-hover:bg-[var(--border-1)]',
     },
     secondary: {
       active: 'bg-[var(--brand-secondary)] text-white [&_svg]:text-white',
@@ -607,7 +606,7 @@ const PopoverContent = React.forwardRef<
         onCloseAutoFocus={handleCloseAutoFocus}
         {...restProps}
         className={cn(
-          'z-[var(--z-popover)] flex flex-col outline-none will-change-transform',
+          'z-[var(--z-popover)] flex flex-col outline-none',
           showArrow ? 'overflow-visible' : 'overflow-auto',
           STYLES.colorScheme[colorScheme].content,
           STYLES.content,
