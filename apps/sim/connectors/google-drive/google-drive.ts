@@ -70,7 +70,10 @@ async function downloadTextFile(accessToken: string, fileId: string): Promise<st
   const text = await response.text()
   if (Buffer.byteLength(text, 'utf8') > MAX_EXPORT_SIZE) {
     logger.warn(`File exceeds ${MAX_EXPORT_SIZE} bytes, truncating`)
-    return Buffer.from(text, 'utf8').subarray(0, MAX_EXPORT_SIZE).toString('utf8')
+    const buf = Buffer.from(text, 'utf8')
+    let end = MAX_EXPORT_SIZE
+    while (end > 0 && (buf[end] & 0xc0) === 0x80) end--
+    return buf.subarray(0, end).toString('utf8')
   }
   return text
 }

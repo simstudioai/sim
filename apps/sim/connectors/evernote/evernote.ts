@@ -412,7 +412,14 @@ export const evernoteConnector: ConnectorConfig = {
 
     logger.info('Listing Evernote notes', { offset, maxNotes: NOTES_PER_PAGE })
 
-    const result = await apiFindNotesMetadata(accessToken, offset, NOTES_PER_PAGE, notebookGuid)
+    const retryOptions = { retries: 3, backoff: 500 }
+    const result = await apiFindNotesMetadata(
+      accessToken,
+      offset,
+      NOTES_PER_PAGE,
+      notebookGuid,
+      retryOptions
+    )
 
     const documents: ExternalDocument[] = result.notes.map((meta) => {
       const tagNames = meta.tagGuids.map((g) => tagMap[g]).filter(Boolean)
@@ -451,7 +458,8 @@ export const evernoteConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     try {
-      const note = await apiGetNote(accessToken, externalId)
+      const retryOptions = { retries: 3, backoff: 500 }
+      const note = await apiGetNote(accessToken, externalId, retryOptions)
       const plainText = htmlToPlainText(note.content)
       if (!plainText.trim()) return null
 

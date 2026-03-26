@@ -463,6 +463,7 @@ export async function executeSync(
                 content: fullDoc.content,
                 contentHash: fullDoc.contentHash ?? op.extDoc.contentHash,
                 contentDeferred: false,
+                metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
               },
             }
           })
