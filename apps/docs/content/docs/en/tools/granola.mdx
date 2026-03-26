@@ -10,22 +10,11 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#B2C147"
 />
 
-{/* MANUAL-CONTENT-START:intro */}
-[Granola](https://www.granola.ai/) is an AI-powered meeting notes platform that automatically captures, transcribes, and summarizes your meetings. Granola runs quietly in the background during calls, producing structured notes with key takeaways so you never miss important details.
-
-With the Granola integration in Sim, you can:
-
-- **List meeting notes**: Retrieve your recent meeting notes with flexible date and pagination filters
-- **Get note details**: Access the full summary, attendees, calendar event metadata, and folder membership for any note
-- **Include transcripts**: Optionally retrieve the complete speaker-attributed transcript for a meeting
-- **Filter by date**: Narrow results to notes created before/after a date or updated after a date
-
-In Sim, the Granola integration enables your agents to programmatically access meeting intelligence as part of their workflows. This allows for automation scenarios such as extracting action items from meetings, syncing meeting summaries to other tools, building meeting digest reports, or triggering follow-up tasks based on meeting content.
-{/* MANUAL-CONTENT-END:intro */}
-
 ## Usage Instructions
 
 Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts.
+
+
 
 ## Tools
 
@@ -68,7 +57,7 @@ Retrieves a specific meeting note from Granola by ID, including summary, attende
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Granola API key |
 | `noteId` | string | Yes | The note ID \(e.g., not_1d3tmYTlCICgjy\) |
-| `includeTranscript` | boolean | No | Whether to include the meeting transcript |
+| `includeTranscript` | string | No | Whether to include the meeting transcript |
 
 #### Output
 
