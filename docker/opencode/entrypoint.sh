@@ -19,8 +19,12 @@ write_runtime_env() {
   local vars=(
     HOME
     PATH
+    GIT_ASKPASS
     OPENCODE_REPOS
+    OPENCODE_PORT
     OPENCODE_REPOSITORY_ROOT
+    OPENCODE_SERVER_PASSWORD
+    OPENCODE_SERVER_USERNAME
     GIT_USERNAME
     GIT_TOKEN
     GITHUB_TOKEN
@@ -87,6 +91,7 @@ main() {
   : "${OPENCODE_PORT:=4096}"
   : "${OPENCODE_SERVER_USERNAME:=opencode}"
   : "${OPENCODE_REPOSITORY_ROOT:=/app/repos}"
+  export GIT_ASKPASS="${GIT_ASKPASS:-/usr/local/bin/git-askpass.sh}"
 
   if [[ -z "${OPENCODE_SERVER_PASSWORD:-}" ]]; then
     log "OPENCODE_SERVER_PASSWORD is required"

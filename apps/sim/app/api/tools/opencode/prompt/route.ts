@@ -136,9 +136,9 @@ export async function POST(request: NextRequest) {
     const memoryKey = buildOpenCodeSessionMemoryKey(workflowId, sessionOwnerKey)
     const newThread = coerceOpenCodeBoolean(body.newThread)
     const storedThread = newThread ? null : await getStoredOpenCodeSession(workspaceId, memoryKey)
-    const reusedStoredThread = Boolean(storedThread && storedThread.repository === repositoryId)
-    let threadId =
-      reusedStoredThread ? storedThread.sessionId : undefined
+    const reusableStoredThread =
+      storedThread && storedThread.repository === repositoryId ? storedThread : null
+    let threadId = reusableStoredThread?.sessionId
 
     if (!threadId) {
       const session = await createOpenCodeSession(
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
 
       return buildSuccessResponse(result.threadId, result.content, result.cost)
     } catch (error) {
-      if (reusedStoredThread && threadId && shouldRetryWithFreshOpenCodeSession(error)) {
+      if (reusableStoredThread && threadId && shouldRetryWithFreshOpenCodeSession(error)) {
         let freshSessionId = threadId
 
         try {
