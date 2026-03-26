@@ -711,7 +711,7 @@ export function Subscription() {
             const showProCard = !isOnMaxTier
 
             return (
-              <div className='grid grid-cols-2 gap-[10px]'>
+              <div className='grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-[10px]'>
                 {showProCard && (
                   <CreditPlanCard
                     name='Pro'
@@ -801,6 +801,15 @@ export function Subscription() {
                   features={MAX_PLAN_FEATURES}
                   isLegacyPlan={isLegacyPlan && isOnMaxTier}
                 />
+                {hasEnterprise && (
+                  <PlanCard
+                    name='Enterprise'
+                    price=''
+                    features={ENTERPRISE_PLAN_FEATURES}
+                    buttonText='Contact'
+                    onButtonClick={() => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')}
+                  />
+                )}
               </div>
             )
           })()}
@@ -924,24 +933,26 @@ export function Subscription() {
 
       {/* Billing details section */}
       {(subscription.isPaid || (!isLoading && isTeamAdmin)) && (
-        <div className='flex flex-col gap-[14px] rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[14px] py-[12px]'>
+        <div className='flex flex-col'>
           {subscription.isPaid && permissions.canViewUsageInfo && (
-            <CreditBalance
-              balance={subscriptionData?.data?.creditBalance ?? 0}
-              canPurchase={hasUsablePaidAccess && permissions.canEditUsageLimit}
-              entityType={
-                subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
-              }
-              isLoading={isLoading}
-              onPurchaseComplete={() => refetchSubscription()}
-            />
+            <div className='py-[2px]'>
+              <CreditBalance
+                balance={subscriptionData?.data?.creditBalance ?? 0}
+                canPurchase={hasUsablePaidAccess && permissions.canEditUsageLimit}
+                entityType={
+                  subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+                }
+                isLoading={isLoading}
+                onPurchaseComplete={() => refetchSubscription()}
+              />
+            </div>
           )}
 
           {subscription.isPaid &&
             subscriptionData?.data?.periodEnd &&
             !permissions.showTeamMemberView &&
             !permissions.isEnterpriseMember && (
-              <div className='flex items-center justify-between'>
+              <div className='flex items-center justify-between border-[var(--border-1)] border-t pt-[16px]'>
                 <Label>{isCancelledAtPeriodEnd ? 'Access Until' : 'Next Billing Date'}</Label>
                 <span className='text-[13px] text-[var(--text-secondary)]'>
                   {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
@@ -950,16 +961,18 @@ export function Subscription() {
             )}
 
           {subscription.isPaid && permissions.canViewUsageInfo && (
-            <BillingUsageNotificationsToggle />
+            <div className='border-[var(--border-1)] border-t pt-[16px]'>
+              <BillingUsageNotificationsToggle />
+            </div>
           )}
 
           {subscription.isPaid &&
             !permissions.showTeamMemberView &&
             !permissions.isEnterpriseMember && (
-              <div className='flex items-center justify-between'>
+              <div className='flex items-center justify-between border-[var(--border-1)] border-t pt-[16px]'>
                 <Label>Invoices</Label>
                 <Button
-                  variant='outline'
+                  variant='active'
                   size='sm'
                   disabled={openBillingPortal.isPending}
                   onClick={() => {
@@ -995,7 +1008,7 @@ export function Subscription() {
             )}
 
           {!isLoading && isTeamAdmin && (
-            <div className='flex items-center justify-between'>
+            <div className='flex items-center justify-between border-[var(--border-1)] border-t pt-[16px]'>
               <div className='flex items-center gap-[6px]'>
                 <Label htmlFor='billed-account'>Billed Account</Label>
                 <Tooltip.Root>
@@ -1039,18 +1052,6 @@ export function Subscription() {
             </div>
           )}
         </div>
-      )}
-
-      {/* Enterprise */}
-      {hasEnterprise && (
-        <PlanCard
-          name='Enterprise'
-          price=''
-          features={ENTERPRISE_PLAN_FEATURES}
-          buttonText='Contact'
-          onButtonClick={() => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')}
-          inlineButton
-        />
       )}
     </div>
   )

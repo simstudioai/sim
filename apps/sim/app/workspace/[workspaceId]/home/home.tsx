@@ -299,7 +299,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
   if (!hasMessages && !chatId) {
     return (
-      <div className='h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable]'>
+      <div className='h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable_both-edges]'>
         <div className='flex min-h-full flex-col items-center justify-center px-[24px] pb-[2vh]'>
           <h1
             data-tour='home-greeting'

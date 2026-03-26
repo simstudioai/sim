@@ -61,6 +61,8 @@ export interface NavigationItem {
   selfHostedOverride?: boolean
   requiresSuperUser?: boolean
   requiresAdminRole?: boolean
+  /** Show in the sidebar even when the user lacks the required plan, with an upgrade badge. */
+  showWhenLocked?: boolean
   externalUrl?: string
 }
 
@@ -137,13 +139,13 @@ export const allNavigationItems: NavigationItem[] = [
     requiresMax: true,
     requiresHosted: true,
     selfHostedOverride: isInboxEnabled,
+    showWhenLocked: true,
   },
   {
     id: 'credential-sets',
     label: 'Email Polling',
     icon: Mail,
     section: 'system',
-    requiresTeam: true,
     requiresHosted: true,
     selfHostedOverride: isCredentialSetsEnabled,
   },

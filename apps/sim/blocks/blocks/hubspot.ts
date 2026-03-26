@@ -396,6 +396,7 @@ Return ONLY the JSON object with properties - no explanations, no markdown, no e
       title: 'Properties to Return',
       type: 'short-input',
       placeholder: 'Comma-separated list (e.g., "email,firstname,lastname")',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -415,6 +416,7 @@ Return ONLY the JSON object with properties - no explanations, no markdown, no e
       title: 'Associations',
       type: 'short-input',
       placeholder: 'Comma-separated object types (e.g., "companies,deals")',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -437,9 +439,10 @@ Return ONLY the JSON object with properties - no explanations, no markdown, no e
     },
     {
       id: 'limit',
-      title: 'Limit',
+      title: 'Results Per Page',
       type: 'short-input',
       placeholder: 'Max results (list: 100, search: 200)',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -464,9 +467,10 @@ Return ONLY the JSON object with properties - no explanations, no markdown, no e
     },
     {
       id: 'after',
-      title: 'After (Pagination)',
+      title: 'Pagination Cursor',
       type: 'short-input',
-      placeholder: 'Pagination cursor from previous response',
+      placeholder: 'Cursor from previous response paging.next.after',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -714,6 +718,7 @@ Return ONLY the JSON array of filter groups - no explanations, no markdown, no e
       type: 'long-input',
       placeholder:
         'JSON array of sort objects (e.g., [{"propertyName":"createdate","direction":"DESCENDING"}])',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: ['search_contacts', 'search_companies', 'search_deals', 'search_tickets'],
@@ -838,6 +843,7 @@ Return ONLY the JSON array of sort objects - no explanations, no markdown, no ex
       title: 'Properties to Return',
       type: 'long-input',
       placeholder: 'JSON array of properties (e.g., ["email","firstname","lastname"])',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: ['search_contacts', 'search_companies', 'search_deals', 'search_tickets'],
