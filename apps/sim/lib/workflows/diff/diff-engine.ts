@@ -60,7 +60,11 @@ function computeFieldDiff(
   for (const field of fieldsToCheck) {
     const currentValue = currentBlock[field]
     const proposedValue = proposedBlock[field]
-    if (JSON.stringify(currentValue) !== JSON.stringify(proposedValue)) {
+    if (
+      field === 'locked'
+        ? !!currentValue !== !!proposedValue
+        : JSON.stringify(currentValue) !== JSON.stringify(proposedValue)
+    ) {
       changedFields.push(field)
     } else if (currentValue !== undefined) {
       unchangedFields.push(field)
