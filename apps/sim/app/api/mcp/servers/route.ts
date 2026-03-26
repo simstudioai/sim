@@ -4,7 +4,12 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
-import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-check'
+import {
+  McpDomainNotAllowedError,
+  McpSsrfError,
+  validateMcpDomain,
+  validateMcpServerSsrf,
+} from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import {
@@ -78,6 +83,15 @@ export const POST = withMcpAuth('write')(
         validateMcpDomain(body.url)
       } catch (e) {
         if (e instanceof McpDomainNotAllowedError) {
+          return createMcpErrorResponse(e, e.message, 403)
+        }
+        throw e
+      }
+
+      try {
+        await validateMcpServerSsrf(body.url)
+      } catch (e) {
+        if (e instanceof McpSsrfError) {
           return createMcpErrorResponse(e, e.message, 403)
         }
         throw e

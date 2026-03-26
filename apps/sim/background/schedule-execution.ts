@@ -913,7 +913,7 @@ export async function executeJobInline(payload: JobExecutionPayload) {
 
   try {
     const url = buildAPIUrl('/api/mothership/execute')
-    const headers = await buildAuthHeaders()
+    const headers = await buildAuthHeaders(jobRecord.sourceUserId)
 
     const body = {
       messages: [{ role: 'user', content: promptText }],

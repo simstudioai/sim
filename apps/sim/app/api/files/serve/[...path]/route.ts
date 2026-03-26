@@ -94,9 +94,6 @@ export async function GET(
     const isCloudPath = isS3Path || isBlobPath
     const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
 
-    const contextParam = request.nextUrl.searchParams.get('context')
-    const raw = request.nextUrl.searchParams.get('raw') === '1'
-
     const isPublicByKeyPrefix =
       cloudKey.startsWith('profile-pictures/') || cloudKey.startsWith('og-images/')
 
@@ -108,6 +105,9 @@ export async function GET(
       }
       return await handleLocalFilePublic(fullPath)
     }
+
+    const contextParam = request.nextUrl.searchParams.get('context')
+    const raw = request.nextUrl.searchParams.get('raw') === '1'
 
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
 

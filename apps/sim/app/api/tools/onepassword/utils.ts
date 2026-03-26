@@ -1,3 +1,4 @@
+import dns from 'dns/promises'
 import type {
   Item,
   ItemCategory,
@@ -8,6 +9,8 @@ import type {
   VaultOverview,
   Website,
 } from '@1password/sdk'
+import { createLogger } from '@sim/logger'
+import * as ipaddr from 'ipaddr.js'
 
 /** Connect-format field type strings returned by normalization. */
 type ConnectFieldType =
@@ -238,6 +241,49 @@ export async function createOnePasswordClient(serviceAccountToken: string) {
   })
 }
 
+const connectLogger = createLogger('OnePasswordConnect')
+
+/**
+ * Validates that a Connect server URL does not target cloud metadata endpoints.
+ * Allows private IPs and localhost since 1Password Connect is designed to be self-hosted.
+ */
+async function validateConnectServerUrl(serverUrl: string): Promise<void> {
+  let hostname: string
+  try {
+    hostname = new URL(serverUrl).hostname
+  } catch {
+    throw new Error('1Password server URL is not a valid URL')
+  }
+
+  const clean = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+
+  if (ipaddr.isValid(clean)) {
+    const addr = ipaddr.process(clean)
+    if (addr.range() === 'linkLocal') {
+      throw new Error('1Password server URL cannot point to a link-local address')
+    }
+    return
+  }
+
+  try {
+    const { address } = await dns.lookup(clean, { verbatim: true })
+    if (ipaddr.isValid(address) && ipaddr.process(address).range() === 'linkLocal') {
+      connectLogger.warn('1Password Connect server URL resolves to link-local IP', {
+        hostname: clean,
+        resolvedIP: address,
+      })
+      throw new Error('1Password server URL resolves to a link-local address')
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('1Password')) throw error
+    connectLogger.warn('DNS lookup failed for 1Password Connect server URL', {
+      hostname: clean,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    throw new Error('1Password server URL hostname could not be resolved')
+  }
+}
+
 /** Proxy a request to the 1Password Connect Server. */
 export async function connectRequest(options: {
   serverUrl: string
@@ -247,6 +293,8 @@ export async function connectRequest(options: {
   body?: unknown
   query?: string
 }): Promise<Response> {
+  await validateConnectServerUrl(options.serverUrl)
+
   const base = options.serverUrl.replace(/\/$/, '')
   const queryStr = options.query ? `?${options.query}` : ''
   const url = `${base}${options.path}${queryStr}`
