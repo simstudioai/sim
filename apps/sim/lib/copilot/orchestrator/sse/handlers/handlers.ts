@@ -5,7 +5,10 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1RunKind,
   MothershipStreamV1SessionKind,
+  MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1TextChannel,
+  MothershipStreamV1ToolExecutor,
+  MothershipStreamV1ToolMode,
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { TOOL_CALL_STATUS } from '@/lib/copilot/mothership-stream'
@@ -15,10 +18,6 @@ import {
   markToolResultSeen,
   wasToolResultSeen,
 } from '@/lib/copilot/orchestrator/sse/utils'
-import {
-  isToolAvailableOnSimSide,
-  markToolComplete,
-} from '@/lib/copilot/orchestrator/tool-executor'
 import type {
   ContentBlock,
   ExecutionContext,
@@ -27,6 +26,7 @@ import type {
   StreamingContext,
   ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
+import { isSimExecuted } from '@/lib/copilot/tool-executor'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { executeToolAndReport, waitForToolCompletion } from './tool-execution'
 
@@ -61,14 +61,6 @@ function abortPendingToolIfStreamDead(
   toolCall.status = 'cancelled'
   toolCall.endTime = Date.now()
   markToolResultSeen(toolCallId)
-  markToolComplete(toolCall.id, toolCall.name, 499, 'Request aborted before tool execution', {
-    cancelled: true,
-  }).catch((err) => {
-    logger.error('markToolComplete fire-and-forget failed (stream aborted)', {
-      toolCallId: toolCall.id,
-      error: err instanceof Error ? err.message : String(err),
-    })
-  })
   return true
 }
 
@@ -103,69 +95,24 @@ function handleClientCompletion(
   if (completion?.status === 'background') {
     toolCall.status = 'skipped'
     toolCall.endTime = Date.now()
-    markToolComplete(
-      toolCall.id,
-      toolCall.name,
-      202,
-      completion.message || 'Tool execution moved to background',
-      { background: true }
-    ).catch((err) => {
-      logger.error('markToolComplete fire-and-forget failed (client background)', {
-        toolCallId: toolCall.id,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    })
     markToolResultSeen(toolCallId)
     return
   }
   if (completion?.status === 'rejected') {
     toolCall.status = 'rejected'
     toolCall.endTime = Date.now()
-    markToolComplete(
-      toolCall.id,
-      toolCall.name,
-      400,
-      completion.message || 'Tool execution rejected'
-    ).catch((err) => {
-      logger.error('markToolComplete fire-and-forget failed (client rejected)', {
-        toolCallId: toolCall.id,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    })
     markToolResultSeen(toolCallId)
     return
   }
   if (completion?.status === 'cancelled') {
     toolCall.status = 'cancelled'
     toolCall.endTime = Date.now()
-    markToolComplete(
-      toolCall.id,
-      toolCall.name,
-      499,
-      completion.message || 'Workflow execution was stopped manually by the user.',
-      completion.data
-    ).catch((err) => {
-      logger.error('markToolComplete fire-and-forget failed (client cancelled)', {
-        toolCallId: toolCall.id,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    })
     markToolResultSeen(toolCallId)
     return
   }
   const success = completion?.status === 'success'
   toolCall.status = success ? 'success' : 'error'
   toolCall.endTime = Date.now()
-  const msg = completion?.message || (success ? 'Tool completed' : 'Tool failed or timed out')
-  markToolComplete(toolCall.id, toolCall.name, success ? 200 : 500, msg, completion?.data).catch(
-    (err) => {
-      logger.error('markToolComplete fire-and-forget failed (client completion)', {
-        toolCallId: toolCall.id,
-        toolName: toolCall.name,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-  )
   markToolResultSeen(toolCallId)
 }
 
@@ -193,8 +140,8 @@ async function emitSyntheticToolResult(
       payload: {
         toolCallId,
         toolName,
-        executor: 'client',
-        mode: 'async',
+        executor: MothershipStreamV1ToolExecutor.client,
+        mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
         success,
         result: resultPayload,
@@ -359,14 +306,14 @@ export const sseHandlers: Record<string, StreamHandler> = {
       return
     }
 
-    if (!isToolAvailableOnSimSide(toolName) && !clientExecutable) {
+    if (!isSimExecuted(toolName) && !clientExecutable) {
       return
     }
 
     /**
      * Fire tool execution without awaiting so parallel tool calls from the
      * same LLM turn execute concurrently. executeToolAndReport is self-contained:
-     * it updates tool state, calls markToolComplete, and emits result events.
+     * it updates tool state and emits result events.
      */
     const fireToolExecution = () => {
       const pendingPromise = (async () => {
@@ -416,7 +363,7 @@ export const sseHandlers: Record<string, StreamHandler> = {
     // receives SSE block logs (executeWorkflowWithFullLogging).
     if (clientExecutable) {
       const delegateWorkflowRunToClient = isWorkflowToolName(toolName)
-      if (isToolAvailableOnSimSide(toolName) && !delegateWorkflowRunToClient) {
+      if (isSimExecuted(toolName) && !delegateWorkflowRunToClient) {
         if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
           fireToolExecution()
         }
@@ -456,7 +403,7 @@ export const sseHandlers: Record<string, StreamHandler> = {
     const d = getEventData(event)
     if (d?.channel === MothershipStreamV1TextChannel.thinking) {
       const phase = d.phase as string | undefined
-      if (phase === 'start') {
+      if (phase === MothershipStreamV1SpanLifecycleEvent.start) {
         context.isInThinkingBlock = true
         context.currentThinkingBlock = {
           type: 'thinking',
@@ -465,7 +412,7 @@ export const sseHandlers: Record<string, StreamHandler> = {
         }
         return
       }
-      if (phase === 'end') {
+      if (phase === MothershipStreamV1SpanLifecycleEvent.end) {
         if (context.currentThinkingBlock) {
           context.contentBlocks.push(context.currentThinkingBlock)
         }
@@ -560,7 +507,7 @@ export const subAgentHandlers: Record<string, StreamHandler> = {
   text: (event, context) => {
     const parentToolCallId = context.subAgentParentToolCallId
     const d = getEventData(event)
-    if (!parentToolCallId || d?.channel !== 'assistant') return
+    if (!parentToolCallId || d?.channel !== MothershipStreamV1TextChannel.assistant) return
     const chunk = d?.text as string | undefined
     if (!chunk) return
     context.subAgentContent[parentToolCallId] =
@@ -577,8 +524,8 @@ export const subAgentHandlers: Record<string, StreamHandler> = {
       (toolData.toolName as string | undefined) || (toolData.name as string | undefined)
     if (!toolCallId || !toolName) return
     const phase = toolData.phase as string | undefined
-    if (phase === 'args_delta') return
-    if (phase === 'result') {
+    if (phase === MothershipStreamV1ToolPhase.args_delta) return
+    if (phase === MothershipStreamV1ToolPhase.result) {
       const toolCalls = context.subAgentToolCalls[parentToolCallId] || []
       const subAgentToolCall = toolCalls.find((tc) => tc.id === toolCallId)
       const mainToolCall = ensureTerminalToolCallState(context, toolCallId, toolName)
@@ -661,7 +608,7 @@ export const subAgentHandlers: Record<string, StreamHandler> = {
       return
     }
 
-    if (!isToolAvailableOnSimSide(toolName) && !clientExecutable) {
+    if (!isSimExecuted(toolName) && !clientExecutable) {
       return
     }
 
@@ -708,7 +655,7 @@ export const subAgentHandlers: Record<string, StreamHandler> = {
 
     if (clientExecutable) {
       const delegateWorkflowRunToClient = isWorkflowToolName(toolName)
-      if (isToolAvailableOnSimSide(toolName) && !delegateWorkflowRunToClient) {
+      if (isSimExecuted(toolName) && !delegateWorkflowRunToClient) {
         if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
           fireToolExecution()
         }

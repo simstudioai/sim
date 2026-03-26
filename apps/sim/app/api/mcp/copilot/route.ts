@@ -22,10 +22,8 @@ import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { ORCHESTRATION_TIMEOUT_MS, SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { orchestrateSubagentStream } from '@/lib/copilot/orchestrator/subagent'
-import {
-  executeToolServerSide,
-  prepareExecutionContext,
-} from '@/lib/copilot/orchestrator/tool-executor'
+import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
+import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
 import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/definitions'
 import { env } from '@/lib/core/config/env'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -645,7 +643,8 @@ async function handleDirectToolCall(
       startTime: Date.now(),
     }
 
-    const result = await executeToolServerSide(toolCall, execContext)
+    ensureHandlersRegistered()
+    const result = await executeTool(toolCall.name, toolCall.params || {}, execContext)
 
     return {
       content: [

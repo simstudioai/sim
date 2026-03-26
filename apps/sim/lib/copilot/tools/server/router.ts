@@ -1,5 +1,18 @@
 import { createLogger } from '@sim/logger'
 import {
+  DownloadToWorkspaceFile,
+  GenerateImage,
+  GenerateVisualization,
+  KnowledgeBase,
+  ManageCredential,
+  ManageCustomTool,
+  ManageMcpTool,
+  ManageSkill,
+  UserTable,
+  WorkspaceFile,
+} from '@/lib/copilot/generated/tool-catalog-v1'
+import { appendCopilotLogContext } from '@/lib/copilot/logging'
+import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
@@ -29,7 +42,7 @@ export type ExecuteResponseSuccess = (typeof ExecuteResponseSuccessSchema)['_typ
 const logger = createLogger('ServerToolRouter')
 
 const WRITE_ACTIONS: Record<string, string[]> = {
-  knowledge_base: [
+  [KnowledgeBase.id]: [
     'create',
     'add_file',
     'update',
@@ -44,7 +57,7 @@ const WRITE_ACTIONS: Record<string, string[]> = {
     'delete_connector',
     'sync_connector',
   ],
-  user_table: [
+  [UserTable.id]: [
     'create',
     'create_from_file',
     'import_file',
@@ -60,14 +73,14 @@ const WRITE_ACTIONS: Record<string, string[]> = {
     'delete_column',
     'update_column',
   ],
-  manage_custom_tool: ['add', 'edit', 'delete'],
-  manage_mcp_tool: ['add', 'edit', 'delete'],
-  manage_skill: ['add', 'edit', 'delete'],
-  manage_credential: ['rename', 'delete'],
-  workspace_file: ['write', 'update', 'delete', 'rename', 'patch'],
-  download_to_workspace_file: ['*'],
-  generate_visualization: ['generate'],
-  generate_image: ['generate'],
+  [ManageCustomTool.id]: ['add', 'edit', 'delete'],
+  [ManageMcpTool.id]: ['add', 'edit', 'delete'],
+  [ManageSkill.id]: ['add', 'edit', 'delete'],
+  [ManageCredential.id]: ['rename', 'delete'],
+  [WorkspaceFile.id]: ['write', 'update', 'delete', 'rename', 'patch'],
+  [DownloadToWorkspaceFile.id]: ['*'],
+  [GenerateVisualization.id]: ['generate'],
+  [GenerateImage.id]: ['generate'],
 }
 
 function isWritePermission(userPermission: string): boolean {
@@ -108,10 +121,10 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [generateImageServerTool.name]: generateImageServerTool,
 }
 
-/**
- * Route a tool execution request to the appropriate server tool.
- * Validates input/output using the tool's declared Zod schemas if present.
- */
+export function getRegisteredServerToolNames(): string[] {
+  return Object.keys(serverToolRegistry)
+}
+
 export async function routeExecution(
   toolName: string,
   payload: unknown,

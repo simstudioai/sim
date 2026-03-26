@@ -143,6 +143,16 @@ export interface MothershipStreamV1Trace {
 }
 /**
  * This interface was referenced by `MothershipStreamV1EventEnvelope`'s JSON-Schema
+ * via the `definition` "MothershipStreamV1CheckpointPausePayload".
+ */
+export interface MothershipStreamV1CheckpointPausePayload {
+  checkpointId: string
+  executionId: string
+  pendingToolCallIds: string[]
+  runId: string
+}
+/**
+ * This interface was referenced by `MothershipStreamV1EventEnvelope`'s JSON-Schema
  * via the `definition` "MothershipStreamV1ResumeRequest".
  */
 export interface MothershipStreamV1ResumeRequest {

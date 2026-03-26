@@ -6,6 +6,7 @@ export {
   registerHandler,
   registerHandlers,
 } from './executor'
+export { ensureHandlersRegistered } from './register-handlers'
 export {
   isGoExecuted,
   isKnownTool,

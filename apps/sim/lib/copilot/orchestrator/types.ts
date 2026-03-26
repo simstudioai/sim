@@ -1,5 +1,5 @@
 import type { StreamEvent } from '@/lib/copilot/mothership-stream'
-import type { MothershipResource } from '@/lib/copilot/resource-types'
+import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 
 export type { StreamEvent }
 
@@ -35,11 +35,8 @@ export interface ToolCallState {
   endTime?: number
 }
 
-export interface ToolCallResult<T = unknown> {
-  success: boolean
+export interface ToolCallResult<T = unknown> extends ToolExecutionResult {
   output?: T
-  error?: string
-  resources?: MothershipResource[]
 }
 
 export type ContentBlockType = 'text' | 'thinking' | 'tool_call' | 'subagent_text' | 'subagent'
@@ -143,16 +140,6 @@ export interface ToolCallSummary {
   durationMs?: number
 }
 
-export interface ExecutionContext {
-  userId: string
-  workflowId: string
-  workspaceId?: string
-  chatId?: string
+export interface ExecutionContext extends ToolExecutionContext {
   messageId?: string
-  executionId?: string
-  runId?: string
-  abortSignal?: AbortSignal
-  userTimezone?: string
-  userPermission?: string
-  decryptedEnvVars?: Record<string, string>
 }

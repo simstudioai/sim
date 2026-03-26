@@ -1,15 +1,24 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { parse as csvParse } from 'csv-parse/sync'
 import { eq } from 'drizzle-orm'
 import { completeAsyncToolCall, markAsyncToolRunning } from '@/lib/copilot/async-runs/repository'
 import {
   MothershipStreamV1EventType,
+  MothershipStreamV1ResourceOp,
+  MothershipStreamV1ToolExecutor,
+  MothershipStreamV1ToolMode,
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import {
+  CreateWorkflow,
+  FunctionExecute,
+  Read as ReadTool,
+  UserTable,
+} from '@/lib/copilot/generated/tool-catalog-v1'
 import { waitForToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
 import { asRecord, markToolResultSeen } from '@/lib/copilot/orchestrator/sse/utils'
-import { executeToolServerSide, markToolComplete } from '@/lib/copilot/orchestrator/tool-executor'
 import {
   type ExecutionContext,
   isTerminalToolCallStatus,
@@ -26,12 +35,13 @@ import {
   persistChatResources,
   removeChatResources,
 } from '@/lib/copilot/resources'
+import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
 import { getTableById } from '@/lib/table/service'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('CopilotSseToolExecution')
 
-const OUTPUT_PATH_TOOLS = new Set(['function_execute', 'user_table'])
+const OUTPUT_PATH_TOOLS: Set<string> = new Set([FunctionExecute.id, UserTable.id])
 
 /**
  * Try to pull a flat array of row-objects out of the various shapes that
@@ -235,13 +245,9 @@ function abortRequested(
   execContext: ExecutionContext,
   options?: OrchestratorOptions
 ): boolean {
-  if (options?.userStopSignal?.aborted || execContext.userStopSignal?.aborted) {
-    return true
-  }
-  if (context.wasAborted) {
-    return true
-  }
-  return false
+  return Boolean(
+    options?.abortSignal?.aborted || execContext.abortSignal?.aborted || context.wasAborted
+  )
 }
 
 function cancelledCompletion(message: string): AsyncToolCompletion {
@@ -296,16 +302,11 @@ function terminalCompletionFromToolCall(toolCall: {
 
 function reportCancelledTool(
   toolCall: { id: string; name: string },
-  message: string,
-  data: Record<string, unknown> = { cancelled: true }
+  _message: string,
+  _data: Record<string, unknown> = { cancelled: true }
 ): void {
-  markToolComplete(toolCall.id, toolCall.name, 499, message, data).catch((err) => {
-    logger.error('markToolComplete failed (cancelled)', {
-      toolCallId: toolCall.id,
-      toolName: toolCall.name,
-      error: err instanceof Error ? err.message : String(err),
-    })
-  })
+  // No-op: markToolComplete removed. Cancelled state is captured in
+  // the local toolCall and included in the resume payload.
 }
 
 async function maybeWriteOutputToTable(
@@ -314,7 +315,7 @@ async function maybeWriteOutputToTable(
   result: ToolCallResult,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
-  if (toolName !== 'function_execute') return result
+  if (toolName !== FunctionExecute.id) return result
   if (!result.success || !result.output) return result
   if (!context.workspaceId || !context.userId) return result
 
@@ -428,7 +429,7 @@ async function maybeWriteReadCsvToTable(
   result: ToolCallResult,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
-  if (toolName !== 'read') return result
+  if (toolName !== ReadTool.id) return result
   if (!result.success || !result.output) return result
   if (!context.workspaceId || !context.userId) return result
 
@@ -462,8 +463,7 @@ async function maybeWriteReadCsvToTable(
       }
       rows = parsed
     } else {
-      const { parse } = await import('csv-parse/sync')
-      rows = parse(content, {
+      rows = csvParse(content, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
@@ -583,7 +583,8 @@ export async function executeToolAndReport(
   })
 
   try {
-    let result = await executeToolServerSide(toolCall, execContext)
+    ensureHandlersRegistered()
+    let result = await executeTool(toolCall.name, toolCall.params || {}, execContext)
     if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
       return terminalCompletionFromToolCall(toolCall)
     }
@@ -673,7 +674,7 @@ export async function executeToolAndReport(
     // This ensures subsequent tools in the same stream have access to the workflowId.
     const output = asRecord(result.output)
     if (
-      toolCall.name === 'create_workflow' &&
+      toolCall.name === CreateWorkflow.id &&
       result.success &&
       output.workflowId &&
       !execContext.workflowId
@@ -699,32 +700,14 @@ export async function executeToolAndReport(
     }
 
     // Fire-and-forget: notify the copilot backend that the tool completed.
-    // IMPORTANT: We must NOT await this — the server may block on the
-    // mark-complete handler until it can write back on the SSE stream, but
-    // the SSE reader (our for-await loop) is paused while we're in this
-    // handler.  Awaiting here would deadlock: sim waits for the server's response,
-    // the server waits for sim to drain the SSE stream.
-    markToolComplete(
-      toolCall.id,
-      toolCall.name,
-      result.success ? 200 : 500,
-      result.error || (result.success ? 'Tool completed' : 'Tool failed'),
-      result.output
-    ).catch((err) => {
-      logger.error('markToolComplete fire-and-forget failed', {
-        toolCallId: toolCall.id,
-        toolName: toolCall.name,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    })
-
+    // IMPORTANT: We must NOT await this — the Go backend may block on the
     const resultEvent: StreamEvent = {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: toolCall.id,
         toolName: toolCall.name,
-        executor: 'sim',
-        mode: 'async',
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
         success: result.success,
         result: result.output,
@@ -761,7 +744,7 @@ export async function executeToolAndReport(
             await options?.onEvent?.({
               type: MothershipStreamV1EventType.resource,
               payload: {
-                op: 'remove',
+                op: MothershipStreamV1ResourceOp.remove,
                 resource: { type: resource.type, id: resource.id, title: resource.title },
               },
             })
@@ -790,7 +773,7 @@ export async function executeToolAndReport(
             await options?.onEvent?.({
               type: MothershipStreamV1EventType.resource,
               payload: {
-                op: 'upsert',
+                op: MothershipStreamV1ResourceOp.upsert,
                 resource: { type: resource.type, id: resource.id, title: resource.title },
               },
             })
@@ -836,25 +819,13 @@ export async function executeToolAndReport(
       error: toolCall.error,
     }).catch(() => {})
 
-    // Fire-and-forget (same reasoning as above).
-    // Pass error as structured data so the Go side can surface it to the LLM.
-    markToolComplete(toolCall.id, toolCall.name, 500, toolCall.error, {
-      error: toolCall.error,
-    }).catch((err) => {
-      logger.error('markToolComplete fire-and-forget failed', {
-        toolCallId: toolCall.id,
-        toolName: toolCall.name,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    })
-
     const errorEvent: StreamEvent = {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: toolCall.id,
         toolName: toolCall.name,
-        executor: 'sim',
-        mode: 'async',
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
         status: 'error',
         error: toolCall.error,

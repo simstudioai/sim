@@ -7,20 +7,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/logger', () => loggerMock)
 
-const { executeToolServerSide, markToolComplete, isToolAvailableOnSimSide } = vi.hoisted(() => ({
-  executeToolServerSide: vi.fn(),
-  markToolComplete: vi.fn(),
-  isToolAvailableOnSimSide: vi.fn().mockReturnValue(true),
+const { isSimExecuted, executeTool, ensureHandlersRegistered } = vi.hoisted(() => ({
+  isSimExecuted: vi.fn().mockReturnValue(true),
+  executeTool: vi.fn().mockResolvedValue({ success: true, output: { ok: true } }),
+  ensureHandlersRegistered: vi.fn(),
 }))
 
 const { upsertAsyncToolCall } = vi.hoisted(() => ({
   upsertAsyncToolCall: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/orchestrator/tool-executor', () => ({
-  executeToolServerSide,
-  markToolComplete,
-  isToolAvailableOnSimSide,
+vi.mock('@/lib/copilot/tool-executor', () => ({
+  isSimExecuted,
+  executeTool,
+  ensureHandlersRegistered,
 }))
 
 vi.mock('@/lib/copilot/async-runs/repository', async () => {
@@ -33,6 +33,13 @@ vi.mock('@/lib/copilot/async-runs/repository', async () => {
   }
 })
 
+import {
+  MothershipStreamV1EventType,
+  MothershipStreamV1ToolExecutor,
+  MothershipStreamV1ToolMode,
+  MothershipStreamV1ToolPhase,
+} from '@/lib/copilot/generated/mothership-stream-v1'
+import { Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { sseHandlers } from '@/lib/copilot/orchestrator/sse/handlers'
 import type {
   ExecutionContext,
@@ -71,21 +78,20 @@ describe('sse-handlers tool lifecycle', () => {
     }
   })
 
-  it('executes tool_call and emits tool_result + mark-complete', async () => {
-    executeToolServerSide.mockResolvedValueOnce({ success: true, output: { ok: true } })
-    markToolComplete.mockResolvedValueOnce(true)
+  it('executes tool_call and emits tool_result', async () => {
+    executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
     const onEvent = vi.fn()
 
     await sseHandlers.tool(
       {
-        type: 'tool',
+        type: MothershipStreamV1EventType.tool,
         payload: {
           toolCallId: 'tool-1',
-          toolName: 'read',
+          toolName: ReadTool.id,
           arguments: { workflowId: 'workflow-1' },
-          executor: 'sim',
-          mode: 'async',
-          phase: 'call',
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
         },
       } satisfies StreamEvent,
       context,
@@ -97,15 +103,14 @@ describe('sse-handlers tool lifecycle', () => {
     // so we flush pending microtasks before asserting
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(executeToolServerSide).toHaveBeenCalledTimes(1)
-    expect(markToolComplete).toHaveBeenCalledTimes(1)
+    expect(executeTool).toHaveBeenCalledTimes(1)
     expect(onEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: 'tool',
+        type: MothershipStreamV1EventType.tool,
         payload: expect.objectContaining({
           toolCallId: 'tool-1',
           success: true,
-          phase: 'result',
+          phase: MothershipStreamV1ToolPhase.result,
         }),
       })
     )
@@ -116,18 +121,17 @@ describe('sse-handlers tool lifecycle', () => {
   })
 
   it('skips duplicate tool_call after result', async () => {
-    executeToolServerSide.mockResolvedValueOnce({ success: true, output: { ok: true } })
-    markToolComplete.mockResolvedValueOnce(true)
+    executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
 
     const event = {
-      type: 'tool',
+      type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'tool-dup',
-        toolName: 'read',
+        toolName: ReadTool.id,
         arguments: { workflowId: 'workflow-1' },
-        executor: 'sim',
-        mode: 'async',
-        phase: 'call',
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.call,
       },
     }
 
@@ -135,8 +139,7 @@ describe('sse-handlers tool lifecycle', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     await sseHandlers.tool(event as StreamEvent, context, execContext, { interactive: false })
 
-    expect(executeToolServerSide).toHaveBeenCalledTimes(1)
-    expect(markToolComplete).toHaveBeenCalledTimes(1)
+    expect(executeTool).toHaveBeenCalledTimes(1)
   })
 
   it('marks an in-flight tool as cancelled when aborted mid-execution', async () => {
@@ -145,24 +148,23 @@ describe('sse-handlers tool lifecycle', () => {
     execContext.abortSignal = abortController.signal
     execContext.userStopSignal = userStopController.signal
 
-    executeToolServerSide.mockImplementationOnce(
+    executeTool.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           setTimeout(() => resolve({ success: true, output: { ok: true } }), 0)
         })
     )
-    markToolComplete.mockResolvedValue(true)
 
     await sseHandlers.tool(
       {
-        type: 'tool',
+        type: MothershipStreamV1EventType.tool,
         payload: {
           toolCallId: 'tool-cancel',
-          toolName: 'read',
+          toolName: ReadTool.id,
           arguments: { workflowId: 'workflow-1' },
-          executor: 'sim',
-          mode: 'async',
-          phase: 'call',
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
         },
       } satisfies StreamEvent,
       context,
@@ -179,38 +181,28 @@ describe('sse-handlers tool lifecycle', () => {
     abortController.abort()
     await new Promise((resolve) => setTimeout(resolve, 10))
 
-    expect(markToolComplete).toHaveBeenCalledWith(
-      'tool-cancel',
-      'read',
-      499,
-      'Request aborted during tool execution',
-      { cancelled: true },
-      'msg-1'
-    )
-
     const updated = context.toolCalls.get('tool-cancel')
     expect(updated?.status).toBe('cancelled')
   })
 
   it('does not replace an in-flight pending promise on duplicate tool_call', async () => {
     let resolveTool: ((value: { success: boolean; output: { ok: boolean } }) => void) | undefined
-    executeToolServerSide.mockImplementationOnce(
+    executeTool.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           resolveTool = resolve
         })
     )
-    markToolComplete.mockResolvedValueOnce(true)
 
     const event = {
-      type: 'tool',
+      type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'tool-inflight',
-        toolName: 'read',
+        toolName: ReadTool.id,
         arguments: { workflowId: 'workflow-1' },
-        executor: 'sim',
-        mode: 'async',
-        phase: 'call',
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.call,
       },
     }
 
@@ -222,31 +214,29 @@ describe('sse-handlers tool lifecycle', () => {
 
     await sseHandlers.tool(event as StreamEvent, context, execContext, { interactive: false })
 
-    expect(executeToolServerSide).toHaveBeenCalledTimes(1)
+    expect(executeTool).toHaveBeenCalledTimes(1)
     expect(context.pendingToolPromises.get('tool-inflight')).toBe(firstPromise)
 
     resolveTool?.({ success: true, output: { ok: true } })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(context.pendingToolPromises.has('tool-inflight')).toBe(false)
-    expect(markToolComplete).toHaveBeenCalledTimes(1)
   })
 
   it('still executes the tool when async row upsert fails', async () => {
     upsertAsyncToolCall.mockRejectedValueOnce(new Error('db down'))
-    executeToolServerSide.mockResolvedValueOnce({ success: true, output: { ok: true } })
-    markToolComplete.mockResolvedValueOnce(true)
+    executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
 
     await sseHandlers.tool(
       {
-        type: 'tool',
+        type: MothershipStreamV1EventType.tool,
         payload: {
           toolCallId: 'tool-upsert-fail',
-          toolName: 'read',
+          toolName: ReadTool.id,
           arguments: { workflowId: 'workflow-1' },
-          executor: 'sim',
-          mode: 'async',
-          phase: 'call',
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
         },
       } satisfies StreamEvent,
       context,
@@ -256,8 +246,7 @@ describe('sse-handlers tool lifecycle', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(executeToolServerSide).toHaveBeenCalledTimes(1)
-    expect(markToolComplete).toHaveBeenCalledTimes(1)
+    expect(executeTool).toHaveBeenCalledTimes(1)
     expect(context.toolCalls.get('tool-upsert-fail')?.status).toBe('success')
   })
 
@@ -273,14 +262,14 @@ describe('sse-handlers tool lifecycle', () => {
 
     await sseHandlers.tool(
       {
-        type: 'tool',
+        type: MothershipStreamV1EventType.tool,
         payload: {
           toolCallId: 'tool-race',
-          toolName: 'read',
+          toolName: ReadTool.id,
           arguments: { workflowId: 'workflow-1' },
-          executor: 'sim',
-          mode: 'async',
-          phase: 'call',
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
         },
       } satisfies StreamEvent,
       context,
@@ -290,13 +279,13 @@ describe('sse-handlers tool lifecycle', () => {
 
     await sseHandlers.tool(
       {
-        type: 'tool',
+        type: MothershipStreamV1EventType.tool,
         payload: {
           toolCallId: 'tool-race',
-          toolName: 'read',
-          executor: 'sim',
-          mode: 'async',
-          phase: 'result',
+          toolName: ReadTool.id,
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.result,
           success: true,
           result: { ok: true },
         },
@@ -309,8 +298,7 @@ describe('sse-handlers tool lifecycle', () => {
     resolveUpsert?.(null)
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(executeToolServerSide).not.toHaveBeenCalled()
-    expect(markToolComplete).not.toHaveBeenCalled()
+    expect(executeTool).not.toHaveBeenCalled()
     expect(context.toolCalls.get('tool-race')?.status).toBe('success')
     expect(context.toolCalls.get('tool-race')?.result?.output).toEqual({ ok: true })
   })
@@ -320,13 +308,13 @@ describe('sse-handlers tool lifecycle', () => {
 
     await sseHandlers.tool(
       {
-        type: 'tool',
+        type: MothershipStreamV1EventType.tool,
         payload: {
           toolCallId: 'tool-early-result',
-          toolName: 'read',
-          executor: 'sim',
-          mode: 'async',
-          phase: 'result',
+          toolName: ReadTool.id,
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.result,
           success: true,
           result: { ok: true },
         },
@@ -338,14 +326,14 @@ describe('sse-handlers tool lifecycle', () => {
 
     await sseHandlers.tool(
       {
-        type: 'tool',
+        type: MothershipStreamV1EventType.tool,
         payload: {
           toolCallId: 'tool-early-result',
-          toolName: 'read',
+          toolName: ReadTool.id,
           arguments: { workflowId: 'workflow-1' },
-          executor: 'sim',
-          mode: 'async',
-          phase: 'call',
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
         },
       } satisfies StreamEvent,
       context,
@@ -355,8 +343,7 @@ describe('sse-handlers tool lifecycle', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(executeToolServerSide).not.toHaveBeenCalled()
-    expect(markToolComplete).not.toHaveBeenCalled()
+    expect(executeTool).not.toHaveBeenCalled()
     expect(context.toolCalls.get('tool-early-result')?.status).toBe('success')
   })
 })

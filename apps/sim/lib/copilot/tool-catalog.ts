@@ -17,19 +17,6 @@ export function getToolExecutor(toolId: string): ToolExecutor | undefined {
   return TOOL_CATALOG[toolId]?.executor
 }
 
-export function isGoExecutedTool(toolId: string): boolean {
-  return TOOL_CATALOG[toolId]?.executor === 'go'
-}
-
-export function isSimExecutedTool(toolId: string): boolean {
-  const executor = TOOL_CATALOG[toolId]?.executor
-  return executor === 'sim' || executor === 'go'
-}
-
-export function isSubagentTool(toolId: string): boolean {
-  return TOOL_CATALOG[toolId]?.executor === 'subagent'
-}
-
 export function isClientExecutableTool(toolId: string): boolean {
   return TOOL_CATALOG[toolId]?.clientExecutable === true
 }
