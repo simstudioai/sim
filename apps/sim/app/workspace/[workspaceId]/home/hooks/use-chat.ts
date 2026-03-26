@@ -435,6 +435,14 @@ export function useChat(
     lastEventId: 0,
   }))
   const finalizeRef = useRef<(options?: { error?: boolean }) => void>(() => {})
+  const retryReconnectRef = useRef<
+    (opts: {
+      streamId: string
+      assistantId: string
+      gen: number
+      initialSnapshot?: StreamSnapshot | null
+    }) => Promise<boolean>
+  >(async () => false)
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
@@ -845,54 +853,13 @@ export function useChat(
       const assistantId = crypto.randomUUID()
 
       const reconnect = async () => {
-        let lastAttemptError: string | undefined
-
-        for (let attempt = 0; attempt <= MAX_RECONNECT_ATTEMPTS; attempt++) {
-          if (streamGenRef.current !== gen) return
-          if (abortControllerRef.current?.signal.aborted) return
-
-          if (attempt > 0) {
-            const delayMs = Math.min(
-              RECONNECT_BASE_DELAY_MS * 2 ** (attempt - 1),
-              RECONNECT_MAX_DELAY_MS
-            )
-            logger.error('Reconnect attempt (chatHistory)', {
-              streamId: activeStreamId,
-              attempt,
-              maxAttempts: MAX_RECONNECT_ATTEMPTS,
-              delayMs,
-              error: lastAttemptError,
-            })
-            setIsReconnecting(true)
-            await new Promise((resolve) => setTimeout(resolve, delayMs))
-            if (streamGenRef.current !== gen) return
-            if (abortControllerRef.current?.signal.aborted) return
-          }
-
-          try {
-            const result = await attachToExistingStream({
-              streamId: activeStreamId,
-              assistantId,
-              expectedGen: gen,
-              snapshot: attempt === 0 ? snapshot : undefined,
-              initialLastEventId: lastEventIdRef.current,
-            })
-            if (streamGenRef.current === gen && !result.aborted) {
-              finalizeRef.current(result.error ? { error: true } : undefined)
-            }
-            return
-          } catch (err) {
-            if (err instanceof Error && err.name === 'AbortError') return
-            lastAttemptError = err instanceof Error ? err.message : String(err)
-          }
-        }
-
-        logger.error('All reconnect attempts exhausted (chatHistory)', {
+        const succeeded = await retryReconnectRef.current({
           streamId: activeStreamId,
-          maxAttempts: MAX_RECONNECT_ATTEMPTS,
+          assistantId,
+          gen,
+          initialSnapshot: snapshot,
         })
-        setIsReconnecting(false)
-        if (streamGenRef.current === gen) {
+        if (!succeeded && streamGenRef.current === gen) {
           try {
             finalizeRef.current({ error: true })
           } catch {
@@ -906,7 +873,7 @@ export function useChat(
       }
       reconnect()
     }
-  }, [applyChatHistorySnapshot, attachToExistingStream, chatHistory, queryClient])
+  }, [applyChatHistorySnapshot, chatHistory, queryClient])
 
   const processSSEStream = useCallback(
     async (
@@ -1672,6 +1639,67 @@ export function useChat(
     [fetchStreamBatch, attachToExistingStream, finalize]
   )
 
+  const retryReconnect = useCallback(
+    async (opts: {
+      streamId: string
+      assistantId: string
+      gen: number
+      initialSnapshot?: StreamSnapshot | null
+    }): Promise<boolean> => {
+      const { streamId, assistantId, gen, initialSnapshot } = opts
+
+      for (let attempt = 0; attempt <= MAX_RECONNECT_ATTEMPTS; attempt++) {
+        if (streamGenRef.current !== gen) return true
+        if (abortControllerRef.current?.signal.aborted) return true
+
+        if (attempt > 0) {
+          const delayMs = Math.min(
+            RECONNECT_BASE_DELAY_MS * 2 ** (attempt - 1),
+            RECONNECT_MAX_DELAY_MS
+          )
+          logger.warn('Reconnect attempt', {
+            streamId,
+            attempt,
+            maxAttempts: MAX_RECONNECT_ATTEMPTS,
+            delayMs,
+          })
+          setIsReconnecting(true)
+          await new Promise((resolve) => setTimeout(resolve, delayMs))
+          if (streamGenRef.current !== gen) return true
+          if (abortControllerRef.current?.signal.aborted) return true
+        }
+
+        try {
+          await resumeOrFinalize({
+            streamId,
+            assistantId,
+            gen,
+            fromEventId: lastEventIdRef.current,
+            snapshot: attempt === 0 ? initialSnapshot : undefined,
+            signal: abortControllerRef.current?.signal,
+          })
+          return true
+        } catch (err) {
+          if (err instanceof Error && err.name === 'AbortError') return true
+          logger.warn('Reconnect attempt failed', {
+            streamId,
+            attempt: attempt + 1,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }
+
+      logger.error('All reconnect attempts exhausted', {
+        streamId,
+        maxAttempts: MAX_RECONNECT_ATTEMPTS,
+      })
+      setIsReconnecting(false)
+      return false
+    },
+    [resumeOrFinalize]
+  )
+  retryReconnectRef.current = retryReconnect
+
   const sendMessage = useCallback(
     async (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       if (!message.trim() || !workspaceId) return
@@ -1877,49 +1905,12 @@ export function useChat(
 
         const activeStreamId = streamIdRef.current
         if (activeStreamId && streamGenRef.current === gen) {
-          for (let attempt = 0; attempt < MAX_RECONNECT_ATTEMPTS; attempt++) {
-            if (streamGenRef.current !== gen) return
-            if (abortControllerRef.current?.signal.aborted) return
-
-            const delayMs = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** attempt, RECONNECT_MAX_DELAY_MS)
-            logger.info('Reconnect attempt after network error', {
-              streamId: activeStreamId,
-              attempt: attempt + 1,
-              maxAttempts: MAX_RECONNECT_ATTEMPTS,
-              delayMs,
-              error: errorMessage,
-            })
-
-            setIsReconnecting(true)
-            await new Promise((resolve) => setTimeout(resolve, delayMs))
-
-            if (streamGenRef.current !== gen) return
-            if (abortControllerRef.current?.signal.aborted) return
-
-            try {
-              await resumeOrFinalize({
-                streamId: activeStreamId,
-                assistantId,
-                gen,
-                fromEventId: lastEventIdRef.current,
-                signal: abortControllerRef.current?.signal,
-              })
-              return
-            } catch (reconnectErr) {
-              if (reconnectErr instanceof Error && reconnectErr.name === 'AbortError') return
-              logger.warn('Reconnect attempt failed', {
-                streamId: activeStreamId,
-                attempt: attempt + 1,
-                error: reconnectErr instanceof Error ? reconnectErr.message : String(reconnectErr),
-              })
-            }
-          }
-
-          logger.error('All reconnect attempts exhausted', {
+          const succeeded = await retryReconnect({
             streamId: activeStreamId,
-            maxAttempts: MAX_RECONNECT_ATTEMPTS,
+            assistantId,
+            gen,
           })
-          setIsReconnecting(false)
+          if (succeeded) return
         }
 
         setError(errorMessage)
@@ -1935,6 +1926,7 @@ export function useChat(
       processSSEStream,
       finalize,
       resumeOrFinalize,
+      retryReconnect,
       preparePendingStreamRecovery,
     ]
   )
