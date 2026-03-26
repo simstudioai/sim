@@ -62,7 +62,7 @@ function VerificationForm({
         <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           {isVerified ? 'Email Verified!' : 'Verify Your Email'}
         </h1>
-        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--text-primary)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
+        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
           {isVerified
             ? 'Your email has been verified. Redirecting to dashboard...'
             : !isEmailVerificationEnabled
@@ -78,7 +78,7 @@ function VerificationForm({
       {!isVerified && isEmailVerificationEnabled && (
         <div className='mt-8 space-y-8'>
           <div className='space-y-6'>
-            <p className='text-center text-[var(--text-subtle)] text-sm'>
+            <p className='text-center text-[var(--landing-text-muted)] text-sm'>
               Enter the 6-digit code to verify your account.
               {hasEmailService ? " If you don't see it in your inbox, check your spam folder." : ''}
             </p>
@@ -122,7 +122,7 @@ function VerificationForm({
 
           {hasEmailService && (
             <div className='text-center'>
-              <p className='text-[var(--text-subtle)] text-sm'>
+              <p className='text-[var(--landing-text-muted)] text-sm'>
                 Didn't receive a code?{' '}
                 {countdown > 0 ? (
                   <span>

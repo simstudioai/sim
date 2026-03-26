@@ -46,7 +46,7 @@ export function RequestResetForm({
             disabled={isSubmitting}
             required
           />
-          <p className='text-[var(--text-subtle)] text-sm'>
+          <p className='text-[var(--landing-text-muted)] text-sm'>
             We'll send a password reset link to this email address.
           </p>
         </div>
@@ -165,7 +165,7 @@ export function SetNewPasswordForm({
             <button
               type='button'
               onClick={() => setShowPassword(!showPassword)}
-              className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--text-subtle)] transition hover:text-[var(--landing-text)]'
+              className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] transition hover:text-[var(--landing-text)]'
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -193,7 +193,7 @@ export function SetNewPasswordForm({
             <button
               type='button'
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--text-subtle)] transition hover:text-[var(--landing-text)]'
+              className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] transition hover:text-[var(--landing-text)]'
               aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
             >
               {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
