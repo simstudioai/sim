@@ -326,18 +326,24 @@ const DEFAULT_MULTIPLE_FILES_ERROR =
 export function normalizeFileInput(
   fileParam: unknown,
   options: { single: true; errorMessage?: string }
-): object | undefined
+): object | string | undefined
 export function normalizeFileInput(
   fileParam: unknown,
   options?: { single?: false }
-): object[] | undefined
+): object[] | string | undefined
 export function normalizeFileInput(
   fileParam: unknown,
   options?: { single?: boolean; errorMessage?: string }
-): object | object[] | undefined {
+): object | object[] | string | undefined {
   if (!fileParam) return undefined
 
   if (typeof fileParam === 'string') {
+    // Check if it's a plain URL (http/https) - return as-is for tools that accept URLs
+    const trimmed = fileParam.trim()
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return options?.single ? trimmed : [trimmed]
+    }
+
     try {
       fileParam = JSON.parse(fileParam)
     } catch {
