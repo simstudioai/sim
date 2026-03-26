@@ -37,9 +37,15 @@ export default {
         ],
       },
       fontSize: {
+        micro: '10px',
         xs: '11px',
-        small: '13px', // Override default 14px to 13px
-        base: '15px', // Override default 16px to 15px
+        caption: '12px',
+        small: '13px',
+        base: '15px',
+        md: '16px',
+      },
+      spacing: {
+        '4.5': '18px',
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -106,9 +112,19 @@ export default {
         semibold: 'var(--font-weight-semibold)',
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
+        xs: '2px',
         sm: 'calc(var(--radius) - 4px)',
+        md: 'calc(var(--radius) - 2px)',
+        lg: 'var(--radius)',
+      },
+      boxShadow: {
+        subtle: 'var(--shadow-subtle)',
+        medium: 'var(--shadow-medium)',
+        overlay: 'var(--shadow-overlay)',
+        kbd: 'var(--shadow-kbd)',
+        'kbd-sm': 'var(--shadow-kbd-sm)',
+        'brand-inset': 'var(--shadow-brand-inset)',
+        card: 'var(--shadow-card)',
       },
       transitionProperty: {
         width: 'width',

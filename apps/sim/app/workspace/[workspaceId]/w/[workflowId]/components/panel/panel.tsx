@@ -594,11 +594,11 @@ export const Panel = memo(function Panel() {
         className='panel-container relative shrink-0 overflow-hidden bg-[var(--bg)]'
         aria-label='Workflow panel'
       >
-        <div className='flex h-full flex-col border-[var(--border)] border-l pt-[14px]'>
+        <div className='flex h-full flex-col border-[var(--border)] border-l pt-3.5'>
           {/* Header */}
-          <div className='flex flex-shrink-0 items-center justify-between px-[8px]'>
+          <div className='flex flex-shrink-0 items-center justify-between px-2'>
             {/* More and Chat */}
-            <div className='flex gap-[6px]'>
+            <div className='flex gap-1.5'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button className='h-[30px] w-[30px] rounded-[5px]' data-tour='panel-menu'>
@@ -661,11 +661,11 @@ export const Panel = memo(function Panel() {
             </div>
 
             {/* Deploy and Run */}
-            <div className='flex gap-[6px]' data-tour='deploy-run'>
+            <div className='flex gap-1.5' data-tour='deploy-run'>
               <Deploy activeWorkflowId={activeWorkflowId} userPermissions={userPermissions} />
               <Button
-                className='h-[30px] gap-[8px] px-[10px]'
-                data-tour='run-button'
+                className='h-[30px] gap-2 px-2.5'
+                 data-tour='run-button'
                 variant={isExecuting ? 'active' : 'tertiary'}
                 onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
                 disabled={!isExecuting && isButtonDisabled}
@@ -681,11 +681,11 @@ export const Panel = memo(function Panel() {
           </div>
 
           {/* Tabs */}
-          <div className='flex flex-shrink-0 items-center justify-between px-[8px] pt-[14px]'>
-            <div className='flex gap-[4px]'>
+          <div className='flex flex-shrink-0 items-center justify-between px-2 pt-3.5'>
+            <div className='flex gap-1'>
               {!permissionConfig.hideCopilot && (
                 <Button
-                  className={`h-[28px] truncate rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                  className={`h-[28px] truncate rounded-md border px-2 py-[5px] text-[12.5px] ${
                     _hasHydrated && activeTab === 'copilot'
                       ? 'border-[var(--border-1)]'
                       : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
@@ -699,7 +699,7 @@ export const Panel = memo(function Panel() {
                 </Button>
               )}
               <Button
-                className={`h-[28px] rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                className={`h-[28px] rounded-md border px-2 py-[5px] text-[12.5px] ${
                   _hasHydrated && activeTab === 'toolbar'
                     ? 'border-[var(--border-1)]'
                     : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
@@ -712,7 +712,7 @@ export const Panel = memo(function Panel() {
                 Toolbar
               </Button>
               <Button
-                className={`h-[28px] rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                className={`h-[28px] rounded-md border px-2 py-[5px] text-[12.5px] ${
                   _hasHydrated && activeTab === 'editor'
                     ? 'border-[var(--border-1)]'
                     : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
@@ -728,7 +728,7 @@ export const Panel = memo(function Panel() {
           </div>
 
           {/* Tab Content - Keep all tabs mounted but hidden to preserve state */}
-          <div className='flex-1 overflow-hidden pt-[12px]'>
+          <div className='flex-1 overflow-hidden pt-3'>
             {!permissionConfig.hideCopilot && (
               <div
                 className={

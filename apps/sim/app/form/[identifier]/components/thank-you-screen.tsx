@@ -32,7 +32,7 @@ export function ThankYouScreen({ title, message, primaryColor }: ThankYouScreenP
         >
           {title}
         </h2>
-        <p className={'mt-3 max-w-md font-[380] text-[#999] text-[16px]'}>{message}</p>
+        <p className={'mt-3 max-w-md font-[380] text-[var(--text-subtle)] text-md'}>{message}</p>
       </div>
     </main>
   )

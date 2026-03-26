@@ -159,7 +159,7 @@ const ModalContent = React.forwardRef<
         className={cn(
           ANIMATION_CLASSES,
           CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] z-[var(--z-modal)] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-[13px] ring-1 ring-foreground/10 duration-200',
+          'fixed top-[50%] z-[var(--z-modal)] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-small ring-1 ring-foreground/10 duration-200',
           MODAL_SIZES[size],
           className
         )}
@@ -299,13 +299,13 @@ const ModalTabsList = React.forwardRef<
     <TabsPrimitive.List
       ref={ref}
       className={cn(
-        'relative flex gap-[16px] px-4 pt-1',
+        'relative flex gap-4 px-4 pt-1',
         disabled && 'pointer-events-none opacity-50',
         className
       )}
       {...props}
     >
-      <div ref={listRef} className='flex gap-[16px]'>
+      <div ref={listRef} className='flex gap-4'>
         {children}
       </div>
       <span
@@ -331,7 +331,7 @@ const ModalTabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'px-1 pb-[8px] font-medium text-[13px] text-[var(--text-secondary)] transition-colors',
+      'px-1 pb-2 font-medium text-small text-[var(--text-secondary)] transition-colors',
       'hover-hover:text-[var(--text-primary)] data-[state=active]:text-[var(--text-primary)]',
       className
     )}
@@ -349,7 +349,7 @@ const ModalTabsContent = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
 >(({ className, ...props }, ref) => (
-  <TabsPrimitive.Content ref={ref} className={cn('pb-[10px]', className)} {...props} />
+  <TabsPrimitive.Content ref={ref} className={cn('pb-2.5', className)} {...props} />
 ))
 
 ModalTabsContent.displayName = 'ModalTabsContent'

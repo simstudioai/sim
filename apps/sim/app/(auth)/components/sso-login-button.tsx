@@ -35,7 +35,7 @@ export function SSOLoginButton({
 
   const primaryBtnClasses = cn(
     primaryClassName || 'branded-button-gradient',
-    'flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200'
+    'flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-base text-white transition-all duration-200'
   )
 
   const outlineBtnClasses = cn('w-full rounded-[10px]')

@@ -351,7 +351,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
             return (
               <code
                 {...props}
-                className='whitespace-normal rounded bg-[var(--surface-5)] px-1 py-0.5 font-mono text-[#F59E0B] text-xs'
+                className='whitespace-normal rounded bg-[var(--surface-5)] px-1 py-0.5 font-mono text-[var(--amber)] text-xs'
               >
                 {children}
               </code>
@@ -531,17 +531,17 @@ export const NoteBlock = memo(function NoteBlock({
     <div className='group relative'>
       <div
         className={cn(
-          'note-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] [&:active]:cursor-grabbing'
+          'note-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-lg border border-[var(--border)] bg-[var(--surface-2)] [&:active]:cursor-grabbing'
         )}
         onClick={handleClick}
       >
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
 
-        <div className='flex items-center justify-between border-[var(--divider)] border-b p-[8px]'>
+        <div className='flex items-center justify-between border-[var(--divider)] border-b p-2'>
           <div className='flex min-w-0 flex-1 items-center'>
             <span
               className={cn(
-                'truncate font-medium text-[16px]',
+                'truncate font-medium text-md',
                 !isEnabled && 'text-[var(--text-muted)]'
               )}
               title={name}
@@ -551,10 +551,10 @@ export const NoteBlock = memo(function NoteBlock({
           </div>
         </div>
 
-        <div className='relative overflow-hidden p-[8px]'>
+        <div className='relative overflow-hidden p-2'>
           <div className='relative max-w-full break-all'>
             {isEmpty ? (
-              <p className='text-[#868686] text-sm'>Add note...</p>
+              <p className='text-[var(--text-placeholder)] text-sm'>Add note...</p>
             ) : (
               <NoteMarkdown content={content} />
             )}
@@ -562,7 +562,7 @@ export const NoteBlock = memo(function NoteBlock({
         </div>
         {hasRing && (
           <div
-            className={cn('pointer-events-none absolute inset-0 z-40 rounded-[8px]', ringStyles)}
+            className={cn('pointer-events-none absolute inset-0 z-40 rounded-lg', ringStyles)}
           />
         )}
       </div>

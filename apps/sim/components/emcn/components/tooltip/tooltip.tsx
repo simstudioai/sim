@@ -56,7 +56,7 @@ const Content = React.forwardRef<
       {...props}
     >
       {props.children}
-      <TooltipPrimitive.Arrow className='fill-[#1b1b1b] dark:fill-[#fdfdfd]' />
+      <TooltipPrimitive.Arrow className='fill-[var(--bg)] dark:fill-[#fdfdfd]' />
     </TooltipPrimitive.Content>
   </TooltipPrimitive.Portal>
 ))
@@ -82,7 +82,7 @@ interface ShortcutProps {
  * ```
  */
 const Shortcut = ({ keys, className, children }: ShortcutProps) => (
-  <span className={cn('flex items-center gap-[8px]', className)}>
+  <span className={cn('flex items-center gap-2', className)}>
     {children && <span>{children}</span>}
     <span className='opacity-70'>{keys}</span>
   </span>

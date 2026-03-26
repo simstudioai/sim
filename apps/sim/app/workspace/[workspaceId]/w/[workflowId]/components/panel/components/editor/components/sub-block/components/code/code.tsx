@@ -733,8 +733,8 @@ export const Code = memo(function Code({
           className={cn(
             'text-right text-xs tabular-nums leading-[21px]',
             isActive
-              ? 'text-[var(--text-primary)] dark:text-[#eeeeee]'
-              : 'text-[var(--text-muted)] dark:text-[#a8a8a8]'
+              ? 'text-[var(--text-primary)] dark:text-[var(--code-foreground)]'
+              : 'text-[var(--text-muted)] dark:text-[var(--code-line-number)]'
           )}
         >
           {lineNumber}
@@ -759,7 +759,7 @@ export const Code = memo(function Code({
           key={'1-0'}
           className={cn(
             'text-right text-xs tabular-nums leading-[21px]',
-            'text-[var(--text-muted)] dark:text-[#a8a8a8]'
+            'text-[var(--text-muted)] dark:text-[var(--code-line-number)]'
           )}
         >
           1

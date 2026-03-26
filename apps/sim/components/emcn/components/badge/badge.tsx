@@ -3,7 +3,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/core/utils/cn'
 
 /** Shared base styles for status color badge variants */
-const STATUS_BASE = 'gap-[6px] rounded-[6px]'
+const STATUS_BASE = 'gap-1.5 rounded-md'
 
 const badgeVariants = cva(
   'inline-flex items-center font-medium focus:outline-none transition-colors',
@@ -11,10 +11,10 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          'gap-[4px] rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)] hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]',
+          'gap-1 rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)] hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]',
         outline:
-          'gap-[4px] rounded-[40px] border border-[var(--border-1)] bg-transparent text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)] hover-hover:bg-[var(--surface-5)] dark:hover-hover:bg-transparent dark:hover-hover:border-[var(--surface-6)]',
-        type: 'gap-[4px] rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] dark:bg-[var(--surface-6)]',
+          'gap-1 rounded-[40px] border border-[var(--border-1)] bg-transparent text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)] hover-hover:bg-[var(--surface-5)] dark:hover-hover:bg-transparent dark:hover-hover:border-[var(--surface-6)]',
+        type: 'gap-1 rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] dark:bg-[var(--surface-6)]',
         green: `${STATUS_BASE} bg-[#bbf7d0] text-[#15803d] dark:bg-[rgba(34,197,94,0.2)] dark:text-[#86efac]`,
         red: `${STATUS_BASE} bg-[#fecaca] text-[var(--text-error)] dark:bg-[#551a1a] dark:text-[var(--text-error)]`,
         gray: `${STATUS_BASE} bg-[#e7e5e4] text-[#57534e] dark:bg-[var(--terminal-status-info-bg)] dark:text-[var(--terminal-status-info-color)]`,
@@ -29,9 +29,9 @@ const badgeVariants = cva(
         'gray-secondary': `${STATUS_BASE} bg-[var(--surface-4)] text-[var(--text-secondary)]`,
       },
       size: {
-        sm: 'px-[7px] py-[1px] text-[11px]',
-        md: 'px-[9px] py-[2px] text-[12px]',
-        lg: 'px-[9px] py-[2.25px] text-[12px]',
+        sm: 'px-[7px] py-[1px] text-xs',
+        md: 'px-[9px] py-0.5 text-caption',
+        lg: 'px-[9px] py-[2.25px] text-caption',
       },
     },
     defaultVariants: {
@@ -107,7 +107,7 @@ function Badge({
   return (
     <div className={cn(badgeVariants({ variant, size }), className)} {...props}>
       {isStatusVariant && dot && (
-        <div className={cn('rounded-[2px] bg-current', DOT_SIZES[effectiveSize])} />
+        <div className={cn('rounded-xs bg-current', DOT_SIZES[effectiveSize])} />
       )}
       {Icon && <Icon className={ICON_SIZES[effectiveSize]} />}
       {children}

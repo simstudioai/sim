@@ -75,7 +75,7 @@ const SModalContent = React.forwardRef<
         className={cn(
           ANIMATION_CLASSES,
           CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] z-[var(--z-modal)] flex h-[min(calc(100vh-8rem),900px)] min-h-[400px] w-[min(calc(100vw-8rem),1080px)] min-w-[520px] translate-x-[-50%] translate-y-[-50%] flex-row rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
+          'fixed top-[50%] z-[var(--z-modal)] flex h-[min(calc(100vh-8rem),900px)] min-h-[400px] w-[min(calc(100vw-8rem),1080px)] min-w-[520px] translate-x-[-50%] translate-y-[-50%] flex-row rounded-lg border bg-[var(--bg)] shadow-sm duration-200',
           className
         )}
         style={{
@@ -112,7 +112,7 @@ const SModalSidebar = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('flex min-h-0 w-[166px] flex-col overflow-y-auto py-[12px]', className)}
+      className={cn('flex min-h-0 w-[166px] flex-col overflow-y-auto py-3', className)}
       {...props}
     />
   )
@@ -128,7 +128,7 @@ const SModalSidebarHeader = React.forwardRef<HTMLDivElement, React.HTMLAttribute
     <div
       ref={ref}
       className={cn(
-        'mb-[16px] px-[12px] font-medium text-[16px] text-[var(--text-primary)]',
+        'mb-4 px-3 font-medium text-md text-[var(--text-primary)]',
         className
       )}
       {...props}
@@ -145,7 +145,7 @@ const SModalSidebarSection = React.forwardRef<HTMLDivElement, React.HTMLAttribut
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('flex flex-col gap-[4px] px-[12px] [&+&]:mt-[12px]', className)}
+      className={cn('flex flex-col gap-1 px-3 [&+&]:mt-3', className)}
       {...props}
     />
   )
@@ -162,7 +162,7 @@ const SModalSidebarSectionTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('mb-[2px] font-medium text-[12px] text-[var(--text-muted)]', className)}
+    className={cn('mb-0.5 font-medium text-caption text-[var(--text-muted)]', className)}
     {...props}
   />
 ))
@@ -190,7 +190,7 @@ function SModalSidebarItem({
     <Button
       variant={active ? 'active' : 'ghost'}
       className={cn(
-        'w-full justify-start gap-[8px] rounded-[6px] border-0 text-[13px]',
+        'w-full justify-start gap-2 rounded-md border-0 text-small',
         !active &&
           'text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-6)] hover-hover:text-[var(--text-primary)] dark:hover-hover:bg-[var(--border)]',
         className
@@ -215,7 +215,7 @@ const SModalMain = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
     <div
       ref={ref}
       className={cn(
-        'flex min-w-0 flex-1 flex-col gap-[16px] overflow-hidden rounded-[8px] border-l bg-[var(--surface-2)] p-[14px]',
+        'flex min-w-0 flex-1 flex-col gap-4 overflow-hidden rounded-lg border-l bg-[var(--surface-2)] p-3.5',
         className
       )}
       {...props}
@@ -231,7 +231,7 @@ SModalMain.displayName = 'SModalMain'
 const SModalMainHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => (
     <div ref={ref} className={cn('flex items-center justify-between', className)} {...props}>
-      <span className='font-base text-[14px] text-[var(--text-muted)]'>{children}</span>
+      <span className='font-base text-sm text-[var(--text-muted)]'>{children}</span>
       <DialogPrimitive.Close asChild>
         <Button
           variant='ghost'
@@ -319,13 +319,13 @@ const SModalTabsList = React.forwardRef<
     <TabsPrimitive.List
       ref={ref}
       className={cn(
-        'relative flex gap-[16px] px-4',
+        'relative flex gap-4 px-4',
         disabled && 'pointer-events-none opacity-50',
         className
       )}
       {...props}
     >
-      <div ref={listRef} className='flex gap-[16px]'>
+      <div ref={listRef} className='flex gap-4'>
         {children}
       </div>
       <span
@@ -351,7 +351,7 @@ const SModalTabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'px-1 pb-[8px] font-medium text-[13px] text-[var(--text-secondary)] transition-colors',
+      'px-1 pb-2 font-medium text-small text-[var(--text-secondary)] transition-colors',
       'hover-hover:text-[var(--text-primary)] data-[state=active]:text-[var(--text-primary)]',
       className
     )}
@@ -368,7 +368,7 @@ const SModalTabsContent = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
 >(({ className, ...props }, ref) => (
-  <TabsPrimitive.Content ref={ref} className={cn('pb-[10px]', className)} {...props} />
+  <TabsPrimitive.Content ref={ref} className={cn('pb-2.5', className)} {...props} />
 ))
 
 SModalTabsContent.displayName = 'SModalTabsContent'
@@ -382,7 +382,7 @@ const SModalTabsBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTM
     <div
       ref={ref}
       className={cn(
-        'min-h-0 flex-1 overflow-y-auto border-[var(--border)] border-t pt-[10px]',
+        'min-h-0 flex-1 overflow-y-auto border-[var(--border)] border-t pt-2.5',
         className
       )}
       {...props}

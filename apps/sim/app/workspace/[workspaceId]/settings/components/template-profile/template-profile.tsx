@@ -256,26 +256,26 @@ export function TemplateProfile() {
 
   if (isLoading) {
     return (
-      <div className='flex h-full flex-col gap-[18px]'>
+      <div className='flex h-full flex-col gap-4.5'>
         <div className='min-h-0 flex-1 overflow-y-auto'>
-          <div className='flex flex-col gap-[18px]'>
+          <div className='flex flex-col gap-4.5'>
             {/* Display Skeleton */}
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               <Skeleton className='h-5 w-[50px]' />
-              <div className='flex items-center gap-[10px]'>
+              <div className='flex items-center gap-2.5'>
                 <Skeleton className='h-9 w-9 flex-shrink-0 rounded-full' />
                 <Skeleton className='h-9 flex-1' />
               </div>
             </div>
 
             {/* About Skeleton */}
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               <Skeleton className='h-5 w-[35px]' />
               <Skeleton className='min-h-[100px] w-full' />
             </div>
 
             {/* Socials Skeleton */}
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               <Skeleton className='h-5 w-[45px]' />
               <Skeleton className='h-9 w-full' />
               <Skeleton className='h-9 w-full' />
@@ -286,7 +286,7 @@ export function TemplateProfile() {
         </div>
 
         {/* Save Button Skeleton */}
-        <div className='mt-auto flex items-center justify-end gap-[8px]'>
+        <div className='mt-auto flex items-center justify-end gap-2'>
           <Skeleton className='h-9 w-[60px]' />
         </div>
       </div>
@@ -294,14 +294,14 @@ export function TemplateProfile() {
   }
 
   return (
-    <div className='flex h-full flex-col gap-[18px]'>
+    <div className='flex h-full flex-col gap-4.5'>
       {/* Scrollable Content */}
       <div className='min-h-0 flex-1 overflow-y-auto'>
-        <div className='flex flex-col gap-[18px]'>
+        <div className='flex flex-col gap-4.5'>
           {/* Profile Selection - only show if user has organizations */}
           {organizations.length > 0 && (
-            <div className='flex flex-col gap-[8px]'>
-              <span className='font-medium text-[14px] text-[var(--text-secondary)]'>Profile</span>
+            <div className='flex flex-col gap-2'>
+              <span className='font-medium text-sm text-[var(--text-secondary)]'>Profile</span>
               <Combobox
                 options={[
                   { label: 'Personal', value: userId },
@@ -326,11 +326,11 @@ export function TemplateProfile() {
           )}
 
           {/* Display */}
-          <div className='flex flex-col gap-[8px]'>
-            <span className='font-medium text-[14px] text-[var(--text-secondary)]'>
-              Display<span className='ml-[6px] text-[var(--text-secondary)]'>*</span>
+          <div className='flex flex-col gap-2'>
+            <span className='font-medium text-sm text-[var(--text-secondary)]'>
+              Display<span className='ml-1.5 text-[var(--text-secondary)]'>*</span>
             </span>
-            <div className='flex items-center gap-[10px]'>
+            <div className='flex items-center gap-2.5'>
               <div className='relative'>
                 <div
                   className={`group relative flex h-9 w-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border transition-all hover-hover:bg-[var(--bg)] ${
@@ -359,7 +359,7 @@ export function TemplateProfile() {
                     const initials = getInitials(formData.name)
                     if (initials) {
                       return (
-                        <span className='font-medium text-[15px] text-[var(--text-primary)]'>
+                        <span className='font-medium text-base text-[var(--text-primary)]'>
                           {initials}
                         </span>
                       )
@@ -411,12 +411,12 @@ export function TemplateProfile() {
                 data-form-type='other'
               />
             </div>
-            {uploadError && <p className='text-[13px] text-[var(--text-error)]'>{uploadError}</p>}
+            {uploadError && <p className='text-small text-[var(--text-error)]'>{uploadError}</p>}
           </div>
 
           {/* About */}
-          <div className='flex flex-col gap-[8px]'>
-            <span className='font-medium text-[14px] text-[var(--text-secondary)]'>About</span>
+          <div className='flex flex-col gap-2'>
+            <span className='font-medium text-sm text-[var(--text-secondary)]'>About</span>
             <Textarea
               placeholder='Tell people about yourself or your organization'
               value={formData.about}
@@ -426,8 +426,8 @@ export function TemplateProfile() {
           </div>
 
           {/* Social Links */}
-          <div className='flex flex-col gap-[8px]'>
-            <span className='font-medium text-[14px] text-[var(--text-secondary)]'>Socials</span>
+          <div className='flex flex-col gap-2'>
+            <span className='font-medium text-sm text-[var(--text-secondary)]'>Socials</span>
 
             <div>
               <div className='relative'>
@@ -436,11 +436,11 @@ export function TemplateProfile() {
                   placeholder='x.com/username'
                   value={formData.xUrl}
                   onChange={(e) => updateField('xUrl', e.target.value)}
-                  className='h-9 w-full pl-[32px]'
+                  className='h-9 w-full pl-8'
                 />
               </div>
               {fieldErrors.xUrl && (
-                <p className='mt-[4px] text-[13px] text-[var(--text-error)]'>{fieldErrors.xUrl}</p>
+                <p className='mt-1 text-small text-[var(--text-error)]'>{fieldErrors.xUrl}</p>
               )}
             </div>
 
@@ -451,11 +451,11 @@ export function TemplateProfile() {
                   placeholder='linkedin.com/in/username'
                   value={formData.linkedinUrl}
                   onChange={(e) => updateField('linkedinUrl', e.target.value)}
-                  className='h-9 w-full pl-[32px]'
+                  className='h-9 w-full pl-8'
                 />
               </div>
               {fieldErrors.linkedinUrl && (
-                <p className='mt-[4px] text-[13px] text-[var(--text-error)]'>
+                <p className='mt-1 text-small text-[var(--text-error)]'>
                   {fieldErrors.linkedinUrl}
                 </p>
               )}
@@ -468,11 +468,11 @@ export function TemplateProfile() {
                   placeholder='yourwebsite.com'
                   value={formData.websiteUrl}
                   onChange={(e) => updateField('websiteUrl', e.target.value)}
-                  className='h-9 w-full pl-[32px]'
+                  className='h-9 w-full pl-8'
                 />
               </div>
               {fieldErrors.websiteUrl && (
-                <p className='mt-[4px] text-[13px] text-[var(--text-error)]'>
+                <p className='mt-1 text-small text-[var(--text-error)]'>
                   {fieldErrors.websiteUrl}
                 </p>
               )}
@@ -486,11 +486,11 @@ export function TemplateProfile() {
                   type='email'
                   value={formData.contactEmail}
                   onChange={(e) => updateField('contactEmail', e.target.value)}
-                  className='h-9 w-full pl-[32px]'
+                  className='h-9 w-full pl-8'
                 />
               </div>
               {fieldErrors.contactEmail && (
-                <p className='mt-[4px] text-[13px] text-[var(--text-error)]'>
+                <p className='mt-1 text-small text-[var(--text-error)]'>
                   {fieldErrors.contactEmail}
                 </p>
               )}
@@ -499,8 +499,8 @@ export function TemplateProfile() {
         </div>
       </div>
 
-      <div className='mt-auto flex items-center justify-end gap-[8px]'>
-        {saveError && <p className='mr-auto text-[13px] text-[var(--text-error)]'>{saveError}</p>}
+      <div className='mt-auto flex items-center justify-end gap-2'>
+        {saveError && <p className='mr-auto text-small text-[var(--text-error)]'>{saveError}</p>}
         <Button
           onClick={handleSubmit}
           disabled={saveStatus === 'saving' || !isFormValid}

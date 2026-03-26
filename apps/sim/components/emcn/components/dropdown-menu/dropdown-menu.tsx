@@ -38,7 +38,7 @@ const DropdownMenuGroup = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Group
     ref={ref}
-    className={cn('flex flex-col gap-[2px]', className)}
+    className={cn('flex flex-col gap-0.5', className)}
     {...props}
   />
 ))
@@ -59,8 +59,8 @@ const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      'flex min-w-0 cursor-default select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[state=open]:bg-[var(--surface-active)] [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
-      inset && 'pl-[28px]',
+      'flex min-w-0 cursor-default select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-caption text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[state=open]:bg-[var(--surface-active)] [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
+      inset && 'pl-7',
       className
     )}
     {...props}
@@ -79,7 +79,7 @@ const DropdownMenuSubContent = React.forwardRef<
     ref={ref}
     className={cn(
       ANIMATION_CLASSES,
-      'z-[var(--z-dropdown)] max-h-[240px] min-w-[8rem] max-w-[280px] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-body)] shadow-sm',
+      'z-[var(--z-dropdown)] max-h-[240px] min-w-[8rem] max-w-[280px] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm',
       className
     )}
     {...props}
@@ -97,7 +97,7 @@ const DropdownMenuContent = React.forwardRef<
       sideOffset={sideOffset}
       className={cn(
         ANIMATION_CLASSES,
-        'z-[var(--z-dropdown)] max-h-[240px] min-w-[8rem] max-w-[280px] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] p-[6px] text-[var(--text-body)] shadow-sm',
+        'z-[var(--z-dropdown)] max-h-[240px] min-w-[8rem] max-w-[280px] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm',
         className
       )}
       {...props}
@@ -115,8 +115,8 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex min-w-0 cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
-      inset && 'pl-[28px]',
+      'relative flex min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-caption text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
+      inset && 'pl-7',
       className
     )}
     {...props}
@@ -131,7 +131,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center rounded-[5px] py-[5px] pr-[8px] pl-[28px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex cursor-default select-none items-center rounded-[5px] py-[5px] pr-2 pl-7 font-medium text-caption text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className
     )}
     checked={checked}
@@ -154,7 +154,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center rounded-[5px] py-[5px] pr-[8px] pl-[28px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex cursor-default select-none items-center rounded-[5px] py-[5px] pr-2 pl-7 font-medium text-caption text-[var(--text-body)] outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className
     )}
     {...props}
@@ -178,8 +178,8 @@ const DropdownMenuLabel = React.forwardRef<
   <DropdownMenuPrimitive.Label
     ref={ref}
     className={cn(
-      'px-[8px] py-[5px] font-medium text-[11px] text-[var(--text-tertiary)]',
-      inset && 'pl-[28px]',
+      'px-2 py-[5px] font-medium text-xs text-[var(--text-tertiary)]',
+      inset && 'pl-7',
       className
     )}
     {...props}
@@ -193,7 +193,7 @@ const DropdownMenuSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Separator
     ref={ref}
-    className={cn('-mx-[6px] my-[6px] h-px bg-[var(--border-1)]', className)}
+    className={cn('-mx-1.5 my-1.5 h-px bg-[var(--border-1)]', className)}
     {...props}
   />
 ))
@@ -221,7 +221,7 @@ const DropdownMenuSearchInput = React.forwardRef<
   )
 
   return (
-    <div className='mx-[2px] mt-[2px] mb-[2px] flex shrink-0 items-center gap-[8px] rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] dark:bg-[var(--surface-4)]'>
+    <div className='mx-0.5 mt-0.5 mb-0.5 flex shrink-0 items-center gap-2 rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
       <Search className='h-[14px] w-[14px] shrink-0 text-[var(--text-muted)]' />
       <input
         ref={setRefs}
@@ -230,7 +230,7 @@ const DropdownMenuSearchInput = React.forwardRef<
           onKeyDown?.(e)
         }}
         className={cn(
-          'w-full bg-transparent py-[4px] font-medium text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:outline-none',
+          'w-full bg-transparent py-1 font-medium text-caption text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:outline-none',
           className
         )}
         {...props}
@@ -243,7 +243,7 @@ DropdownMenuSearchInput.displayName = 'DropdownMenuSearchInput'
 const DropdownMenuShortcut = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => {
   return (
     <span
-      className={cn('ml-auto text-[11px] text-[var(--text-muted)] tracking-widest', className)}
+      className={cn('ml-auto text-xs text-[var(--text-muted)] tracking-widest', className)}
       {...props}
     />
   )

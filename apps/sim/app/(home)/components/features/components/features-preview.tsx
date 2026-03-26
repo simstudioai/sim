@@ -282,7 +282,7 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
       {isExpanded && expandTarget && (
         <motion.div
           key={expandedTab}
-          className='absolute inset-0 overflow-hidden border border-[#E5E5E5] bg-white'
+          className='absolute inset-0 overflow-hidden border border-[var(--surface-6)] bg-white'
           initial={{ opacity: 0, scale: 0.15 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
@@ -304,21 +304,21 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
 
 function MockUserInput({ text }: { text: string }) {
   return (
-    <div className='flex w-[380px] items-center gap-[6px] rounded-[16px] border border-[#E0E0E0] bg-white px-[10px] py-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'>
-      <div className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-full border border-[#E8E8E8]'>
+    <div className='flex w-[380px] items-center gap-1.5 rounded-[16px] border border-[var(--border-1)] bg-white px-2.5 py-2 shadow-[0_2px_8px_rgba(0,0,0,0.06)]'>
+      <div className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--surface-6)]'>
         <svg width='12' height='12' viewBox='0 0 12 12' fill='none'>
           <path d='M6 2.5v7M2.5 6h7' stroke='#999' strokeWidth='1.5' strokeLinecap='round' />
         </svg>
       </div>
-      <div className='min-h-[20px] flex-1 font-[430] text-[#1C1C1C] text-[13px] leading-[20px]'>
+      <div className='min-h-[20px] flex-1 font-[430] text-[var(--text-primary)] text-small leading-[20px]'>
         {text}
         <motion.span
-          className='ml-[1px] inline-block h-[14px] w-[1.5px] bg-[#1C1C1C] align-text-bottom'
+          className='ml-[1px] inline-block h-[14px] w-[1.5px] bg-[var(--text-primary)] align-text-bottom'
           animate={{ opacity: [1, 0] }}
           transition={{ duration: 0.5, repeat: Number.POSITIVE_INFINITY, repeatType: 'reverse' }}
         />
       </div>
-      <div className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-full bg-[#383838]'>
+      <div className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--divider)]'>
         <svg width='12' height='12' viewBox='0 0 12 12' fill='none'>
           <path
             d='M6 9V3M3.5 5L6 2.5L8.5 5'
@@ -345,7 +345,7 @@ function MiniCard({
   color?: string
 }) {
   return (
-    <div className='flex h-full w-full flex-col overflow-hidden rounded-[2px] border border-[#E5E5E5] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]'>
+    <div className='flex h-full w-full flex-col overflow-hidden rounded-xs border border-[var(--surface-6)] bg-white shadow-card'>
       <MiniCardHeader variant={variant} label={label} color={color} />
       <div className='flex-1 overflow-hidden'>
         <MiniCardBody variant={variant} color={color} />
@@ -364,7 +364,7 @@ function MiniCardHeader({
   color?: string
 }) {
   return (
-    <div className='flex items-center gap-[4px] border-[#F0F0F0] border-b px-[8px] py-[5px]'>
+    <div className='flex items-center gap-1 border-[var(--surface-4)] border-b px-2 py-[5px]'>
       <MiniCardIcon variant={variant} color={color} />
       <span className='truncate font-medium text-[#888] text-[7px] leading-none'>{label}</span>
     </div>
@@ -419,7 +419,7 @@ function MiniCardBody({ variant, color }: { variant: CardVariant; color?: string
 
 function PromptCardBody() {
   return (
-    <div className='px-[8px] py-[6px]'>
+    <div className='px-2 py-1.5'>
       <p className='break-words text-[#AAAAAA] text-[6.5px] leading-[10px]'>{TYPING_PROMPT}</p>
     </div>
   )
@@ -427,13 +427,13 @@ function PromptCardBody() {
 
 function FileCardBody() {
   return (
-    <div className='flex flex-col gap-[3px] px-[8px] py-[6px]'>
-      <div className='h-[2px] w-[78%] rounded-full bg-[#E8E8E8]' />
-      <div className='h-[2px] w-[92%] rounded-full bg-[#E8E8E8]' />
-      <div className='h-[2px] w-[62%] rounded-full bg-[#E8E8E8]' />
-      <div className='mt-[3px] h-[2px] w-[70%] rounded-full bg-[#F0F0F0]' />
-      <div className='h-[2px] w-[85%] rounded-full bg-[#F0F0F0]' />
-      <div className='h-[2px] w-[50%] rounded-full bg-[#F0F0F0]' />
+    <div className='flex flex-col gap-[3px] px-2 py-1.5'>
+      <div className='h-[2px] w-[78%] rounded-full bg-[var(--surface-6)]' />
+      <div className='h-[2px] w-[92%] rounded-full bg-[var(--surface-6)]' />
+      <div className='h-[2px] w-[62%] rounded-full bg-[var(--surface-6)]' />
+      <div className='mt-[3px] h-[2px] w-[70%] rounded-full bg-[var(--surface-4)]' />
+      <div className='h-[2px] w-[85%] rounded-full bg-[var(--surface-4)]' />
+      <div className='h-[2px] w-[50%] rounded-full bg-[var(--surface-4)]' />
     </div>
   )
 }
@@ -450,19 +450,19 @@ const TABLE_ROW_WIDTHS = [
 function TableCardBody() {
   return (
     <div className='flex flex-col'>
-      <div className='flex items-center gap-[4px] bg-[#FAFAFA] px-[6px] py-[3px]'>
-        <div className='h-[2px] flex-1 rounded-full bg-[#D4D4D4]' />
-        <div className='h-[2px] flex-1 rounded-full bg-[#D4D4D4]' />
-        <div className='h-[2px] flex-1 rounded-full bg-[#D4D4D4]' />
+      <div className='flex items-center gap-1 bg-[var(--surface-1)] px-1.5 py-[3px]'>
+        <div className='h-[2px] flex-1 rounded-full bg-[var(--surface-7)]' />
+        <div className='h-[2px] flex-1 rounded-full bg-[var(--surface-7)]' />
+        <div className='h-[2px] flex-1 rounded-full bg-[var(--surface-7)]' />
       </div>
       {TABLE_ROW_WIDTHS.map((row, i) => (
         <div
           key={i}
-          className='flex items-center gap-[4px] border-[#F5F5F5] border-b px-[6px] py-[3.5px]'
+          className='flex items-center gap-1 border-[var(--surface-4)] border-b px-1.5 py-[3.5px]'
         >
-          <div className='h-[1.5px] rounded-full bg-[#EBEBEB]' style={{ width: `${row[0]}%` }} />
-          <div className='h-[1.5px] rounded-full bg-[#EBEBEB]' style={{ width: `${row[1]}%` }} />
-          <div className='h-[1.5px] rounded-full bg-[#EBEBEB]' style={{ width: `${row[2]}%` }} />
+          <div className='h-[1.5px] rounded-full bg-[var(--divider)]' style={{ width: `${row[0]}%` }} />
+          <div className='h-[1.5px] rounded-full bg-[var(--divider)]' style={{ width: `${row[1]}%` }} />
+          <div className='h-[1.5px] rounded-full bg-[var(--divider)]' style={{ width: `${row[2]}%` }} />
         </div>
       ))}
     </div>
@@ -472,21 +472,21 @@ function TableCardBody() {
 function WorkflowCardBody({ color }: { color: string }) {
   return (
     <div className='relative h-full w-full'>
-      <div className='absolute top-[10px] left-[10px] h-[14px] w-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8]' />
-      <div className='absolute top-[16px] left-[24px] h-[1px] w-[16px] bg-[#D8D8D8]' />
+      <div className='absolute top-2.5 left-[10px] h-[14px] w-[14px] rounded-[3px] border border-[var(--border-1)] bg-[#F8F8F8]' />
+      <div className='absolute top-4 left-[24px] h-[1px] w-[16px] bg-[var(--surface-7)]' />
       <div
-        className='absolute top-[10px] left-[40px] h-[14px] w-[14px] rounded-[3px] border-[2px]'
+        className='absolute top-2.5 left-[40px] h-[14px] w-[14px] rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
           borderColor: `${color}60`,
           backgroundClip: 'padding-box',
         }}
       />
-      <div className='absolute top-[24px] left-[46px] h-[12px] w-[1px] bg-[#D8D8D8]' />
-      <div className='absolute top-[36px] left-[40px] h-[14px] w-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8]' />
-      <div className='absolute top-[42px] left-[54px] h-[1px] w-[14px] bg-[#D8D8D8]' />
+      <div className='absolute top-6 left-[46px] h-[12px] w-[1px] bg-[var(--surface-7)]' />
+      <div className='absolute top-9 left-[40px] h-[14px] w-[14px] rounded-[3px] border border-[var(--border-1)] bg-[#F8F8F8]' />
+      <div className='absolute top-[42px] left-[54px] h-[1px] w-[14px] bg-[var(--surface-7)]' />
       <div
-        className='absolute top-[36px] left-[68px] h-[14px] w-[14px] rounded-[3px] border-[2px]'
+        className='absolute top-9 left-[68px] h-[14px] w-[14px] rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
           borderColor: `${color}60`,
@@ -502,11 +502,11 @@ const KB_WIDTHS = [70, 85, 55, 80, 48] as const
 
 function KnowledgeCardBody() {
   return (
-    <div className='flex flex-col gap-[5px] px-[8px] py-[6px]'>
+    <div className='flex flex-col gap-[5px] px-2 py-1.5'>
       {KB_WIDTHS.map((w, i) => (
-        <div key={i} className='flex items-center gap-[4px]'>
-          <div className='h-[3px] w-[3px] flex-shrink-0 rounded-full bg-[#D4D4D4]' />
-          <div className='h-[1.5px] rounded-full bg-[#E8E8E8]' style={{ width: `${w}%` }} />
+        <div key={i} className='flex items-center gap-1'>
+          <div className='h-[3px] w-[3px] flex-shrink-0 rounded-full bg-[var(--surface-7)]' />
+          <div className='h-[1.5px] rounded-full bg-[var(--surface-6)]' style={{ width: `${w}%` }} />
         </div>
       ))}
     </div>
@@ -524,18 +524,18 @@ const LOG_ENTRIES = [
 
 function LogsCardBody() {
   return (
-    <div className='flex flex-col gap-[3px] px-[6px] py-[4px]'>
+    <div className='flex flex-col gap-[3px] px-1.5 py-1'>
       {LOG_ENTRIES.map((entry, i) => (
-        <div key={i} className='flex items-center gap-[4px] py-[1px]'>
+        <div key={i} className='flex items-center gap-1 py-[1px]'>
           <div
             className='h-[3px] w-[3px] flex-shrink-0 rounded-full'
             style={{ backgroundColor: entry.color }}
           />
           <div
-            className='h-[1.5px] rounded-full bg-[#E8E8E8]'
+            className='h-[1.5px] rounded-full bg-[var(--surface-6)]'
             style={{ width: `${entry.width}%` }}
           />
-          <div className='ml-auto h-[1.5px] w-[10px] flex-shrink-0 rounded-full bg-[#F0F0F0]' />
+          <div className='ml-auto h-[1.5px] w-[10px] flex-shrink-0 rounded-full bg-[var(--surface-4)]' />
         </div>
       ))}
     </div>
@@ -616,16 +616,16 @@ const MD_COMPONENTS: Components = {
     </p>
   ),
   h2: ({ children }) => (
-    <h2 className='mt-5 mb-3 border-[#E5E5E5] border-b pb-1.5 font-semibold text-[#1C1C1C] text-[16px]'>
+    <h2 className='mt-5 mb-3 border-[var(--surface-6)] border-b pb-1.5 font-semibold text-[var(--text-primary)] text-md'>
       {children}
     </h2>
   ),
-  ul: ({ children }) => <ul className='mb-3 list-disc pl-[24px]'>{children}</ul>,
-  ol: ({ children }) => <ol className='mb-3 list-decimal pl-[24px]'>{children}</ol>,
+  ul: ({ children }) => <ul className='mb-3 list-disc pl-6'>{children}</ul>,
+  ol: ({ children }) => <ol className='mb-3 list-decimal pl-6'>{children}</ol>,
   li: ({ children }) => (
-    <li className='mb-1 text-[#1C1C1C] text-[14px] leading-[1.6]'>{children}</li>
+    <li className='mb-1 text-[var(--text-primary)] text-sm leading-[1.6]'>{children}</li>
   ),
-  p: ({ children }) => <p className='mb-3 text-[#1C1C1C] text-[14px] leading-[1.6]'>{children}</p>,
+  p: ({ children }) => <p className='mb-3 text-[var(--text-primary)] text-sm leading-[1.6]'>{children}</p>,
 }
 
 function MockFullFiles() {
@@ -633,12 +633,12 @@ function MockFullFiles() {
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-[24px]'>
-        <div className='flex items-center gap-[6px]'>
-          <File className='h-[14px] w-[14px] text-[#999]' />
-          <span className='text-[#999] text-[13px]'>Files</span>
-          <span className='text-[#D4D4D4] text-[13px]'>/</span>
-          <span className='font-medium text-[#1C1C1C] text-[13px]'>meeting-notes.md</span>
+      <div className='flex h-[44px] shrink-0 items-center border-[var(--surface-6)] border-b px-6'>
+        <div className='flex items-center gap-1.5'>
+          <File className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+          <span className='text-[var(--text-subtle)] text-small'>Files</span>
+          <span className='text-[var(--surface-7)] text-small'>/</span>
+          <span className='font-medium text-[var(--text-primary)] text-small'>meeting-notes.md</span>
         </div>
       </div>
 
@@ -654,11 +654,11 @@ function MockFullFiles() {
             onChange={(e) => setSource(e.target.value)}
             spellCheck={false}
             autoCorrect='off'
-            className='h-full w-full resize-none overflow-auto whitespace-pre-wrap bg-transparent p-[24px] font-[300] font-mono text-[#1C1C1C] text-[12px] leading-[1.7] outline-none'
+            className='h-full w-full resize-none overflow-auto whitespace-pre-wrap bg-transparent p-6 font-[300] font-mono text-[var(--text-primary)] text-caption leading-[1.7] outline-none'
           />
         </motion.div>
 
-        <div className='h-full w-px shrink-0 bg-[#E5E5E5]' />
+        <div className='h-full w-px shrink-0 bg-[var(--surface-6)]' />
 
         <motion.div
           className='h-full min-w-0 flex-1 overflow-hidden'
@@ -666,7 +666,7 @@ function MockFullFiles() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.4, delay: 0.5 }}
         >
-          <div className='h-full overflow-auto p-[24px]'>
+          <div className='h-full overflow-auto p-6'>
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
               {source}
             </ReactMarkdown>
@@ -686,28 +686,28 @@ const KB_STATUS_STYLES: Record<string, { bg: string; text: string; label: string
 function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-[24px]'>
-        <div className='flex items-center gap-[6px]'>
-          <Database className='h-[14px] w-[14px] text-[#999]' />
-          <span className='text-[#999] text-[13px]'>Knowledge Base</span>
-          <span className='text-[#D4D4D4] text-[13px]'>/</span>
-          <span className='font-medium text-[#1C1C1C] text-[13px]'>Company KB</span>
+      <div className='flex h-[44px] shrink-0 items-center border-[var(--surface-6)] border-b px-6'>
+        <div className='flex items-center gap-1.5'>
+          <Database className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+          <span className='text-[var(--text-subtle)] text-small'>Knowledge Base</span>
+          <span className='text-[var(--surface-7)] text-small'>/</span>
+          <span className='font-medium text-[var(--text-primary)] text-small'>Company KB</span>
         </div>
       </div>
 
-      <div className='flex h-[36px] shrink-0 items-center border-[#E5E5E5] border-b px-[24px]'>
-        <div className='flex items-center gap-[6px]'>
-          <div className='flex h-[24px] items-center gap-[4px] rounded-[6px] border border-[#E5E5E5] px-[8px] text-[#999] text-[12px]'>
+      <div className='flex h-[36px] shrink-0 items-center border-[var(--surface-6)] border-b px-6'>
+        <div className='flex items-center gap-1.5'>
+          <div className='flex h-[24px] items-center gap-1 rounded-md border border-[var(--surface-6)] px-2 text-[var(--text-subtle)] text-caption'>
             Sort
           </div>
-          <div className='flex h-[24px] items-center gap-[4px] rounded-[6px] border border-[#E5E5E5] px-[8px] text-[#999] text-[12px]'>
+          <div className='flex h-[24px] items-center gap-1 rounded-md border border-[var(--surface-6)] px-2 text-[var(--text-subtle)] text-caption'>
             Filter
           </div>
         </div>
       </div>
 
       <div className='flex-1 overflow-hidden'>
-        <table className='w-full table-fixed border-separate border-spacing-0 text-[13px]'>
+        <table className='w-full table-fixed border-separate border-spacing-0 text-small'>
           <colgroup>
             <col style={{ width: 40 }} />
             {MOCK_KB_COLUMNS.map((col) => (
@@ -716,17 +716,17 @@ function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
           </colgroup>
           <thead>
             <tr>
-              <th className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-[4px] py-[7px] text-center align-middle'>
+              <th className='border-[var(--surface-6)] border-r border-b bg-[var(--surface-1)] px-1 py-[7px] text-center align-middle'>
                 <div className='flex items-center justify-center'>
-                  <div className='h-[13px] w-[13px] rounded-[2px] border border-[#D4D4D4]' />
+                  <div className='h-[13px] w-[13px] rounded-xs border border-[var(--surface-7)]' />
                 </div>
               </th>
               {MOCK_KB_COLUMNS.map((col) => (
                 <th
                   key={col}
-                  className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-[8px] py-[7px] text-left align-middle'
+                  className='border-[var(--surface-6)] border-r border-b bg-[var(--surface-1)] px-2 py-[7px] text-left align-middle'
                 >
-                  <span className='font-base text-[#999] text-[13px]'>{col}</span>
+                  <span className='font-base text-[var(--text-subtle)] text-small'>{col}</span>
                 </th>
               ))}
             </tr>
@@ -742,11 +742,11 @@ function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, ease: 'easeOut' }}
                 >
-                  <td className='border-[#E5E5E5] border-r border-b px-[4px] py-[7px] text-center align-middle'>
-                    <span className='text-[#999] text-[11px] tabular-nums'>{i + 1}</span>
+                  <td className='border-[var(--surface-6)] border-r border-b px-1 py-[7px] text-center align-middle'>
+                    <span className='text-[var(--text-subtle)] text-xs tabular-nums'>{i + 1}</span>
                   </td>
-                  <td className='border-[#E5E5E5] border-r border-b px-[8px] py-[7px] align-middle'>
-                    <span className='flex items-center gap-[8px] text-[#1C1C1C] text-[13px]'>
+                  <td className='border-[var(--surface-6)] border-r border-b px-2 py-[7px] align-middle'>
+                    <span className='flex items-center gap-2 text-[var(--text-primary)] text-small'>
                       <DocIcon className='h-[14px] w-[14px] shrink-0' />
                       <span className='truncate'>{row[0]}</span>
                     </span>
@@ -754,14 +754,14 @@ function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
                   {row.slice(1, 4).map((cell, j) => (
                     <td
                       key={j}
-                      className='border-[#E5E5E5] border-r border-b px-[8px] py-[7px] align-middle'
+                      className='border-[var(--surface-6)] border-r border-b px-2 py-[7px] align-middle'
                     >
-                      <span className='text-[#999] text-[13px]'>{cell}</span>
+                      <span className='text-[var(--text-subtle)] text-small'>{cell}</span>
                     </td>
                   ))}
-                  <td className='border-[#E5E5E5] border-r border-b px-[8px] py-[7px] align-middle'>
+                  <td className='border-[var(--surface-6)] border-r border-b px-2 py-[7px] align-middle'>
                     <span
-                      className='inline-flex items-center rounded-full px-[8px] py-[2px] font-medium text-[11px]'
+                      className='inline-flex items-center rounded-full px-2 py-0.5 font-medium text-xs'
                       style={{ backgroundColor: status.bg, color: status.text }}
                     >
                       {status.label}
@@ -885,15 +885,15 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
   return (
     <div className='relative flex h-full'>
       <div className='flex min-w-0 flex-1 flex-col'>
-        <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-[24px]'>
-          <div className='flex items-center gap-[6px]'>
-            <Library className='h-[14px] w-[14px] text-[#999]' />
-            <span className='font-medium text-[#1C1C1C] text-[13px]'>Logs</span>
+        <div className='flex h-[44px] shrink-0 items-center border-[var(--surface-6)] border-b px-6'>
+          <div className='flex items-center gap-1.5'>
+            <Library className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+            <span className='font-medium text-[var(--text-primary)] text-small'>Logs</span>
           </div>
         </div>
 
         <div className='flex-1 overflow-hidden'>
-          <table className='w-full table-fixed text-[13px]'>
+          <table className='w-full table-fixed text-small'>
             <colgroup>
               {['Workflow', 'Date', 'Status', 'Cost', 'Trigger', 'Duration'].map((col) => (
                 <col key={col} />
@@ -902,8 +902,8 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
             <thead className='shadow-[inset_0_-1px_0_#E5E5E5]'>
               <tr>
                 {['Workflow', 'Date', 'Status', 'Cost', 'Trigger', 'Duration'].map((col) => (
-                  <th key={col} className='h-10 px-[24px] py-[10px] text-left align-middle'>
-                    <span className='font-base text-[#999] text-[13px]'>{col}</span>
+                  <th key={col} className='h-10 px-6 py-2.5 text-left align-middle'>
+                    <span className='font-base text-[var(--text-subtle)] text-small'>{col}</span>
                   </th>
                 ))}
               </tr>
@@ -920,12 +920,12 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
                     transition={{ duration: 0.2, ease: 'easeOut' }}
                     className={cn(
                       'cursor-pointer',
-                      isSelected ? 'bg-[#F5F5F5]' : 'hover:bg-[#FAFAFA]'
+                      isSelected ? 'bg-[var(--surface-4)]' : 'hover:bg-[var(--surface-1)]'
                     )}
                     onClick={() => setSelectedRow(i)}
                   >
-                    <td className='px-[24px] py-[10px] align-middle'>
-                      <span className='flex items-center gap-[12px] font-medium text-[#1C1C1C] text-[14px]'>
+                    <td className='px-6 py-2.5 align-middle'>
+                      <span className='flex items-center gap-3 font-medium text-[var(--text-primary)] text-sm'>
                         <div
                           className='h-[10px] w-[10px] shrink-0 rounded-[3px] border-[1.5px]'
                           style={{
@@ -937,27 +937,27 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
                         <span className='truncate'>{row[0]}</span>
                       </span>
                     </td>
-                    <td className='px-[24px] py-[10px] align-middle'>
-                      <span className='font-medium text-[#999] text-[14px]'>{row[1]}</span>
+                    <td className='px-6 py-2.5 align-middle'>
+                      <span className='font-medium text-[var(--text-subtle)] text-sm'>{row[1]}</span>
                     </td>
-                    <td className='px-[24px] py-[10px] align-middle'>
+                    <td className='px-6 py-2.5 align-middle'>
                       <span
-                        className='inline-flex items-center rounded-full px-[8px] py-[2px] font-medium text-[11px]'
+                        className='inline-flex items-center rounded-full px-2 py-0.5 font-medium text-xs'
                         style={{ backgroundColor: statusStyle.bg, color: statusStyle.text }}
                       >
                         {statusStyle.label}
                       </span>
                     </td>
-                    <td className='px-[24px] py-[10px] align-middle'>
-                      <span className='font-medium text-[#999] text-[14px]'>{row[3]}</span>
+                    <td className='px-6 py-2.5 align-middle'>
+                      <span className='font-medium text-[var(--text-subtle)] text-sm'>{row[3]}</span>
                     </td>
-                    <td className='px-[24px] py-[10px] align-middle'>
-                      <span className='rounded-[4px] bg-[#F5F5F5] px-[6px] py-[2px] text-[#666] text-[11px]'>
+                    <td className='px-6 py-2.5 align-middle'>
+                      <span className='rounded-sm bg-[var(--surface-4)] px-1.5 py-0.5 text-[var(--text-secondary)] text-xs'>
                         {row[4]}
                       </span>
                     </td>
-                    <td className='px-[24px] py-[10px] align-middle'>
-                      <span className='font-medium text-[#999] text-[14px]'>{row[5]}</span>
+                    <td className='px-6 py-2.5 align-middle'>
+                      <span className='font-medium text-[var(--text-subtle)] text-sm'>{row[5]}</span>
                     </td>
                   </motion.tr>
                 )
@@ -968,7 +968,7 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
       </div>
 
       <motion.div
-        className='absolute top-0 right-0 bottom-0 z-10 border-[#E5E5E5] border-l bg-white'
+        className='absolute top-0 right-0 bottom-0 z-10 border-[var(--surface-6)] border-l bg-white'
         initial={{ x: '100%' }}
         animate={{ x: showSidebar ? 0 : '100%' }}
         transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
@@ -1001,17 +1001,17 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
   const isNextDisabled = selectedRow === MOCK_LOG_DATA.length - 1
 
   return (
-    <div className='flex h-full flex-col overflow-y-auto px-[14px] pt-[12px]'>
+    <div className='flex h-full flex-col overflow-y-auto px-3.5 pt-3'>
       <div className='flex items-center justify-between'>
-        <span className='font-medium text-[#1C1C1C] text-[14px]'>Log Details</span>
+        <span className='font-medium text-[var(--text-primary)] text-sm'>Log Details</span>
         <div className='flex items-center gap-[1px]'>
           <button
             type='button'
             onClick={onPrev}
             disabled={isPrevDisabled}
             className={cn(
-              'flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[#999]',
-              isPrevDisabled ? 'cursor-not-allowed opacity-40' : 'hover:bg-[#F5F5F5]'
+              'flex h-[24px] w-[24px] items-center justify-center rounded-sm text-[var(--text-subtle)]',
+              isPrevDisabled ? 'cursor-not-allowed opacity-40' : 'hover:bg-[var(--surface-4)]'
             )}
           >
             <ChevronDown className='h-[14px] w-[14px] rotate-180' />
@@ -1021,8 +1021,8 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
             onClick={onNext}
             disabled={isNextDisabled}
             className={cn(
-              'flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[#999]',
-              isNextDisabled ? 'cursor-not-allowed opacity-40' : 'hover:bg-[#F5F5F5]'
+              'flex h-[24px] w-[24px] items-center justify-center rounded-sm text-[var(--text-subtle)]',
+              isNextDisabled ? 'cursor-not-allowed opacity-40' : 'hover:bg-[var(--surface-4)]'
             )}
           >
             <ChevronDown className='h-[14px] w-[14px]' />
@@ -1030,18 +1030,18 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
         </div>
       </div>
 
-      <div className='mt-[20px] flex flex-col gap-[10px]'>
-        <div className='flex items-center gap-[16px] px-[1px]'>
-          <div className='flex w-[120px] shrink-0 flex-col gap-[8px]'>
-            <span className='font-medium text-[#999] text-[12px]'>Timestamp</span>
-            <div className='flex items-center gap-[6px]'>
-              <span className='font-medium text-[#666] text-[13px]'>{date}</span>
-              <span className='font-medium text-[#666] text-[13px]'>{time}</span>
+      <div className='mt-5 flex flex-col gap-2.5'>
+        <div className='flex items-center gap-4 px-[1px]'>
+          <div className='flex w-[120px] shrink-0 flex-col gap-2'>
+            <span className='font-medium text-[var(--text-subtle)] text-caption'>Timestamp</span>
+            <div className='flex items-center gap-1.5'>
+              <span className='font-medium text-[var(--text-secondary)] text-small'>{date}</span>
+              <span className='font-medium text-[var(--text-secondary)] text-small'>{time}</span>
             </div>
           </div>
-          <div className='flex min-w-0 flex-1 flex-col gap-[8px]'>
-            <span className='font-medium text-[#999] text-[12px]'>Workflow</span>
-            <div className='flex items-center gap-[8px]'>
+          <div className='flex min-w-0 flex-1 flex-col gap-2'>
+            <span className='font-medium text-[var(--text-subtle)] text-caption'>Workflow</span>
+            <div className='flex items-center gap-2'>
               <div
                 className='h-[10px] w-[10px] shrink-0 rounded-[3px] border-[1.5px]'
                 style={{
@@ -1050,53 +1050,53 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
                   backgroundClip: 'padding-box',
                 }}
               />
-              <span className='truncate font-medium text-[#666] text-[13px]'>{row[0]}</span>
+              <span className='truncate font-medium text-[var(--text-secondary)] text-small'>{row[0]}</span>
             </div>
           </div>
         </div>
 
         <div className='flex flex-col'>
-          <div className='flex h-[42px] items-center justify-between border-[#E5E5E5] border-b px-[8px]'>
-            <span className='font-medium text-[#999] text-[12px]'>Level</span>
+          <div className='flex h-[42px] items-center justify-between border-[var(--surface-6)] border-b px-2'>
+            <span className='font-medium text-[var(--text-subtle)] text-caption'>Level</span>
             <span
-              className='inline-flex items-center rounded-full px-[8px] py-[2px] font-medium text-[11px]'
+              className='inline-flex items-center rounded-full px-2 py-0.5 font-medium text-xs'
               style={{ backgroundColor: statusStyle.bg, color: statusStyle.text }}
             >
               {statusStyle.label}
             </span>
           </div>
-          <div className='flex h-[42px] items-center justify-between border-[#E5E5E5] border-b px-[8px]'>
-            <span className='font-medium text-[#999] text-[12px]'>Trigger</span>
-            <span className='rounded-[4px] bg-[#F5F5F5] px-[6px] py-[2px] text-[#666] text-[11px]'>
+          <div className='flex h-[42px] items-center justify-between border-[var(--surface-6)] border-b px-2'>
+            <span className='font-medium text-[var(--text-subtle)] text-caption'>Trigger</span>
+            <span className='rounded-sm bg-[var(--surface-4)] px-1.5 py-0.5 text-[var(--text-secondary)] text-xs'>
               {row[4]}
             </span>
           </div>
-          <div className='flex h-[42px] items-center justify-between px-[8px]'>
-            <span className='font-medium text-[#999] text-[12px]'>Duration</span>
-            <span className='font-medium text-[#666] text-[13px]'>{row[5]}</span>
+          <div className='flex h-[42px] items-center justify-between px-2'>
+            <span className='font-medium text-[var(--text-subtle)] text-caption'>Duration</span>
+            <span className='font-medium text-[var(--text-secondary)] text-small'>{row[5]}</span>
           </div>
         </div>
 
-        <div className='flex flex-col gap-[6px] rounded-[6px] border border-[#E5E5E5] bg-[#FAFAFA] px-[10px] py-[8px]'>
-          <span className='font-medium text-[#999] text-[12px]'>Workflow Output</span>
-          <div className='rounded-[6px] bg-[#F0F0F0] p-[10px] font-mono text-[#555] text-[11px] leading-[1.5]'>
+        <div className='flex flex-col gap-1.5 rounded-md border border-[var(--surface-6)] bg-[var(--surface-1)] px-2.5 py-2'>
+          <span className='font-medium text-[var(--text-subtle)] text-caption'>Workflow Output</span>
+          <div className='rounded-md bg-[var(--surface-4)] p-2.5 font-mono text-[#555] text-xs leading-[1.5]'>
             {detail.output}
           </div>
         </div>
 
-        <div className='flex flex-col gap-[6px] rounded-[6px] border border-[#E5E5E5] bg-[#FAFAFA] px-[10px] py-[8px]'>
-          <span className='font-medium text-[#999] text-[12px]'>Trace Spans</span>
-          <div className='flex flex-col gap-[6px]'>
+        <div className='flex flex-col gap-1.5 rounded-md border border-[var(--surface-6)] bg-[var(--surface-1)] px-2.5 py-2'>
+          <span className='font-medium text-[var(--text-subtle)] text-caption'>Trace Spans</span>
+          <div className='flex flex-col gap-1.5'>
             {detail.spans.map((span, i) => (
               <div
                 key={i}
-                className={cn('flex flex-col gap-[3px]', span.depth === 1 && 'ml-[12px]')}
+                className={cn('flex flex-col gap-[3px]', span.depth === 1 && 'ml-3')}
               >
                 <div className='flex items-center justify-between'>
-                  <span className='font-mono text-[#555] text-[11px]'>{span.name}</span>
-                  <span className='font-medium text-[#999] text-[11px]'>{span.ms}ms</span>
+                  <span className='font-mono text-[#555] text-xs'>{span.name}</span>
+                  <span className='font-medium text-[var(--text-subtle)] text-xs'>{span.ms}ms</span>
                 </div>
-                <div className='h-[4px] w-full overflow-hidden rounded-full bg-[#F0F0F0]'>
+                <div className='h-[4px] w-full overflow-hidden rounded-full bg-[var(--surface-4)]'>
                   <div
                     className='h-full rounded-full bg-[#2F6FED]'
                     style={{ width: `${(span.ms / maxMs) * 100}%` }}
@@ -1116,28 +1116,28 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-[24px]'>
-        <div className='flex items-center gap-[6px]'>
-          <Table className='h-[14px] w-[14px] text-[#999]' />
-          <span className='text-[#999] text-[13px]'>Tables</span>
-          <span className='text-[#D4D4D4] text-[13px]'>/</span>
-          <span className='font-medium text-[#1C1C1C] text-[13px]'>Leads</span>
+      <div className='flex h-[44px] shrink-0 items-center border-[var(--surface-6)] border-b px-6'>
+        <div className='flex items-center gap-1.5'>
+          <Table className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
+          <span className='text-[var(--text-subtle)] text-small'>Tables</span>
+          <span className='text-[var(--surface-7)] text-small'>/</span>
+          <span className='font-medium text-[var(--text-primary)] text-small'>Leads</span>
         </div>
       </div>
 
-      <div className='flex h-[36px] shrink-0 items-center border-[#E5E5E5] border-b px-[24px]'>
-        <div className='flex items-center gap-[6px]'>
-          <div className='flex h-[24px] items-center gap-[4px] rounded-[6px] border border-[#E5E5E5] px-[8px] text-[#999] text-[12px]'>
+      <div className='flex h-[36px] shrink-0 items-center border-[var(--surface-6)] border-b px-6'>
+        <div className='flex items-center gap-1.5'>
+          <div className='flex h-[24px] items-center gap-1 rounded-md border border-[var(--surface-6)] px-2 text-[var(--text-subtle)] text-caption'>
             Sort
           </div>
-          <div className='flex h-[24px] items-center gap-[4px] rounded-[6px] border border-[#E5E5E5] px-[8px] text-[#999] text-[12px]'>
+          <div className='flex h-[24px] items-center gap-1 rounded-md border border-[var(--surface-6)] px-2 text-[var(--text-subtle)] text-caption'>
             Filter
           </div>
         </div>
       </div>
 
       <div className='flex-1 overflow-hidden'>
-        <table className='w-full table-fixed border-separate border-spacing-0 text-[13px]'>
+        <table className='w-full table-fixed border-separate border-spacing-0 text-small'>
           <colgroup>
             <col style={{ width: 40 }} />
             {MOCK_TABLE_COLUMNS.map((col) => (
@@ -1146,19 +1146,19 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
           </colgroup>
           <thead>
             <tr>
-              <th className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-[4px] py-[7px] text-center align-middle'>
+              <th className='border-[var(--surface-6)] border-r border-b bg-[var(--surface-1)] px-1 py-[7px] text-center align-middle'>
                 <div className='flex items-center justify-center'>
-                  <div className='h-[13px] w-[13px] rounded-[2px] border border-[#D4D4D4]' />
+                  <div className='h-[13px] w-[13px] rounded-xs border border-[var(--surface-7)]' />
                 </div>
               </th>
               {MOCK_TABLE_COLUMNS.map((col) => (
                 <th
                   key={col}
-                  className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-[8px] py-[7px] text-left align-middle'
+                  className='border-[var(--surface-6)] border-r border-b bg-[var(--surface-1)] px-2 py-[7px] text-left align-middle'
                 >
-                  <div className='flex items-center gap-[6px]'>
+                  <div className='flex items-center gap-1.5'>
                     <ColumnTypeIcon />
-                    <span className='font-medium text-[#1C1C1C] text-[13px]'>{col}</span>
+                    <span className='font-medium text-[var(--text-primary)] text-small'>{col}</span>
                     <ChevronDown className='ml-auto h-[7px] w-[9px] shrink-0 text-[#CCC]' />
                   </div>
                 </th>
@@ -1179,18 +1179,18 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
                 >
                   <td
                     className={cn(
-                      'border-[#E5E5E5] border-r border-b px-[4px] py-[7px] text-center align-middle',
-                      isSelected ? 'bg-[rgba(37,99,235,0.06)]' : 'hover:bg-[#FAFAFA]'
+                      'border-[var(--surface-6)] border-r border-b px-1 py-[7px] text-center align-middle',
+                      isSelected ? 'bg-[rgba(37,99,235,0.06)]' : 'hover:bg-[var(--surface-1)]'
                     )}
                   >
-                    <span className='text-[#999] text-[11px] tabular-nums'>{i + 1}</span>
+                    <span className='text-[var(--text-subtle)] text-xs tabular-nums'>{i + 1}</span>
                   </td>
                   {row.map((cell, j) => (
                     <td
                       key={j}
                       className={cn(
-                        'relative border-[#E5E5E5] border-r border-b px-[8px] py-[7px] align-middle',
-                        isSelected ? 'bg-[rgba(37,99,235,0.06)]' : 'hover:bg-[#FAFAFA]'
+                        'relative border-[var(--surface-6)] border-r border-b px-2 py-[7px] align-middle',
+                        isSelected ? 'bg-[rgba(37,99,235,0.06)]' : 'hover:bg-[var(--surface-1)]'
                       )}
                     >
                       {isSelected && (
@@ -1202,7 +1202,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
                           )}
                         />
                       )}
-                      <span className='block truncate text-[#1C1C1C] text-[13px]'>{cell}</span>
+                      <span className='block truncate text-[var(--text-primary)] text-small'>{cell}</span>
                     </td>
                   ))}
                 </motion.tr>
@@ -1218,7 +1218,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
 function ColumnTypeIcon() {
   return (
     <svg
-      className='h-3 w-3 shrink-0 text-[#999]'
+      className='h-3 w-3 shrink-0 text-[var(--text-subtle)]'
       viewBox='0 0 16 16'
       fill='none'
       stroke='currentColor'
@@ -1311,7 +1311,7 @@ function DefaultPreview() {
         return (
           <motion.div
             key={key}
-            className='absolute flex items-center justify-center rounded-xl border border-[#E5E5E5] bg-white p-[10px] shadow-[0_2px_4px_0_rgba(0,0,0,0.06)]'
+            className='absolute flex items-center justify-center rounded-xl border border-[var(--surface-6)] bg-white p-2.5 shadow-[0_2px_4px_0_rgba(0,0,0,0.06)]'
             initial={{ top: '50%', left: '50%', opacity: 0, scale: 0, x: '-50%', y: '-50%' }}
             animate={inView ? { top, left, opacity: 1, scale: 1, x: '-50%', y: '-50%' } : undefined}
             transition={{
@@ -1334,8 +1334,8 @@ function DefaultPreview() {
         animate={inView ? { opacity: 1, x: '-50%', y: '-50%' } : undefined}
         transition={{ duration: 0.4, ease: 'easeOut', delay: 0 }}
       >
-        <div className='flex h-[36px] items-center gap-[8px] rounded-[8px] border border-[#E5E5E5] bg-white px-[10px] shadow-[0_2px_6px_0_rgba(0,0,0,0.08)]'>
-          <div className='flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-[5px] bg-[#1e1e1e]'>
+        <div className='flex h-[36px] items-center gap-2 rounded-lg border border-[var(--surface-6)] bg-white px-2.5 shadow-[0_2px_6px_0_rgba(0,0,0,0.08)]'>
+          <div className='flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-[5px] bg-[var(--surface-1)]'>
             <svg width='11' height='11' viewBox='0 0 10 10' fill='none'>
               <path
                 d='M1 9C1 4.58 4.58 1 9 1'
@@ -1345,10 +1345,10 @@ function DefaultPreview() {
               />
             </svg>
           </div>
-          <span className='whitespace-nowrap font-medium font-season text-[#1C1C1C] text-[13px] tracking-[0.02em]'>
+          <span className='whitespace-nowrap font-medium font-season text-[var(--text-primary)] text-small tracking-[0.02em]'>
             My Workspace
           </span>
-          <ChevronDown className='h-[8px] w-[10px] flex-shrink-0 text-[#999]' />
+          <ChevronDown className='h-[8px] w-[10px] flex-shrink-0 text-[var(--text-subtle)]' />
         </div>
       </motion.div>
     </div>

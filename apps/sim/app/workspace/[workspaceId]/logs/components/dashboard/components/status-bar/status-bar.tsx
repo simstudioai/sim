@@ -48,7 +48,7 @@ function StatusBarInner({
   return (
     <div className='relative'>
       <div
-        className='flex select-none items-stretch gap-[2px]'
+        className='flex select-none items-stretch gap-0.5'
         onMouseLeave={() => setHoverIndex(null)}
       >
         {segments.map((segment, i) => {
@@ -97,7 +97,7 @@ function StatusBarInner({
 
       {hoverIndex !== null && segments[hoverIndex] && (
         <div
-          className={`-translate-x-1/2 pointer-events-none absolute z-20 w-max whitespace-nowrap rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-1)] px-[8px] py-[6px] text-center text-[11px] shadow-lg ${
+          className={`-translate-x-1/2 pointer-events-none absolute z-20 w-max whitespace-nowrap rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-2 py-1.5 text-center text-xs shadow-lg ${
             preferBelow ? '' : '-translate-y-full'
           }`}
           style={{

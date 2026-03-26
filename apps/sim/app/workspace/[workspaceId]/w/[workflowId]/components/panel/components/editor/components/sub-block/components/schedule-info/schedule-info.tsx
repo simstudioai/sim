@@ -74,12 +74,12 @@ export function ScheduleInfo({ blockId, isPreview = false }: ScheduleInfoProps) 
             ) : null}
           </div>
           {failedCount >= MAX_CONSECUTIVE_FAILURES && isDisabled && (
-            <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <p className='text-caption text-[var(--text-tertiary)]'>
               Disabled after {MAX_CONSECUTIVE_FAILURES} consecutive failures
             </p>
           )}
           {redeployMutation.isError && (
-            <p className='text-[12px] text-[var(--text-error)]'>
+            <p className='text-caption text-[var(--text-error)]'>
               Failed to redeploy. Please try again.
             </p>
           )}
@@ -88,7 +88,7 @@ export function ScheduleInfo({ blockId, isPreview = false }: ScheduleInfoProps) 
 
       {/* Schedule info - only show when active */}
       {!isDisabled && (
-        <div className='text-[12px] text-[var(--text-tertiary)]'>
+        <div className='text-caption text-[var(--text-tertiary)]'>
           {schedule?.cronExpression && (
             <span>{parseCronToHumanReadable(schedule.cronExpression, timezone)}</span>
           )}

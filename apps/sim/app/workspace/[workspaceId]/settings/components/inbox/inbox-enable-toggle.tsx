@@ -65,11 +65,11 @@ export function InboxEnableToggle() {
   return (
     <>
       <div className='flex items-center justify-between'>
-        <div className='flex flex-col gap-[2px]'>
-          <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+        <div className='flex flex-col gap-0.5'>
+          <span className='font-medium text-sm text-[var(--text-primary)]'>
             Enable email inbox
           </span>
-          <span className='text-[13px] text-[var(--text-muted)]'>
+          <span className='text-small text-[var(--text-muted)]'>
             Allow this workspace to receive tasks via email
           </span>
         </div>
@@ -88,8 +88,8 @@ export function InboxEnableToggle() {
               An email address will be created for this workspace. Anyone in the allowed senders
               list can email it to create tasks.
             </p>
-            <div className='mt-[16px] flex flex-col gap-[8px]'>
-              <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
+            <div className='mt-4 flex flex-col gap-2'>
+              <p className='font-medium text-sm text-[var(--text-secondary)]'>
                 Custom email prefix (optional)
               </p>
               <EmcnInput
@@ -99,7 +99,7 @@ export function InboxEnableToggle() {
                 className='h-9'
                 autoFocus
               />
-              <p className='text-[12px] text-[var(--text-muted)]'>
+              <p className='text-caption text-[var(--text-muted)]'>
                 Leave blank for an auto-generated address.
               </p>
             </div>
@@ -130,7 +130,7 @@ export function InboxEnableToggle() {
               ? Any emails sent to this address after disabling will not be delivered.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
-            <p className='mt-[8px] text-[var(--text-secondary)]'>
+            <p className='mt-2 text-[var(--text-secondary)]'>
               Your existing conversations and task history will be preserved.
             </p>
           </ModalBody>

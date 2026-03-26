@@ -32,8 +32,8 @@ const NAV_LINKS: NavLink[] = [
   { label: 'Enterprise', href: 'https://form.typeform.com/to/jqCO12pF', external: true },
 ]
 
-const LOGO_CELL = 'flex items-center pl-[20px] lg:pl-[80px] pr-[20px]'
-const LINK_CELL = 'flex items-center px-[14px]'
+const LOGO_CELL = 'flex items-center pl-5 lg:pl-[80px] pr-5'
+const LINK_CELL = 'flex items-center px-3.5'
 
 interface NavbarProps {
   logoOnly?: boolean
@@ -96,7 +96,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
   return (
     <nav
       aria-label='Primary navigation'
-      className='relative flex h-[52px] border-[#2A2A2A] border-b-[1px] bg-[#1C1C1C] font-[430] font-season text-[#ECECEC] text-[14px]'
+      className='relative flex h-[52px] border-[var(--surface-4)] border-b-[1px] bg-[var(--text-primary)] font-[430] font-season text-[var(--landing-text)] text-sm'
       itemScope
       itemType='https://schema.org/SiteNavigationElement'
     >
@@ -138,9 +138,9 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
               const isHighlighted = isActive || isThisHovered
               const isDimmed = anyHighlighted && !isHighlighted
               const linkClass = cn(
-                icon ? `${LINK_CELL} gap-[8px]` : LINK_CELL,
+                icon ? `${LINK_CELL} gap-2` : LINK_CELL,
                 'transition-colors duration-200',
-                isDimmed && 'text-[#F6F6F6]/60'
+                isDimmed && 'text-[var(--text-primary)]/60'
               )
               const chevron = icon === 'chevron' && <NavChevron open={isActive} />
 
@@ -164,7 +164,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
 
                     <div
                       className={cn(
-                        '-mt-[2px] absolute top-full left-0 z-50',
+                        '-mt-0.5 absolute top-full left-0 z-50',
                         isActive
                           ? 'pointer-events-auto opacity-100'
                           : 'pointer-events-none opacity-0'
@@ -216,12 +216,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
 
           <div className='hidden flex-1 lg:block' />
 
-          <div
-            className={cn(
-              'hidden items-center gap-[8px] pr-[80px] pl-[20px] lg:flex',
-              isSessionPending && 'invisible'
-            )}
-          >
+          <div className={cn('hidden items-center gap-2 pr-20 pl-5 lg:flex', isSessionPending && 'invisible')}>
             {isAuthenticated ? (
               <Link
                 href='/workspace'
@@ -234,14 +229,14 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
               <>
                 <Link
                   href='/login'
-                  className='inline-flex h-[30px] items-center rounded-[5px] border border-[#3d3d3d] px-[9px] text-[#ECECEC] text-[13.5px] transition-colors hover:bg-[#2A2A2A]'
+                  className='inline-flex h-[30px] items-center rounded-[5px] border border-[var(--border-1)] px-[9px] text-[var(--landing-text)] text-[13.5px] transition-colors hover:bg-[var(--surface-4)]'
                   aria-label='Log in'
                 >
                   Log in
                 </Link>
                 <Link
                   href='/signup'
-                  className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[9px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                  className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-[9px] text-[13.5px] text-black transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)]'
                   aria-label='Get started with Sim'
                 >
                   Get started
@@ -250,10 +245,10 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
             )}
           </div>
 
-          <div className='flex flex-1 items-center justify-end pr-[20px] lg:hidden'>
+          <div className='flex flex-1 items-center justify-end pr-5 lg:hidden'>
             <button
               type='button'
-              className='flex h-[32px] w-[32px] items-center justify-center rounded-[5px] transition-colors hover:bg-[#2A2A2A]'
+              className='flex h-[32px] w-[32px] items-center justify-center rounded-[5px] transition-colors hover:bg-[var(--surface-4)]'
               onClick={() => setMobileMenuOpen((prev) => !prev)}
               aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={mobileMenuOpen}
@@ -264,7 +259,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
 
           <div
             className={cn(
-              'fixed inset-x-0 top-[52px] bottom-0 z-50 flex flex-col overflow-y-auto bg-[#1C1C1C] font-[430] font-season text-[14px] transition-all duration-200 lg:hidden',
+              'fixed inset-x-0 top-[52px] bottom-0 z-50 flex flex-col overflow-y-auto bg-[var(--text-primary)] font-[430] font-season text-sm transition-all duration-200 lg:hidden',
               mobileMenuOpen ? 'visible opacity-100' : 'invisible opacity-0'
             )}
           >
@@ -302,7 +297,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                   href='https://github.com/simstudioai/sim'
                   target='_blank'
                   rel='noopener noreferrer'
-                  className='flex items-center gap-[8px] px-[20px] py-[14px] text-[#ECECEC] transition-colors active:bg-[#2A2A2A]'
+                  className='flex items-center gap-2 px-5 py-3.5 text-[var(--landing-text)] transition-colors active:bg-[var(--surface-4)]'
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <GithubOutlineIcon className='h-[14px] w-[14px]' />
@@ -425,7 +420,7 @@ function MobileMenuIcon({ open }: { open: boolean }) {
 
 function ExternalArrowIcon() {
   return (
-    <svg width='12' height='12' viewBox='0 0 12 12' fill='none' className='text-[#666]'>
+    <svg width='12' height='12' viewBox='0 0 12 12' fill='none' className='text-[var(--text-secondary)]'>
       <path
         d='M3.5 2.5H9.5V8.5M9 3L3 9'
         stroke='currentColor'

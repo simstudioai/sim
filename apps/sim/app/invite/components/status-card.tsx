@@ -32,11 +32,11 @@ export function InviteStatusCard({
     return (
       <>
         <div className='space-y-1 text-center'>
-          <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>Loading</h1>
-          <p className='font-[380] text-[#999] text-[16px]'>{description}</p>
+          <h1 className='font-[500] text-[var(--landing-text)] text-[32px] tracking-tight'>Loading</h1>
+          <p className='font-[380] text-[var(--text-subtle)] text-md'>{description}</p>
         </div>
         <div className='mt-8 flex w-full items-center justify-center py-8'>
-          <Loader2 className='h-8 w-8 animate-spin text-[#999]' />
+          <Loader2 className='h-8 w-8 animate-spin text-[var(--text-subtle)]' />
         </div>
       </>
     )
@@ -45,8 +45,8 @@ export function InviteStatusCard({
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>{title}</h1>
-        <p className='font-[380] text-[#999] text-[16px]'>{description}</p>
+        <h1 className='font-[500] text-[var(--landing-text)] text-[32px] tracking-tight'>{title}</h1>
+        <p className='font-[380] text-[var(--text-subtle)] text-md'>{description}</p>
       </div>
 
       <div className='mt-8 w-full max-w-[410px] space-y-3'>
@@ -66,7 +66,7 @@ export function InviteStatusCard({
             showArrow={false}
             className={
               index !== 0
-                ? 'border-[#3d3d3d] bg-transparent text-[#ECECEC] hover:border-[#3d3d3d] hover:bg-[#2A2A2A]'
+                ? 'border-[var(--border-1)] bg-transparent text-[var(--landing-text)] hover:border-[var(--border-1)] hover:bg-[var(--surface-4)]'
                 : undefined
             }
           >

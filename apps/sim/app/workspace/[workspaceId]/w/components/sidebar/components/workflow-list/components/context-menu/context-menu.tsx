@@ -104,7 +104,7 @@ function ColorGrid({
   )
 
   return (
-    <div className='grid grid-cols-6 gap-[4px]' role='grid'>
+    <div className='grid grid-cols-6 gap-1' role='grid'>
       {WORKFLOW_COLORS.map(({ color, name }, index) => (
         <button
           key={color}
@@ -122,7 +122,7 @@ function ColorGrid({
           onKeyDown={(e) => handleKeyDown(e, index)}
           onFocus={() => setFocusedIndex(index)}
           className={cn(
-            'h-[16px] w-[16px] rounded-[4px] border border-black/10 outline-none transition-shadow duration-150',
+            'h-[16px] w-[16px] rounded-sm border border-black/10 outline-none transition-shadow duration-150',
             (focusedIndex === index ||
               (focusedIndex === -1 && hexInput.toLowerCase() === color.toLowerCase())) &&
               'shadow-[0_0_0_1.5px_var(--bg),0_0_0_3px_var(--text-icon)]'
@@ -183,17 +183,17 @@ function ColorPickerSubmenu({
         <Palette />
         Change color
       </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className='p-[8px]' onPointerDownOutside={(e) => e.preventDefault()}>
-        <div className='flex w-[120px] flex-col gap-[8px] p-[2px]'>
+      <DropdownMenuSubContent className='p-2' onPointerDownOutside={(e) => e.preventDefault()}>
+        <div className='flex w-[120px] flex-col gap-2 p-0.5'>
           <ColorGrid
             hexInput={hexInput}
             setHexInput={setHexInput}
             onColorChange={onColorChange}
             buttonRefs={buttonRefs}
           />
-          <div className='flex items-center gap-[4px]'>
+          <div className='flex items-center gap-1'>
             <div
-              className='h-[16px] w-[16px] flex-shrink-0 rounded-[4px] border border-black/10'
+              className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border border-black/10'
               style={{
                 backgroundColor: isValidHex(hexInput) ? normalizeHex(hexInput) : '#ffffff',
               }}
@@ -205,7 +205,7 @@ function ColorPickerSubmenu({
               onKeyDown={handleHexKeyDown}
               onFocus={handleHexFocus}
               onClick={(e) => e.stopPropagation()}
-              className='h-[20px] min-w-0 flex-1 rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[6px] font-medium text-[11px] text-[var(--text-primary)] uppercase transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='h-[20px] min-w-0 flex-1 rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 font-medium text-xs text-[var(--text-primary)] uppercase transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
             />
             <Button
               variant='primary'

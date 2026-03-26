@@ -410,34 +410,34 @@ export function CredentialSets() {
 
     return (
       <>
-        <div className='flex h-full flex-col gap-[18px]'>
+        <div className='flex h-full flex-col gap-4.5'>
           <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='flex flex-col gap-[18px]'>
-              <div className='flex items-center gap-[18px]'>
-                <div className='flex items-center gap-[8px]'>
-                  <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+            <div className='flex flex-col gap-4.5'>
+              <div className='flex items-center gap-4.5'>
+                <div className='flex items-center gap-2'>
+                  <span className='font-medium text-sm text-[var(--text-primary)]'>
                     Group Name
                   </span>
-                  <span className='text-[14px] text-[var(--text-secondary)]'>
+                  <span className='text-sm text-[var(--text-secondary)]'>
                     {viewingSet.name}
                   </span>
                 </div>
                 <div className='h-4 w-px bg-[var(--border)]' />
-                <div className='flex items-center gap-[8px]'>
-                  <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+                <div className='flex items-center gap-2'>
+                  <span className='font-medium text-sm text-[var(--text-primary)]'>
                     Provider
                   </span>
-                  <div className='flex items-center gap-[6px]'>
+                  <div className='flex items-center gap-1.5'>
                     {getProviderIcon(viewingSet.providerId)}
-                    <span className='text-[14px] text-[var(--text-secondary)]'>
+                    <span className='text-sm text-[var(--text-secondary)]'>
                       {getProviderDisplayName(viewingSet.providerId as PollingProvider)}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className='flex flex-col gap-[4px]'>
-                <div className='flex items-center gap-[8px]'>
+              <div className='flex flex-col gap-1'>
+                <div className='flex items-center gap-2'>
                   <TagInput
                     items={emailItems}
                     onAdd={(value) => addEmail(value)}
@@ -456,19 +456,19 @@ export function CredentialSets() {
                     {createInvitation.isPending ? 'Sending...' : 'Invite'}
                   </Button>
                 </div>
-                {emailError && <p className='text-[13px] text-[var(--text-error)]'>{emailError}</p>}
+                {emailError && <p className='text-small text-[var(--text-error)]'>{emailError}</p>}
               </div>
 
-              <div className='flex flex-col gap-[18px]'>
-                <h4 className='font-medium text-[15px] text-[var(--text-primary)]'>Members</h4>
+              <div className='flex flex-col gap-4.5'>
+                <h4 className='font-medium text-base text-[var(--text-primary)]'>Members</h4>
 
                 {membersLoading || pendingInvitationsLoading ? (
-                  <div className='flex flex-col gap-[18px]'>
+                  <div className='flex flex-col gap-4.5'>
                     {[1, 2].map((i) => (
                       <div key={i} className='flex items-center justify-between'>
-                        <div className='flex items-center gap-[12px]'>
+                        <div className='flex items-center gap-3'>
                           <Skeleton className='h-8 w-8 rounded-full' />
-                          <div className='flex flex-col gap-[4px]'>
+                          <div className='flex flex-col gap-1'>
                             <Skeleton className='h-[14px] w-[100px]' />
                             <Skeleton className='h-[12px] w-[150px]' />
                           </div>
@@ -477,18 +477,18 @@ export function CredentialSets() {
                     ))}
                   </div>
                 ) : totalCount === 0 ? (
-                  <p className='text-[14px] text-[var(--text-muted)]'>
+                  <p className='text-sm text-[var(--text-muted)]'>
                     No members yet. Send invitations above.
                   </p>
                 ) : (
-                  <div className='flex flex-col gap-[18px]'>
+                  <div className='flex flex-col gap-4.5'>
                     {activeMembers.map((member) => {
                       const name = member.userName || 'Unknown'
                       const avatarInitial = name.charAt(0).toUpperCase()
 
                       return (
                         <div key={member.id} className='flex items-center justify-between'>
-                          <div className='flex flex-1 items-center gap-[12px]'>
+                          <div className='flex flex-1 items-center gap-3'>
                             <Avatar size='md'>
                               {member.userImage && (
                                 <AvatarImage src={member.userImage} alt={name} />
@@ -504,8 +504,8 @@ export function CredentialSets() {
                             </Avatar>
 
                             <div className='min-w-0'>
-                              <div className='flex items-center gap-[8px]'>
-                                <span className='truncate font-medium text-[15px] text-[var(--text-primary)]'>
+                              <div className='flex items-center gap-2'>
+                                <span className='truncate font-medium text-base text-[var(--text-primary)]'>
                                   {name}
                                 </span>
                                 {member.credentials.length === 0 && (
@@ -514,13 +514,13 @@ export function CredentialSets() {
                                   </Badge>
                                 )}
                               </div>
-                              <div className='truncate text-[13px] text-[var(--text-muted)]'>
+                              <div className='truncate text-small text-[var(--text-muted)]'>
                                 {member.userEmail}
                               </div>
                             </div>
                           </div>
 
-                          <div className='ml-[16px] flex items-center gap-[4px]'>
+                          <div className='ml-4 flex items-center gap-1'>
                             <Button
                               variant='destructive'
                               onClick={() => handleRemoveMember(member.id)}
@@ -541,7 +541,7 @@ export function CredentialSets() {
 
                       return (
                         <div key={invitation.id} className='flex items-center justify-between'>
-                          <div className='flex flex-1 items-center gap-[12px]'>
+                          <div className='flex flex-1 items-center gap-3'>
                             <Avatar size='md'>
                               <AvatarFallback
                                 style={{ background: getUserColor(email) }}
@@ -552,21 +552,21 @@ export function CredentialSets() {
                             </Avatar>
 
                             <div className='min-w-0'>
-                              <div className='flex items-center gap-[8px]'>
-                                <span className='truncate font-medium text-[15px] text-[var(--text-primary)]'>
+                              <div className='flex items-center gap-2'>
+                                <span className='truncate font-medium text-base text-[var(--text-primary)]'>
                                   {emailPrefix}
                                 </span>
                                 <Badge variant='gray-secondary' size='sm'>
                                   Pending
                                 </Badge>
                               </div>
-                              <div className='truncate text-[13px] text-[var(--text-muted)]'>
+                              <div className='truncate text-small text-[var(--text-muted)]'>
                                 {email}
                               </div>
                             </div>
                           </div>
 
-                          <div className='ml-[16px] flex items-center gap-[4px]'>
+                          <div className='ml-4 flex items-center gap-1'>
                             <Button
                               variant='ghost'
                               onClick={() => handleResendInvitation(invitation.id, email)}
@@ -614,9 +614,9 @@ export function CredentialSets() {
 
   return (
     <>
-      <div className='flex h-full flex-col gap-[18px]'>
-        <div className='flex items-center gap-[8px]'>
-          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+      <div className='flex h-full flex-col gap-4.5'>
+        <div className='flex items-center gap-2'>
+          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
@@ -630,7 +630,7 @@ export function CredentialSets() {
           </div>
           {canManageCredentialSets && (
             <Button variant='primary' onClick={() => setShowCreateModal(true)}>
-              <Plus className='mr-[6px] h-[13px] w-[13px]' />
+              <Plus className='mr-1.5 h-[13px] w-[13px]' />
               Create
             </Button>
           )}
@@ -638,19 +638,19 @@ export function CredentialSets() {
 
         <div className='relative min-h-0 flex-1 overflow-y-auto'>
           {hasNoContent && !canManageCredentialSets ? (
-            <div className='absolute inset-0 flex items-center justify-center text-[14px] text-[var(--text-muted)]'>
+            <div className='absolute inset-0 flex items-center justify-center text-sm text-[var(--text-muted)]'>
               You're not a member of any polling groups yet. When someone invites you, it will
               appear here.
             </div>
           ) : hasNoResults ? (
-            <div className='py-[16px] text-center text-[14px] text-[var(--text-muted)]'>
+            <div className='py-4 text-center text-sm text-[var(--text-muted)]'>
               No results found matching "{searchTerm}"
             </div>
           ) : (
-            <div className='flex flex-col gap-[18px]'>
+            <div className='flex flex-col gap-4.5'>
               {filteredInvitations.length > 0 && (
-                <div className='flex flex-col gap-[8px]'>
-                  <div className='font-medium text-[14px] text-[var(--text-secondary)]'>
+                <div className='flex flex-col gap-2'>
+                  <div className='font-medium text-sm text-[var(--text-secondary)]'>
                     Pending Invitations
                   </div>
                   {filteredInvitations.map((invitation) => (
@@ -658,15 +658,15 @@ export function CredentialSets() {
                       key={invitation.invitationId}
                       className='flex items-center justify-between'
                     >
-                      <div className='flex items-center gap-[12px]'>
-                        <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                      <div className='flex items-center gap-3'>
+                        <div className='flex h-9 w-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
                           {getProviderIcon(invitation.providerId)}
                         </div>
                         <div className='flex flex-col'>
-                          <span className='font-medium text-[15px]'>
+                          <span className='font-medium text-base'>
                             {invitation.credentialSetName}
                           </span>
-                          <span className='text-[14px] text-[var(--text-muted)]'>
+                          <span className='text-sm text-[var(--text-muted)]'>
                             {invitation.organizationName}
                           </span>
                         </div>
@@ -684,8 +684,8 @@ export function CredentialSets() {
               )}
 
               {filteredMemberships.length > 0 && (
-                <div className='flex flex-col gap-[8px]'>
-                  <div className='font-medium text-[14px] text-[var(--text-secondary)]'>
+                <div className='flex flex-col gap-2'>
+                  <div className='font-medium text-sm text-[var(--text-secondary)]'>
                     My Memberships
                   </div>
                   {filteredMemberships.map((membership) => (
@@ -693,15 +693,15 @@ export function CredentialSets() {
                       key={membership.membershipId}
                       className='flex items-center justify-between'
                     >
-                      <div className='flex items-center gap-[12px]'>
-                        <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                      <div className='flex items-center gap-3'>
+                        <div className='flex h-9 w-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
                           {getProviderIcon(membership.providerId)}
                         </div>
                         <div className='flex flex-col'>
-                          <span className='font-medium text-[15px]'>
+                          <span className='font-medium text-base'>
                             {membership.credentialSetName}
                           </span>
-                          <span className='text-[14px] text-[var(--text-muted)]'>
+                          <span className='text-sm text-[var(--text-muted)]'>
                             {membership.organizationName}
                           </span>
                         </div>
@@ -724,17 +724,17 @@ export function CredentialSets() {
                 (filteredOwnedSets.length > 0 ||
                   ownedSetsLoading ||
                   (!searchTerm.trim() && ownedSets.length === 0)) && (
-                  <div className='flex flex-col gap-[8px]'>
-                    <div className='font-medium text-[14px] text-[var(--text-secondary)]'>
+                  <div className='flex flex-col gap-2'>
+                    <div className='font-medium text-sm text-[var(--text-secondary)]'>
                       Manage
                     </div>
                     {ownedSetsLoading ? (
                       <>
                         {[1, 2].map((i) => (
                           <div key={i} className='flex items-center justify-between'>
-                            <div className='flex items-center gap-[12px]'>
-                              <Skeleton className='h-9 w-9 rounded-[6px]' />
-                              <div className='flex flex-col gap-[4px]'>
+                            <div className='flex items-center gap-3'>
+                              <Skeleton className='h-9 w-9 rounded-md' />
+                              <div className='flex flex-col gap-1'>
                                 <Skeleton className='h-[14px] w-[120px]' />
                                 <Skeleton className='h-[12px] w-[80px]' />
                               </div>
@@ -743,24 +743,24 @@ export function CredentialSets() {
                         ))}
                       </>
                     ) : !searchTerm.trim() && ownedSets.length === 0 ? (
-                      <div className='text-[14px] text-[var(--text-muted)]'>
+                      <div className='text-sm text-[var(--text-muted)]'>
                         No polling groups created yet
                       </div>
                     ) : (
                       filteredOwnedSets.map((set) => (
                         <div key={set.id} className='flex items-center justify-between'>
-                          <div className='flex items-center gap-[12px]'>
-                            <div className='flex h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                          <div className='flex items-center gap-3'>
+                            <div className='flex h-9 w-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
                               {getProviderIcon(set.providerId)}
                             </div>
                             <div className='flex flex-col'>
-                              <span className='font-medium text-[15px]'>{set.name}</span>
-                              <span className='text-[14px] text-[var(--text-muted)]'>
+                              <span className='font-medium text-base'>{set.name}</span>
+                              <span className='text-sm text-[var(--text-muted)]'>
                                 {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
                               </span>
                             </div>
                           </div>
-                          <div className='flex items-center gap-[8px]'>
+                          <div className='flex items-center gap-2'>
                             <Button variant='default' onClick={() => setViewingSet(set)}>
                               Details
                             </Button>
@@ -786,8 +786,8 @@ export function CredentialSets() {
         <ModalContent size='sm'>
           <ModalHeader>Create Polling Group</ModalHeader>
           <ModalBody>
-            <div className='flex flex-col gap-[12px]'>
-              <div className='flex flex-col gap-[4px]'>
+            <div className='flex flex-col gap-3'>
+              <div className='flex flex-col gap-1'>
                 <Label>Name</Label>
                 <Input
                   value={newSetName}
@@ -798,7 +798,7 @@ export function CredentialSets() {
                   placeholder='e.g., Marketing Team'
                 />
               </div>
-              <div className='flex flex-col gap-[4px]'>
+              <div className='flex flex-col gap-1'>
                 <Label>Description (optional)</Label>
                 <Input
                   value={newSetDescription}
@@ -806,14 +806,14 @@ export function CredentialSets() {
                   placeholder='e.g., Poll emails for marketing automations'
                 />
               </div>
-              <div className='flex flex-col gap-[4px]'>
+              <div className='flex flex-col gap-1'>
                 <Label>Email Provider</Label>
-                <div className='inline-flex gap-[2px]'>
+                <div className='inline-flex gap-0.5'>
                   <Button
                     variant={newSetProvider === 'google-email' ? 'active' : 'default'}
                     onClick={() => setNewSetProvider('google-email')}
                     className={cn(
-                      'rounded-r-none px-[8px] py-[4px] text-[13px]',
+                      'rounded-r-none px-2 py-1 text-small',
                       newSetProvider === 'google-email' &&
                         'bg-[var(--border-1)] hover-hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover-hover:bg-[var(--border-1)]'
                     )}
@@ -824,7 +824,7 @@ export function CredentialSets() {
                     variant={newSetProvider === 'outlook' ? 'active' : 'default'}
                     onClick={() => setNewSetProvider('outlook')}
                     className={cn(
-                      'rounded-l-none px-[8px] py-[4px] text-[13px]',
+                      'rounded-l-none px-2 py-1 text-small',
                       newSetProvider === 'outlook' &&
                         'bg-[var(--border-1)] hover-hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover-hover:bg-[var(--border-1)]'
                     )}
@@ -832,11 +832,11 @@ export function CredentialSets() {
                     Outlook
                   </Button>
                 </div>
-                <p className='mt-[4px] text-[11px] text-[var(--text-tertiary)]'>
+                <p className='mt-1 text-xs text-[var(--text-tertiary)]'>
                   Members will connect their {getProviderDisplayName(newSetProvider)} account
                 </p>
               </div>
-              {createError && <p className='text-[13px] text-[var(--text-error)]'>{createError}</p>}
+              {createError && <p className='text-small text-[var(--text-error)]'>{createError}</p>}
             </div>
           </ModalBody>
           <ModalFooter>

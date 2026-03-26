@@ -49,7 +49,7 @@ import { cn } from '@/lib/core/utils/cn'
  * Uses colored badge-style variants (blue for valid, red for invalid).
  */
 const tagVariants = cva(
-  'flex w-auto cursor-default items-center gap-[3px] rounded-[4px] px-[4px] font-medium font-sans text-[13px] leading-[20px] transition-colors',
+  'flex w-auto cursor-default items-center gap-[3px] rounded-sm px-1 font-medium font-sans text-small leading-[20px] transition-colors',
   {
     variants: {
       variant: {
@@ -123,7 +123,7 @@ const Tag = React.memo(function Tag({
  * Matches the Input component styling exactly for consistent height.
  */
 const tagInputVariants = cva(
-  'scrollbar-hide flex w-full cursor-text flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] transition-colors focus-within:outline-none dark:bg-[var(--surface-5)]',
+  'scrollbar-hide flex w-full cursor-text flex-wrap items-center gap-x-2 gap-y-1 overflow-y-auto rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 transition-colors focus-within:outline-none dark:bg-[var(--surface-5)]',
   {
     variants: {
       variant: {
@@ -382,7 +382,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           tagInputVariants({ variant }),
           maxHeight,
           'relative',
-          fileInputEnabled && 'pr-[28px]',
+          fileInputEnabled && 'pr-7',
           isDragging && 'border-[var(--border)] border-dashed bg-[var(--surface-5)]',
           className
         )}
@@ -401,8 +401,8 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           />
         )}
         {isDragging && (
-          <div className='absolute inset-0 flex items-center justify-center rounded-[4px] bg-[var(--surface-5)]/90'>
-            <span className='text-[13px] text-[var(--text-tertiary)]'>Drop file here</span>
+          <div className='absolute inset-0 flex items-center justify-center rounded-sm bg-[var(--surface-5)]/90'>
+            <span className='text-small text-[var(--text-tertiary)]'>Drop file here</span>
           </div>
         )}
         {items.map((item, index) => (
@@ -419,13 +419,13 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           className={cn(
             'flex items-center',
             inputValue.trim() &&
-              cn(tagVariants({ variant: tagVariant }), 'gap-0 py-0 pr-0 pl-[4px] opacity-80')
+              cn(tagVariants({ variant: tagVariant }), 'gap-0 py-0 pr-0 pl-1 opacity-80')
           )}
         >
           <div className='relative inline-flex'>
             {inputValue.trim() && (
               <span
-                className='invisible whitespace-pre font-medium font-sans text-[13px] leading-[20px]'
+                className='invisible whitespace-pre font-medium font-sans text-small leading-[20px]'
                 aria-hidden='true'
               >
                 {inputValue}
@@ -449,7 +449,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
               className={cn(
                 'border-none bg-transparent font-medium font-sans outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50',
                 inputValue.trim()
-                  ? 'absolute top-0 left-0 h-full w-full p-0 text-[13px] text-inherit leading-[20px]'
+                  ? 'absolute top-0 left-0 h-full w-full p-0 text-small text-inherit leading-[20px]'
                   : 'w-auto min-w-0 p-0 text-foreground text-sm',
                 inputClassName
               )}
@@ -491,7 +491,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   e.stopPropagation()
                   fileInputRef.current?.click()
                 }}
-                className='absolute right-[8px] bottom-[9px] p-[6px] -m-[6px] text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-secondary)]'
+                className='absolute right-[8px] bottom-[9px] p-1.5 -m-1.5 text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-secondary)]'
                 aria-label={fileInputOptions?.tooltip ?? 'Upload file'}
               >
                 <FileIcon className='h-[14px] w-[14px]' strokeWidth={2} />

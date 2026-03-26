@@ -15,7 +15,7 @@ const buttonVariants = cva(
         outline:
           'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)] border border-[var(--text-muted)] bg-transparent hover-hover:border-[var(--text-secondary)]',
         primary:
-          'bg-[var(--c-1D1D1D)] text-[var(--text-inverse)] hover-hover:text-[var(--text-inverse)] hover-hover:bg-[var(--c-2A2A2A)] dark:bg-white dark:hover-hover:bg-[var(--c-E0E0E0)]',
+          'bg-[var(--text-primary)] text-[var(--text-inverse)] hover-hover:text-[var(--text-inverse)] hover-hover:bg-[var(--surface-4)] dark:bg-white dark:hover-hover:bg-[var(--border-1)]',
         destructive:
           'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
         secondary: 'bg-[var(--brand-secondary)] text-[var(--text-primary)]',
@@ -27,13 +27,13 @@ const buttonVariants = cva(
         'ghost-secondary': 'text-[var(--text-muted)]',
         /** Branded button - requires branded-button-gradient or branded-button-custom class for colors */
         branded:
-          'rounded-[10px] border text-white hover-hover:text-white text-[15px] transition-[transform,background-color,color,border-color] duration-200',
+          'rounded-[10px] border text-white hover-hover:text-white text-base transition-[transform,background-color,color,border-color] duration-200',
       },
       size: {
-        sm: 'px-[6px] py-[4px] text-[11px]',
-        md: 'px-[8px] py-[6px] text-[12px]',
+        sm: 'px-1.5 py-1 text-xs',
+        md: 'px-2 py-1.5 text-caption',
         /** Branded size - matches login form button padding */
-        branded: 'py-[6px] pr-[10px] pl-[12px]',
+        branded: 'py-1.5 pr-2.5 pl-3',
       },
     },
     defaultVariants: {

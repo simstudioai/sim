@@ -22,6 +22,19 @@
   --z-modal: 300;
   --z-tooltip: 400;
   --z-toast: 500;
+
+  /* Shadow scale */
+  --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);
+  --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.15);
+  --shadow-kbd: 0 4px 0 0 rgba(48, 48, 48, 1);
+  --shadow-kbd-sm: 0 2px 0 0 rgba(48, 48, 48, 1);
+  --shadow-brand-inset: inset 0 1.25px 2.5px 0 #9b77ff;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  /* Scrollbar colors */
+  --scrollbar-thumb-color: #c0c0c0;
+  --scrollbar-thumb-hover-color: #a8a8a8;
 }
 
 .workspace-root {
@@ -216,67 +229,62 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --font-weight-medium: 440;
     --font-weight-semibold: 500;
 
-    /* Extended palette */
-    --c-0D0D0D: #0d0d0d;
-    --c-1A1A1A: #1a1a1a;
-    --c-1F1F1F: #1f1f1f;
-    --c-2A2A2A: #2a2a2a;
-    --c-383838: #383838;
-    --c-414141: #414141;
-    --c-442929: #442929;
-    --c-491515: #491515;
-    --c-575757: #575757;
-    --c-686868: #686868;
-    --c-707070: #707070;
-    --c-727272: #727272;
-    --c-737373: #737373;
-    --c-808080: #808080;
-    --c-858585: #858585;
-    --c-868686: #868686;
-    --c-8D8D8D: #8d8d8d;
-    --c-939393: #939393;
-    --c-A8A8A8: #a8a8a8;
-    --c-B8B8B8: #b8b8b8;
-    --c-C0C0C0: #c0c0c0;
-    --c-CDCDCD: #cdcdcd;
-    --c-D0D0D0: #d0d0d0;
-    --c-D2D2D2: #d2d2d2;
-    --c-E0E0E0: #e0e0e0;
-    --c-E5E5E5: #e5e5e5;
-    --c-E8E8E8: #e8e8e8;
-    --c-EEEEEE: #eeeeee;
-    --c-F0F0F0: #f0f0f0;
-    --c-F4F4F4: #f4f4f4;
-    --c-F5F5F5: #f5f5f5;
+    /* Landing / marketing - text (static dark-section colors) */
+    --landing-text: #ececec;
+    --landing-text-muted: #999999;
+    --landing-text-subtle: #f6f6f6;
+    --landing-text-dark: #1c1c1c;
+    --landing-text-secondary: #666666;
+    --landing-text-body: #cdcdcd;
+    --landing-text-icon: #939393;
 
-    /* Blues and cyans */
-    --c-00B0B0: #00b0b0;
-    --c-264F78: #264f78;
-    --c-2F55FF: #2f55ff;
-    --c-2FA1FF: #2fa1ff;
-    --c-336699: #336699;
-    --c-34B5FF: #34b5ff;
-    --c-601EE0: #601ee0;
-    --c-611F69: #611f69;
-    --c-802FFF: #802fff;
-    --c-8357FF: #8357ff;
-    --c-8C10FF: #8c10ff;
+    /* Landing / marketing - surfaces */
+    --landing-bg: #1c1c1c;
+    --landing-bg-elevated: #2a2a2a;
+    --landing-bg-card: #232323;
+    --landing-bg-section: #f6f6f6;
+    --landing-bg-subtle: #fafafa;
+    --landing-bg-surface: #1e1e1e;
+    --landing-bg-hover: #f0f0f0;
+    --landing-bg-skeleton: #e8e8e8;
 
-    /* Greens */
-    --c-4CAF50: #22c55e;
+    /* Landing / marketing - borders */
+    --landing-border: #2a2a2a;
+    --landing-border-light: #e5e5e5;
+    --landing-border-strong: #3d3d3d;
+    --landing-border-subtle: #d4d4d4;
 
-    /* Oranges / Ambers */
-    --c-F59E0B: #f59e0b;
-    --c-F97316: #ea580c;
-    --c-FF972F: #f97316;
+    /* Code editor (theme-aware) */
+    --code-bg: #f5f5f5;
+    --code-foreground: #1a1a1a;
+    --code-line-number: #737373;
 
-    /* Reds */
-    --c-DC2626: #dc2626;
-    --c-F6D2D2: #fecaca;
-    --c-F87171: #f87171;
-    --c-FF402F: #ef4444;
-    --c-B91C1C: #b91c1c;
-    --c-883827: #7c2d12;
+    /* Workspace: additional text */
+    --text-placeholder: #8d8d8d;
+    --text-success: #22c55e;
+
+    /* Status / semantic colors */
+    --error: #dc2626;
+    --error-muted: #fecaca;
+    --error-emphasis: #b91c1c;
+    --amber: #f59e0b;
+    --orange: #ea580c;
+    --orange-bright: #f97316;
+    --success: #22c55e;
+    --teal: #00b0b0;
+
+    /* Brand extended */
+    --brand-knowledge: #00b0b0;
+    --brand-purple-deep: #601ee0;
+    --brand-purple: #802fff;
+    --brand-purple-bright: #8357ff;
+    --brand-purple-vivid: #8c10ff;
+    --brand-plum: #611f69;
+    --brand-blue-dark: #264f78;
+    --brand-blue-muted: #336699;
+    --brand-blue: #2f55ff;
+    --brand-blue-light: #2fa1ff;
+    --brand-blue-sky: #34b5ff;
 
     /* Terminal status badges */
     --terminal-status-error-bg: #fef2f2;
@@ -338,70 +346,37 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --font-weight-medium: 480;
     --font-weight-semibold: 550;
 
-    /* Extended palette (exhaustive from code usage via -[#...]) */
-    /* Neutral deep shades */
-    --c-0D0D0D: #0d0d0d;
-    --c-1A1A1A: #1a1a1a;
-    --c-1F1F1F: #1f1f1f;
-    --c-2A2A2A: #2a2a2a;
-    --c-383838: #383838;
-    --c-414141: #414141;
-    --c-442929: #442929;
-    --c-491515: #491515;
-    --c-575757: #575757;
-    --c-686868: #686868;
-    --c-707070: #707070;
-    --c-727272: #727272;
-    --c-737373: #737373;
-    --c-808080: #808080;
-    --c-858585: #858585;
-    --c-868686: #868686;
-    --c-8D8D8D: #8d8d8d;
-    --c-939393: #939393;
-    --c-A8A8A8: #a8a8a8;
-    --c-B8B8B8: #b8b8b8;
-    --c-C0C0C0: #c0c0c0;
-    --c-CDCDCD: #cdcdcd;
-    --c-D0D0D0: #d0d0d0;
-    --c-D2D2D2: #d2d2d2;
-    --c-E0E0E0: #e0e0e0;
-    --c-E5E5E5: #e5e5e5;
-    --c-E8E8E8: #e8e8e8;
-    --c-EEEEEE: #eeeeee;
-    --c-F0F0F0: #f0f0f0;
-    --c-F4F4F4: #f4f4f4;
-    --c-F5F5F5: #f5f5f5;
+    /* Code editor (dark mode overrides) */
+    --code-bg: #1f1f1f;
+    --code-foreground: #eeeeee;
+    --code-line-number: #a8a8a8;
 
-    --c-CFCFCF: #cfcfcf;
+    /* Workspace text */
+    --text-placeholder: #8d8d8d;
+    --text-success: #22c55e;
 
-    /* Blues and cyans */
-    --c-00B0B0: #00b0b0;
-    --c-264F78: #264f78;
-    --c-2F55FF: #2f55ff;
-    --c-2FA1FF: #2fa1ff;
-    --c-336699: #336699;
-    --c-34B5FF: #34b5ff;
-    --c-601EE0: #601ee0;
-    --c-611F69: #611f69;
-    --c-802FFF: #802fff;
-    --c-8357FF: #8357ff;
-    --c-8C10FF: #8c10ff;
+    /* Status / semantic (dark overrides where needed) */
+    --error: #f87171;
+    --error-muted: #f6d2d2;
+    --error-emphasis: #b91c1c;
+    --amber: #f59e0b;
+    --orange: #f97316;
+    --orange-bright: #ff972f;
+    --success: #22c55e;
+    --teal: #00b0b0;
 
-    /* Greens */
-    --c-4CAF50: #4caf50;
-
-    /* Oranges / Ambers */
-    --c-F59E0B: #f59e0b;
-    --c-F97316: #f97316;
-    --c-FF972F: #ff972f;
-
-    /* Reds */
-    --c-DC2626: #dc2626;
-    --c-F6D2D2: #f6d2d2;
-    --c-F87171: #f87171;
-    --c-FF402F: #ff402f;
-    --c-B91C1C: #b91c1c;
-    --c-883827: #883827;
+    /* Brand extended */
+    --brand-knowledge: #00b0b0;
+    --brand-purple-deep: #601ee0;
+    --brand-purple: #802fff;
+    --brand-purple-bright: #8357ff;
+    --brand-purple-vivid: #8c10ff;
+    --brand-plum: #611f69;
+    --brand-blue-dark: #264f78;
+    --brand-blue-muted: #336699;
+    --brand-blue: #2f55ff;
+    --brand-blue-light: #2fa1ff;
+    --brand-blue-sky: #34b5ff;
 
     /* Terminal status badges */
     --terminal-status-error-bg: #491515;
@@ -412,6 +387,13 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --terminal-status-warning-bg: #3d3520;
     --terminal-status-warning-border: #5c4d1f;
     --terminal-status-warning-color: #d4a72c;
+
+    /* Scrollbar colors */
+    --scrollbar-thumb-color: #5a5a5a;
+    --scrollbar-thumb-hover-color: #6a6a6a;
+
+    /* Shadow scale - dark */
+    --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.4);
   }
 }
 
@@ -465,12 +447,12 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: #c0c0c0;
+    background-color: var(--scrollbar-thumb-color);
     border-radius: var(--radius);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: #a8a8a8;
+    background-color: var(--scrollbar-thumb-hover-color);
   }
 
   /* Dark Mode Global Scrollbar */
@@ -479,20 +461,20 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
   }
 
   .dark ::-webkit-scrollbar-thumb {
-    background-color: #5a5a5a;
+    background-color: var(--scrollbar-thumb-color);
   }
 
   .dark ::-webkit-scrollbar-thumb:hover {
-    background-color: #6a6a6a;
+    background-color: var(--scrollbar-thumb-hover-color);
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: #c0c0c0 transparent;
+    scrollbar-color: var(--scrollbar-thumb-color) transparent;
   }
 
   .dark * {
-    scrollbar-color: #5a5a5a transparent;
+    scrollbar-color: var(--scrollbar-thumb-color) transparent;
   }
 
   .copilot-scrollable {

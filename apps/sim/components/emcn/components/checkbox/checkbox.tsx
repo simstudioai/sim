@@ -24,7 +24,7 @@ import { cn } from '@/lib/core/utils/cn'
  */
 const checkboxVariants = cva(
   [
-    'relative peer flex shrink-0 cursor-pointer items-center justify-center rounded-[4px] border transition-colors',
+    'relative peer flex shrink-0 cursor-pointer items-center justify-center rounded-sm border transition-colors',
     'border-[var(--border-1)] bg-transparent',
     'before:absolute before:inset-[-12px] before:content-[""]',
     'focus-visible:outline-none',

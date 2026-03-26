@@ -12,7 +12,7 @@ export function ChatHistorySkeleton() {
       </PopoverSection>
       <div className='flex flex-col gap-0.5'>
         {[1, 2, 3].map((i) => (
-          <div key={i} className='flex h-[25px] items-center px-[6px]'>
+          <div key={i} className='flex h-[25px] items-center px-1.5'>
             <div className='h-3 w-full animate-pulse rounded bg-muted/40' />
           </div>
         ))}

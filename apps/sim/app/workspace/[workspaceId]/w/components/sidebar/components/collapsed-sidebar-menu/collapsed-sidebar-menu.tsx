@@ -140,7 +140,7 @@ export function CollapsedSidebarMenu({
   primaryAction,
 }: CollapsedSidebarMenuProps) {
   return (
-    <div className={cn('flex flex-col px-[8px]', className)}>
+    <div className={cn('flex flex-col px-2', className)}>
       <DropdownMenu
         open={hover.isOpen}
         onOpenChange={(open) => {

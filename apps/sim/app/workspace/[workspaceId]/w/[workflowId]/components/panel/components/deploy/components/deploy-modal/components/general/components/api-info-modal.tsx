@@ -214,9 +214,9 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
           <ModalHeader>
             <span>Edit API Info</span>
           </ModalHeader>
-          <ModalBody className='space-y-[12px]'>
+          <ModalBody className='space-y-3'>
             <div>
-              <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+              <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
                 Description
               </Label>
               <Textarea
@@ -229,7 +229,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
             {!isPublicApiDisabled && (
               <div>
-                <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+                <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
                   Access
                 </Label>
                 <ButtonGroup
@@ -239,7 +239,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                   <ButtonGroupItem value='api_key'>API Key</ButtonGroupItem>
                   <ButtonGroupItem value='public'>Public</ButtonGroupItem>
                 </ButtonGroup>
-                <p className='mt-1 text-[12px] text-[var(--text-secondary)]'>
+                <p className='mt-1 text-caption text-[var(--text-secondary)]'>
                   {accessMode === 'public'
                     ? 'Anyone can call this API without authentication. You will be billed for all usage.'
                     : 'Requires a valid API key to call this endpoint.'}
@@ -249,18 +249,18 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
             {inputFormat.length > 0 && (
               <div>
-                <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+                <Label className='mb-[6.5px] block pl-0.5 font-medium text-small text-[var(--text-primary)]'>
                   Parameters ({inputFormat.length})
                 </Label>
-                <div className='flex flex-col gap-[8px]'>
+                <div className='flex flex-col gap-2'>
                   {inputFormat.map((field) => (
                     <div
                       key={field.name}
-                      className='overflow-hidden rounded-[4px] border border-[var(--border-1)]'
+                      className='overflow-hidden rounded-sm border border-[var(--border-1)]'
                     >
-                      <div className='flex items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'>
-                        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-                          <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
+                      <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
+                        <div className='flex min-w-0 flex-1 items-center gap-2'>
+                          <span className='block truncate font-medium text-sm text-[var(--text-tertiary)]'>
                             {field.name}
                           </span>
                           <Badge variant='type' size='sm'>
@@ -268,9 +268,9 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                           </Badge>
                         </div>
                       </div>
-                      <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[10px] pt-[6px] pb-[10px]'>
-                        <div className='flex flex-col gap-[6px]'>
-                          <Label className='text-[13px]'>Description</Label>
+                      <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+                        <div className='flex flex-col gap-1.5'>
+                          <Label className='text-small'>Description</Label>
                           <Input
                             value={paramDescriptions[field.name] || ''}
                             onChange={(e) =>
@@ -288,7 +288,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
           </ModalBody>
           <ModalFooter>
             {saveError && (
-              <p className='mr-auto text-[12px] text-[var(--text-error)]'>{saveError}</p>
+              <p className='mr-auto text-caption text-[var(--text-error)]'>{saveError}</p>
             )}
             <Button variant='default' onClick={handleCloseAttempt} disabled={isSaving}>
               Cancel
@@ -306,7 +306,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
             <span>Unsaved Changes</span>
           </ModalHeader>
           <ModalBody>
-            <p className='text-[14px] text-[var(--text-secondary)]'>
+            <p className='text-sm text-[var(--text-secondary)]'>
               You have unsaved changes. Are you sure you want to discard them?
             </p>
           </ModalBody>

@@ -21,15 +21,15 @@ import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
 const comboboxVariants = cva(
-  'flex w-full rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus-visible:border-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 hover-hover:bg-[var(--surface-7)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]',
+  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus-visible:border-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 hover-hover:bg-[var(--surface-7)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]',
   {
     variants: {
       variant: {
         default: '',
       },
       size: {
-        sm: 'py-[5px] text-[12px]',
-        md: 'py-[6px] text-sm',
+        sm: 'py-[5px] text-caption',
+        md: 'py-1.5 text-sm',
       },
     },
     defaultVariants: {
@@ -520,9 +520,9 @@ const Combobox = memo(
                     <Input
                       ref={inputRef}
                       className={cn(
-                        'w-full pr-[40px] font-medium transition-colors hover-hover:bg-[var(--surface-7)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]',
+                        'w-full pr-10 font-medium transition-colors hover-hover:bg-[var(--surface-7)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]',
                         (overlayContent || SelectedIcon) && 'text-transparent caret-foreground',
-                        SelectedIcon && !overlayContent && 'pl-[28px]',
+                        SelectedIcon && !overlayContent && 'pl-7',
                         className
                       )}
                       placeholder={placeholder}
@@ -537,7 +537,7 @@ const Combobox = memo(
                     {(overlayContent || SelectedIcon) && (
                       <div
                         className={cn(
-                          'pointer-events-none absolute top-0 right-[42px] bottom-0 left-0 flex items-center bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm',
+                          'pointer-events-none absolute top-0 right-[42px] bottom-0 left-0 flex items-center bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
                           disabled && 'opacity-50'
                         )}
                       >
@@ -546,7 +546,7 @@ const Combobox = memo(
                         ) : (
                           <>
                             {SelectedIcon && (
-                              <SelectedIcon className='mr-[8px] h-3 w-3 flex-shrink-0' />
+                              <SelectedIcon className='mr-2 h-3 w-3 flex-shrink-0' />
                             )}
                             <span className='truncate text-[var(--text-primary)]'>
                               {selectedOption?.label}
@@ -596,12 +596,12 @@ const Combobox = memo(
                     </span>
                     <ChevronDown
                       className={cn(
-                        'ml-[8px] h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
+                        'ml-2 h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
                         open && 'rotate-180'
                       )}
                     />
                     {overlayContent && (
-                      <div className='pointer-events-none absolute inset-y-0 right-[24px] left-0 flex items-center px-[8px]'>
+                      <div className='pointer-events-none absolute inset-y-0 right-[24px] left-0 flex items-center px-2'>
                         <div className='w-full truncate'>{overlayContent}</div>
                       </div>
                     )}
@@ -615,7 +615,7 @@ const Combobox = memo(
               align={align}
               sideOffset={4}
               className={cn(
-                'rounded-[6px] border border-[var(--border-1)] p-0',
+                'rounded-md border border-[var(--border-1)] p-0',
                 dropdownWidth === 'trigger' && 'w-[var(--radix-popover-trigger-width)]'
               )}
               style={
@@ -639,11 +639,11 @@ const Combobox = memo(
               }}
             >
               {searchable && (
-                <div className='flex items-center px-[10px] pt-[8px] pb-[4px]'>
+                <div className='flex items-center px-2.5 pt-2 pb-1'>
                   <Search className='mr-[7px] ml-[1px] h-[13px] w-[13px] shrink-0 text-[var(--text-muted)]' />
                   <input
                     ref={searchInputRef}
-                    className='w-full bg-transparent font-base text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none'
+                    className='w-full bg-transparent font-base text-small text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none'
                     placeholder={searchPlaceholder}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -670,7 +670,7 @@ const Combobox = memo(
                 </div>
               )}
               <PopoverScrollArea
-                className='!flex-none p-[4px]'
+                className='!flex-none p-1'
                 style={{ maxHeight: `${maxHeight}px` }}
                 onWheelCapture={(e) => {
                   const target = e.currentTarget
@@ -687,18 +687,18 @@ const Combobox = memo(
               >
                 <div ref={dropdownRef} role='listbox' id={listboxId}>
                   {isLoading ? (
-                    <div className='flex items-center justify-center py-[14px]'>
+                    <div className='flex items-center justify-center py-3.5'>
                       <Loader2 className='h-[16px] w-[16px] animate-spin text-[var(--text-muted)]' />
-                      <span className='ml-[8px] font-base text-[12px] text-[var(--text-muted)]'>
+                      <span className='ml-2 font-base text-caption text-[var(--text-muted)]'>
                         Loading options...
                       </span>
                     </div>
                   ) : error ? (
-                    <div className='px-[6px] py-[14px] text-center font-base text-[12px] text-red-500'>
+                    <div className='px-1.5 py-3.5 text-center font-base text-caption text-red-500'>
                       {error}
                     </div>
                   ) : filteredOptions.length === 0 ? (
-                    <div className='py-[14px] text-center font-base text-[12px] text-[var(--text-muted)]'>
+                    <div className='py-3.5 text-center font-base text-caption text-[var(--text-muted)]'>
                       {emptyMessage ||
                         (searchQuery || (editable && value)
                           ? 'No matching options found'
@@ -706,13 +706,13 @@ const Combobox = memo(
                     </div>
                   ) : filteredGroups ? (
                     // Render grouped options with section headers
-                    <div className='space-y-[2px]'>
+                    <div className='space-y-0.5'>
                       {filteredGroups.map((group, groupIndex) => (
                         <div key={group.section || `group-${groupIndex}`}>
                           {group.sectionElement
                             ? group.sectionElement
                             : group.section && (
-                                <div className='px-[6px] py-[4px] font-base text-[11px] text-[var(--text-tertiary)] first:pt-[4px]'>
+                                <div className='px-1.5 py-1 font-base text-xs text-[var(--text-tertiary)] first:pt-1'>
                                   {group.section}
                                 </div>
                               )}
@@ -744,8 +744,8 @@ const Combobox = memo(
                                   !option.disabled && setHighlightedIndex(globalIndex)
                                 }
                                 className={cn(
-                                  'relative flex cursor-pointer select-none items-center gap-[8px] rounded-[4px] px-[6px] font-medium font-sans',
-                                  size === 'sm' ? 'py-[5px] text-[12px]' : 'py-[6px] text-sm',
+                                  'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-medium font-sans',
+                                  size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
                                   'hover-hover:bg-[var(--border-1)]',
                                   (isHighlighted || isSelected) && 'bg-[var(--border-1)]',
                                   option.disabled && 'cursor-not-allowed opacity-50'
@@ -761,7 +761,7 @@ const Combobox = memo(
                                 </span>
                                 {option.suffixElement}
                                 {multiSelect && isSelected && (
-                                  <Check className='ml-[8px] h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
+                                  <Check className='ml-2 h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
                                 )}
                               </div>
                             )
@@ -771,7 +771,7 @@ const Combobox = memo(
                     </div>
                   ) : (
                     // Render flat options (no groups)
-                    <div className='space-y-[2px]'>
+                    <div className='space-y-0.5'>
                       {showAllOption && multiSelect && (
                         <div
                           role='option'
@@ -784,8 +784,8 @@ const Combobox = memo(
                           }}
                           onMouseEnter={() => setHighlightedIndex(-1)}
                           className={cn(
-                            'relative flex cursor-pointer select-none items-center rounded-[4px] px-[6px] font-medium font-sans',
-                            size === 'sm' ? 'py-[5px] text-[12px]' : 'py-[6px] text-sm',
+                            'relative flex cursor-pointer select-none items-center rounded-sm px-1.5 font-medium font-sans',
+                            size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
                             'hover-hover:bg-[var(--border-1)]',
                             !multiSelectValues?.length && 'bg-[var(--border-1)]'
                           )}
@@ -818,8 +818,8 @@ const Combobox = memo(
                             }}
                             onMouseEnter={() => !option.disabled && setHighlightedIndex(index)}
                             className={cn(
-                              'relative flex cursor-pointer select-none items-center gap-[8px] rounded-[4px] px-[6px] font-medium font-sans',
-                              size === 'sm' ? 'py-[5px] text-[12px]' : 'py-[6px] text-sm',
+                              'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-medium font-sans',
+                              size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
                               'hover-hover:bg-[var(--border-1)]',
                               (isHighlighted || isSelected) && 'bg-[var(--border-1)]',
                               option.disabled && 'cursor-not-allowed opacity-50'
@@ -835,7 +835,7 @@ const Combobox = memo(
                             </span>
                             {option.suffixElement}
                             {multiSelect && isSelected && (
-                              <Check className='ml-[8px] h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
+                              <Check className='ml-2 h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
                             )}
                           </div>
                         )

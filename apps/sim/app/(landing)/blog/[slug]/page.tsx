@@ -65,7 +65,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           </div>
           <div className='flex flex-1 flex-col justify-between'>
             <h1
-              className='font-[500] text-[#ECECEC] text-[36px] leading-tight tracking-tight sm:text-[48px] md:text-[56px] lg:text-[64px]'
+              className='font-[500] text-[var(--landing-text)] text-[36px] leading-tight tracking-tight sm:text-[48px] md:text-[56px] lg:text-[64px]'
               itemProp='headline'
             >
               {post.title}
@@ -84,7 +84,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                       href={a?.url || '#'}
                       target='_blank'
                       rel='noopener noreferrer author'
-                      className='text-[#999] text-[14px] leading-[1.5] hover:text-[#ECECEC] sm:text-[16px]'
+                      className='text-[var(--text-subtle)] text-sm leading-[1.5] hover:text-[var(--landing-text)] sm:text-md'
                       itemProp='author'
                       itemScope
                       itemType='https://schema.org/Person'
@@ -98,11 +98,11 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             </div>
           </div>
         </div>
-        <hr className='mt-8 border-[#2A2A2A] border-t sm:mt-12' />
+        <hr className='mt-8 border-[var(--surface-4)] border-t sm:mt-12' />
         <div className='flex flex-col gap-6 py-8 sm:flex-row sm:items-start sm:justify-between sm:gap-8 sm:py-10'>
           <div className='flex flex-shrink-0 items-center gap-4'>
             <time
-              className='block text-[#999] text-[14px] leading-[1.5] sm:text-[16px]'
+              className='block text-[var(--text-subtle)] text-sm leading-[1.5] sm:text-md'
               dateTime={post.date}
               itemProp='datePublished'
             >
@@ -115,7 +115,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             <meta itemProp='dateModified' content={post.updated ?? post.date} />
           </div>
           <div className='flex-1'>
-            <p className='m-0 block translate-y-[-4px] font-[400] text-[#999] text-[18px] leading-[1.5] sm:text-[20px] md:text-[26px]'>
+            <p className='m-0 block translate-y-[-4px] font-[400] text-[var(--text-subtle)] text-lg leading-[1.5] sm:text-[20px] md:text-[26px]'>
               {post.description}
             </p>
           </div>
@@ -123,18 +123,18 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       </header>
 
       <div className='mx-auto max-w-[900px] px-6 pb-20 sm:px-8 md:px-12' itemProp='articleBody'>
-        <div className='prose prose-lg prose-invert max-w-none prose-blockquote:border-[#3d3d3d] prose-hr:border-[#2A2A2A] prose-a:text-[#ECECEC] prose-blockquote:text-[#999] prose-code:text-[#ECECEC] prose-headings:text-[#ECECEC] prose-li:text-[#999] prose-p:text-[#999] prose-strong:text-[#ECECEC]'>
+        <div className='prose prose-lg prose-invert max-w-none prose-blockquote:border-[var(--border-1)] prose-hr:border-[var(--surface-4)] prose-a:text-[var(--landing-text)] prose-blockquote:text-[var(--text-subtle)] prose-code:text-[var(--landing-text)] prose-headings:text-[var(--landing-text)] prose-li:text-[var(--text-subtle)] prose-p:text-[var(--text-subtle)] prose-strong:text-[var(--landing-text)]'>
           <Article />
           {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
         </div>
       </div>
       {related.length > 0 && (
         <div className='mx-auto max-w-[900px] px-6 pb-24 sm:px-8 md:px-12'>
-          <h2 className='mb-4 font-[500] text-[#ECECEC] text-[24px]'>Related posts</h2>
+          <h2 className='mb-4 font-[500] text-[var(--landing-text)] text-[24px]'>Related posts</h2>
           <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3'>
             {related.map((p) => (
               <Link key={p.slug} href={`/blog/${p.slug}`} className='group'>
-                <div className='overflow-hidden rounded-lg border border-[#2A2A2A]'>
+                <div className='overflow-hidden rounded-lg border border-[var(--surface-4)]'>
                   <Image
                     src={p.ogImage}
                     alt={p.title}
@@ -145,14 +145,14 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     loading='lazy'
                   />
                   <div className='p-3'>
-                    <div className='mb-1 text-[#999] text-xs'>
+                    <div className='mb-1 text-[var(--text-subtle)] text-xs'>
                       {new Date(p.date).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric',
                       })}
                     </div>
-                    <div className='font-[500] text-[#ECECEC] text-sm leading-tight'>{p.title}</div>
+                    <div className='font-[500] text-[var(--landing-text)] text-sm leading-tight'>{p.title}</div>
                   </div>
                 </div>
               </Link>

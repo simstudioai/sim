@@ -118,7 +118,7 @@ export function CodeEditor({
             className={cn(
               'text-xs tabular-nums',
               `leading-[${CODE_LINE_HEIGHT_PX}px]`,
-              i > 0 ? 'invisible' : 'text-[#a8a8a8]'
+              i > 0 ? 'invisible' : 'text-[var(--code-line-number)]'
             )}
           >
             {lineNumber}

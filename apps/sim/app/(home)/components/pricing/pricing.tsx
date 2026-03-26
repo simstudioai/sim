@@ -107,21 +107,21 @@ function PricingCard({ tier }: PricingCardProps) {
 
   return (
     <article className='flex flex-1 flex-col' aria-labelledby={`${tier.id}-heading`}>
-      <div className='flex flex-1 flex-col gap-6 rounded-t-lg border border-[#E5E5E5] border-b-0 bg-white p-5'>
+      <div className='flex flex-1 flex-col gap-6 rounded-t-lg border border-[var(--surface-6)] border-b-0 bg-white p-5'>
         <div className='flex flex-col'>
           <h3
             id={`${tier.id}-heading`}
-            className='font-[430] font-season text-[#1C1C1C] text-[24px] leading-[100%] tracking-[-0.02em]'
+            className='font-[430] font-season text-[var(--text-primary)] text-[24px] leading-[100%] tracking-[-0.02em]'
           >
             {tier.name}
           </h3>
-          <p className='mt-2 min-h-[44px] font-[430] font-season text-[#5c5c5c] text-[14px] leading-[125%] tracking-[0.02em]'>
+          <p className='mt-2 min-h-[44px] font-[430] font-season text-[#5c5c5c] text-sm leading-[125%] tracking-[0.02em]'>
             {tier.description}
           </p>
-          <p className='mt-4 flex items-center gap-1.5 font-[430] font-season text-[#1C1C1C] text-[20px] leading-[100%] tracking-[-0.02em]'>
+          <p className='mt-4 flex items-center gap-1.5 font-[430] font-season text-[var(--text-primary)] text-[20px] leading-[100%] tracking-[-0.02em]'>
             {tier.price}
             {tier.billingPeriod && (
-              <span className='text-[#737373] text-[16px]'>{tier.billingPeriod}</span>
+              <span className='text-[var(--text-muted)] text-md'>{tier.billingPeriod}</span>
             )}
           </p>
           <div className='mt-4'>
@@ -156,7 +156,7 @@ function PricingCard({ tier }: PricingCardProps) {
           {tier.features.map((feature) => (
             <li key={feature} className='flex items-center gap-2'>
               <CheckIcon color='#404040' />
-              <span className='font-[400] font-season text-[#5c5c5c] text-[14px] leading-[125%] tracking-[0.02em]'>
+              <span className='font-[400] font-season text-[#5c5c5c] text-sm leading-[125%] tracking-[0.02em]'>
                 {feature}
               </span>
             </li>
@@ -187,9 +187,9 @@ function PricingCard({ tier }: PricingCardProps) {
  */
 export default function Pricing() {
   return (
-    <section id='pricing' aria-labelledby='pricing-heading' className='bg-[#F6F6F6]'>
-      <div className='px-4 pt-[60px] pb-[40px] sm:px-8 sm:pt-[80px] sm:pb-0 md:px-[80px] md:pt-[100px]'>
-        <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-[20px]'>
+    <section id='pricing' aria-labelledby='pricing-heading' className='bg-[var(--text-primary)]'>
+      <div className='px-4 pt-[60px] pb-10 sm:px-8 sm:pt-[80px] sm:pb-0 md:px-[80px] md:pt-[100px]'>
+        <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-5'>
           <Badge
             variant='blue'
             size='md'
@@ -201,7 +201,7 @@ export default function Pricing() {
 
           <h2
             id='pricing-heading'
-            className='font-[430] font-season text-[#1C1C1C] text-[32px] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
+            className='font-[430] font-season text-[var(--text-primary)] text-[32px] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
           >
             Pricing
           </h2>
