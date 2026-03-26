@@ -133,7 +133,7 @@ export async function fetchChatHistory(
   chatId: string,
   signal?: AbortSignal
 ): Promise<TaskChatHistory> {
-  const response = await fetch(`/api/copilot/chat?chatId=${chatId}`, { signal })
+  const response = await fetch(`/api/mothership/chats/${chatId}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to load chat')
