@@ -1,13 +1,14 @@
 import { VoyageAIIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { normalizeFileInput } from '@/blocks/utils'
 
 export const VoyageAIBlock: BlockConfig = {
   type: 'voyageai',
   name: 'Voyage AI',
   description: 'Generate embeddings and rerank with Voyage AI',
   longDescription:
-    'Integrate Voyage AI into the workflow. Generate embeddings from text or rerank documents by relevance.',
+    'Integrate Voyage AI into the workflow. Generate text or multimodal embeddings, or rerank documents by relevance.',
   category: 'tools',
   authMode: AuthMode.ApiKey,
   integrationType: IntegrationType.AI,
@@ -21,10 +22,12 @@ export const VoyageAIBlock: BlockConfig = {
       type: 'dropdown',
       options: [
         { label: 'Generate Embeddings', id: 'embeddings' },
+        { label: 'Multimodal Embeddings', id: 'multimodal_embeddings' },
         { label: 'Rerank', id: 'rerank' },
       ],
       value: () => 'embeddings',
     },
+    // === Text Embeddings fields ===
     {
       id: 'input',
       title: 'Input Text',
@@ -63,6 +66,94 @@ export const VoyageAIBlock: BlockConfig = {
       value: () => 'document',
       mode: 'advanced',
     },
+    // === Multimodal Embeddings fields ===
+    {
+      id: 'multimodalInput',
+      title: 'Text Input',
+      type: 'long-input',
+      placeholder: 'Enter text to include in multimodal embedding (optional)',
+      condition: { field: 'operation', value: 'multimodal_embeddings' },
+    },
+    {
+      id: 'imageFiles',
+      title: 'Image Files',
+      type: 'file-upload',
+      canonicalParamId: 'imageFiles',
+      placeholder: 'Upload image files',
+      condition: { field: 'operation', value: 'multimodal_embeddings' },
+      mode: 'basic',
+      multiple: true,
+      acceptedTypes: '.jpg,.jpeg,.png,.gif,.webp',
+    },
+    {
+      id: 'imageFilesRef',
+      title: 'Image Files',
+      type: 'short-input',
+      canonicalParamId: 'imageFiles',
+      placeholder: 'Reference image files from previous blocks',
+      condition: { field: 'operation', value: 'multimodal_embeddings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'imageUrls',
+      title: 'Image URLs',
+      type: 'long-input',
+      placeholder: 'Enter image URLs (one per line or comma-separated)',
+      condition: { field: 'operation', value: 'multimodal_embeddings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'videoFile',
+      title: 'Video File',
+      type: 'file-upload',
+      canonicalParamId: 'videoFile',
+      placeholder: 'Upload a video file (MP4, max 20MB)',
+      condition: { field: 'operation', value: 'multimodal_embeddings' },
+      mode: 'basic',
+      multiple: false,
+      acceptedTypes: '.mp4',
+    },
+    {
+      id: 'videoFileRef',
+      title: 'Video File',
+      type: 'short-input',
+      canonicalParamId: 'videoFile',
+      placeholder: 'Reference a video file from previous blocks',
+      condition: { field: 'operation', value: 'multimodal_embeddings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'videoUrl',
+      title: 'Video URL',
+      type: 'short-input',
+      placeholder: 'Enter a video URL',
+      condition: { field: 'operation', value: 'multimodal_embeddings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'multimodalModel',
+      title: 'Model',
+      type: 'dropdown',
+      options: [
+        { label: 'voyage-multimodal-3.5', id: 'voyage-multimodal-3.5' },
+        { label: 'voyage-multimodal-3', id: 'voyage-multimodal-3' },
+      ],
+      condition: { field: 'operation', value: 'multimodal_embeddings' },
+      value: () => 'voyage-multimodal-3.5',
+    },
+    {
+      id: 'multimodalInputType',
+      title: 'Input Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Document', id: 'document' },
+        { label: 'Query', id: 'query' },
+      ],
+      condition: { field: 'operation', value: 'multimodal_embeddings' },
+      value: () => 'document',
+      mode: 'advanced',
+    },
+    // === Rerank fields ===
     {
       id: 'query',
       title: 'Query',
@@ -100,6 +191,7 @@ export const VoyageAIBlock: BlockConfig = {
       condition: { field: 'operation', value: 'rerank' },
       mode: 'advanced',
     },
+    // === Common fields ===
     {
       id: 'apiKey',
       title: 'API Key',
@@ -110,12 +202,14 @@ export const VoyageAIBlock: BlockConfig = {
     },
   ],
   tools: {
-    access: ['voyageai_embeddings', 'voyageai_rerank'],
+    access: ['voyageai_embeddings', 'voyageai_multimodal_embeddings', 'voyageai_rerank'],
     config: {
       tool: (params) => {
         switch (params.operation) {
           case 'embeddings':
             return 'voyageai_embeddings'
+          case 'multimodal_embeddings':
+            return 'voyageai_multimodal_embeddings'
           case 'rerank':
             return 'voyageai_rerank'
           default:
@@ -129,6 +223,28 @@ export const VoyageAIBlock: BlockConfig = {
           result.model = params.embeddingModel
           if (params.inputType) {
             result.inputType = params.inputType
+          }
+        } else if (params.operation === 'multimodal_embeddings') {
+          if (params.multimodalInput) {
+            result.input = params.multimodalInput
+          }
+          const imageFiles = normalizeFileInput(params.imageFiles)
+          if (imageFiles) {
+            result.imageFiles = imageFiles
+          }
+          if (params.imageUrls) {
+            result.imageUrls = params.imageUrls
+          }
+          const videoFile = normalizeFileInput(params.videoFile, { single: true })
+          if (videoFile) {
+            result.videoFile = videoFile
+          }
+          if (params.videoUrl) {
+            result.videoUrl = params.videoUrl
+          }
+          result.model = params.multimodalModel
+          if (params.multimodalInputType) {
+            result.inputType = params.multimodalInputType
           }
         } else {
           result.query = params.query
@@ -148,6 +264,13 @@ export const VoyageAIBlock: BlockConfig = {
     input: { type: 'string', description: 'Text to embed' },
     embeddingModel: { type: 'string', description: 'Embedding model' },
     inputType: { type: 'string', description: 'Input type (query or document)' },
+    multimodalInput: { type: 'string', description: 'Text for multimodal embedding' },
+    imageFiles: { type: 'json', description: 'Image files (UserFile objects)' },
+    imageUrls: { type: 'string', description: 'Image URLs' },
+    videoFile: { type: 'json', description: 'Video file (UserFile object)' },
+    videoUrl: { type: 'string', description: 'Video URL' },
+    multimodalModel: { type: 'string', description: 'Multimodal embedding model' },
+    multimodalInputType: { type: 'string', description: 'Input type for multimodal' },
     query: { type: 'string', description: 'Rerank query' },
     documents: { type: 'json', description: 'Documents to rerank' },
     rerankModel: { type: 'string', description: 'Rerank model' },
@@ -158,6 +281,6 @@ export const VoyageAIBlock: BlockConfig = {
     embeddings: { type: 'json', description: 'Generated embedding vectors' },
     results: { type: 'json', description: 'Reranked results with scores' },
     model: { type: 'string', description: 'Model used' },
-    usage: { type: 'json', description: 'Token usage' },
+    usage: { type: 'json', description: 'Token/pixel usage' },
   },
 }

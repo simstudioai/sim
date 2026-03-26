@@ -46,8 +46,12 @@ describe('VoyageAIBlock', () => {
       expect(VoyageAIBlock.bgColor).toBe('#1A1A2E')
     })
 
-    it('should list both tool IDs in access', () => {
-      expect(VoyageAIBlock.tools.access).toEqual(['voyageai_embeddings', 'voyageai_rerank'])
+    it('should list all tool IDs in access', () => {
+      expect(VoyageAIBlock.tools.access).toEqual([
+        'voyageai_embeddings',
+        'voyageai_multimodal_embeddings',
+        'voyageai_rerank',
+      ])
     })
 
     it('should have tools.config.tool and tools.config.params functions', () => {
@@ -159,6 +163,31 @@ describe('VoyageAIBlock', () => {
       expect(modelIds).toContain('voyage-law-2')
     })
 
+    it('should have multimodal-specific subBlocks with correct conditions', () => {
+      const mmBlocks = VoyageAIBlock.subBlocks.filter(
+        (sb) =>
+          sb.condition &&
+          typeof sb.condition === 'object' &&
+          'value' in sb.condition &&
+          sb.condition.value === 'multimodal_embeddings'
+      )
+      const ids = mmBlocks.map((sb) => sb.id)
+      expect(ids).toContain('multimodalInput')
+      expect(ids).toContain('imageFiles')
+      expect(ids).toContain('imageFilesRef')
+      expect(ids).toContain('videoFile')
+      expect(ids).toContain('videoFileRef')
+      expect(ids).toContain('multimodalModel')
+    })
+
+    it('should have multimodal models in the dropdown', () => {
+      const modelBlock = VoyageAIBlock.subBlocks.find((sb) => sb.id === 'multimodalModel') as any
+      expect(modelBlock).toBeDefined()
+      const modelIds = modelBlock.options.map((o: any) => o.id)
+      expect(modelIds).toContain('voyage-multimodal-3.5')
+      expect(modelIds).toContain('voyage-multimodal-3')
+    })
+
     it('should have all rerank models in the dropdown', () => {
       const modelBlock = VoyageAIBlock.subBlocks.find((sb) => sb.id === 'rerankModel') as any
       expect(modelBlock).toBeDefined()
@@ -198,6 +227,12 @@ describe('VoyageAIBlock', () => {
 
     it('should return voyageai_embeddings for embeddings operation', () => {
       expect(toolFunction({ operation: 'embeddings' })).toBe('voyageai_embeddings')
+    })
+
+    it('should return voyageai_multimodal_embeddings for multimodal_embeddings operation', () => {
+      expect(toolFunction({ operation: 'multimodal_embeddings' })).toBe(
+        'voyageai_multimodal_embeddings'
+      )
     })
 
     it('should return voyageai_rerank for rerank operation', () => {
@@ -396,6 +431,76 @@ describe('VoyageAIBlock', () => {
         })
         expect(result.input).toBeUndefined()
         expect(result.embeddingModel).toBeUndefined()
+      })
+    })
+
+    describe('multimodal_embeddings operation', () => {
+      it('should pass text input and model', () => {
+        const result = paramsFunction({
+          operation: 'multimodal_embeddings',
+          apiKey: 'va-key',
+          multimodalInput: 'describe this image',
+          multimodalModel: 'voyage-multimodal-3.5',
+        })
+        expect(result.apiKey).toBe('va-key')
+        expect(result.input).toBe('describe this image')
+        expect(result.model).toBe('voyage-multimodal-3.5')
+      })
+
+      it('should pass image URLs', () => {
+        const result = paramsFunction({
+          operation: 'multimodal_embeddings',
+          apiKey: 'va-key',
+          imageUrls: 'https://example.com/img.jpg',
+          multimodalModel: 'voyage-multimodal-3.5',
+        })
+        expect(result.imageUrls).toBe('https://example.com/img.jpg')
+      })
+
+      it('should pass video URL', () => {
+        const result = paramsFunction({
+          operation: 'multimodal_embeddings',
+          apiKey: 'va-key',
+          videoUrl: 'https://example.com/video.mp4',
+          multimodalModel: 'voyage-multimodal-3.5',
+        })
+        expect(result.videoUrl).toBe('https://example.com/video.mp4')
+      })
+
+      it('should pass inputType for multimodal', () => {
+        const result = paramsFunction({
+          operation: 'multimodal_embeddings',
+          apiKey: 'va-key',
+          multimodalInput: 'test',
+          multimodalModel: 'voyage-multimodal-3.5',
+          multimodalInputType: 'query',
+        })
+        expect(result.inputType).toBe('query')
+      })
+
+      it('should omit empty optional fields', () => {
+        const result = paramsFunction({
+          operation: 'multimodal_embeddings',
+          apiKey: 'va-key',
+          multimodalModel: 'voyage-multimodal-3.5',
+        })
+        expect(result.input).toBeUndefined()
+        expect(result.imageFiles).toBeUndefined()
+        expect(result.imageUrls).toBeUndefined()
+        expect(result.videoFile).toBeUndefined()
+        expect(result.videoUrl).toBeUndefined()
+      })
+
+      it('should not include text embedding or rerank fields', () => {
+        const result = paramsFunction({
+          operation: 'multimodal_embeddings',
+          apiKey: 'va-key',
+          multimodalModel: 'voyage-multimodal-3.5',
+          embeddingModel: 'should not appear',
+          query: 'should not appear',
+        })
+        expect(result.embeddingModel).toBeUndefined()
+        expect(result.query).toBeUndefined()
       })
     })
   })

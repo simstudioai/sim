@@ -27,6 +27,30 @@ export interface VoyageAIEmbeddingsResponse extends ToolResponse {
   }
 }
 
+export interface VoyageAIMultimodalEmbeddingsParams {
+  apiKey: string
+  input?: string
+  imageFiles?: unknown
+  imageUrls?: string
+  videoFile?: unknown
+  videoUrl?: string
+  model?: string
+  inputType?: 'query' | 'document'
+}
+
+export interface VoyageAIMultimodalEmbeddingsResponse extends ToolResponse {
+  output: {
+    embeddings: number[][]
+    model: string
+    usage: {
+      text_tokens?: number
+      image_pixels?: number
+      video_pixels?: number
+      total_tokens: number
+    }
+  }
+}
+
 export interface VoyageAIRerankResponse extends ToolResponse {
   output: {
     results: Array<{

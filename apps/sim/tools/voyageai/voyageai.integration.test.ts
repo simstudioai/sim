@@ -456,4 +456,118 @@ describeIntegration('VoyageAI Integration Tests (live API)', () => {
       expect(aiDocsInTop2.length).toBeGreaterThanOrEqual(1)
     }, 30000)
   })
+
+  describe('Multimodal Embeddings API', () => {
+    const MULTIMODAL_URL = 'https://api.voyageai.com/v1/multimodalembeddings'
+    const MULTIMODAL_HEADERS = {
+      Authorization: `Bearer ${API_KEY}`,
+      'Content-Type': 'application/json',
+    }
+
+    it('should generate multimodal embedding with text-only input', async () => {
+      const response = await liveFetch(MULTIMODAL_URL, {
+        method: 'POST',
+        headers: MULTIMODAL_HEADERS,
+        body: JSON.stringify({
+          inputs: [{ content: [{ type: 'text', text: 'Hello world' }] }],
+          model: 'voyage-multimodal-3.5',
+        }),
+      })
+
+      expect(response.ok).toBe(true)
+      const data = await response.json()
+      expect(data.data).toHaveLength(1)
+      expect(data.data[0].embedding.length).toBeGreaterThan(100)
+      expect(data.model).toBe('voyage-multimodal-3.5')
+      expect(data.usage.total_tokens).toBeGreaterThan(0)
+    }, 15000)
+
+    it('should generate multimodal embedding with image URL', async () => {
+      const response = await liveFetch(MULTIMODAL_URL, {
+        method: 'POST',
+        headers: MULTIMODAL_HEADERS,
+        body: JSON.stringify({
+          inputs: [
+            {
+              content: [
+                {
+                  type: 'image_url',
+                  image_url:
+                    'https://raw.githubusercontent.com/voyage-ai/voyage-multimodal-3/refs/heads/main/images/banana.jpg',
+                },
+              ],
+            },
+          ],
+          model: 'voyage-multimodal-3.5',
+        }),
+      })
+
+      expect(response.ok).toBe(true)
+      const data = await response.json()
+      expect(data.data).toHaveLength(1)
+      expect(data.data[0].embedding.length).toBeGreaterThan(100)
+      expect(data.usage.image_pixels).toBeGreaterThan(0)
+      expect(data.usage.total_tokens).toBeGreaterThan(0)
+    }, 30000)
+
+    it('should generate multimodal embedding with text + image combined', async () => {
+      const response = await liveFetch(MULTIMODAL_URL, {
+        method: 'POST',
+        headers: MULTIMODAL_HEADERS,
+        body: JSON.stringify({
+          inputs: [
+            {
+              content: [
+                { type: 'text', text: 'A yellow banana' },
+                {
+                  type: 'image_url',
+                  image_url:
+                    'https://raw.githubusercontent.com/voyage-ai/voyage-multimodal-3/refs/heads/main/images/banana.jpg',
+                },
+              ],
+            },
+          ],
+          model: 'voyage-multimodal-3.5',
+        }),
+      })
+
+      expect(response.ok).toBe(true)
+      const data = await response.json()
+      expect(data.data).toHaveLength(1)
+      expect(data.usage.text_tokens).toBeGreaterThan(0)
+      expect(data.usage.image_pixels).toBeGreaterThan(0)
+      expect(data.usage.total_tokens).toBeGreaterThan(0)
+    }, 30000)
+
+    it('should produce 1024-dimensional embeddings', async () => {
+      const response = await liveFetch(MULTIMODAL_URL, {
+        method: 'POST',
+        headers: MULTIMODAL_HEADERS,
+        body: JSON.stringify({
+          inputs: [{ content: [{ type: 'text', text: 'dimension check' }] }],
+          model: 'voyage-multimodal-3.5',
+        }),
+      })
+
+      const data = await response.json()
+      expect(data.data[0].embedding).toHaveLength(1024)
+    }, 15000)
+
+    it('should reject invalid API key', async () => {
+      const response = await liveFetch(MULTIMODAL_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer invalid-key',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          inputs: [{ content: [{ type: 'text', text: 'test' }] }],
+          model: 'voyage-multimodal-3.5',
+        }),
+      })
+
+      expect(response.ok).toBe(false)
+      expect(response.status).toBe(401)
+    }, 15000)
+  })
 })

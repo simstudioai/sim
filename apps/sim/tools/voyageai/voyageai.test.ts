@@ -4,6 +4,7 @@
 import { ToolTester } from '@sim/testing/builders'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { embeddingsTool } from '@/tools/voyageai/embeddings'
+import { multimodalEmbeddingsTool } from '@/tools/voyageai/multimodal-embeddings'
 import { rerankTool } from '@/tools/voyageai/rerank'
 
 describe('Voyage AI Embeddings Tool', () => {
@@ -570,6 +571,141 @@ describe('Voyage AI Rerank Tool', () => {
       const result = await tester.execute({ apiKey: 'key', query: 'test', documents: ['doc1'] })
       expect(result.success).toBe(false)
       expect(result.error).toContain('ENOTFOUND')
+    })
+  })
+})
+
+describe('Voyage AI Multimodal Embeddings Tool', () => {
+  describe('Tool metadata', () => {
+    it('should have correct id and name', () => {
+      expect(multimodalEmbeddingsTool.id).toBe('voyageai_multimodal_embeddings')
+      expect(multimodalEmbeddingsTool.name).toBe('Voyage AI Multimodal Embeddings')
+      expect(multimodalEmbeddingsTool.version).toBe('1.0')
+    })
+
+    it('should have apiKey as required and input as optional', () => {
+      expect(multimodalEmbeddingsTool.params.apiKey.required).toBe(true)
+      expect(multimodalEmbeddingsTool.params.input.required).toBe(false)
+      expect(multimodalEmbeddingsTool.params.imageFiles.required).toBe(false)
+      expect(multimodalEmbeddingsTool.params.videoFile.required).toBe(false)
+    })
+
+    it('should default to voyage-multimodal-3.5 model', () => {
+      expect(multimodalEmbeddingsTool.params.model.default).toBe('voyage-multimodal-3.5')
+    })
+
+    it('should use internal proxy URL', () => {
+      expect(multimodalEmbeddingsTool.request.url).toBe(
+        '/api/tools/voyageai/multimodal-embeddings'
+      )
+    })
+
+    it('should use POST method', () => {
+      expect(multimodalEmbeddingsTool.request.method).toBe('POST')
+    })
+
+    it('should have output schema with embeddings, model, usage', () => {
+      expect(multimodalEmbeddingsTool.outputs).toBeDefined()
+      expect(multimodalEmbeddingsTool.outputs!.output.properties!.embeddings).toBeDefined()
+      expect(multimodalEmbeddingsTool.outputs!.output.properties!.model).toBeDefined()
+      expect(multimodalEmbeddingsTool.outputs!.output.properties!.usage).toBeDefined()
+    })
+  })
+
+  describe('Body Construction', () => {
+    it('should pass all params to internal route', () => {
+      const body = multimodalEmbeddingsTool.request.body!({
+        apiKey: 'key',
+        input: 'hello',
+        imageUrls: 'https://example.com/img.jpg',
+        model: 'voyage-multimodal-3.5',
+      })
+      expect(body.apiKey).toBe('key')
+      expect(body.input).toBe('hello')
+      expect(body.imageUrls).toBe('https://example.com/img.jpg')
+      expect(body.model).toBe('voyage-multimodal-3.5')
+    })
+
+    it('should use default model when not specified', () => {
+      const body = multimodalEmbeddingsTool.request.body!({
+        apiKey: 'key',
+        input: 'hello',
+      })
+      expect(body.model).toBe('voyage-multimodal-3.5')
+    })
+
+    it('should pass image files through', () => {
+      const files = [{ id: '1', name: 'img.jpg', size: 100, type: 'image/jpeg' }]
+      const body = multimodalEmbeddingsTool.request.body!({
+        apiKey: 'key',
+        imageFiles: files,
+      })
+      expect(body.imageFiles).toEqual(files)
+    })
+
+    it('should pass video file through', () => {
+      const file = { id: '1', name: 'vid.mp4', size: 1000, type: 'video/mp4' }
+      const body = multimodalEmbeddingsTool.request.body!({
+        apiKey: 'key',
+        videoFile: file,
+      })
+      expect(body.videoFile).toEqual(file)
+    })
+
+    it('should pass video URL through', () => {
+      const body = multimodalEmbeddingsTool.request.body!({
+        apiKey: 'key',
+        videoUrl: 'https://example.com/video.mp4',
+      })
+      expect(body.videoUrl).toBe('https://example.com/video.mp4')
+    })
+
+    it('should pass inputType through', () => {
+      const body = multimodalEmbeddingsTool.request.body!({
+        apiKey: 'key',
+        input: 'test',
+        inputType: 'query',
+      })
+      expect(body.inputType).toBe('query')
+    })
+  })
+
+  describe('Response Transformation', () => {
+    it('should extract embeddings from internal route response', async () => {
+      const mockResponse = {
+        ok: true,
+        json: async () => ({
+          output: {
+            embeddings: [[0.1, 0.2, 0.3]],
+            model: 'voyage-multimodal-3.5',
+            usage: { text_tokens: 5, image_pixels: 200000, total_tokens: 362 },
+          },
+        }),
+      } as Response
+
+      const result = await multimodalEmbeddingsTool.transformResponse!(mockResponse)
+      expect(result.success).toBe(true)
+      expect(result.output.embeddings).toEqual([[0.1, 0.2, 0.3]])
+      expect(result.output.model).toBe('voyage-multimodal-3.5')
+      expect(result.output.usage.text_tokens).toBe(5)
+      expect(result.output.usage.image_pixels).toBe(200000)
+      expect(result.output.usage.total_tokens).toBe(362)
+    })
+
+    it('should handle response with video_pixels', async () => {
+      const mockResponse = {
+        ok: true,
+        json: async () => ({
+          output: {
+            embeddings: [[0.4, 0.5]],
+            model: 'voyage-multimodal-3.5',
+            usage: { text_tokens: 0, video_pixels: 5000000, total_tokens: 4464 },
+          },
+        }),
+      } as Response
+
+      const result = await multimodalEmbeddingsTool.transformResponse!(mockResponse)
+      expect(result.output.usage.video_pixels).toBe(5000000)
     })
   })
 })
