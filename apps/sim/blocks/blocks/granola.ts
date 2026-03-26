@@ -120,7 +120,6 @@ export const GranolaBlock: BlockConfig = {
       tool: (params) => `granola_${params.operation}`,
       params: (params) => {
         const result: Record<string, unknown> = {}
-        if (params.includeTranscript === 'true') result.includeTranscript = true
         if (params.pageSize) result.pageSize = Number(params.pageSize)
         return result
       },

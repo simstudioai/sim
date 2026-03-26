@@ -12,7 +12,7 @@ export interface GranolaListNotesParams {
 export interface GranolaGetNoteParams {
   apiKey: string
   noteId: string
-  includeTranscript?: boolean
+  includeTranscript?: string
 }
 
 export interface GranolaListNotesResponse extends ToolResponse {

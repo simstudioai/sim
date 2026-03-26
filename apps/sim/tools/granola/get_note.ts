@@ -22,7 +22,7 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
       description: 'The note ID (e.g., not_1d3tmYTlCICgjy)',
     },
     includeTranscript: {
-      type: 'boolean',
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Whether to include the meeting transcript',
@@ -32,7 +32,7 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
   request: {
     url: (params) => {
       const url = new URL(`https://public-api.granola.ai/v1/notes/${params.noteId.trim()}`)
-      if (params.includeTranscript) url.searchParams.append('include', 'transcript')
+      if (params.includeTranscript === 'true') url.searchParams.append('include', 'transcript')
       return url.toString()
     },
     method: 'GET',
