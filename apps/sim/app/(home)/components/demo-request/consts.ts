@@ -1,6 +1,9 @@
+import freeEmailDomains from 'free-email-domains'
 import { z } from 'zod'
 import { NO_EMAIL_HEADER_CONTROL_CHARS_REGEX } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+
+const FREE_EMAIL_DOMAINS = new Set(freeEmailDomains)
 
 export const DEMO_REQUEST_REGION_VALUES = [
   'north_america',
@@ -57,7 +60,11 @@ export const demoRequestSchema = z.object({
     .min(1, 'Company email is required')
     .max(320)
     .transform((value) => value.toLowerCase())
-    .refine((value) => quickValidateEmail(value).isValid, 'Enter a valid work email'),
+    .refine((value) => quickValidateEmail(value).isValid, 'Enter a valid work email')
+    .refine((value) => {
+      const domain = value.split('@')[1]
+      return domain ? !FREE_EMAIL_DOMAINS.has(domain) : true
+    }, 'Please use your work email address'),
   phoneNumber: z
     .string()
     .trim()
