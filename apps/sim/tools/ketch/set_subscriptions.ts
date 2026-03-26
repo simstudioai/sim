@@ -77,19 +77,20 @@ export const setSubscriptionsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    if (response.status === 204) {
+    if (!response.ok) {
+      let errorMessage = `Request failed with status ${response.status}`
+      try {
+        const data = await response.json()
+        errorMessage = data.message ?? data.error ?? errorMessage
+      } catch {
+        // No JSON body in error response
+      }
       return {
-        success: true,
+        success: false,
         output: {
-          success: true,
+          success: false,
         },
       }
-    }
-
-    try {
-      await response.json()
-    } catch {
-      // 204-like response with no body
     }
 
     return {
