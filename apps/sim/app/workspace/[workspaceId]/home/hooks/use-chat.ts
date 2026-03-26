@@ -1799,8 +1799,19 @@ export function useChat(
           })
         }
       } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return
+        if (err instanceof Error && err.name === 'AbortError') {
+          logger.error('Send aborted (AbortError)', { streamId: userMessageId })
+          return
+        }
         const errorMessage = err instanceof Error ? err.message : 'Failed to send message'
+        logger.error('Send catch block entered', {
+          streamId: userMessageId,
+          errorMessage,
+          errorName: err instanceof Error ? err.name : 'unknown',
+          gen,
+          currentGen: streamGenRef.current,
+          hasActiveStreamId: Boolean(streamIdRef.current),
+        })
         if (requestChatId && isActiveStreamConflictError(errorMessage)) {
           logger.info('Active stream conflict detected while sending message; reattaching', {
             chatId: requestChatId,
@@ -1859,9 +1870,12 @@ export function useChat(
 
         const activeStreamId = streamIdRef.current
         if (activeStreamId && streamGenRef.current === gen) {
+          const reconnectController = new AbortController()
+          abortControllerRef.current = reconnectController
+
           for (let attempt = 0; attempt < MAX_RECONNECT_ATTEMPTS; attempt++) {
             if (streamGenRef.current !== gen) return
-            if (abortControllerRef.current?.signal.aborted) return
+            if (reconnectController.signal.aborted) return
 
             const delayMs = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** attempt, RECONNECT_MAX_DELAY_MS)
             logger.info('Reconnect attempt after network error', {
@@ -1876,7 +1890,7 @@ export function useChat(
             await new Promise((resolve) => setTimeout(resolve, delayMs))
 
             if (streamGenRef.current !== gen) return
-            if (abortControllerRef.current?.signal.aborted) return
+            if (reconnectController.signal.aborted) return
 
             try {
               await resumeOrFinalize({
@@ -1884,7 +1898,7 @@ export function useChat(
                 assistantId,
                 gen,
                 fromEventId: lastEventIdRef.current,
-                signal: abortController.signal,
+                signal: reconnectController.signal,
               })
               return
             } catch (reconnectErr) {
