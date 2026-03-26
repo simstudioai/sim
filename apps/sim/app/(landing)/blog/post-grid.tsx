@@ -32,6 +32,7 @@ export function PostGrid({ posts }: { posts: Post[] }) {
                 src={p.ogImage}
                 alt={p.title}
                 sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw'
+                unoptimized
                 priority={index < 6}
                 loading={index < 6 ? undefined : 'lazy'}
                 fill
