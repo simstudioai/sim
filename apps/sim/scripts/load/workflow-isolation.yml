@@ -1,0 +1,35 @@
+config:
+  target: "{{ $processEnvironment.BASE_URL }}"
+  phases:
+    - duration: "{{ $processEnvironment.ISOLATION_DURATION }}"
+      arrivalRate: "{{ $processEnvironment.TOTAL_RATE }}"
+      name: mixed-workspace-load
+  defaults:
+    headers:
+      content-type: application/json
+      x-execution-mode: async
+scenarios:
+  - name: workspace-a-traffic
+    weight: "{{ $processEnvironment.WORKSPACE_A_WEIGHT }}"
+    flow:
+      - post:
+          url: "/api/workflows/{{ $processEnvironment.WORKFLOW_ID_A }}/execute"
+          headers:
+            x-api-key: "{{ $processEnvironment.SIM_API_KEY_A }}"
+          json:
+            input:
+              source: artillery-isolation
+              workspace: a
+              runId: "{{ $uuid }}"
+  - name: workspace-b-traffic
+    weight: "{{ $processEnvironment.WORKSPACE_B_WEIGHT }}"
+    flow:
+      - post:
+          url: "/api/workflows/{{ $processEnvironment.WORKFLOW_ID_B }}/execute"
+          headers:
+            x-api-key: "{{ $processEnvironment.SIM_API_KEY_B }}"
+          json:
+            input:
+              source: artillery-isolation
+              workspace: b
+              runId: "{{ $uuid }}"
