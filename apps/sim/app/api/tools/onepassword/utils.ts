@@ -248,8 +248,9 @@ const connectLogger = createLogger('OnePasswordConnect')
  * Validates that a Connect server URL does not target cloud metadata endpoints.
  * Allows private IPs and localhost since 1Password Connect is designed to be self-hosted.
  * Returns the resolved IP for DNS pinning to prevent TOCTOU rebinding.
+ * @throws Error if the URL is invalid, points to a link-local address, or DNS fails.
  */
-async function validateConnectServerUrl(serverUrl: string): Promise<string | null> {
+async function validateConnectServerUrl(serverUrl: string): Promise<string> {
   let hostname: string
   try {
     hostname = new URL(serverUrl).hostname
@@ -321,19 +322,11 @@ export async function connectRequest(options: {
     headers['Content-Type'] = 'application/json'
   }
 
-  if (resolvedIP) {
-    return secureFetchWithPinnedIP(url, resolvedIP, {
-      method: options.method,
-      headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
-      allowHttp: true,
-    })
-  }
-
-  return fetch(url, {
+  return secureFetchWithPinnedIP(url, resolvedIP, {
     method: options.method,
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
+    allowHttp: true,
   })
 }
 
