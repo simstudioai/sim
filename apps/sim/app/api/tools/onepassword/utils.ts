@@ -11,6 +11,7 @@ import type {
 } from '@1password/sdk'
 import { createLogger } from '@sim/logger'
 import * as ipaddr from 'ipaddr.js'
+import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
 
 /** Connect-format field type strings returned by normalization. */
 type ConnectFieldType =
@@ -246,8 +247,9 @@ const connectLogger = createLogger('OnePasswordConnect')
 /**
  * Validates that a Connect server URL does not target cloud metadata endpoints.
  * Allows private IPs and localhost since 1Password Connect is designed to be self-hosted.
+ * Returns the resolved IP for DNS pinning to prevent TOCTOU rebinding.
  */
-async function validateConnectServerUrl(serverUrl: string): Promise<void> {
+async function validateConnectServerUrl(serverUrl: string): Promise<string | null> {
   let hostname: string
   try {
     hostname = new URL(serverUrl).hostname
@@ -263,7 +265,7 @@ async function validateConnectServerUrl(serverUrl: string): Promise<void> {
     if (addr.range() === 'linkLocal') {
       throw new Error('1Password server URL cannot point to a link-local address')
     }
-    return
+    return clean
   }
 
   try {
@@ -275,6 +277,7 @@ async function validateConnectServerUrl(serverUrl: string): Promise<void> {
       })
       throw new Error('1Password server URL resolves to a link-local address')
     }
+    return address
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('1Password')) throw error
     connectLogger.warn('DNS lookup failed for 1Password Connect server URL', {
@@ -285,6 +288,16 @@ async function validateConnectServerUrl(serverUrl: string): Promise<void> {
   }
 }
 
+/** Minimal response shape used by all connectRequest callers. */
+export interface ConnectResponse {
+  ok: boolean
+  status: number
+  statusText: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  json: () => Promise<any>
+  text: () => Promise<string>
+}
+
 /** Proxy a request to the 1Password Connect Server. */
 export async function connectRequest(options: {
   serverUrl: string
@@ -293,8 +306,8 @@ export async function connectRequest(options: {
   method: string
   body?: unknown
   query?: string
-}): Promise<Response> {
-  await validateConnectServerUrl(options.serverUrl)
+}): Promise<ConnectResponse> {
+  const resolvedIP = await validateConnectServerUrl(options.serverUrl)
 
   const base = options.serverUrl.replace(/\/$/, '')
   const queryStr = options.query ? `?${options.query}` : ''
@@ -306,6 +319,15 @@ export async function connectRequest(options: {
 
   if (options.body) {
     headers['Content-Type'] = 'application/json'
+  }
+
+  if (resolvedIP) {
+    return secureFetchWithPinnedIP(url, resolvedIP, {
+      method: options.method,
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      allowHttp: true,
+    })
   }
 
   return fetch(url, {
