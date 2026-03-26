@@ -1,5 +1,13 @@
 import { type ClassValue, clsx } from 'clsx'
-import { twMerge } from 'tailwind-merge'
+import { extendTailwindMerge } from 'tailwind-merge'
+
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      'font-size': [{ text: ['micro', 'caption', 'small', 'md'] }],
+    },
+  },
+})
 
 /**
  * Combines class names using clsx and tailwind-merge
