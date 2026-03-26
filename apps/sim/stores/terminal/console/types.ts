@@ -68,7 +68,7 @@ export interface ConsoleStore {
   entryIdsByBlockExecution: Record<string, string[]>
   entryLocationById: Record<string, ConsoleEntryLocation>
   isOpen: boolean
-  addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry
+  addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry | undefined
   clearWorkflowConsole: (workflowId: string) => void
   clearExecutionEntries: (executionId: string) => void
   exportConsoleCSV: (workflowId: string) => void

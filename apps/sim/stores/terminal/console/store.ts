@@ -192,33 +192,6 @@ function replaceWorkflowEntries(
   return { workflowEntries, entryIdsByBlockExecution, entryLocationById }
 }
 
-function patchWorkflowEntry(
-  state: ConsoleStore,
-  workflowId: string,
-  entryIndex: number,
-  updatedEntry: ConsoleEntry
-): Pick<ConsoleStore, 'workflowEntries' | 'entryIdsByBlockExecution' | 'entryLocationById'> {
-  const workflowEntries = cloneWorkflowEntries(state.workflowEntries)
-  const currentEntries = workflowEntries[workflowId]
-  if (!currentEntries) {
-    return {
-      workflowEntries,
-      entryIdsByBlockExecution: state.entryIdsByBlockExecution,
-      entryLocationById: state.entryLocationById,
-    }
-  }
-
-  const nextEntries = [...currentEntries]
-  nextEntries[entryIndex] = updatedEntry
-  workflowEntries[workflowId] = nextEntries
-
-  return {
-    workflowEntries,
-    entryIdsByBlockExecution: state.entryIdsByBlockExecution,
-    entryLocationById: state.entryLocationById,
-  }
-}
-
 function appendWorkflowEntry(
   state: ConsoleStore,
   workflowId: string,
@@ -301,7 +274,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
     addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => {
       if (shouldSkipEntry(entry.output)) {
-        return get().getWorkflowEntries(entry.workflowId)[0] as ConsoleEntry
+        return get().getWorkflowEntries(entry.workflowId)[0] as ConsoleEntry | undefined
       }
 
       const redactedEntry = { ...entry }
