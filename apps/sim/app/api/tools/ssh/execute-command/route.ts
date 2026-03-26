@@ -3,7 +3,12 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { createSSHConnection, executeSSHCommand, sanitizeCommand } from '@/app/api/tools/ssh/utils'
+import {
+  createSSHConnection,
+  escapeShellArg,
+  executeSSHCommand,
+  sanitizeCommand,
+} from '@/app/api/tools/ssh/utils'
 
 const logger = createLogger('SSHExecuteCommandAPI')
 
@@ -52,7 +57,8 @@ export async function POST(request: NextRequest) {
     try {
       let command = sanitizeCommand(params.command)
       if (params.workingDirectory) {
-        command = `cd "${params.workingDirectory}" && ${command}`
+        const escapedWorkDir = escapeShellArg(params.workingDirectory)
+        command = `cd '${escapedWorkDir}' && ${command}`
       }
 
       const result = await executeSSHCommand(client, command)
