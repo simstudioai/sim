@@ -113,10 +113,10 @@ export function CreditBalance({
       { amount: numAmount, requestId },
       {
         onSuccess: () => {
+          onPurchaseComplete?.()
           clearCloseTimeout()
           closeTimeoutRef.current = setTimeout(() => {
             closeModal()
-            onPurchaseComplete?.()
           }, 1500)
         },
       }
