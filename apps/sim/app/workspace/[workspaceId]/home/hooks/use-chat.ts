@@ -835,6 +835,9 @@ export function useChat(
       streamIdRef.current = activeStreamId
       lastEventIdRef.current = snapshot?.events?.[snapshot.events.length - 1]?.eventId ?? 0
       sendingRef.current = true
+      streamingContentRef.current = ''
+      streamingBlocksRef.current = []
+      clientExecutionStartedRef.current.clear()
 
       const assistantId = crypto.randomUUID()
 
