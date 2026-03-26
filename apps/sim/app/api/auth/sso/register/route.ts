@@ -192,30 +192,35 @@ export async function POST(request: NextRequest) {
 
           const discovery = (await discoveryResponse.json()) as Record<string, unknown>
 
+          const discoveredEndpoints: Record<string, unknown> = {
+            authorization_endpoint: discovery.authorization_endpoint,
+            token_endpoint: discovery.token_endpoint,
+            userinfo_endpoint: discovery.userinfo_endpoint,
+            jwks_uri: discovery.jwks_uri,
+          }
+
+          for (const [key, value] of Object.entries(discoveredEndpoints)) {
+            if (typeof value === 'string') {
+              const endpointValidation = await validateUrlWithDNS(value, `OIDC ${key}`)
+              if (!endpointValidation.isValid) {
+                logger.warn('OIDC discovered endpoint failed SSRF validation', {
+                  endpoint: key,
+                  url: value,
+                  error: endpointValidation.error,
+                })
+                return NextResponse.json(
+                  { error: `Discovered OIDC ${key} failed security validation: ${endpointValidation.error}` },
+                  { status: 400 }
+                )
+              }
+            }
+          }
+
           oidcConfig.authorizationEndpoint =
             oidcConfig.authorizationEndpoint || discovery.authorization_endpoint
           oidcConfig.tokenEndpoint = oidcConfig.tokenEndpoint || discovery.token_endpoint
           oidcConfig.userInfoEndpoint = oidcConfig.userInfoEndpoint || discovery.userinfo_endpoint
           oidcConfig.jwksEndpoint = oidcConfig.jwksEndpoint || discovery.jwks_uri
-
-          // Validate discovered endpoints against SSRF — these are fetched server-side
-          const endpointsToValidate = [
-            { name: 'tokenEndpoint', url: oidcConfig.tokenEndpoint },
-            { name: 'userInfoEndpoint', url: oidcConfig.userInfoEndpoint },
-            { name: 'jwksEndpoint', url: oidcConfig.jwksEndpoint },
-          ]
-          for (const { name, url } of endpointsToValidate) {
-            if (typeof url === 'string') {
-              const result = await validateUrlWithDNS(url, `OIDC ${name}`)
-              if (!result.isValid) {
-                logger.warn(`Discovered OIDC ${name} failed SSRF validation`, {
-                  url,
-                  error: result.error,
-                })
-                return NextResponse.json({ error: result.error }, { status: 400 })
-              }
-            }
-          }
 
           logger.info('Merged OIDC endpoints (user-provided + discovery)', {
             providerId,
