@@ -8,11 +8,11 @@ const STORE_KEY = 'terminal-console-store'
 const MIGRATION_KEY = 'terminal-console-store-migrated'
 
 /**
- * Safety-net interval for persisting during very long executions.
- * Only fires while an execution is active. Much longer than a debounce
- * because intermediate writes during execution are low-value.
+ * Interval for persisting terminal state during active executions.
+ * Kept short enough that a hard refresh during execution still has
+ * recent running entries persisted for the reconnect flow to find.
  */
-const LONG_EXECUTION_PERSIST_INTERVAL_MS = 30_000
+const EXECUTION_PERSIST_INTERVAL_MS = 5_000
 
 /**
  * Shape of terminal console data persisted to IndexedDB.
@@ -129,6 +129,7 @@ class ConsolePersistenceManager {
   private dataProvider: (() => PersistedConsoleData) | null = null
   private safetyTimer: ReturnType<typeof setTimeout> | null = null
   private activeExecutions = 0
+  private needsInitialPersist = false
 
   /**
    * Binds the data provider function used to snapshot current state.
@@ -144,9 +145,21 @@ class ConsolePersistenceManager {
    */
   executionStarted(): void {
     this.activeExecutions++
+    this.needsInitialPersist = true
     if (this.activeExecutions === 1) {
       this.startSafetyTimer()
     }
+  }
+
+  /**
+   * Called by the store when a running entry is added during an active execution.
+   * Triggers one immediate persist so the reconnect flow can find running entries
+   * after a page refresh, then disables until the next execution starts.
+   */
+  onRunningEntryAdded(): void {
+    if (!this.needsInitialPersist) return
+    this.needsInitialPersist = false
+    this.persist()
   }
 
   /**
@@ -174,7 +187,7 @@ class ConsolePersistenceManager {
     this.stopSafetyTimer()
     this.safetyTimer = setInterval(() => {
       this.persist()
-    }, LONG_EXECUTION_PERSIST_INTERVAL_MS)
+    }, EXECUTION_PERSIST_INTERVAL_MS)
   }
 
   private stopSafetyTimer(): void {

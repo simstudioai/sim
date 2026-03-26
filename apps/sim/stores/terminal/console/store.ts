@@ -308,6 +308,10 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
         return appendWorkflowEntry(state, entry.workflowId, createdEntry, nextWorkflowEntries)
       })
 
+      if (createdEntry.isRunning) {
+        consolePersistence.onRunningEntryAdded()
+      }
+
       if (createdEntry.error && createdEntry.blockType !== 'cancelled') {
         notifyBlockError({
           error: createdEntry.error,
