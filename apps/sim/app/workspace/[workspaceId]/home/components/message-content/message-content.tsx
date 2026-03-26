@@ -71,7 +71,8 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
   return {
     id: tc.id,
     toolName: tc.name,
-    displayTitle: TOOL_UI_METADATA[tc.name as MothershipToolName]?.title ?? tc.name,
+    displayTitle:
+      tc.displayTitle ?? TOOL_UI_METADATA[tc.name as MothershipToolName]?.title ?? tc.name,
     status: tc.status,
     params: tc.params,
     result: tc.result,
