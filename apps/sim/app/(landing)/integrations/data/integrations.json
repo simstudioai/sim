@@ -4872,6 +4872,33 @@
     "tags": ["meeting", "note-taking"]
   },
   {
+    "type": "granola",
+    "slug": "granola",
+    "name": "Granola",
+    "description": "Access meeting notes and transcripts from Granola",
+    "longDescription": "Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts.",
+    "bgColor": "#B2C147",
+    "iconName": "GranolaIcon",
+    "docsUrl": "https://docs.sim.ai/tools/granola",
+    "operations": [
+      {
+        "name": "List Notes",
+        "description": "Lists meeting notes from Granola with optional date filters and pagination."
+      },
+      {
+        "name": "Get Note",
+        "description": "Retrieves a specific meeting note from Granola by ID, including summary, attendees, calendar event details, and optionally the transcript."
+      }
+    ],
+    "operationCount": 2,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "productivity",
+    "tags": ["meeting", "note-taking"]
+  },
+  {
     "type": "greenhouse",
     "slug": "greenhouse",
     "name": "Greenhouse",
