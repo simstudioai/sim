@@ -31,17 +31,14 @@ function getOpenCodeBaseUrl(): string {
   return `http://${host}:${port}`
 }
 
-function getOpenCodeClientKey(): string {
-  const baseUrl = getOpenCodeBaseUrl()
-  const authorization = getOpenCodeBasicAuthHeader()
-
+function getOpenCodeClientKey(baseUrl: string, authorization: string): string {
   return JSON.stringify({ baseUrl, authorization })
 }
 
 export function createOpenCodeClient() {
   const baseUrl = getOpenCodeBaseUrl()
   const authorization = getOpenCodeBasicAuthHeader()
-  const clientKey = JSON.stringify({ baseUrl, authorization })
+  const clientKey = getOpenCodeClientKey(baseUrl, authorization)
 
   if (!cachedOpenCodeClient || cachedOpenCodeClientKey !== clientKey) {
     cachedOpenCodeClient = createOpencodeClient({
