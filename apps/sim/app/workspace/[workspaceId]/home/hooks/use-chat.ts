@@ -740,13 +740,12 @@ export function useChat(
           return { aborted: true, error: false }
         }
 
-        logger.warn('Failed to attach to existing stream', {
+        logger.error('Failed to attach to existing stream, will throw for outer retry', {
           streamId,
           latestEventId,
           error: err instanceof Error ? err.message : String(err),
         })
-        setError(err instanceof Error ? err.message : RECONNECT_TAIL_ERROR)
-        return { aborted: false, error: true }
+        throw err
       } finally {
         setIsReconnecting(false)
       }
@@ -833,11 +832,17 @@ export function useChat(
   )
 
   useEffect(() => {
-    if (!chatHistory || appliedChatIdRef.current === chatHistory.id) return
+    if (!chatHistory) return
 
     const activeStreamId = chatHistory.activeStreamId
     const snapshot = chatHistory.streamSnapshot
-    applyChatHistorySnapshot(chatHistory, { preserveActiveStreamingMessage: true })
+    const isNewChat = appliedChatIdRef.current !== chatHistory.id
+
+    if (isNewChat) {
+      applyChatHistorySnapshot(chatHistory, { preserveActiveStreamingMessage: true })
+    } else if (!activeStreamId || sendingRef.current) {
+      return
+    }
 
     if (activeStreamId && !sendingRef.current) {
       const gen = ++streamGenRef.current
