@@ -75,7 +75,7 @@ describe('Form API Utils', () => {
       } as any
 
       const result = await validateFormAuth('request-id', deployment, mockRequest)
-      expect(mockValidateAuthToken).toHaveBeenCalledWith('valid-token', 'form-id')
+      expect(mockValidateAuthToken).toHaveBeenCalledWith('valid-token', 'form-id', 'encrypted-password')
       expect(result.authorized).toBe(true)
     })
 
@@ -112,7 +112,8 @@ describe('Form API Utils', () => {
         mockResponse,
         'form',
         'test-form-id',
-        'password'
+        'password',
+        undefined
       )
     })
   })

@@ -105,7 +105,7 @@ describe('Chat API Utils', () => {
       } as any
 
       const result = await validateChatAuth('request-id', deployment, mockRequest)
-      expect(mockValidateAuthToken).toHaveBeenCalledWith('valid-token', 'chat-id')
+      expect(mockValidateAuthToken).toHaveBeenCalledWith('valid-token', 'chat-id', 'encrypted-password')
       expect(result.authorized).toBe(true)
     })
 
@@ -142,7 +142,8 @@ describe('Chat API Utils', () => {
         mockResponse,
         'chat',
         'test-chat-id',
-        'password'
+        'password',
+        undefined
       )
     })
   })
