@@ -1568,6 +1568,7 @@ export function useChat(
     (options?: { error?: boolean }) => {
       sendingRef.current = false
       setIsSending(false)
+      setIsReconnecting(false)
       abortControllerRef.current = null
       invalidateChatQueries()
 
