@@ -116,7 +116,12 @@ if attempts >= tonumber(ARGV[1]) then
   return 'LOCKED'
 end
 local newVal = otp .. ':' .. attempts
-redis.call('SET', KEYS[1], newVal, 'KEEPTTL')
+local ttl = redis.call('TTL', KEYS[1])
+if ttl > 0 then
+  redis.call('SET', KEYS[1], newVal, 'EX', ttl)
+else
+  redis.call('SET', KEYS[1], newVal)
+end
 return newVal
 `
 
@@ -141,31 +146,39 @@ async function incrementOTPAttempts(
     return result === 'LOCKED' ? 'locked' : 'incremented'
   }
 
-  // DB path: optimistic locking — only update if value hasn't changed since we read it
-  const { otp, attempts } = decodeOTPValue(currentValue)
-  const newAttempts = attempts + 1
+  // DB path: optimistic locking with retry on conflict
+  const MAX_RETRIES = 3
+  let value = currentValue
 
-  if (newAttempts >= MAX_OTP_ATTEMPTS) {
-    await db.delete(verification).where(eq(verification.identifier, identifier))
-    return 'locked'
-  }
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const { otp, attempts } = decodeOTPValue(value)
+    const newAttempts = attempts + 1
 
-  const newValue = encodeOTPValue(otp, newAttempts)
-  const updated = await db
-    .update(verification)
-    .set({ value: newValue, updatedAt: new Date() })
-    .where(and(eq(verification.identifier, identifier), eq(verification.value, currentValue)))
-    .returning({ id: verification.id })
+    if (newAttempts >= MAX_OTP_ATTEMPTS) {
+      await db.delete(verification).where(eq(verification.identifier, identifier))
+      return 'locked'
+    }
 
-  // If no rows updated, another request already incremented — re-read to check state
-  if (updated.length === 0) {
+    const newValue = encodeOTPValue(otp, newAttempts)
+    const updated = await db
+      .update(verification)
+      .set({ value: newValue, updatedAt: new Date() })
+      .where(and(eq(verification.identifier, identifier), eq(verification.value, value)))
+      .returning({ id: verification.id })
+
+    if (updated.length > 0) return 'incremented'
+
+    // Conflict: another request already incremented — re-read and retry
     const fresh = await getOTP(email, chatId)
     if (!fresh) return 'locked'
-    const { attempts: freshAttempts } = decodeOTPValue(fresh)
-    return freshAttempts >= MAX_OTP_ATTEMPTS ? 'locked' : 'incremented'
+    value = fresh
   }
 
-  return 'incremented'
+  // Exhausted retries — re-read final state to determine outcome
+  const final = await getOTP(email, chatId)
+  if (!final) return 'locked'
+  const { attempts: finalAttempts } = decodeOTPValue(final)
+  return finalAttempts >= MAX_OTP_ATTEMPTS ? 'locked' : 'incremented'
 }
 
 async function deleteOTP(email: string, chatId: string): Promise<void> {
