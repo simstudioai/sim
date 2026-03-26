@@ -161,17 +161,20 @@ export async function POST(request: NextRequest) {
           })
 
           const urlValidation = await validateUrlWithDNS(discoveryUrl, 'OIDC discovery URL')
-          if (!urlValidation.isValid) {
+          if (!urlValidation.isValid || !urlValidation.resolvedIP) {
             logger.warn('OIDC discovery URL failed SSRF validation', {
               discoveryUrl,
               error: urlValidation.error,
             })
-            return NextResponse.json({ error: urlValidation.error }, { status: 400 })
+            return NextResponse.json(
+              { error: urlValidation.error ?? 'SSRF validation failed' },
+              { status: 400 }
+            )
           }
 
           const discoveryResponse = await secureFetchWithPinnedIP(
             discoveryUrl,
-            urlValidation.resolvedIP!,
+            urlValidation.resolvedIP,
             {
               headers: { Accept: 'application/json' },
             }
