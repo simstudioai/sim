@@ -89,7 +89,7 @@ function VikhyathCursor() {
         <div className='absolute top-0 left-[56.02px]'>
           <CursorArrow fill='#2ABBF8' />
         </div>
-        <div className='-left-[4px] absolute top-4.5 flex items-center rounded bg-[#2ABBF8] px-[5px] py-[3px] font-[420] font-season text-[var(--surface-1)] text-sm leading-[100%] tracking-[-0.02em]'>
+        <div className='-left-[4px] absolute top-4.5 flex items-center rounded bg-[#2ABBF8] px-[5px] py-[3px] font-[420] font-season text-[var(--landing-text-dark)] text-sm leading-[100%] tracking-[-0.02em]'>
           Vikhyath
         </div>
       </div>
@@ -113,7 +113,7 @@ function AlexaCursor() {
         <div className='absolute top-0 left-0'>
           <CursorArrow fill='#FFCC02' />
         </div>
-        <div className='absolute top-4 left-[23px] flex items-center rounded bg-[#FFCC02] px-[5px] py-[3px] font-[420] font-season text-[var(--surface-1)] text-sm leading-[100%] tracking-[-0.02em]'>
+        <div className='absolute top-4 left-[23px] flex items-center rounded bg-[#FFCC02] px-[5px] py-[3px] font-[420] font-season text-[var(--landing-text-dark)] text-sm leading-[100%] tracking-[-0.02em]'>
           Alexa
         </div>
       </div>
@@ -143,7 +143,7 @@ function YouCursor({ x, y, visible }: YouCursorProps) {
       <svg width='23.15' height='21.1' viewBox='0 0 17.5 16.4' fill='none'>
         <path d={CURSOR_ARROW_MIRRORED_PATH} fill='#33C482' />
       </svg>
-      <div className='absolute top-4 left-[23px] flex items-center rounded bg-[var(--brand-tertiary-2)] px-[5px] py-[3px] font-[420] font-season text-[var(--surface-1)] text-sm leading-[100%] tracking-[-0.02em]'>
+      <div className='absolute top-4 left-[23px] flex items-center rounded bg-[var(--brand-tertiary-2)] px-[5px] py-[3px] font-[420] font-season text-[var(--landing-text-dark)] text-sm leading-[100%] tracking-[-0.02em]'>
         You
       </div>
     </div>
@@ -212,7 +212,7 @@ export default function Collaboration() {
       ref={sectionRef}
       id='collaboration'
       aria-labelledby='collaboration-heading'
-      className='bg-[var(--text-primary)]'
+      className='bg-[var(--landing-bg)]'
       style={{ cursor: isHovering ? 'none' : 'auto' }}
       onMouseMove={handleMouseMove}
       onMouseEnter={handleMouseEnter}
@@ -222,7 +222,7 @@ export default function Collaboration() {
       <style dangerouslySetInnerHTML={{ __html: CURSOR_KEYFRAMES }} />
 
       <DotGrid
-        className='overflow-hidden border-[var(--surface-4)] border-y bg-[var(--text-primary)] p-1.5'
+        className='overflow-hidden border-[var(--surface-4)] border-y bg-[var(--landing-bg)] p-1.5'
         cols={120}
         rows={1}
         gap={6}
@@ -306,7 +306,7 @@ export default function Collaboration() {
           href='/blog/multiplayer'
           target='_blank'
           rel='noopener noreferrer'
-          className='relative mx-4 mb-6 flex cursor-none items-center gap-3.5 rounded-[5px] border border-[var(--surface-4)] bg-[var(--text-primary)] px-3 py-2.5 transition-colors hover:border-[var(--border-1)] hover:bg-[var(--surface-2)] sm:mx-8 md:absolute md:bottom-10 md:left-[80px] md:z-20 md:mx-0 md:mb-0'
+          className='relative mx-4 mb-6 flex cursor-none items-center gap-3.5 rounded-[5px] border border-[var(--surface-4)] bg-[var(--landing-bg)] px-3 py-2.5 transition-colors hover:border-[var(--border-1)] hover:bg-[var(--surface-2)] sm:mx-8 md:absolute md:bottom-10 md:left-[80px] md:z-20 md:mx-0 md:mb-0'
         >
           <div className='relative h-7 w-11 shrink-0'>
             <Image src='/landing/multiplayer-cursors.svg' alt='' fill className='object-contain' />
@@ -323,7 +323,7 @@ export default function Collaboration() {
       </div>
 
       <DotGrid
-        className='overflow-hidden border-[var(--surface-4)] border-y bg-[var(--text-primary)] p-1.5'
+        className='overflow-hidden border-[var(--surface-4)] border-y bg-[var(--landing-bg)] p-1.5'
         cols={120}
         rows={1}
         gap={6}

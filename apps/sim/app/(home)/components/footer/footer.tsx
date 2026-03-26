@@ -113,11 +113,11 @@ export default function Footer({ hideCTA }: FooterProps) {
   return (
     <footer
       role='contentinfo'
-      className={`bg-[var(--text-primary)] pb-10 font-[430] font-season text-sm${hideCTA ? ' pt-10' : ''}`}
+      className={`bg-[var(--landing-bg)] pb-10 font-[430] font-season text-sm${hideCTA ? ' pt-10' : ''}`}
     >
       {!hideCTA && <FooterCTA />}
       <div className='px-4 sm:px-8 md:px-[80px]'>
-        <div className='relative overflow-hidden rounded-lg bg-[var(--text-primary)] px-6 pt-10 pb-8 sm:px-10 sm:pt-12 sm:pb-10'>
+        <div className='relative overflow-hidden rounded-lg bg-[var(--landing-bg)] px-6 pt-10 pb-8 sm:px-10 sm:pt-12 sm:pb-10'>
           <nav
             aria-label='Footer navigation'
             className='relative z-[1] grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:grid-cols-7'

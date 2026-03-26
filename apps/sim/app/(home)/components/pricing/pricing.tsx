@@ -187,7 +187,7 @@ function PricingCard({ tier }: PricingCardProps) {
  */
 export default function Pricing() {
   return (
-    <section id='pricing' aria-labelledby='pricing-heading' className='bg-[var(--text-primary)]'>
+    <section id='pricing' aria-labelledby='pricing-heading' className='bg-[var(--landing-bg-section)]'>
       <div className='px-4 pt-[60px] pb-10 sm:px-8 sm:pt-[80px] sm:pb-0 md:px-[80px] md:pt-[100px]'>
         <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-5'>
           <Badge

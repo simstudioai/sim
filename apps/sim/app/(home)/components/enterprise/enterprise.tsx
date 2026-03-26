@@ -65,13 +65,13 @@ const FEATURE_TAGS = [
 
 function TrustStrip() {
   return (
-    <div className='mx-6 mt-4 grid grid-cols-1 overflow-hidden rounded-[8px] border border-[#2A2A2A] sm:grid-cols-3 md:mx-8'>
+    <div className='mx-6 mt-4 grid grid-cols-1 overflow-hidden rounded-lg border border-[var(--surface-4)] sm:grid-cols-3 md:mx-8'>
       {/* SOC 2 + HIPAA combined */}
       <Link
         href='https://app.vanta.com/sim.ai/trust/v35ia0jil4l7dteqjgaktn'
         target='_blank'
         rel='noopener noreferrer'
-        className='group flex items-center gap-3 border-[#2A2A2A] border-b px-4 py-[14px] transition-colors hover:bg-[#212121] sm:border-r sm:border-b-0'
+        className='group flex items-center gap-3 border-[var(--surface-4)] border-b px-4 py-3.5 transition-colors hover:bg-[var(--surface-1)] sm:border-r sm:border-b-0'
       >
         <Image
           src='/footer/soc2.png'
@@ -81,10 +81,10 @@ function TrustStrip() {
           className='shrink-0 object-contain'
         />
         <div className='flex flex-col gap-[3px]'>
-          <strong className='font-[430] font-season text-[13px] text-white leading-none'>
+          <strong className='font-[430] font-season text-small text-white leading-none'>
             SOC 2 & HIPAA
           </strong>
-          <span className='font-[430] font-season text-[#F6F6F6]/30 text-[11px] leading-none tracking-[0.02em] transition-colors group-hover:text-[#F6F6F6]/55'>
+          <span className='font-[430] font-season text-[var(--landing-text-subtle)]/30 text-xs leading-none tracking-[0.02em] transition-colors group-hover:text-[var(--landing-text-subtle)]/55'>
             Type II · PHI protected →
           </span>
         </div>
@@ -95,31 +95,31 @@ function TrustStrip() {
         href='https://github.com/simstudioai/sim'
         target='_blank'
         rel='noopener noreferrer'
-        className='group flex items-center gap-3 border-[#2A2A2A] border-b px-4 py-[14px] transition-colors hover:bg-[#212121] sm:border-r sm:border-b-0'
+        className='group flex items-center gap-3 border-[var(--surface-4)] border-b px-4 py-3.5 transition-colors hover:bg-[var(--surface-1)] sm:border-r sm:border-b-0'
       >
         <div className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#FFCC02]/10'>
           <GithubIcon width={11} height={11} className='text-[#FFCC02]/75' />
         </div>
         <div className='flex flex-col gap-[3px]'>
-          <strong className='font-[430] font-season text-[13px] text-white leading-none'>
+          <strong className='font-[430] font-season text-small text-white leading-none'>
             Open Source
           </strong>
-          <span className='font-[430] font-season text-[#F6F6F6]/30 text-[11px] leading-none tracking-[0.02em] transition-colors group-hover:text-[#F6F6F6]/55'>
+          <span className='font-[430] font-season text-[var(--landing-text-subtle)]/30 text-xs leading-none tracking-[0.02em] transition-colors group-hover:text-[var(--landing-text-subtle)]/55'>
             View on GitHub →
           </span>
         </div>
       </Link>
 
       {/* SSO */}
-      <div className='flex items-center gap-3 px-4 py-[14px]'>
+      <div className='flex items-center gap-3 px-4 py-3.5'>
         <div className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#2ABBF8]/10'>
           <Lock className='h-[14px] w-[14px] text-[#2ABBF8]/75' />
         </div>
         <div className='flex flex-col gap-[3px]'>
-          <strong className='font-[430] font-season text-[13px] text-white leading-none'>
+          <strong className='font-[430] font-season text-small text-white leading-none'>
             SSO & SCIM
           </strong>
-          <span className='font-[430] font-season text-[#F6F6F6]/30 text-[11px] leading-none tracking-[0.02em]'>
+          <span className='font-[430] font-season text-[var(--landing-text-subtle)]/30 text-xs leading-none tracking-[0.02em]'>
             Okta, Azure AD, Google
           </span>
         </div>
@@ -130,9 +130,13 @@ function TrustStrip() {
 
 export default function Enterprise() {
   return (
-    <section id='enterprise' aria-labelledby='enterprise-heading' className='bg-[#F6F6F6]'>
-      <div className='px-4 pt-[60px] pb-[40px] sm:px-8 sm:pt-[80px] sm:pb-0 md:px-[80px] md:pt-[100px]'>
-        <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-[20px]'>
+    <section
+      id='enterprise'
+      aria-labelledby='enterprise-heading'
+      className='bg-[var(--landing-bg-section)]'
+    >
+      <div className='px-4 pt-[60px] pb-10 sm:px-8 sm:pt-[80px] sm:pb-0 md:px-[80px] md:pt-[100px]'>
+        <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-5'>
           <Badge
             variant='blue'
             size='md'
@@ -144,7 +148,7 @@ export default function Enterprise() {
 
           <h2
             id='enterprise-heading'
-            className='max-w-[600px] font-[430] font-season text-[#1C1C1C] text-[32px] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
+            className='max-w-[600px] font-[430] font-season text-[var(--landing-text)] text-[32px] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
           >
             Enterprise features for
             <br />
@@ -187,7 +191,7 @@ export default function Enterprise() {
           <TrustStrip />
 
           {/* Scrolling feature ticker — keyframe loop; pause on hover. Tags use transitions for hover. */}
-          <div className='enterprise-feature-marquee relative mt-6 overflow-hidden border-[#2A2A2A] border-t'>
+          <div className='enterprise-feature-marquee relative mt-6 overflow-hidden border-[var(--surface-4)] border-t'>
             <style dangerouslySetInnerHTML={{ __html: ENTERPRISE_FEATURE_MARQUEE_STYLES }} />
             {/* Fade edges */}
             <div
@@ -206,7 +210,7 @@ export default function Enterprise() {
                 (tag, i) => (
                   <span
                     key={i}
-                    className='enterprise-feature-marquee-tag whitespace-nowrap border-[#2A2A2A] border-r px-5 py-4 font-[430] font-season text-[#F6F6F6]/40 text-[13px] leading-none tracking-[0.02em] hover:bg-white/[0.04] hover:text-[#F6F6F6]/55'
+                    className='enterprise-feature-marquee-tag whitespace-nowrap border-[var(--surface-4)] border-r px-5 py-4 font-[430] font-season text-[var(--landing-text-subtle)]/40 text-small leading-none tracking-[0.02em] hover:bg-white/[0.04] hover:text-[var(--landing-text-subtle)]/55'
                   >
                     {tag}
                   </span>
@@ -215,8 +219,8 @@ export default function Enterprise() {
             </div>
           </div>
 
-          <div className='flex items-center justify-between border-[#2A2A2A] border-t px-6 py-5 md:px-8 md:py-6'>
-            <p className='font-[430] font-season text-[#F6F6F6]/40 text-[15px] leading-[150%] tracking-[0.02em]'>
+          <div className='flex items-center justify-between border-[var(--surface-4)] border-t px-6 py-5 md:px-8 md:py-6'>
+            <p className='font-[430] font-season text-[var(--landing-text-subtle)]/40 text-base leading-[150%] tracking-[0.02em]'>
               Ready for growth?
             </p>
             <DemoRequestModal>

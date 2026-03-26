@@ -96,7 +96,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
   return (
     <nav
       aria-label='Primary navigation'
-      className='relative flex h-[52px] border-[var(--surface-4)] border-b-[1px] bg-[var(--text-primary)] font-[430] font-season text-[var(--landing-text)] text-sm'
+      className='relative flex h-[52px] border-[var(--surface-4)] border-b-[1px] bg-[var(--landing-bg)] font-[430] font-season text-[var(--landing-text)] text-sm'
       itemScope
       itemType='https://schema.org/SiteNavigationElement'
     >
@@ -140,7 +140,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
               const linkClass = cn(
                 icon ? `${LINK_CELL} gap-2` : LINK_CELL,
                 'transition-colors duration-200',
-                isDimmed && 'text-[var(--text-primary)]/60'
+                isDimmed && 'text-[var(--landing-text-subtle)]/60'
               )
               const chevron = icon === 'chevron' && <NavChevron open={isActive} />
 
@@ -259,7 +259,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
 
           <div
             className={cn(
-              'fixed inset-x-0 top-[52px] bottom-0 z-50 flex flex-col overflow-y-auto bg-[var(--text-primary)] font-[430] font-season text-sm transition-all duration-200 lg:hidden',
+              'fixed inset-x-0 top-[52px] bottom-0 z-50 flex flex-col overflow-y-auto bg-[var(--landing-bg)] font-[430] font-season text-sm transition-all duration-200 lg:hidden',
               mobileMenuOpen ? 'visible opacity-100' : 'invisible opacity-0'
             )}
           >

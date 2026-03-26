@@ -37,7 +37,7 @@ const RESOURCE_CARDS = [
 
 export function DocsDropdown() {
   return (
-    <div className='w-[480px] rounded-[5px] border border-[var(--surface-4)] bg-[var(--text-primary)] p-4 shadow-overlay'>
+    <div className='w-[480px] rounded-[5px] border border-[var(--surface-4)] bg-[var(--landing-bg)] p-4 shadow-overlay'>
       <div className='grid grid-cols-2 gap-2.5'>
         {PREVIEW_CARDS.map((card) => (
           <a
@@ -45,7 +45,7 @@ export function DocsDropdown() {
             href={card.href}
             target='_blank'
             rel='noopener noreferrer'
-            className='group/card overflow-hidden rounded-[5px] border border-[var(--surface-4)] bg-[var(--text-primary)] transition-colors hover:border-[var(--border-1)] hover:bg-[var(--surface-4)]'
+            className='group/card overflow-hidden rounded-[5px] border border-[var(--surface-4)] bg-[var(--landing-bg)] transition-colors hover:border-[var(--border-1)] hover:bg-[var(--surface-4)]'
           >
             <div className='relative h-[120px] w-full overflow-hidden bg-[#141414]'>
               <Image

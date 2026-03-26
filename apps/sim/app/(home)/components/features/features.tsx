@@ -152,7 +152,7 @@ function DotGrid({
   return (
     <div
       aria-hidden='true'
-      className={`h-full shrink-0 bg-[var(--text-primary)] p-1.5 ${borderLeft ? 'border-[var(--divider)] border-l' : ''}`}
+      className={`h-full shrink-0 bg-[var(--landing-bg-section)] p-1.5 ${borderLeft ? 'border-[var(--divider)] border-l' : ''}`}
       style={{
         width: width ? `${width}px` : undefined,
         display: 'grid',
@@ -181,7 +181,7 @@ export default function Features() {
     <section
       id='features'
       aria-labelledby='features-heading'
-      className='relative overflow-hidden bg-[var(--text-primary)]'
+      className='relative overflow-hidden bg-[var(--landing-bg-section)]'
     >
       <div aria-hidden='true' className='absolute top-0 left-0 w-full'>
         <Image
@@ -223,7 +223,7 @@ export default function Features() {
                 {char}
               </ScrollLetter>
             ))}
-            <span className='text-[var(--text-primary)]/40'>
+            <span className='text-[var(--landing-text-subtle)]/40'>
               Design powerful workflows, connect your data, and monitor every run — all in one
               platform.
             </span>
@@ -258,7 +258,7 @@ export default function Features() {
                   role='tab'
                   aria-selected={index === activeTab}
                   onClick={() => setActiveTab(index)}
-                  className={`relative h-full flex-1 items-center justify-center whitespace-nowrap px-3 font-medium font-season text-[var(--surface-1)] text-caption uppercase lg:px-0 lg:text-sm${tab.hideOnMobile ? ' hidden lg:flex' : ' flex'}${index > 0 ? ' border-[var(--divider)] border-l' : ''}`}
+                  className={`relative h-full flex-1 items-center justify-center whitespace-nowrap px-3 font-medium font-season text-[var(--landing-text-dark)] text-caption uppercase lg:px-0 lg:text-sm${tab.hideOnMobile ? ' hidden lg:flex' : ' flex'}${index > 0 ? ' border-[var(--divider)] border-l' : ''}`}
                   style={{ backgroundColor: index === activeTab ? '#FDFDFD' : '#F6F6F6' }}
                 >
                   {tab.mobileLabel ? (
@@ -304,7 +304,7 @@ export default function Features() {
                 <h3 className='font-[430] font-season text-[var(--text-primary)] text-[24px] leading-[120%] tracking-[-0.02em] lg:text-[28px]'>
                   {FEATURE_TABS[activeTab].title}
                 </h3>
-                <p className='font-[430] font-season text-[var(--text-primary)]/50 text-md leading-[150%] tracking-[0.02em] lg:text-lg'>
+                <p className='font-[430] font-season text-[var(--landing-text-subtle)]/50 text-md leading-[150%] tracking-[0.02em] lg:text-lg'>
                   {FEATURE_TABS[activeTab].description}
                 </p>
               </div>

@@ -472,7 +472,9 @@ export default function LoginPage({
             <div className='w-full border-[#2A2A2A] border-t' />
           </div>
           <div className='relative flex justify-center text-sm'>
-            <span className='bg-[#1C1C1C] px-4 font-[340] text-[#999]'>Or continue with</span>
+            <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--text-subtle)]'>
+              Or continue with
+            </span>
           </div>
         </div>
       )}

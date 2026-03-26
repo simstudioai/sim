@@ -90,7 +90,7 @@ export function FooterCTA() {
         </a>
         <Link
           href='/signup'
-          className={`${CTA_BUTTON} gap-2 border-[var(--text-primary)] bg-[var(--text-primary)] text-white transition-colors hover:border-[var(--border)] hover:bg-[var(--border)]`}
+          className={`${CTA_BUTTON} gap-2 border-[var(--text-primary)] bg-[var(--landing-bg)] text-white transition-colors hover:border-[var(--border)] hover:bg-[var(--border)]`}
         >
           Get started
         </Link>

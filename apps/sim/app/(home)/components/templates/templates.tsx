@@ -422,9 +422,9 @@ export default function Templates() {
         customise it, and deploy in minutes.
       </p>
 
-      <div className='bg-[var(--text-primary)]'>
+      <div className='bg-[var(--landing-bg)]'>
         <DotGrid
-          className='overflow-hidden border-[var(--surface-4)] border-y bg-[var(--text-primary)] p-1.5'
+          className='overflow-hidden border-[var(--surface-4)] border-y bg-[var(--landing-bg)] p-1.5'
           cols={160}
           rows={1}
           gap={6}

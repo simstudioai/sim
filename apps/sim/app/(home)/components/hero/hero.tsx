@@ -35,7 +35,7 @@ export default function Hero() {
     <section
       id='hero'
       aria-labelledby='hero-heading'
-      className='relative flex flex-col items-center overflow-hidden bg-[var(--text-primary)] pt-[60px] pb-3 lg:pt-[100px]'
+      className='relative flex flex-col items-center overflow-hidden bg-[var(--landing-bg)] pt-[60px] pb-3 lg:pt-[100px]'
     >
       <p className='sr-only'>
         Sim is the open-source platform to build AI agents and run your agentic workforce. Connect
@@ -66,7 +66,7 @@ export default function Hero() {
         >
           Build AI Agents
         </h1>
-        <p className='font-[430] font-season text-[var(--text-primary)]/60 text-base leading-[125%] tracking-[0.02em] lg:text-lg'>
+        <p className='font-[430] font-season text-[var(--landing-text-subtle)]/60 text-base leading-[125%] tracking-[0.02em] lg:text-lg'>
           Sim is the AI Workspace for Agent Builders.
         </p>
 
