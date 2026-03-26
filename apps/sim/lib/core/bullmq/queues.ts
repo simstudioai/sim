@@ -191,6 +191,6 @@ export function createBullMQJobData<TPayload>(
 ): BullMQJobData<TPayload> {
   return {
     payload,
-    metadata,
+    metadata: metadata ?? {},
   }
 }
