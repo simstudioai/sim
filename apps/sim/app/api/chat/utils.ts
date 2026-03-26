@@ -13,11 +13,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('ChatAuthUtils')
 
-export function setChatAuthCookie(
-  response: NextResponse,
-  chatId: string,
-  type: string
-): void {
+export function setChatAuthCookie(response: NextResponse, chatId: string, type: string): void {
   setDeploymentAuthCookie(response, 'chat', chatId, type)
 }
 

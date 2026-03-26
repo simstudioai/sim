@@ -13,11 +13,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('FormAuthUtils')
 
-export function setFormAuthCookie(
-  response: NextResponse,
-  formId: string,
-  type: string
-): void {
+export function setFormAuthCookie(response: NextResponse, formId: string, type: string): void {
   setDeploymentAuthCookie(response, 'form', formId, type)
 }
 

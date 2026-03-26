@@ -255,7 +255,8 @@ async function validateConnectServerUrl(serverUrl: string): Promise<void> {
     throw new Error('1Password server URL is not a valid URL')
   }
 
-  const clean = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+  const clean =
+    hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
 
   if (ipaddr.isValid(clean)) {
     const addr = ipaddr.process(clean)

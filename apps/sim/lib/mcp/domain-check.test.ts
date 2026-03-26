@@ -16,7 +16,7 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   isPrivateOrReservedIP: (ip: string) => {
     if (ip.startsWith('10.') || ip.startsWith('192.168.')) return true
     if (ip.startsWith('172.')) {
-      const second = parseInt(ip.split('.')[1], 10)
+      const second = Number.parseInt(ip.split('.')[1], 10)
       if (second >= 16 && second <= 31) return true
     }
     if (ip.startsWith('169.254.')) return true
@@ -367,9 +367,9 @@ describe('validateMcpServerSsrf', () => {
   })
 
   it('throws McpSsrfError for cloud metadata IP literal', async () => {
-    await expect(
-      validateMcpServerSsrf('http://169.254.169.254/latest/meta-data/')
-    ).rejects.toThrow(McpSsrfError)
+    await expect(validateMcpServerSsrf('http://169.254.169.254/latest/meta-data/')).rejects.toThrow(
+      McpSsrfError
+    )
     expect(mockDnsLookup).not.toHaveBeenCalled()
   })
 

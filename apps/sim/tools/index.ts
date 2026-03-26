@@ -1164,7 +1164,13 @@ async function executeToolRequest(
     }
 
     const headers = new Headers(requestParams.headers)
-    await addInternalAuthIfNeeded(headers, isInternalRoute, requestId, toolId, params._context?.userId)
+    await addInternalAuthIfNeeded(
+      headers,
+      isInternalRoute,
+      requestId,
+      toolId,
+      params._context?.userId
+    )
 
     const shouldPropagateCallChain = isInternalRoute || isSelfOriginUrl(fullUrl)
     if (shouldPropagateCallChain) {

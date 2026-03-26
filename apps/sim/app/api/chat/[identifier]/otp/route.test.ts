@@ -146,8 +146,7 @@ vi.mock('@/lib/core/security/deployment', () => ({
     const atIndex = email.indexOf('@')
     if (atIndex > 0) {
       const domain = email.substring(atIndex + 1)
-      if (domain && allowedEmails.some((allowed: string) => allowed === `@${domain}`))
-        return true
+      if (domain && allowedEmails.some((allowed: string) => allowed === `@${domain}`)) return true
     }
     return false
   },

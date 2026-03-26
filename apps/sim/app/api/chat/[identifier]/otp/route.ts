@@ -36,7 +36,7 @@ function decodeOTPValue(value: string): { otp: string; attempts: number } {
   const lastColon = value.lastIndexOf(':')
   return {
     otp: value.slice(0, lastColon),
-    attempts: parseInt(value.slice(lastColon + 1), 10),
+    attempts: Number.parseInt(value.slice(lastColon + 1), 10),
   }
 }
 
@@ -261,7 +261,9 @@ export async function PUT(
       const newAttempts = attempts + 1
       if (newAttempts >= MAX_OTP_ATTEMPTS) {
         await deleteOTP(email, deployment.id)
-        logger.warn(`[${requestId}] OTP invalidated after ${newAttempts} failed attempts for ${email}`)
+        logger.warn(
+          `[${requestId}] OTP invalidated after ${newAttempts} failed attempts for ${email}`
+        )
         return addCorsHeaders(
           createErrorResponse('Too many failed attempts. Please request a new code.', 429),
           request
