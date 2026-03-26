@@ -1,6 +1,8 @@
 export {
   CollapsedFolderItems,
   CollapsedSidebarMenu,
+  CollapsedTaskFlyoutItem,
+  CollapsedWorkflowFlyoutItem,
 } from './collapsed-sidebar-menu/collapsed-sidebar-menu'
 export { HelpModal } from './help-modal/help-modal'
 export { NavItemContextMenu } from './nav-item-context-menu'

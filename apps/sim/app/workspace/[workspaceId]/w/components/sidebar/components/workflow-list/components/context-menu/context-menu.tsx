@@ -15,9 +15,11 @@ import {
 import {
   Check,
   Duplicate,
+  Eye,
   FolderPlus,
   Lock,
   LogOut,
+  Mail,
   Palette,
   Pencil,
   Plus,
@@ -230,6 +232,8 @@ interface ContextMenuProps {
   menuRef: React.RefObject<HTMLDivElement | null>
   onClose: () => void
   onOpenInNewTab?: () => void
+  onMarkAsRead?: () => void
+  onMarkAsUnread?: () => void
   onRename?: () => void
   onCreate?: () => void
   onCreateFolder?: () => void
@@ -239,6 +243,8 @@ interface ContextMenuProps {
   onColorChange?: (color: string) => void
   currentColor?: string
   showOpenInNewTab?: boolean
+  showMarkAsRead?: boolean
+  showMarkAsUnread?: boolean
   showRename?: boolean
   showCreate?: boolean
   showCreateFolder?: boolean
@@ -246,6 +252,8 @@ interface ContextMenuProps {
   showExport?: boolean
   showColorChange?: boolean
   disableExport?: boolean
+  disableMarkAsRead?: boolean
+  disableMarkAsUnread?: boolean
   disableColorChange?: boolean
   disableRename?: boolean
   disableDuplicate?: boolean
@@ -259,6 +267,7 @@ interface ContextMenuProps {
   showLock?: boolean
   disableLock?: boolean
   isLocked?: boolean
+  showDelete?: boolean
 }
 
 /**
@@ -271,6 +280,8 @@ export function ContextMenu({
   menuRef,
   onClose,
   onOpenInNewTab,
+  onMarkAsRead,
+  onMarkAsUnread,
   onRename,
   onCreate,
   onCreateFolder,
@@ -280,6 +291,8 @@ export function ContextMenu({
   onColorChange,
   currentColor,
   showOpenInNewTab = false,
+  showMarkAsRead = false,
+  showMarkAsUnread = false,
   showRename = true,
   showCreate = false,
   showCreateFolder = false,
@@ -287,6 +300,8 @@ export function ContextMenu({
   showExport = false,
   showColorChange = false,
   disableExport = false,
+  disableMarkAsRead = false,
+  disableMarkAsUnread = false,
   disableColorChange = false,
   disableRename = false,
   disableDuplicate = false,
@@ -300,6 +315,7 @@ export function ContextMenu({
   showLock = false,
   disableLock = false,
   isLocked = false,
+  showDelete = true,
 }: ContextMenuProps) {
   const [hexInput, setHexInput] = useState(currentColor || '#ffffff')
 
@@ -346,6 +362,7 @@ export function ContextMenu({
   }, [])
 
   const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
+  const hasStatusSection = (showMarkAsRead && onMarkAsRead) || (showMarkAsUnread && onMarkAsUnread)
   const hasEditSection =
     (showRename && onRename) ||
     (showCreate && onCreate) ||
@@ -387,7 +404,35 @@ export function ContextMenu({
             Open in new tab
           </DropdownMenuItem>
         )}
-        {hasNavigationSection && (hasEditSection || hasCopySection) && <DropdownMenuSeparator />}
+        {hasNavigationSection && (hasStatusSection || hasEditSection || hasCopySection) && (
+          <DropdownMenuSeparator />
+        )}
+
+        {showMarkAsRead && onMarkAsRead && (
+          <DropdownMenuItem
+            disabled={disableMarkAsRead}
+            onSelect={() => {
+              onMarkAsRead()
+              onClose()
+            }}
+          >
+            <Eye />
+            Mark as read
+          </DropdownMenuItem>
+        )}
+        {showMarkAsUnread && onMarkAsUnread && (
+          <DropdownMenuItem
+            disabled={disableMarkAsUnread}
+            onSelect={() => {
+              onMarkAsUnread()
+              onClose()
+            }}
+          >
+            <Mail />
+            Mark as unread
+          </DropdownMenuItem>
+        )}
+        {hasStatusSection && (hasEditSection || hasCopySection) && <DropdownMenuSeparator />}
 
         {showRename && onRename && (
           <DropdownMenuItem
@@ -478,7 +523,8 @@ export function ContextMenu({
           </DropdownMenuItem>
         )}
 
-        {(hasNavigationSection || hasEditSection || hasCopySection) && <DropdownMenuSeparator />}
+        {(hasNavigationSection || hasStatusSection || hasEditSection || hasCopySection) &&
+          (showLeave || showDelete) && <DropdownMenuSeparator />}
         {showLeave && onLeave && (
           <DropdownMenuItem
             disabled={disableLeave}
@@ -491,16 +537,18 @@ export function ContextMenu({
             Leave
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem
-          disabled={disableDelete}
-          onSelect={() => {
-            onDelete()
-            onClose()
-          }}
-        >
-          <Trash />
-          Delete
-        </DropdownMenuItem>
+        {showDelete && (
+          <DropdownMenuItem
+            disabled={disableDelete}
+            onSelect={() => {
+              onDelete()
+              onClose()
+            }}
+          >
+            <Trash />
+            Delete
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

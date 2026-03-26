@@ -392,6 +392,17 @@ async function markTaskRead(chatId: string): Promise<void> {
   }
 }
 
+async function markTaskUnread(chatId: string): Promise<void> {
+  const response = await fetch('/api/mothership/chats/unread', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chatId }),
+  })
+  if (!response.ok) {
+    throw new Error('Failed to mark task as unread')
+  }
+}
+
 /**
  * Marks a task as read with optimistic update.
  */
@@ -406,6 +417,35 @@ export function useMarkTaskRead(workspaceId?: string) {
 
       queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
         old?.map((task) => (task.id === chatId ? { ...task, isUnread: false } : task))
+      )
+
+      return { previousTasks }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(taskKeys.list(workspaceId), context.previousTasks)
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+    },
+  })
+}
+
+/**
+ * Marks a task as unread with optimistic update.
+ */
+export function useMarkTaskUnread(workspaceId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: markTaskUnread,
+    onMutate: async (chatId) => {
+      await queryClient.cancelQueries({ queryKey: taskKeys.list(workspaceId) })
+
+      const previousTasks = queryClient.getQueryData<TaskMetadata[]>(taskKeys.list(workspaceId))
+
+      queryClient.setQueryData<TaskMetadata[]>(taskKeys.list(workspaceId), (old) =>
+        old?.map((task) => (task.id === chatId ? { ...task, isUnread: true } : task))
       )
 
       return { previousTasks }

@@ -2,7 +2,6 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import { ExternalLink } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
-import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -13,10 +12,10 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
+import { ConnectCredentialModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/connect-credential-modal'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
-import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const getProviderIcon = (providerName: OAuthProvider) => {
@@ -71,11 +70,14 @@ export function ToolCredentialSelector({
   const workspaceId = (params?.workspaceId as string) || ''
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
+  const [showConnectModal, setShowConnectModal] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [editingInputValue, setEditingInputValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
-  const { activeWorkflowId } = useWorkflowRegistry()
-  const { navigateToSettings } = useSettingsNavigation()
+  const { activeWorkflowId, workflows } = useWorkflowRegistry()
+  // Only pass workflowId when it's a real registered workflow (not an agent ID set as the active context)
+  const effectiveWorkflowId =
+    activeWorkflowId && workflows[activeWorkflowId] ? activeWorkflowId : undefined
 
   const selectedId = value || ''
   const effectiveLabel = label || `Select ${getProviderName(provider)} account`
@@ -89,7 +91,7 @@ export function ToolCredentialSelector({
   } = useOAuthCredentials(effectiveProviderId, {
     enabled: Boolean(effectiveProviderId),
     workspaceId,
-    workflowId: activeWorkflowId || undefined,
+    workflowId: effectiveWorkflowId,
   })
 
   const selectedCredential = useMemo(
@@ -164,18 +166,8 @@ export function ToolCredentialSelector({
   )
 
   const handleAddCredential = useCallback(() => {
-    writePendingCredentialCreateRequest({
-      workspaceId,
-      type: 'oauth',
-      providerId: effectiveProviderId,
-      displayName: '',
-      serviceId,
-      requiredScopes: getCanonicalScopesForProvider(effectiveProviderId),
-      requestedAt: Date.now(),
-    })
-
-    navigateToSettings({ section: 'integrations' })
-  }, [workspaceId, effectiveProviderId, serviceId])
+    setShowConnectModal(true)
+  }, [])
 
   const comboboxOptions = useMemo(() => {
     const options = credentials.map((cred) => ({
@@ -259,6 +251,18 @@ export function ToolCredentialSelector({
             Update access
           </Button>
         </div>
+      )}
+
+      {showConnectModal && (
+        <ConnectCredentialModal
+          isOpen={showConnectModal}
+          onClose={() => setShowConnectModal(false)}
+          provider={provider}
+          serviceId={serviceId}
+          workspaceId={workspaceId}
+          workflowId={effectiveWorkflowId || ''}
+          credentialCount={credentials.length}
+        />
       )}
 
       {showOAuthModal && (

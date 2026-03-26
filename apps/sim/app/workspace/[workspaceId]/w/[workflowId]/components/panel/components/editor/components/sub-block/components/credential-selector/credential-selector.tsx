@@ -15,6 +15,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
+import { ConnectCredentialModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/connect-credential-modal'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -48,6 +49,7 @@ export function CredentialSelector({
 }: CredentialSelectorProps) {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
+  const [showConnectModal, setShowConnectModal] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [editingValue, setEditingValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
@@ -196,7 +198,7 @@ export function CredentialSelector({
   )
 
   const handleAddCredential = useCallback(() => {
-    setShowOAuthModal(true)
+    setShowConnectModal(true)
   }, [])
 
   const getProviderIcon = useCallback((providerName: OAuthProvider) => {
@@ -385,6 +387,18 @@ export function CredentialSelector({
             Update access
           </Button>
         </div>
+      )}
+
+      {showConnectModal && (
+        <ConnectCredentialModal
+          isOpen={showConnectModal}
+          onClose={() => setShowConnectModal(false)}
+          provider={provider}
+          serviceId={serviceId}
+          workspaceId={workspaceId}
+          workflowId={activeWorkflowId || ''}
+          credentialCount={credentials.length}
+        />
       )}
 
       {showOAuthModal && (
