@@ -711,7 +711,15 @@ export function useChat(
           })
 
           if (batch.events.length === 0 && !isTerminalStreamStatus(batch.status)) {
-            throw new Error(RECONNECT_TAIL_ERROR)
+            logger.info('No new replay events yet; reopening active stream tail', {
+              streamId,
+              latestEventId,
+              streamStatus,
+              attempt: attachAttempt,
+            })
+            if (activeAbortController.signal.aborted || streamGenRef.current !== expectedGen) {
+              return { aborted: true, error: false }
+            }
           }
         }
 
