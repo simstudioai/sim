@@ -11,7 +11,7 @@ import {
   TYPE_STRUCT,
 } from '@/app/api/tools/evernote/lib/thrift'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('EvernoteConnector')
 
@@ -231,7 +231,8 @@ async function apiFindNotesMetadata(
   token: string,
   offset: number,
   maxNotes: number,
-  notebookGuid?: string
+  notebookGuid?: string,
+  retryOptions?: Parameters<typeof fetchWithRetry>[2]
 ): Promise<{ totalNotes: number; notes: NoteMetadata[] }> {
   const w = new ThriftWriter()
   w.writeMessageBegin('findNotesMetadata', 0)
@@ -256,7 +257,7 @@ async function apiFindNotesMetadata(
 
   w.writeFieldStop()
 
-  const r = await callNoteStore(token, w)
+  const r = await callNoteStore(token, w, retryOptions)
 
   let totalNotes = 0
   const notes: NoteMetadata[] = []
@@ -312,7 +313,11 @@ async function apiFindNotesMetadata(
  *                 5:withResourcesRecognition, 6:withResourcesAlternateData)
  * Note: 1:guid, 2:title, 3:content, 6:created, 7:updated, 11:notebookGuid, 12:tagGuids
  */
-async function apiGetNote(token: string, guid: string): Promise<Note> {
+async function apiGetNote(
+  token: string,
+  guid: string,
+  retryOptions?: Parameters<typeof fetchWithRetry>[2]
+): Promise<Note> {
   const w = new ThriftWriter()
   w.writeMessageBegin('getNote', 0)
   w.writeStringField(1, token)
@@ -323,7 +328,7 @@ async function apiGetNote(token: string, guid: string): Promise<Note> {
   w.writeBoolField(6, false) // withResourcesAlternateData
   w.writeFieldStop()
 
-  const r = await callNoteStore(token, w)
+  const r = await callNoteStore(token, w, retryOptions)
 
   let noteGuid = ''
   let title = ''
@@ -409,36 +414,25 @@ export const evernoteConnector: ConnectorConfig = {
 
     const result = await apiFindNotesMetadata(accessToken, offset, NOTES_PER_PAGE, notebookGuid)
 
-    const documents: ExternalDocument[] = []
+    const documents: ExternalDocument[] = result.notes.map((meta) => {
+      const tagNames = meta.tagGuids.map((g) => tagMap[g]).filter(Boolean)
 
-    for (const meta of result.notes) {
-      try {
-        const note = await apiGetNote(accessToken, meta.guid)
-        const plainText = htmlToPlainText(note.content)
-        const contentHash = await computeContentHash(plainText)
-        const tagNames = note.tagGuids.map((g) => tagMap[g]).filter(Boolean)
-
-        documents.push({
-          externalId: note.guid,
-          title: note.title || 'Untitled',
-          content: plainText,
-          mimeType: 'text/plain',
-          sourceUrl: `https://${host}/shard/${shardId}/nl/${userId}/${note.guid}/`,
-          contentHash,
-          metadata: {
-            tags: tagNames,
-            notebook: notebookMap[note.notebookGuid] || '',
-            createdAt: note.created ? new Date(note.created).toISOString() : undefined,
-            updatedAt: note.updated ? new Date(note.updated).toISOString() : undefined,
-          },
-        })
-      } catch (error) {
-        logger.warn('Failed to fetch note content', {
-          guid: meta.guid,
-          error: error instanceof Error ? error.message : String(error),
-        })
+      return {
+        externalId: meta.guid,
+        title: meta.title || 'Untitled',
+        content: '',
+        contentDeferred: true,
+        mimeType: 'text/plain',
+        sourceUrl: `https://${host}/shard/${shardId}/nl/${userId}/${meta.guid}/`,
+        contentHash: `evernote:${meta.guid}:${meta.updated}`,
+        metadata: {
+          tags: tagNames,
+          notebook: notebookMap[meta.notebookGuid] || '',
+          createdAt: meta.created ? new Date(meta.created).toISOString() : undefined,
+          updatedAt: meta.updated ? new Date(meta.updated).toISOString() : undefined,
+        },
       }
-    }
+    })
 
     const nextOffset = offset + result.notes.length
     const hasMore = nextOffset < result.totalNotes
@@ -459,7 +453,8 @@ export const evernoteConnector: ConnectorConfig = {
     try {
       const note = await apiGetNote(accessToken, externalId)
       const plainText = htmlToPlainText(note.content)
-      const contentHash = await computeContentHash(plainText)
+      if (!plainText.trim()) return null
+
       const shardId = extractShardId(accessToken)
       const userId = extractUserId(accessToken)
       const host = getHost(accessToken)
@@ -492,9 +487,10 @@ export const evernoteConnector: ConnectorConfig = {
         externalId,
         title: note.title || 'Untitled',
         content: plainText,
+        contentDeferred: false,
         mimeType: 'text/plain',
         sourceUrl: `https://${host}/shard/${shardId}/nl/${userId}/${externalId}/`,
-        contentHash,
+        contentHash: `evernote:${note.guid}:${note.updated}`,
         metadata: {
           tags: tagNames,
           notebook: notebookName,

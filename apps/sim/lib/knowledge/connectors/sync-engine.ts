@@ -292,7 +292,7 @@ export async function executeSync(
     const externalDocs: ExternalDocument[] = []
     let cursor: string | undefined
     let hasMore = true
-    const syncContext: Record<string, unknown> = {}
+    const syncContext: Record<string, unknown> = { syncRunId: crypto.randomUUID() }
 
     // Determine if this sync should be incremental
     const isIncremental =

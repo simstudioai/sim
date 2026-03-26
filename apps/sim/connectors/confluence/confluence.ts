@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { ConfluenceIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceConnector')
@@ -17,7 +17,7 @@ export function escapeCql(value: string): string {
 /**
  * Fetches labels for a batch of page IDs using the v2 labels endpoint.
  */
-const LABEL_FETCH_CONCURRENCY = 10
+const LABEL_FETCH_CONCURRENCY = 5
 
 async function fetchLabelsForPages(
   cloudId: string,
@@ -68,35 +68,29 @@ async function fetchLabelsForPages(
 }
 
 /**
- * Converts a v1 CQL search result item to an ExternalDocument.
+ * Converts a v1 CQL search result item to a lightweight metadata stub.
  */
-async function cqlResultToDocument(
-  item: Record<string, unknown>,
-  domain: string
-): Promise<ExternalDocument> {
-  const body = item.body as Record<string, Record<string, string>> | undefined
-  const rawContent = body?.storage?.value || ''
-  const plainText = htmlToPlainText(rawContent)
-  const contentHash = await computeContentHash(plainText)
-
+function cqlResultToStub(item: Record<string, unknown>, domain: string): ExternalDocument {
   const version = item.version as Record<string, unknown> | undefined
   const links = item._links as Record<string, string> | undefined
   const metadata = item.metadata as Record<string, unknown> | undefined
   const labelsWrapper = metadata?.labels as Record<string, unknown> | undefined
   const labelResults = (labelsWrapper?.results || []) as Record<string, unknown>[]
   const labels = labelResults.map((l) => l.name as string)
+  const versionNumber = version?.number ?? ''
 
   return {
     externalId: String(item.id),
     title: (item.title as string) || 'Untitled',
-    content: plainText,
+    content: '',
+    contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
-    contentHash,
+    contentHash: `confluence:${item.id}:${versionNumber}`,
     metadata: {
       spaceId: (item.space as Record<string, unknown>)?.key,
       status: item.status,
-      version: version?.number,
+      version: versionNumber,
       labels,
       lastModified: version?.when,
     },
@@ -238,10 +232,15 @@ export const confluenceConnector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const domain = sourceConfig.domain as string
-    const cloudId = await getConfluenceCloudId(domain, accessToken)
+    let cloudId = syncContext?.cloudId as string | undefined
+    if (!cloudId) {
+      cloudId = await getConfluenceCloudId(domain, accessToken)
+      if (syncContext) syncContext.cloudId = cloudId
+    }
 
     // Try pages first, fall back to blogposts if not found
     let page: Record<string, unknown> | null = null
@@ -269,26 +268,26 @@ export const confluenceConnector: ConnectorConfig = {
     const storage = body?.storage as Record<string, unknown> | undefined
     const rawContent = (storage?.value as string) || ''
     const plainText = htmlToPlainText(rawContent)
-    const contentHash = await computeContentHash(plainText)
 
-    // Fetch labels for this page
     const labelMap = await fetchLabelsForPages(cloudId, accessToken, [String(page.id)])
     const labels = labelMap.get(String(page.id)) ?? []
 
     const links = page._links as Record<string, unknown> | undefined
     const version = page.version as Record<string, unknown> | undefined
+    const versionNumber = version?.number ?? ''
 
     return {
       externalId: String(page.id),
       title: (page.title as string) || 'Untitled',
       content: plainText,
+      contentDeferred: false,
       mimeType: 'text/plain',
       sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
-      contentHash,
+      contentHash: `confluence:${page.id}:${versionNumber}`,
       metadata: {
         spaceId: page.spaceId,
         status: page.status,
-        version: version?.number,
+        version: versionNumber,
         labels,
         lastModified: version?.createdAt,
       },
@@ -379,7 +378,6 @@ async function listDocumentsV2(
 ): Promise<ExternalDocumentList> {
   const queryParams = new URLSearchParams()
   queryParams.append('limit', '250')
-  queryParams.append('body-format', 'storage')
   if (cursor) {
     queryParams.append('cursor', cursor)
   }
@@ -409,35 +407,30 @@ async function listDocumentsV2(
   const data = await response.json()
   const results = data.results || []
 
-  const pageIds = results.map((page: Record<string, unknown>) => String(page.id))
-  const labelsByPageId = await fetchLabelsForPages(cloudId, accessToken, pageIds)
+  const documents: ExternalDocument[] = results.map((page: Record<string, unknown>) => {
+    const pageId = String(page.id)
+    const version = page.version as Record<string, unknown> | undefined
+    const versionNumber = version?.number ?? ''
 
-  const documents: ExternalDocument[] = await Promise.all(
-    results.map(async (page: Record<string, unknown>) => {
-      const rawContent = (page.body as Record<string, Record<string, string>>)?.storage?.value || ''
-      const plainText = htmlToPlainText(rawContent)
-      const contentHash = await computeContentHash(plainText)
-      const pageId = String(page.id)
-
-      return {
-        externalId: pageId,
-        title: (page.title as string) || 'Untitled',
-        content: plainText,
-        mimeType: 'text/plain',
-        sourceUrl: (page._links as Record<string, string>)?.webui
-          ? `https://${domain}/wiki${(page._links as Record<string, string>).webui}`
-          : undefined,
-        contentHash,
-        metadata: {
-          spaceId: page.spaceId,
-          status: page.status,
-          version: (page.version as Record<string, unknown>)?.number,
-          labels: labelsByPageId.get(pageId) ?? [],
-          lastModified: (page.version as Record<string, unknown>)?.createdAt,
-        },
-      }
-    })
-  )
+    return {
+      externalId: pageId,
+      title: (page.title as string) || 'Untitled',
+      content: '',
+      contentDeferred: true,
+      mimeType: 'text/plain',
+      sourceUrl: (page._links as Record<string, string>)?.webui
+        ? `https://${domain}/wiki${(page._links as Record<string, string>).webui}`
+        : undefined,
+      contentHash: `confluence:${pageId}:${versionNumber}`,
+      metadata: {
+        spaceId: page.spaceId,
+        status: page.status,
+        version: versionNumber,
+        labels: [],
+        lastModified: version?.createdAt,
+      },
+    }
+  })
 
   let nextCursor: string | undefined
   const nextLink = (data._links as Record<string, string>)?.next
@@ -584,7 +577,7 @@ async function listDocumentsViaCql(
   queryParams.append('cql', cql)
   queryParams.append('limit', String(limit))
   queryParams.append('start', String(start))
-  queryParams.append('expand', 'body.storage,version,metadata.labels')
+  queryParams.append('expand', 'version,metadata.labels')
 
   const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/content/search?${queryParams.toString()}`
 
@@ -610,8 +603,8 @@ async function listDocumentsViaCql(
   const data = await response.json()
   const results = data.results || []
 
-  const documents: ExternalDocument[] = await Promise.all(
-    results.map((item: Record<string, unknown>) => cqlResultToDocument(item, domain))
+  const documents: ExternalDocument[] = results.map((item: Record<string, unknown>) =>
+    cqlResultToStub(item, domain)
   )
 
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
