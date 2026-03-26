@@ -240,9 +240,13 @@ function abortRequested(
   execContext: ExecutionContext,
   options?: OrchestratorOptions
 ): boolean {
-  return Boolean(
-    options?.abortSignal?.aborted || execContext.abortSignal?.aborted || context.wasAborted
-  )
+  if (options?.userStopSignal?.aborted || execContext.userStopSignal?.aborted) {
+    return true
+  }
+  if (context.wasAborted) {
+    return true
+  }
+  return false
 }
 
 function cancelledCompletion(message: string): AsyncToolCompletion {

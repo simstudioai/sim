@@ -1269,6 +1269,7 @@ async function executeServerToolDirect(
       chatId: context.chatId,
       messageId: context.messageId,
       abortSignal: context.abortSignal,
+      userStopSignal: context.userStopSignal,
     })
 
     const resultRecord =

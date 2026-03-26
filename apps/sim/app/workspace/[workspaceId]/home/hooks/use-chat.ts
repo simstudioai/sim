@@ -92,6 +92,9 @@ const DEPLOY_TOOL_NAMES = new Set(['deploy_api', 'deploy_chat', 'deploy_mcp', 'r
 const RECONNECT_TAIL_ERROR =
   'Live reconnect failed before the stream finished. The latest response may be incomplete.'
 const TERMINAL_STREAM_STATUSES = new Set(['complete', 'error', 'cancelled'])
+const MAX_RECONNECT_ATTEMPTS = 10
+const RECONNECT_BASE_DELAY_MS = 1000
+const RECONNECT_MAX_DELAY_MS = 30_000
 
 interface StreamEventEnvelope {
   eventId: number
@@ -1565,6 +1568,7 @@ export function useChat(
     (options?: { error?: boolean }) => {
       sendingRef.current = false
       setIsSending(false)
+      setIsReconnecting(false)
       abortControllerRef.current = null
       invalidateChatQueries()
 
@@ -1608,6 +1612,47 @@ export function useChat(
     [invalidateChatQueries]
   )
   finalizeRef.current = finalize
+
+  const resumeOrFinalize = useCallback(
+    async (opts: {
+      streamId: string
+      assistantId: string
+      gen: number
+      fromEventId: number
+      snapshot?: StreamSnapshot | null
+      signal?: AbortSignal
+    }): Promise<void> => {
+      const { streamId, assistantId, gen, fromEventId, snapshot, signal } = opts
+
+      const batch =
+        snapshot ??
+        (await (async () => {
+          const b = await fetchStreamBatch(streamId, fromEventId, signal)
+          if (streamGenRef.current !== gen) return null
+          return { events: b.events, status: b.status } as StreamSnapshot
+        })())
+
+      if (!batch || streamGenRef.current !== gen) return
+
+      if (isTerminalStreamStatus(batch.status)) {
+        finalize(batch.status === 'error' ? { error: true } : undefined)
+        return
+      }
+
+      const reconnectResult = await attachToExistingStream({
+        streamId,
+        assistantId,
+        expectedGen: gen,
+        snapshot: batch,
+        initialLastEventId: batch.events[batch.events.length - 1]?.eventId ?? fromEventId,
+      })
+
+      if (streamGenRef.current === gen && !reconnectResult.aborted) {
+        finalize(reconnectResult.error ? { error: true } : undefined)
+      }
+    },
+    [fetchStreamBatch, attachToExistingStream, finalize]
+  )
 
   const sendMessage = useCallback(
     async (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
@@ -1745,44 +1790,13 @@ export function useChat(
             return
           }
 
-          const batch = await fetchStreamBatch(
-            userMessageId,
-            termination.lastEventId,
-            abortController.signal
-          )
-          if (streamGenRef.current !== gen) {
-            return
-          }
-          if (isTerminalStreamStatus(batch.status)) {
-            finalize(batch.status === 'error' ? { error: true } : undefined)
-            return
-          }
-
-          logger.warn(
-            'Primary stream ended without terminal event, attempting in-place reconnect',
-            {
-              streamId: userMessageId,
-              lastEventId: termination.lastEventId,
-              streamStatus: batch.status,
-              sawDoneEvent: termination.sawDoneEvent,
-            }
-          )
-
-          const reconnectResult = await attachToExistingStream({
+          await resumeOrFinalize({
             streamId: userMessageId,
             assistantId,
-            expectedGen: gen,
-            snapshot: {
-              events: batch.events,
-              status: batch.status,
-            },
-            initialLastEventId:
-              batch.events[batch.events.length - 1]?.eventId ?? termination.lastEventId,
+            gen,
+            fromEventId: termination.lastEventId,
+            signal: abortController.signal,
           })
-
-          if (streamGenRef.current === gen && !reconnectResult.aborted) {
-            finalize(reconnectResult.error ? { error: true } : undefined)
-          }
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return
@@ -1827,17 +1841,13 @@ export function useChat(
               .find((m) => m.role === 'assistant')
             const recoveryAssistantId = lastAssistantMsg?.id ?? assistantId
 
-            const reconnectResult = await attachToExistingStream({
+            await resumeOrFinalize({
               streamId: pendingRecovery.streamId,
               assistantId: recoveryAssistantId,
-              expectedGen: gen,
+              gen,
+              fromEventId: lastEventIdRef.current,
               snapshot: pendingRecovery.snapshot,
-              initialLastEventId: lastEventIdRef.current,
             })
-
-            if (streamGenRef.current === gen && !reconnectResult.aborted) {
-              finalize(reconnectResult.error ? { error: true } : undefined)
-            }
             return
           } catch (recoveryError) {
             logger.warn('Failed to recover active stream after conflict', {
@@ -1845,6 +1855,53 @@ export function useChat(
               error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
             })
           }
+        }
+
+        const activeStreamId = streamIdRef.current
+        if (activeStreamId && streamGenRef.current === gen) {
+          for (let attempt = 0; attempt < MAX_RECONNECT_ATTEMPTS; attempt++) {
+            if (streamGenRef.current !== gen) return
+            if (abortControllerRef.current?.signal.aborted) return
+
+            const delayMs = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** attempt, RECONNECT_MAX_DELAY_MS)
+            logger.info('Reconnect attempt after network error', {
+              streamId: activeStreamId,
+              attempt: attempt + 1,
+              maxAttempts: MAX_RECONNECT_ATTEMPTS,
+              delayMs,
+              error: errorMessage,
+            })
+
+            setIsReconnecting(true)
+            await new Promise((resolve) => setTimeout(resolve, delayMs))
+
+            if (streamGenRef.current !== gen) return
+            if (abortControllerRef.current?.signal.aborted) return
+
+            try {
+              await resumeOrFinalize({
+                streamId: activeStreamId,
+                assistantId,
+                gen,
+                fromEventId: lastEventIdRef.current,
+                signal: abortController.signal,
+              })
+              return
+            } catch (reconnectErr) {
+              if (reconnectErr instanceof Error && reconnectErr.name === 'AbortError') return
+              logger.warn('Reconnect attempt failed', {
+                streamId: activeStreamId,
+                attempt: attempt + 1,
+                error: reconnectErr instanceof Error ? reconnectErr.message : String(reconnectErr),
+              })
+            }
+          }
+
+          logger.error('All reconnect attempts exhausted', {
+            streamId: activeStreamId,
+            maxAttempts: MAX_RECONNECT_ATTEMPTS,
+          })
+          setIsReconnecting(false)
         }
 
         setError(errorMessage)
@@ -1859,7 +1916,7 @@ export function useChat(
       queryClient,
       processSSEStream,
       finalize,
-      attachToExistingStream,
+      resumeOrFinalize,
       preparePendingStreamRecovery,
     ]
   )
