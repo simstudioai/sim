@@ -158,42 +158,39 @@ export const Dropdown = memo(function Dropdown({
         : []
     : null
 
-  const fetchOptionsIfNeeded = useCallback(async (force = fetchErrorRef.current !== null) => {
-    if (
-      !fetchOptions ||
-      isPreview ||
-      disabled ||
-      (!force && hasAttemptedOptionsFetchRef.current) ||
-      isOptionsFetchInFlightRef.current
-    ) {
-      return
-    }
+  const fetchOptionsIfNeeded = useCallback(
+    async (force = fetchErrorRef.current !== null) => {
+      if (
+        !fetchOptions ||
+        isPreview ||
+        disabled ||
+        (!force && hasAttemptedOptionsFetchRef.current) ||
+        isOptionsFetchInFlightRef.current
+      ) {
+        return
+      }
 
-    isOptionsFetchInFlightRef.current = true
-    hasAttemptedOptionsFetchRef.current = true
-    setHasAttemptedOptionsFetch(true)
-    fetchErrorRef.current = null
-    setIsLoadingOptions(true)
-    setFetchError(null)
-    try {
-      const options = await fetchOptions(blockId, subBlockId)
-      setFetchedOptions(options)
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
-      fetchErrorRef.current = errorMessage
-      setFetchError(errorMessage)
-      setFetchedOptions([])
-    } finally {
-      isOptionsFetchInFlightRef.current = false
-      setIsLoadingOptions(false)
-    }
-  }, [
-    fetchOptions,
-    blockId,
-    subBlockId,
-    isPreview,
-    disabled,
-  ])
+      isOptionsFetchInFlightRef.current = true
+      hasAttemptedOptionsFetchRef.current = true
+      setHasAttemptedOptionsFetch(true)
+      fetchErrorRef.current = null
+      setIsLoadingOptions(true)
+      setFetchError(null)
+      try {
+        const options = await fetchOptions(blockId, subBlockId)
+        setFetchedOptions(options)
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
+        fetchErrorRef.current = errorMessage
+        setFetchError(errorMessage)
+        setFetchedOptions([])
+      } finally {
+        isOptionsFetchInFlightRef.current = false
+        setIsLoadingOptions(false)
+      }
+    },
+    [fetchOptions, blockId, subBlockId, isPreview, disabled]
+  )
 
   /**
    * Handles combobox open state changes to trigger option fetching
@@ -201,7 +198,7 @@ export const Dropdown = memo(function Dropdown({
   const handleOpenChange = useCallback(
     (open: boolean) => {
       if (open) {
-        void fetchOptionsIfNeeded()
+        void fetchOptionsIfNeeded(true)
       }
     },
     [fetchOptionsIfNeeded]

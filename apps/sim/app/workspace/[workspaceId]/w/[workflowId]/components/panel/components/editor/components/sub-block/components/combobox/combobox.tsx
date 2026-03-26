@@ -133,42 +133,39 @@ export const ComboBox = memo(function ComboBox({
   /**
    * Fetches options from the async fetchOptions function if provided
    */
-  const fetchOptionsIfNeeded = useCallback(async (force = fetchErrorRef.current !== null) => {
-    if (
-      !fetchOptions ||
-      isPreview ||
-      disabled ||
-      (!force && hasAttemptedOptionsFetchRef.current) ||
-      isOptionsFetchInFlightRef.current
-    ) {
-      return
-    }
+  const fetchOptionsIfNeeded = useCallback(
+    async (force = fetchErrorRef.current !== null) => {
+      if (
+        !fetchOptions ||
+        isPreview ||
+        disabled ||
+        (!force && hasAttemptedOptionsFetchRef.current) ||
+        isOptionsFetchInFlightRef.current
+      ) {
+        return
+      }
 
-    isOptionsFetchInFlightRef.current = true
-    hasAttemptedOptionsFetchRef.current = true
-    setHasAttemptedOptionsFetch(true)
-    fetchErrorRef.current = null
-    setIsLoadingOptions(true)
-    setFetchError(null)
-    try {
-      const options = await fetchOptions(blockId, subBlockId)
-      setFetchedOptions(options)
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
-      fetchErrorRef.current = errorMessage
-      setFetchError(errorMessage)
-      setFetchedOptions([])
-    } finally {
-      isOptionsFetchInFlightRef.current = false
-      setIsLoadingOptions(false)
-    }
-  }, [
-    fetchOptions,
-    blockId,
-    subBlockId,
-    isPreview,
-    disabled,
-  ])
+      isOptionsFetchInFlightRef.current = true
+      hasAttemptedOptionsFetchRef.current = true
+      setHasAttemptedOptionsFetch(true)
+      fetchErrorRef.current = null
+      setIsLoadingOptions(true)
+      setFetchError(null)
+      try {
+        const options = await fetchOptions(blockId, subBlockId)
+        setFetchedOptions(options)
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
+        fetchErrorRef.current = errorMessage
+        setFetchError(errorMessage)
+        setFetchedOptions([])
+      } finally {
+        isOptionsFetchInFlightRef.current = false
+        setIsLoadingOptions(false)
+      }
+    },
+    [fetchOptions, blockId, subBlockId, isPreview, disabled]
+  )
 
   // Determine the active value based on mode (preview vs. controlled vs. store)
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
@@ -460,7 +457,7 @@ export const ComboBox = memo(function ComboBox({
   const handleOpenChange = useCallback(
     (open: boolean) => {
       if (open) {
-        void fetchOptionsIfNeeded()
+        void fetchOptionsIfNeeded(true)
       }
     },
     [fetchOptionsIfNeeded]
