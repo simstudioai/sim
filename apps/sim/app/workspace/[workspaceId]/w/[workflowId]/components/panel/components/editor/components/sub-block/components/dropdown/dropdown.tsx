@@ -135,6 +135,7 @@ export const Dropdown = memo(function Dropdown({
   const optionsFetchVersionRef = useRef(0)
   const isOptionsFetchInFlightRef = useRef(false)
   const hasAttemptedOptionsFetchRef = useRef(false)
+  const fetchOptionsIfNeededRef = useRef<((force?: boolean) => Promise<void>) | null>(null)
 
   const [builderData, setBuilderData] = useSubBlockValue<any[]>(blockId, 'builderData')
   const [data, setData] = useSubBlockValue<string>(blockId, 'data')
@@ -196,7 +197,7 @@ export const Dropdown = memo(function Dropdown({
         isOptionsFetchInFlightRef.current = false
 
         if (shouldTriggerReplacementFetch) {
-          void fetchOptionsIfNeeded(true)
+          void fetchOptionsIfNeededRef.current?.(true)
         } else {
           setIsLoadingOptions(false)
         }
@@ -204,6 +205,10 @@ export const Dropdown = memo(function Dropdown({
     },
     [fetchOptions, blockId, subBlockId, isPreview, disabled]
   )
+
+  useEffect(() => {
+    fetchOptionsIfNeededRef.current = fetchOptionsIfNeeded
+  }, [fetchOptionsIfNeeded])
 
   /**
    * Handles combobox open state changes to trigger option fetching

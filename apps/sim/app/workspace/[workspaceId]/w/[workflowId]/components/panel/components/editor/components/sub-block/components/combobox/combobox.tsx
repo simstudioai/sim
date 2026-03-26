@@ -129,6 +129,7 @@ export const ComboBox = memo(function ComboBox({
   const optionsFetchVersionRef = useRef(0)
   const isOptionsFetchInFlightRef = useRef(false)
   const hasAttemptedOptionsFetchRef = useRef(false)
+  const fetchOptionsIfNeededRef = useRef<((force?: boolean) => Promise<void>) | null>(null)
 
   /**
    * Fetches options from the async fetchOptions function if provided
@@ -171,7 +172,7 @@ export const ComboBox = memo(function ComboBox({
         isOptionsFetchInFlightRef.current = false
 
         if (shouldTriggerReplacementFetch) {
-          void fetchOptionsIfNeeded(true)
+          void fetchOptionsIfNeededRef.current?.(true)
         } else {
           setIsLoadingOptions(false)
         }
@@ -179,6 +180,10 @@ export const ComboBox = memo(function ComboBox({
     },
     [fetchOptions, blockId, subBlockId, isPreview, disabled]
   )
+
+  useEffect(() => {
+    fetchOptionsIfNeededRef.current = fetchOptionsIfNeeded
+  }, [fetchOptionsIfNeeded])
 
   // Determine the active value based on mode (preview vs. controlled vs. store)
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue

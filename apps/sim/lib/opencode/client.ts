@@ -5,6 +5,7 @@ const OPEN_CODE_HOST = 'opencode'
 const OPEN_CODE_LOCALHOST = '127.0.0.1'
 const OPEN_CODE_DEFAULT_PORT = '4096'
 const IS_DOCKER_RUNTIME = existsSync('/.dockerenv')
+let cachedOpenCodeClient: ReturnType<typeof createOpencodeClient> | null = null
 
 function getOpenCodeBasicAuthHeader(): string {
   const username = process.env.OPENCODE_SERVER_USERNAME
@@ -30,10 +31,18 @@ function getOpenCodeBaseUrl(): string {
 }
 
 export function createOpenCodeClient() {
-  return createOpencodeClient({
-    baseUrl: getOpenCodeBaseUrl(),
-    headers: {
-      Authorization: getOpenCodeBasicAuthHeader(),
-    },
-  })
+  if (!cachedOpenCodeClient) {
+    cachedOpenCodeClient = createOpencodeClient({
+      baseUrl: getOpenCodeBaseUrl(),
+      headers: {
+        Authorization: getOpenCodeBasicAuthHeader(),
+      },
+    })
+  }
+
+  return cachedOpenCodeClient
+}
+
+export function resetOpenCodeClientForTesting(): void {
+  cachedOpenCodeClient = null
 }
