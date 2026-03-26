@@ -209,7 +209,9 @@ export async function POST(request: NextRequest) {
                   error: endpointValidation.error,
                 })
                 return NextResponse.json(
-                  { error: `Discovered OIDC ${key} failed security validation: ${endpointValidation.error}` },
+                  {
+                    error: `Discovered OIDC ${key} failed security validation: ${endpointValidation.error}`,
+                  },
                   { status: 400 }
                 )
               }
