@@ -27,12 +27,12 @@ const SKELETON_SECTIONS = [3, 2, 2] as const
 
 interface SettingsSidebarProps {
   isCollapsed?: boolean
-  showCollapsedContent?: boolean
+  showCollapsedTooltips?: boolean
 }
 
 export function SettingsSidebar({
   isCollapsed = false,
-  showCollapsedContent = false,
+  showCollapsedTooltips = false,
 }: SettingsSidebarProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -74,55 +74,62 @@ export function SettingsSidebar({
   }, [userId, ssoProvidersData?.providers, isLoadingSSO])
 
   const navigationItems = useMemo(() => {
-    return allNavigationItems.flatMap((item) => {
+    return allNavigationItems.filter((item) => {
       if (item.hideWhenBillingDisabled && !isBillingEnabled) {
-        return []
+        return false
       }
 
       if (item.id === 'template-profile') {
-        return []
+        return false
       }
       if (item.id === 'apikeys' && permissionConfig.hideApiKeysTab) {
-        return []
+        return false
       }
       if (item.id === 'mcp' && permissionConfig.disableMcpTools) {
-        return []
+        return false
       }
       if (item.id === 'custom-tools' && permissionConfig.disableCustomTools) {
-        return []
+        return false
       }
       if (item.id === 'skills' && permissionConfig.disableSkills) {
-        return []
+        return false
       }
 
       if (item.selfHostedOverride && !isHosted) {
         if (item.id === 'sso') {
           const hasProviders = (ssoProvidersData?.providers?.length ?? 0) > 0
-          return !hasProviders || isSSOProviderOwner === true ? [{ ...item, disabled: false }] : []
+          return !hasProviders || isSSOProviderOwner === true
         }
-        return [{ ...item, disabled: false }]
+        return true
+      }
+
+      if (item.requiresTeam && (!hasTeamPlan || !isOrgAdminOrOwner)) {
+        return false
+      }
+
+      if (item.requiresEnterprise && (!hasEnterprisePlan || !isOrgAdminOrOwner)) {
+        return false
+      }
+
+      if (item.requiresMax && !subscriptionAccess.hasUsableMaxAccess && !item.showWhenLocked) {
+        return false
       }
 
       if (item.requiresHosted && !isHosted) {
-        return []
+        return false
       }
 
       const superUserModeEnabled = generalSettings?.superUserModeEnabled ?? false
       const effectiveSuperUser = isSuperUser && superUserModeEnabled
       if (item.requiresSuperUser && !effectiveSuperUser) {
-        return []
+        return false
       }
 
       if (item.requiresAdminRole && !isSuperUser) {
-        return []
+        return false
       }
 
-      const disabled =
-        (item.requiresTeam && (!hasTeamPlan || !isOrgAdminOrOwner)) ||
-        (item.requiresEnterprise && (!hasEnterprisePlan || !isOrgAdminOrOwner)) ||
-        (item.requiresMax && !subscriptionAccess.hasUsableMaxAccess)
-
-      return [{ ...item, disabled }]
+      return true
     })
   }, [
     hasTeamPlan,
@@ -192,7 +199,7 @@ export function SettingsSidebar({
               <span className='truncate font-base text-[var(--text-body)]'>Back</span>
             </button>
           </Tooltip.Trigger>
-          {showCollapsedContent && (
+          {showCollapsedTooltips && (
             <Tooltip.Content side='right'>
               <p>Back</p>
             </Tooltip.Content>
@@ -250,20 +257,22 @@ export function SettingsSidebar({
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
-                    const disabled = Boolean(item.disabled)
+                    const isLocked = item.requiresMax && !subscriptionAccess.hasUsableMaxAccess
                     const itemClassName = cn(
-                      'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px]',
-                      disabled
-                        ? 'cursor-not-allowed opacity-50'
-                        : 'hover:bg-[var(--surface-active)]',
-                      active && !disabled && 'bg-[var(--surface-active)]'
+                      'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
+                      active && 'bg-[var(--surface-active)]'
                     )
                     const content = (
                       <>
                         <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                        <span className='truncate font-base text-[var(--text-body)]'>
+                        <span className='min-w-0 truncate font-base text-[var(--text-body)]'>
                           {item.label}
                         </span>
+                        {isLocked && (
+                          <span className='ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-[4px] py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
+                            Max
+                          </span>
+                        )}
                       </>
                     )
 
@@ -280,11 +289,9 @@ export function SettingsSidebar({
                       <button
                         type='button'
                         className={itemClassName}
-                        disabled={disabled}
                         onMouseEnter={() => handlePrefetch(item.id)}
                         onFocus={() => handlePrefetch(item.id)}
                         onClick={() =>
-                          !disabled &&
                           router.replace(getSettingsHref({ section: item.id as SettingsSection }), {
                             scroll: false,
                           })
@@ -297,7 +304,7 @@ export function SettingsSidebar({
                     return (
                       <Tooltip.Root key={`${item.id}-${isCollapsed}`}>
                         <Tooltip.Trigger asChild>{element}</Tooltip.Trigger>
-                        {showCollapsedContent && (
+                        {showCollapsedTooltips && (
                           <Tooltip.Content side='right'>
                             <p>{item.label}</p>
                           </Tooltip.Content>
