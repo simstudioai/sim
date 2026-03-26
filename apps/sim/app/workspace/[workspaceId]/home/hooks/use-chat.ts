@@ -1803,6 +1803,7 @@ export function useChat(
             fileAttachments,
             contexts,
           }
+          pendingRecoveryMessageRef.current = queuedMessage
           setPendingRecoveryMessage(queuedMessage)
 
           try {
