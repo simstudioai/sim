@@ -980,6 +980,7 @@ import {
   grainListTeamsTool,
   grainListViewsTool,
 } from '@/tools/grain'
+import { granolaGetNoteTool, granolaListNotesTool } from '@/tools/granola'
 import {
   greenhouseGetApplicationTool,
   greenhouseGetCandidateTool,
@@ -2660,6 +2661,8 @@ export const tools: Record<string, ToolConfig> = {
   greenhouse_list_departments: greenhouseListDepartmentsTool,
   greenhouse_list_offices: greenhouseListOfficesTool,
   greenhouse_list_job_stages: greenhouseListJobStagesTool,
+  granola_list_notes: granolaListNotesTool,
+  granola_get_note: granolaGetNoteTool,
   guardrails_validate: guardrailsValidateTool,
   hex_cancel_run: hexCancelRunTool,
   hex_create_collection: hexCreateCollectionTool,
