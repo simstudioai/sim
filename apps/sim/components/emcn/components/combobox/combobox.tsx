@@ -523,6 +523,7 @@ const Combobox = memo(
                         'w-full pr-10 font-medium transition-colors hover-hover:bg-[var(--surface-7)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]',
                         (overlayContent || SelectedIcon) && 'text-transparent caret-foreground',
                         SelectedIcon && !overlayContent && 'pl-7',
+                        open && 'focus-visible:border-[var(--border-1)]',
                         className
                       )}
                       placeholder={placeholder}
