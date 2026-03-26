@@ -1086,10 +1086,9 @@ export function useChat(
                 break
               }
               case 'reasoning': {
-                const d = (typeof parsed.data === 'object' ? parsed.data : {}) as Record<
-                  string,
-                  unknown
-                >
+                const d = (
+                  parsed.data && typeof parsed.data === 'object' ? parsed.data : {}
+                ) as Record<string, unknown>
                 const phase = d.phase as string | undefined
                 if (phase === 'start') {
                   const tb = ensureTextBlock()
@@ -1098,13 +1097,11 @@ export function useChat(
                   streamingContentRef.current = runningText
                   flush()
                 } else if (phase === 'end') {
-                  const last = blocks[blocks.length - 1]
-                  if (last?.type === 'text') {
-                    last.content = `${last.content ?? ''}</thinking>`
-                    runningText += '</thinking>'
-                    streamingContentRef.current = runningText
-                    flush()
-                  }
+                  const tb = ensureTextBlock()
+                  tb.content = `${tb.content ?? ''}</thinking>`
+                  runningText += '</thinking>'
+                  streamingContentRef.current = runningText
+                  flush()
                 } else {
                   const chunk =
                     typeof d.data === 'string' ? d.data : (parsed.content as string | undefined)
