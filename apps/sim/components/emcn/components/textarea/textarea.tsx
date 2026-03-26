@@ -12,16 +12,16 @@ import { cn } from '@/lib/core/utils/cn'
  * - **ghost** - Transparent background, border only on focus/hover
  */
 const textareaVariants = cva(
-  'flex w-full touch-manipulation rounded-sm border font-medium font-sans text-sm text-[var(--text-primary)] transition-colors placeholder:text-[var(--text-muted)] outline-none resize-none overflow-auto disabled:cursor-not-allowed disabled:opacity-50',
+  'flex w-full touch-manipulation rounded-sm border px-2 py-2 font-medium font-sans text-sm text-[var(--text-primary)] transition-colors placeholder:text-[var(--text-muted)] outline-none resize-none overflow-auto disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       variant: {
         default:
-          'border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-2 focus-visible:border-[var(--text-muted)]',
+          'border-[var(--border-1)] bg-[var(--surface-5)] focus-visible:border-[var(--text-muted)]',
         error:
-          'border-[var(--text-error)] bg-[var(--surface-5)] px-2 py-2 focus-visible:border-[var(--text-error)]',
+          'border-[var(--text-error)] bg-[var(--surface-5)] focus-visible:border-[var(--text-error)]',
         ghost:
-          'border-transparent bg-transparent px-2 py-2 hover-hover:bg-[var(--surface-4)] focus-visible:border-[var(--border-1)] focus-visible:bg-[var(--surface-5)]',
+          'border-transparent bg-transparent hover-hover:bg-[var(--surface-4)] focus-visible:border-[var(--border-1)] focus-visible:bg-[var(--surface-5)]',
       },
     },
     defaultVariants: {

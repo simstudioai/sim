@@ -16,6 +16,8 @@ import { cn } from '@/lib/core/utils/cn'
  * - **info** - Blue background for informational highlights
  * - **success** - Green background for positive confirmations
  */
+// TODO: Replace raw Tailwind palette colors with semantic tokens once
+// muted banner background tokens (e.g. --banner-destructive-bg) are added to globals.css.
 const bannerVariants = cva('shrink-0 px-6 py-2.5', {
   variants: {
     variant: {
