@@ -153,7 +153,7 @@ export function OAuthRequiredModal({
                     Permissions requested
                   </h4>
                 </div>
-                <ul className='max-h-[330px] space-y-[10px] overflow-y-auto px-[14px] py-[12px]'>
+                <ul className='max-h-[200px] space-y-[10px] overflow-y-auto px-[14px] py-[12px]'>
                   {displayScopes.map((scope) => (
                     <li key={scope} className='flex items-start gap-[10px]'>
                       <div className='mt-[2px] flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>

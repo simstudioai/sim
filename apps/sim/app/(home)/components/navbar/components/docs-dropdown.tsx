@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { AgentIcon, GithubOutlineIcon, McpIcon } from '@/components/icons'
 
 const PREVIEW_CARDS = [
@@ -46,12 +47,13 @@ export function DocsDropdown() {
             rel='noopener noreferrer'
             className='group/card overflow-hidden rounded-[5px] border border-[#2A2A2A] bg-[#1C1C1C] transition-colors hover:border-[#3D3D3D] hover:bg-[#2A2A2A]'
           >
-            <div className='h-[120px] w-full overflow-hidden bg-[#141414]'>
-              <img
+            <div className='relative h-[120px] w-full overflow-hidden bg-[#141414]'>
+              <Image
                 src={card.image}
                 alt={card.title}
-                decoding='async'
-                className='h-full w-full scale-[1.04] object-cover transition-transform duration-200 group-hover/card:scale-[1.06]'
+                fill
+                sizes='220px'
+                className='scale-[1.04] object-cover transition-transform duration-200 group-hover/card:scale-[1.06]'
               />
             </div>
             <div className='px-[10px] py-[8px]'>

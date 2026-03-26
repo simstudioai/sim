@@ -5,7 +5,7 @@ export const WORKFLOW_TOOL_NAMES = [
   'run_from_block',
 ] as const
 
-export const WORKFLOW_TOOL_NAME_SET = new Set<string>(WORKFLOW_TOOL_NAMES)
+const WORKFLOW_TOOL_NAME_SET = new Set<string>(WORKFLOW_TOOL_NAMES)
 
 export function isWorkflowToolName(name: string): boolean {
   return WORKFLOW_TOOL_NAME_SET.has(name)

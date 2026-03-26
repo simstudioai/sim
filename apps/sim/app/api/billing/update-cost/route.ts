@@ -1,10 +1,8 @@
-import { db } from '@sim/db'
-import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { logModelUsage } from '@/lib/billing/core/usage-log'
+import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { checkInternalApiKey } from '@/lib/copilot/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -87,53 +85,39 @@ export async function POST(req: NextRequest) {
       source,
     })
 
-    // Check if user stats record exists (same as ExecutionLogger)
-    const userStatsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
-
-    if (userStatsRecords.length === 0) {
-      logger.error(
-        `[${requestId}] User stats record not found - should be created during onboarding`,
-        {
-          userId,
-        }
-      )
-      return NextResponse.json({ error: 'User stats record not found' }, { status: 500 })
-    }
-
     const totalTokens = inputTokens + outputTokens
 
-    const updateFields: Record<string, unknown> = {
-      totalCost: sql`total_cost + ${cost}`,
-      currentPeriodCost: sql`current_period_cost + ${cost}`,
+    const additionalStats: Record<string, ReturnType<typeof sql>> = {
       totalCopilotCost: sql`total_copilot_cost + ${cost}`,
       currentPeriodCopilotCost: sql`current_period_copilot_cost + ${cost}`,
       totalCopilotCalls: sql`total_copilot_calls + 1`,
       totalCopilotTokens: sql`total_copilot_tokens + ${totalTokens}`,
-      lastActive: new Date(),
     }
 
     if (isMcp) {
-      updateFields.totalMcpCopilotCost = sql`total_mcp_copilot_cost + ${cost}`
-      updateFields.currentPeriodMcpCopilotCost = sql`current_period_mcp_copilot_cost + ${cost}`
-      updateFields.totalMcpCopilotCalls = sql`total_mcp_copilot_calls + 1`
+      additionalStats.totalMcpCopilotCost = sql`total_mcp_copilot_cost + ${cost}`
+      additionalStats.currentPeriodMcpCopilotCost = sql`current_period_mcp_copilot_cost + ${cost}`
+      additionalStats.totalMcpCopilotCalls = sql`total_mcp_copilot_calls + 1`
     }
 
-    await db.update(userStats).set(updateFields).where(eq(userStats.userId, userId))
+    await recordUsage({
+      userId,
+      entries: [
+        {
+          category: 'model',
+          source,
+          description: model,
+          cost,
+          metadata: { inputTokens, outputTokens },
+        },
+      ],
+      additionalStats,
+    })
 
-    logger.info(`[${requestId}] Updated user stats record`, {
+    logger.info(`[${requestId}] Recorded usage`, {
       userId,
       addedCost: cost,
       source,
-    })
-
-    // Log usage for complete audit trail with the original source for visibility
-    await logModelUsage({
-      userId,
-      source,
-      model,
-      inputTokens,
-      outputTokens,
-      cost,
     })
 
     // Check if user has hit overage threshold and bill incrementally

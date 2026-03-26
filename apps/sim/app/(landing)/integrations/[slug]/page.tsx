@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { TEMPLATES } from '@/app/workspace/[workspaceId]/home/components/template-prompts/consts'
 import { IntegrationIcon } from '../components/integration-icon'
 import { blockTypeToIconMap } from '../data/icon-mapping'
@@ -11,6 +13,7 @@ import { TemplateCardButton } from './components/template-card-button'
 
 const allIntegrations = integrations as Integration[]
 const INTEGRATION_COUNT = allIntegrations.length
+const baseUrl = getBaseUrl()
 
 /** Fast O(1) lookups — avoids repeated linear scans inside render loops. */
 const bySlug = new Map(allIntegrations.map((i) => [i.slug, i]))
@@ -173,16 +176,24 @@ export async function generateMetadata({
     openGraph: {
       title: `${name} Integration — AI Workflow Automation | Sim`,
       description: `Connect ${name} to ${INTEGRATION_COUNT - 1}+ tools using AI agents. ${description.slice(0, 100).trimEnd()}.`,
-      url: `https://sim.ai/integrations/${slug}`,
+      url: `${baseUrl}/integrations/${slug}`,
       type: 'website',
-      images: [{ url: 'https://sim.ai/opengraph-image.png', width: 1200, height: 630 }],
+      images: [
+        {
+          url: `${baseUrl}/opengraph-image.png`,
+          width: 1200,
+          height: 630,
+          alt: `${name} Integration — Sim`,
+        },
+      ],
     },
     twitter: {
       card: 'summary_large_image',
       title: `${name} Integration | Sim`,
       description: `Automate ${name} with AI-powered workflows. Connect to ${INTEGRATION_COUNT - 1}+ tools. Free to start.`,
+      images: [{ url: `${baseUrl}/opengraph-image.png`, alt: `${name} Integration — Sim` }],
     },
-    alternates: { canonical: `https://sim.ai/integrations/${slug}` },
+    alternates: { canonical: `${baseUrl}/integrations/${slug}` },
   }
 }
 
@@ -211,14 +222,14 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sim.ai' },
+      { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
       {
         '@type': 'ListItem',
         position: 2,
         name: 'Integrations',
-        item: 'https://sim.ai/integrations',
+        item: `${baseUrl}/integrations`,
       },
-      { '@type': 'ListItem', position: 3, name, item: `https://sim.ai/integrations/${slug}` },
+      { '@type': 'ListItem', position: 3, name, item: `${baseUrl}/integrations/${slug}` },
     ],
   }
 
@@ -227,7 +238,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
     '@type': 'SoftwareApplication',
     name: `${name} Integration`,
     description,
-    url: `https://sim.ai/integrations/${slug}`,
+    url: `${baseUrl}/integrations/${slug}`,
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web',
     featureList: operations.map((o) => o.name),
@@ -647,39 +658,43 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             </div>
 
             {/* Related integrations — internal linking for SEO */}
-            {relatedIntegrations.length > 0 && (
-              <div className='rounded-lg border border-[#2A2A2A] bg-[#242424] p-5'>
-                <h3 className='mb-4 font-[500] text-[#ECECEC] text-[14px]'>Related integrations</h3>
-                <ul className='space-y-2'>
-                  {relatedIntegrations.map((rel) => (
-                    <li key={rel.slug}>
-                      <Link
-                        href={`/integrations/${rel.slug}`}
-                        className='flex items-center gap-2.5 rounded-[6px] p-1.5 text-[#999] text-[13px] transition-colors hover:bg-[#2A2A2A] hover:text-[#ECECEC]'
-                      >
-                        <IntegrationIcon
-                          bgColor={rel.bgColor}
-                          name={rel.name}
-                          Icon={blockTypeToIconMap[rel.type]}
-                          as='span'
-                          className='h-6 w-6 rounded-[4px]'
-                          iconClassName='h-3.5 w-3.5'
-                          fallbackClassName='text-[10px]'
-                          aria-hidden='true'
-                        />
-                        {rel.name}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href='/integrations'
-                  className='mt-4 block text-[#555] text-[12px] transition-colors hover:text-[#999]'
-                >
-                  All integrations →
-                </Link>
-              </div>
-            )}
+            <div className='rounded-lg border border-[#2A2A2A] bg-[#242424] p-5'>
+              {relatedIntegrations.length > 0 && (
+                <>
+                  <h3 className='mb-4 font-[500] text-[#ECECEC] text-[14px]'>
+                    Related integrations
+                  </h3>
+                  <ul className='space-y-2'>
+                    {relatedIntegrations.map((rel) => (
+                      <li key={rel.slug}>
+                        <Link
+                          href={`/integrations/${rel.slug}`}
+                          className='flex items-center gap-2.5 rounded-[6px] p-1.5 text-[#999] text-[13px] transition-colors hover:bg-[#2A2A2A] hover:text-[#ECECEC]'
+                        >
+                          <IntegrationIcon
+                            bgColor={rel.bgColor}
+                            name={rel.name}
+                            Icon={blockTypeToIconMap[rel.type]}
+                            as='span'
+                            className='h-6 w-6 rounded-[4px]'
+                            iconClassName='h-3.5 w-3.5'
+                            fallbackClassName='text-[10px]'
+                            aria-hidden='true'
+                          />
+                          {rel.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <Link
+                href='/integrations'
+                className={`block text-[#555] text-[12px] transition-colors hover:text-[#999]${relatedIntegrations.length > 0 ? ' mt-4' : ''}`}
+              >
+                All integrations →
+              </Link>
+            </div>
           </aside>
         </div>
 
@@ -690,10 +705,12 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
         >
           {/* Logo pair: Sim × Integration */}
           <div className='mx-auto mb-6 flex items-center justify-center gap-3'>
-            <img
+            <Image
               src='/brandbook/logo/small.png'
               alt='Sim'
-              className='h-14 w-14 shrink-0 rounded-xl'
+              width={56}
+              height={56}
+              className='shrink-0 rounded-xl'
             />
             <div className='flex items-center gap-2'>
               <span className='h-px w-5 bg-[#3d3d3d]' aria-hidden='true' />

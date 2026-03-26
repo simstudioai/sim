@@ -4,7 +4,8 @@
  */
 
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
-import { isFree, isPro } from '@/lib/billing/plan-helpers'
+import { getPlanTierCredits, isEnterprise, isFree, isPro } from '@/lib/billing/plan-helpers'
+import { hasUsableSubscriptionAccess } from '@/lib/billing/subscriptions/utils'
 import { USAGE_PILL_COLORS } from './consts'
 import type { BillingStatus, SubscriptionData, UsageData } from './types'
 
@@ -35,6 +36,27 @@ export function getSubscriptionStatus(
     status: subscriptionData?.status ?? null,
     seats: subscriptionData?.seats ?? null,
     metadata: subscriptionData?.metadata ?? null,
+  }
+}
+
+export function getSubscriptionAccessState(
+  subscriptionData: Partial<SubscriptionData> | null | undefined
+) {
+  const status = getSubscriptionStatus(subscriptionData)
+  const billingBlocked = Boolean(subscriptionData?.billingBlocked)
+  const hasUsablePaidAccess = hasUsableSubscriptionAccess(status.status, billingBlocked)
+  const hasUsableTeamAccess = hasUsablePaidAccess && (status.isTeam || status.isEnterprise)
+  const hasUsableEnterpriseAccess = hasUsablePaidAccess && status.isEnterprise
+  const hasUsableMaxAccess =
+    hasUsablePaidAccess && (getPlanTierCredits(status.plan) >= 25000 || isEnterprise(status.plan))
+
+  return {
+    ...status,
+    billingBlocked,
+    hasUsablePaidAccess,
+    hasUsableTeamAccess,
+    hasUsableEnterpriseAccess,
+    hasUsableMaxAccess,
   }
 }
 

@@ -16,7 +16,7 @@ import {
   getOrgUsageLimit,
   maybeSendUsageThresholdEmail,
 } from '@/lib/billing/core/usage'
-import { logWorkflowUsageBatch } from '@/lib/billing/core/usage-log'
+import { type ModelUsageMetadata, recordUsage } from '@/lib/billing/core/usage-log'
 import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -36,6 +36,17 @@ import type {
   WorkflowState,
 } from '@/lib/logs/types'
 import type { SerializableExecutionState } from '@/executor/execution/types'
+
+/** Maps execution trigger types to their corresponding userStats counter columns */
+const TRIGGER_COUNTER_MAP: Record<string, { key: string; column: string }> = {
+  manual: { key: 'totalManualExecutions', column: 'total_manual_executions' },
+  api: { key: 'totalApiCalls', column: 'total_api_calls' },
+  webhook: { key: 'totalWebhookTriggers', column: 'total_webhook_triggers' },
+  schedule: { key: 'totalScheduledExecutions', column: 'total_scheduled_executions' },
+  chat: { key: 'totalChatExecutions', column: 'total_chat_executions' },
+  mcp: { key: 'totalMcpExecutions', column: 'total_mcp_executions' },
+  a2a: { key: 'totalA2aExecutions', column: 'total_a2a_executions' },
+} as const
 
 export interface ToolCall {
   name: string
@@ -634,66 +645,58 @@ export class ExecutionLogger implements IExecutionLoggerService {
         return
       }
 
-      const costToStore = costSummary.totalCost
+      const entries: Array<{
+        category: 'model' | 'fixed'
+        source: 'workflow'
+        description: string
+        cost: number
+        metadata?: ModelUsageMetadata | null
+      }> = []
 
-      const existing = await db.select().from(userStats).where(eq(userStats.userId, userId))
-      if (existing.length === 0) {
-        logger.error('User stats record not found - should be created during onboarding', {
-          userId,
-          trigger,
+      if (costSummary.baseExecutionCharge > 0) {
+        entries.push({
+          category: 'fixed',
+          source: 'workflow',
+          description: 'execution_fee',
+          cost: costSummary.baseExecutionCharge,
         })
-        return
       }
 
-      // All costs go to currentPeriodCost - credits are applied at end of billing cycle
-      const updateFields: any = {
+      if (costSummary.models) {
+        for (const [modelName, modelData] of Object.entries(costSummary.models)) {
+          if (modelData.total > 0) {
+            entries.push({
+              category: 'model',
+              source: 'workflow',
+              description: modelName,
+              cost: modelData.total,
+              metadata: {
+                inputTokens: modelData.tokens.input,
+                outputTokens: modelData.tokens.output,
+                ...(modelData.toolCost != null &&
+                  modelData.toolCost > 0 && { toolCost: modelData.toolCost }),
+              },
+            })
+          }
+        }
+      }
+
+      const additionalStats: Record<string, ReturnType<typeof sql>> = {
         totalTokensUsed: sql`total_tokens_used + ${costSummary.totalTokens}`,
-        totalCost: sql`total_cost + ${costToStore}`,
-        currentPeriodCost: sql`current_period_cost + ${costToStore}`,
-        lastActive: new Date(),
       }
 
-      switch (trigger) {
-        case 'manual':
-          updateFields.totalManualExecutions = sql`total_manual_executions + 1`
-          break
-        case 'api':
-          updateFields.totalApiCalls = sql`total_api_calls + 1`
-          break
-        case 'webhook':
-          updateFields.totalWebhookTriggers = sql`total_webhook_triggers + 1`
-          break
-        case 'schedule':
-          updateFields.totalScheduledExecutions = sql`total_scheduled_executions + 1`
-          break
-        case 'chat':
-          updateFields.totalChatExecutions = sql`total_chat_executions + 1`
-          break
-        case 'mcp':
-          updateFields.totalMcpExecutions = sql`total_mcp_executions + 1`
-          break
-        case 'a2a':
-          updateFields.totalA2aExecutions = sql`total_a2a_executions + 1`
-          break
+      const triggerCounter = TRIGGER_COUNTER_MAP[trigger]
+      if (triggerCounter) {
+        additionalStats[triggerCounter.key] = sql`${sql.raw(triggerCounter.column)} + 1`
       }
 
-      await db.update(userStats).set(updateFields).where(eq(userStats.userId, userId))
-
-      logger.debug('Updated user stats record with cost data', {
+      await recordUsage({
         userId,
-        trigger,
-        addedCost: costToStore,
-        addedTokens: costSummary.totalTokens,
-      })
-
-      // Log usage entries for auditing (batch insert for performance)
-      await logWorkflowUsageBatch({
-        userId,
+        entries,
         workspaceId: workflowRecord.workspaceId ?? undefined,
         workflowId,
         executionId,
-        baseExecutionCharge: costSummary.baseExecutionCharge,
-        models: costSummary.models,
+        additionalStats,
       })
 
       // Check if user has hit overage threshold and bill incrementally

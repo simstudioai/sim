@@ -1,69 +1,35 @@
 'use client'
 
-interface SpeechRecognitionEvent extends Event {
-  resultIndex: number
-  results: SpeechRecognitionResultList
-}
-
-interface SpeechRecognitionErrorEvent extends Event {
-  error: string
-}
-
-interface SpeechRecognitionInstance extends EventTarget {
-  continuous: boolean
-  interimResults: boolean
-  lang: string
-  start(): void
-  stop(): void
-  abort(): void
-  onstart: ((ev: Event) => void) | null
-  onend: ((ev: Event) => void) | null
-  onresult: ((ev: SpeechRecognitionEvent) => void) | null
-  onerror: ((ev: SpeechRecognitionErrorEvent) => void) | null
-}
-
-interface SpeechRecognitionStatic {
-  new (): SpeechRecognitionInstance
-}
-
-type WindowWithSpeech = Window & {
-  SpeechRecognition?: SpeechRecognitionStatic
-  webkitSpeechRecognition?: SpeechRecognitionStatic
-}
-
+import type React from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp, Loader2, Mic, Paperclip, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSearchInput,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-  Tooltip,
-} from '@/components/emcn'
-import { Database, Plus, Sim, Table as TableIcon } from '@/components/emcn/icons'
-import {
-  AudioIcon,
-  CsvIcon,
-  DocxIcon,
-  getDocumentIcon,
-  JsonIcon,
-  MarkdownIcon,
-  PdfIcon,
-  TxtIcon,
-  VideoIcon,
-  XlsxIcon,
-} from '@/components/icons/document-icons'
+import { Database, Table as TableIcon } from '@/components/emcn/icons'
+import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
-import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import type {
+  PlusMenuHandle,
+  SpeechRecognitionErrorEvent,
+  SpeechRecognitionEvent,
+  SpeechRecognitionInstance,
+  WindowWithSpeech,
+} from '@/app/workspace/[workspaceId]/home/components/user-input/_components'
+import {
+  AnimatedPlaceholderEffect,
+  AttachedFilesList,
+  autoResizeTextarea,
+  DropOverlay,
+  MAX_CHAT_TEXTAREA_HEIGHT,
+  MicButton,
+  mapResourceToContext,
+  OVERLAY_CLASSES,
+  PlusMenuDropdown,
+  SendButton,
+  SPEECH_RECOGNITION_LANG,
+  TEXTAREA_BASE_CLASSES,
+} from '@/app/workspace/[workspaceId]/home/components/user-input/_components'
 import type {
   FileAttachmentForApi,
   MothershipResource,
@@ -74,80 +40,13 @@ import {
   useMentionMenu,
   useMentionTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
+import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import {
   computeMentionHighlightRanges,
   extractContextTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { ChatContext } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useAnimatedPlaceholder } from '../../hooks'
-
-const TEXTAREA_BASE_CLASSES = cn(
-  'm-0 box-border h-auto min-h-[24px] w-full resize-none',
-  'overflow-y-auto overflow-x-hidden break-all border-0 bg-transparent',
-  'px-[4px] py-[4px] font-body text-[15px] leading-[24px] tracking-[-0.015em]',
-  'text-transparent caret-[var(--text-primary)] outline-none',
-  'placeholder:font-[380] placeholder:text-[var(--text-subtle)]',
-  'focus-visible:ring-0 focus-visible:ring-offset-0',
-  '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-)
-
-const OVERLAY_CLASSES = cn(
-  'pointer-events-none absolute top-0 left-0 m-0 box-border h-auto w-full resize-none',
-  'overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all border-0 bg-transparent',
-  'px-[4px] py-[4px] font-body text-[15px] leading-[24px] tracking-[-0.015em]',
-  'text-[var(--text-primary)] outline-none',
-  '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-)
-
-const SEND_BUTTON_BASE = 'h-[28px] w-[28px] rounded-full border-0 p-0 transition-colors'
-const SEND_BUTTON_ACTIVE =
-  'bg-[var(--c-383838)] hover:bg-[var(--c-575757)] dark:bg-[var(--c-E0E0E0)] dark:hover:bg-[var(--c-CFCFCF)]'
-const SEND_BUTTON_DISABLED = 'bg-[var(--c-808080)] dark:bg-[var(--c-808080)]'
-
-const MAX_CHAT_TEXTAREA_HEIGHT = 200
-const SPEECH_RECOGNITION_LANG = 'en-US'
-
-const DROP_OVERLAY_ICONS = [
-  PdfIcon,
-  DocxIcon,
-  XlsxIcon,
-  CsvIcon,
-  TxtIcon,
-  MarkdownIcon,
-  JsonIcon,
-  AudioIcon,
-  VideoIcon,
-] as const
-
-function autoResizeTextarea(e: React.FormEvent<HTMLTextAreaElement>, maxHeight: number) {
-  const target = e.target as HTMLTextAreaElement
-  target.style.height = 'auto'
-  target.style.height = `${Math.min(target.scrollHeight, maxHeight)}px`
-}
-
-function mapResourceToContext(resource: MothershipResource): ChatContext {
-  switch (resource.type) {
-    case 'workflow':
-      return {
-        kind: 'workflow',
-        workflowId: resource.id,
-        label: resource.title,
-      }
-    case 'knowledgebase':
-      return {
-        kind: 'knowledge',
-        knowledgeId: resource.id,
-        label: resource.title,
-      }
-    case 'table':
-      return { kind: 'table', tableId: resource.id, label: resource.title }
-    case 'file':
-      return { kind: 'file', fileId: resource.id, label: resource.title }
-    default:
-      return { kind: 'docs', label: resource.title }
-  }
-}
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -181,10 +80,8 @@ export function UserInput({
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { data: session } = useSession()
   const [value, setValue] = useState(defaultValue)
-  const [plusMenuOpen, setPlusMenuOpen] = useState(false)
-  const [plusMenuSearch, setPlusMenuSearch] = useState('')
-  const [plusMenuActiveIndex, setPlusMenuActiveIndex] = useState(0)
   const overlayRef = useRef<HTMLDivElement>(null)
+  const plusMenuRef = useRef<PlusMenuHandle>(null)
 
   const [prevDefaultValue, setPrevDefaultValue] = useState(defaultValue)
   if (defaultValue && defaultValue !== prevDefaultValue) {
@@ -206,9 +103,6 @@ export function UserInput({
     if (editValue) onEditValueConsumed?.()
   }, [editValue, onEditValueConsumed])
 
-  const animatedPlaceholder = useAnimatedPlaceholder(isInitialView)
-  const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
-
   const files = useFileAttachments({
     userId: userId || session?.user?.id,
     workspaceId,
@@ -219,12 +113,14 @@ export function UserInput({
 
   const contextManagement = useContextManagement({ message: value })
 
+  const { addContext } = contextManagement
+
   const handleContextAdd = useCallback(
     (context: ChatContext) => {
-      contextManagement.addContext(context)
+      addContext(context)
       onContextAdd?.(context)
     },
-    [contextManagement, onContextAdd]
+    [addContext, onContextAdd]
   )
 
   const existingResourceKeys = useMemo(() => {
@@ -239,14 +135,6 @@ export function UserInput({
   }, [contextManagement.selectedContexts])
 
   const availableResources = useAvailableResources(workspaceId, existingResourceKeys)
-
-  const filteredPlusMenuItems = useMemo(() => {
-    const q = plusMenuSearch.toLowerCase().trim()
-    if (!q) return null
-    return availableResources.flatMap(({ type, items }) =>
-      items.filter((item) => item.name.toLowerCase().includes(q)).map((item) => ({ type, item }))
-    )
-  }, [plusMenuSearch, availableResources])
 
   const mentionMenu = useMentionMenu({
     message: value,
@@ -269,6 +157,11 @@ export function UserInput({
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const prefixRef = useRef('')
   const valueRef = useRef(value)
+
+  const filesRef = useRef(files)
+  filesRef.current = files
+  const contextRef = useRef(contextManagement)
+  contextRef.current = contextManagement
 
   useEffect(() => {
     return () => {
@@ -300,13 +193,14 @@ export function UserInput({
     (resource: MothershipResource) => {
       const textarea = textareaRef.current
       if (textarea) {
-        const insertAt = atInsertPosRef.current ?? textarea.selectionStart ?? value.length
+        const currentValue = valueRef.current
+        const insertAt = atInsertPosRef.current ?? textarea.selectionStart ?? currentValue.length
         atInsertPosRef.current = null
 
-        const needsSpaceBefore = insertAt > 0 && !/\s/.test(value.charAt(insertAt - 1))
+        const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
         const insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
-        const before = value.slice(0, insertAt)
-        const after = value.slice(insertAt)
+        const before = currentValue.slice(0, insertAt)
+        const after = currentValue.slice(insertAt)
         const newPos = before.length + insertText.length
         pendingCursorRef.current = newPos
         setValue(`${before}${insertText}${after}`)
@@ -314,47 +208,35 @@ export function UserInput({
 
       const context = mapResourceToContext(resource)
       handleContextAdd(context)
-      setPlusMenuOpen(false)
     },
-    [textareaRef, value, handleContextAdd]
+    [textareaRef, handleContextAdd]
   )
 
-  const handlePlusMenuSearchKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      const items = filteredPlusMenuItems
-      if (!items) return
-      if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        setPlusMenuActiveIndex((prev) => Math.min(prev + 1, items.length - 1))
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        setPlusMenuActiveIndex((prev) => Math.max(prev - 1, 0))
-      } else if (e.key === 'Enter') {
-        e.preventDefault()
-        if (items.length > 0 && items[plusMenuActiveIndex]) {
-          const { type, item } = items[plusMenuActiveIndex]
-          handleResourceSelect({ type, id: item.id, title: item.name })
-          setPlusMenuOpen(false)
-          setPlusMenuSearch('')
-          setPlusMenuActiveIndex(0)
-        }
-      }
-    },
-    [filteredPlusMenuItems, plusMenuActiveIndex, handleResourceSelect]
-  )
+  const handlePlusMenuClose = useCallback(() => {
+    atInsertPosRef.current = null
+  }, [])
 
-  const handleContainerDragOver = useCallback(
-    (e: React.DragEvent) => {
-      if (e.dataTransfer.types.includes('application/x-sim-resource')) {
-        e.preventDefault()
-        e.stopPropagation()
-        e.dataTransfer.dropEffect = 'copy'
-        return
-      }
-      files.handleDragOver(e)
-    },
-    [files]
-  )
+  const handleFileSelectStable = useCallback(() => {
+    filesRef.current.handleFileSelect()
+  }, [])
+
+  const handleFileClick = useCallback((file: AttachedFile) => {
+    filesRef.current.handleFileClick(file)
+  }, [])
+
+  const handleRemoveFile = useCallback((id: string) => {
+    filesRef.current.removeFile(id)
+  }, [])
+
+  const handleContainerDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('application/x-sim-resource')) {
+      e.preventDefault()
+      e.stopPropagation()
+      e.dataTransfer.dropEffect = 'copy'
+      return
+    }
+    filesRef.current.handleDragOver(e)
+  }, [])
 
   const handleContainerDrop = useCallback(
     (e: React.DragEvent) => {
@@ -370,10 +252,22 @@ export function UserInput({
         }
         return
       }
-      files.handleDrop(e)
+      filesRef.current.handleDrop(e)
     },
-    [handleResourceSelect, files]
+    [handleResourceSelect]
   )
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    filesRef.current.handleDragEnter(e)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    filesRef.current.handleDragLeave(e)
+  }, [])
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    filesRef.current.handleFileChange(e)
+  }, [])
 
   useEffect(() => {
     if (wasSendingRef.current && !isSending) {
@@ -468,14 +362,18 @@ export function UserInput({
       return
     }
 
-    prefixRef.current = value
+    prefixRef.current = valueRef.current
     if (startRecognition()) {
       setIsListening(true)
     }
-  }, [isListening, value, startRecognition])
+  }, [isListening, startRecognition])
 
   const handleSubmit = useCallback(() => {
-    const fileAttachmentsForApi: FileAttachmentForApi[] = files.attachedFiles
+    const currentFiles = filesRef.current
+    const currentContext = contextRef.current
+    const currentValue = valueRef.current
+
+    const fileAttachmentsForApi: FileAttachmentForApi[] = currentFiles.attachedFiles
       .filter((f) => !f.uploading && f.key)
       .map((f) => ({
         id: f.id,
@@ -486,19 +384,19 @@ export function UserInput({
       }))
 
     onSubmit(
-      value,
+      currentValue,
       fileAttachmentsForApi.length > 0 ? fileAttachmentsForApi : undefined,
-      contextManagement.selectedContexts.length > 0 ? contextManagement.selectedContexts : undefined
+      currentContext.selectedContexts.length > 0 ? currentContext.selectedContexts : undefined
     )
     setValue('')
     restartRecognition('')
-    files.clearAttachedFiles()
-    contextManagement.clearContexts()
+    currentFiles.clearAttachedFiles()
+    currentContext.clearContexts()
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
-  }, [onSubmit, files, value, contextManagement, textareaRef, restartRecognition])
+  }, [onSubmit, restartRecognition, textareaRef])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -588,9 +486,7 @@ export function UserInput({
         const adjusted = `${before}${after}`
         setValue(adjusted)
         atInsertPosRef.current = caret - 1
-        setPlusMenuOpen(true)
-        setPlusMenuSearch('')
-        setPlusMenuActiveIndex(0)
+        plusMenuRef.current?.open()
         restartRecognition(adjusted)
         return
       }
@@ -619,7 +515,6 @@ export function UserInput({
       const maxHeight = isInitialView ? window.innerHeight * 0.3 : MAX_CHAT_TEXTAREA_HEIGHT
       autoResizeTextarea(e, maxHeight)
 
-      // Sync overlay scroll
       if (overlayRef.current) {
         overlayRef.current.scrollTop = (e.target as HTMLTextAreaElement).scrollTop
       }
@@ -627,7 +522,13 @@ export function UserInput({
     [isInitialView]
   )
 
-  const renderOverlayContent = useCallback(() => {
+  const handleScroll = useCallback((e: React.UIEvent<HTMLTextAreaElement>) => {
+    if (overlayRef.current) {
+      overlayRef.current.scrollTop = e.currentTarget.scrollTop
+    }
+  }, [])
+
+  const overlayContent = useMemo(() => {
     const contexts = contextManagement.selectedContexts
 
     if (!value) {
@@ -732,77 +633,26 @@ export function UserInput({
         'relative z-10 mx-auto w-full max-w-[42rem] cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--white)] px-[10px] py-[8px] dark:bg-[var(--surface-4)]',
         isInitialView && 'shadow-sm'
       )}
-      onDragEnter={files.handleDragEnter}
-      onDragLeave={files.handleDragLeave}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
       onDragOver={handleContainerDragOver}
       onDrop={handleContainerDrop}
     >
-      {/* Attached files */}
-      {files.attachedFiles.length > 0 && (
-        <div className='mb-[6px] flex flex-wrap gap-[6px]'>
-          {files.attachedFiles.map((file) => {
-            const isImage = file.type.startsWith('image/')
-            return (
-              <Tooltip.Root key={file.id}>
-                <Tooltip.Trigger asChild>
-                  <div
-                    className='group relative h-[56px] w-[56px] flex-shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-5)] hover:bg-[var(--surface-4)]'
-                    onClick={() => files.handleFileClick(file)}
-                  >
-                    {isImage && file.previewUrl ? (
-                      <img
-                        src={file.previewUrl}
-                        alt={file.name}
-                        className='h-full w-full object-cover'
-                      />
-                    ) : (
-                      <div className='flex h-full w-full flex-col items-center justify-center gap-[2px] text-[var(--text-icon)]'>
-                        {(() => {
-                          const Icon = getDocumentIcon(file.type, file.name)
-                          return <Icon className='h-[18px] w-[18px]' />
-                        })()}
-                        <span className='max-w-[48px] truncate px-[2px] text-[9px] text-[var(--text-muted)]'>
-                          {file.name.split('.').pop()}
-                        </span>
-                      </div>
-                    )}
-                    {file.uploading && (
-                      <div className='absolute inset-0 flex items-center justify-center bg-black/50'>
-                        <Loader2 className='h-[14px] w-[14px] animate-spin text-white' />
-                      </div>
-                    )}
-                    {!file.uploading && (
-                      <button
-                        type='button'
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          files.removeFile(file.id)
-                        }}
-                        className='absolute top-[2px] right-[2px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-black/60 opacity-0 group-hover:opacity-100'
-                      >
-                        <X className='h-[10px] w-[10px] text-white' />
-                      </button>
-                    )}
-                  </div>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top'>
-                  <p className='max-w-[200px] truncate'>{file.name}</p>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            )
-          })}
-        </div>
-      )}
+      <AnimatedPlaceholderEffect textareaRef={textareaRef} isInitialView={isInitialView} />
 
-      {/* Textarea with overlay for highlighting */}
+      <AttachedFilesList
+        attachedFiles={files.attachedFiles}
+        onFileClick={handleFileClick}
+        onRemoveFile={handleRemoveFile}
+      />
+
       <div className='relative'>
-        {/* Highlight overlay */}
         <div
           ref={overlayRef}
           className={cn(OVERLAY_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}
           aria-hidden='true'
         >
-          {renderOverlayContent()}
+          {overlayContent}
         </div>
 
         <textarea
@@ -814,12 +664,8 @@ export function UserInput({
           onCut={mentionTokensWithContext.handleCut}
           onSelect={handleSelectAdjust}
           onMouseUp={handleSelectAdjust}
-          onScroll={(e) => {
-            if (overlayRef.current) {
-              overlayRef.current.scrollTop = e.currentTarget.scrollTop
-            }
-          }}
-          placeholder={placeholder}
+          onScroll={handleScroll}
+          placeholder=''
           rows={1}
           className={cn(TEXTAREA_BASE_CLASSES, isInitialView ? 'max-h-[30vh]' : 'max-h-[200px]')}
         />
@@ -827,219 +673,37 @@ export function UserInput({
 
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-[6px]'>
-          <DropdownMenu
-            open={plusMenuOpen}
-            onOpenChange={(open) => {
-              setPlusMenuOpen(open)
-              if (!open) {
-                setPlusMenuSearch('')
-                setPlusMenuActiveIndex(0)
-                atInsertPosRef.current = null
-              }
-            }}
-          >
-            <DropdownMenuTrigger asChild>
-              <button
-                type='button'
-                className='flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-full border border-[#F0F0F0] transition-colors hover:bg-[#F7F7F7] dark:border-[#3d3d3d] dark:hover:bg-[#303030]'
-                title='Add attachments or resources'
-              >
-                <Plus className='h-[16px] w-[16px] text-[var(--text-icon)]' />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align='start'
-              side='top'
-              sideOffset={8}
-              className='flex w-[240px] flex-col overflow-hidden'
-              onCloseAutoFocus={(e) => {
-                e.preventDefault()
-                const textarea = textareaRef.current
-                if (!textarea) return
-                if (pendingCursorRef.current !== null) {
-                  textarea.setSelectionRange(pendingCursorRef.current, pendingCursorRef.current)
-                  pendingCursorRef.current = null
-                }
-                textarea.focus()
-              }}
-            >
-              <DropdownMenuSearchInput
-                placeholder='Search resources...'
-                value={plusMenuSearch}
-                onChange={(e) => {
-                  setPlusMenuSearch(e.target.value)
-                  setPlusMenuActiveIndex(0)
-                }}
-                onKeyDown={handlePlusMenuSearchKeyDown}
-              />
-              <div className='min-h-0 flex-1 overflow-y-auto'>
-                {filteredPlusMenuItems ? (
-                  filteredPlusMenuItems.length > 0 ? (
-                    filteredPlusMenuItems.map(({ type, item }, index) => {
-                      const config = getResourceConfig(type)
-                      return (
-                        <DropdownMenuItem
-                          key={`${type}:${item.id}`}
-                          className={cn(
-                            index === plusMenuActiveIndex && 'bg-[var(--surface-active)]'
-                          )}
-                          onMouseEnter={() => setPlusMenuActiveIndex(index)}
-                          onClick={() => {
-                            handleResourceSelect({
-                              type,
-                              id: item.id,
-                              title: item.name,
-                            })
-                            setPlusMenuOpen(false)
-                            setPlusMenuSearch('')
-                            setPlusMenuActiveIndex(0)
-                          }}
-                        >
-                          {config.renderDropdownItem({ item })}
-                          <span className='ml-auto pl-[8px] text-[11px] text-[var(--text-tertiary)]'>
-                            {config.label}
-                          </span>
-                        </DropdownMenuItem>
-                      )
-                    })
-                  ) : (
-                    <div className='px-[8px] py-[5px] text-center font-medium text-[12px] text-[var(--text-tertiary)]'>
-                      No results
-                    </div>
-                  )
-                ) : (
-                  <>
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setPlusMenuOpen(false)
-                        files.handleFileSelect()
-                      }}
-                    >
-                      <Paperclip className='h-[14px] w-[14px]' strokeWidth={2} />
-                      <span>Attachments</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <Sim className='h-[14px] w-[14px]' fill='currentColor' />
-                        <span>Workspace</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent>
-                        {availableResources.map(({ type, items }) => {
-                          if (items.length === 0) return null
-                          const config = getResourceConfig(type)
-                          const Icon = config.icon
-                          return (
-                            <DropdownMenuSub key={type}>
-                              <DropdownMenuSubTrigger>
-                                {type === 'workflow' ? (
-                                  <div
-                                    className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
-                                    style={{
-                                      backgroundColor: '#808080',
-                                      borderColor: '#80808060',
-                                      backgroundClip: 'padding-box',
-                                    }}
-                                  />
-                                ) : (
-                                  <Icon className='h-[14px] w-[14px]' />
-                                )}
-                                <span>{config.label}</span>
-                              </DropdownMenuSubTrigger>
-                              <DropdownMenuSubContent>
-                                {items.map((item) => (
-                                  <DropdownMenuItem
-                                    key={item.id}
-                                    onClick={() => {
-                                      handleResourceSelect({
-                                        type,
-                                        id: item.id,
-                                        title: item.name,
-                                      })
-                                      setPlusMenuOpen(false)
-                                    }}
-                                  >
-                                    {config.renderDropdownItem({ item })}
-                                  </DropdownMenuItem>
-                                ))}
-                              </DropdownMenuSubContent>
-                            </DropdownMenuSub>
-                          )
-                        })}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  </>
-                )}
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <PlusMenuDropdown
+            ref={plusMenuRef}
+            availableResources={availableResources}
+            onResourceSelect={handleResourceSelect}
+            onFileSelect={handleFileSelectStable}
+            onClose={handlePlusMenuClose}
+            textareaRef={textareaRef}
+            pendingCursorRef={pendingCursorRef}
+          />
         </div>
         <div className='flex items-center gap-[6px]'>
-          <button
-            type='button'
-            onClick={toggleListening}
-            className={cn(
-              'flex h-[28px] w-[28px] items-center justify-center rounded-full transition-colors',
-              isListening
-                ? 'bg-red-500 text-white hover:bg-red-600'
-                : 'text-[var(--text-icon)] hover:bg-[#F7F7F7] dark:hover:bg-[#303030]'
-            )}
-            title={isListening ? 'Stop listening' : 'Voice input'}
-          >
-            <Mic className='h-[16px] w-[16px]' strokeWidth={2} />
-          </button>
-          {isSending ? (
-            <Button
-              onClick={onStopGeneration}
-              className={cn(SEND_BUTTON_BASE, SEND_BUTTON_ACTIVE)}
-              title='Stop generation'
-            >
-              <svg
-                className='block h-[14px] w-[14px] fill-white dark:fill-black'
-                viewBox='0 0 24 24'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
-              </svg>
-            </Button>
-          ) : (
-            <Button
-              onClick={handleSubmit}
-              disabled={!canSubmit}
-              className={cn(
-                SEND_BUTTON_BASE,
-                canSubmit ? SEND_BUTTON_ACTIVE : SEND_BUTTON_DISABLED
-              )}
-            >
-              <ArrowUp
-                className='block h-[16px] w-[16px] text-white dark:text-black'
-                strokeWidth={2.25}
-              />
-            </Button>
-          )}
+          <MicButton isListening={isListening} onToggle={toggleListening} />
+          <SendButton
+            isSending={isSending}
+            canSubmit={canSubmit}
+            onSubmit={handleSubmit}
+            onStopGeneration={onStopGeneration}
+          />
         </div>
       </div>
 
       <input
         ref={files.fileInputRef}
         type='file'
-        onChange={files.handleFileChange}
+        onChange={handleFileChange}
         className='hidden'
         accept={CHAT_ACCEPT_ATTRIBUTE}
         multiple
       />
 
-      {files.isDragging && (
-        <div className='pointer-events-none absolute inset-[6px] z-10 flex items-center justify-center rounded-[14px] border-[1.5px] border-[var(--border-1)] border-dashed bg-[var(--white)] dark:bg-[var(--surface-4)]'>
-          <div className='flex flex-col items-center gap-[8px]'>
-            <span className='font-medium text-[13px] text-[var(--text-secondary)]'>Drop files</span>
-            <div className='flex items-center gap-[8px] text-[var(--text-icon)]'>
-              {DROP_OVERLAY_ICONS.map((Icon, i) => (
-                <Icon key={i} className='h-[14px] w-[14px]' />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {files.isDragging && <DropOverlay />}
     </div>
   )
 }

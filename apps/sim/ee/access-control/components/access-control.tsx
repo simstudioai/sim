@@ -25,7 +25,8 @@ import {
 } from '@/components/emcn'
 import { Input as BaseInput } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
-import { getSubscriptionStatus } from '@/lib/billing/client'
+import { getSubscriptionAccessState } from '@/lib/billing/client'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { getUserRole } from '@/lib/workspaces/organization'
@@ -242,8 +243,8 @@ export function AccessControl() {
   const { data: subscriptionData, isPending: subLoading } = useSubscriptionData()
 
   const activeOrganization = organizationsData?.activeOrganization
-  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
-  const hasEnterprisePlan = subscriptionStatus.isEnterprise
+  const subscriptionStatus = getSubscriptionAccessState(subscriptionData?.data)
+  const hasEnterprisePlan = subscriptionStatus.hasUsableEnterpriseAccess
   const userRole = getUserRole(activeOrganization, session?.user?.email)
   const isOwner = userRole === 'owner'
   const isAdmin = userRole === 'admin'
@@ -683,6 +684,30 @@ export function AccessControl() {
 
   if (isLoading) {
     return <AccessControlSkeleton />
+  }
+
+  if (isBillingEnabled && !canManage) {
+    if (!activeOrganization) {
+      return (
+        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
+          You must be part of an organization to manage Access Control.
+        </div>
+      )
+    }
+    if (!hasEnterprisePlan) {
+      return (
+        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
+          Access Control is available on Enterprise plans only.
+        </div>
+      )
+    }
+    if (!isOrgAdminOrOwner) {
+      return (
+        <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
+          Only organization owners and admins can manage Access Control settings.
+        </div>
+      )
+    }
   }
 
   if (viewingGroup) {

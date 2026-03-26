@@ -24,6 +24,7 @@ import { createLogger } from '@sim/logger'
 import { eq, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -154,8 +155,7 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
       .limit(1)
 
     const userSubscription = await getHighestPrioritySubscription(userId)
-    const isTeamOrEnterpriseMember =
-      userSubscription && ['team', 'enterprise'].includes(userSubscription.plan)
+    const isTeamOrEnterpriseMember = userSubscription && isOrgPlan(userSubscription.plan)
 
     const [orgMembership] = await db
       .select({ organizationId: member.organizationId })

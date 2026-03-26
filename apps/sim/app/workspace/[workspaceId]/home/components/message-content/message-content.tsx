@@ -1,11 +1,21 @@
 'use client'
 
-import { resolveToolDisplay } from '@/lib/copilot/store-utils'
-import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
-import type { ContentBlock, OptionItem, SubagentName, ToolCallData } from '../../types'
-import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '../../types'
-import type { AgentGroupItem } from './components'
-import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
+import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components'
+import {
+  AgentGroup,
+  ChatContent,
+  CircleStop,
+  Options,
+  PendingTagIndicator,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components'
+import type {
+  ContentBlock,
+  MothershipToolName,
+  OptionItem,
+  SubagentName,
+  ToolCallData,
+} from '@/app/workspace/[workspaceId]/home/types'
+import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '@/app/workspace/[workspaceId]/home/types'
 
 interface TextSegment {
   type: 'text'
@@ -45,16 +55,8 @@ const SUBAGENT_DISPATCH_TOOLS: Record<string, string> = {
   file_write: 'workspace_file',
 }
 
-function formatToolName(name: string): string {
-  return name
-    .replace(/_v\d+$/, '')
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ')
-}
-
 function resolveAgentLabel(key: string): string {
-  return SUBAGENT_LABELS[key as SubagentName] ?? formatToolName(key)
+  return SUBAGENT_LABELS[key as SubagentName] ?? key
 }
 
 function isToolDone(status: ToolCallData['status']): boolean {
@@ -65,41 +67,12 @@ function isDelegatingTool(tc: NonNullable<ContentBlock['toolCall']>): boolean {
   return tc.status === 'executing'
 }
 
-function mapToolStatusToClientState(
-  status: ContentBlock['toolCall'] extends { status: infer T } ? T : string
-) {
-  switch (status) {
-    case 'success':
-      return ClientToolCallState.success
-    case 'error':
-      return ClientToolCallState.error
-    case 'cancelled':
-      return ClientToolCallState.cancelled
-    default:
-      return ClientToolCallState.executing
-  }
-}
-
-function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): string | undefined {
-  if (tc.name === 'read' || tc.name.endsWith('_respond')) {
-    return resolveToolDisplay(tc.name, mapToolStatusToClientState(tc.status), tc.id, tc.params)
-      ?.text
-  }
-  return undefined
-}
-
 function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
-  const overrideDisplayTitle = getOverrideDisplayTitle(tc)
-  const displayTitle =
-    overrideDisplayTitle ||
-    tc.displayTitle ||
-    TOOL_UI_METADATA[tc.name as keyof typeof TOOL_UI_METADATA]?.title ||
-    formatToolName(tc.name)
-
   return {
     id: tc.id,
     toolName: tc.name,
-    displayTitle,
+    displayTitle:
+      tc.displayTitle ?? TOOL_UI_METADATA[tc.name as MothershipToolName]?.title ?? tc.name,
     status: tc.status,
     params: tc.params,
     result: tc.result,

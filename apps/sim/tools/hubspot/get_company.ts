@@ -55,7 +55,7 @@ export const hubspotGetCompanyTool: ToolConfig<HubSpotGetCompanyParams, HubSpotG
 
     request: {
       url: (params) => {
-        const baseUrl = `https://api.hubapi.com/crm/v3/objects/companies/${params.companyId}`
+        const baseUrl = `https://api.hubapi.com/crm/v3/objects/companies/${params.companyId.trim()}`
         const queryParams = new URLSearchParams()
 
         if (params.idProperty) {

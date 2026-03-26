@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -12,6 +13,7 @@ function BlogCard({
   image,
   title,
   imageHeight,
+  sizes,
   titleSize = '12px',
   className,
 }: {
@@ -19,6 +21,7 @@ function BlogCard({
   image: string
   title: string
   imageHeight: string
+  sizes: string
   titleSize?: string
   className?: string
 }) {
@@ -31,12 +34,13 @@ function BlogCard({
       )}
       prefetch={false}
     >
-      <div className='w-full overflow-hidden bg-[#141414]' style={{ height: imageHeight }}>
-        <img
+      <div className='relative w-full overflow-hidden bg-[#141414]' style={{ height: imageHeight }}>
+        <Image
           src={image}
           alt={title}
-          decoding='async'
-          className='h-full w-full object-cover transition-transform duration-200 group-hover/card:scale-[1.02]'
+          fill
+          sizes={sizes}
+          className='object-cover transition-transform duration-200 group-hover/card:scale-[1.02]'
         />
       </div>
       <div className='flex-shrink-0 px-[10px] py-[6px]'>
@@ -68,6 +72,7 @@ export function BlogDropdown({ posts }: BlogDropdownProps) {
           image={featured.ogImage}
           title={featured.title}
           imageHeight='190px'
+          sizes='340px'
           titleSize='13px'
           className='col-span-2 row-span-2'
         />
@@ -79,6 +84,7 @@ export function BlogDropdown({ posts }: BlogDropdownProps) {
             image={post.ogImage}
             title={post.title}
             imageHeight='72px'
+            sizes='170px'
           />
         ))}
       </div>

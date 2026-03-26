@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
-import { hasActiveSubscription } from '@/lib/billing'
+import { hasPaidSubscription } from '@/lib/billing'
 
 const logger = createLogger('BillingAuthorization')
 
@@ -24,7 +24,7 @@ export async function authorizeSubscriptionReference(
   }
 
   // Only block duplicate subscriptions during upgrade/checkout, not cancel/restore/list
-  if (action === 'upgrade-subscription' && (await hasActiveSubscription(referenceId))) {
+  if (action === 'upgrade-subscription' && (await hasPaidSubscription(referenceId))) {
     logger.warn('Blocking checkout - active subscription already exists for organization', {
       userId,
       referenceId,

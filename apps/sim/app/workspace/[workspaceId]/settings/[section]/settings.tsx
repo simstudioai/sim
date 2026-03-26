@@ -20,6 +20,7 @@ import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/nav
 import {
   allNavigationItems,
   isBillingEnabled,
+  isCredentialSetsEnabled,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 
 /**
@@ -164,9 +165,11 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const effectiveSection =
     !isBillingEnabled && (section === 'subscription' || section === 'team')
       ? 'general'
-      : section === 'admin' && !sessionLoading && !isAdminRole
+      : section === 'credential-sets' && !isCredentialSetsEnabled
         ? 'general'
-        : section
+        : section === 'admin' && !sessionLoading && !isAdminRole
+          ? 'general'
+          : section
 
   const label =
     allNavigationItems.find((item) => item.id === effectiveSection)?.label ?? effectiveSection

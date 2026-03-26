@@ -18,6 +18,7 @@ import Link from 'next/link'
 import { Badge, ChevronDown } from '@/components/emcn'
 import { Lock } from '@/components/emcn/icons'
 import { GithubIcon } from '@/components/icons'
+import { DemoRequestModal } from '@/app/(home)/components/demo-request/demo-request-modal'
 import { AccessControlPanel } from '@/app/(home)/components/enterprise/components/access-control-panel'
 import { AuditLogPreview } from '@/app/(home)/components/enterprise/components/audit-log-preview'
 
@@ -177,12 +178,12 @@ export default function Enterprise() {
             {/* Fade edges */}
             <div
               aria-hidden='true'
-              className='pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-16'
+              className='pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-24'
               style={{ background: 'linear-gradient(to right, #1C1C1C, transparent)' }}
             />
             <div
               aria-hidden='true'
-              className='pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-16'
+              className='pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-24'
               style={{ background: 'linear-gradient(to left, #1C1C1C, transparent)' }}
             />
             {/* Duplicate tags for seamless loop */}
@@ -204,31 +205,31 @@ export default function Enterprise() {
             <p className='font-[430] font-season text-[#F6F6F6]/40 text-[15px] leading-[150%] tracking-[0.02em]'>
               Ready for growth?
             </p>
-            <Link
-              href='https://form.typeform.com/to/jqCO12pF'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='group/cta inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-white bg-white px-[10px] font-[430] font-season text-[14px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-            >
-              Book a demo
-              <span className='relative h-[10px] w-[10px] shrink-0'>
-                <ChevronDown className='-rotate-90 absolute inset-0 h-[10px] w-[10px] transition-opacity duration-150 group-hover/cta:opacity-0' />
-                <svg
-                  className='absolute inset-0 h-[10px] w-[10px] opacity-0 transition-opacity duration-150 group-hover/cta:opacity-100'
-                  viewBox='0 0 10 10'
-                  fill='none'
-                >
-                  <path
-                    d='M1 5H8M5.5 2L8.5 5L5.5 8'
-                    stroke='currentColor'
-                    strokeWidth='1.33'
-                    strokeLinecap='square'
-                    strokeLinejoin='miter'
+            <DemoRequestModal>
+              <button
+                type='button'
+                className='group/cta inline-flex h-[32px] cursor-pointer items-center gap-[6px] rounded-[5px] border border-white bg-white px-[10px] font-[430] font-season text-[14px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+              >
+                Book a demo
+                <span className='relative h-[10px] w-[10px] shrink-0'>
+                  <ChevronDown className='-rotate-90 absolute inset-0 h-[10px] w-[10px] transition-opacity duration-150 group-hover/cta:opacity-0' />
+                  <svg
+                    className='absolute inset-0 h-[10px] w-[10px] opacity-0 transition-opacity duration-150 group-hover/cta:opacity-100'
+                    viewBox='0 0 10 10'
                     fill='none'
-                  />
-                </svg>
-              </span>
-            </Link>
+                  >
+                    <path
+                      d='M1 5H8M5.5 2L8.5 5L5.5 8'
+                      stroke='currentColor'
+                      strokeWidth='1.33'
+                      strokeLinecap='square'
+                      strokeLinejoin='miter'
+                      fill='none'
+                    />
+                  </svg>
+                </span>
+              </button>
+            </DemoRequestModal>
           </div>
         </div>
       </div>

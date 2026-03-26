@@ -256,7 +256,42 @@ export const UpstashBlock: BlockConfig<UpstashResponse> = {
         if (params.increment !== undefined) {
           params.increment = Number(params.increment)
         }
-        return `upstash_redis_${params.operation}`
+        switch (params.operation) {
+          case 'get':
+            return 'upstash_redis_get'
+          case 'set':
+            return 'upstash_redis_set'
+          case 'delete':
+            return 'upstash_redis_delete'
+          case 'keys':
+            return 'upstash_redis_keys'
+          case 'command':
+            return 'upstash_redis_command'
+          case 'hset':
+            return 'upstash_redis_hset'
+          case 'hget':
+            return 'upstash_redis_hget'
+          case 'hgetall':
+            return 'upstash_redis_hgetall'
+          case 'incr':
+            return 'upstash_redis_incr'
+          case 'incrby':
+            return 'upstash_redis_incrby'
+          case 'exists':
+            return 'upstash_redis_exists'
+          case 'setnx':
+            return 'upstash_redis_setnx'
+          case 'lpush':
+            return 'upstash_redis_lpush'
+          case 'lrange':
+            return 'upstash_redis_lrange'
+          case 'expire':
+            return 'upstash_redis_expire'
+          case 'ttl':
+            return 'upstash_redis_ttl'
+          default:
+            throw new Error(`Unknown operation: ${params.operation}`)
+        }
       },
     },
   },

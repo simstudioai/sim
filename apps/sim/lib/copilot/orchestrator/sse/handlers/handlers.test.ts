@@ -120,7 +120,9 @@ describe('sse-handlers tool lifecycle', () => {
 
   it('marks an in-flight tool as cancelled when aborted mid-execution', async () => {
     const abortController = new AbortController()
+    const userStopController = new AbortController()
     execContext.abortSignal = abortController.signal
+    execContext.userStopSignal = userStopController.signal
 
     executeToolServerSide.mockImplementationOnce(
       () =>
@@ -137,9 +139,15 @@ describe('sse-handlers tool lifecycle', () => {
       } as any,
       context,
       execContext,
-      { interactive: false, timeout: 1000, abortSignal: abortController.signal }
+      {
+        interactive: false,
+        timeout: 1000,
+        abortSignal: abortController.signal,
+        userStopSignal: userStopController.signal,
+      }
     )
 
+    userStopController.abort()
     abortController.abort()
     await new Promise((resolve) => setTimeout(resolve, 10))
 
@@ -148,7 +156,8 @@ describe('sse-handlers tool lifecycle', () => {
       'read',
       499,
       'Request aborted during tool execution',
-      { cancelled: true }
+      { cancelled: true },
+      'msg-1'
     )
 
     const updated = context.toolCalls.get('tool-cancel')

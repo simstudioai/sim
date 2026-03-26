@@ -1,5 +1,6 @@
 import { GoogleGenAI, type Part } from '@google/genai'
 import { createLogger } from '@sim/logger'
+import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -60,6 +61,9 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
     params: GenerateImageArgs,
     context?: ServerToolContext
   ): Promise<GenerateImageResult> {
+    const withMessageId = (message: string) =>
+      appendCopilotLogContext(message, { messageId: context?.messageId })
+
     if (!context?.userId) {
       throw new Error('Authentication required')
     }
@@ -93,17 +97,17 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
               parts.push({
                 inlineData: { mimeType: mime, data: base64 },
               })
-              logger.info('Loaded reference image', {
+              logger.info(withMessageId('Loaded reference image'), {
                 fileId,
                 name: fileRecord.name,
                 size: buffer.length,
                 mimeType: mime,
               })
             } else {
-              logger.warn('Reference file not found, skipping', { fileId })
+              logger.warn(withMessageId('Reference file not found, skipping'), { fileId })
             }
           } catch (err) {
-            logger.warn('Failed to load reference image, skipping', {
+            logger.warn(withMessageId('Failed to load reference image, skipping'), {
               fileId,
               error: err instanceof Error ? err.message : String(err),
             })
@@ -117,7 +121,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
 
       parts.push({ text: prompt + sizeInstruction })
 
-      logger.info('Generating image with Nano Banana 2', {
+      logger.info(withMessageId('Generating image with Nano Banana 2'), {
         model: NANO_BANANA_MODEL,
         aspectRatio,
         promptLength: prompt.length,
@@ -182,7 +186,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
           imageBuffer,
           mimeType
         )
-        logger.info('Generated image overwritten', {
+        logger.info(withMessageId('Generated image overwritten'), {
           fileId: updated.id,
           fileName: updated.name,
           size: imageBuffer.length,
@@ -208,7 +212,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
         mimeType
       )
 
-      logger.info('Generated image saved', {
+      logger.info(withMessageId('Generated image saved'), {
         fileId: uploaded.id,
         fileName: uploaded.name,
         size: imageBuffer.length,
@@ -225,7 +229,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error'
-      logger.error('Image generation failed', { error: msg })
+      logger.error(withMessageId('Image generation failed'), { error: msg })
       return { success: false, message: `Failed to generate image: ${msg}` }
     }
   },
