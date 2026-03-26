@@ -134,7 +134,7 @@ export const ComboBox = memo(function ComboBox({
    * Fetches options from the async fetchOptions function if provided
    */
   const fetchOptionsIfNeeded = useCallback(
-    async (force = fetchErrorRef.current !== null) => {
+    async (force = false) => {
       if (
         !fetchOptions ||
         isPreview ||

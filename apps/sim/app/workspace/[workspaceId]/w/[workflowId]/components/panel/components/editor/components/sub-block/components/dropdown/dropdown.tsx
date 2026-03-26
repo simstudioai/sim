@@ -159,7 +159,7 @@ export const Dropdown = memo(function Dropdown({
     : null
 
   const fetchOptionsIfNeeded = useCallback(
-    async (force = fetchErrorRef.current !== null) => {
+    async (force = false) => {
       if (
         !fetchOptions ||
         isPreview ||
