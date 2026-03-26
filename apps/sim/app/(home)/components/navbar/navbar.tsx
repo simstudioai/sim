@@ -158,19 +158,12 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                         target='_blank'
                         rel='noopener noreferrer'
                         className={cn(linkClass, 'h-full cursor-pointer')}
-                        aria-expanded={isActive}
-                        aria-haspopup='true'
                       >
                         {label}
                         {chevron}
                       </a>
                     ) : (
-                      <Link
-                        href={href}
-                        className={cn(linkClass, 'h-full cursor-pointer')}
-                        aria-expanded={isActive}
-                        aria-haspopup='true'
-                      >
+                      <Link href={href} className={cn(linkClass, 'h-full cursor-pointer')}>
                         {label}
                         {chevron}
                       </Link>
