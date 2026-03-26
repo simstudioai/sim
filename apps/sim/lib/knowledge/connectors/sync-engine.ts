@@ -401,8 +401,6 @@ export async function executeSync(
 
     const seenExternalIds = new Set<string>()
 
-    const pendingProcessing: DocumentData[] = []
-
     const pendingOps: DocOp[] = []
     for (const extDoc of externalDocs) {
       seenExternalIds.add(extDoc.externalId)
@@ -508,10 +506,11 @@ export async function executeSync(
         })
       )
 
+      const batchDocs: DocumentData[] = []
       for (let j = 0; j < settled.length; j++) {
         const outcome = settled[j]
         if (outcome.status === 'fulfilled') {
-          pendingProcessing.push(outcome.value)
+          batchDocs.push(outcome.value)
           if (batch[j].type === 'add') result.docsAdded++
           else result.docsUpdated++
         } else {
@@ -521,6 +520,23 @@ export async function executeSync(
             externalId: batch[j].extDoc.externalId,
             error:
               outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
+          })
+        }
+      }
+
+      if (batchDocs.length > 0) {
+        try {
+          await processDocumentsWithQueue(
+            batchDocs,
+            connector.knowledgeBaseId,
+            {},
+            crypto.randomUUID()
+          )
+        } catch (error) {
+          logger.warn('Failed to enqueue batch for processing — will retry on next sync', {
+            connectorId,
+            count: batchDocs.length,
+            error: error instanceof Error ? error.message : String(error),
           })
         }
       }
@@ -603,24 +619,6 @@ export async function executeSync(
         logger.warn('Failed to enqueue stuck documents for reprocessing', {
           connectorId,
           count: stuckDocs.length,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    }
-
-    // Enqueue all added/updated documents for processing in a single batch
-    if (pendingProcessing.length > 0) {
-      try {
-        await processDocumentsWithQueue(
-          pendingProcessing,
-          connector.knowledgeBaseId,
-          {},
-          crypto.randomUUID()
-        )
-      } catch (error) {
-        logger.warn('Failed to enqueue documents for processing — will retry on next sync', {
-          connectorId,
-          count: pendingProcessing.length,
           error: error instanceof Error ? error.message : String(error),
         })
       }
