@@ -148,6 +148,7 @@ export function Home({ chatId }: HomeProps = {}) {
   const {
     messages,
     isSending,
+    isReconnecting,
     sendMessage,
     stopGeneration,
     resolvedChatId,
@@ -335,6 +336,7 @@ export function Home({ chatId }: HomeProps = {}) {
         <MothershipChat
           messages={messages}
           isSending={isSending}
+          isReconnecting={isReconnecting}
           onSubmit={handleSubmit}
           onStopGeneration={stopGeneration}
           messageQueue={messageQueue}
