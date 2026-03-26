@@ -23,7 +23,7 @@ const FRONTMATTER_REGEX = /^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/
  * If no frontmatter is present, the entire text becomes the content field.
  */
 export function parseSkillMarkdown(raw: string): ParsedSkill {
-  const trimmed = raw.trim()
+  const trimmed = raw.replace(/\r\n/g, '\n').trim()
   const match = trimmed.match(FRONTMATTER_REGEX)
 
   if (!match) {
