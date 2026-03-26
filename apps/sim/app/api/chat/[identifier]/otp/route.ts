@@ -303,6 +303,7 @@ export async function PUT(
       .select({
         id: chat.id,
         authType: chat.authType,
+        password: chat.password,
       })
       .from(chat)
       .where(and(eq(chat.identifier, identifier), eq(chat.isActive, true), isNull(chat.archivedAt)))
@@ -349,7 +350,7 @@ export async function PUT(
     await deleteOTP(email, deployment.id)
 
     const response = addCorsHeaders(createSuccessResponse({ authenticated: true }), request)
-    setChatAuthCookie(response, deployment.id, deployment.authType)
+    setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
 
     return response
   } catch (error: any) {
