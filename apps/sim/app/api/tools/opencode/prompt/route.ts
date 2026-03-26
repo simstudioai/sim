@@ -225,16 +225,13 @@ export async function POST(request: NextRequest) {
           )
 
           const errorMessage =
-            retryError instanceof Error
-              ? retryError.message
-              : 'OpenCode prompt retry failed'
+            retryError instanceof Error ? retryError.message : 'OpenCode prompt retry failed'
           return buildErrorResponse(freshSessionId, '', undefined, errorMessage)
         }
       }
 
       await logOpenCodeFailure('Failed to execute OpenCode prompt', error)
-      const errorMessage =
-        error instanceof Error ? error.message : 'OpenCode prompt failed'
+      const errorMessage = error instanceof Error ? error.message : 'OpenCode prompt failed'
       return buildErrorResponse(threadId || '', '', undefined, errorMessage)
     }
   } catch (error) {

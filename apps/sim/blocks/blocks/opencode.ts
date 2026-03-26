@@ -1,7 +1,7 @@
-import type { BlockConfig } from '@/blocks/types'
 import { OpenCodeIcon } from '@/components/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { coerceOpenCodeBoolean } from '@/lib/opencode/utils'
+import type { BlockConfig } from '@/blocks/types'
 import type { OpenCodePromptResponse } from '@/tools/opencode/types'
 
 const isOpenCodeEnabled = isTruthy(getEnv('NEXT_PUBLIC_OPENCODE_ENABLED'))
@@ -67,7 +67,7 @@ async function fetchOpenCodeOptionById(
   query: Record<string, string | undefined>
 ): Promise<{ label: string; id: string } | null> {
   if (!optionId) {
-    return { label: 'None', id: '' }
+    return null
   }
 
   const options = await fetchOpenCodeOptions(route, query)
@@ -174,6 +174,10 @@ export const OpenCodeBlock: BlockConfig<OpenCodePromptResponse> = {
         return [{ label: 'None', id: '' }, ...agents]
       },
       fetchOptionById: async (blockId, _subBlockId, optionId) => {
+        if (!optionId) {
+          return { label: 'None', id: '' }
+        }
+
         const values = await getOpenCodeBlockValues(blockId)
         const repository = typeof values.repository === 'string' ? values.repository : undefined
         return fetchOpenCodeOptionById('/api/opencode/agents', optionId, {

@@ -9,7 +9,7 @@ describe('getOpenCodeRouteError', () => {
   it('does not leak the internal OpenCode base URL in connectivity errors', () => {
     const error = getOpenCodeRouteError(
       new Error('fetch failed for http://opencode:4096/session'),
-      'repositories',
+      'repositories'
     )
 
     expect(error).toEqual({

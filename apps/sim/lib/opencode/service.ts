@@ -382,12 +382,10 @@ export async function promptOpenCodeSession(
 ): Promise<OpenCodePromptResult> {
   const client = createOpenCodeClient()
   const repositoryOption =
-    request.repositoryOption ||
-    (await resolveOpenCodeRepositoryOption(request.repository))
+    request.repositoryOption || (await resolveOpenCodeRepositoryOption(request.repository))
   const directory = repositoryOption.directory
   const sessionId =
-    request.sessionId ||
-    (await createOpenCodeSession(repositoryOption, request.title)).id
+    request.sessionId || (await createOpenCodeSession(repositoryOption, request.title)).id
 
   const response = await client.session.prompt({
     path: { id: sessionId },
@@ -447,13 +445,7 @@ export async function getStoredOpenCodeSession(
   const result = await db
     .select({ data: memory.data })
     .from(memory)
-    .where(
-      and(
-        eq(memory.workspaceId, workspaceId),
-        eq(memory.key, key),
-        isNull(memory.deletedAt)
-      )
-    )
+    .where(and(eq(memory.workspaceId, workspaceId), eq(memory.key, key), isNull(memory.deletedAt)))
     .limit(1)
 
   if (result.length === 0) {
@@ -554,9 +546,6 @@ function getOpenCodeRetryErrorMessage(error: unknown): string {
   return String(error ?? '')
 }
 
-export async function logOpenCodeFailure(
-  message: string,
-  error: unknown
-): Promise<void> {
+export async function logOpenCodeFailure(message: string, error: unknown): Promise<void> {
   logger.error(message, { error })
 }

@@ -146,6 +146,7 @@ export const ComboBox = memo(function ComboBox({
       }
 
       const fetchVersion = optionsFetchVersionRef.current
+      let shouldTriggerReplacementFetch = false
       isOptionsFetchInFlightRef.current = true
       hasAttemptedOptionsFetchRef.current = true
       setHasAttemptedOptionsFetch(true)
@@ -154,11 +155,13 @@ export const ComboBox = memo(function ComboBox({
       try {
         const options = await fetchOptions(blockId, subBlockId)
         if (fetchVersion !== optionsFetchVersionRef.current) {
+          shouldTriggerReplacementFetch = true
           return
         }
         setFetchedOptions(options)
       } catch (error) {
         if (fetchVersion !== optionsFetchVersionRef.current) {
+          shouldTriggerReplacementFetch = true
           return
         }
         const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
@@ -166,7 +169,12 @@ export const ComboBox = memo(function ComboBox({
         setFetchedOptions([])
       } finally {
         isOptionsFetchInFlightRef.current = false
-        setIsLoadingOptions(false)
+
+        if (shouldTriggerReplacementFetch) {
+          void fetchOptionsIfNeeded(true)
+        } else {
+          setIsLoadingOptions(false)
+        }
       }
     },
     [fetchOptions, blockId, subBlockId, isPreview, disabled]
