@@ -152,15 +152,22 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                     onMouseEnter={() => openDropdown(dropdown)}
                     onMouseLeave={scheduleClose}
                   >
-                    <button
-                      type='button'
-                      className={cn(linkClass, 'h-full cursor-pointer')}
-                      aria-expanded={isActive}
-                      aria-haspopup='true'
-                    >
-                      {label}
-                      {chevron}
-                    </button>
+                    {external ? (
+                      <a
+                        href={href}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className={cn(linkClass, 'h-full cursor-pointer')}
+                      >
+                        {label}
+                        {chevron}
+                      </a>
+                    ) : (
+                      <Link href={href} className={cn(linkClass, 'h-full cursor-pointer')}>
+                        {label}
+                        {chevron}
+                      </Link>
+                    )}
 
                     <div
                       className={cn(
