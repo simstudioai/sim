@@ -303,7 +303,7 @@ export function Home({ chatId }: HomeProps = {}) {
         <div className='flex min-h-full flex-col items-center justify-center px-[24px] pb-[2vh]'>
           <h1
             data-tour='home-greeting'
-            className='mb-[24px] max-w-[42rem] font-[430] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'
+            className='mb-[24px] max-w-[42rem] text-balance font-[430] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'
           >
             What should we get done
             {session?.user?.name ? `, ${session.user.name.split(' ')[0]}` : ''}?

@@ -148,7 +148,7 @@ export default function Enterprise() {
 
           <h2
             id='enterprise-heading'
-            className='max-w-[600px] font-[430] font-season text-[32px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
+            className='max-w-[600px] text-balance font-[430] font-season text-[32px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
           >
             Enterprise features for
             <br />

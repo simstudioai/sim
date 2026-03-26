@@ -242,7 +242,7 @@ export default function Collaboration() {
 
             <h2
               id='collaboration-heading'
-              className='font-[430] font-season text-[32px] text-white leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
+              className='text-balance font-[430] font-season text-[32px] text-white leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
             >
               Realtime
               <br />

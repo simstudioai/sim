@@ -127,7 +127,7 @@ export default function OAuthConsentPage() {
     return (
       <div className='flex flex-col items-center justify-center'>
         <div className='space-y-1 text-center'>
-          <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
+          <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
             Authorize Application
           </h1>
           <p className='font-[430] font-season text-[color-mix(in_srgb,var(--text-primary)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
@@ -142,7 +142,7 @@ export default function OAuthConsentPage() {
     return (
       <div className='flex flex-col items-center justify-center'>
         <div className='space-y-1 text-center'>
-          <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
+          <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
             Authorization Error
           </h1>
           <p className='font-[430] font-season text-[color-mix(in_srgb,var(--text-primary)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
@@ -185,7 +185,7 @@ export default function OAuthConsentPage() {
       </div>
 
       <div className='space-y-1 text-center'>
-        <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
+        <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           Authorize Application
         </h1>
         <p className='font-[430] font-season text-[color-mix(in_srgb,var(--text-primary)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>

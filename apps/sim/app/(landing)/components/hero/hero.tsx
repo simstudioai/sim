@@ -368,7 +368,7 @@ export default function Hero() {
     >
       <h1
         id='hero-heading'
-        className='px-4 text-center font-medium text-[36px] leading-none tracking-tight sm:px-0 sm:text-[74px]'
+        className='text-balance px-4 text-center font-medium text-[36px] leading-none tracking-tight sm:px-0 sm:text-[74px]'
       >
         Workflows for LLMs
       </h1>

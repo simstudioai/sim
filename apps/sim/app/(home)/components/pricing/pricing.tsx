@@ -205,7 +205,7 @@ export default function Pricing() {
 
           <h2
             id='pricing-heading'
-            className='font-[430] font-season text-[32px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
+            className='text-balance font-[430] font-season text-[32px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
           >
             Pricing
           </h2>

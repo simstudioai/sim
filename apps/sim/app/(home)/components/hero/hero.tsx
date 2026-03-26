@@ -62,7 +62,7 @@ export default function Hero() {
       <div className='relative z-10 flex flex-col items-center gap-3'>
         <h1
           id='hero-heading'
-          className='font-[430] font-season text-[36px] text-white leading-[100%] tracking-[-0.02em] sm:text-[48px] lg:text-[72px]'
+          className='text-balance font-[430] font-season text-[36px] text-white leading-[100%] tracking-[-0.02em] sm:text-[48px] lg:text-[72px]'
         >
           Build AI Agents
         </h1>

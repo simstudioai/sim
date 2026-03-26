@@ -213,7 +213,7 @@ export default function Features() {
           </Badge>
           <h2
             id='features-heading'
-            className='max-w-[900px] font-[430] font-season text-[28px] text-[var(--landing-text-dark)] leading-[110%] tracking-[-0.02em] md:text-[40px]'
+            className='max-w-[900px] text-balance font-[430] font-season text-[28px] text-[var(--landing-text-dark)] leading-[110%] tracking-[-0.02em] md:text-[40px]'
           >
             {HEADING_LETTERS.map((char, i) => (
               <ScrollLetter key={i} scrollYProgress={scrollYProgress} charIndex={i}>

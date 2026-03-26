@@ -65,7 +65,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
           </div>
           <div className='flex flex-1 flex-col justify-between'>
             <h1
-              className='font-[500] text-[36px] text-[var(--landing-text)] leading-tight tracking-tight sm:text-[48px] md:text-[56px] lg:text-[64px]'
+              className='text-balance font-[500] text-[36px] text-[var(--landing-text)] leading-tight tracking-tight sm:text-[48px] md:text-[56px] lg:text-[64px]'
               itemProp='headline'
             >
               {post.title}

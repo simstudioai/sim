@@ -50,7 +50,7 @@ export default async function BlogIndex({
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(blogJsonLd) }}
       />
-      <h1 className='mb-3 font-[500] text-[40px] text-[var(--landing-text)] leading-tight sm:text-[56px]'>
+      <h1 className='mb-3 text-balance font-[500] text-[40px] text-[var(--landing-text)] leading-tight sm:text-[56px]'>
         Blog
       </h1>
       <p className='mb-10 text-[var(--landing-text-muted)] text-lg'>

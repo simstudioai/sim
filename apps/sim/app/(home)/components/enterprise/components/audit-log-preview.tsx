@@ -209,8 +209,8 @@ export function AuditLogPreview() {
             transition={{
               layout: {
                 type: 'spring',
-                stiffness: 380,
-                damping: 38,
+                stiffness: 350,
+                damping: 50,
                 mass: 0.8,
               },
               y: { duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] },

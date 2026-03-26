@@ -1316,8 +1316,8 @@ function DefaultPreview() {
             animate={inView ? { top, left, opacity: 1, scale: 1, x: '-50%', y: '-50%' } : undefined}
             transition={{
               type: 'spring',
-              stiffness: 50,
-              damping: 12,
+              stiffness: 80,
+              damping: 20,
               delay: explodeDelay,
             }}
             style={{ color }}

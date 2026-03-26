@@ -129,7 +129,7 @@ export function CreditBalance({
     <div className='flex items-center justify-between'>
       <div className='flex items-center gap-2'>
         <Label>Additional Credits Balance:</Label>
-        <span className='text-[var(--text-secondary)] text-small'>
+        <span className='text-[var(--text-secondary)] text-small tabular-nums'>
           {isLoading ? '...' : `${formatCredits(balance)} credits`}
         </span>
       </div>
@@ -166,7 +166,7 @@ export function CreditBalance({
                       />
                     </div>
                     {dollarAmount > 0 && !displayError && (
-                      <span className='text-[var(--text-secondary)] text-caption'>
+                      <span className='text-[var(--text-secondary)] text-caption tabular-nums'>
                         You'll receive {creditPreview.toLocaleString()} credits
                       </span>
                     )}

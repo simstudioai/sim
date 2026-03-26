@@ -16,7 +16,7 @@ export default async function NotFound() {
         </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
           <div className='flex flex-col items-center gap-3'>
-            <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
+            <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
               Page not found
             </h1>
             <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>

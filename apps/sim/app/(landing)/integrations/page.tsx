@@ -105,7 +105,7 @@ export default function IntegrationsPage() {
         <section aria-labelledby='integrations-heading' className='mb-16'>
           <h1
             id='integrations-heading'
-            className='mb-4 font-[500] text-[#ECECEC] text-[40px] leading-tight sm:text-[56px]'
+            className='mb-4 text-balance font-[500] text-[#ECECEC] text-[40px] leading-tight sm:text-[56px]'
           >
             Integrations
           </h1>

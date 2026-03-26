@@ -207,14 +207,14 @@ function CreditPlanCard({
 
       <div className='flex items-center gap-[12px] rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[10px]'>
         <div className='flex flex-col'>
-          <span className='font-semibold text-[var(--text-primary)] text-lg'>
+          <span className='font-semibold text-[var(--text-primary)] text-lg tabular-nums'>
             {credits.toLocaleString()}
           </span>
           <span className='text-[var(--text-secondary)] text-xs'>credits/mo</span>
         </div>
         <div className='h-[28px] w-[1px] bg-[var(--border-1)]' />
         <div className='flex flex-col'>
-          <span className='font-semibold text-[var(--text-primary)] text-sm'>
+          <span className='font-semibold text-[var(--text-primary)] text-sm tabular-nums'>
             +{dailyRefresh.toLocaleString()}
           </span>
           <span className='text-[var(--text-secondary)] text-xs'>daily refresh</span>
@@ -1107,7 +1107,7 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
                 onClick={() => setSelectedTier(PRO_TIER.credits)}
               >
                 <span className='block font-medium text-[var(--text-primary)] text-small'>Pro</span>
-                <span className='block text-[var(--text-secondary)] text-caption'>
+                <span className='block text-[var(--text-secondary)] text-caption tabular-nums'>
                   {PRO_TIER.credits.toLocaleString()} credits/seat &middot; ${PRO_TIER.dollars}
                   /seat/mo
                 </span>
@@ -1123,7 +1123,7 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
                 onClick={() => setSelectedTier(MAX_TIER.credits)}
               >
                 <span className='block font-medium text-[var(--text-primary)] text-small'>Max</span>
-                <span className='block text-[var(--text-secondary)] text-caption'>
+                <span className='block text-[var(--text-secondary)] text-caption tabular-nums'>
                   {MAX_TIER.credits.toLocaleString()} credits/seat &middot; ${MAX_TIER.dollars}
                   /seat/mo
                 </span>

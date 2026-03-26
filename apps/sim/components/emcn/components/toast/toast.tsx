@@ -196,7 +196,7 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
             type='button'
             onClick={dismiss}
             aria-label='Dismiss notification'
-            className='-m-0.5 shrink-0 rounded-sm p-1 text-[var(--text-icon)] hover:bg-[var(--surface-active)]'
+            className='-m-0.5 relative shrink-0 rounded-sm p-1 text-[var(--text-icon)] before:absolute before:inset-[-8px] before:content-[""] hover:bg-[var(--surface-active)]'
           >
             <X className='h-[14px] w-[14px]' />
           </button>

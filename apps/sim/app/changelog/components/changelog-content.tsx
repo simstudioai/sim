@@ -49,7 +49,9 @@ export default async function ChangelogContent() {
         {/* Left intro panel */}
         <div className='relative top-0 overflow-hidden border-[var(--landing-bg-elevated)] border-b px-6 py-16 sm:px-10 md:sticky md:h-dvh md:border-r md:border-b-0 md:px-12 md:py-24'>
           <div className='relative mx-auto h-full max-w-xl md:flex md:flex-col md:justify-center'>
-            <h1 className='mt-6 font-[500] text-4xl tracking-tight sm:text-5xl'>Changelog</h1>
+            <h1 className='mt-6 text-balance font-[500] text-4xl tracking-tight sm:text-5xl'>
+              Changelog
+            </h1>
             <p className='mt-4 text-[var(--landing-text-muted)] text-sm'>
               Stay up-to-date with the latest features, improvements, and bug fixes in Sim. All
               changes are documented here with detailed release notes.

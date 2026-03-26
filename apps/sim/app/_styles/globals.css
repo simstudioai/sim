@@ -407,7 +407,7 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     caret-color: var(--text-primary);
   }
 
-  .dark body {
+  body {
     @apply antialiased;
   }
   ::-webkit-scrollbar {

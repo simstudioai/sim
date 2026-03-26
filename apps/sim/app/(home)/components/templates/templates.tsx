@@ -466,7 +466,7 @@ export default function Templates() {
 
               <h2
                 id='templates-heading'
-                className='font-[430] font-season text-[28px] text-white leading-[100%] tracking-[-0.02em] lg:text-[40px]'
+                className='text-balance font-[430] font-season text-[28px] text-white leading-[100%] tracking-[-0.02em] lg:text-[40px]'
               >
                 Ship your agent in minutes
               </h2>

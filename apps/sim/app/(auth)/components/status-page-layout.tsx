@@ -26,7 +26,7 @@ export function StatusPageLayout({
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
+                <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
                   {title}
                 </h1>
                 <p className='font-[430] font-season text-[color-mix(in_srgb,var(--text-primary)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
