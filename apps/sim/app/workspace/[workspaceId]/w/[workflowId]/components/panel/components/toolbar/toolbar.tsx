@@ -746,12 +746,12 @@ export const Toolbar = memo(
           >
             <div
               ref={triggersHeaderRef}
-              className='px-2.5 pt-1.25 pb-1.25 font-medium text-[var(--text-primary)] text-small'
+              className='px-2.5 pt-1.5 pb-1.5 font-medium text-[var(--text-primary)] text-small'
             >
               Triggers
             </div>
             <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5'>
-              <div ref={triggersContentRef} className='space-y-0.5 pb-2'>
+              <div ref={triggersContentRef} className='space-y-1 pb-2'>
                 {filteredTriggers.map((trigger, index) => (
                   <ToolbarItem
                     key={trigger.type}
@@ -780,12 +780,12 @@ export const Toolbar = memo(
             <div
               ref={blocksHeaderRef}
               onClick={handleBlocksHeaderClick}
-              className='cursor-pointer px-2.5 pt-1.25 pb-1.25 font-medium text-[var(--text-primary)] text-small'
+              className='cursor-pointer px-2.5 pt-1.5 pb-1.5 font-medium text-[var(--text-primary)] text-small'
             >
               Blocks
             </div>
             <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5'>
-              <div className='space-y-0.5 pb-2'>
+              <div className='space-y-1 pb-2'>
                 {filteredBlocks.map((block, index) => (
                   <ToolbarItem
                     key={block.type}

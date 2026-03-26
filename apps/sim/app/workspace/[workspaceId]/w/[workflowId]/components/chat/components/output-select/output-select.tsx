@@ -327,7 +327,7 @@ export function OutputSelect({
   return (
     <Combobox
       size='sm'
-      className='!w-fit !py-0.5 min-w-[100px] rounded-md px-2.25'
+      className='!w-fit !py-0.5 min-w-[100px] rounded-md px-2.5'
       groups={comboboxGroups}
       options={[]}
       multiSelect

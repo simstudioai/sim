@@ -62,7 +62,7 @@ interface CollapsedWorkflowFlyoutItemProps {
 }
 
 const EDIT_ROW_CLASS =
-  'mx-0.5 flex min-h-[30px] min-w-0 cursor-default select-none items-center gap-2 rounded-[5px] bg-[var(--surface-active)] px-2 py-1.25 font-medium text-[12px] text-[var(--text-body)]'
+  'mx-0.5 flex min-h-[30px] min-w-0 cursor-default select-none items-center gap-2 rounded-[5px] bg-[var(--surface-active)] px-2 py-1.5 font-medium text-[12px] text-[var(--text-body)]'
 
 function FlyoutMoreButton({
   ariaLabel,
