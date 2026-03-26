@@ -3,7 +3,7 @@
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="apps/sim/public/logo/wordmark.svg">
       <source media="(prefers-color-scheme: light)" srcset="apps/sim/public/logo/wordmark-dark.svg">
-      <img src="apps/sim/public/logo/wordmark-dark.svg" alt="Sim Logo" width="300"/>
+      <img src="apps/sim/public/logo/wordmark-dark.svg" alt="Sim Logo" width="380"/>
     </picture>
   </a>
 </p>
