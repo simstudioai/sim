@@ -1,5 +1,6 @@
 'use client'
 
+import type { ComponentType } from 'react'
 import { memo } from 'react'
 import { Command } from 'cmdk'
 import { Blimp } from '@/components/emcn'
@@ -138,7 +139,7 @@ export const MemoizedPageItem = memo(
   }: {
     value: string
     onSelect: () => void
-    icon: React.ComponentType<{ className?: string }>
+    icon: ComponentType<{ className?: string }>
     name: string
     shortcut?: string
   }) {

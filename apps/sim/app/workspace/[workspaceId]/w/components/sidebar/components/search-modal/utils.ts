@@ -1,3 +1,5 @@
+import type { ComponentType, ReactNode } from 'react'
+
 export interface TaskItem {
   id: string
   name: string
@@ -22,7 +24,7 @@ export interface WorkspaceItem {
 export interface PageItem {
   id: string
   name: string
-  icon: React.ComponentType<{ className?: string }>
+  icon: ComponentType<{ className?: string }>
   href?: string
   onClick?: () => void
   shortcut?: string
@@ -41,14 +43,14 @@ export interface SearchModalProps {
 export interface CommandItemProps {
   value: string
   onSelect: () => void
-  icon: React.ComponentType<{ className?: string }>
+  icon: ComponentType<{ className?: string }>
   bgColor: string
   showColoredIcon?: boolean
-  children: React.ReactNode
+  children: ReactNode
 }
 
 export const GROUP_HEADING_CLASSNAME =
-  '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-0.5 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:font-base [&_[cmdk-group-heading]]:text-caption [&_[cmdk-group-heading]]:text-[var(--text-icon)]'
+  '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-0.5 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:font-base [&_[cmdk-group-heading]]:text-[12px] [&_[cmdk-group-heading]]:text-[var(--text-icon)]'
 
 export const COMMAND_ITEM_CLASSNAME =
   'group flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 text-left text-sm aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-5)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 dark:aria-selected:bg-[var(--surface-4)]'

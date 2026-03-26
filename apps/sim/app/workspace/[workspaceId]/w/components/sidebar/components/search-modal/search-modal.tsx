@@ -344,14 +344,12 @@ export function SearchModal({
             <BlocksGroup items={filteredBlocks} onSelect={handleBlockSelectAsBlock} />
             <ToolsGroup items={filteredTools} onSelect={handleBlockSelectAsTool} />
             <TriggersGroup items={filteredTriggers} onSelect={handleBlockSelectAsTrigger} />
-            {open && <WorkflowsGroup items={filteredWorkflows} onSelect={handleWorkflowSelect} />}
-            {open && <TasksGroup items={filteredTasks} onSelect={handleTaskSelect} />}
+            <WorkflowsGroup items={filteredWorkflows} onSelect={handleWorkflowSelect} />
+            <TasksGroup items={filteredTasks} onSelect={handleTaskSelect} />
             <ToolOpsGroup items={filteredToolOps} onSelect={handleToolOperationSelect} />
-            {open && (
-              <WorkspacesGroup items={filteredWorkspaces} onSelect={handleWorkspaceSelect} />
-            )}
+            <WorkspacesGroup items={filteredWorkspaces} onSelect={handleWorkspaceSelect} />
             <DocsGroup items={filteredDocs} onSelect={handleDocSelect} />
-            {open && <PagesGroup items={filteredPages} onSelect={handlePageSelect} />}
+            <PagesGroup items={filteredPages} onSelect={handlePageSelect} />
           </Command.List>
         </Command>
       </div>

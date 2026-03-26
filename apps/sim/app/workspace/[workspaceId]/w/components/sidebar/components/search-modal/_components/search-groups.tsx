@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import { memo } from 'react'
 import { Command } from 'cmdk'
 import type {
   SearchBlockItem,
@@ -17,7 +17,7 @@ import {
   MemoizedWorkspaceItem,
 } from './command-items'
 
-export const BlocksGroup = React.memo(function BlocksGroup({
+export const BlocksGroup = memo(function BlocksGroup({
   items,
   onSelect,
 }: {
@@ -43,7 +43,7 @@ export const BlocksGroup = React.memo(function BlocksGroup({
   )
 })
 
-export const ToolsGroup = React.memo(function ToolsGroup({
+export const ToolsGroup = memo(function ToolsGroup({
   items,
   onSelect,
 }: {
@@ -69,7 +69,7 @@ export const ToolsGroup = React.memo(function ToolsGroup({
   )
 })
 
-export const TriggersGroup = React.memo(function TriggersGroup({
+export const TriggersGroup = memo(function TriggersGroup({
   items,
   onSelect,
 }: {
@@ -95,7 +95,7 @@ export const TriggersGroup = React.memo(function TriggersGroup({
   )
 })
 
-export const ToolOpsGroup = React.memo(function ToolOpsGroup({
+export const ToolOpsGroup = memo(function ToolOpsGroup({
   items,
   onSelect,
 }: {
@@ -121,7 +121,7 @@ export const ToolOpsGroup = React.memo(function ToolOpsGroup({
   )
 })
 
-export const DocsGroup = React.memo(function DocsGroup({
+export const DocsGroup = memo(function DocsGroup({
   items,
   onSelect,
 }: {
@@ -147,7 +147,7 @@ export const DocsGroup = React.memo(function DocsGroup({
   )
 })
 
-export const WorkflowsGroup = React.memo(function WorkflowsGroup({
+export const WorkflowsGroup = memo(function WorkflowsGroup({
   items,
   onSelect,
 }: {
@@ -171,7 +171,7 @@ export const WorkflowsGroup = React.memo(function WorkflowsGroup({
   )
 })
 
-export const TasksGroup = React.memo(function TasksGroup({
+export const TasksGroup = memo(function TasksGroup({
   items,
   onSelect,
 }: {
@@ -193,7 +193,7 @@ export const TasksGroup = React.memo(function TasksGroup({
   )
 })
 
-export const WorkspacesGroup = React.memo(function WorkspacesGroup({
+export const WorkspacesGroup = memo(function WorkspacesGroup({
   items,
   onSelect,
 }: {
@@ -216,7 +216,7 @@ export const WorkspacesGroup = React.memo(function WorkspacesGroup({
   )
 })
 
-export const PagesGroup = React.memo(function PagesGroup({
+export const PagesGroup = memo(function PagesGroup({
   items,
   onSelect,
 }: {
