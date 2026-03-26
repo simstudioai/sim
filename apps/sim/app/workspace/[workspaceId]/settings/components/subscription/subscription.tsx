@@ -192,9 +192,9 @@ function CreditPlanCard({
 
   return (
     <article className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-      <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
+      <div className='flex min-h-[44px] items-center justify-between gap-[8px] px-[14px] py-[10px]'>
         <span className='font-medium text-[14px] text-[var(--text-primary)]'>{name}</span>
-        <div className='flex items-baseline gap-[4px]'>
+        <div className='flex shrink-0 items-baseline gap-[4px] whitespace-nowrap'>
           <span className='font-medium text-[14px] text-[var(--text-primary)]'>
             ${isAnnual ? discountedMonthly : dollars}
           </span>
@@ -207,7 +207,7 @@ function CreditPlanCard({
         </div>
       </div>
 
-      <div className='flex items-center gap-[12px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[10px]'>
+      <div className='flex items-center gap-[12px] rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[10px]'>
         <div className='flex flex-col'>
           <span className='font-semibold text-[18px] text-[var(--text-primary)]'>
             {credits.toLocaleString()}
@@ -242,13 +242,13 @@ function CreditPlanCard({
         </div>
       )}
 
-      <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[14px]'>
+      <div className='flex min-h-[60px] items-center border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[14px]'>
         {isCurrentPlan ? (
-          <Button onClick={onManagePlan} className='w-full' variant='default'>
+          <Button onClick={onManagePlan} className='h-[32px] w-full' variant='default'>
             {isCancelledAtPeriodEnd ? 'Restore Subscription' : 'Manage plan'}
           </Button>
         ) : (
-          <Button onClick={onButtonClick} className='w-full' variant='primary'>
+          <Button onClick={onButtonClick} className='h-[32px] w-full' variant='primary'>
             {buttonText}
           </Button>
         )}
@@ -933,9 +933,9 @@ export function Subscription() {
 
       {/* Billing details section */}
       {(subscription.isPaid || (!isLoading && isTeamAdmin)) && (
-        <div className='flex flex-col'>
+        <div className='flex flex-col gap-[16px]'>
           {subscription.isPaid && permissions.canViewUsageInfo && (
-            <div className='py-[2px]'>
+            <div>
               <CreditBalance
                 balance={subscriptionData?.data?.creditBalance ?? 0}
                 canPurchase={hasUsablePaidAccess && permissions.canEditUsageLimit}
@@ -952,7 +952,7 @@ export function Subscription() {
             subscriptionData?.data?.periodEnd &&
             !permissions.showTeamMemberView &&
             !permissions.isEnterpriseMember && (
-              <div className='flex items-center justify-between border-[var(--border-1)] border-t pt-[16px]'>
+              <div className='flex items-center justify-between gap-[16px]'>
                 <Label>{isCancelledAtPeriodEnd ? 'Access Until' : 'Next Billing Date'}</Label>
                 <span className='text-[13px] text-[var(--text-secondary)]'>
                   {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
@@ -961,7 +961,7 @@ export function Subscription() {
             )}
 
           {subscription.isPaid && permissions.canViewUsageInfo && (
-            <div className='border-[var(--border-1)] border-t pt-[16px]'>
+            <div>
               <BillingUsageNotificationsToggle />
             </div>
           )}
@@ -969,11 +969,10 @@ export function Subscription() {
           {subscription.isPaid &&
             !permissions.showTeamMemberView &&
             !permissions.isEnterpriseMember && (
-              <div className='flex items-center justify-between border-[var(--border-1)] border-t pt-[16px]'>
+              <div className='flex items-center justify-between gap-[16px]'>
                 <Label>Invoices</Label>
                 <Button
                   variant='active'
-                  size='sm'
                   disabled={openBillingPortal.isPending}
                   onClick={() => {
                     const portalWindow = window.open('', '_blank')
@@ -1008,7 +1007,7 @@ export function Subscription() {
             )}
 
           {!isLoading && isTeamAdmin && (
-            <div className='flex items-center justify-between border-[var(--border-1)] border-t pt-[16px]'>
+            <div className='flex items-center justify-between gap-[16px]'>
               <div className='flex items-center gap-[6px]'>
                 <Label htmlFor='billed-account'>Billed Account</Label>
                 <Tooltip.Root>
