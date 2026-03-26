@@ -14,9 +14,17 @@ import type {
 } from '@/lib/copilot/orchestrator/types'
 import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
-import { buildToolCallSummaries, createStreamingContext, runStreamLoop } from './stream/core'
+import {
+  buildToolCallSummaries,
+  CopilotBackendError,
+  createStreamingContext,
+  runStreamLoop,
+} from './stream/core'
 
 const logger = createLogger('CopilotOrchestrator')
+
+const MAX_RESUME_ATTEMPTS = 3
+const RESUME_BACKOFF_MS = [250, 500, 1000]
 
 export interface OrchestrateStreamOptions extends OrchestratorOptions {
   userId: string
@@ -25,7 +33,6 @@ export interface OrchestrateStreamOptions extends OrchestratorOptions {
   chatId?: string
   executionId?: string
   runId?: string
-  /** Go-side route to proxy to. Defaults to '/api/copilot'. */
   goRoute?: string
 }
 
@@ -59,9 +66,7 @@ export async function orchestrateCopilotStream(
       decryptedEnvVars,
     }
   }
-  if (userTimezone) {
-    execContext.userTimezone = userTimezone
-  }
+  if (userTimezone) execContext.userTimezone = userTimezone
   execContext.executionId = executionId
   execContext.runId = runId
   execContext.abortSignal = options.abortSignal
@@ -74,14 +79,24 @@ export async function orchestrateCopilotStream(
     runId,
     messageId: typeof payloadMsgId === 'string' ? payloadMsgId : crypto.randomUUID(),
   })
+
   try {
     let route = goRoute
-    let payload = requestPayload
+    let payload: Record<string, unknown> = requestPayload
 
     const callerOnEvent = options.onEvent
 
+    let resumeAttempt = 0
+
     for (;;) {
       context.streamComplete = false
+      const isResume = route === '/api/tools/resume'
+
+      if (isResume && isAborted(options, context)) {
+        cancelPendingTools(context)
+        context.awaitingAsyncContinuation = undefined
+        break
+      }
 
       const loopOptions = {
         ...options,
@@ -97,30 +112,45 @@ export async function orchestrateCopilotStream(
         },
       }
 
-      await runStreamLoop(
-        `${SIM_AGENT_API_URL}${route}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
-            'X-Client-Version': SIM_AGENT_VERSION,
+      try {
+        await runStreamLoop(
+          `${SIM_AGENT_API_URL}${route}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+              'X-Client-Version': SIM_AGENT_VERSION,
+            },
+            body: JSON.stringify(payload),
           },
-          body: JSON.stringify(payload),
-        },
-        context,
-        execContext,
-        loopOptions
-      )
-
-      if (options.abortSignal?.aborted || context.wasAborted) {
-        for (const [toolCallId, toolCall] of context.toolCalls) {
-          if (toolCall.status === 'pending' || toolCall.status === 'executing') {
-            toolCall.status = 'cancelled'
-            toolCall.endTime = Date.now()
-            toolCall.error = 'Stopped by user'
-          }
+          context,
+          execContext,
+          loopOptions
+        )
+        resumeAttempt = 0
+      } catch (streamError) {
+        if (
+          isResume &&
+          isRetryableStreamError(streamError) &&
+          resumeAttempt < MAX_RESUME_ATTEMPTS - 1
+        ) {
+          resumeAttempt++
+          const backoff = RESUME_BACKOFF_MS[resumeAttempt - 1] ?? 1000
+          logger.warn('Resume stream failed, retrying', {
+            attempt: resumeAttempt + 1,
+            maxAttempts: MAX_RESUME_ATTEMPTS,
+            backoffMs: backoff,
+            error: streamError instanceof Error ? streamError.message : String(streamError),
+          })
+          await sleepWithAbort(backoff, options.abortSignal)
+          continue
         }
+        throw streamError
+      }
+
+      if (isAborted(options, context)) {
+        cancelPendingTools(context)
         context.awaitingAsyncContinuation = undefined
         break
       }
@@ -134,6 +164,12 @@ export async function orchestrateCopilotStream(
           pendingCount: context.pendingToolPromises.size,
         })
         await Promise.allSettled(context.pendingToolPromises.values())
+      }
+
+      if (isAborted(options, context)) {
+        cancelPendingTools(context)
+        context.awaitingAsyncContinuation = undefined
+        break
       }
 
       const results = continuation.pendingToolCallIds.map((toolCallId) => {
@@ -189,4 +225,55 @@ export async function orchestrateCopilotStream(
       error: err.message,
     }
   }
+}
+
+function isAborted(
+  options: OrchestrateStreamOptions,
+  context: ReturnType<typeof createStreamingContext>
+): boolean {
+  return !!(options.abortSignal?.aborted || context.wasAborted)
+}
+
+function cancelPendingTools(context: ReturnType<typeof createStreamingContext>): void {
+  for (const [, toolCall] of context.toolCalls) {
+    if (toolCall.status === 'pending' || toolCall.status === 'executing') {
+      toolCall.status = 'cancelled'
+      toolCall.endTime = Date.now()
+      toolCall.error = 'Stopped by user'
+    }
+  }
+}
+
+function isRetryableStreamError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return false
+  }
+  if (error instanceof CopilotBackendError) {
+    return error.status !== undefined && error.status >= 500
+  }
+  if (error instanceof TypeError) {
+    return true
+  }
+  return false
+}
+
+function sleepWithAbort(ms: number, abortSignal?: AbortSignal): Promise<void> {
+  if (!abortSignal) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+  if (abortSignal.aborted) {
+    return Promise.resolve()
+  }
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      abortSignal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      clearTimeout(timeoutId)
+      abortSignal.removeEventListener('abort', onAbort)
+      resolve()
+    }
+    abortSignal.addEventListener('abort', onAbort, { once: true })
+  })
 }

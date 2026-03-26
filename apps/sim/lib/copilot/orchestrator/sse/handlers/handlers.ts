@@ -478,16 +478,16 @@ export const sseHandlers: Record<string, StreamHandler> = {
     if (d.usage) {
       const u = asRecord(d.usage)
       context.usage = {
-        prompt: (u.input_tokens as number) || 0,
-        completion: (u.output_tokens as number) || 0,
+        prompt: (context.usage?.prompt || 0) + ((u.input_tokens as number) || 0),
+        completion: (context.usage?.completion || 0) + ((u.output_tokens as number) || 0),
       }
     }
     if (d.cost) {
       const c = asRecord(d.cost)
       context.cost = {
-        input: (c.input as number) || 0,
-        output: (c.output as number) || 0,
-        total: (c.total as number) || 0,
+        input: (context.cost?.input || 0) + ((c.input as number) || 0),
+        output: (context.cost?.output || 0) + ((c.output as number) || 0),
+        total: (context.cost?.total || 0) + ((c.total as number) || 0),
       }
     }
     context.streamComplete = true

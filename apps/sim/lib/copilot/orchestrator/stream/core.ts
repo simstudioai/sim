@@ -30,6 +30,18 @@ import type {
 
 const logger = createLogger('CopilotStreamCore')
 
+export class CopilotBackendError extends Error {
+  status?: number
+  body?: string
+
+  constructor(message: string, options?: { status?: number; body?: string }) {
+    super(message)
+    this.name = 'CopilotBackendError'
+    this.status = options?.status
+    this.body = options?.body
+  }
+}
+
 /**
  * Options for the shared stream processing loop.
  */
@@ -143,13 +155,14 @@ export async function runStreamLoop(
       return
     }
 
-    throw new Error(
-      `Copilot backend error (${response.status}): ${errorText || response.statusText}`
+    throw new CopilotBackendError(
+      `Copilot backend error (${response.status}): ${errorText || response.statusText}`,
+      { status: response.status, body: errorText || response.statusText }
     )
   }
 
   if (!response.body) {
-    throw new Error('Copilot backend response missing body')
+    throw new CopilotBackendError('Copilot backend response missing body')
   }
 
   const reader = response.body.getReader()
