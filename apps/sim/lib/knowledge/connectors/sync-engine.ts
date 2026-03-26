@@ -403,6 +403,7 @@ export async function executeSync(
 
     const pendingOps: DocOp[] = []
     for (const extDoc of externalDocs) {
+      if (seenExternalIds.has(extDoc.externalId)) continue
       seenExternalIds.add(extDoc.externalId)
 
       if (excludedExternalIds.has(extDoc.externalId)) {
@@ -472,6 +473,7 @@ export async function executeSync(
                 content: fullDoc.content,
                 contentHash: hydratedHash,
                 contentDeferred: false,
+                sourceUrl: fullDoc.sourceUrl ?? op.extDoc.sourceUrl,
                 metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
               },
             }
@@ -552,15 +554,26 @@ export async function executeSync(
       }
     }
 
-    // Skip deletion reconciliation during incremental syncs — results only contain changed docs
-    if (!isIncremental && (options?.fullSync || connector.syncMode === 'full')) {
+    // Reconcile deletions for non-incremental syncs (which return ALL docs).
+    // Skip for incremental syncs since results only contain changed docs.
+    if (!isIncremental) {
       const removedIds = existingDocs
         .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
         .map((d) => d.id)
 
       if (removedIds.length > 0) {
-        await hardDeleteDocuments(removedIds, syncLogId)
-        result.docsDeleted += removedIds.length
+        const deletionRatio =
+          existingDocs.length > 0 ? removedIds.length / existingDocs.length : 0
+
+        if (deletionRatio > 0.5 && removedIds.length > 5 && !options?.fullSync) {
+          logger.warn(
+            `Skipping deletion of ${removedIds.length}/${existingDocs.length} docs — exceeds safety threshold. Trigger a full sync to force cleanup.`,
+            { connectorId, deletionRatio: Math.round(deletionRatio * 100) }
+          )
+        } else {
+          await hardDeleteDocuments(removedIds, syncLogId)
+          result.docsDeleted += removedIds.length
+        }
       }
     }
 
