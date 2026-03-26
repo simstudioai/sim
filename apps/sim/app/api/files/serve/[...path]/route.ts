@@ -97,9 +97,11 @@ export async function GET(
     const contextParam = request.nextUrl.searchParams.get('context')
     const raw = request.nextUrl.searchParams.get('raw') === '1'
 
-    const context = contextParam || (isCloudPath ? inferContextFromKey(cloudKey) : undefined)
+    const isPublicByKeyPrefix =
+      cloudKey.startsWith('profile-pictures/') || cloudKey.startsWith('og-images/')
 
-    if (context === 'profile-pictures' || context === 'og-images') {
+    if (isPublicByKeyPrefix) {
+      const context = inferContextFromKey(cloudKey)
       logger.info(`Serving public ${context}:`, { cloudKey })
       if (isUsingCloudStorage() || isCloudPath) {
         return await handleCloudProxyPublic(cloudKey, context)
