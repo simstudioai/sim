@@ -226,10 +226,17 @@ function appendWorkflowEntry(
   trimmedEntries: ConsoleEntry[]
 ): Pick<ConsoleStore, 'workflowEntries' | 'entryIdsByBlockExecution' | 'entryLocationById'> {
   const workflowEntries = cloneWorkflowEntries(state.workflowEntries)
+  const previousEntries = workflowEntries[workflowId] ?? EMPTY_CONSOLE_ENTRIES
   workflowEntries[workflowId] = trimmedEntries
 
   const entryLocationById = { ...state.entryLocationById }
   const entryIdsByBlockExecution = { ...state.entryIdsByBlockExecution }
+
+  const survivingIds = new Set(trimmedEntries.map((e) => e.id))
+  const droppedEntries = previousEntries.filter((e) => !survivingIds.has(e.id))
+  if (droppedEntries.length > 0) {
+    removeWorkflowIndexes(workflowId, droppedEntries, entryIdsByBlockExecution, entryLocationById)
+  }
 
   trimmedEntries.forEach((entry, index) => {
     entryLocationById[entry.id] = { workflowId, index }
@@ -238,7 +245,9 @@ function appendWorkflowEntry(
   const blockExecutionKey = getBlockExecutionKey(newEntry.blockId, newEntry.executionId)
   const existingIds = entryIdsByBlockExecution[blockExecutionKey]
   if (existingIds) {
-    entryIdsByBlockExecution[blockExecutionKey] = [...existingIds, newEntry.id]
+    if (!existingIds.includes(newEntry.id)) {
+      entryIdsByBlockExecution[blockExecutionKey] = [...existingIds, newEntry.id]
+    }
   } else {
     entryIdsByBlockExecution[blockExecutionKey] = [newEntry.id]
   }
@@ -746,6 +755,11 @@ export function useConsoleEntry(entryId?: string | null): ConsoleEntry | null {
       return null
     }
 
-    return state.workflowEntries[location.workflowId]?.[location.index] ?? null
+    const entry = state.workflowEntries[location.workflowId]?.[location.index]
+    if (!entry || entry.id !== entryId) {
+      return null
+    }
+
+    return entry
   })
 }
