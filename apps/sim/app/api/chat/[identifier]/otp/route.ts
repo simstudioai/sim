@@ -143,7 +143,8 @@ async function incrementOTPAttempts(
     }
     const key = `otp:${email}:${chatId}`
     const result = await redis.eval(ATOMIC_INCREMENT_SCRIPT, 1, key, MAX_OTP_ATTEMPTS)
-    return result === 'LOCKED' ? 'locked' : 'incremented'
+    if (result === null || result === 'LOCKED') return 'locked'
+    return 'incremented'
   }
 
   // DB path: optimistic locking with retry on conflict
