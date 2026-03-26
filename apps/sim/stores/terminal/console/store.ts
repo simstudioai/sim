@@ -152,7 +152,7 @@ function indexWorkflowEntries(
     const blockExecutionKey = getBlockExecutionKey(entry.blockId, entry.executionId)
     const existingIds = entryIdsByBlockExecution[blockExecutionKey]
     if (existingIds) {
-      existingIds.push(entry.id)
+      entryIdsByBlockExecution[blockExecutionKey] = [...existingIds, entry.id]
     } else {
       entryIdsByBlockExecution[blockExecutionKey] = [entry.id]
     }
@@ -474,22 +474,26 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           return state
         }
 
-        const workflowEntries = state.workflowEntries[workflowId] ?? EMPTY_CONSOLE_ENTRIES
+        const currentEntries = state.workflowEntries[workflowId] ?? EMPTY_CONSOLE_ENTRIES
+        let nextEntries: ConsoleEntry[] | null = null
 
         for (const candidateId of candidateIds) {
           const location = state.entryLocationById[candidateId]
           if (!location || location.workflowId !== workflowId) continue
 
-          const entry = workflowEntries[location.index]
+          const source = nextEntries ?? currentEntries
+          const entry = source[location.index]
           if (!entry || entry.id !== candidateId) continue
           if (!matchesEntryForUpdate(entry, blockId, executionId, update)) continue
 
+          if (!nextEntries) {
+            nextEntries = [...currentEntries]
+          }
+
           if (typeof update === 'string') {
             const newOutput = normalizeConsoleOutput(updateBlockOutput(entry.output, update))
-            return patchWorkflowEntry(state, workflowId, location.index, {
-              ...entry,
-              output: newOutput,
-            })
+            nextEntries[location.index] = { ...entry, output: newOutput }
+            continue
           }
 
           const updatedEntry = { ...entry }
@@ -588,10 +592,20 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
             updatedEntry.childWorkflowInstanceId = update.childWorkflowInstanceId
           }
 
-          return patchWorkflowEntry(state, workflowId, location.index, updatedEntry)
+          nextEntries[location.index] = updatedEntry
         }
 
-        return state
+        if (!nextEntries) {
+          return state
+        }
+
+        const workflowEntriesClone = cloneWorkflowEntries(state.workflowEntries)
+        workflowEntriesClone[workflowId] = nextEntries
+        return {
+          workflowEntries: workflowEntriesClone,
+          entryIdsByBlockExecution: state.entryIdsByBlockExecution,
+          entryLocationById: state.entryLocationById,
+        }
       })
 
       if (typeof update === 'object' && update.error) {
