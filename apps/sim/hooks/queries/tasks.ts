@@ -164,10 +164,8 @@ export function useChatHistory(chatId: string | undefined) {
 }
 
 async function deleteTask(chatId: string): Promise<void> {
-  const response = await fetch('/api/copilot/chat/delete', {
+  const response = await fetch(`/api/mothership/chats/${chatId}`, {
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chatId }),
   })
   if (!response.ok) {
     throw new Error('Failed to delete task')
@@ -207,10 +205,10 @@ export function useDeleteTasks(workspaceId?: string) {
 }
 
 async function renameTask({ chatId, title }: { chatId: string; title: string }): Promise<void> {
-  const response = await fetch('/api/copilot/chat/rename', {
+  const response = await fetch(`/api/mothership/chats/${chatId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chatId, title }),
+    body: JSON.stringify({ title }),
   })
   if (!response.ok) {
     throw new Error('Failed to rename task')
@@ -382,10 +380,10 @@ export function useRemoveChatResource(chatId?: string) {
 }
 
 async function markTaskRead(chatId: string): Promise<void> {
-  const response = await fetch('/api/mothership/chats/read', {
-    method: 'POST',
+  const response = await fetch(`/api/mothership/chats/${chatId}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chatId }),
+    body: JSON.stringify({ isUnread: false }),
   })
   if (!response.ok) {
     throw new Error('Failed to mark task as read')
@@ -393,10 +391,10 @@ async function markTaskRead(chatId: string): Promise<void> {
 }
 
 async function markTaskUnread(chatId: string): Promise<void> {
-  const response = await fetch('/api/mothership/chats/unread', {
-    method: 'POST',
+  const response = await fetch(`/api/mothership/chats/${chatId}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chatId }),
+    body: JSON.stringify({ isUnread: true }),
   })
   if (!response.ok) {
     throw new Error('Failed to mark task as unread')

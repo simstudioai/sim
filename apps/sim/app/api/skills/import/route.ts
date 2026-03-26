@@ -30,7 +30,6 @@ function toRawGitHubUrl(url: string): string {
     throw new Error('Only GitHub URLs are supported')
   }
 
-  // /owner/repo/blob/branch/path...
   const segments = parsed.pathname.split('/').filter(Boolean)
   if (segments.length < 5 || segments[2] !== 'blob') {
     throw new Error(

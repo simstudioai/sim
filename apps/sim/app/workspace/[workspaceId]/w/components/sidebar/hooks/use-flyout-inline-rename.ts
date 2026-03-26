@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('useFlyoutInlineRename')
 
 interface RenameTarget {
   id: string
@@ -6,10 +9,11 @@ interface RenameTarget {
 }
 
 interface UseFlyoutInlineRenameProps {
+  itemType: string
   onSave: (id: string, name: string) => Promise<void>
 }
 
-export function useFlyoutInlineRename({ onSave }: UseFlyoutInlineRenameProps) {
+export function useFlyoutInlineRename({ itemType, onSave }: UseFlyoutInlineRenameProps) {
   const [editingTarget, setEditingTarget] = useState<RenameTarget | null>(null)
   const [value, setValue] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -54,10 +58,18 @@ export function useFlyoutInlineRename({ onSave }: UseFlyoutInlineRenameProps) {
     try {
       await onSave(editingTarget.id, trimmedValue)
       setEditingTarget(null)
+    } catch (error) {
+      logger.error(`Failed to rename ${itemType}:`, {
+        error,
+        itemId: editingTarget.id,
+        oldName: editingTarget.name,
+        newName: trimmedValue,
+      })
+      setValue(editingTarget.name)
     } finally {
       setIsSaving(false)
     }
-  }, [editingTarget, onSave, value])
+  }, [editingTarget, itemType, onSave, value])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {

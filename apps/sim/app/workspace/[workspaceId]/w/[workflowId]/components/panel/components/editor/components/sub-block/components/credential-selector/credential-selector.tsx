@@ -1,6 +1,6 @@
 'use client'
 
-import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
+import { createElement, useCallback, useMemo, useState } from 'react'
 import { ExternalLink, Users } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
@@ -22,6 +22,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import type { SubBlockConfig } from '@/blocks/types'
 import { CREDENTIAL_SET } from '@/executor/constants'
 import { useCredentialSets } from '@/hooks/queries/credential-sets'
+import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
@@ -116,36 +117,11 @@ export function CredentialSelector({
     [credentialSets, selectedCredentialSetId]
   )
 
-  const [inaccessibleCredentialName, setInaccessibleCredentialName] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!selectedId || selectedCredential || credentialsLoading || !workspaceId) {
-      setInaccessibleCredentialName(null)
-      return
-    }
-
-    setInaccessibleCredentialName(null)
-
-    let cancelled = false
-    ;(async () => {
-      try {
-        const response = await fetch(
-          `/api/credentials?workspaceId=${encodeURIComponent(workspaceId)}&credentialId=${encodeURIComponent(selectedId)}`
-        )
-        if (!response.ok || cancelled) return
-        const data = await response.json()
-        if (!cancelled && data.credential?.displayName) {
-          setInaccessibleCredentialName(data.credential.displayName)
-        }
-      } catch {
-        // Ignore fetch errors
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [selectedId, selectedCredential, credentialsLoading, workspaceId])
+  const { data: inaccessibleCredential } = useWorkspaceCredential(
+    selectedId || undefined,
+    Boolean(selectedId) && !selectedCredential && !credentialsLoading && Boolean(workspaceId)
+  )
+  const inaccessibleCredentialName = inaccessibleCredential?.displayName ?? null
 
   const resolvedLabel = useMemo(() => {
     if (selectedCredentialSet) return selectedCredentialSet.name

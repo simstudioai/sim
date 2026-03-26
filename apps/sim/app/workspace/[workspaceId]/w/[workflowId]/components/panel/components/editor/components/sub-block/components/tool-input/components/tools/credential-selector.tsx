@@ -1,4 +1,6 @@
-import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+'use client'
+
+import { createElement, useCallback, useMemo, useRef, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
@@ -14,6 +16,7 @@ import {
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectCredentialModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/connect-credential-modal'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -75,7 +78,6 @@ export function ToolCredentialSelector({
   const [editingInputValue, setEditingInputValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const { activeWorkflowId, workflows } = useWorkflowRegistry()
-  // Only pass workflowId when it's a real registered workflow (not an agent ID set as the active context)
   const effectiveWorkflowId =
     activeWorkflowId && workflows[activeWorkflowId] ? activeWorkflowId : undefined
 
@@ -99,36 +101,11 @@ export function ToolCredentialSelector({
     [credentials, selectedId]
   )
 
-  const [inaccessibleCredentialName, setInaccessibleCredentialName] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!selectedId || selectedCredential || credentialsLoading || !workspaceId) {
-      setInaccessibleCredentialName(null)
-      return
-    }
-
-    setInaccessibleCredentialName(null)
-
-    let cancelled = false
-    ;(async () => {
-      try {
-        const response = await fetch(
-          `/api/credentials?workspaceId=${encodeURIComponent(workspaceId)}&credentialId=${encodeURIComponent(selectedId)}`
-        )
-        if (!response.ok || cancelled) return
-        const data = await response.json()
-        if (!cancelled && data.credential?.displayName) {
-          setInaccessibleCredentialName(data.credential.displayName)
-        }
-      } catch {
-        // Ignore fetch errors
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [selectedId, selectedCredential, credentialsLoading, workspaceId])
+  const { data: inaccessibleCredential } = useWorkspaceCredential(
+    selectedId || undefined,
+    Boolean(selectedId) && !selectedCredential && !credentialsLoading && Boolean(workspaceId)
+  )
+  const inaccessibleCredentialName = inaccessibleCredential?.displayName ?? null
 
   const resolvedLabel = useMemo(() => {
     if (selectedCredential) return selectedCredential.name

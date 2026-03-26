@@ -500,9 +500,10 @@ export const Sidebar = memo(function Sidebar() {
     (e: React.MouseEvent, taskId: string) => {
       captureTaskSelection(taskId)
       tasksHover.setLocked(true)
+      preventTaskDismiss()
       handleTaskContextMenuBase(e)
     },
-    [captureTaskSelection, handleTaskContextMenuBase, tasksHover]
+    [captureTaskSelection, handleTaskContextMenuBase, preventTaskDismiss, tasksHover]
   )
 
   const handleTaskMorePointerDown = useCallback(() => {
@@ -517,6 +518,7 @@ export const Sidebar = memo(function Sidebar() {
         closeTaskContextMenu()
         return
       }
+      tasksHover.setLocked(true)
       captureTaskSelection(taskId)
       const rect = e.currentTarget.getBoundingClientRect()
       handleTaskContextMenuBase({
@@ -526,7 +528,13 @@ export const Sidebar = memo(function Sidebar() {
         clientY: rect.top,
       } as React.MouseEvent)
     },
-    [isTaskContextMenuOpen, closeTaskContextMenu, captureTaskSelection, handleTaskContextMenuBase]
+    [
+      isTaskContextMenuOpen,
+      closeTaskContextMenu,
+      captureTaskSelection,
+      handleTaskContextMenuBase,
+      tasksHover,
+    ]
   )
 
   const {
@@ -557,9 +565,15 @@ export const Sidebar = memo(function Sidebar() {
     (e: React.MouseEvent, workflow: { id: string; name: string }) => {
       captureCollapsedWorkflowSelection(workflow)
       workflowsHover.setLocked(true)
+      preventCollapsedWorkflowDismiss()
       handleCollapsedWorkflowContextMenuBase(e)
     },
-    [captureCollapsedWorkflowSelection, handleCollapsedWorkflowContextMenuBase, workflowsHover]
+    [
+      captureCollapsedWorkflowSelection,
+      handleCollapsedWorkflowContextMenuBase,
+      preventCollapsedWorkflowDismiss,
+      workflowsHover,
+    ]
   )
 
   const handleCollapsedWorkflowMorePointerDown = useCallback(() => {
@@ -575,6 +589,7 @@ export const Sidebar = memo(function Sidebar() {
         return
       }
 
+      workflowsHover.setLocked(true)
       captureCollapsedWorkflowSelection(workflow)
       const rect = e.currentTarget.getBoundingClientRect()
       handleCollapsedWorkflowContextMenuBase({
@@ -589,6 +604,7 @@ export const Sidebar = memo(function Sidebar() {
       closeCollapsedWorkflowContextMenu,
       captureCollapsedWorkflowSelection,
       handleCollapsedWorkflowContextMenuBase,
+      workflowsHover,
     ]
   )
 
@@ -785,12 +801,14 @@ export const Sidebar = memo(function Sidebar() {
 
   const [visibleTaskCount, setVisibleTaskCount] = useState(5)
   const taskFlyoutRename = useFlyoutInlineRename({
+    itemType: 'task',
     onSave: async (taskId, name) => {
       await renameTaskMutation.mutateAsync({ chatId: taskId, title: name })
     },
   })
 
   const workflowFlyoutRename = useFlyoutInlineRename({
+    itemType: 'workflow',
     onSave: async (workflowIdToRename, name) => {
       await updateWorkflow(workflowIdToRename, { name })
       collapsedWorkflowContextMenuRef.current = {
@@ -1259,9 +1277,12 @@ export const Sidebar = memo(function Sidebar() {
                         <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                       }
                       hover={tasksHover}
-                      onClick={() => navigateToPage(`/workspace/${workspaceId}/home`)}
                       ariaLabel='Tasks'
                       className='mt-[6px]'
+                      primaryAction={{
+                        label: 'New task',
+                        onSelect: () => navigateToPage(`/workspace/${workspaceId}/home`),
+                      }}
                     >
                       {tasksLoading ? (
                         <DropdownMenuItem disabled>
@@ -1432,9 +1453,12 @@ export const Sidebar = memo(function Sidebar() {
                         />
                       }
                       hover={workflowsHover}
-                      onClick={handleCreateWorkflow}
                       ariaLabel='Workflows'
                       className='mt-[6px]'
+                      primaryAction={{
+                        label: 'New workflow',
+                        onSelect: handleCreateWorkflow,
+                      }}
                     >
                       {workflowsLoading && regularWorkflows.length === 0 ? (
                         <DropdownMenuItem disabled>

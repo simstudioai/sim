@@ -35,6 +35,7 @@ import { getScopeDescription } from '@/lib/oauth/utils'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { CredentialSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credentials/credential-skeleton'
 import {
+  useCreateCredentialDraft,
   useCreateWorkspaceCredential,
   useDeleteWorkspaceCredential,
   useRemoveWorkspaceCredentialMember,
@@ -122,6 +123,7 @@ export function IntegrationsManager() {
     selectedCredential?.id
   )
 
+  const createDraft = useCreateCredentialDraft()
   const createCredential = useCreateWorkspaceCredential()
   const updateCredential = useUpdateWorkspaceCredential()
   const deleteCredential = useDeleteWorkspaceCredential()
@@ -388,15 +390,11 @@ export function IntegrationsManager() {
 
     setCreateError(null)
     try {
-      await fetch('/api/credentials/draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId,
-          providerId: selectedOAuthService.providerId,
-          displayName,
-          description: createDescription.trim() || undefined,
-        }),
+      await createDraft.mutateAsync({
+        workspaceId,
+        providerId: selectedOAuthService.providerId,
+        displayName,
+        description: createDescription.trim() || undefined,
       })
 
       const oauthPreCount = credentials.filter(
@@ -531,16 +529,12 @@ export function IntegrationsManager() {
     setDetailsError(null)
 
     try {
-      await fetch('/api/credentials/draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId,
-          providerId: selectedCredential.providerId,
-          displayName: selectedCredential.displayName,
-          description: selectedCredential.description || undefined,
-          credentialId: selectedCredential.id,
-        }),
+      await createDraft.mutateAsync({
+        workspaceId,
+        providerId: selectedCredential.providerId,
+        displayName: selectedCredential.displayName,
+        description: selectedCredential.description || undefined,
+        credentialId: selectedCredential.id,
       })
 
       const oauthPreCount = credentials.filter(

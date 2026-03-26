@@ -1,11 +1,12 @@
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import { Folder, MoreHorizontal } from 'lucide-react'
+import { Folder, MoreHorizontal, Plus } from 'lucide-react'
 import Link from 'next/link'
 import {
   Blimp,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -20,10 +21,13 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 interface CollapsedSidebarMenuProps {
   icon: React.ReactNode
   hover: ReturnType<typeof useHoverMenu>
-  onClick?: () => void
   ariaLabel?: string
   children: React.ReactNode
   className?: string
+  primaryAction?: {
+    label: string
+    onSelect: () => void
+  }
 }
 
 interface CollapsedTaskFlyoutItemProps {
@@ -75,7 +79,7 @@ function FlyoutMoreButton({
       aria-label={ariaLabel}
       onPointerDown={onPointerDown}
       onClick={onClick}
-      className='-translate-y-1/2 absolute top-1/2 right-[8px] z-10 flex h-[18px] w-[18px] items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] group-hover:opacity-100'
+      className='-translate-y-1/2 absolute top-1/2 right-[8px] z-10 flex h-[18px] w-[18px] items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100'
     >
       <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
     </button>
@@ -130,10 +134,10 @@ function WorkflowColorSwatch({ color }: { color: string }) {
 export function CollapsedSidebarMenu({
   icon,
   hover,
-  onClick,
   ariaLabel,
   children,
   className,
+  primaryAction,
 }: CollapsedSidebarMenuProps) {
   return (
     <div className={cn('flex flex-col px-[8px]', className)}>
@@ -151,13 +155,21 @@ export function CollapsedSidebarMenu({
               type='button'
               aria-label={ariaLabel}
               className='mx-[2px] flex h-[30px] items-center rounded-[8px] px-[8px] hover:bg-[var(--surface-active)]'
-              onClick={onClick}
             >
               {icon}
             </button>
           </DropdownMenuTrigger>
         </div>
         <DropdownMenuContent side='right' align='start' sideOffset={8} {...hover.contentProps}>
+          {primaryAction && (
+            <>
+              <DropdownMenuItem onSelect={primaryAction.onSelect}>
+                <Plus className='h-[14px] w-[14px]' />
+                {primaryAction.label}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           {children}
         </DropdownMenuContent>
       </DropdownMenu>
@@ -186,6 +198,7 @@ export function CollapsedTaskFlyoutItem({
       <div className={EDIT_ROW_CLASS}>
         <TaskStatusIcon isActive={task.isActive} isUnread={task.isUnread} />
         <input
+          aria-label={`Rename task ${task.name}`}
           ref={inputRef}
           value={editValue ?? task.name}
           onChange={(e) => onEditValueChange?.(e.target.value)}
@@ -209,24 +222,23 @@ export function CollapsedTaskFlyoutItem({
 
   return (
     <div className='group relative mx-[2px]'>
-      <DropdownMenuItem
-        asChild
-        className={cn('min-h-[30px] pr-[30px]', isCurrentRoute && 'bg-[var(--surface-active)]')}
+      <Link
+        href={task.href}
+        className={cn(
+          'flex min-h-[30px] min-w-0 items-center rounded-[5px] px-[8px] py-[5px] pr-[30px] font-medium text-[12px] text-[var(--text-body)] hover:bg-[var(--surface-active)] group-focus-within:bg-[var(--surface-active)] group-hover:bg-[var(--surface-active)]',
+          isCurrentRoute && 'bg-[var(--surface-active)]'
+        )}
+        onContextMenu={
+          task.id !== 'new' && onContextMenu ? (e) => onContextMenu(e, task.id) : undefined
+        }
       >
-        <Link
-          href={task.href}
-          onContextMenu={
-            task.id !== 'new' && onContextMenu ? (e) => onContextMenu(e, task.id) : undefined
-          }
-        >
-          <ConversationListItem
-            title={task.name}
-            isActive={!!task.isActive}
-            isUnread={!!task.isUnread}
-            statusIndicatorClassName={!isCurrentRoute ? 'group-hover:hidden' : undefined}
-          />
-        </Link>
-      </DropdownMenuItem>
+        <ConversationListItem
+          title={task.name}
+          isActive={!!task.isActive}
+          isUnread={!!task.isUnread}
+          statusIndicatorClassName={!isCurrentRoute ? 'group-hover:hidden' : undefined}
+        />
+      </Link>
       {showActions && (
         <FlyoutMoreButton
           ariaLabel='Task options'
@@ -264,6 +276,7 @@ export function CollapsedWorkflowFlyoutItem({
       <div className={EDIT_ROW_CLASS}>
         <WorkflowColorSwatch color={workflow.color} />
         <input
+          aria-label={`Rename workflow ${workflow.name}`}
           ref={inputRef}
           value={editValue ?? workflow.name}
           onChange={(e) => onEditValueChange?.(e.target.value)}
@@ -287,18 +300,17 @@ export function CollapsedWorkflowFlyoutItem({
 
   return (
     <div className='group relative mx-[2px]'>
-      <DropdownMenuItem
-        asChild
-        className={cn('min-h-[30px] pr-[30px]', isCurrentRoute && 'bg-[var(--surface-active)]')}
+      <Link
+        href={href}
+        className={cn(
+          'flex min-h-[30px] min-w-0 items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] pr-[30px] font-medium text-[12px] text-[var(--text-body)] hover:bg-[var(--surface-active)] group-focus-within:bg-[var(--surface-active)] group-hover:bg-[var(--surface-active)]',
+          isCurrentRoute && 'bg-[var(--surface-active)]'
+        )}
+        onContextMenu={onContextMenu ? (e) => onContextMenu(e, workflow) : undefined}
       >
-        <Link
-          href={href}
-          onContextMenu={onContextMenu ? (e) => onContextMenu(e, workflow) : undefined}
-        >
-          <WorkflowColorSwatch color={workflow.color} />
-          <span className='min-w-0 flex-1 truncate'>{workflow.name}</span>
-        </Link>
-      </DropdownMenuItem>
+        <WorkflowColorSwatch color={workflow.color} />
+        <span className='min-w-0 flex-1 truncate'>{workflow.name}</span>
+      </Link>
       {showActions && (
         <FlyoutMoreButton
           ariaLabel='Workflow options'

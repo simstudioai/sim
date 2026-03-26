@@ -100,7 +100,6 @@ export async function extractSkillFromZip(
     throw new Error('No SKILL.md file found in the ZIP archive')
   }
 
-  // Prefer the shallowest path (fewest slashes)
   candidates.sort((a, b) => {
     const depthA = a.split('/').length
     const depthB = b.split('/').length

@@ -1,6 +1,6 @@
 'use client'
 
-import { createElement, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Check } from 'lucide-react'
 import {
@@ -23,6 +23,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getScopeDescription } from '@/lib/oauth/utils'
+import { useCreateCredentialDraft } from '@/hooks/queries/credentials'
 
 const logger = createLogger('ConnectCredentialModal')
 
@@ -48,7 +49,8 @@ export function ConnectCredentialModal({
 }: ConnectCredentialModalProps) {
   const [displayName, setDisplayName] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [isPending, setIsPending] = useState(false)
+
+  const createDraft = useCreateCredentialDraft()
 
   const { providerName, ProviderIcon } = useMemo(() => {
     const { baseProvider } = parseProvider(provider)
@@ -91,14 +93,9 @@ export function ConnectCredentialModal({
     }
 
     setError(null)
-    setIsPending(true)
 
     try {
-      await fetch('/api/credentials/draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, providerId, displayName: trimmedName }),
-      })
+      await createDraft.mutateAsync({ workspaceId, providerId, displayName: trimmedName })
 
       writeOAuthReturnContext({
         origin: 'workflow',
@@ -126,9 +123,10 @@ export function ConnectCredentialModal({
     } catch (err) {
       logger.error('Failed to initiate OAuth connection', { error: err })
       setError('Failed to connect. Please try again.')
-      setIsPending(false)
     }
   }
+
+  const isPending = createDraft.isPending
 
   return (
     <Modal open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -138,7 +136,7 @@ export function ConnectCredentialModal({
           <div className='flex flex-col gap-[16px]'>
             <div className='flex items-center gap-[12px]'>
               <div className='flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[var(--surface-5)]'>
-                {createElement(ProviderIcon, { className: 'h-[18px] w-[18px]' })}
+                <ProviderIcon className='h-[18px] w-[18px]' />
               </div>
               <div>
                 <p className='font-medium text-[13px] text-[var(--text-primary)]'>
