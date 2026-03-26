@@ -13,8 +13,13 @@ import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('ChatAuthUtils')
 
-export function setChatAuthCookie(response: NextResponse, chatId: string, type: string): void {
-  setDeploymentAuthCookie(response, 'chat', chatId, type)
+export function setChatAuthCookie(
+  response: NextResponse,
+  chatId: string,
+  type: string,
+  encryptedPassword?: string | null
+): void {
+  setDeploymentAuthCookie(response, 'chat', chatId, type, encryptedPassword)
 }
 
 /**
@@ -93,7 +98,7 @@ export async function validateChatAuth(
   const cookieName = `chat_auth_${deployment.id}`
   const authCookie = request.cookies.get(cookieName)
 
-  if (authCookie && validateAuthToken(authCookie.value, deployment.id)) {
+  if (authCookie && validateAuthToken(authCookie.value, deployment.id, deployment.password)) {
     return { authorized: true }
   }
 

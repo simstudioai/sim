@@ -157,7 +157,7 @@ export async function POST(
     // If only authentication credentials provided (no form data), just return authenticated
     if ((password || email) && !formData) {
       const response = addCorsHeaders(createSuccessResponse({ authenticated: true }), request)
-      setFormAuthCookie(response, deployment.id, deployment.authType)
+      setFormAuthCookie(response, deployment.id, deployment.authType, deployment.password)
       return response
     }
 
@@ -337,7 +337,7 @@ export async function GET(
     if (
       deployment.authType !== 'public' &&
       authCookie &&
-      validateAuthToken(authCookie.value, deployment.id)
+      validateAuthToken(authCookie.value, deployment.id, deployment.password)
     ) {
       return addCorsHeaders(
         createSuccessResponse({

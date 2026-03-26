@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'crypto'
+import { createHash, createHmac, timingSafeEqual } from 'crypto'
 import type { NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
 import { isDev } from '@/lib/core/config/feature-flags'
@@ -12,16 +12,31 @@ function signPayload(payload: string): string {
   return createHmac('sha256', env.BETTER_AUTH_SECRET).update(payload).digest('hex')
 }
 
-function generateAuthToken(deploymentId: string, type: string): string {
-  const payload = `${deploymentId}:${type}:${Date.now()}`
+function passwordSlot(encryptedPassword?: string | null): string {
+  if (!encryptedPassword) return ''
+  return createHash('sha256').update(encryptedPassword).digest('hex').slice(0, 8)
+}
+
+function generateAuthToken(
+  deploymentId: string,
+  type: string,
+  encryptedPassword?: string | null
+): string {
+  const payload = `${deploymentId}:${type}:${Date.now()}:${passwordSlot(encryptedPassword)}`
   const sig = signPayload(payload)
   return Buffer.from(`${payload}:${sig}`).toString('base64')
 }
 
 /**
- * Validates an HMAC-signed authentication token for a deployment (chat or form)
+ * Validates an HMAC-signed authentication token for a deployment (chat or form).
+ * Includes a password-derived slot so changing the deployment password immediately
+ * invalidates existing sessions.
  */
-export function validateAuthToken(token: string, deploymentId: string): boolean {
+export function validateAuthToken(
+  token: string,
+  deploymentId: string,
+  encryptedPassword?: string | null
+): boolean {
   try {
     const decoded = Buffer.from(token, 'base64').toString()
     const lastColon = decoded.lastIndexOf(':')
@@ -39,9 +54,13 @@ export function validateAuthToken(token: string, deploymentId: string): boolean 
     }
 
     const parts = payload.split(':')
-    const [storedId, _type, timestamp] = parts
+    if (parts.length < 4) return false
+    const [storedId, _type, timestamp, storedPwSlot] = parts
 
     if (storedId !== deploymentId) return false
+
+    const expectedPwSlot = passwordSlot(encryptedPassword)
+    if (storedPwSlot !== expectedPwSlot) return false
 
     const createdAt = Number.parseInt(timestamp)
     const expireTime = 24 * 60 * 60 * 1000
@@ -60,9 +79,10 @@ export function setDeploymentAuthCookie(
   response: NextResponse,
   cookiePrefix: 'chat' | 'form',
   deploymentId: string,
-  authType: string
+  authType: string,
+  encryptedPassword?: string | null
 ): void {
-  const token = generateAuthToken(deploymentId, authType)
+  const token = generateAuthToken(deploymentId, authType, encryptedPassword)
   response.cookies.set({
     name: `${cookiePrefix}_auth_${deploymentId}`,
     value: token,
