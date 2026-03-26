@@ -301,7 +301,7 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                           </span>
                         ) : (
                           <button
-                            className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+                            className='font-medium text-[var(--brand-link)] underline-offset-4 transition hover:text-[var(--brand-link-hover)] hover:underline'
                             onClick={handleResendOtp}
                             disabled={isVerifyingOtp || isResendDisabled}
                           >
@@ -318,7 +318,7 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                           setOtpValue('')
                           setAuthError(null)
                         }}
-                        className='font-medium text-[var(--brand-accent-hex)] underline-offset-4 transition hover:text-[var(--brand-accent-hover-hex)] hover:underline'
+                        className='font-medium text-[var(--brand-link)] underline-offset-4 transition hover:text-[var(--brand-link-hover)] hover:underline'
                       >
                         Change email
                       </button>

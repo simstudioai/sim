@@ -443,7 +443,7 @@ export const LogsToolbar = memo(function LogsToolbar({
             onClick={onToggleLive}
             className={cn(
               'h-[32px] rounded-md px-2.5',
-              isLive && 'border border-[var(--brand-tertiary-2)]'
+              isLive && 'border border-[var(--brand-accent)]'
             )}
           >
             Live

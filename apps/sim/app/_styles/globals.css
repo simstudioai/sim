@@ -215,10 +215,8 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --border-success: #e0e0e0;
 
     /* Brand & state */
-    --brand-400: #8e4cfb;
     --brand-secondary: #33b4ff;
-    --brand-tertiary: #22c55e;
-    --brand-tertiary-2: #33c482;
+    --brand-accent: #33c482;
     --selection: #1a5cf6;
     --warning: #ea580c;
 
@@ -268,24 +266,12 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --error: #dc2626;
     --error-muted: #fecaca;
     --error-emphasis: #b91c1c;
-    --amber: #f59e0b;
-    --orange: #ea580c;
-    --orange-bright: #f97316;
+    --caution: #f59e0b;
     --success: #22c55e;
-    --teal: #00b0b0;
 
     /* Brand extended */
     --brand-knowledge: #00b0b0;
-    --brand-purple-deep: #601ee0;
-    --brand-purple: #802fff;
-    --brand-purple-bright: #8357ff;
-    --brand-purple-vivid: #8c10ff;
-    --brand-plum: #611f69;
-    --brand-blue-dark: #264f78;
-    --brand-blue-muted: #336699;
-    --brand-blue: #2f55ff;
-    --brand-blue-light: #2fa1ff;
-    --brand-blue-sky: #34b5ff;
+    --selection-dark: #264f78;
 
     /* Terminal status badges */
     --terminal-status-error-bg: #fef2f2;
@@ -332,10 +318,8 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --border-success: #575757;
 
     /* Brand & state */
-    --brand-400: #8e4cfb;
     --brand-secondary: #33b4ff;
-    --brand-tertiary: #22c55e;
-    --brand-tertiary-2: #33c482;
+    --brand-accent: #33c482;
     --selection: #4b83f7;
     --warning: #ff6600;
 
@@ -360,24 +344,12 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --error: #f87171;
     --error-muted: #f6d2d2;
     --error-emphasis: #b91c1c;
-    --amber: #f59e0b;
-    --orange: #f97316;
-    --orange-bright: #ff972f;
+    --caution: #f59e0b;
     --success: #22c55e;
-    --teal: #00b0b0;
 
     /* Brand extended */
     --brand-knowledge: #00b0b0;
-    --brand-purple-deep: #601ee0;
-    --brand-purple: #802fff;
-    --brand-purple-bright: #8357ff;
-    --brand-purple-vivid: #8c10ff;
-    --brand-plum: #611f69;
-    --brand-blue-dark: #264f78;
-    --brand-blue-muted: #336699;
-    --brand-blue: #2f55ff;
-    --brand-blue-light: #2fa1ff;
-    --brand-blue-sky: #34b5ff;
+    --selection-dark: #264f78;
 
     /* Terminal status badges */
     --terminal-status-error-bg: #491515;
@@ -614,13 +586,13 @@ input[type="search"]::-ms-clear {
   }
 
   .branded-button-custom {
-    background: var(--brand-primary-hex) !important;
-    border-color: var(--brand-primary-hex) !important;
+    background: var(--brand) !important;
+    border-color: var(--brand) !important;
   }
 
   .branded-button-custom:hover {
-    background: var(--brand-primary-hover-hex) !important;
-    border-color: var(--brand-primary-hover-hex) !important;
+    background: var(--brand-hover) !important;
+    border-color: var(--brand-hover) !important;
   }
 
   /**
@@ -712,12 +684,10 @@ input[type="search"]::-ms-clear {
     --base-muted-foreground: #737373;
     --gradient-primary: 263 85% 70%;
     --gradient-secondary: 336 95% 65%;
-    --brand-primary-hex: #6f3dfa;
-    --brand-primary-hover-hex: #6338d9;
-    --brand-accent-hex: #6f3dfa;
-    --brand-accent-hover-hex: #6f3dfa;
-    --brand-background-hex: #ffffff;
-    --surface-elevated: #202020;
+    --brand: #6f3dfa;
+    --brand-hover: #6338d9;
+    --brand-link: #6f3dfa;
+    --brand-link-hover: #6f3dfa;
   }
 
   .dark {
@@ -751,12 +721,10 @@ input[type="search"]::-ms-clear {
     --base-muted-foreground: #a3a3a3;
     --gradient-primary: 263 90% 75%;
     --gradient-secondary: 336 100% 72%;
-    --brand-primary-hex: #701ffc;
-    --brand-primary-hover-hex: #802fff;
-    --brand-accent-hex: #9d54ff;
-    --brand-accent-hover-hex: #a66fff;
-    --brand-background-hex: #0c0c0c;
-    --surface-elevated: #202020;
+    --brand: #701ffc;
+    --brand-hover: #802fff;
+    --brand-link: #9d54ff;
+    --brand-link-hover: #a66fff;
   }
 }
 

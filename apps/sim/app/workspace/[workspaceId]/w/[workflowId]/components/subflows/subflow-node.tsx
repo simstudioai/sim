@@ -136,10 +136,10 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
   const getRingColor = (): string | undefined => {
     if (!hasRing) return undefined
     if (isFocused || isSelected || isPreviewSelected) return 'var(--brand-secondary)'
-    if (diffStatus === 'new') return 'var(--brand-tertiary-2)'
+    if (diffStatus === 'new') return 'var(--brand-accent)'
     if (diffStatus === 'edited') return 'var(--warning)'
     if (runPathStatus === 'success') {
-      return executionStatus ? 'var(--brand-tertiary-2)' : 'var(--border-success)'
+      return executionStatus ? 'var(--brand-accent)' : 'var(--border-success)'
     }
     if (runPathStatus === 'error') return 'var(--text-error)'
     return undefined

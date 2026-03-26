@@ -37,7 +37,7 @@ function NotificationCountdownRing({ onPause }: { onPause: () => void }) {
           variant='ghost'
           onClick={onPause}
           aria-label='Keep notifications visible'
-          className='!p-1 -m-0.5 shrink-0 text-[var(--text-icon)] rounded-[5px] hover-hover:bg-[var(--surface-active)]'
+          className='!p-1 -m-0.5 shrink-0 rounded-[5px] text-[var(--text-icon)] hover-hover:bg-[var(--surface-active)]'
         >
           <CountdownRing duration={AUTO_DISMISS_MS} />
         </Button>

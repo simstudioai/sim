@@ -31,10 +31,10 @@ const avatarStatusVariants = cva(
   {
     variants: {
       status: {
-        online: 'bg-[var(--brand-tertiary)]',
+        online: 'bg-[var(--success)]',
         offline: 'bg-[var(--text-muted)]',
         busy: 'bg-[var(--error)]',
-        away: 'bg-[var(--amber)]',
+        away: 'bg-[var(--caution)]',
       },
       size: {
         xs: 'h-1.5 w-1.5 border',

@@ -143,7 +143,7 @@ function YouCursor({ x, y, visible }: YouCursorProps) {
       <svg width='23.15' height='21.1' viewBox='0 0 17.5 16.4' fill='none'>
         <path d={CURSOR_ARROW_MIRRORED_PATH} fill='#33C482' />
       </svg>
-      <div className='absolute top-4 left-[23px] flex items-center rounded bg-[var(--brand-tertiary-2)] px-[5px] py-[3px] font-[420] font-season text-[var(--landing-text-dark)] text-sm leading-[100%] tracking-[-0.02em]'>
+      <div className='absolute top-4 left-[23px] flex items-center rounded bg-[var(--brand-accent)] px-[5px] py-[3px] font-[420] font-season text-[var(--landing-text-dark)] text-sm leading-[100%] tracking-[-0.02em]'>
         You
       </div>
     </div>
@@ -235,7 +235,7 @@ export default function Collaboration() {
               variant='blue'
               size='md'
               dot
-              className='bg-[var(--brand-tertiary-2)]/10 font-season text-[var(--brand-tertiary-2)] uppercase tracking-[0.02em]'
+              className='bg-[var(--brand-accent)]/10 font-season text-[var(--brand-accent)] uppercase tracking-[0.02em]'
             >
               Teams
             </Badge>

@@ -6,7 +6,7 @@ interface ThankYouScreenProps {
   primaryColor?: string
 }
 
-/** Default green color matching --brand-tertiary-2 */
+/** Default green color matching --brand-accent */
 const DEFAULT_THANK_YOU_COLOR = '#33C482'
 
 /** Legacy blue default that should be treated as "no custom color" */

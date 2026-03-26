@@ -351,7 +351,7 @@ const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }
             return (
               <code
                 {...props}
-                className='whitespace-normal rounded bg-[var(--surface-5)] px-1 py-0.5 font-mono text-[var(--amber)] text-xs'
+                className='whitespace-normal rounded bg-[var(--surface-5)] px-1 py-0.5 font-mono text-[var(--caution)] text-xs'
               >
                 {children}
               </code>

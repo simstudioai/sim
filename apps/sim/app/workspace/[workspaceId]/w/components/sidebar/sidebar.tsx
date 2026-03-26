@@ -163,7 +163,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
                 <span className='absolute h-[7px] w-[7px] rounded-full bg-amber-400 group-hover:hidden' />
               )}
               {!isActive && isUnread && !isCurrentRoute && (
-                <span className='absolute h-[7px] w-[7px] rounded-full bg-[var(--brand-tertiary-2)] group-hover:hidden' />
+                <span className='absolute h-[7px] w-[7px] rounded-full bg-[var(--brand-accent)] group-hover:hidden' />
               )}
               <button
                 type='button'

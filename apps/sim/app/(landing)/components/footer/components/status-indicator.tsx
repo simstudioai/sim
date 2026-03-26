@@ -36,7 +36,7 @@ export function StatusDotIcon({ status, className, ...props }: StatusDotIconProp
 
 const STATUS_COLORS: Record<StatusType, string> = {
   operational: 'text-[#10B981] hover:text-[#059669]',
-  degraded: 'text-[var(--amber)] hover:text-[#D97706]',
+  degraded: 'text-[var(--caution)] hover:text-[#D97706]',
   outage: 'text-[var(--text-error)] hover:text-[var(--error)]',
   maintenance: 'text-[#3B82F6] hover:text-[#2563EB]',
   loading: 'text-muted-foreground hover:text-foreground',

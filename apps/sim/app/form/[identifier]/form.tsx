@@ -221,7 +221,7 @@ export default function Form({ identifier }: { identifier: string }) {
     [identifier, fetchFormConfig]
   )
 
-  const primaryColor = formConfig?.customizations?.primaryColor || 'var(--brand-primary-hex)'
+  const primaryColor = formConfig?.customizations?.primaryColor || 'var(--brand)'
 
   if (isLoading && !authRequired) {
     return <FormLoadingState />

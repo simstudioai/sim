@@ -141,7 +141,7 @@ export function FormField({
               className={cn(
                 'flex cursor-pointer flex-col items-center justify-center rounded-[10px] border-2 border-dashed px-6 py-8 transition-colors',
                 isDragging
-                  ? 'border-[var(--brand-primary-hex)] bg-[var(--brand-primary-hex)]/5'
+                  ? 'border-[var(--brand)] bg-[var(--brand)]/5'
                   : 'border-border hover:border-muted-foreground/50'
               )}
             >

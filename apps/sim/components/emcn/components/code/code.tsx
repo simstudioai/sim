@@ -453,7 +453,7 @@ export function getCodeEditorProps(options?: {
       'focus:outline-none focus:ring-0',
       // Selection styling - light and dark modes
       'selection:bg-[#add6ff] selection:text-[var(--bg)]',
-      'dark:selection:bg-[var(--brand-blue-dark)] dark:selection:text-white',
+      'dark:selection:bg-[var(--selection-dark)] dark:selection:text-white',
       // Caret color - adapts to mode
       'caret-[var(--text-primary)] dark:caret-white',
       // Font smoothing

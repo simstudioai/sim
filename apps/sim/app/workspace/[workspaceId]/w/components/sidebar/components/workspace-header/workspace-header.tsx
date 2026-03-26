@@ -346,7 +346,7 @@ export function WorkspaceHeader({
                 <div
                   className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
                   style={{
-                    backgroundColor: activeWorkspaceFull?.color || 'var(--brand-tertiary-2)',
+                    backgroundColor: activeWorkspaceFull?.color || 'var(--brand-accent)',
                   }}
                 >
                   {workspaceInitial}
@@ -390,7 +390,7 @@ export function WorkspaceHeader({
                     <div
                       className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-md font-medium text-caption text-white'
                       style={{
-                        backgroundColor: activeWorkspaceFull?.color || 'var(--brand-tertiary-2)',
+                        backgroundColor: activeWorkspaceFull?.color || 'var(--brand-accent)',
                       }}
                     >
                       {workspaceInitial}
@@ -448,7 +448,7 @@ export function WorkspaceHeader({
                                   }
                                   setEditingWorkspaceId(null)
                                 }}
-                                className='w-full border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-caption outline-none selection:bg-[#add6ff] selection:text-[var(--bg)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[var(--brand-blue-dark)] dark:selection:text-white'
+                                className='w-full border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-caption outline-none selection:bg-[#add6ff] selection:text-[var(--bg)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
                                 maxLength={100}
                                 autoComplete='off'
                                 autoCorrect='off'
@@ -542,7 +542,7 @@ export function WorkspaceHeader({
           >
             <div
               className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
-              style={{ backgroundColor: activeWorkspaceFull?.color || 'var(--brand-tertiary-2)' }}
+              style={{ backgroundColor: activeWorkspaceFull?.color || 'var(--brand-accent)' }}
             >
               {workspaceInitial}
             </div>

@@ -490,7 +490,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
                 <LineChart
                   data={globalDetails.executionCounts}
                   label=''
-                  color='var(--brand-tertiary)'
+                  color='var(--success)'
                   unit=''
                 />
               ) : (
@@ -544,7 +544,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
                 <LineChart
                   data={globalDetails.latencies}
                   label=''
-                  color='var(--amber)'
+                  color='var(--caution)'
                   unit='latency'
                 />
               ) : (

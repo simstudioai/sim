@@ -261,9 +261,9 @@ export function FormBuilder({
             >
               {/* Drop indicator line - shown above this item */}
               {showIndicatorAbove && (
-                <div className='-translate-y-1/2 pointer-events-none absolute top-0 right-0 left-0 z-20 h-[2px] bg-[var(--brand-tertiary-2)]'>
-                  <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-[6px] w-[6px] rounded-full bg-[var(--brand-tertiary-2)]' />
-                  <div className='-translate-y-1/2 absolute top-1/2 right-0 h-[6px] w-[6px] translate-x-1/2 rounded-full bg-[var(--brand-tertiary-2)]' />
+                <div className='-translate-y-1/2 pointer-events-none absolute top-0 right-0 left-0 z-20 h-[2px] bg-[var(--brand-accent)]'>
+                  <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-[6px] w-[6px] rounded-full bg-[var(--brand-accent)]' />
+                  <div className='-translate-y-1/2 absolute top-1/2 right-0 h-[6px] w-[6px] translate-x-1/2 rounded-full bg-[var(--brand-accent)]' />
                 </div>
               )}
 
@@ -345,9 +345,9 @@ export function FormBuilder({
 
         {/* Drop indicator at the end */}
         {dropTargetIndex === fieldConfigs.length && draggedIndex !== null && (
-          <div className='pointer-events-none absolute right-0 bottom-0 left-0 z-20 h-[2px] translate-y-1/2 bg-[var(--brand-tertiary-2)]'>
-            <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-[6px] w-[6px] rounded-full bg-[var(--brand-tertiary-2)]' />
-            <div className='-translate-y-1/2 absolute top-1/2 right-0 h-[6px] w-[6px] translate-x-1/2 rounded-full bg-[var(--brand-tertiary-2)]' />
+          <div className='pointer-events-none absolute right-0 bottom-0 left-0 z-20 h-[2px] translate-y-1/2 bg-[var(--brand-accent)]'>
+            <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-[6px] w-[6px] rounded-full bg-[var(--brand-accent)]' />
+            <div className='-translate-y-1/2 absolute top-1/2 right-0 h-[6px] w-[6px] translate-x-1/2 rounded-full bg-[var(--brand-accent)]' />
           </div>
         )}
       </div>
