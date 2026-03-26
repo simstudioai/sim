@@ -19,6 +19,7 @@ export function useFlyoutInlineRename({ itemType, onSave }: UseFlyoutInlineRenam
   const [isSaving, setIsSaving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const cancelRequestedRef = useRef(false)
+  const isSavingRef = useRef(false)
 
   useEffect(() => {
     if (editingTarget && inputRef.current) {
@@ -44,7 +45,7 @@ export function useFlyoutInlineRename({ itemType, onSave }: UseFlyoutInlineRenam
       return
     }
 
-    if (!editingTarget) {
+    if (!editingTarget || isSavingRef.current) {
       return
     }
 
@@ -54,6 +55,7 @@ export function useFlyoutInlineRename({ itemType, onSave }: UseFlyoutInlineRenam
       return
     }
 
+    isSavingRef.current = true
     setIsSaving(true)
     try {
       await onSave(editingTarget.id, trimmedValue)
@@ -67,6 +69,7 @@ export function useFlyoutInlineRename({ itemType, onSave }: UseFlyoutInlineRenam
       })
       setValue(editingTarget.name)
     } finally {
+      isSavingRef.current = false
       setIsSaving(false)
     }
   }, [editingTarget, itemType, onSave, value])
