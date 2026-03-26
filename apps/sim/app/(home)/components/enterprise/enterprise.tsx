@@ -71,7 +71,7 @@ function TrustStrip() {
         href='https://app.vanta.com/sim.ai/trust/v35ia0jil4l7dteqjgaktn'
         target='_blank'
         rel='noopener noreferrer'
-        className='group flex items-center gap-3 border-[var(--landing-bg-elevated)] border-b px-4 py-3.5 transition-colors hover:bg-[var(--landing-bg-surface)] sm:border-r sm:border-b-0'
+        className='group flex items-center gap-3 border-[var(--landing-bg-elevated)] border-b px-4 py-3.5 transition-colors hover:bg-[#212121] sm:border-r sm:border-b-0'
       >
         <Image
           src='/footer/soc2.png'
@@ -95,7 +95,7 @@ function TrustStrip() {
         href='https://github.com/simstudioai/sim'
         target='_blank'
         rel='noopener noreferrer'
-        className='group flex items-center gap-3 border-[var(--landing-bg-elevated)] border-b px-4 py-3.5 transition-colors hover:bg-[var(--landing-bg-surface)] sm:border-r sm:border-b-0'
+        className='group flex items-center gap-3 border-[var(--landing-bg-elevated)] border-b px-4 py-3.5 transition-colors hover:bg-[#212121] sm:border-r sm:border-b-0'
       >
         <div className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-[#FFCC02]/10'>
           <GithubIcon width={11} height={11} className='text-[#FFCC02]/75' />
