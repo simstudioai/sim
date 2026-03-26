@@ -741,7 +741,7 @@ export const Panel = memo(function Panel() {
                 data-tab-content='copilot'
               >
                 {/* Copilot Header */}
-                <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between gap-[8px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] px-[12px] py-[6px]'>
+                <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between gap-[8px] border border-[var(--border)] bg-[var(--surface-4)] px-[12px] py-[6px]'>
                   <h2 className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
                     {copilotChatTitle || 'New Chat'}
                   </h2>

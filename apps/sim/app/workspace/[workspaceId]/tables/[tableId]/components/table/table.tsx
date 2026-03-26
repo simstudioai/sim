@@ -2737,10 +2737,10 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           <DropdownMenuTrigger asChild>
             <button
               type='button'
-              className='flex h-full w-full min-w-0 cursor-pointer items-center px-2 py-[7px]  outline-none active:cursor-grabbing'
+              className='flex h-full w-full min-w-0 cursor-pointer items-center px-2 py-[7px] outline-none active:cursor-grabbing'
             >
               <ColumnTypeIcon type={column.type} />
-              <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-small text-[var(--text-primary)]'>
+              <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
                 {column.name}
               </span>
               <ChevronDown className='ml-2 h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />

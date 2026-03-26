@@ -707,7 +707,7 @@ export const Toolbar = memo(
       >
         {/* Header */}
         <div
-          className='mx-[-1px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-sm border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'
+          className='mx-[-1px] flex flex-shrink-0 cursor-pointer items-center justify-between border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'
           onClick={handleSearchClick}
         >
           <h2 className='font-medium text-[var(--text-primary)] text-sm'>Toolbar</h2>

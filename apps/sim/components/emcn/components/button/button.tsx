@@ -15,7 +15,7 @@ const buttonVariants = cva(
         outline:
           'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)] border border-[var(--text-muted)] bg-transparent hover-hover:border-[var(--text-secondary)]',
         primary:
-          'bg-[var(--text-primary)] text-[var(--text-inverse)] hover-hover:text-[var(--text-inverse)] hover-hover:bg-[var(--surface-4)] dark:bg-white dark:text-[var(--bg)] dark:hover-hover:bg-[var(--border-1)] dark:hover-hover:text-[var(--text-inverse)]',
+          'bg-[var(--text-primary)] text-[var(--text-inverse)] hover-hover:text-[var(--text-inverse)] hover-hover:bg-[var(--text-body)] dark:bg-white dark:text-[var(--bg)] dark:hover-hover:bg-[var(--text-secondary)] dark:hover-hover:text-[var(--bg)]',
         destructive:
           'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
         secondary: 'bg-[var(--brand-secondary)] text-[var(--text-primary)]',
@@ -30,8 +30,8 @@ const buttonVariants = cva(
           'rounded-[10px] border text-white hover-hover:text-white text-base transition-[transform,background-color,color,border-color] duration-200',
       },
       size: {
-        sm: 'px-1.5 py-1 text-xs',
-        md: 'px-2 py-1.5 text-caption',
+        sm: 'px-1.5 py-1 text-[length:11px]',
+        md: 'px-2 py-1.5 text-[length:12px]',
         /** Branded size - matches login form button padding */
         branded: 'py-1.5 pr-2.5 pl-3',
       },
