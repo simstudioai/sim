@@ -69,6 +69,7 @@ export const getSubscriptionsTool: ToolConfig<
       return {
         success: false,
         output: {
+          error: errorMessage,
           topics: {},
           controls: {},
         },

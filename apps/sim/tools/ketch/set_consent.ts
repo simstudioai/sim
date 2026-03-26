@@ -89,6 +89,7 @@ export const setConsentTool: ToolConfig<KetchSetConsentParams, KetchSetConsentRe
       return {
         success: false,
         output: {
+          error: errorMessage,
           purposes: {},
         },
       }

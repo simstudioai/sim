@@ -88,6 +88,7 @@ export const setSubscriptionsTool: ToolConfig<
       return {
         success: false,
         output: {
+          error: errorMessage,
           success: false,
         },
       }
