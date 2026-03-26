@@ -103,10 +103,7 @@ export function SettingsSidebar({
         return true
       }
 
-      if (item.requiresTeam && !isOrgAdminOrOwner) {
-        return false
-      }
-      if (item.requiresTeam && !hasTeamPlan && !item.showWhenLocked) {
+      if (item.requiresTeam && (!hasTeamPlan || !isOrgAdminOrOwner)) {
         return false
       }
 
@@ -260,9 +257,7 @@ export function SettingsSidebar({
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
-                    const isLocked =
-                      (item.requiresMax && !subscriptionAccess.hasUsableMaxAccess) ||
-                      (item.requiresTeam && !hasTeamPlan && item.showWhenLocked)
+                    const isLocked = item.requiresMax && !subscriptionAccess.hasUsableMaxAccess
                     const itemClassName = cn(
                       'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
                       active && 'bg-[var(--surface-active)]'
@@ -275,7 +270,7 @@ export function SettingsSidebar({
                         </span>
                         {isLocked && (
                           <span className='ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-[4px] py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
-                            {item.requiresMax ? 'Max' : 'Team'}
+                            Max
                           </span>
                         )}
                       </>

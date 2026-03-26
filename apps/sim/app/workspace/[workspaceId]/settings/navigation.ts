@@ -146,10 +146,8 @@ export const allNavigationItems: NavigationItem[] = [
     label: 'Email Polling',
     icon: Mail,
     section: 'system',
-    requiresTeam: true,
     requiresHosted: true,
     selfHostedOverride: isCredentialSetsEnabled,
-    showWhenLocked: true,
   },
   { id: 'recently-deleted', label: 'Recently Deleted', icon: TrashOutline, section: 'system' },
   {
