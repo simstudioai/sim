@@ -36,6 +36,7 @@ vi.mock('@/executor/utils/reference-validation', () => ({
 
 import {
   isMcpDomainAllowed,
+  McpDnsResolutionError,
   McpDomainNotAllowedError,
   McpSsrfError,
   validateMcpDomain,
@@ -393,10 +394,10 @@ describe('validateMcpServerSsrf', () => {
     )
   })
 
-  it('throws McpSsrfError when DNS lookup fails', async () => {
+  it('throws McpDnsResolutionError when DNS lookup fails', async () => {
     mockDnsLookup.mockRejectedValue(new Error('ENOTFOUND'))
     await expect(validateMcpServerSsrf('https://nonexistent.invalid/mcp')).rejects.toThrow(
-      'MCP server URL hostname could not be resolved'
+      McpDnsResolutionError
     )
   })
 

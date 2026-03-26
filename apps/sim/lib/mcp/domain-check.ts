@@ -21,6 +21,13 @@ export class McpSsrfError extends Error {
   }
 }
 
+export class McpDnsResolutionError extends Error {
+  constructor(hostname: string) {
+    super(`MCP server URL hostname "${hostname}" could not be resolved`)
+    this.name = 'McpDnsResolutionError'
+  }
+}
+
 /**
  * Core domain check. Returns null if the URL is allowed, or the hostname/url
  * string to use in the rejection error.
@@ -168,6 +175,6 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<vo
       hostname,
       error: error instanceof Error ? error.message : String(error),
     })
-    throw new McpSsrfError('MCP server URL hostname could not be resolved')
+    throw new McpDnsResolutionError(cleanHostname)
   }
 }

@@ -5,6 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import {
+  McpDnsResolutionError,
   McpDomainNotAllowedError,
   McpSsrfError,
   validateMcpDomain,
@@ -91,6 +92,9 @@ export const POST = withMcpAuth('write')(
       try {
         await validateMcpServerSsrf(body.url)
       } catch (e) {
+        if (e instanceof McpDnsResolutionError) {
+          return createMcpErrorResponse(e, e.message, 502)
+        }
         if (e instanceof McpSsrfError) {
           return createMcpErrorResponse(e, e.message, 403)
         }
