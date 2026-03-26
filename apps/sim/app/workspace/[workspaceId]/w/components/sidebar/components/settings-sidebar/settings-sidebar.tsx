@@ -103,7 +103,10 @@ export function SettingsSidebar({
         return true
       }
 
-      if (item.requiresTeam && (!hasTeamPlan || !isOrgAdminOrOwner)) {
+      if (item.requiresTeam && !isOrgAdminOrOwner) {
+        return false
+      }
+      if (item.requiresTeam && !hasTeamPlan && !item.showWhenLocked) {
         return false
       }
 
@@ -111,7 +114,7 @@ export function SettingsSidebar({
         return false
       }
 
-      if (item.requiresMax && !subscriptionAccess.hasUsableMaxAccess) {
+      if (item.requiresMax && !subscriptionAccess.hasUsableMaxAccess && !item.showWhenLocked) {
         return false
       }
 
@@ -257,6 +260,9 @@ export function SettingsSidebar({
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
+                    const isLocked =
+                      (item.requiresMax && !subscriptionAccess.hasUsableMaxAccess) ||
+                      (item.requiresTeam && !hasTeamPlan && item.showWhenLocked)
                     const itemClassName = cn(
                       'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
                       active && 'bg-[var(--surface-active)]'
@@ -264,9 +270,14 @@ export function SettingsSidebar({
                     const content = (
                       <>
                         <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                        <span className='truncate font-base text-[var(--text-body)]'>
+                        <span className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>
                           {item.label}
                         </span>
+                        {isLocked && (
+                          <span className='shrink-0 rounded-[3px] bg-[var(--surface-5)] px-[4px] py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
+                            {item.requiresMax ? 'Max' : 'Team'}
+                          </span>
+                        )}
                       </>
                     )
 
