@@ -17,13 +17,13 @@ export default function Footer({ fullWidth = false }: FooterProps) {
       <div
         className={
           fullWidth
-            ? 'px-4 pt-[40px] pb-[40px] sm:px-4 sm:pt-[34px] sm:pb-[340px]'
-            : 'px-4 pt-[40px] pb-[40px] sm:px-[50px] sm:pt-[34px] sm:pb-[340px]'
+            ? 'px-4 pt-10 pb-10 sm:px-4 sm:pt-[34px] sm:pb-[340px]'
+            : 'px-4 pt-10 pb-10 sm:px-[50px] sm:pt-[34px] sm:pb-[340px]'
         }
       >
-        <div className={`flex gap-[80px] ${fullWidth ? 'justify-center' : ''}`}>
+        <div className={`flex gap-20 ${fullWidth ? 'justify-center' : ''}`}>
           {/* Logo and social links */}
-          <div className='flex flex-col gap-[24px]'>
+          <div className='flex flex-col gap-6'>
             <Logo />
             <SocialLinks />
             <ComplianceBadges />
@@ -32,19 +32,19 @@ export default function Footer({ fullWidth = false }: FooterProps) {
 
           {/* Links section */}
           <div>
-            <h2 className='mb-[16px] font-medium text-[14px] text-foreground'>More Sim</h2>
-            <div className='flex flex-col gap-[12px]'>
+            <h2 className='mb-4 font-medium text-foreground text-sm'>More Sim</h2>
+            <div className='flex flex-col gap-3'>
               <Link
                 href='https://docs.sim.ai'
                 target='_blank'
                 rel='noopener noreferrer'
-                className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                className='text-muted-foreground text-sm transition-colors hover:text-foreground'
               >
                 Docs
               </Link>
               <Link
                 href='#pricing'
-                className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                className='text-muted-foreground text-sm transition-colors hover:text-foreground'
               >
                 Pricing
               </Link>
@@ -52,19 +52,19 @@ export default function Footer({ fullWidth = false }: FooterProps) {
                 href='https://form.typeform.com/to/jqCO12pF'
                 target='_blank'
                 rel='noopener noreferrer'
-                className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                className='text-muted-foreground text-sm transition-colors hover:text-foreground'
               >
                 Enterprise
               </Link>
               <Link
                 href='/blog'
-                className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                className='text-muted-foreground text-sm transition-colors hover:text-foreground'
               >
                 Blog
               </Link>
               <Link
                 href='/changelog'
-                className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                className='text-muted-foreground text-sm transition-colors hover:text-foreground'
               >
                 Changelog
               </Link>
@@ -72,7 +72,7 @@ export default function Footer({ fullWidth = false }: FooterProps) {
                 href='https://status.sim.ai'
                 target='_blank'
                 rel='noopener noreferrer'
-                className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                className='text-muted-foreground text-sm transition-colors hover:text-foreground'
               >
                 Status
               </Link>
@@ -80,7 +80,7 @@ export default function Footer({ fullWidth = false }: FooterProps) {
                 href='https://jobs.ashbyhq.com/sim'
                 target='_blank'
                 rel='noopener noreferrer'
-                className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                className='text-muted-foreground text-sm transition-colors hover:text-foreground'
               >
                 Careers
               </a>
@@ -88,7 +88,7 @@ export default function Footer({ fullWidth = false }: FooterProps) {
                 href='/privacy'
                 target='_blank'
                 rel='noopener noreferrer'
-                className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                className='text-muted-foreground text-sm transition-colors hover:text-foreground'
               >
                 Privacy Policy
               </Link>
@@ -96,7 +96,7 @@ export default function Footer({ fullWidth = false }: FooterProps) {
                 href='/terms'
                 target='_blank'
                 rel='noopener noreferrer'
-                className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                className='text-muted-foreground text-sm transition-colors hover:text-foreground'
               >
                 Terms of Service
               </Link>
@@ -105,15 +105,15 @@ export default function Footer({ fullWidth = false }: FooterProps) {
 
           {/* Blocks section */}
           <div className='hidden sm:block'>
-            <h2 className='mb-[16px] font-medium text-[14px] text-foreground'>Blocks</h2>
-            <div className='flex flex-col gap-[12px]'>
+            <h2 className='mb-4 font-medium text-foreground text-sm'>Blocks</h2>
+            <div className='flex flex-col gap-3'>
               {FOOTER_BLOCKS.map((block) => (
                 <Link
                   key={block}
                   href={`https://docs.sim.ai/blocks/${block.toLowerCase().replaceAll(' ', '-')}`}
                   target='_blank'
                   rel='noopener noreferrer'
-                  className='text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                  className='text-muted-foreground text-sm transition-colors hover:text-foreground'
                 >
                   {block}
                 </Link>
@@ -123,24 +123,24 @@ export default function Footer({ fullWidth = false }: FooterProps) {
 
           {/* Tools section - split into columns */}
           <div className='hidden sm:block'>
-            <h2 className='mb-[16px] font-medium text-[14px] text-foreground'>Tools</h2>
-            <div className='flex gap-[80px]'>
+            <h2 className='mb-4 font-medium text-foreground text-sm'>Tools</h2>
+            <div className='flex gap-20'>
               {/* First column */}
-              <div className='flex flex-col gap-[12px]'>
+              <div className='flex flex-col gap-3'>
                 {FOOTER_TOOLS.slice(0, Math.ceil(FOOTER_TOOLS.length / 4)).map((tool) => (
                   <Link
                     key={tool}
                     href={`https://docs.sim.ai/tools/${tool.toLowerCase().replace(/\s+/g, '_')}`}
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='whitespace-nowrap text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                    className='whitespace-nowrap text-muted-foreground text-sm transition-colors hover:text-foreground'
                   >
                     {tool}
                   </Link>
                 ))}
               </div>
               {/* Second column */}
-              <div className='flex flex-col gap-[12px]'>
+              <div className='flex flex-col gap-3'>
                 {FOOTER_TOOLS.slice(
                   Math.ceil(FOOTER_TOOLS.length / 4),
                   Math.ceil((FOOTER_TOOLS.length * 2) / 4)
@@ -150,14 +150,14 @@ export default function Footer({ fullWidth = false }: FooterProps) {
                     href={`https://docs.sim.ai/tools/${tool.toLowerCase().replace(/\s+/g, '_')}`}
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='whitespace-nowrap text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                    className='whitespace-nowrap text-muted-foreground text-sm transition-colors hover:text-foreground'
                   >
                     {tool}
                   </Link>
                 ))}
               </div>
               {/* Third column */}
-              <div className='flex flex-col gap-[12px]'>
+              <div className='flex flex-col gap-3'>
                 {FOOTER_TOOLS.slice(
                   Math.ceil((FOOTER_TOOLS.length * 2) / 4),
                   Math.ceil((FOOTER_TOOLS.length * 3) / 4)
@@ -167,21 +167,21 @@ export default function Footer({ fullWidth = false }: FooterProps) {
                     href={`https://docs.sim.ai/tools/${tool.toLowerCase().replace(/\s+/g, '_')}`}
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='whitespace-nowrap text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                    className='whitespace-nowrap text-muted-foreground text-sm transition-colors hover:text-foreground'
                   >
                     {tool}
                   </Link>
                 ))}
               </div>
               {/* Fourth column */}
-              <div className='flex flex-col gap-[12px]'>
+              <div className='flex flex-col gap-3'>
                 {FOOTER_TOOLS.slice(Math.ceil((FOOTER_TOOLS.length * 3) / 4)).map((tool) => (
                   <Link
                     key={tool}
                     href={`https://docs.sim.ai/tools/${tool.toLowerCase().replace(/\s+/g, '_')}`}
                     target='_blank'
                     rel='noopener noreferrer'
-                    className='whitespace-nowrap text-[14px] text-muted-foreground transition-colors hover:text-foreground'
+                    className='whitespace-nowrap text-muted-foreground text-sm transition-colors hover:text-foreground'
                   >
                     {tool}
                   </Link>

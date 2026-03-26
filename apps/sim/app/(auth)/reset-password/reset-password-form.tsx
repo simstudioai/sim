@@ -46,7 +46,7 @@ export function RequestResetForm({
             disabled={isSubmitting}
             required
           />
-          <p className='text-[#999] text-sm'>
+          <p className='text-[var(--landing-text-muted)] text-sm'>
             We'll send a password reset link to this email address.
           </p>
         </div>
@@ -54,7 +54,10 @@ export function RequestResetForm({
         {/* Status message display */}
         {statusType && statusMessage && (
           <div
-            className={cn('text-xs', statusType === 'success' ? 'text-[#4CAF50]' : 'text-red-400')}
+            className={cn(
+              'text-xs',
+              statusType === 'success' ? 'text-[var(--success)]' : 'text-red-400'
+            )}
           >
             <p>{statusMessage}</p>
           </div>
@@ -162,7 +165,7 @@ export function SetNewPasswordForm({
             <button
               type='button'
               onClick={() => setShowPassword(!showPassword)}
-              className='-translate-y-1/2 absolute top-1/2 right-3 text-[#999] transition hover:text-[#ECECEC]'
+              className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] transition hover:text-[var(--landing-text)]'
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -190,7 +193,7 @@ export function SetNewPasswordForm({
             <button
               type='button'
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className='-translate-y-1/2 absolute top-1/2 right-3 text-[#999] transition hover:text-[#ECECEC]'
+              className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] transition hover:text-[var(--landing-text)]'
               aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
             >
               {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -208,7 +211,7 @@ export function SetNewPasswordForm({
           <div
             className={cn(
               'mt-1 space-y-1 text-xs',
-              statusType === 'success' ? 'text-[#4CAF50]' : 'text-red-400'
+              statusType === 'success' ? 'text-[var(--success)]' : 'text-red-400'
             )}
           >
             <p>{statusMessage}</p>

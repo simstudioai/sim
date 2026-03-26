@@ -165,12 +165,12 @@ export function AutocompleteSearch({
         modal={false}
       >
         <DropdownMenuPrimitive.Trigger asChild>
-          <div className='relative flex h-[32px] w-[400px] items-center rounded-[8px] bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
+          <div className='relative flex h-[32px] w-[400px] items-center rounded-lg bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'>
             {/* Search Icon */}
-            <Search className='mr-[6px] ml-[8px] h-[14px] w-[14px] flex-shrink-0 text-[var(--text-subtle)]' />
+            <Search className='mr-1.5 ml-2 h-[14px] w-[14px] flex-shrink-0 text-[var(--text-subtle)]' />
 
             {/* Scrollable container for badges */}
-            <div className='flex flex-1 items-center gap-[6px] overflow-x-auto pr-[6px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+            <div className='flex flex-1 items-center gap-1.5 overflow-x-auto pr-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
               {/* Applied Filter Badges */}
               {appliedFilters.map((filter, index) => (
                 <Badge
@@ -179,7 +179,7 @@ export function AutocompleteSearch({
                   role='button'
                   tabIndex={0}
                   className={cn(
-                    'h-6 shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2 text-[11px]',
+                    'h-6 shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2 text-xs',
                     highlightedBadgeIndex === index &&
                       'ring-1 ring-[var(--border-focus)] ring-offset-1 ring-offset-[var(--surface-3)] dark:ring-offset-[var(--surface-5)]'
                   )}
@@ -206,7 +206,7 @@ export function AutocompleteSearch({
                   variant='outline'
                   role='button'
                   tabIndex={0}
-                  className='h-6 shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2 text-[11px]'
+                  className='h-6 shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2 text-xs'
                   onClick={() => handleFiltersChange(appliedFilters, '')}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -240,7 +240,7 @@ export function AutocompleteSearch({
             {(hasFilters || hasTextSearch) && (
               <button
                 type='button'
-                className='mr-[8px] ml-[6px] flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover:text-[var(--text-secondary)]'
+                className='mr-2 ml-1.5 flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover-hover:text-[var(--text-secondary)]'
                 onClick={clearAll}
               >
                 <X className='h-[14px] w-[14px]' />
@@ -253,7 +253,7 @@ export function AutocompleteSearch({
         <DropdownMenuPrimitive.Portal>
           <DropdownMenuPrimitive.Content
             ref={dropdownRef}
-            className='z-50 rounded-[8px] border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+            className='z-50 rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
             style={{ width: dropdownWidth }}
             align='start'
             sideOffset={4}
@@ -268,8 +268,8 @@ export function AutocompleteSearch({
                       key={suggestions[0].id}
                       data-index={0}
                       className={cn(
-                        'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
-                        'hover:bg-[var(--surface-5)]',
+                        'w-full rounded-md px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
+                        'hover-hover:bg-[var(--surface-5)]',
                         highlightedIndex === 0 && 'bg-[var(--surface-5)]'
                       )}
                       onMouseEnter={() => setHighlightedIndex(0)}
@@ -278,13 +278,13 @@ export function AutocompleteSearch({
                         handleSuggestionSelect(suggestions[0])
                       }}
                     >
-                      <div className='text-[13px]'>{suggestions[0].label}</div>
+                      <div className='text-small'>{suggestions[0].label}</div>
                     </button>
                   )}
 
                   {sections.map((section) => (
                     <div key={section.title}>
-                      <div className='px-3 py-1.5 font-medium text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide'>
+                      <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
                         {section.title}
                       </div>
                       {section.suggestions.map((suggestion) => {
@@ -298,8 +298,8 @@ export function AutocompleteSearch({
                             key={suggestion.id}
                             data-index={index}
                             className={cn(
-                              'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
-                              'hover:bg-[var(--surface-5)]',
+                              'w-full rounded-md px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
+                              'hover-hover:bg-[var(--surface-5)]',
                               isHighlighted && 'bg-[var(--surface-5)]'
                             )}
                             onMouseEnter={() => setHighlightedIndex(index)}
@@ -309,11 +309,11 @@ export function AutocompleteSearch({
                             }}
                           >
                             <div className='flex items-center justify-between gap-3'>
-                              <div className='min-w-0 flex-1 truncate text-[13px]'>
+                              <div className='min-w-0 flex-1 truncate text-small'>
                                 {suggestion.label}
                               </div>
                               {suggestion.value !== suggestion.label && (
-                                <div className='shrink-0 font-mono text-[11px] text-[var(--text-muted)]'>
+                                <div className='shrink-0 font-mono text-[var(--text-muted)] text-xs'>
                                   {suggestion.category === 'workflow' ||
                                   suggestion.category === 'folder'
                                     ? `${suggestion.category}:`
@@ -331,7 +331,7 @@ export function AutocompleteSearch({
                 // Single section layout
                 <div className='py-1'>
                   {suggestionType === 'filters' && (
-                    <div className='px-3 py-1.5 font-medium text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide'>
+                    <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
                       SUGGESTED FILTERS
                     </div>
                   )}
@@ -341,8 +341,8 @@ export function AutocompleteSearch({
                       key={suggestion.id}
                       data-index={index}
                       className={cn(
-                        'w-full rounded-[6px] px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
-                        'hover:bg-[var(--surface-5)]',
+                        'w-full rounded-md px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
+                        'hover-hover:bg-[var(--surface-5)]',
                         index === highlightedIndex && 'bg-[var(--surface-5)]'
                       )}
                       onMouseEnter={() => setHighlightedIndex(index)}
@@ -352,9 +352,9 @@ export function AutocompleteSearch({
                       }}
                     >
                       <div className='flex items-center justify-between gap-3'>
-                        <div className='min-w-0 flex-1 text-[13px]'>{suggestion.label}</div>
+                        <div className='min-w-0 flex-1 text-small'>{suggestion.label}</div>
                         {suggestion.description && (
-                          <div className='shrink-0 text-[11px] text-[var(--text-muted)]'>
+                          <div className='shrink-0 text-[var(--text-muted)] text-xs'>
                             {suggestion.value}
                           </div>
                         )}

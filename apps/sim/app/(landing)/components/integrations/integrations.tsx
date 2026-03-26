@@ -93,7 +93,7 @@ function TickerRow({ direction, offset, showOdd, icons }: TickerRowProps) {
   return (
     <div className='relative h-[88px] w-full overflow-hidden'>
       <div
-        className={`absolute flex items-center gap-[16px] ${
+        className={`absolute flex items-center gap-4 ${
           direction === 'left' ? 'animate-slide-left' : 'animate-slide-right'
         }`}
         style={{
@@ -121,21 +121,21 @@ export default function Integrations() {
   return (
     <section
       id='integrations'
-      className='flex flex-col pt-[40px] pb-[27px] sm:pt-[24px]'
+      className='flex flex-col pt-10 pb-[27px] sm:pt-6'
       aria-labelledby='integrations-heading'
     >
       <h2
         id='integrations-heading'
-        className='mb-[4px] px-4 font-medium text-[28px] text-foreground tracking-tight sm:pl-[50px]'
+        className='mb-1 px-4 font-medium text-[28px] text-foreground tracking-tight sm:pl-[50px]'
       >
         Integrations
       </h2>
-      <p className='mb-[24px] px-4 text-[#515151] text-[18px] sm:pl-[50px]'>
+      <p className='mb-6 px-4 text-[#515151] text-lg sm:pl-[50px]'>
         Immediately connect to 100+ models and apps
       </p>
 
       {/* Sliding tickers */}
-      <div className='flex w-full flex-col sm:px-[12px]'>
+      <div className='flex w-full flex-col sm:px-3'>
         <TickerRow direction='left' offset={0} showOdd={false} icons={modelProviderIcons} />
         <TickerRow direction='right' offset={0.5} showOdd={true} icons={communicationIcons} />
         <TickerRow direction='left' offset={1} showOdd={false} icons={dataStorageIcons} />

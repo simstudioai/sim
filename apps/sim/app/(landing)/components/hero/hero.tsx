@@ -363,20 +363,20 @@ export default function Hero() {
   return (
     <section
       id='hero'
-      className='flex w-full flex-col items-center justify-center pt-[36px] sm:pt-[80px]'
+      className='flex w-full flex-col items-center justify-center pt-9 sm:pt-20'
       aria-labelledby='hero-heading'
     >
       <h1
         id='hero-heading'
-        className='px-4 text-center font-medium text-[36px] leading-none tracking-tight sm:px-0 sm:text-[74px]'
+        className='text-balance px-4 text-center font-medium text-[36px] leading-none tracking-tight sm:px-0 sm:text-[74px]'
       >
         Workflows for LLMs
       </h1>
-      <p className='px-4 pt-[6px] text-center text-[18px] opacity-70 sm:px-0 sm:pt-[10px] sm:text-[22px]'>
+      <p className='px-4 pt-1.5 text-center text-lg opacity-70 sm:px-0 sm:pt-2.5 sm:text-[22px]'>
         Build and deploy AI agent workflows
       </p>
       <div
-        className='flex items-center justify-center gap-[2px] pt-[18px] sm:pt-[32px]'
+        className='flex items-center justify-center gap-0.5 pt-4.5 sm:pt-8'
         onMouseEnter={handleIconContainerMouseEnter}
         onMouseLeave={handleIconContainerMouseLeave}
       >
@@ -397,7 +397,7 @@ export default function Hero() {
           )
         })}
       </div>
-      <div className='flex w-full items-center justify-center px-4 pt-[8px] sm:px-8 sm:pt-[12px] md:px-[50px]'>
+      <div className='flex w-full items-center justify-center px-4 pt-2 sm:px-8 sm:pt-3 md:px-[50px]'>
         <div className='relative w-full sm:w-[640px]'>
           <label htmlFor='agent-description' className='sr-only'>
             Describe the AI agent you want to build
@@ -424,7 +424,7 @@ export default function Hero() {
             key={isEmpty ? 'empty' : 'filled'}
             type='button'
             aria-label='Submit description'
-            className='absolute right-2.5 bottom-4 flex h-[30px] w-[30px] items-center justify-center transition-all duration-200 sm:right-[11px] sm:bottom-[16px] sm:h-[34px] sm:w-[34px]'
+            className='absolute right-2.5 bottom-4 flex h-[30px] w-[30px] items-center justify-center transition-all duration-200 sm:right-[11px] sm:bottom-4 sm:h-[34px] sm:w-[34px]'
             disabled={isEmpty}
             onClick={handleSubmit}
             style={{

@@ -16,6 +16,7 @@ export function Bell(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path d='M15.25 6.75C15.25 5.35761 14.6969 4.02226 13.7123 3.03769C12.7277 2.05312 11.3924 1.5 10 1.5C8.60761 1.5 7.27226 2.05312 6.28769 3.03769C5.30312 4.02226 4.75 5.35761 4.75 6.75C4.75 12.75 2.25 14.5 2.25 14.5H17.75C17.75 14.5 15.25 12.75 15.25 6.75Z' />

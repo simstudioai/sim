@@ -49,7 +49,7 @@ export function MessageActions({ content, requestId }: MessageActionsProps) {
         <button
           type='button'
           aria-label='More options'
-          className='flex h-5 w-5 items-center justify-center rounded-sm text-[var(--text-icon)] opacity-0 transition-colors transition-opacity hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] focus-visible:opacity-100 focus-visible:outline-none group-hover/msg:opacity-100 data-[state=open]:opacity-100'
+          className='flex h-5 w-5 items-center justify-center rounded-sm text-[var(--text-icon)] opacity-0 transition-colors transition-opacity hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-primary)] focus-visible:opacity-100 focus-visible:outline-none group-hover/msg:opacity-100 data-[state=open]:opacity-100'
           onClick={(event) => event.stopPropagation()}
         >
           <Ellipsis className='h-3 w-3' strokeWidth={2} />

@@ -402,18 +402,18 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   if (isLoading && !subscriptionData) {
     return (
-      <div className='flex flex-shrink-0 flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px]'>
+      <div className='flex flex-shrink-0 flex-col gap-2 border-t px-[13.5px] pt-2 pb-2.5'>
         <div className='flex h-[18px] items-center justify-between'>
-          <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
-            <Skeleton className='h-[12px] w-[28px] rounded-[4px]' />
+          <div className='flex min-w-0 flex-1 items-center gap-1.5'>
+            <Skeleton className='h-[12px] w-[28px] rounded-sm' />
             <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
-            <Skeleton className='h-[12px] w-[90px] rounded-[4px]' />
+            <Skeleton className='h-[12px] w-[90px] rounded-sm' />
           </div>
-          <Skeleton className='h-[16px] w-[50px] rounded-[6px]' />
+          <Skeleton className='h-[16px] w-[50px] rounded-md' />
         </div>
-        <div className='flex items-center gap-[4px]'>
+        <div className='flex items-center gap-1'>
           {Array.from({ length: pillCount }).map((_, i) => (
-            <Skeleton key={i} className='h-[6px] flex-1 rounded-[2px]' />
+            <Skeleton key={i} className='h-[6px] flex-1 rounded-xs' />
           ))}
         </div>
       </div>
@@ -466,9 +466,9 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   if (isEnterpriseMember) {
     return (
-      <div className='flex flex-shrink-0 flex-col border-t px-[13.5px] pt-[8px] pb-[10px]'>
+      <div className='flex flex-shrink-0 flex-col border-t px-[13.5px] pt-2 pb-2.5'>
         <div className='flex h-[18px] items-center'>
-          <span className='font-base text-[12px] text-[var(--text-primary)]'>
+          <span className='font-base text-[var(--text-primary)] text-caption'>
             {PLAN_NAMES[planType]}
           </span>
         </div>
@@ -479,7 +479,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   return (
     <>
       <div
-        className='group flex flex-shrink-0 cursor-pointer flex-col gap-[8px] border-t px-[13.5px] pt-[8px] pb-[10px]'
+        className='group flex flex-shrink-0 cursor-pointer flex-col gap-2 border-t px-[13.5px] pt-2 pb-2.5'
         onClick={handleClick}
         onContextMenu={handleContextMenuWithCheck}
         onMouseEnter={() => setIsHovered(true)}
@@ -487,27 +487,27 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
       >
         {/* Top row */}
         <div className='flex h-[18px] items-center justify-between'>
-          <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
+          <div className='flex min-w-0 flex-1 items-center gap-1.5'>
             {showPlanText && (
               <>
-                <span className='flex-shrink-0 font-base text-[12px] text-[var(--text-primary)]'>
+                <span className='flex-shrink-0 font-base text-[var(--text-primary)] text-caption'>
                   {PLAN_NAMES[planType]}
                 </span>
                 <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
               </>
             )}
-            <div className='flex min-w-0 flex-1 items-center gap-[4px]'>
+            <div className='flex min-w-0 flex-1 items-center gap-1'>
               {statusText.isError ? (
-                <span className='font-base text-[12px] text-[var(--text-error)]'>
+                <span className='font-base text-[var(--text-error)] text-caption'>
                   {statusText.text}
                 </span>
               ) : (
                 <>
-                  <span className='font-base text-[12px] text-[var(--text-secondary)] tabular-nums'>
+                  <span className='font-base text-[var(--text-secondary)] text-caption tabular-nums'>
                     {dollarsToCredits(usage.current).toLocaleString()}
                   </span>
-                  <span className='font-base text-[12px] text-[var(--text-secondary)]'>/</span>
-                  <span className='font-base text-[12px] text-[var(--text-secondary)] tabular-nums'>
+                  <span className='font-base text-[var(--text-secondary)] text-caption'>/</span>
+                  <span className='font-base text-[var(--text-secondary)] text-caption tabular-nums'>
                     {dollarsToCredits(usage.limit).toLocaleString()} credits
                   </span>
                 </>
@@ -522,7 +522,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
         </div>
 
         {/* Pills row */}
-        <div className='flex items-center gap-[4px]'>
+        <div className='flex items-center gap-1'>
           {Array.from({ length: pillCount }).map((_, i) => {
             const isFilled = i < filledPillsCount
             const baseColor = isFilled ? filledColor : USAGE_PILL_COLORS.UNFILLED
@@ -545,7 +545,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
             return (
               <div
                 key={i}
-                className='h-[6px] flex-1 rounded-[2px]'
+                className='h-[6px] flex-1 rounded-xs'
                 style={{
                   backgroundColor,
                   backgroundImage,

@@ -6,7 +6,7 @@ import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/type
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const USER_MESSAGE_CLASSES =
-  'whitespace-pre-wrap break-all font-[430] font-[family-name:var(--font-inter)] text-[15px] text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
+  'whitespace-pre-wrap break-all font-[430] font-[family-name:var(--font-inter)] text-base text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
 
 interface UserMessageContentProps {
   content: string
@@ -83,8 +83,8 @@ function MentionHighlight({ context }: { context: ChatMessageContext }) {
   }
 
   return (
-    <span className='inline-flex items-baseline gap-[4px] rounded-[5px] bg-[var(--surface-5)] px-[5px]'>
-      {icon && <span className='relative top-[2px] flex-shrink-0'>{icon}</span>}
+    <span className='inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px]'>
+      {icon && <span className='relative top-0.5 flex-shrink-0'>{icon}</span>}
       {context.label}
     </span>
   )

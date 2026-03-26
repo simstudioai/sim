@@ -76,7 +76,7 @@ export function AgentGroup({
   }, [expanded])
 
   return (
-    <div className='flex flex-col gap-[6px]'>
+    <div className='flex flex-col gap-1.5'>
       {hasItems ? (
         <button
           type='button'
@@ -84,7 +84,7 @@ export function AgentGroup({
             wasAutoExpandedRef.current = false
             setExpanded((prev) => !prev)
           }}
-          className='flex cursor-pointer items-center gap-[8px]'
+          className='flex cursor-pointer items-center gap-2'
         >
           <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
             {isDelegating ? (
@@ -93,7 +93,7 @@ export function AgentGroup({
               <AgentIcon className='h-[16px] w-[16px] text-[var(--text-icon)]' />
             )}
           </div>
-          <span className='font-base text-[14px] text-[var(--text-body)]'>{agentLabel}</span>
+          <span className='font-base text-[var(--text-body)] text-sm'>{agentLabel}</span>
           <ChevronDown
             className={cn(
               'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
@@ -102,7 +102,7 @@ export function AgentGroup({
           />
         </button>
       ) : (
-        <div className='flex items-center gap-[8px]'>
+        <div className='flex items-center gap-2'>
           <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
             {isDelegating ? (
               <PillsRing className='h-[15px] w-[15px] text-[var(--text-icon)]' animate />
@@ -110,13 +110,13 @@ export function AgentGroup({
               <AgentIcon className='h-[16px] w-[16px] text-[var(--text-icon)]' />
             )}
           </div>
-          <span className='font-base text-[14px] text-[var(--text-body)]'>{agentLabel}</span>
+          <span className='font-base text-[var(--text-body)] text-sm'>{agentLabel}</span>
         </div>
       )}
       {hasItems && mounted && (
         <div
           className={cn(
-            'flex flex-col gap-[6px] transition-opacity duration-300 ease-out',
+            'flex flex-col gap-1.5 transition-opacity duration-300 ease-out',
             expanded ? 'opacity-100' : 'opacity-0'
           )}
         >
@@ -131,7 +131,7 @@ export function AgentGroup({
             ) : (
               <span
                 key={`text-${idx}`}
-                className='pl-[24px] font-base text-[13px] text-[var(--text-secondary)]'
+                className='pl-6 font-base text-[var(--text-secondary)] text-small'
               >
                 {item.content.trim()}
               </span>

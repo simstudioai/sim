@@ -16,6 +16,7 @@ export function ArrowDown(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path d='M4 11.25L10.25 17.5L16.5 11.25' />

@@ -123,16 +123,16 @@ const BlockRow = memo(function BlockRow({
         onSelect(entry)
       }}
     >
-      <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+      <div className='flex min-w-0 flex-1 items-center gap-2'>
         <div
-          className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+          className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
           style={{ background: bgColor }}
         >
           {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
         </div>
         <span
           className={clsx(
-            'min-w-0 truncate font-base text-[14px]',
+            'min-w-0 truncate font-base text-sm',
             hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
           )}
         >
@@ -141,7 +141,7 @@ const BlockRow = memo(function BlockRow({
       </div>
       <span
         className={clsx(
-          'flex-shrink-0 font-base text-[14px]',
+          'flex-shrink-0 font-base text-sm',
           !isRunning && 'text-[var(--text-secondary)]'
         )}
       >
@@ -197,10 +197,10 @@ const IterationNodeRow = memo(function IterationNodeRow({
           onToggle()
         }}
       >
-        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
           <span
             className={clsx(
-              'min-w-0 truncate font-base text-[14px]',
+              'min-w-0 truncate font-base text-sm',
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
@@ -217,7 +217,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-base text-[14px]',
+            'flex-shrink-0 font-base text-sm',
             !hasRunningChild && 'text-[var(--text-secondary)]'
           )}
         >
@@ -294,16 +294,16 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
           onToggleNode(nodeId)
         }}
       >
-        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
           <div
-            className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+            className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
             {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
           </div>
           <span
             className={clsx(
-              'min-w-0 truncate font-base text-[14px]',
+              'min-w-0 truncate font-base text-sm',
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
@@ -320,7 +320,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-base text-[14px]',
+            'flex-shrink-0 font-base text-sm',
             !hasRunningDescendant && 'text-[var(--text-secondary)]'
           )}
         >
@@ -407,16 +407,16 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
           if (hasChildren) onToggleNode(nodeId)
         }}
       >
-        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
           <div
-            className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+            className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
             {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
           </div>
           <span
             className={clsx(
-              'min-w-0 truncate font-base text-[14px]',
+              'min-w-0 truncate font-base text-sm',
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
@@ -433,7 +433,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-base text-[14px]',
+            'flex-shrink-0 font-base text-sm',
             !hasRunningDescendant && 'text-[var(--text-secondary)]'
           )}
         >
@@ -613,17 +613,21 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
     return () => resizeObserver.disconnect()
   }, [])
 
+  const rowsRef = useRef(rows)
+  rowsRef.current = rows
+
   useEffect(() => {
     if (!selectedEntryId) return
 
-    const rowIndex = rows.findIndex(
+    const currentRows = rowsRef.current
+    const rowIndex = currentRows.findIndex(
       (row) => row.rowType === 'node' && row.node?.entry.id === selectedEntryId
     )
 
     if (rowIndex !== -1) {
       listRef.current?.scrollToRow({ index: rowIndex, align: 'smart' })
     }
-  }, [rows, selectedEntryId, listRef])
+  }, [selectedEntryId, listRef])
 
   const rowProps = useMemo<TerminalLogListRowProps>(
     () => ({
@@ -1318,7 +1322,7 @@ export const Terminal = memo(function Terminal() {
           >
             {/* Header */}
             <div
-              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-[16px] pl-[16px]'
+              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-4'
               onClick={handleHeaderClick}
             >
               {/* Left side - Logs label */}
@@ -1326,7 +1330,7 @@ export const Terminal = memo(function Terminal() {
 
               {/* Right side - Icons and options */}
               {!selectedEntry && (
-                <div className='flex items-center gap-[8px]'>
+                <div className='flex items-center gap-2'>
                   {/* Sort toggle */}
                   {allWorkflowEntries.length > 0 && (
                     <Tooltip.Root>
@@ -1452,7 +1456,7 @@ export const Terminal = memo(function Terminal() {
                       collisionPadding={0}
                       onClick={(e) => e.stopPropagation()}
                       style={{ minWidth: '140px', maxWidth: '160px' }}
-                      className='gap-[2px]'
+                      className='gap-0.5'
                     >
                       <PopoverItem
                         active={openOnRun}
@@ -1481,7 +1485,7 @@ export const Terminal = memo(function Terminal() {
             {/* Execution list */}
             <div className='flex-1 overflow-hidden'>
               {executionGroups.length === 0 ? (
-                <div className='flex h-full items-center justify-center text-[#8D8D8D] text-[13px]'>
+                <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
                   No logs yet
                 </div>
               ) : (

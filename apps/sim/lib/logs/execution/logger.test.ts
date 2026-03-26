@@ -29,7 +29,7 @@ vi.mock('@/lib/billing/core/usage', () => ({
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({
-  logWorkflowUsageBatch: vi.fn(() => Promise.resolve()),
+  recordUsage: vi.fn(() => Promise.resolve()),
 }))
 
 vi.mock('@/lib/billing/threshold-billing', () => ({

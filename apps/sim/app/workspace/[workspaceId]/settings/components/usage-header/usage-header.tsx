@@ -56,28 +56,24 @@ export function UsageHeader({
   const isOnDemandActive = onDemandState === 'disable'
 
   return (
-    <div className='flex flex-col gap-[12px]'>
+    <div className='flex flex-col gap-3'>
       <div className='flex items-center justify-between'>
-        <div className='flex flex-col gap-[4px]'>
-          <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+        <div className='flex flex-col gap-1'>
+          <span className='font-medium text-[var(--text-secondary)] text-small'>
             {title}
-            {seatsText && (
-              <span className='ml-[6px] text-[var(--text-tertiary)]'>({seatsText})</span>
-            )}
+            {seatsText && <span className='ml-1.5 text-[var(--text-tertiary)]'>({seatsText})</span>}
           </span>
-          <div className='flex items-center gap-[4px]'>
+          <div className='flex items-center gap-1'>
             {isBlocked ? (
-              <span className='font-medium text-[15px] text-[var(--text-error)]'>
-                Payment failed
-              </span>
+              <span className='font-medium text-[var(--text-error)] text-base'>Payment failed</span>
             ) : (
               <>
-                <span className='font-medium text-[15px] text-[var(--text-primary)] tabular-nums'>
+                <span className='font-medium text-[var(--text-primary)] text-base tabular-nums'>
                   {formatCredits(current)}
                 </span>
-                <span className='font-medium text-[15px] text-[var(--text-primary)]'>/</span>
+                <span className='font-medium text-[var(--text-primary)] text-base'>/</span>
                 {rightContent ?? (
-                  <span className='font-medium text-[15px] text-[var(--text-primary)] tabular-nums'>
+                  <span className='font-medium text-[var(--text-primary)] text-base tabular-nums'>
                     {formatCredits(limit)}
                     {limit < ON_DEMAND_UNLIMITED && ' credits'}
                   </span>
@@ -88,10 +84,7 @@ export function UsageHeader({
         </div>
 
         <div
-          className={cn(
-            'flex flex-col gap-[8px]',
-            showOnDemandBadge ? 'items-center' : 'items-end'
-          )}
+          className={cn('flex flex-col gap-2', showOnDemandBadge ? 'items-center' : 'items-end')}
         >
           {showOnDemandBadge ? (
             <Badge
@@ -114,13 +107,13 @@ export function UsageHeader({
               </Badge>
             )
           )}
-          <div className='flex w-[100px] items-center gap-[4px]'>
+          <div className='flex w-[100px] items-center gap-1'>
             {Array.from({ length: PILL_COUNT }).map((_, i) => {
               const isFilled = i < filledPillsCount
               return (
                 <div
                   key={i}
-                  className='h-[6px] flex-1 rounded-[2px]'
+                  className='h-[6px] flex-1 rounded-xs'
                   style={{
                     backgroundColor: isFilled ? filledColor : USAGE_PILL_COLORS.UNFILLED,
                   }}

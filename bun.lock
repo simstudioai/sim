@@ -135,6 +135,7 @@
         "ffmpeg-static": "5.3.0",
         "fluent-ffmpeg": "2.1.3",
         "framer-motion": "^12.5.0",
+        "free-email-domains": "1.2.25",
         "google-auth-library": "10.5.0",
         "gray-matter": "^4.0.3",
         "groq-sdk": "^0.15.0",
@@ -2311,6 +2312,8 @@
     "fraction.js": ["fraction.js@4.3.7", "", {}, "sha512-ZsDfxO51wGAXREY55a7la9LScWpwv9RxIrYABrlvOFBlH/ShPnrtsXeuUIfXKKOVicNxQ+o8JTbJvjS4M89yew=="],
 
     "framer-motion": ["framer-motion@12.38.0", "", { "dependencies": { "motion-dom": "^12.38.0", "motion-utils": "^12.36.0", "tslib": "^2.4.0" }, "peerDependencies": { "@emotion/is-prop-valid": "*", "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" }, "optionalPeers": ["@emotion/is-prop-valid", "react", "react-dom"] }, "sha512-rFYkY/pigbcswl1XQSb7q424kSTQ8q6eAC+YUsSKooHQYuLdzdHjrt6uxUC+PRAO++q5IS7+TamgIw1AphxR+g=="],
+
+    "free-email-domains": ["free-email-domains@1.2.25", "", {}, "sha512-Uf2rJUjo/agIgQzt6od9XcHrR6rfIMD6TwsNVSJVJCHzjPWWsqjCb+EaQ2VVVY9M55+JB3V0k6ru5sHTGx/ZfA=="],
 
     "fresh": ["fresh@2.0.0", "", {}, "sha512-Rx/WycZ60HOaqLKAi6cHRKKI7zxWbJ31MhntmtwMoaTeF7XFH9hhBp8vITaMidfljRQ6eYWCKkaTK+ykVJHP2A=="],
 

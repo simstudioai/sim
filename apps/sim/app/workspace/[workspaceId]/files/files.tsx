@@ -202,7 +202,7 @@ export function Files() {
               label: file.name,
               content:
                 listRename.editingId === file.id ? (
-                  <span className='flex min-w-0 items-center gap-[12px] font-medium text-[14px] text-[var(--text-body)]'>
+                  <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
                     <span className='flex-shrink-0 text-[var(--text-icon)]'>
                       <Icon className='h-[14px] w-[14px]' />
                     </span>

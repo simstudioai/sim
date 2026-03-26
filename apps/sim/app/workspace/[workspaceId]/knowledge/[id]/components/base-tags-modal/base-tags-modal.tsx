@@ -50,23 +50,20 @@ function DocumentList({ documents, totalCount }: DocumentListProps) {
   const hasMore = totalCount > displayLimit
 
   return (
-    <div className='rounded-[4px] border'>
+    <div className='rounded-sm border'>
       <div className='max-h-[160px] overflow-y-auto'>
         {documents.slice(0, displayLimit).map((doc) => {
           const DocumentIcon = getDocumentIcon('', doc.name)
           return (
-            <div
-              key={doc.id}
-              className='flex items-center gap-[8px] border-b p-[8px] last:border-b-0'
-            >
+            <div key={doc.id} className='flex items-center gap-2 border-b p-2 last:border-b-0'>
               <DocumentIcon className='h-4 w-4 flex-shrink-0 text-[var(--text-muted)]' />
-              <span className='min-w-0 max-w-[120px] truncate text-[12px] text-[var(--text-primary)]'>
+              <span className='min-w-0 max-w-[120px] truncate text-[var(--text-primary)] text-caption'>
                 {doc.name}
               </span>
               {doc.tagValue && (
                 <>
-                  <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[#3A3A3A]' />
-                  <span className='min-w-0 flex-1 truncate text-[11px] text-[var(--text-muted)]'>
+                  <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-xs'>
                     {doc.tagValue}
                   </span>
                 </>
@@ -75,7 +72,7 @@ function DocumentList({ documents, totalCount }: DocumentListProps) {
           )
         })}
         {hasMore && (
-          <div className='p-[8px] text-[11px] text-[var(--text-muted)]'>
+          <div className='p-2 text-[var(--text-muted)] text-xs'>
             and {totalCount - displayLimit} more documents
           </div>
         )}
@@ -273,17 +270,17 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
           <ModalBody>
             <div className='min-h-0 flex-1 overflow-y-auto'>
-              <div className='space-y-[8px]'>
+              <div className='space-y-2'>
                 <Label>
                   Tags:{' '}
-                  <span className='pl-[6px] text-[var(--text-tertiary)]'>
+                  <span className='pl-1.5 text-[var(--text-tertiary)]'>
                     {kbTagDefinitions.length} defined
                   </span>
                 </Label>
 
                 {kbTagDefinitions.length === 0 && !isCreatingTag && (
-                  <div className='rounded-[6px] border p-[16px] text-center'>
-                    <p className='text-[12px] text-[var(--text-tertiary)]'>
+                  <div className='rounded-md border p-4 text-center'>
+                    <p className='text-[var(--text-tertiary)] text-caption'>
                       No tag definitions yet. Create your first tag to organize documents.
                     </p>
                   </div>
@@ -294,17 +291,17 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                   return (
                     <div
                       key={tag.id}
-                      className='flex cursor-pointer items-center gap-2 rounded-[4px] border p-[8px] hover:bg-[var(--surface-2)]'
+                      className='flex cursor-pointer items-center gap-2 rounded-sm border p-2 hover-hover:bg-[var(--surface-2)]'
                       onClick={() => handleViewDocuments(tag)}
                     >
-                      <span className='min-w-0 truncate text-[12px] text-[var(--text-primary)]'>
+                      <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
                         {tag.displayName}
                       </span>
-                      <span className='rounded-[3px] bg-[var(--surface-3)] px-[6px] py-[2px] text-[10px] text-[var(--text-muted)]'>
+                      <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
                         {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
                       </span>
-                      <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[#3A3A3A]' />
-                      <span className='min-w-0 flex-1 text-[11px] text-[var(--text-muted)]'>
+                      <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
+                      <span className='min-w-0 flex-1 text-[var(--text-muted)] text-xs'>
                         {usage.documentCount} document{usage.documentCount !== 1 ? 's' : ''}
                       </span>
                       <div className='flex flex-shrink-0 items-center gap-1'>
@@ -314,7 +311,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                             e.stopPropagation()
                             handleDeleteTagClick(tag)
                           }}
-                          className='h-4 w-4 p-0 text-[var(--text-muted)] hover:text-[var(--text-error)]'
+                          className='h-4 w-4 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
                         >
                           <Trash className='h-3 w-3' />
                         </Button>
@@ -335,8 +332,8 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                 )}
 
                 {isCreatingTag && (
-                  <div className='space-y-[8px] rounded-[6px] border p-[12px]'>
-                    <div className='flex flex-col gap-[8px]'>
+                  <div className='space-y-2 rounded-md border p-3'>
+                    <div className='flex flex-col gap-2'>
                       <Label htmlFor='tagName'>Tag Name</Label>
                       <Input
                         id='tagName'
@@ -358,13 +355,13 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         }}
                       />
                       {tagNameConflict && (
-                        <span className='text-[12px] text-[var(--text-error)]'>
+                        <span className='text-[var(--text-error)] text-caption'>
                           A tag with this name already exists
                         </span>
                       )}
                     </div>
 
-                    <div className='flex flex-col gap-[8px]'>
+                    <div className='flex flex-col gap-2'>
                       <Label htmlFor='tagType'>Type</Label>
                       <Combobox
                         options={fieldTypeOptions}
@@ -375,13 +372,13 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         placeholder='Select type'
                       />
                       {!hasAvailableSlots(createTagForm.fieldType) && (
-                        <span className='text-[12px] text-[var(--text-error)]'>
+                        <span className='text-[var(--text-error)] text-caption'>
                           No available slots for this type. Choose a different type.
                         </span>
                       )}
                     </div>
 
-                    <div className='flex gap-[8px]'>
+                    <div className='flex gap-2'>
                       <Button variant='default' onClick={cancelCreatingTag} className='flex-1'>
                         Cancel
                       </Button>
@@ -417,7 +414,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         <ModalContent size='sm'>
           <ModalHeader>Delete Tag</ModalHeader>
           <ModalBody>
-            <div className='space-y-[8px]'>
+            <div className='space-y-2'>
               <p className='text-[var(--text-secondary)]'>
                 Are you sure you want to delete the "{selectedTag?.displayName}" tag? This will
                 remove this tag from {selectedTagUsage?.documentCount || 0} document
@@ -426,7 +423,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
               </p>
 
               {selectedTagUsage && selectedTagUsage.documentCount > 0 && (
-                <div className='flex flex-col gap-[8px]'>
+                <div className='flex flex-col gap-2'>
                   <Label>Affected documents:</Label>
                   <DocumentList
                     documents={selectedTagUsage.documents}
@@ -460,7 +457,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         <ModalContent size='sm'>
           <ModalHeader>Documents using "{selectedTag?.displayName}"</ModalHeader>
           <ModalBody>
-            <div className='space-y-[8px]'>
+            <div className='space-y-2'>
               <p className='text-[var(--text-secondary)]'>
                 {selectedTagUsage?.documentCount || 0} document
                 {selectedTagUsage?.documentCount !== 1 ? 's are' : ' is'} currently using this tag
@@ -468,7 +465,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
               </p>
 
               {selectedTagUsage?.documentCount === 0 ? (
-                <div className='rounded-[6px] border p-[16px] text-center'>
+                <div className='rounded-md border p-4 text-center'>
                   <p className='text-[var(--text-secondary)]'>
                     This tag definition is not being used by any documents. You can safely delete it
                     to free up the tag slot.

@@ -107,8 +107,8 @@ export function GroupedCheckboxList({
           variant='ghost'
           disabled={disabled}
           className={cn(
-            'flex w-full cursor-pointer items-center justify-between rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] font-medium font-sans text-[var(--text-primary)] text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-[var(--surface-5)]',
-            'hover:border-[var(--surface-7)] hover:bg-[var(--surface-5)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]'
+            'flex w-full cursor-pointer items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-medium font-sans text-[var(--text-primary)] text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-[var(--surface-5)]',
+            'hover-hover:border-[var(--surface-7)] hover-hover:bg-[var(--surface-5)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]'
           )}
         >
           <span className='flex flex-1 items-center gap-2 truncate text-[var(--text-muted)]'>

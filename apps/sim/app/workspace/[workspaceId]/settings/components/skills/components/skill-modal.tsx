@@ -1,7 +1,7 @@
 'use client'
 
 import type { ChangeEvent } from 'react'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -12,10 +12,15 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  ModalTabs,
+  ModalTabsContent,
+  ModalTabsList,
+  ModalTabsTrigger,
   Textarea,
 } from '@/components/emcn'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useCreateSkill, useUpdateSkill } from '@/hooks/queries/skills'
+import { SkillImport } from './skill-import'
 
 interface SkillModalProps {
   open: boolean
@@ -33,6 +38,8 @@ interface FieldErrors {
   content?: string
   general?: string
 }
+
+type TabValue = 'create' | 'import'
 
 export function SkillModal({
   open,
@@ -52,6 +59,7 @@ export function SkillModal({
   const [content, setContent] = useState('')
   const [errors, setErrors] = useState<FieldErrors>({})
   const [saving, setSaving] = useState(false)
+  const [activeTab, setActiveTab] = useState<TabValue>('create')
   const [prevOpen, setPrevOpen] = useState(false)
   const [prevInitialValues, setPrevInitialValues] = useState(initialValues)
 
@@ -60,6 +68,7 @@ export function SkillModal({
     setDescription(initialValues?.description ?? '')
     setContent(initialValues?.content ?? '')
     setErrors({})
+    setActiveTab('create')
   }
   if (open !== prevOpen) setPrevOpen(open)
   if (initialValues !== prevInitialValues) setPrevInitialValues(initialValues)
@@ -124,97 +133,137 @@ export function SkillModal({
     }
   }
 
+  const handleImport = useCallback(
+    (data: { name: string; description: string; content: string }) => {
+      setName(data.name)
+      setDescription(data.description)
+      setContent(data.content)
+      setErrors({})
+      setActiveTab('create')
+    },
+    []
+  )
+
+  const isEditing = !!initialValues
+
+  const createForm = (
+    <div className='flex flex-col gap-[18px]'>
+      <div className='flex flex-col gap-1'>
+        <Label htmlFor='skill-name' className='font-medium text-[14px]'>
+          Name
+        </Label>
+        <Input
+          id='skill-name'
+          placeholder='my-skill-name'
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value)
+            if (errors.name || errors.general)
+              setErrors((prev) => ({ ...prev, name: undefined, general: undefined }))
+          }}
+        />
+        {errors.name ? (
+          <p className='text-[13px] text-[var(--text-error)]'>{errors.name}</p>
+        ) : (
+          <span className='text-[11px] text-[var(--text-muted)]'>
+            Lowercase letters, numbers, and hyphens (e.g. my-skill)
+          </span>
+        )}
+      </div>
+
+      <div className='flex flex-col gap-1'>
+        <Label htmlFor='skill-description' className='font-medium text-[14px]'>
+          Description
+        </Label>
+        <Input
+          id='skill-description'
+          placeholder='What this skill does and when to use it...'
+          value={description}
+          onChange={(e) => {
+            setDescription(e.target.value)
+            if (errors.description || errors.general)
+              setErrors((prev) => ({ ...prev, description: undefined, general: undefined }))
+          }}
+          maxLength={1024}
+        />
+        {errors.description && (
+          <p className='text-[13px] text-[var(--text-error)]'>{errors.description}</p>
+        )}
+      </div>
+
+      <div className='flex flex-col gap-1'>
+        <Label htmlFor='skill-content' className='font-medium text-[14px]'>
+          Content
+        </Label>
+        <Textarea
+          id='skill-content'
+          placeholder='Skill instructions in markdown...'
+          value={content}
+          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
+            setContent(e.target.value)
+            if (errors.content || errors.general)
+              setErrors((prev) => ({ ...prev, content: undefined, general: undefined }))
+          }}
+          className='min-h-[200px] resize-y font-mono text-[14px]'
+        />
+        {errors.content && <p className='text-[13px] text-[var(--text-error)]'>{errors.content}</p>}
+      </div>
+
+      {errors.general && <p className='text-[13px] text-[var(--text-error)]'>{errors.general}</p>}
+    </div>
+  )
+
+  const footer = (
+    <ModalFooter className='items-center justify-between'>
+      {isEditing && onDelete ? (
+        <Button variant='destructive' onClick={() => onDelete(initialValues.id)}>
+          Delete
+        </Button>
+      ) : (
+        <div />
+      )}
+      <div className='flex gap-2'>
+        <Button variant='default' onClick={() => onOpenChange(false)}>
+          Cancel
+        </Button>
+        <Button variant='primary' onClick={handleSave} disabled={saving || !hasChanges}>
+          {saving ? 'Saving...' : isEditing ? 'Update' : 'Create'}
+        </Button>
+      </div>
+    </ModalFooter>
+  )
+
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size='lg'>
-        <ModalHeader>{initialValues ? 'Edit Skill' : 'Create Skill'}</ModalHeader>
-        <ModalBody>
-          <div className='flex flex-col gap-[18px]'>
-            <div className='flex flex-col gap-[4px]'>
-              <Label htmlFor='skill-name' className='font-medium text-[14px]'>
-                Name
-              </Label>
-              <Input
-                id='skill-name'
-                placeholder='my-skill-name'
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value)
-                  if (errors.name || errors.general)
-                    setErrors((prev) => ({ ...prev, name: undefined, general: undefined }))
-                }}
-              />
-              {errors.name ? (
-                <p className='text-[13px] text-[var(--text-error)]'>{errors.name}</p>
-              ) : (
-                <span className='text-[11px] text-[var(--text-muted)]'>
-                  Lowercase letters, numbers, and hyphens (e.g. my-skill)
-                </span>
-              )}
-            </div>
-
-            <div className='flex flex-col gap-[4px]'>
-              <Label htmlFor='skill-description' className='font-medium text-[14px]'>
-                Description
-              </Label>
-              <Input
-                id='skill-description'
-                placeholder='What this skill does and when to use it...'
-                value={description}
-                onChange={(e) => {
-                  setDescription(e.target.value)
-                  if (errors.description || errors.general)
-                    setErrors((prev) => ({ ...prev, description: undefined, general: undefined }))
-                }}
-                maxLength={1024}
-              />
-              {errors.description && (
-                <p className='text-[13px] text-[var(--text-error)]'>{errors.description}</p>
-              )}
-            </div>
-
-            <div className='flex flex-col gap-[4px]'>
-              <Label htmlFor='skill-content' className='font-medium text-[14px]'>
-                Content
-              </Label>
-              <Textarea
-                id='skill-content'
-                placeholder='Skill instructions in markdown...'
-                value={content}
-                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
-                  setContent(e.target.value)
-                  if (errors.content || errors.general)
-                    setErrors((prev) => ({ ...prev, content: undefined, general: undefined }))
-                }}
-                className='min-h-[200px] resize-y font-mono text-[14px]'
-              />
-              {errors.content && (
-                <p className='text-[13px] text-[var(--text-error)]'>{errors.content}</p>
-              )}
-            </div>
-
-            {errors.general && (
-              <p className='text-[13px] text-[var(--text-error)]'>{errors.general}</p>
-            )}
-          </div>
-        </ModalBody>
-        <ModalFooter className='items-center justify-between'>
-          {initialValues && onDelete ? (
-            <Button variant='destructive' onClick={() => onDelete(initialValues.id)}>
-              Delete
-            </Button>
-          ) : (
-            <div />
-          )}
-          <div className='flex gap-2'>
-            <Button variant='default' onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button variant='primary' onClick={handleSave} disabled={saving || !hasChanges}>
-              {saving ? 'Saving...' : initialValues ? 'Update' : 'Create'}
-            </Button>
-          </div>
-        </ModalFooter>
+        {isEditing ? (
+          <>
+            <ModalHeader>Edit Skill</ModalHeader>
+            <ModalBody>{createForm}</ModalBody>
+            {footer}
+          </>
+        ) : (
+          <>
+            <ModalHeader>Add Skill</ModalHeader>
+            <ModalTabs
+              value={activeTab}
+              onValueChange={(v) => setActiveTab(v as TabValue)}
+              className='flex min-h-0 flex-1 flex-col'
+            >
+              <ModalTabsList activeValue={activeTab}>
+                <ModalTabsTrigger value='create'>Create</ModalTabsTrigger>
+                <ModalTabsTrigger value='import'>Import</ModalTabsTrigger>
+              </ModalTabsList>
+              <ModalBody>
+                <ModalTabsContent value='create'>{createForm}</ModalTabsContent>
+                <ModalTabsContent value='import'>
+                  <SkillImport onImport={handleImport} />
+                </ModalTabsContent>
+              </ModalBody>
+            </ModalTabs>
+            {activeTab === 'create' && footer}
+          </>
+        )}
       </ModalContent>
     </Modal>
   )

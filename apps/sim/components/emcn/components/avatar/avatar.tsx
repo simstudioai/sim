@@ -31,10 +31,10 @@ const avatarStatusVariants = cva(
   {
     variants: {
       status: {
-        online: 'bg-[#16a34a]',
+        online: 'bg-[var(--success)]',
         offline: 'bg-[var(--text-muted)]',
-        busy: 'bg-[#dc2626]',
-        away: 'bg-[#f59e0b]',
+        busy: 'bg-[var(--error)]',
+        away: 'bg-[var(--caution)]',
       },
       size: {
         xs: 'h-1.5 w-1.5 border',
@@ -122,7 +122,10 @@ const AvatarImage = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Image
     ref={ref}
-    className={cn('aspect-square h-full w-full object-cover object-center', className)}
+    className={cn(
+      '-outline-offset-1 aspect-square h-full w-full object-cover object-center outline outline-1 outline-black/5',
+      className
+    )}
     {...props}
   />
 ))

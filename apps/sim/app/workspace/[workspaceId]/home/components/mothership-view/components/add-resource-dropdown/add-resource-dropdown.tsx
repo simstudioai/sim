@@ -199,14 +199,14 @@ export function AddResourceDropdown({
                     onClick={() => select({ type, id: item.id, title: item.name }, item.isOpen)}
                   >
                     {config.renderDropdownItem({ item })}
-                    <span className='ml-auto pl-[8px] text-[11px] text-[var(--text-tertiary)]'>
+                    <span className='ml-auto pl-2 text-[var(--text-tertiary)] text-xs'>
                       {config.label}
                     </span>
                   </DropdownMenuItem>
                 )
               })
             ) : (
-              <div className='px-[8px] py-[5px] text-center font-medium text-[12px] text-[var(--text-tertiary)]'>
+              <div className='px-2 py-[5px] text-center font-medium text-[var(--text-tertiary)] text-caption'>
                 No results
               </div>
             )

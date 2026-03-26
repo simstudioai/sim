@@ -190,7 +190,7 @@ function CollapsibleSection({
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
 
   return (
-    <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
+    <div className='flex min-w-0 flex-col gap-2 overflow-hidden border-[var(--border)] border-b px-3 py-2.5'>
       <div
         className='group flex cursor-pointer items-center justify-between'
         onClick={() => setIsExpanded(!isExpanded)}
@@ -207,7 +207,7 @@ function CollapsibleSection({
       >
         <span
           className={cn(
-            'font-medium text-[12px] transition-colors',
+            'font-medium text-caption transition-colors',
             isError
               ? 'text-[var(--text-error)]'
               : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
@@ -228,8 +228,8 @@ function CollapsibleSection({
       {isExpanded && (
         <>
           {isEmpty ? (
-            <div className='rounded-[6px] bg-[var(--surface-3)] px-[10px] py-[8px]'>
-              <span className='text-[12px] text-[var(--text-tertiary)]'>{emptyMessage}</span>
+            <div className='rounded-md bg-[var(--surface-3)] px-2.5 py-2'>
+              <span className='text-[var(--text-tertiary)] text-caption'>{emptyMessage}</span>
             </div>
           ) : (
             children
@@ -332,7 +332,7 @@ function ConnectionsSection({
 
       {/* Header with Chevron */}
       <div
-        className='flex flex-shrink-0 cursor-pointer items-center gap-[8px] px-[10px] pt-[5px] pb-[5px]'
+        className='flex flex-shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
         onClick={onToggleCollapsed}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -347,11 +347,11 @@ function ConnectionsSection({
         <ChevronUp
           className={cn('h-[14px] w-[14px] transition-transform', !isAtMinHeight && 'rotate-180')}
         />
-        <div className='font-medium text-[13px] text-[var(--text-primary)]'>Connections</div>
+        <div className='font-medium text-[var(--text-primary)] text-small'>Connections</div>
       </div>
 
       {/* Content - styled like ConnectionBlocks */}
-      <div className='flex-1 space-y-[2px] overflow-y-auto overflow-x-hidden px-[6px] pb-[8px]'>
+      <div className='flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
         {connections.map((connection) => {
           const blockConfig = getBlock(connection.blockType)
           const Icon = blockConfig?.icon
@@ -360,17 +360,17 @@ function ConnectionsSection({
           const hasFields = connection.fields.length > 0
 
           return (
-            <div key={connection.blockId} className='mb-[2px] last:mb-0'>
+            <div key={connection.blockId} className='mb-0.5 last:mb-0'>
               {/* Block header - styled like ConnectionItem */}
               <div
                 className={cn(
-                  'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
+                  'group flex h-[26px] items-center gap-2 rounded-lg px-1.5 text-sm hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]',
                   hasFields && 'cursor-pointer'
                 )}
                 onClick={() => hasFields && toggleBlock(connection.blockId)}
               >
                 <div
-                  className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+                  className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
                   style={{ background: bgColor }}
                 >
                   {Icon && (
@@ -404,12 +404,12 @@ function ConnectionsSection({
 
               {/* Fields - styled like FieldItem but showing resolved values */}
               {isExpanded && hasFields && (
-                <div className='relative mt-[2px] ml-[12px] space-y-[2px] pl-[10px]'>
-                  <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
+                <div className='relative mt-0.5 ml-3 space-y-0.5 pl-2.5'>
+                  <div className='pointer-events-none absolute top-1 bottom-1 left-0 w-px bg-[var(--border)]' />
                   {connection.fields.map((field) => (
                     <div
                       key={field.tag}
-                      className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                      className='group flex min-h-[26px] flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg px-1.5 py-1 text-sm hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
                       onContextMenu={(e) => handleValueContextMenu(e, field.value)}
                     >
                       <span
@@ -433,12 +433,12 @@ function ConnectionsSection({
 
         {/* Workflow Variables */}
         {workflowVars.length > 0 && (
-          <div className='mb-[2px] last:mb-0'>
+          <div className='mb-0.5 last:mb-0'>
             <div
-              className='group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+              className='group flex h-[26px] cursor-pointer items-center gap-2 rounded-lg px-1.5 text-sm hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
               onClick={() => setExpandedVariables(!expandedVariables)}
             >
-              <div className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px] bg-[#8B5CF6]'>
+              <div className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#8B5CF6]'>
                 <span className='font-bold text-[9px] text-white'>V</span>
               </div>
               <span
@@ -458,12 +458,12 @@ function ConnectionsSection({
               />
             </div>
             {expandedVariables && (
-              <div className='relative mt-[2px] ml-[12px] space-y-[2px] pl-[10px]'>
-                <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
+              <div className='relative mt-0.5 ml-3 space-y-0.5 pl-2.5'>
+                <div className='pointer-events-none absolute top-1 bottom-1 left-0 w-px bg-[var(--border)]' />
                 {workflowVars.map((v) => (
                   <div
                     key={v.ref}
-                    className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                    className='group flex min-h-[26px] flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg px-1.5 py-1 text-sm hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
                     onContextMenu={(e) => handleValueContextMenu(e, v.value)}
                   >
                     <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
@@ -479,12 +479,12 @@ function ConnectionsSection({
 
         {/* Secrets */}
         {envVars.length > 0 && (
-          <div className='mb-[2px] last:mb-0'>
+          <div className='mb-0.5 last:mb-0'>
             <div
-              className='group flex h-[26px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+              className='group flex h-[26px] cursor-pointer items-center gap-2 rounded-lg px-1.5 text-sm hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
               onClick={() => setExpandedEnvVars(!expandedEnvVars)}
             >
-              <div className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px] bg-[#6B7280]'>
+              <div className='relative flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#6B7280]'>
                 <span className='font-bold text-[9px] text-white'>E</span>
               </div>
               <span
@@ -504,12 +504,12 @@ function ConnectionsSection({
               />
             </div>
             {expandedEnvVars && (
-              <div className='relative mt-[2px] ml-[12px] space-y-[2px] pl-[10px]'>
-                <div className='pointer-events-none absolute top-[4px] bottom-[4px] left-0 w-px bg-[var(--border)]' />
+              <div className='relative mt-0.5 ml-3 space-y-0.5 pl-2.5'>
+                <div className='pointer-events-none absolute top-1 bottom-1 left-0 w-px bg-[var(--border)]' />
                 {envVars.map((v) => (
                   <div
                     key={v.ref}
-                    className='group flex min-h-[26px] flex-wrap items-baseline gap-x-[8px] gap-y-[2px] rounded-[8px] px-[6px] py-[4px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                    className='group flex min-h-[26px] flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg px-1.5 py-1 text-sm hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]'
                   >
                     <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'>
                       {v.name}
@@ -622,10 +622,10 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
   }
 
   return (
-    <div className='flex-1 overflow-y-auto overflow-x-hidden pt-[8px] pb-[8px]'>
+    <div className='flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-2'>
       {/* Type Selection - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           {isLoop ? 'Loop Type' : 'Parallel Type'}
         </Label>
         <Combobox
@@ -638,7 +638,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
       </div>
 
       {/* Dashed Line Separator - matches SubflowEditor */}
-      <div className='px-[2px] pt-[16px] pb-[10px]'>
+      <div className='px-0.5 pt-4 pb-2.5'>
         <div
           className='h-[1.25px]'
           style={{
@@ -650,7 +650,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
 
       {/* Configuration - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           {getConfigLabel()}
         </Label>
 
@@ -661,9 +661,9 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
               value={iterations.toString()}
               onChange={() => {}}
               disabled
-              className='mb-[4px]'
+              className='mb-1'
             />
-            <div className='text-[10px] text-muted-foreground'>
+            <div className='text-micro text-muted-foreground'>
               Enter a number between 1 and {config.maxIterations}
             </div>
           </div>
@@ -675,7 +675,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
                   {isConditionMode ? '<counter.value> < 10' : "['item1', 'item2', 'item3']"}
                 </Code.Placeholder>
                 <div
-                  className='min-h-[24px] whitespace-pre-wrap break-all px-[12px] py-[8px] font-mono text-[13px] text-[var(--text-secondary)]'
+                  className='min-h-[24px] whitespace-pre-wrap break-all px-3 py-2 font-mono text-[var(--text-secondary)] text-small'
                   style={{ pointerEvents: 'none' }}
                 >
                   {editorValue || (
@@ -1093,18 +1093,18 @@ function PreviewEditorContent({
     return (
       <div className='relative flex h-full w-80 flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         {/* Header - styled like subflow header */}
-        <div className='mx-[-1px] flex flex-shrink-0 items-center gap-[8px] rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-[12px] py-[6px]'>
+        <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <div
-            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
+            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ backgroundColor: subflowBgColor }}
           >
             <SubflowIcon className='h-[12px] w-[12px] text-white' />
           </div>
-          <span className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
+          <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>
             {subflowName}
           </span>
           {onClose && (
-            <Button variant='ghost' className='!p-[4px] flex-shrink-0' onClick={onClose}>
+            <Button variant='ghost' className='!p-1 flex-shrink-0' onClick={onClose}>
               <X className='h-[14px] w-[14px]' />
             </Button>
           )}
@@ -1113,7 +1113,7 @@ function PreviewEditorContent({
         {/* Subflow Configuration */}
         <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
           <div className='flex-1 overflow-y-auto overflow-x-hidden'>
-            <div className='readonly-preview px-[8px]'>
+            <div className='readonly-preview px-2'>
               <style>{READONLY_PREVIEW_STYLES}</style>
               <SubflowConfigDisplay block={block} loop={loopConfig} parallel={parallelConfig} />
             </div>
@@ -1126,14 +1126,14 @@ function PreviewEditorContent({
   if (!blockConfig) {
     return (
       <div className='flex h-full w-80 flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
-        <div className='mx-[-1px] flex items-center gap-[8px] rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-[12px] py-[6px]'>
-          <div className='flex h-[18px] w-[18px] items-center justify-center rounded-[4px] bg-[var(--surface-3)]' />
-          <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+        <div className='mx-[-1px] flex items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
+          <div className='flex h-[18px] w-[18px] items-center justify-center rounded-sm bg-[var(--surface-3)]' />
+          <span className='font-medium text-[var(--text-primary)] text-sm'>
             {block.name || 'Unknown Block'}
           </span>
         </div>
-        <div className='p-[12px]'>
-          <p className='text-[13px] text-[var(--text-secondary)]'>Block configuration not found.</p>
+        <div className='p-3'>
+          <p className='text-[var(--text-secondary)] text-small'>Block configuration not found.</p>
         </div>
       </div>
     )
@@ -1180,10 +1180,10 @@ function PreviewEditorContent({
   return (
     <div className='relative flex h-full w-80 flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
-      <div className='mx-[-1px] flex flex-shrink-0 items-center gap-[8px] rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-[12px] py-[6px]'>
+      <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
         {block.type !== 'note' && (
           <div
-            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
+            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ backgroundColor: blockConfig.bgColor }}
           >
             <IconComponent
@@ -1192,11 +1192,11 @@ function PreviewEditorContent({
             />
           </div>
         )}
-        <span className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
+        <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>
           {block.name || blockConfig.name}
         </span>
         {onClose && (
-          <Button variant='ghost' className='!p-[4px] flex-shrink-0' onClick={onClose}>
+          <Button variant='ghost' className='!p-1 flex-shrink-0' onClick={onClose}>
             <X className='h-[14px] w-[14px]' />
           </Button>
         )}
@@ -1209,7 +1209,7 @@ function PreviewEditorContent({
           <div className='flex-1 overflow-y-auto overflow-x-hidden'>
             {/* Not Executed Banner - shown when in execution mode but block wasn't executed */}
             {isBlockNotExecuted && (
-              <div className='flex min-w-0 flex-col gap-[8px] overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
+              <div className='flex min-w-0 flex-col gap-2 overflow-hidden border-[var(--border)] border-b px-3 py-2.5'>
                 <div className='flex items-center justify-between'>
                   <Badge variant='gray-secondary' size='sm' dot>
                     Not Executed
@@ -1220,14 +1220,14 @@ function PreviewEditorContent({
 
             {/* Execution Status & Duration Header */}
             {executionData && (executionData.status || executionData.durationMs !== undefined) && (
-              <div className='flex min-w-0 items-center justify-between overflow-hidden border-[var(--border)] border-b px-[12px] py-[10px]'>
+              <div className='flex min-w-0 items-center justify-between overflow-hidden border-[var(--border)] border-b px-3 py-2.5'>
                 {executionData.status && (
                   <Badge variant={statusVariant} size='sm' dot>
                     <span className='capitalize'>{executionData.status}</span>
                   </Badge>
                 )}
                 {executionData.durationMs !== undefined && (
-                  <span className='font-medium text-[12px] text-[var(--text-tertiary)]'>
+                  <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                     {formatDuration(executionData.durationMs, { precision: 2 })}
                   </span>
                 )}
@@ -1253,7 +1253,7 @@ function PreviewEditorContent({
                   <Code.Viewer
                     code={formatValueAsJson(executionData.input)}
                     language='json'
-                    className='!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]'
+                    className='!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-md border-0 [word-break:break-all]'
                     wrapText={wrapText}
                     searchQuery={isSearchActive ? searchQuery : undefined}
                     currentMatchIndex={currentMatchIndex}
@@ -1261,7 +1261,7 @@ function PreviewEditorContent({
                   />
                   {/* Action buttons overlay */}
                   {!isSearchActive && (
-                    <div className='absolute top-[7px] right-[6px] z-10 flex gap-[4px]'>
+                    <div className='absolute top-[7px] right-[6px] z-10 flex gap-1'>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
@@ -1271,7 +1271,7 @@ function PreviewEditorContent({
                               e.stopPropagation()
                               handleCopySection(formatValueAsJson(executionData.input), 'input')
                             }}
-                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
                           >
                             {copiedSection === 'input' ? (
                               <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
@@ -1293,7 +1293,7 @@ function PreviewEditorContent({
                               e.stopPropagation()
                               activateSearch()
                             }}
-                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
                           >
                             <Search className='h-[10px] w-[10px]' />
                           </Button>
@@ -1323,7 +1323,7 @@ function PreviewEditorContent({
                     code={formatValueAsJson(executionData.output)}
                     language='json'
                     className={cn(
-                      '!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-[6px] border-0 [word-break:break-all]',
+                      '!bg-[var(--surface-3)] max-h-[300px] min-h-0 max-w-full rounded-md border-0 [word-break:break-all]',
                       executionData.status === 'error' && 'text-[var(--text-error)]'
                     )}
                     wrapText={wrapText}
@@ -1333,7 +1333,7 @@ function PreviewEditorContent({
                   />
                   {/* Action buttons overlay */}
                   {!isSearchActive && (
-                    <div className='absolute top-[7px] right-[6px] z-10 flex gap-[4px]'>
+                    <div className='absolute top-[7px] right-[6px] z-10 flex gap-1'>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
@@ -1343,7 +1343,7 @@ function PreviewEditorContent({
                               e.stopPropagation()
                               handleCopySection(formatValueAsJson(executionData.output), 'output')
                             }}
-                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
                           >
                             {copiedSection === 'output' ? (
                               <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
@@ -1365,7 +1365,7 @@ function PreviewEditorContent({
                               e.stopPropagation()
                               activateSearch()
                             }}
-                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-4)]'
+                            className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-4)]'
                           >
                             <Search className='h-[10px] w-[10px]' />
                           </Button>
@@ -1380,12 +1380,12 @@ function PreviewEditorContent({
 
             {/* Workflow Preview - only for workflow blocks with a selected child workflow */}
             {isWorkflowBlock && childWorkflowId && (
-              <div className='px-[8px] pt-[12px]'>
+              <div className='px-2 pt-3'>
                 <div className='subblock-content flex flex-col gap-[9.5px]'>
-                  <div className='pl-[2px] font-medium text-[13px] text-[var(--text-primary)] leading-none'>
+                  <div className='pl-0.5 font-medium text-[var(--text-primary)] text-small leading-none'>
                     Workflow Preview
                   </div>
-                  <div className='relative h-[160px] overflow-hidden rounded-[4px] border border-[var(--border)]'>
+                  <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
                     {resolvedIsLoadingChildWorkflow ? (
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
                         <div
@@ -1418,7 +1418,7 @@ function PreviewEditorContent({
                               type='button'
                               variant='ghost'
                               onClick={handleExpandChildWorkflow}
-                              className='absolute right-[6px] bottom-[6px] z-10 h-[24px] w-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover:bg-[var(--surface-4)]'
+                              className='absolute right-[6px] bottom-1.5 z-10 h-[24px] w-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
                             >
                               {isExecutionMode && onDrillDown ? (
                                 <Maximize2 className='h-[12px] w-[12px]' />
@@ -1434,7 +1434,7 @@ function PreviewEditorContent({
                       </>
                     ) : (
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
-                        <span className='text-[13px] text-[var(--text-tertiary)]'>
+                        <span className='text-[var(--text-tertiary)] text-small'>
                           {isBlockNotExecuted
                             ? 'Not Executed'
                             : isMissingChildWorkflow
@@ -1445,7 +1445,7 @@ function PreviewEditorContent({
                     )}
                   </div>
                 </div>
-                <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
+                <div className='subblock-divider px-0.5 pt-4 pb-[13px]'>
                   <div
                     className='h-[1.25px]'
                     style={{
@@ -1458,7 +1458,7 @@ function PreviewEditorContent({
             )}
 
             {/* Subblock Values - Using SubBlock components in preview mode */}
-            <div className='readonly-preview px-[8px] pt-[12px] pb-[8px]'>
+            <div className='readonly-preview px-2 pt-3 pb-2'>
               <style>{READONLY_PREVIEW_STYLES}</style>
               {visibleSubBlocks.length > 0 ? (
                 <div className='flex flex-col'>
@@ -1476,7 +1476,7 @@ function PreviewEditorContent({
                         disabled={true}
                       />
                       {index < visibleSubBlocks.length - 1 && (
-                        <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
+                        <div className='subblock-divider px-0.5 pt-4 pb-[13px]'>
                           <div
                             className='h-[1.25px]'
                             style={{
@@ -1490,8 +1490,8 @@ function PreviewEditorContent({
                   ))}
                 </div>
               ) : (
-                <div className='py-[16px] text-center'>
-                  <p className='text-[13px] text-[var(--text-secondary)]'>
+                <div className='py-4 text-center'>
+                  <p className='text-[var(--text-secondary)] text-small'>
                     No configurable fields for this block.
                   </p>
                 </div>
@@ -1521,7 +1521,7 @@ function PreviewEditorContent({
       {/* Search Overlay */}
       {isSearchActive && (
         <div
-          className='absolute top-[40px] right-[8px] z-30 flex h-[34px] items-center gap-[6px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-1)] px-[6px] shadow-sm'
+          className='absolute top-10 right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-sm'
           onClick={(e) => e.stopPropagation()}
         >
           <Input
@@ -1530,11 +1530,11 @@ function PreviewEditorContent({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder='Search...'
-            className='mr-[2px] h-[23px] w-[94px] text-[12px]'
+            className='mr-0.5 h-[23px] w-[94px] text-caption'
           />
           <span
             className={cn(
-              'min-w-[45px] text-center text-[11px]',
+              'min-w-[45px] text-center text-xs',
               matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
             )}
           >

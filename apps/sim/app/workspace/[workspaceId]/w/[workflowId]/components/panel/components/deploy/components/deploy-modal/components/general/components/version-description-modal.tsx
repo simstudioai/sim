@@ -93,7 +93,7 @@ export function VersionDescriptionModal({
           <ModalHeader>
             <span>Version Description</span>
           </ModalHeader>
-          <ModalBody className='space-y-[10px]'>
+          <ModalBody className='space-y-2.5'>
             <div className='flex items-center justify-between'>
               <p className='text-[var(--text-secondary)]'>
                 {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
@@ -101,7 +101,7 @@ export function VersionDescriptionModal({
               </p>
               <Button
                 variant='active'
-                className='-my-1 h-5 px-2 py-0 text-[11px]'
+                className='-my-1 h-5 px-2 py-0 text-xs'
                 onClick={handleGenerateDescription}
                 disabled={isGenerating || updateMutation.isPending}
               >
@@ -118,12 +118,12 @@ export function VersionDescriptionModal({
             />
             <div className='flex items-center justify-between'>
               {(updateMutation.error || generateMutation.error) && (
-                <p className='text-[12px] text-[var(--text-error)]'>
+                <p className='text-[var(--text-error)] text-caption'>
                   {updateMutation.error?.message || generateMutation.error?.message}
                 </p>
               )}
               {!updateMutation.error && !generateMutation.error && <div />}
-              <p className='text-[11px] text-[var(--text-tertiary)]'>{description.length}/2000</p>
+              <p className='text-[var(--text-tertiary)] text-xs'>{description.length}/2000</p>
             </div>
           </ModalBody>
           <ModalFooter>
@@ -151,7 +151,7 @@ export function VersionDescriptionModal({
             <span>Unsaved Changes</span>
           </ModalHeader>
           <ModalBody>
-            <p className='text-[14px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)] text-sm'>
               You have unsaved changes. Are you sure you want to discard them?
             </p>
           </ModalBody>

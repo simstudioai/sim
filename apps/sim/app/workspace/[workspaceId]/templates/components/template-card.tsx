@@ -28,30 +28,30 @@ export function TemplateCardSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'h-[268px] w-full rounded-[8px] bg-[var(--surface-3)] p-[8px] transition-colors hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:bg-[var(--surface-5)]',
+        'h-[268px] w-full rounded-lg bg-[var(--surface-3)] p-2 transition-colors hover-hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover-hover:bg-[var(--surface-5)]',
         className
       )}
     >
-      <div className='h-[180px] w-full animate-pulse rounded-[6px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+      <div className='h-[180px] w-full animate-pulse rounded-md bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
 
-      <div className='mt-[14px] flex items-center justify-between'>
+      <div className='mt-3.5 flex items-center justify-between'>
         <div className='h-4 w-32 animate-pulse rounded bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
         <div className='flex items-center gap-[-4px]'>
           {Array.from({ length: 3 }).map((_, index) => (
             <div
               key={index}
-              className='h-[18px] w-[18px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]'
+              className='h-[18px] w-[18px] animate-pulse rounded-sm bg-[var(--surface-4)] dark:bg-[var(--surface-5)]'
             />
           ))}
         </div>
       </div>
 
-      <div className='mt-[14px] flex items-center justify-between'>
-        <div className='flex items-center gap-[6px]'>
+      <div className='mt-3.5 flex items-center justify-between'>
+        <div className='flex items-center gap-1.5'>
           <div className='h-[20px] w-[20px] animate-pulse rounded-full bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
           <div className='h-3 w-20 animate-pulse rounded bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
         </div>
-        <div className='flex items-center gap-[6px]'>
+        <div className='flex items-center gap-1.5'>
           <div className='h-3 w-3 animate-pulse rounded bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
           <div className='h-3 w-6 animate-pulse rounded bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
           <div className='h-3 w-3 animate-pulse rounded bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
@@ -200,13 +200,13 @@ function TemplateCardInner({
     <div
       onClick={handleCardClick}
       className={cn(
-        'w-full cursor-pointer rounded-[8px] bg-[var(--surface-3)] p-[8px] transition-colors hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:bg-[var(--surface-5)]',
+        'w-full cursor-pointer rounded-lg bg-[var(--surface-3)] p-2 transition-colors hover-hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover-hover:bg-[var(--surface-5)]',
         className
       )}
     >
       <div
         ref={previewRef}
-        className='pointer-events-none h-[180px] w-full overflow-hidden rounded-[6px]'
+        className='pointer-events-none h-[180px] w-full overflow-hidden rounded-md'
       >
         {normalizedState && isInView ? (
           <PreviewWorkflow
@@ -224,8 +224,8 @@ function TemplateCardInner({
         )}
       </div>
 
-      <div className='mt-[10px] flex items-center justify-between'>
-        <h3 className='truncate pr-[8px] pl-[2px] font-medium text-[16px] text-[var(--text-primary)]'>
+      <div className='mt-2.5 flex items-center justify-between'>
+        <h3 className='truncate pr-2 pl-0.5 font-medium text-[var(--text-primary)] text-md'>
           {title}
         </h3>
 
@@ -239,7 +239,7 @@ function TemplateCardInner({
                 return (
                   <div
                     key={index}
-                    className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                    className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
                     style={{
                       background: blockConfig.bgColor || 'gray',
                       marginLeft: index > 0 ? '-4px' : '0',
@@ -250,10 +250,10 @@ function TemplateCardInner({
                 )
               })}
               <div
-                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--surface-7)]'
+                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--surface-7)]'
                 style={{ marginLeft: '-4px' }}
               >
-                <span className='font-medium text-[10px] text-[var(--text-primary)]'>
+                <span className='font-medium text-[var(--text-primary)] text-micro'>
                   +{blockTypes.length - 3}
                 </span>
               </div>
@@ -266,7 +266,7 @@ function TemplateCardInner({
               return (
                 <div
                   key={index}
-                  className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                  className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
                   style={{
                     background: blockConfig.bgColor || 'gray',
                     marginLeft: index > 0 ? '-4px' : '0',
@@ -281,13 +281,13 @@ function TemplateCardInner({
       </div>
 
       {description && (
-        <p className='mt-[4px] truncate pl-[2px] text-[12px] text-[var(--text-tertiary)]'>
+        <p className='mt-1 truncate pl-0.5 text-[var(--text-tertiary)] text-caption'>
           {description}
         </p>
       )}
 
-      <div className='mt-[10px] flex items-center justify-between'>
-        <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
+      <div className='mt-2.5 flex items-center justify-between'>
+        <div className='flex min-w-0 flex-1 items-center gap-1.5'>
           {authorImageUrl ? (
             <Image
               src={authorImageUrl}
@@ -302,15 +302,15 @@ function TemplateCardInner({
               <User className='h-[12px] w-[12px] text-[var(--text-tertiary)]' />
             </div>
           )}
-          <div className='flex min-w-0 items-center gap-[4px]'>
-            <span className='truncate font-medium text-[12px] text-[var(--text-tertiary)]'>
+          <div className='flex min-w-0 items-center gap-1'>
+            <span className='truncate font-medium text-[var(--text-tertiary)] text-caption'>
               {author}
             </span>
             {isVerified && <VerifiedBadge size='sm' />}
           </div>
         </div>
 
-        <div className='flex flex-shrink-0 items-center gap-[6px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+        <div className='flex flex-shrink-0 items-center gap-1.5 font-medium text-[var(--text-tertiary)] text-caption'>
           <User className='h-[12px] w-[12px]' />
           <span>{usageCount}</span>
           <Star

@@ -71,7 +71,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
           href='https://docs.sim.ai'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+          className='text-md text-muted-foreground transition-colors hover:text-foreground'
           prefetch={false}
         >
           Docs
@@ -80,7 +80,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
       <li>
         <Link
           href={useHomeLinks ? '/?home#pricing' : '/#pricing'}
-          className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+          className='text-md text-muted-foreground transition-colors hover:text-foreground'
           scroll={true}
         >
           Pricing
@@ -89,7 +89,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
       <li>
         <button
           onClick={handleEnterpriseClick}
-          className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+          className='text-md text-muted-foreground transition-colors hover:text-foreground'
           type='button'
           aria-label='Contact for Enterprise pricing'
         >
@@ -101,7 +101,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
           href='https://jobs.ashbyhq.com/sim'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+          className='text-md text-muted-foreground transition-colors hover:text-foreground'
         >
           Careers
         </a>
@@ -111,7 +111,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
           href='https://github.com/simstudioai/sim'
           target='_blank'
           rel='noopener noreferrer'
-          className='flex items-center gap-2 text-[16px] text-muted-foreground transition-colors hover:text-foreground'
+          className='flex items-center gap-2 text-md text-muted-foreground transition-colors hover:text-foreground'
           aria-label={`GitHub repository - ${githubStars} stars`}
         >
           <GithubIcon className='h-[16px] w-[16px]' aria-hidden='true' />
@@ -125,8 +125,8 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
     <nav
       aria-label='Primary navigation'
       className={`flex w-full items-center justify-between px-4 ${
-        variant === 'auth' ? 'pt-[20px] sm:pt-[16.5px]' : 'pt-[12px] sm:pt-[8.5px]'
-      } pb-[21px] sm:px-8 md:px-[44px]`}
+        variant === 'auth' ? 'pt-5 sm:pt-[16.5px]' : 'pt-3 sm:pt-[8.5px]'
+      } pb-[21px] sm:px-8 md:px-11`}
       itemScope
       itemType='https://schema.org/SiteNavigationElement'
     >
@@ -161,7 +161,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
         </Link>
         {/* Desktop Navigation Links - only show on landing and if hosted */}
         {variant === 'landing' && isHosted && (
-          <ul className='hidden items-center justify-center gap-[20px] pt-[4px] md:flex'>
+          <ul className='hidden items-center justify-center gap-5 pt-1 md:flex'>
             <NavLinks />
           </ul>
         )}
@@ -170,14 +170,14 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
       {/* Auth Buttons - show only when hosted, regardless of variant */}
       {!hideAuthButtons && isHosted && (
         <div
-          className={`flex items-center justify-center gap-[16px] pt-[1.5px]${isSessionPending ? ' invisible' : ''}`}
+          className={`flex items-center justify-center gap-4 pt-[1.5px]${isSessionPending ? ' invisible' : ''}`}
         >
           {isAuthenticated ? (
             <Link
               href='/workspace'
               onMouseEnter={() => setIsHovered(true)}
               onMouseLeave={() => setIsHovered(false)}
-              className={`${buttonClass} group inline-flex items-center justify-center gap-2 rounded-[10px] py-[6px] pr-[10px] pl-[12px] text-[15px] text-white transition-all`}
+              className={`${buttonClass} group inline-flex items-center justify-center gap-2 rounded-[10px] py-1.5 pr-2.5 pl-3 text-[15px] text-white transition-all`}
               aria-label='Go to app'
             >
               <span className='flex items-center gap-1'>
@@ -216,7 +216,7 @@ export default function Nav({ hideAuthButtons = false, variant = 'landing' }: Na
                 href='/signup'
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
-                className={`${buttonClass} group inline-flex items-center justify-center gap-2 rounded-[10px] py-[6px] pr-[10px] pl-[12px] text-[15px] text-white transition-all`}
+                className={`${buttonClass} group inline-flex items-center justify-center gap-2 rounded-[10px] py-1.5 pr-2.5 pl-3 text-[15px] text-white transition-all`}
                 aria-label='Get started with Sim - Sign up for free'
                 prefetch={true}
               >

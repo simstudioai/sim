@@ -27,8 +27,8 @@ export function IconButton({
       onMouseEnter={onMouseEnter}
       className={`flex items-center justify-center rounded-xl border p-2 outline-none transition-all duration-300 ${
         isAutoHovered
-          ? 'border-[#E5E5E5] shadow-[0_2px_4px_0_rgba(0,0,0,0.08)]'
-          : 'border-transparent hover:border-[#E5E5E5] hover:shadow-[0_2px_4px_0_rgba(0,0,0,0.08)]'
+          ? 'border-[#454545] shadow-subtle'
+          : 'border-transparent hover:border-[#454545] hover:shadow-subtle'
       }`}
       style={style}
     >

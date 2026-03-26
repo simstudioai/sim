@@ -65,3 +65,10 @@
   animation: segment-cycle 2s ease-in-out infinite;
   transform-box: fill-box;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .animated-copy-svg .rect-bottom-right,
+  .animated-copy-svg .rect-top-left {
+    animation: none;
+  }
+}

@@ -23,6 +23,7 @@ import type { ChatContext } from '@/stores/panel'
 interface MothershipChatProps {
   messages: ChatMessage[]
   isSending: boolean
+  isReconnecting?: boolean
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
@@ -47,7 +48,7 @@ interface MothershipChatProps {
 const LAYOUT_STYLES = {
   'mothership-view': {
     scrollContainer:
-      'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-8 [scrollbar-gutter:stable]',
+      'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-8 [scrollbar-gutter:stable_both-edges]',
     content: 'mx-auto max-w-[42rem] space-y-6',
     userRow: 'flex flex-col items-end gap-[6px] pt-3',
     attachmentWidth: 'max-w-[70%]',
@@ -71,6 +72,7 @@ const LAYOUT_STYLES = {
 export function MothershipChat({
   messages,
   isSending,
+  isReconnecting = false,
   onSubmit,
   onStopGeneration,
   messageQueue,
@@ -88,7 +90,8 @@ export function MothershipChat({
   className,
 }: MothershipChatProps) {
   const styles = LAYOUT_STYLES[layout]
-  const { ref: scrollContainerRef, scrollToBottom } = useAutoScroll(isSending)
+  const isStreamActive = isSending || isReconnecting
+  const { ref: scrollContainerRef, scrollToBottom } = useAutoScroll(isStreamActive)
   const hasMessages = messages.length > 0
   const initialScrollDoneRef = useRef(false)
 
@@ -131,7 +134,7 @@ export function MothershipChat({
               msg.content ?? ''
             )
             const isLastAssistant = index === messages.length - 1
-            const isThisStreaming = isSending && isLastAssistant
+            const isThisStreaming = isStreamActive && isLastAssistant
 
             if (!hasAnyBlocks && !msg.content?.trim() && isThisStreaming) {
               return <PendingTagIndicator key={msg.id} />
@@ -175,7 +178,7 @@ export function MothershipChat({
           />
           <UserInput
             onSubmit={onSubmit}
-            isSending={isSending}
+            isSending={isStreamActive}
             onStopGeneration={onStopGeneration}
             isInitialView={false}
             userId={userId}

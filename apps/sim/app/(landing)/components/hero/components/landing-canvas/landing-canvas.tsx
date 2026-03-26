@@ -128,7 +128,7 @@ export function LandingCanvas({
       {/* <button
         type='button'
         aria-label='Use template'
-        className='absolute top-[24px] left-[50px] z-20 inline-flex items-center justify-center rounded-[10px] border border-[#343434] bg-gradient-to-b from-[#060606] to-[#323232] px-3 py-1.5 text-sm text-white shadow-[inset_0_1.25px_2.5px_0_#9B77FF] transition-all duration-200'
+        className='absolute top-6 left-[50px] z-20 inline-flex items-center justify-center rounded-[10px] border border-[#343434] bg-gradient-to-b from-[#060606] to-[#323232] px-3 py-1.5 text-sm text-white shadow-brand-inset transition-all duration-200'
         onClick={() => {
           // Template usage logic will be implemented here
         }}

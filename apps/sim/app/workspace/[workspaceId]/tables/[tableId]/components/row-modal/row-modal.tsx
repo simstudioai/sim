@@ -158,7 +158,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
           <ModalHeader>Delete {isSingleRow ? 'Row' : `${deleteCount} Rows`}</ModalHeader>
           <ModalBody>
             {error && (
-              <div className='rounded-[8px] border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-[14px] py-[12px] text-[13px] text-[var(--status-error-text)]'>
+              <div className='rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3.5 py-3 text-[var(--status-error-text)] text-small'>
                 {error}
               </div>
             )}
@@ -188,15 +188,15 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
     <Modal open={isOpen} onOpenChange={handleClose}>
       <ModalContent size='lg'>
         <ModalHeader>
-          <div className='flex flex-col gap-[4px]'>
-            <h2 className='font-semibold text-[16px]'>{isAddMode ? 'Add New Row' : 'Edit Row'}</h2>
-            <p className='font-normal text-[13px] text-[var(--text-tertiary)]'>
+          <div className='flex flex-col gap-1'>
+            <h2 className='font-semibold text-md'>{isAddMode ? 'Add New Row' : 'Edit Row'}</h2>
+            <p className='font-normal text-[var(--text-tertiary)] text-small'>
               {isAddMode ? 'Fill in the values for' : 'Update values for'} {table?.name ?? 'table'}
             </p>
           </div>
         </ModalHeader>
         <ModalBody className='max-h-[60vh] overflow-y-auto'>
-          <form onSubmit={handleFormSubmit} className='flex flex-col gap-[16px]'>
+          <form onSubmit={handleFormSubmit} className='flex flex-col gap-4'>
             <ErrorMessage error={error} />
 
             {columns.map((column) => (
@@ -209,7 +209,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
             ))}
           </form>
         </ModalBody>
-        <ModalFooter className='gap-[10px]'>
+        <ModalFooter className='gap-2.5'>
           <Button
             type='button'
             variant='default'
@@ -244,7 +244,7 @@ function ErrorMessage({ error }: { error: string | null }) {
   if (!error) return null
 
   return (
-    <div className='rounded-[8px] border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-[14px] py-[12px] text-[13px] text-[var(--status-error-text)]'>
+    <div className='rounded-lg border border-[var(--status-error-border)] bg-[var(--status-error-bg)] px-3.5 py-3 text-[var(--status-error-text)] text-small'>
       {error}
     </div>
   )
@@ -258,19 +258,17 @@ interface ColumnFieldProps {
 
 function ColumnField({ column, value, onChange }: ColumnFieldProps) {
   return (
-    <div className='flex flex-col gap-[8px]'>
-      <Label htmlFor={column.name} className='font-medium text-[13px]'>
+    <div className='flex flex-col gap-2'>
+      <Label htmlFor={column.name} className='font-medium text-small'>
         {column.name}
         {column.required && <span className='text-[var(--text-error)]'> *</span>}
         {column.unique && (
-          <span className='ml-[6px] font-normal text-[11px] text-[var(--text-tertiary)]'>
-            (unique)
-          </span>
+          <span className='ml-1.5 font-normal text-[var(--text-tertiary)] text-xs'>(unique)</span>
         )}
       </Label>
 
       {column.type === 'boolean' ? (
-        <div className='flex items-center gap-[8px]'>
+        <div className='flex items-center gap-2'>
           <Checkbox
             id={column.name}
             checked={Boolean(value)}
@@ -278,7 +276,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
           />
           <Label
             htmlFor={column.name}
-            className='font-normal text-[13px] text-[var(--text-tertiary)]'
+            className='font-normal text-[var(--text-tertiary)] text-small'
           >
             {value ? 'True' : 'False'}
           </Label>
@@ -290,7 +288,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
           onChange={(e) => onChange(e.target.value)}
           placeholder='{"key": "value"}'
           rows={4}
-          className='font-mono text-[12px]'
+          className='font-mono text-caption'
           required={column.required}
         />
       ) : column.type === 'date' ? (
@@ -312,7 +310,7 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
         />
       )}
 
-      <div className='text-[12px] text-[var(--text-tertiary)]'>
+      <div className='text-[var(--text-tertiary)] text-caption'>
         Type: {column.type}
         {!column.required && ' (optional)'}
       </div>

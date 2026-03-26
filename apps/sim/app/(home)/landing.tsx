@@ -36,12 +36,20 @@ export default async function Landing() {
   const blogPosts = await getNavBlogPosts()
 
   return (
-    <div className={`${season.variable} ${martianMono.variable} min-h-screen bg-[#1C1C1C]`}>
+    <div
+      className={`${season.variable} ${martianMono.variable} min-h-screen bg-[var(--landing-bg)]`}
+    >
+      <a
+        href='#main-content'
+        className='sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:font-medium focus:text-black focus:text-sm'
+      >
+        Skip to main content
+      </a>
       <StructuredData />
       <header>
         <Navbar blogPosts={blogPosts} />
       </header>
-      <main>
+      <main id='main-content'>
         <Hero />
         <Templates />
         <Features />

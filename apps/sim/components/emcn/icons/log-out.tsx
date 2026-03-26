@@ -16,6 +16,7 @@ export function LogOut(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path d='M8.75 0.75H3.75C2.64543 0.75 1.75 1.64543 1.75 2.75V16.75C1.75 17.8546 2.64543 18.75 3.75 18.75H8.75' />

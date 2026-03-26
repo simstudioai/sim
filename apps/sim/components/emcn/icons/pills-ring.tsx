@@ -1,5 +1,6 @@
 import type { SVGProps } from 'react'
 import styles from '@/components/emcn/icons/animate/pills-ring.module.css'
+import { cn } from '@/lib/core/utils/cn'
 
 export interface PillsRingProps extends SVGProps<SVGSVGElement> {
   /**
@@ -19,9 +20,7 @@ const DURATION_S = 1.2
  * @param props - SVG properties including className, animate, etc.
  */
 export function PillsRing({ animate = false, className, ...props }: PillsRingProps) {
-  const svgClassName = animate
-    ? `${styles['animated-pills-ring-svg']} ${className || ''}`.trim()
-    : className
+  const svgClassName = cn(animate && styles['animated-pills-ring-svg'], className)
 
   return (
     <svg
@@ -31,6 +30,7 @@ export function PillsRing({ animate = false, className, ...props }: PillsRingPro
       viewBox='0 0 24 24'
       fill='currentColor'
       className={svgClassName}
+      aria-hidden='true'
       {...props}
     >
       {Array.from({ length: PILL_COUNT }).map((_, i) => (

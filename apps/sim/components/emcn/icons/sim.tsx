@@ -12,6 +12,7 @@ export function Sim(props: SVGProps<SVGSVGElement>) {
       viewBox='0 0 222 222'
       fill='#33C482'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path

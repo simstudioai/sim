@@ -230,18 +230,18 @@ export function TeamMembers({
   }
 
   return (
-    <div className='flex flex-col gap-[18px]'>
+    <div className='flex flex-col gap-4.5'>
       {/* Header */}
       <div>
-        <h4 className='font-medium text-[15px] text-[var(--text-primary)]'>Team Members</h4>
+        <h4 className='font-medium text-[var(--text-primary)] text-base'>Team Members</h4>
       </div>
 
       {/* Members list */}
-      <div className='flex flex-col gap-[8px]'>
+      <div className='flex flex-col gap-2'>
         {teamItems.map((item) => (
           <div key={item.id} className='flex items-center justify-between'>
             {/* Left section: Avatar + Name/Role + Action buttons */}
-            <div className='flex flex-1 items-center gap-[12px]'>
+            <div className='flex flex-1 items-center gap-3'>
               {/* Avatar */}
               <Avatar className='h-9 w-9'>
                 {item.avatarUrl && <AvatarImage src={item.avatarUrl} alt={item.name} />}
@@ -255,8 +255,8 @@ export function TeamMembers({
 
               {/* Name and email */}
               <div className='min-w-0'>
-                <div className='flex items-center gap-[8px]'>
-                  <span className='truncate font-medium text-[15px] text-[var(--text-primary)]'>
+                <div className='flex items-center gap-2'>
+                  <span className='truncate font-medium text-[var(--text-primary)] text-base'>
                     {item.name}
                   </span>
                   {item.type === 'member' && (
@@ -273,7 +273,7 @@ export function TeamMembers({
                     </Badge>
                   )}
                 </div>
-                <div className='truncate text-[14px] text-[var(--text-muted)]'>{item.email}</div>
+                <div className='truncate text-[var(--text-muted)] text-sm'>{item.email}</div>
               </div>
 
               {/* Action buttons for members */}
@@ -293,20 +293,20 @@ export function TeamMembers({
 
             {/* Right section */}
             {isAdminOrOwner && (
-              <div className='ml-[16px] flex flex-col items-end'>
+              <div className='ml-4 flex flex-col items-end'>
                 {item.type === 'member' ? (
                   <>
-                    <div className='text-[13px] text-[var(--text-muted)]'>Usage</div>
-                    <div className='font-medium text-[13px] text-[var(--text-primary)] tabular-nums'>
+                    <div className='text-[var(--text-muted)] text-small'>Usage</div>
+                    <div className='font-medium text-[var(--text-primary)] text-small tabular-nums'>
                       {isLoadingUsage ? (
-                        <span className='inline-block h-3 w-12 animate-pulse rounded-[4px] bg-[var(--surface-4)]' />
+                        <span className='inline-block h-3 w-12 animate-pulse rounded-sm bg-[var(--surface-4)]' />
                       ) : (
                         item.usage
                       )}
                     </div>
                   </>
                 ) : (
-                  <div className='flex items-center gap-[4px]'>
+                  <div className='flex items-center gap-1'>
                     <Button
                       variant='ghost'
                       onClick={() => handleResendInvitation(item.invitation.id)}
@@ -340,7 +340,7 @@ export function TeamMembers({
 
       {/* Leave Organization button */}
       {canLeaveOrganization && (
-        <div className='mt-[4px] border-[var(--border-1)] border-t pt-[16px]'>
+        <div className='mt-1 border-[var(--border-1)] border-t pt-4'>
           <Button
             variant='active'
             onClick={() => {

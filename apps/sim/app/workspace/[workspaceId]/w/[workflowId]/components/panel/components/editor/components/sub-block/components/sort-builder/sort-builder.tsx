@@ -87,7 +87,7 @@ export function SortBuilder({
   )
 
   return (
-    <div className='space-y-[8px]'>
+    <div className='space-y-2'>
       {rules.map((rule, index) => (
         <SortRuleRow
           key={rule.id}

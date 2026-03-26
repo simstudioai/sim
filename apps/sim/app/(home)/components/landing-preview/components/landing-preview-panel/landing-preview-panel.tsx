@@ -59,10 +59,10 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
 
   return (
     <div className='flex h-full w-[280px] flex-shrink-0 flex-col bg-[#1e1e1e]'>
-      <div className='flex h-full flex-col border-[#2c2c2c] border-l pt-[14px]'>
+      <div className='flex h-full flex-col border-[#2c2c2c] border-l pt-3.5'>
         {/* Header — More + Chat | Deploy + Run */}
-        <div className='flex flex-shrink-0 items-center justify-between px-[8px]'>
-          <div className='pointer-events-none flex gap-[6px]'>
+        <div className='flex flex-shrink-0 items-center justify-between px-2'>
+          <div className='pointer-events-none flex gap-1.5'>
             <div className='flex h-[30px] w-[30px] items-center justify-center rounded-[5px] border border-[#3d3d3d] bg-[#363636]'>
               <MoreHorizontal className='h-[14px] w-[14px] text-[#e6e6e6]' />
             </div>
@@ -72,14 +72,14 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
           </div>
           <Link
             href='/signup'
-            className='flex gap-[6px]'
+            className='flex gap-1.5'
             onMouseMove={(e) => setCursorPos({ x: e.clientX, y: e.clientY })}
             onMouseLeave={() => setCursorPos(null)}
           >
-            <div className='flex h-[30px] items-center rounded-[5px] bg-[#33C482] px-[10px] transition-colors hover:bg-[#2DAC72]'>
+            <div className='flex h-[30px] items-center rounded-[5px] bg-[#33C482] px-2.5 transition-colors hover:bg-[#2DAC72]'>
               <span className='font-medium text-[#1b1b1b] text-[12px]'>Deploy</span>
             </div>
-            <div className='flex h-[30px] items-center gap-[8px] rounded-[5px] bg-[#33C482] px-[10px] transition-colors hover:bg-[#2DAC72]'>
+            <div className='flex h-[30px] items-center gap-2 rounded-[5px] bg-[#33C482] px-2.5 transition-colors hover:bg-[#2DAC72]'>
               <Play className='h-[11.5px] w-[11.5px] text-[#1b1b1b]' />
               <span className='font-medium text-[#1b1b1b] text-[12px]'>Run</span>
             </div>
@@ -101,7 +101,7 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
                   <div className='h-full w-[8px] bg-[#FA4EDF]' />
                   <div className='h-full w-[14px] bg-[#FA4EDF] opacity-60' />
                 </div>
-                <div className='flex items-center gap-[5px] bg-white px-[6px] py-[4px] font-medium text-[#1C1C1C] text-[11px]'>
+                <div className='flex items-center gap-[5px] bg-white px-1.5 py-1 font-medium text-[#1C1C1C] text-[11px]'>
                   Get started
                   <ChevronDown className='-rotate-90 h-[7px] w-[7px] text-[#1C1C1C]' />
                 </div>
@@ -111,31 +111,31 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
         </div>
 
         {/* Tabs */}
-        <div className='flex flex-shrink-0 items-center px-[8px] pt-[14px]'>
-          <div className='pointer-events-none flex gap-[4px]'>
-            <div className='flex h-[28px] items-center rounded-[6px] border border-[#3d3d3d] bg-[#363636] px-[8px] py-[5px]'>
+        <div className='flex flex-shrink-0 items-center px-2 pt-3.5'>
+          <div className='pointer-events-none flex gap-1'>
+            <div className='flex h-[28px] items-center rounded-[6px] border border-[#3d3d3d] bg-[#363636] px-2 py-[5px]'>
               <span className='font-medium text-[#e6e6e6] text-[12.5px]'>Copilot</span>
             </div>
-            <div className='flex h-[28px] items-center rounded-[6px] border border-transparent px-[8px] py-[5px]'>
+            <div className='flex h-[28px] items-center rounded-[6px] border border-transparent px-2 py-[5px]'>
               <span className='font-medium text-[#787878] text-[12.5px]'>Toolbar</span>
             </div>
-            <div className='flex h-[28px] items-center rounded-[6px] border border-transparent px-[8px] py-[5px]'>
+            <div className='flex h-[28px] items-center rounded-[6px] border border-transparent px-2 py-[5px]'>
               <span className='font-medium text-[#787878] text-[12.5px]'>Editor</span>
             </div>
           </div>
         </div>
 
         {/* Tab content — copilot */}
-        <div className='flex flex-1 flex-col overflow-hidden pt-[12px]'>
+        <div className='flex flex-1 flex-col overflow-hidden pt-3'>
           <div className='flex h-full flex-col'>
             {/* Copilot header bar — matches mx-[-1px] in real copilot */}
-            <div className='pointer-events-none mx-[-1px] flex flex-shrink-0 items-center rounded-[4px] border border-[#2c2c2c] bg-[#292929] px-[12px] py-[6px]'>
+            <div className='pointer-events-none mx-[-1px] flex flex-shrink-0 items-center rounded-[4px] border border-[#2c2c2c] bg-[#292929] px-3 py-1.5'>
               <span className='truncate font-medium text-[#e6e6e6] text-[14px]'>New Chat</span>
             </div>
 
             {/* User input — matches real UserInput at p-[8px] inside copilot welcome state */}
-            <div className='px-[8px] pt-[12px] pb-[8px]'>
-              <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-[6px] py-[6px]'>
+            <div className='px-2 pt-3 pb-2'>
+              <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-1.5 py-1.5'>
                 <textarea
                   ref={textareaRef}
                   value={inputValue}
@@ -143,7 +143,7 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel() {
                   onKeyDown={handleKeyDown}
                   placeholder='Build an AI agent...'
                   rows={2}
-                  className='mb-[6px] min-h-[48px] w-full cursor-text resize-none border-0 bg-transparent px-[2px] py-1 font-base text-[#e6e6e6] text-sm leading-[1.25rem] placeholder-[#787878] caret-[#e6e6e6] outline-none'
+                  className='mb-1.5 min-h-[48px] w-full cursor-text resize-none border-0 bg-transparent px-0.5 py-1 font-base text-[#e6e6e6] text-sm leading-[1.25rem] placeholder-[#787878] caret-[#e6e6e6] outline-none'
                 />
                 <div className='flex items-center justify-end'>
                   <button

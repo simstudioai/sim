@@ -16,6 +16,7 @@ export function TagIcon(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path d='M0.75 9.75V3.25C0.75 1.86929 1.86929 0.75 3.25 0.75H9.75L19.25 10.25L10.25 19.25L0.75 9.75Z' />

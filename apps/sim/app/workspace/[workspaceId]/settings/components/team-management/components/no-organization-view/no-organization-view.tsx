@@ -45,20 +45,20 @@ export function NoOrganizationView({
   if (hasTeamPlan || hasEnterprisePlan) {
     return (
       <div>
-        <div className='flex flex-col gap-[20px]'>
+        <div className='flex flex-col gap-5'>
           {/* Header - matching settings page style */}
           <div>
-            <h4 className='font-medium text-[15px] text-[var(--text-primary)]'>
+            <h4 className='font-medium text-[var(--text-primary)] text-base'>
               Create Your Team Workspace
             </h4>
-            <p className='mt-[4px] text-[13px] text-[var(--text-muted)]'>
+            <p className='mt-1 text-[var(--text-muted)] text-small'>
               You're subscribed to a {hasEnterprisePlan ? 'enterprise' : 'team'} plan. Create your
               workspace to start collaborating with your team.
             </p>
           </div>
 
           {/* Form fields - clean layout without card */}
-          <div className='flex flex-col gap-[18px]'>
+          <div className='flex flex-col gap-4.5'>
             {/* Hidden decoy field to prevent browser autofill */}
             <input
               type='text'
@@ -69,7 +69,7 @@ export function NoOrganizationView({
               readOnly
             />
             <div>
-              <Label htmlFor='team-name-field' className='font-medium text-[13px]'>
+              <Label htmlFor='team-name-field' className='font-medium text-small'>
                 Team Name
               </Label>
               <Input
@@ -77,7 +77,7 @@ export function NoOrganizationView({
                 value={orgName}
                 onChange={onOrgNameChange}
                 placeholder='My Team'
-                className='mt-[4px]'
+                className='mt-1'
                 name='team_name_field'
                 autoComplete='off'
                 autoCorrect='off'
@@ -88,11 +88,11 @@ export function NoOrganizationView({
             </div>
 
             <div>
-              <Label htmlFor='orgSlug' className='font-medium text-[13px]'>
+              <Label htmlFor='orgSlug' className='font-medium text-small'>
                 Team URL
               </Label>
-              <div className='mt-[4px] flex items-center'>
-                <div className='rounded-l-[6px] border border-[var(--border-1)] border-r-0 bg-[var(--surface-4)] px-[12px] py-[6px] text-[13px] text-[var(--text-muted)]'>
+              <div className='mt-1 flex items-center'>
+                <div className='rounded-l-[6px] border border-[var(--border-1)] border-r-0 bg-[var(--surface-4)] px-3 py-1.5 text-[var(--text-muted)] text-small'>
                   sim.ai/team/
                 </div>
                 <Input
@@ -105,9 +105,9 @@ export function NoOrganizationView({
               </div>
             </div>
 
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               {error && (
-                <p className='text-[13px] text-[var(--text-error)] leading-tight'>{error}</p>
+                <p className='text-[var(--text-error)] text-small leading-tight'>{error}</p>
               )}
               <div className='flex justify-end'>
                 <Button
@@ -131,7 +131,7 @@ export function NoOrganizationView({
               </ModalDescription>
             </ModalHeader>
 
-            <div className='flex flex-col gap-[18px]'>
+            <div className='flex flex-col gap-4.5'>
               {/* Hidden decoy field to prevent browser autofill */}
               <input
                 type='text'
@@ -142,7 +142,7 @@ export function NoOrganizationView({
                 readOnly
               />
               <div>
-                <Label htmlFor='org-name-field' className='font-medium text-[13px]'>
+                <Label htmlFor='org-name-field' className='font-medium text-small'>
                   Organization Name
                 </Label>
                 <Input
@@ -151,7 +151,7 @@ export function NoOrganizationView({
                   value={orgName}
                   onChange={onOrgNameChange}
                   disabled={isCreatingOrg}
-                  className='mt-[4px]'
+                  className='mt-1'
                   name='org_name_field'
                   autoComplete='off'
                   autoCorrect='off'
@@ -162,7 +162,7 @@ export function NoOrganizationView({
               </div>
 
               <div>
-                <Label htmlFor='org-slug-field' className='font-medium text-[13px]'>
+                <Label htmlFor='org-slug-field' className='font-medium text-small'>
                   Organization Slug
                 </Label>
                 <Input
@@ -171,7 +171,7 @@ export function NoOrganizationView({
                   value={orgSlug}
                   onChange={(e) => setOrgSlug(e.target.value)}
                   disabled={isCreatingOrg}
-                  className='mt-[4px]'
+                  className='mt-1'
                   name='org_slug_field'
                   autoComplete='off'
                   autoCorrect='off'
@@ -182,7 +182,7 @@ export function NoOrganizationView({
               </div>
             </div>
 
-            {error && <p className='text-[13px] text-[var(--text-error)] leading-tight'>{error}</p>}
+            {error && <p className='text-[var(--text-error)] text-small leading-tight'>{error}</p>}
 
             <ModalFooter>
               <Button
@@ -207,10 +207,10 @@ export function NoOrganizationView({
   }
 
   return (
-    <div className='flex flex-col gap-[20px]'>
-      <div className='flex flex-col gap-[8px]'>
-        <h3 className='font-medium text-[15px] text-[var(--text-primary)]'>No Team Workspace</h3>
-        <p className='text-[13px] text-[var(--text-secondary)]'>
+    <div className='flex flex-col gap-5'>
+      <div className='flex flex-col gap-2'>
+        <h3 className='font-medium text-[var(--text-primary)] text-base'>No Team Workspace</h3>
+        <p className='text-[var(--text-secondary)] text-small'>
           You don't have a team workspace yet. To collaborate with others, first upgrade to a team
           or enterprise plan.
         </p>

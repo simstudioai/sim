@@ -143,7 +143,7 @@ export const MothershipView = memo(
                 streamingFile={streamingForActive}
               />
             ) : (
-              <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
+              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
                 Click "+" above to add a resource
               </div>
             )}

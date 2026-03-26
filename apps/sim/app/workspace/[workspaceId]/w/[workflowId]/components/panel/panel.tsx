@@ -318,6 +318,7 @@ export const Panel = memo(function Panel() {
   const {
     messages: copilotMessages,
     isSending: copilotIsSending,
+    isReconnecting: copilotIsReconnecting,
     sendMessage: copilotSendMessage,
     stopGeneration: copilotStopGeneration,
     resolvedChatId: copilotResolvedChatId,
@@ -593,11 +594,11 @@ export const Panel = memo(function Panel() {
         className='panel-container relative shrink-0 overflow-hidden bg-[var(--bg)]'
         aria-label='Workflow panel'
       >
-        <div className='flex h-full flex-col border-[var(--border)] border-l pt-[14px]'>
+        <div className='flex h-full flex-col border-[var(--border)] border-l pt-3.5'>
           {/* Header */}
-          <div className='flex flex-shrink-0 items-center justify-between px-[8px]'>
+          <div className='flex flex-shrink-0 items-center justify-between px-2'>
             {/* More and Chat */}
-            <div className='flex gap-[6px]'>
+            <div className='flex gap-1.5'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
                   <Button className='h-[30px] w-[30px] rounded-[5px]' data-tour='panel-menu'>
@@ -660,10 +661,10 @@ export const Panel = memo(function Panel() {
             </div>
 
             {/* Deploy and Run */}
-            <div className='flex gap-[6px]' data-tour='deploy-run'>
+            <div className='flex gap-1.5' data-tour='deploy-run'>
               <Deploy activeWorkflowId={activeWorkflowId} userPermissions={userPermissions} />
               <Button
-                className='h-[30px] gap-[8px] px-[10px]'
+                className='h-[30px] gap-2 px-2.5'
                 data-tour='run-button'
                 variant={isExecuting ? 'active' : 'tertiary'}
                 onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
@@ -680,14 +681,14 @@ export const Panel = memo(function Panel() {
           </div>
 
           {/* Tabs */}
-          <div className='flex flex-shrink-0 items-center justify-between px-[8px] pt-[14px]'>
-            <div className='flex gap-[4px]'>
+          <div className='flex flex-shrink-0 items-center justify-between px-2 pt-3.5'>
+            <div className='flex gap-1'>
               {!permissionConfig.hideCopilot && (
                 <Button
-                  className={`h-[28px] truncate rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                  className={`h-[28px] truncate rounded-md border px-2 py-[5px] text-[12.5px] ${
                     _hasHydrated && activeTab === 'copilot'
                       ? 'border-[var(--border-1)]'
-                      : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                      : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
                   }`}
                   variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
                   onClick={() => handleTabClick('copilot')}
@@ -698,10 +699,10 @@ export const Panel = memo(function Panel() {
                 </Button>
               )}
               <Button
-                className={`h-[28px] rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                className={`h-[28px] rounded-md border px-2 py-[5px] text-[12.5px] ${
                   _hasHydrated && activeTab === 'toolbar'
                     ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
                 }`}
                 variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('toolbar')}
@@ -711,10 +712,10 @@ export const Panel = memo(function Panel() {
                 Toolbar
               </Button>
               <Button
-                className={`h-[28px] rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                className={`h-[28px] rounded-md border px-2 py-[5px] text-[12.5px] ${
                   _hasHydrated && activeTab === 'editor'
                     ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
                 }`}
                 variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('editor')}
@@ -727,7 +728,7 @@ export const Panel = memo(function Panel() {
           </div>
 
           {/* Tab Content - Keep all tabs mounted but hidden to preserve state */}
-          <div className='flex-1 overflow-hidden pt-[12px]'>
+          <div className='flex-1 overflow-hidden pt-3'>
             {!permissionConfig.hideCopilot && (
               <div
                 className={
@@ -740,11 +741,11 @@ export const Panel = memo(function Panel() {
                 data-tab-content='copilot'
               >
                 {/* Copilot Header */}
-                <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between gap-[8px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] px-[12px] py-[6px]'>
+                <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between gap-2 border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
                   <h2 className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
                     {copilotChatTitle || 'New Chat'}
                   </h2>
-                  <div className='flex items-center gap-[8px]'>
+                  <div className='flex items-center gap-2'>
                     <Button variant='ghost' className='p-0' onClick={handleCopilotNewChat}>
                       <Plus className='h-[14px] w-[14px]' />
                     </Button>
@@ -762,7 +763,7 @@ export const Panel = memo(function Panel() {
                       </PopoverTrigger>
                       <PopoverContent align='end' side='bottom' sideOffset={8} maxHeight={280}>
                         {copilotChatList.length === 0 ? (
-                          <div className='px-[6px] py-[16px] text-center text-[12px] text-muted-foreground'>
+                          <div className='px-1.5 py-4 text-center text-[12px] text-muted-foreground'>
                             No chats yet
                           </div>
                         ) : (
@@ -781,7 +782,7 @@ export const Panel = memo(function Panel() {
                                       titleClassName='text-[13px]'
                                       actions={
                                         <div
-                                          className={`flex flex-shrink-0 items-center gap-[4px] ${copilotChatId !== chat.id ? 'opacity-0 transition-opacity group-hover:opacity-100' : ''}`}
+                                          className={`flex flex-shrink-0 items-center gap-1 ${copilotChatId !== chat.id ? 'opacity-0 transition-opacity group-hover:opacity-100' : ''}`}
                                         >
                                           <Button
                                             variant='ghost'
@@ -812,6 +813,7 @@ export const Panel = memo(function Panel() {
                   className='min-h-0 flex-1'
                   messages={copilotMessages}
                   isSending={copilotIsSending}
+                  isReconnecting={copilotIsReconnecting}
                   onSubmit={handleCopilotSubmit}
                   onStopGeneration={copilotStopGeneration}
                   messageQueue={copilotMessageQueue}

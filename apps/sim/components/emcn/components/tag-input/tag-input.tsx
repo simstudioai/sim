@@ -49,15 +49,14 @@ import { cn } from '@/lib/core/utils/cn'
  * Uses colored badge-style variants (blue for valid, red for invalid).
  */
 const tagVariants = cva(
-  'flex w-auto cursor-default items-center gap-[3px] rounded-[4px] px-[4px] font-medium font-sans text-[13px] leading-[20px] transition-colors',
+  'flex w-auto cursor-default items-center gap-[3px] rounded-sm px-1 font-medium font-sans text-small leading-[20px] transition-colors',
   {
     variants: {
       variant: {
-        default: 'bg-[#bfdbfe] text-[#1d4ed8] dark:bg-[rgba(59,130,246,0.2)] dark:text-[#93c5fd]',
+        default: 'bg-[var(--badge-blue-bg)] text-[var(--badge-blue-text)]',
         secondary:
-          'border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
-        invalid:
-          'bg-[#fecaca] text-[var(--text-error)] dark:bg-[#551a1a] dark:text-[var(--text-error)]',
+          'border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]',
+        invalid: 'bg-[var(--badge-error-bg)] text-[var(--text-error)]',
       },
     },
     defaultVariants: {
@@ -102,16 +101,16 @@ const Tag = React.memo(function Tag({
           type='button'
           onClick={onRemove}
           className={cn(
-            'flex-shrink-0 opacity-80 transition-opacity hover:opacity-100 focus:outline-none',
+            'relative flex-shrink-0 opacity-80 transition-opacity before:absolute before:inset-[-8px] before:content-[""] hover-hover:opacity-100 focus:outline-none',
             variant === 'invalid'
               ? 'text-[var(--text-error)]'
               : variant === 'secondary'
                 ? 'text-[var(--text-tertiary)]'
-                : 'text-[#1d4ed8] dark:text-[#93c5fd]'
+                : 'text-[var(--badge-blue-text)]'
           )}
           aria-label={`Remove ${value}`}
         >
-          <X className='h-[12px] w-[12px] translate-y-[0.5px]' />
+          <X className='h-3 w-3 translate-y-[0.5px]' />
         </button>
       )}
     </div>
@@ -123,7 +122,7 @@ const Tag = React.memo(function Tag({
  * Matches the Input component styling exactly for consistent height.
  */
 const tagInputVariants = cva(
-  'scrollbar-hide flex w-full cursor-text flex-wrap items-center gap-x-[8px] gap-y-[4px] overflow-y-auto rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] transition-colors focus-within:outline-none dark:bg-[var(--surface-5)]',
+  'scrollbar-hide flex w-full cursor-text flex-wrap items-center gap-x-2 gap-y-1 overflow-y-auto rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 transition-colors focus-within:outline-none dark:bg-[var(--surface-5)]',
   {
     variants: {
       variant: {
@@ -382,7 +381,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           tagInputVariants({ variant }),
           maxHeight,
           'relative',
-          fileInputEnabled && 'pr-[28px]',
+          fileInputEnabled && 'pr-7',
           isDragging && 'border-[var(--border)] border-dashed bg-[var(--surface-5)]',
           className
         )}
@@ -401,8 +400,8 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           />
         )}
         {isDragging && (
-          <div className='absolute inset-0 flex items-center justify-center rounded-[4px] bg-[var(--surface-5)]/90'>
-            <span className='text-[13px] text-[var(--text-tertiary)]'>Drop file here</span>
+          <div className='absolute inset-0 flex items-center justify-center rounded-sm bg-[color-mix(in_srgb,var(--surface-5)_90%,transparent)]'>
+            <span className='text-[var(--text-tertiary)] text-small'>Drop file here</span>
           </div>
         )}
         {items.map((item, index) => (
@@ -419,13 +418,13 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           className={cn(
             'flex items-center',
             inputValue.trim() &&
-              cn(tagVariants({ variant: tagVariant }), 'gap-0 py-0 pr-0 pl-[4px] opacity-80')
+              cn(tagVariants({ variant: tagVariant }), 'gap-0 py-0 pr-0 pl-1 opacity-80')
           )}
         >
           <div className='relative inline-flex'>
             {inputValue.trim() && (
               <span
-                className='invisible whitespace-pre font-medium font-sans text-[13px] leading-[20px]'
+                className='invisible whitespace-pre font-medium font-sans text-small leading-[20px]'
                 aria-hidden='true'
               >
                 {inputValue}
@@ -449,7 +448,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
               className={cn(
                 'border-none bg-transparent font-medium font-sans outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50',
                 inputValue.trim()
-                  ? 'absolute top-0 left-0 h-full w-full p-0 text-[13px] text-inherit leading-[20px]'
+                  ? 'absolute top-0 left-0 h-full w-full p-0 text-inherit text-small leading-[20px]'
                   : 'w-auto min-w-0 p-0 text-foreground text-sm',
                 inputClassName
               )}
@@ -474,11 +473,11 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   inputRef.current?.focus()
                 }
               }}
-              className='flex items-center px-[3px] opacity-80 transition-opacity hover:opacity-100 focus:outline-none'
+              className='relative flex items-center px-[3px] opacity-80 transition-opacity before:absolute before:inset-[-10px] before:content-[""] hover-hover:opacity-100 focus:outline-none'
               disabled={disabled}
               aria-label='Add tag'
             >
-              <Plus className='h-[12px] w-[12px]' />
+              <Plus className='h-3 w-3' />
             </button>
           )}
         </div>
@@ -491,10 +490,10 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   e.stopPropagation()
                   fileInputRef.current?.click()
                 }}
-                className='absolute right-[8px] bottom-[9px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]'
+                className='-m-1.5 absolute right-2 bottom-[9px] p-1.5 text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-secondary)]'
                 aria-label={fileInputOptions?.tooltip ?? 'Upload file'}
               >
-                <FileIcon className='h-[14px] w-[14px]' strokeWidth={2} />
+                <FileIcon className='h-3.5 w-3.5' strokeWidth={2} />
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>

@@ -15,6 +15,7 @@ export function Blimp(props: SVGProps<SVGSVGElement>) {
       strokeWidth='0.75'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path

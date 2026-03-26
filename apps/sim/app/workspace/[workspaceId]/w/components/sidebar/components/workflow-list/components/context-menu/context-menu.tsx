@@ -15,9 +15,11 @@ import {
 import {
   Check,
   Duplicate,
+  Eye,
   FolderPlus,
   Lock,
   LogOut,
+  Mail,
   Palette,
   Pencil,
   Plus,
@@ -39,7 +41,7 @@ function ColorGrid({
   hexInput,
   setHexInput,
   onColorChange,
-  buttonRefs,
+  buttonRefs: cellButtonRefs,
 }: {
   hexInput: string
   setHexInput: (color: string) => void
@@ -47,7 +49,6 @@ function ColorGrid({
   buttonRefs: RefObject<(HTMLButtonElement | null)[]>
 }) {
   const [focusedIndex, setFocusedIndex] = useState(-1)
-  const gridRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const selectedIndex = WORKFLOW_COLORS.findIndex(
@@ -56,9 +57,9 @@ function ColorGrid({
     const idx = selectedIndex >= 0 ? selectedIndex : 0
     setFocusedIndex(idx)
     requestAnimationFrame(() => {
-      buttonRefs.current[idx]?.focus()
+      cellButtonRefs.current[idx]?.focus()
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial roving focus when submenu content mounts
   }, [])
 
   const handleKeyDown = useCallback(
@@ -96,19 +97,19 @@ function ColorGrid({
 
       if (newIndex !== index) {
         setFocusedIndex(newIndex)
-        buttonRefs.current[newIndex]?.focus()
+        cellButtonRefs.current[newIndex]?.focus()
       }
     },
     [setHexInput, onColorChange]
   )
 
   return (
-    <div ref={gridRef} className='grid grid-cols-6 gap-[4px]' role='grid'>
+    <div className='grid grid-cols-6 gap-1' role='grid'>
       {WORKFLOW_COLORS.map(({ color, name }, index) => (
         <button
           key={color}
           ref={(el) => {
-            buttonRefs.current[index] = el
+            cellButtonRefs.current[index] = el
           }}
           type='button'
           role='gridcell'
@@ -121,7 +122,7 @@ function ColorGrid({
           onKeyDown={(e) => handleKeyDown(e, index)}
           onFocus={() => setFocusedIndex(index)}
           className={cn(
-            'h-[16px] w-[16px] rounded-[4px] border border-black/10 outline-none transition-shadow duration-150',
+            'h-[16px] w-[16px] rounded-sm border border-black/10 outline-none transition-shadow duration-150',
             (focusedIndex === index ||
               (focusedIndex === -1 && hexInput.toLowerCase() === color.toLowerCase())) &&
               'shadow-[0_0_0_1.5px_var(--bg),0_0_0_3px_var(--text-icon)]'
@@ -182,17 +183,17 @@ function ColorPickerSubmenu({
         <Palette />
         Change color
       </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className='p-[8px]' onPointerDownOutside={(e) => e.preventDefault()}>
-        <div className='flex w-[120px] flex-col gap-[8px] p-[2px]'>
+      <DropdownMenuSubContent className='p-2' onPointerDownOutside={(e) => e.preventDefault()}>
+        <div className='flex w-[120px] flex-col gap-2 p-0.5'>
           <ColorGrid
             hexInput={hexInput}
             setHexInput={setHexInput}
             onColorChange={onColorChange}
             buttonRefs={buttonRefs}
           />
-          <div className='flex items-center gap-[4px]'>
+          <div className='flex items-center gap-1'>
             <div
-              className='h-[16px] w-[16px] flex-shrink-0 rounded-[4px] border border-black/10'
+              className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border border-black/10'
               style={{
                 backgroundColor: isValidHex(hexInput) ? normalizeHex(hexInput) : '#ffffff',
               }}
@@ -204,7 +205,7 @@ function ColorPickerSubmenu({
               onKeyDown={handleHexKeyDown}
               onFocus={handleHexFocus}
               onClick={(e) => e.stopPropagation()}
-              className='h-[20px] min-w-0 flex-1 rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[6px] font-medium text-[11px] text-[var(--text-primary)] uppercase transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+              className='h-[20px] min-w-0 flex-1 rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 font-medium text-[var(--text-primary)] text-xs uppercase transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
             />
             <Button
               variant='primary'
@@ -230,6 +231,8 @@ interface ContextMenuProps {
   menuRef: React.RefObject<HTMLDivElement | null>
   onClose: () => void
   onOpenInNewTab?: () => void
+  onMarkAsRead?: () => void
+  onMarkAsUnread?: () => void
   onRename?: () => void
   onCreate?: () => void
   onCreateFolder?: () => void
@@ -239,6 +242,8 @@ interface ContextMenuProps {
   onColorChange?: (color: string) => void
   currentColor?: string
   showOpenInNewTab?: boolean
+  showMarkAsRead?: boolean
+  showMarkAsUnread?: boolean
   showRename?: boolean
   showCreate?: boolean
   showCreateFolder?: boolean
@@ -246,6 +251,8 @@ interface ContextMenuProps {
   showExport?: boolean
   showColorChange?: boolean
   disableExport?: boolean
+  disableMarkAsRead?: boolean
+  disableMarkAsUnread?: boolean
   disableColorChange?: boolean
   disableRename?: boolean
   disableDuplicate?: boolean
@@ -259,6 +266,7 @@ interface ContextMenuProps {
   showLock?: boolean
   disableLock?: boolean
   isLocked?: boolean
+  showDelete?: boolean
 }
 
 /**
@@ -271,6 +279,8 @@ export function ContextMenu({
   menuRef,
   onClose,
   onOpenInNewTab,
+  onMarkAsRead,
+  onMarkAsUnread,
   onRename,
   onCreate,
   onCreateFolder,
@@ -280,6 +290,8 @@ export function ContextMenu({
   onColorChange,
   currentColor,
   showOpenInNewTab = false,
+  showMarkAsRead = false,
+  showMarkAsUnread = false,
   showRename = true,
   showCreate = false,
   showCreateFolder = false,
@@ -287,6 +299,8 @@ export function ContextMenu({
   showExport = false,
   showColorChange = false,
   disableExport = false,
+  disableMarkAsRead = false,
+  disableMarkAsUnread = false,
   disableColorChange = false,
   disableRename = false,
   disableDuplicate = false,
@@ -300,6 +314,7 @@ export function ContextMenu({
   showLock = false,
   disableLock = false,
   isLocked = false,
+  showDelete = true,
 }: ContextMenuProps) {
   const [hexInput, setHexInput] = useState(currentColor || '#ffffff')
 
@@ -324,6 +339,7 @@ export function ContextMenu({
 
   const handleHexKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
+      e.stopPropagation()
       if (e.key === 'Enter') {
         e.preventDefault()
         handleHexSubmit()
@@ -346,6 +362,7 @@ export function ContextMenu({
   }, [])
 
   const hasNavigationSection = showOpenInNewTab && onOpenInNewTab
+  const hasStatusSection = (showMarkAsRead && onMarkAsRead) || (showMarkAsUnread && onMarkAsUnread)
   const hasEditSection =
     (showRename && onRename) ||
     (showCreate && onCreate) ||
@@ -387,7 +404,35 @@ export function ContextMenu({
             Open in new tab
           </DropdownMenuItem>
         )}
-        {hasNavigationSection && (hasEditSection || hasCopySection) && <DropdownMenuSeparator />}
+        {hasNavigationSection && (hasStatusSection || hasEditSection || hasCopySection) && (
+          <DropdownMenuSeparator />
+        )}
+
+        {showMarkAsRead && onMarkAsRead && (
+          <DropdownMenuItem
+            disabled={disableMarkAsRead}
+            onSelect={() => {
+              onMarkAsRead()
+              onClose()
+            }}
+          >
+            <Eye />
+            Mark as read
+          </DropdownMenuItem>
+        )}
+        {showMarkAsUnread && onMarkAsUnread && (
+          <DropdownMenuItem
+            disabled={disableMarkAsUnread}
+            onSelect={() => {
+              onMarkAsUnread()
+              onClose()
+            }}
+          >
+            <Mail />
+            Mark as unread
+          </DropdownMenuItem>
+        )}
+        {hasStatusSection && (hasEditSection || hasCopySection) && <DropdownMenuSeparator />}
 
         {showRename && onRename && (
           <DropdownMenuItem
@@ -478,7 +523,8 @@ export function ContextMenu({
           </DropdownMenuItem>
         )}
 
-        {(hasNavigationSection || hasEditSection || hasCopySection) && <DropdownMenuSeparator />}
+        {(hasNavigationSection || hasStatusSection || hasEditSection || hasCopySection) &&
+          (showLeave || showDelete) && <DropdownMenuSeparator />}
         {showLeave && onLeave && (
           <DropdownMenuItem
             disabled={disableLeave}
@@ -491,16 +537,18 @@ export function ContextMenu({
             Leave
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem
-          disabled={disableDelete}
-          onSelect={() => {
-            onDelete()
-            onClose()
-          }}
-        >
-          <Trash />
-          Delete
-        </DropdownMenuItem>
+        {showDelete && (
+          <DropdownMenuItem
+            disabled={disableDelete}
+            onSelect={() => {
+              onDelete()
+              onClose()
+            }}
+          >
+            <Trash />
+            Delete
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

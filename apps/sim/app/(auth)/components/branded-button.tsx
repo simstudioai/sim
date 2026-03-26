@@ -55,9 +55,9 @@ export const BrandedButton = forwardRef<HTMLButtonElement, BrandedButtonProps>(
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         className={cn(
-          'group inline-flex h-[32px] items-center justify-center gap-[8px] rounded-[5px] border px-[10px] font-[430] font-season text-[14px] transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+          'group inline-flex h-[32px] items-center justify-center gap-2 rounded-[5px] border px-2.5 font-[430] font-season text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50',
           !hasCustomColor &&
-            'border-[#FFFFFF] bg-[#FFFFFF] text-black hover:border-[#E0E0E0] hover:bg-[#E0E0E0]',
+            'border-[var(--white)] bg-[var(--white)] text-black hover:border-[#E0E0E0] hover:bg-[#E0E0E0]',
           fullWidth && 'w-full',
           className
         )}

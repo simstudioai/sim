@@ -523,12 +523,12 @@ export function MessagesInput({
   }, [currentMessages.length])
 
   return (
-    <div className='flex w-full flex-col gap-[10px]'>
+    <div className='flex w-full flex-col gap-2.5'>
       {currentMessages.map((message, index) => (
         <div
           key={`message-${index}`}
           className={cn(
-            'relative flex w-full flex-col rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] transition-colors dark:bg-[var(--surface-5)]',
+            'relative flex w-full flex-col rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] transition-colors dark:bg-[var(--surface-5)]',
             disabled && 'opacity-50'
           )}
         >
@@ -567,7 +567,7 @@ export function MessagesInput({
               <>
                 {/* Header with role label and add button */}
                 <div
-                  className='flex cursor-pointer items-center justify-between px-[8px] pt-[6px]'
+                  className='flex cursor-pointer items-center justify-between px-2 pt-1.5'
                   onClick={(e) => handleHeaderClick(index, e)}
                 >
                   <Popover
@@ -579,9 +579,9 @@ export function MessagesInput({
                         type='button'
                         disabled={isPreview || disabled}
                         className={cn(
-                          'group -ml-1.5 -my-1 flex items-center gap-1 rounded px-1.5 py-1 font-medium text-[13px] text-[var(--text-primary)] leading-none transition-colors hover:bg-[var(--surface-5)] hover:text-[var(--text-secondary)]',
+                          'group -ml-1.5 -my-1 flex items-center gap-1 rounded px-1.5 py-1 font-medium text-[var(--text-primary)] text-small leading-none transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]',
                           (isPreview || disabled) &&
-                            'cursor-default hover:bg-transparent hover:text-[var(--text-primary)]'
+                            'cursor-default hover-hover:bg-transparent hover-hover:text-[var(--text-primary)]'
                         )}
                         onClick={(e) => e.stopPropagation()}
                         aria-label='Select message role'
@@ -598,7 +598,7 @@ export function MessagesInput({
                       </button>
                     </PopoverTrigger>
                     <PopoverContent minWidth={140} align='start'>
-                      <div className='flex flex-col gap-[2px]'>
+                      <div className='flex flex-col gap-0.5'>
                         {(['system', 'user', 'assistant'] as const).map((role) => (
                           <PopoverItem
                             key={role}
@@ -679,7 +679,7 @@ export function MessagesInput({
                     ref={(el) => {
                       textareaRefs.current[fieldId] = el
                     }}
-                    className='relative z-[2] m-0 box-border h-auto min-h-[80px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent px-[8px] py-[8px] font-medium font-sans text-sm text-transparent leading-[1.5] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
+                    className='relative z-[2] m-0 box-border h-auto min-h-[80px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent px-2 py-2 font-medium font-sans text-sm text-transparent leading-[1.5] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
                     placeholder='Enter message content...'
                     value={message.content}
                     onChange={fieldHandlers.onChange}
@@ -720,7 +720,7 @@ export function MessagesInput({
                       overlayRefs.current[fieldId] = el
                     }}
                     className={cn(
-                      'absolute top-0 left-0 z-[1] m-0 box-border w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent px-[8px] py-[8px] font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.5] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                      'absolute top-0 left-0 z-[1] m-0 box-border w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent px-2 py-2 font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.5] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
                       !(isPreview || disabled) && 'pointer-events-none'
                     )}
                   >
@@ -758,7 +758,7 @@ export function MessagesInput({
 
                   {!isPreview && !disabled && (
                     <div
-                      className='absolute right-1 bottom-1 z-[3] flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                      className='absolute right-1 bottom-1 z-[3] flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
                       onMouseDown={(e) => handleResizeStart(fieldId, e)}
                       onDragStart={(e) => {
                         e.preventDefault()

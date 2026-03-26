@@ -1,5 +1,6 @@
 import type { SVGProps } from 'react'
 import styles from '@/components/emcn/icons/animate/copy.module.css'
+import { cn } from '@/lib/core/utils/cn'
 
 export interface CopyProps extends SVGProps<SVGSVGElement> {
   /**
@@ -16,9 +17,7 @@ export interface CopyProps extends SVGProps<SVGSVGElement> {
  * @param props - SVG properties including className, animate, etc.
  */
 export function Copy({ animate = false, className, ...props }: CopyProps) {
-  const svgClassName = animate
-    ? `${styles['animated-copy-svg']} ${className || ''}`.trim()
-    : className
+  const svgClassName = cn(animate && styles['animated-copy-svg'], className)
 
   return (
     <svg
@@ -32,6 +31,7 @@ export function Copy({ animate = false, className, ...props }: CopyProps) {
       strokeLinecap='round'
       strokeLinejoin='round'
       className={svgClassName}
+      aria-hidden='true'
       {...props}
     >
       <rect

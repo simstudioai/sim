@@ -18,3 +18,9 @@
   transform-origin: center center;
   will-change: transform;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .animated-loader-svg {
+    animation: none;
+  }
+}

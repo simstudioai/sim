@@ -177,3 +177,12 @@
 .animated-layout-svg.clockwise .block-bottom-left {
   animation: move-bottom-left-cw 2.5s ease-in-out infinite;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .animated-layout-svg .block-top-left,
+  .animated-layout-svg .block-top-right,
+  .animated-layout-svg .block-bottom-right,
+  .animated-layout-svg .block-bottom-left {
+    animation: none;
+  }
+}

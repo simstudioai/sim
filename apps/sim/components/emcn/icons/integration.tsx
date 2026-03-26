@@ -16,6 +16,7 @@ export function Integration(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <rect x='1' y='6.5' width='7' height='7' rx='1.5' />

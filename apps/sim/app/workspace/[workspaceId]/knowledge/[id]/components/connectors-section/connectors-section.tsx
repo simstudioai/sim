@@ -130,22 +130,17 @@ export function ConnectorsSection({
   if (connectors.length === 0 && !canEdit && !isLoading) return null
 
   return (
-    <div className='mt-[16px]'>
-      {error && (
-        <p className='mt-[8px] text-[12px] text-[var(--text-error)] leading-tight'>{error}</p>
-      )}
+    <div className='mt-4'>
+      {error && <p className='mt-2 text-[var(--text-error)] text-caption leading-tight'>{error}</p>}
 
       {isLoading ? (
-        <div className='mt-[8px] flex flex-col gap-[8px]'>
+        <div className='mt-2 flex flex-col gap-2'>
           {Array.from({ length: 2 }).map((_, i) => (
-            <div
-              key={i}
-              className='rounded-[8px] border border-[var(--border-1)] px-[12px] py-[10px]'
-            >
-              <div className='flex items-center gap-[10px]'>
-                <Skeleton className='h-5 w-5 flex-shrink-0 rounded-[4px]' />
-                <div className='flex flex-col gap-[4px]'>
-                  <div className='flex items-center gap-[8px]'>
+            <div key={i} className='rounded-lg border border-[var(--border-1)] px-3 py-2.5'>
+              <div className='flex items-center gap-2.5'>
+                <Skeleton className='h-5 w-5 flex-shrink-0 rounded-sm' />
+                <div className='flex flex-col gap-1'>
+                  <div className='flex items-center gap-2'>
                     <Skeleton className='h-[14px] w-[100px]' />
                     <Skeleton className='h-[18px] w-[52px] rounded-full' />
                   </div>
@@ -156,11 +151,11 @@ export function ConnectorsSection({
           ))}
         </div>
       ) : connectors.length === 0 ? (
-        <p className='mt-[8px] text-[13px] text-[var(--text-muted)]'>
+        <p className='mt-2 text-[var(--text-muted)] text-small'>
           No connected sources yet. Connect an external source to automatically sync documents.
         </p>
       ) : (
-        <div className='mt-[8px] flex flex-col gap-[8px]'>
+        <div className='mt-2 flex flex-col gap-2'>
           {connectors.map((connector) => (
             <ConnectorCard
               key={connector.id}
@@ -210,7 +205,7 @@ export function ConnectorsSection({
         <ModalContent size='sm'>
           <ModalHeader>Delete Connector</ModalHeader>
           <ModalBody>
-            <p className='text-[14px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)] text-sm'>
               Are you sure you want to remove this connected source? Documents already synced will
               remain in the knowledge base.
             </p>
@@ -305,23 +300,23 @@ function ConnectorCard({
   const syncLogs = detail?.syncLogs ?? []
 
   return (
-    <div className='rounded-[8px] border border-[var(--border-1)]'>
-      <div className='flex items-center justify-between px-[12px] py-[10px]'>
-        <div className='flex items-center gap-[10px]'>
+    <div className='rounded-lg border border-[var(--border-1)]'>
+      <div className='flex items-center justify-between px-3 py-2.5'>
+        <div className='flex items-center gap-2.5'>
           {Icon && <Icon className='h-5 w-5 flex-shrink-0' />}
-          <div className='flex flex-col gap-[2px]'>
-            <div className='flex items-center gap-[8px]'>
-              <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+          <div className='flex flex-col gap-0.5'>
+            <div className='flex items-center gap-2'>
+              <span className='font-medium text-[var(--text-primary)] text-small'>
                 {connectorDef?.name || connector.connectorType}
               </span>
-              <Badge variant={statusConfig.variant} className='text-[10px]'>
+              <Badge variant={statusConfig.variant} className='text-micro'>
                 {connector.status === 'syncing' && (
                   <Loader2 className='mr-1 h-3 w-3 animate-spin' />
                 )}
                 {statusConfig.label}
               </Badge>
             </div>
-            <div className='flex items-center gap-[6px] text-[11px] text-[var(--text-muted)]'>
+            <div className='flex items-center gap-1.5 text-[var(--text-muted)] text-xs'>
               {connector.lastSyncAt && (
                 <span>Last sync: {format(new Date(connector.lastSyncAt), 'MMM d, h:mm a')}</span>
               )}
@@ -352,7 +347,7 @@ function ConnectorCard({
           </div>
         </div>
 
-        <div className='flex items-center gap-[4px]'>
+        <div className='flex items-center gap-1'>
           {canEdit && (
             <>
               <Tooltip.Root>
@@ -436,10 +431,10 @@ function ConnectorCard({
       </div>
 
       {missingScopes.length > 0 && (
-        <div className='border-[var(--border-1)] border-t px-[12px] py-[8px]'>
-          <div className='flex flex-col gap-[4px] rounded-[4px] border bg-[var(--surface-2)] px-[8px] py-[6px]'>
-            <div className='flex items-center font-medium text-[12px]'>
-              <span className='mr-[6px] inline-block h-[6px] w-[6px] rounded-[2px] bg-amber-500' />
+        <div className='border-[var(--border-1)] border-t px-3 py-2'>
+          <div className='flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
+            <div className='flex items-center font-medium text-caption'>
+              <span className='mr-1.5 inline-block h-[6px] w-[6px] rounded-xs bg-amber-500' />
               Additional permissions required
             </div>
             {canEdit && (
@@ -457,7 +452,7 @@ function ConnectorCard({
                   })
                   setShowOAuthModal(true)
                 }}
-                className='w-full px-[8px] py-[4px] font-medium text-[12px]'
+                className='w-full px-2 py-1 font-medium text-caption'
               >
                 Update access
               </Button>
@@ -467,7 +462,7 @@ function ConnectorCard({
       )}
 
       {expanded && (
-        <div className='border-[var(--border-1)] border-t px-[12px] py-[8px]'>
+        <div className='border-[var(--border-1)] border-t px-3 py-2'>
           <SyncHistory logs={syncLogs} isLoading={detailLoading} />
         </div>
       )}
@@ -498,7 +493,7 @@ interface SyncHistoryProps {
 function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
   if (isLoading) {
     return (
-      <div className='flex items-center gap-2 py-[4px] text-[11px] text-[var(--text-muted)]'>
+      <div className='flex items-center gap-2 py-1 text-[var(--text-muted)] text-xs'>
         <Loader2 className='h-3 w-3 animate-spin' />
         Loading sync history...
       </div>
@@ -506,11 +501,11 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
   }
 
   if (logs.length === 0) {
-    return <p className='py-[4px] text-[11px] text-[var(--text-muted)]'>No sync history yet.</p>
+    return <p className='py-1 text-[var(--text-muted)] text-xs'>No sync history yet.</p>
   }
 
   return (
-    <div className='flex flex-col gap-[6px]'>
+    <div className='flex flex-col gap-1.5'>
       {logs.map((log) => {
         const isError = log.status === 'error' || log.status === 'failed'
         const isRunning = log.status === 'running' || log.status === 'syncing'
@@ -518,7 +513,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
           log.docsAdded + log.docsUpdated + log.docsDeleted + (log.docsFailed ?? 0)
 
         return (
-          <div key={log.id} className='flex items-start gap-[8px] text-[11px]'>
+          <div key={log.id} className='flex items-start gap-2 text-xs'>
             <div className='mt-[1px] flex-shrink-0'>
               {isRunning ? (
                 <Loader2 className='h-3 w-3 animate-spin text-[var(--text-muted)]' />
@@ -530,7 +525,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
             </div>
 
             <div className='flex min-w-0 flex-1 flex-col gap-[1px]'>
-              <div className='flex items-center gap-[6px]'>
+              <div className='flex items-center gap-1.5'>
                 <span className='text-[var(--text-muted)]'>
                   {format(new Date(log.startedAt), 'MMM d, h:mm a')}
                 </span>

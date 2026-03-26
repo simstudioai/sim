@@ -20,6 +20,7 @@ import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/nav
 import {
   allNavigationItems,
   isBillingEnabled,
+  isCredentialSetsEnabled,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 
 /**
@@ -27,11 +28,11 @@ import {
  */
 function SettingsSectionSkeleton() {
   return (
-    <div className='flex flex-col gap-[16px]'>
-      <Skeleton className='h-[20px] w-[200px] rounded-[4px]' />
-      <Skeleton className='h-[40px] w-full rounded-[8px]' />
-      <Skeleton className='h-[40px] w-full rounded-[8px]' />
-      <Skeleton className='h-[40px] w-full rounded-[8px]' />
+    <div className='flex flex-col gap-4'>
+      <Skeleton className='h-[20px] w-[200px] rounded-sm' />
+      <Skeleton className='h-[40px] w-full rounded-lg' />
+      <Skeleton className='h-[40px] w-full rounded-lg' />
+      <Skeleton className='h-[40px] w-full rounded-lg' />
     </div>
   )
 }
@@ -164,16 +165,18 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const effectiveSection =
     !isBillingEnabled && (section === 'subscription' || section === 'team')
       ? 'general'
-      : section === 'admin' && !sessionLoading && !isAdminRole
+      : section === 'credential-sets' && !isCredentialSetsEnabled
         ? 'general'
-        : section
+        : section === 'admin' && !sessionLoading && !isAdminRole
+          ? 'general'
+          : section
 
   const label =
     allNavigationItems.find((item) => item.id === effectiveSection)?.label ?? effectiveSection
 
   return (
     <div>
-      <h2 className='mb-[28px] font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
+      <h2 className='mb-7 font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
       {effectiveSection === 'general' && <General />}
       {effectiveSection === 'integrations' && <Integrations />}
       {effectiveSection === 'secrets' && <Credentials />}

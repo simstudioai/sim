@@ -23,7 +23,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
   if (!author) {
     return (
       <main className='mx-auto max-w-[900px] px-6 py-10 sm:px-8 md:px-12'>
-        <h1 className='font-[500] text-[#ECECEC] text-[32px]'>Author not found</h1>
+        <h1 className='font-[500] text-[32px] text-[var(--landing-text)]'>Author not found</h1>
       </main>
     )
   }
@@ -52,28 +52,33 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
             unoptimized
           />
         ) : null}
-        <h1 className='font-[500] text-[#ECECEC] text-[32px] leading-tight'>{author.name}</h1>
+        <h1 className='font-[500] text-[32px] text-[var(--landing-text)] leading-tight'>
+          {author.name}
+        </h1>
       </div>
       <div className='grid grid-cols-1 gap-8 sm:grid-cols-2'>
         {posts.map((p) => (
           <Link key={p.slug} href={`/blog/${p.slug}`} className='group'>
-            <div className='overflow-hidden rounded-lg border border-[#2A2A2A]'>
+            <div className='overflow-hidden rounded-lg border border-[var(--landing-bg-elevated)]'>
               <Image
                 src={p.ogImage}
                 alt={p.title}
                 width={600}
                 height={315}
                 className='h-[160px] w-full object-cover transition-transform group-hover:scale-[1.02]'
+                unoptimized
               />
               <div className='p-3'>
-                <div className='mb-1 text-[#999] text-xs'>
+                <div className='mb-1 text-[var(--landing-text-muted)] text-xs'>
                   {new Date(p.date).toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric',
                     year: 'numeric',
                   })}
                 </div>
-                <div className='font-[500] text-[#ECECEC] text-sm leading-tight'>{p.title}</div>
+                <div className='font-[500] text-[var(--landing-text)] text-sm leading-tight'>
+                  {p.title}
+                </div>
               </div>
             </div>
           </Link>

@@ -244,28 +244,28 @@ export function Preview({
       style={{ height, width }}
       className={cn(
         'relative flex overflow-hidden',
-        showBorder && 'rounded-[4px] border border-[var(--border)]',
+        showBorder && 'rounded-sm border border-[var(--border)]',
         className
       )}
     >
       {isNested && (
-        <div className='absolute top-[12px] left-[12px] z-20 flex items-center gap-[6px]'>
+        <div className='absolute top-3 left-[12px] z-20 flex items-center gap-1.5'>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
                 onClick={handleGoBack}
-                className='flex h-[28px] items-center gap-[5px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] text-[var(--text-secondary)] shadow-sm hover:bg-[var(--surface-4)] hover:text-[var(--text-primary)]'
+                className='flex h-[28px] items-center gap-[5px] rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 text-[var(--text-secondary)] shadow-sm hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
               >
                 <ArrowLeft className='h-[12px] w-[12px]' />
-                <span className='font-medium text-[12px]'>Back</span>
+                <span className='font-medium text-caption'>Back</span>
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='bottom'>Go back to parent workflow</Tooltip.Content>
           </Tooltip.Root>
           {currentWorkflowName && (
-            <div className='flex h-[28px] max-w-[200px] items-center rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] shadow-sm'>
-              <span className='truncate font-medium text-[12px] text-[var(--text-secondary)]'>
+            <div className='flex h-[28px] max-w-[200px] items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-sm'>
+              <span className='truncate font-medium text-[var(--text-secondary)] text-caption'>
                 {currentWorkflowName}
               </span>
             </div>

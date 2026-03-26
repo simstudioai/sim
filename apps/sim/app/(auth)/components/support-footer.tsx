@@ -11,12 +11,12 @@ export function SupportFooter({ position = 'fixed' }: SupportFooterProps) {
 
   return (
     <div
-      className={`right-0 bottom-0 left-0 z-50 pb-8 text-center font-[340] text-[#999] text-[13px] leading-relaxed ${position}`}
+      className={`right-0 bottom-0 left-0 z-50 pb-8 text-center font-[340] text-[var(--landing-text-muted)] text-small leading-relaxed ${position}`}
     >
       Need help?{' '}
       <a
         href={`mailto:${brandConfig.supportEmail}`}
-        className='text-[#999] underline-offset-4 transition hover:text-[#ECECEC] hover:underline'
+        className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
       >
         Contact support
       </a>

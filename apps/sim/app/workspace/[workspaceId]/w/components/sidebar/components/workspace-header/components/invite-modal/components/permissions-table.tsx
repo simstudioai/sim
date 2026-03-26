@@ -10,14 +10,14 @@ import type { UserPermissions } from './types'
 
 const PermissionsTableSkeleton = () => (
   <div className='scrollbar-hide max-h-[300px] overflow-y-auto'>
-    <div className='flex items-center justify-between gap-[8px] py-[8px]'>
+    <div className='flex items-center justify-between gap-2 py-2'>
       <div className='min-w-0 flex-1'>
-        <div className='flex items-center gap-[8px]'>
-          <Skeleton className='h-[14px] w-40 rounded-[4px]' />
+        <div className='flex items-center gap-2'>
+          <Skeleton className='h-[14px] w-40 rounded-sm' />
         </div>
       </div>
       <div className='flex flex-shrink-0 items-center'>
-        <div className='inline-flex gap-[2px]'>
+        <div className='inline-flex gap-0.5'>
           <Skeleton className='h-[28px] w-[44px] rounded-[5px]' />
           <Skeleton className='h-[28px] w-[44px] rounded-[5px]' />
           <Skeleton className='h-[28px] w-[44px] rounded-[5px]' />
@@ -141,17 +141,17 @@ export const PermissionsTable = ({
 
   if (isSaving) {
     return (
-      <div className='space-y-[12px]'>
-        <h3 className='font-medium text-[14px] text-[var(--text-primary)]'>Member Permissions</h3>
-        <div className='rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-3)]'>
-          <div className='flex items-center justify-center py-[48px]'>
-            <div className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
+      <div className='space-y-3'>
+        <h3 className='font-medium text-[var(--text-primary)] text-sm'>Member Permissions</h3>
+        <div className='rounded-lg border border-[var(--border-1)] bg-[var(--surface-3)]'>
+          <div className='flex items-center justify-center py-12'>
+            <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
               <Loader2 className='h-[16px] w-[16px] animate-spin' />
-              <span className='font-medium text-[13px]'>Saving permission changes...</span>
+              <span className='font-medium text-small'>Saving permission changes...</span>
             </div>
           </div>
         </div>
-        <p className='flex min-h-[2rem] items-start text-[12px] text-[var(--text-tertiary)]'>
+        <p className='flex min-h-[2rem] items-start text-[var(--text-tertiary)] text-caption'>
           Please wait while we update the permissions.
         </p>
       </div>
@@ -191,14 +191,14 @@ export const PermissionsTable = ({
                 : `new-${user.email}`
 
             return (
-              <div key={uniqueKey} className='flex items-center justify-between gap-[8px] py-[8px]'>
+              <div key={uniqueKey} className='flex items-center justify-between gap-2 py-2'>
                 <div className='min-w-0 flex-1'>
-                  <div className='flex items-center gap-[8px]'>
-                    <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+                  <div className='flex items-center gap-2'>
+                    <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                       {user.email}
                     </span>
                     {isPendingInvitation && (
-                      <Badge variant='default' className='gap-[4px] text-[12px]'>
+                      <Badge variant='default' className='gap-1 text-caption'>
                         {resendingInvitationIds &&
                         user.invitationId &&
                         resendingInvitationIds[user.invitationId] ? (
@@ -213,7 +213,7 @@ export const PermissionsTable = ({
                       </Badge>
                     )}
                     {hasChanges && (
-                      <Badge variant='default' className='text-[12px]'>
+                      <Badge variant='default' className='text-caption'>
                         Modified
                       </Badge>
                     )}
