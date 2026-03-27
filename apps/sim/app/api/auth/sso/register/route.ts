@@ -4,6 +4,10 @@ import { z } from 'zod'
 import { auth, getSession } from '@/lib/auth'
 import { hasSSOAccess } from '@/lib/billing'
 import { env } from '@/lib/core/config/env'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 
 const logger = createLogger('SSORegisterRoute')
@@ -156,24 +160,66 @@ export async function POST(request: NextRequest) {
             hasJwksEndpoint: !!oidcConfig.jwksEndpoint,
           })
 
-          const discoveryResponse = await fetch(discoveryUrl, {
-            headers: { Accept: 'application/json' },
-          })
+          const urlValidation = await validateUrlWithDNS(discoveryUrl, 'OIDC discovery URL')
+          if (!urlValidation.isValid || !urlValidation.resolvedIP) {
+            logger.warn('OIDC discovery URL failed SSRF validation', {
+              discoveryUrl,
+              error: urlValidation.error,
+            })
+            return NextResponse.json(
+              { error: urlValidation.error ?? 'SSRF validation failed' },
+              { status: 400 }
+            )
+          }
+
+          const discoveryResponse = await secureFetchWithPinnedIP(
+            discoveryUrl,
+            urlValidation.resolvedIP,
+            {
+              headers: { Accept: 'application/json' },
+            }
+          )
 
           if (!discoveryResponse.ok) {
             logger.error('Failed to fetch OIDC discovery document', {
               status: discoveryResponse.status,
-              statusText: discoveryResponse.statusText,
             })
             return NextResponse.json(
               {
-                error: `Failed to fetch OIDC discovery document from ${discoveryUrl}. Status: ${discoveryResponse.status}. Provide all endpoints explicitly or verify the issuer URL.`,
+                error:
+                  'Failed to fetch OIDC discovery document. Provide all endpoints explicitly or verify the issuer URL.',
               },
               { status: 400 }
             )
           }
 
-          const discovery = await discoveryResponse.json()
+          const discovery = (await discoveryResponse.json()) as Record<string, unknown>
+
+          const discoveredEndpoints: Record<string, unknown> = {
+            authorization_endpoint: discovery.authorization_endpoint,
+            token_endpoint: discovery.token_endpoint,
+            userinfo_endpoint: discovery.userinfo_endpoint,
+            jwks_uri: discovery.jwks_uri,
+          }
+
+          for (const [key, value] of Object.entries(discoveredEndpoints)) {
+            if (typeof value === 'string') {
+              const endpointValidation = await validateUrlWithDNS(value, `OIDC ${key}`)
+              if (!endpointValidation.isValid) {
+                logger.warn('OIDC discovered endpoint failed SSRF validation', {
+                  endpoint: key,
+                  url: value,
+                  error: endpointValidation.error,
+                })
+                return NextResponse.json(
+                  {
+                    error: `Discovered OIDC ${key} failed security validation: ${endpointValidation.error}`,
+                  },
+                  { status: 400 }
+                )
+              }
+            }
+          }
 
           oidcConfig.authorizationEndpoint =
             oidcConfig.authorizationEndpoint || discovery.authorization_endpoint
@@ -196,7 +242,8 @@ export async function POST(request: NextRequest) {
           })
           return NextResponse.json(
             {
-              error: `Failed to fetch OIDC discovery document from ${discoveryUrl}. Please verify the issuer URL is correct or provide all endpoints explicitly.`,
+              error:
+                'Failed to fetch OIDC discovery document. Please verify the issuer URL is correct or provide all endpoints explicitly.',
             },
             { status: 400 }
           )

@@ -10,11 +10,14 @@ const {
   mockRedisSet,
   mockRedisGet,
   mockRedisDel,
+  mockRedisTtl,
+  mockRedisEval,
   mockGetRedisClient,
   mockRedisClient,
   mockDbSelect,
   mockDbInsert,
   mockDbDelete,
+  mockDbUpdate,
   mockSendEmail,
   mockRenderOTPEmail,
   mockAddCorsHeaders,
@@ -29,15 +32,20 @@ const {
   const mockRedisSet = vi.fn()
   const mockRedisGet = vi.fn()
   const mockRedisDel = vi.fn()
+  const mockRedisTtl = vi.fn()
+  const mockRedisEval = vi.fn()
   const mockRedisClient = {
     set: mockRedisSet,
     get: mockRedisGet,
     del: mockRedisDel,
+    ttl: mockRedisTtl,
+    eval: mockRedisEval,
   }
   const mockGetRedisClient = vi.fn()
   const mockDbSelect = vi.fn()
   const mockDbInsert = vi.fn()
   const mockDbDelete = vi.fn()
+  const mockDbUpdate = vi.fn()
   const mockSendEmail = vi.fn()
   const mockRenderOTPEmail = vi.fn()
   const mockAddCorsHeaders = vi.fn()
@@ -53,11 +61,14 @@ const {
     mockRedisSet,
     mockRedisGet,
     mockRedisDel,
+    mockRedisTtl,
+    mockRedisEval,
     mockGetRedisClient,
     mockRedisClient,
     mockDbSelect,
     mockDbInsert,
     mockDbDelete,
+    mockDbUpdate,
     mockSendEmail,
     mockRenderOTPEmail,
     mockAddCorsHeaders,
@@ -80,11 +91,13 @@ vi.mock('@sim/db', () => ({
     select: mockDbSelect,
     insert: mockDbInsert,
     delete: mockDbDelete,
+    update: mockDbUpdate,
     transaction: vi.fn(async (callback: (tx: Record<string, unknown>) => unknown) => {
       return callback({
         select: mockDbSelect,
         insert: mockDbInsert,
         delete: mockDbDelete,
+        update: mockDbUpdate,
       })
     }),
   },
@@ -126,12 +139,24 @@ vi.mock('@/lib/messaging/email/mailer', () => ({
   sendEmail: mockSendEmail,
 }))
 
-vi.mock('@/components/emails/render-email', () => ({
+vi.mock('@/components/emails', () => ({
   renderOTPEmail: mockRenderOTPEmail,
 }))
 
-vi.mock('@/app/api/chat/utils', () => ({
+vi.mock('@/lib/core/security/deployment', () => ({
   addCorsHeaders: mockAddCorsHeaders,
+  isEmailAllowed: (email: string, allowedEmails: string[]) => {
+    if (allowedEmails.includes(email)) return true
+    const atIndex = email.indexOf('@')
+    if (atIndex > 0) {
+      const domain = email.substring(atIndex + 1)
+      if (domain && allowedEmails.some((allowed: string) => allowed === `@${domain}`)) return true
+    }
+    return false
+  },
+}))
+
+vi.mock('@/app/api/chat/utils', () => ({
   setChatAuthCookie: mockSetChatAuthCookie,
 }))
 
@@ -209,6 +234,7 @@ describe('Chat OTP API Route', () => {
     mockRedisSet.mockResolvedValue('OK')
     mockRedisGet.mockResolvedValue(null)
     mockRedisDel.mockResolvedValue(1)
+    mockRedisTtl.mockResolvedValue(600)
 
     const createDbChain = (result: unknown) => ({
       from: vi.fn().mockReturnValue({
@@ -224,6 +250,11 @@ describe('Chat OTP API Route', () => {
     }))
     mockDbDelete.mockImplementation(() => ({
       where: vi.fn().mockResolvedValue(undefined),
+    }))
+    mockDbUpdate.mockImplementation(() => ({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue(undefined),
+      }),
     }))
 
     mockGetStorageMethod.mockReturnValue('redis')
@@ -349,7 +380,7 @@ describe('Chat OTP API Route', () => {
   describe('PUT - Verify OTP (Redis path)', () => {
     beforeEach(() => {
       mockGetStorageMethod.mockReturnValue('redis')
-      mockRedisGet.mockResolvedValue(mockOTP)
+      mockRedisGet.mockResolvedValue(`${mockOTP}:0`)
     })
 
     it('should retrieve OTP from Redis and verify successfully', async () => {
@@ -374,9 +405,7 @@ describe('Chat OTP API Route', () => {
       await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
 
       expect(mockRedisGet).toHaveBeenCalledWith(`otp:${mockEmail}:${mockChatId}`)
-
       expect(mockRedisDel).toHaveBeenCalledWith(`otp:${mockEmail}:${mockChatId}`)
-
       expect(mockDbSelect).toHaveBeenCalledTimes(1)
     })
   })
@@ -405,7 +434,7 @@ describe('Chat OTP API Route', () => {
               }
               return Promise.resolve([
                 {
-                  value: mockOTP,
+                  value: `${mockOTP}:0`,
                   expiresAt: new Date(Date.now() + 10 * 60 * 1000),
                 },
               ])
@@ -475,7 +504,7 @@ describe('Chat OTP API Route', () => {
     })
 
     it('should delete OTP from Redis after verification', async () => {
-      mockRedisGet.mockResolvedValue(mockOTP)
+      mockRedisGet.mockResolvedValue(`${mockOTP}:0`)
 
       mockDbSelect.mockImplementationOnce(() => ({
         from: vi.fn().mockReturnValue({
@@ -519,7 +548,7 @@ describe('Chat OTP API Route', () => {
                 return Promise.resolve([{ id: mockChatId, authType: 'email' }])
               }
               return Promise.resolve([
-                { value: mockOTP, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
+                { value: `${mockOTP}:0`, expiresAt: new Date(Date.now() + 10 * 60 * 1000) },
               ])
             }),
           }),
@@ -540,6 +569,97 @@ describe('Chat OTP API Route', () => {
 
       expect(mockDbDelete).toHaveBeenCalled()
       expect(mockRedisDel).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Brute-force protection', () => {
+    beforeEach(() => {
+      mockGetStorageMethod.mockReturnValue('redis')
+    })
+
+    it('should atomically increment attempts on wrong OTP', async () => {
+      mockRedisGet.mockResolvedValue('654321:0')
+      mockRedisEval.mockResolvedValue('654321:1')
+
+      mockDbSelect.mockImplementationOnce(() => ({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([{ id: mockChatId, authType: 'email' }]),
+          }),
+        }),
+      }))
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'PUT',
+        body: JSON.stringify({ email: mockEmail, otp: 'wrong1' }),
+      })
+
+      await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+
+      expect(mockRedisEval).toHaveBeenCalledWith(
+        expect.any(String),
+        1,
+        `otp:${mockEmail}:${mockChatId}`,
+        5
+      )
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Invalid verification code', 400)
+    })
+
+    it('should invalidate OTP and return 429 after max failed attempts', async () => {
+      mockRedisGet.mockResolvedValue('654321:4')
+      mockRedisEval.mockResolvedValue('LOCKED')
+
+      mockDbSelect.mockImplementationOnce(() => ({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([{ id: mockChatId, authType: 'email' }]),
+          }),
+        }),
+      }))
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'PUT',
+        body: JSON.stringify({ email: mockEmail, otp: 'wrong5' }),
+      })
+
+      await PUT(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+
+      expect(mockRedisEval).toHaveBeenCalled()
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+        'Too many failed attempts. Please request a new code.',
+        429
+      )
+    })
+
+    it('should store OTP with zero attempts on generation', async () => {
+      mockDbSelect.mockImplementationOnce(() => ({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([
+              {
+                id: mockChatId,
+                authType: 'email',
+                allowedEmails: [mockEmail],
+                title: 'Test Chat',
+              },
+            ]),
+          }),
+        }),
+      }))
+
+      const request = new NextRequest('http://localhost:3000/api/chat/test/otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: mockEmail }),
+      })
+
+      await POST(request, { params: Promise.resolve({ identifier: mockIdentifier }) })
+
+      expect(mockRedisSet).toHaveBeenCalledWith(
+        `otp:${mockEmail}:${mockChatId}`,
+        expect.stringMatching(/^\d{6}:0$/),
+        'EX',
+        900
+      )
     })
   })
 

@@ -1,5 +1,6 @@
-import { createHash } from 'crypto'
+import { createHash, createHmac, timingSafeEqual } from 'crypto'
 import type { NextRequest, NextResponse } from 'next/server'
+import { env } from '@/lib/core/config/env'
 import { isDev } from '@/lib/core/config/feature-flags'
 
 /**
@@ -7,21 +8,29 @@ import { isDev } from '@/lib/core/config/feature-flags'
  * These functions handle token generation, validation, cookies, and CORS.
  */
 
-function hashPassword(encryptedPassword: string): string {
-  return createHash('sha256').update(encryptedPassword).digest('hex').substring(0, 8)
+function signPayload(payload: string): string {
+  return createHmac('sha256', env.BETTER_AUTH_SECRET).update(payload).digest('hex')
 }
 
-function encryptAuthToken(
+function passwordSlot(encryptedPassword?: string | null): string {
+  if (!encryptedPassword) return ''
+  return createHash('sha256').update(encryptedPassword).digest('hex').slice(0, 8)
+}
+
+function generateAuthToken(
   deploymentId: string,
   type: string,
   encryptedPassword?: string | null
 ): string {
-  const pwHash = encryptedPassword ? hashPassword(encryptedPassword) : ''
-  return Buffer.from(`${deploymentId}:${type}:${Date.now()}:${pwHash}`).toString('base64')
+  const payload = `${deploymentId}:${type}:${Date.now()}:${passwordSlot(encryptedPassword)}`
+  const sig = signPayload(payload)
+  return Buffer.from(`${payload}:${sig}`).toString('base64')
 }
 
 /**
- * Validates an authentication token for a deployment (chat or form)
+ * Validates an HMAC-signed authentication token for a deployment (chat or form).
+ * Includes a password-derived slot so changing the deployment password immediately
+ * invalidates existing sessions.
  */
 export function validateAuthToken(
   token: string,
@@ -30,27 +39,32 @@ export function validateAuthToken(
 ): boolean {
   try {
     const decoded = Buffer.from(token, 'base64').toString()
-    const parts = decoded.split(':')
-    const [storedId, _type, timestamp, storedPwHash] = parts
+    const lastColon = decoded.lastIndexOf(':')
+    if (lastColon === -1) return false
 
-    if (storedId !== deploymentId) {
+    const payload = decoded.slice(0, lastColon)
+    const sig = decoded.slice(lastColon + 1)
+
+    const expectedSig = signPayload(payload)
+    if (
+      sig.length !== expectedSig.length ||
+      !timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))
+    ) {
       return false
     }
+
+    const parts = payload.split(':')
+    if (parts.length < 4) return false
+    const [storedId, _type, timestamp, storedPwSlot] = parts
+
+    if (storedId !== deploymentId) return false
+
+    const expectedPwSlot = passwordSlot(encryptedPassword)
+    if (storedPwSlot !== expectedPwSlot) return false
 
     const createdAt = Number.parseInt(timestamp)
-    const now = Date.now()
     const expireTime = 24 * 60 * 60 * 1000
-
-    if (now - createdAt > expireTime) {
-      return false
-    }
-
-    if (encryptedPassword) {
-      const currentPwHash = hashPassword(encryptedPassword)
-      if (storedPwHash !== currentPwHash) {
-        return false
-      }
-    }
+    if (Date.now() - createdAt > expireTime) return false
 
     return true
   } catch (_e) {
@@ -68,7 +82,7 @@ export function setDeploymentAuthCookie(
   authType: string,
   encryptedPassword?: string | null
 ): void {
-  const token = encryptAuthToken(deploymentId, authType, encryptedPassword)
+  const token = generateAuthToken(deploymentId, authType, encryptedPassword)
   response.cookies.set({
     name: `${cookiePrefix}_auth_${deploymentId}`,
     value: token,
@@ -82,15 +96,15 @@ export function setDeploymentAuthCookie(
 
 /**
  * Adds CORS headers to allow cross-origin requests for embedded deployments.
- * Embedded chat widgets and forms are designed to run on any customer domain,
- * so we reflect the requesting origin rather than restricting to an allowlist.
+ * We reflect the requesting origin to support same-site cross-origin setups
+ * (e.g. subdomains), but never set Allow-Credentials — auth cookies use
+ * SameSite=Lax and are handled within same-origin iframe contexts.
  */
 export function addCorsHeaders(response: NextResponse, request: NextRequest): NextResponse {
-  const origin = request.headers.get('origin') || ''
+  const origin = request.headers.get('origin')
 
   if (origin) {
     response.headers.set('Access-Control-Allow-Origin', origin)
-    response.headers.set('Access-Control-Allow-Credentials', 'true')
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With')
   }
