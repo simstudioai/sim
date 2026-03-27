@@ -73,13 +73,26 @@ export function ConnectorsSection({
   isLoading,
   canEdit,
 }: ConnectorsSectionProps) {
-  const { mutate: triggerSync, isPending: isSyncing } = useTriggerSync()
-  const { mutate: updateConnector, isPending: isUpdating } = useUpdateConnector()
+  const { mutate: triggerSync } = useTriggerSync()
+  const { mutate: updateConnector } = useUpdateConnector()
   const { mutate: deleteConnector, isPending: isDeleting } = useDeleteConnector()
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [editingConnector, setEditingConnector] = useState<ConnectorData | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [syncingConnectorId, setSyncingConnectorId] = useState<string | null>(null)
+  const [syncingIds, setSyncingIds] = useState<Set<string>>(() => new Set())
+  const [updatingIds, setUpdatingIds] = useState<Set<string>>(() => new Set())
+
+  const addToSet = useCallback((setter: typeof setSyncingIds, id: string) => {
+    setter((prev) => new Set(prev).add(id))
+  }, [])
+
+  const removeFromSet = useCallback((setter: typeof setSyncingIds, id: string) => {
+    setter((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }, [])
 
   const syncTriggeredAt = useRef<Record<string, number>>({})
   const cooldownTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
@@ -104,14 +117,13 @@ export function ConnectorsSection({
       if (isSyncOnCooldown(connectorId)) return
 
       syncTriggeredAt.current[connectorId] = Date.now()
-      setSyncingConnectorId(connectorId)
+      addToSet(setSyncingIds, connectorId)
 
       triggerSync(
         { knowledgeBaseId, connectorId },
         {
           onSuccess: () => {
             setError(null)
-            setSyncingConnectorId(null)
             const timer = setTimeout(() => {
               cooldownTimers.current.delete(timer)
               forceUpdate((n) => n + 1)
@@ -121,14 +133,38 @@ export function ConnectorsSection({
           onError: (err) => {
             logger.error('Sync trigger failed', { error: err.message })
             setError(err.message)
-            setSyncingConnectorId(null)
             delete syncTriggeredAt.current[connectorId]
             forceUpdate((n) => n + 1)
+          },
+          onSettled: () => removeFromSet(setSyncingIds, connectorId),
+        }
+      )
+    },
+    [knowledgeBaseId, triggerSync, isSyncOnCooldown, addToSet, removeFromSet]
+  )
+
+  const handleTogglePause = useCallback(
+    (connector: ConnectorData) => {
+      addToSet(setUpdatingIds, connector.id)
+      updateConnector(
+        {
+          knowledgeBaseId,
+          connectorId: connector.id,
+          updates: {
+            status: connector.status === 'paused' ? 'active' : 'paused',
+          },
+        },
+        {
+          onSettled: () => removeFromSet(setUpdatingIds, connector.id),
+          onSuccess: () => setError(null),
+          onError: (err) => {
+            logger.error('Toggle pause failed', { error: err.message })
+            setError(err.message)
           },
         }
       )
     },
-    [knowledgeBaseId, triggerSync, isSyncOnCooldown]
+    [knowledgeBaseId, updateConnector, addToSet, removeFromSet]
   )
 
   if (connectors.length === 0 && !canEdit && !isLoading) return null
@@ -167,29 +203,11 @@ export function ConnectorsSection({
               workspaceId={workspaceId}
               knowledgeBaseId={knowledgeBaseId}
               canEdit={canEdit}
-              isSyncing={isSyncing}
-              isSyncPending={syncingConnectorId === connector.id}
-              isUpdating={isUpdating}
+              isSyncPending={syncingIds.has(connector.id)}
+              isUpdating={updatingIds.has(connector.id)}
               syncCooldown={isSyncOnCooldown(connector.id)}
               onSync={() => handleSync(connector.id)}
-              onTogglePause={() =>
-                updateConnector(
-                  {
-                    knowledgeBaseId,
-                    connectorId: connector.id,
-                    updates: {
-                      status: connector.status === 'paused' ? 'active' : 'paused',
-                    },
-                  },
-                  {
-                    onSuccess: () => setError(null),
-                    onError: (err) => {
-                      logger.error('Toggle pause failed', { error: err.message })
-                      setError(err.message)
-                    },
-                  }
-                )
-              }
+              onTogglePause={() => handleTogglePause(connector)}
               onEdit={() => setEditingConnector(connector)}
               onDelete={() => setDeleteTarget(connector.id)}
             />
@@ -260,7 +278,6 @@ interface ConnectorCardProps {
   workspaceId: string
   knowledgeBaseId: string
   canEdit: boolean
-  isSyncing: boolean
   isSyncPending: boolean
   isUpdating: boolean
   syncCooldown: boolean
@@ -275,7 +292,6 @@ function ConnectorCard({
   workspaceId,
   knowledgeBaseId,
   canEdit,
-  isSyncing,
   isSyncPending,
   isUpdating,
   syncCooldown,
@@ -368,7 +384,7 @@ function ConnectorCard({
                     variant='ghost'
                     className='h-7 w-7 p-0'
                     onClick={onSync}
-                    disabled={connector.status === 'syncing' || isSyncing || syncCooldown}
+                    disabled={connector.status === 'syncing' || isSyncPending || syncCooldown}
                   >
                     <RefreshCw
                       className={cn(
