@@ -1550,20 +1550,8 @@ export const Sidebar = memo(function Sidebar() {
                               onEditValueChange={workflowFlyoutRename.setValue}
                               onEditKeyDown={workflowFlyoutRename.handleKeyDown}
                               onEditBlur={handleWorkflowRenameBlur}
-                              onOpenInNewTab={() =>
-                                window.open(
-                                  `/workspace/${workspaceId}/w/${workflow.id}`,
-                                  '_blank',
-                                  'noopener,noreferrer'
-                                )
-                              }
-                              onRename={() => {
-                                workflowsHover.setLocked(true)
-                                workflowFlyoutRename.startRename({
-                                  id: workflow.id,
-                                  name: workflow.name,
-                                })
-                              }}
+                              onOpenInNewTab={() => handleCollapsedWorkflowOpenInNewTab(workflow)}
+                              onRename={() => handleCollapsedWorkflowRename(workflow)}
                               canRename={canEdit}
                             />
                           ))}
