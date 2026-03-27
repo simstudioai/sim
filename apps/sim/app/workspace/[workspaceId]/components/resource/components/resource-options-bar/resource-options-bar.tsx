@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from 'react'
+import { memo, type ReactNode, useCallback, useRef, useState } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import {
   ArrowDown,
@@ -15,6 +15,12 @@ import {
   X,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+
+const SEARCH_ICON = (
+  <Search className='pointer-events-none h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
+)
+const FILTER_ICON = <ListFilter className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+const SORT_ICON = <ArrowUpDown className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
 
 type SortDirection = 'asc' | 'desc'
 
@@ -79,56 +85,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
   return (
     <div className={cn('border-[var(--border)] border-b py-2.5', search ? 'px-6' : 'px-4')}>
       <div className='flex items-center justify-between'>
-        {search && (
-          <div className='relative flex flex-1 items-center'>
-            <Search className='pointer-events-none h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-            <div className='flex flex-1 items-center gap-1.5 overflow-x-auto pl-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
-              {search.tags?.map((tag, i) => (
-                <Button
-                  key={`${tag.label}-${tag.value}-${i}`}
-                  variant='subtle'
-                  className={cn(
-                    'shrink-0 px-2 py-1 text-caption',
-                    search.highlightedTagIndex === i &&
-                      'ring-1 ring-[var(--border-focus)] ring-offset-1'
-                  )}
-                  onClick={tag.onRemove}
-                >
-                  {tag.label}: {tag.value}
-                  <span className='ml-1 text-[var(--text-icon)] text-micro'>✕</span>
-                </Button>
-              ))}
-              <input
-                ref={search.inputRef}
-                type='text'
-                value={search.value}
-                onChange={(e) => search.onChange(e.target.value)}
-                onKeyDown={search.onKeyDown}
-                onFocus={search.onFocus}
-                onBlur={search.onBlur}
-                placeholder={search.tags?.length ? '' : (search.placeholder ?? 'Search...')}
-                className='min-w-[80px] flex-1 bg-transparent py-1 text-[var(--text-secondary)] text-caption outline-none placeholder:text-[var(--text-subtle)]'
-              />
-            </div>
-            {search.tags?.length || search.value ? (
-              <button
-                type='button'
-                className='mr-0.5 flex h-[14px] w-[14px] shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover-hover:text-[var(--text-secondary)]'
-                onClick={search.onClearAll}
-              >
-                <span className='text-caption'>✕</span>
-              </button>
-            ) : null}
-            {search.dropdown && (
-              <div
-                ref={search.dropdownRef}
-                className='absolute top-full left-0 z-50 mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
-              >
-                {search.dropdown}
-              </div>
-            )}
-          </div>
-        )}
+        {search && <SearchSection search={search} />}
         <div className='flex items-center gap-1.5'>
           {extras}
           {filterTags?.map((tag) => (
@@ -146,7 +103,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
             <PopoverPrimitive.Root>
               <PopoverPrimitive.Trigger asChild>
                 <Button variant='subtle' className='px-2 py-1 text-caption'>
-                  <ListFilter className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+                  {FILTER_ICON}
                   Filter
                 </Button>
               </PopoverPrimitive.Trigger>
@@ -170,14 +127,94 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
   )
 })
 
-function SortDropdown({ config }: { config: SortConfig }) {
+const SearchSection = memo(function SearchSection({ search }: { search: SearchConfig }) {
+  const [localValue, setLocalValue] = useState(search.value)
+
+  const lastReportedRef = useRef(search.value)
+
+  if (search.value !== lastReportedRef.current) {
+    setLocalValue(search.value)
+    lastReportedRef.current = search.value
+  }
+
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const next = e.target.value
+      setLocalValue(next)
+      search.onChange(next)
+    },
+    [search.onChange]
+  )
+
+  const handleClearAll = useCallback(() => {
+    setLocalValue('')
+    lastReportedRef.current = ''
+    if (search.onClearAll) {
+      search.onClearAll()
+    } else {
+      search.onChange('')
+    }
+  }, [search.onClearAll, search.onChange])
+
+  return (
+    <div className='relative flex flex-1 items-center'>
+      {SEARCH_ICON}
+      <div className='flex flex-1 items-center gap-1.5 overflow-x-auto pl-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+        {search.tags?.map((tag, i) => (
+          <Button
+            key={`${tag.label}-${tag.value}-${i}`}
+            variant='subtle'
+            className={cn(
+              'shrink-0 px-2 py-1 text-caption',
+              search.highlightedTagIndex === i && 'ring-1 ring-[var(--border-focus)] ring-offset-1'
+            )}
+            onClick={tag.onRemove}
+          >
+            {tag.label}: {tag.value}
+            <span className='ml-1 text-[var(--text-icon)] text-micro'>✕</span>
+          </Button>
+        ))}
+        <input
+          ref={search.inputRef}
+          type='text'
+          value={localValue}
+          onChange={handleInputChange}
+          onKeyDown={search.onKeyDown}
+          onFocus={search.onFocus}
+          onBlur={search.onBlur}
+          placeholder={search.tags?.length ? '' : (search.placeholder ?? 'Search...')}
+          className='min-w-[80px] flex-1 bg-transparent py-1 text-[var(--text-secondary)] text-caption outline-none placeholder:text-[var(--text-subtle)]'
+        />
+      </div>
+      {search.tags?.length || localValue ? (
+        <button
+          type='button'
+          className='mr-0.5 flex h-[14px] w-[14px] shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover-hover:text-[var(--text-secondary)]'
+          onClick={handleClearAll}
+        >
+          <span className='text-caption'>✕</span>
+        </button>
+      ) : null}
+      {search.dropdown && (
+        <div
+          ref={search.dropdownRef}
+          className='absolute top-full left-0 z-50 mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+        >
+          {search.dropdown}
+        </div>
+      )}
+    </div>
+  )
+})
+
+const SortDropdown = memo(function SortDropdown({ config }: { config: SortConfig }) {
   const { options, active, onSort, onClear } = config
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant='subtle' className='px-2 py-1 text-caption'>
-          <ArrowUpDown className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+          {SORT_ICON}
           Sort
         </Button>
       </DropdownMenuTrigger>
@@ -218,4 +255,4 @@ function SortDropdown({ config }: { config: SortConfig }) {
       </DropdownMenuContent>
     </DropdownMenu>
   )
-}
+})

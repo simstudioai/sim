@@ -1,11 +1,16 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { Database } from '@/components/emcn/icons'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
-import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
+import type {
+  CreateAction,
+  ResourceColumn,
+  ResourceRow,
+  SearchConfig,
+} from '@/app/workspace/[workspaceId]/components'
 import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import {
@@ -21,7 +26,6 @@ import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sideb
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
-import { useDebounce } from '@/hooks/use-debounce'
 
 const logger = createLogger('Knowledge')
 
@@ -37,6 +41,8 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'owner', header: 'Owner' },
   { id: 'updated', header: 'Last Updated' },
 ]
+
+const DATABASE_ICON = <Database className='h-[14px] w-[14px]' />
 
 export function Knowledge() {
   const params = useParams()
@@ -54,8 +60,16 @@ export function Knowledge() {
   const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
   const { mutateAsync: deleteKnowledgeBaseMutation } = useDeleteKnowledgeBase(workspaceId)
 
-  const [searchQuery, setSearchQuery] = useState('')
-  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  const handleSearchChange = useCallback((value: string) => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      setDebouncedSearchQuery(value)
+    }, 300)
+  }, [])
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
   const [activeKnowledgeBase, setActiveKnowledgeBase] = useState<KnowledgeBaseWithDocCount | null>(
@@ -69,7 +83,6 @@ export function Knowledge() {
   const {
     isOpen: isListContextMenuOpen,
     position: listContextMenuPosition,
-    menuRef: listMenuRef,
     handleContextMenu: handleListContextMenu,
     closeMenu: closeListContextMenu,
   } = useContextMenu()
@@ -77,10 +90,18 @@ export function Knowledge() {
   const {
     isOpen: isRowContextMenuOpen,
     position: rowContextMenuPosition,
-    menuRef: rowMenuRef,
     handleContextMenu: handleRowCtxMenu,
     closeMenu: closeRowContextMenu,
   } = useContextMenu()
+
+  const isRowContextMenuOpenRef = useRef(isRowContextMenuOpen)
+  isRowContextMenuOpenRef.current = isRowContextMenuOpen
+
+  const knowledgeBasesRef = useRef(knowledgeBases)
+  knowledgeBasesRef.current = knowledgeBases
+
+  const activeKnowledgeBaseRef = useRef(activeKnowledgeBase)
+  activeKnowledgeBaseRef.current = activeKnowledgeBase
 
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -96,7 +117,7 @@ export function Knowledge() {
     [handleListContextMenu]
   )
 
-  const handleAddKnowledgeBase = useCallback(() => {
+  const handleOpenCreateModal = useCallback(() => {
     setIsCreateModalOpen(true)
   }, [])
 
@@ -132,7 +153,7 @@ export function Knowledge() {
           id: kb.id,
           cells: {
             name: {
-              icon: <Database className='h-[14px] w-[14px]' />,
+              icon: DATABASE_ICON,
               label: kb.name,
             },
             documents: {
@@ -158,51 +179,98 @@ export function Knowledge() {
 
   const handleRowClick = useCallback(
     (rowId: string) => {
-      if (isRowContextMenuOpen) return
-      const kb = knowledgeBases.find((k) => k.id === rowId)
+      if (isRowContextMenuOpenRef.current) return
+      const kb = knowledgeBasesRef.current.find((k) => k.id === rowId)
       if (!kb) return
       const urlParams = new URLSearchParams({ kbName: kb.name })
       router.push(`/workspace/${workspaceId}/knowledge/${rowId}?${urlParams.toString()}`)
     },
-    [isRowContextMenuOpen, knowledgeBases, router, workspaceId]
+    [router, workspaceId]
   )
 
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
-      const kb = knowledgeBases.find((k) => k.id === rowId) as KnowledgeBaseWithDocCount | undefined
+      const kb = knowledgeBasesRef.current.find((k) => k.id === rowId) as
+        | KnowledgeBaseWithDocCount
+        | undefined
       setActiveKnowledgeBase(kb ?? null)
       handleRowCtxMenu(e)
     },
-    [knowledgeBases, handleRowCtxMenu]
+    [handleRowCtxMenu]
   )
 
   const handleConfirmDelete = useCallback(async () => {
-    if (!activeKnowledgeBase) return
+    const kb = activeKnowledgeBaseRef.current
+    if (!kb) return
     setIsDeleting(true)
     try {
-      await handleDeleteKnowledgeBase(activeKnowledgeBase.id)
+      await handleDeleteKnowledgeBase(kb.id)
       setIsDeleteModalOpen(false)
       setActiveKnowledgeBase(null)
     } finally {
       setIsDeleting(false)
     }
-  }, [activeKnowledgeBase, handleDeleteKnowledgeBase])
+  }, [handleDeleteKnowledgeBase])
+
+  const handleCloseDeleteModal = useCallback(() => {
+    setIsDeleteModalOpen(false)
+    setActiveKnowledgeBase(null)
+  }, [])
+
+  const handleOpenInNewTab = useCallback(() => {
+    const kb = activeKnowledgeBaseRef.current
+    if (!kb) return
+    const urlParams = new URLSearchParams({ kbName: kb.name })
+    window.open(`/workspace/${workspaceId}/knowledge/${kb.id}?${urlParams.toString()}`, '_blank')
+  }, [workspaceId])
+
+  const handleViewTags = useCallback(() => {
+    setIsTagsModalOpen(true)
+  }, [])
+
+  const handleCopyId = useCallback(() => {
+    const kb = activeKnowledgeBaseRef.current
+    if (kb) {
+      navigator.clipboard.writeText(kb.id)
+    }
+  }, [])
+
+  const handleEdit = useCallback(() => {
+    setIsEditModalOpen(true)
+  }, [])
+
+  const handleDelete = useCallback(() => {
+    setIsDeleteModalOpen(true)
+  }, [])
+
+  const canEdit = userPermissions.canEdit === true
+
+  const createAction: CreateAction = useMemo(
+    () => ({
+      label: 'New base',
+      onClick: handleOpenCreateModal,
+      disabled: !canEdit,
+    }),
+    [handleOpenCreateModal, canEdit]
+  )
+
+  const searchConfig: SearchConfig = useMemo(
+    () => ({
+      value: debouncedSearchQuery,
+      onChange: handleSearchChange,
+      onClearAll: () => handleSearchChange(''),
+      placeholder: 'Search knowledge bases...',
+    }),
+    [handleSearchChange, debouncedSearchQuery]
+  )
 
   return (
     <>
       <Resource
         icon={Database}
         title='Knowledge Base'
-        create={{
-          label: 'New base',
-          onClick: () => setIsCreateModalOpen(true),
-          disabled: userPermissions.canEdit !== true,
-        }}
-        search={{
-          value: searchQuery,
-          onChange: setSearchQuery,
-          placeholder: 'Search knowledge bases...',
-        }}
+        create={createAction}
+        search={searchConfig}
         defaultSort='created'
         columns={COLUMNS}
         rows={rows}
@@ -216,8 +284,8 @@ export function Knowledge() {
         isOpen={isListContextMenuOpen}
         position={listContextMenuPosition}
         onClose={closeListContextMenu}
-        onAddKnowledgeBase={handleAddKnowledgeBase}
-        disableAdd={userPermissions.canEdit !== true}
+        onAddKnowledgeBase={handleOpenCreateModal}
+        disableAdd={!canEdit}
       />
 
       {activeKnowledgeBase && (
@@ -225,23 +293,17 @@ export function Knowledge() {
           isOpen={isRowContextMenuOpen}
           position={rowContextMenuPosition}
           onClose={closeRowContextMenu}
-          onOpenInNewTab={() => {
-            const urlParams = new URLSearchParams({ kbName: activeKnowledgeBase.name })
-            window.open(
-              `/workspace/${workspaceId}/knowledge/${activeKnowledgeBase.id}?${urlParams.toString()}`,
-              '_blank'
-            )
-          }}
-          onViewTags={() => setIsTagsModalOpen(true)}
-          onCopyId={() => navigator.clipboard.writeText(activeKnowledgeBase.id)}
-          onEdit={() => setIsEditModalOpen(true)}
-          onDelete={() => setIsDeleteModalOpen(true)}
+          onOpenInNewTab={handleOpenInNewTab}
+          onViewTags={handleViewTags}
+          onCopyId={handleCopyId}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
           showOpenInNewTab
           showViewTags
           showEdit
           showDelete
-          disableEdit={!userPermissions.canEdit}
-          disableDelete={!userPermissions.canEdit}
+          disableEdit={!canEdit}
+          disableDelete={!canEdit}
         />
       )}
 
@@ -259,10 +321,7 @@ export function Knowledge() {
       {activeKnowledgeBase && (
         <DeleteKnowledgeBaseModal
           isOpen={isDeleteModalOpen}
-          onClose={() => {
-            setIsDeleteModalOpen(false)
-            setActiveKnowledgeBase(null)
-          }}
+          onClose={handleCloseDeleteModal}
           onConfirm={handleConfirmDelete}
           isDeleting={isDeleting}
           knowledgeBaseName={activeKnowledgeBase.name}

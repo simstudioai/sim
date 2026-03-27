@@ -1,7 +1,13 @@
+import { memo } from 'react'
 import type { ResourceCell } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import type { WorkspaceMember } from '@/hooks/queries/workspace'
 
-function OwnerAvatar({ name, image }: { name: string; image: string | null }) {
+interface OwnerAvatarProps {
+  name: string
+  image: string | null
+}
+
+const OwnerAvatar = memo(function OwnerAvatar({ name, image }: OwnerAvatarProps) {
   if (image) {
     return (
       <img
@@ -18,7 +24,7 @@ function OwnerAvatar({ name, image }: { name: string; image: string | null }) {
       {name.charAt(0).toUpperCase()}
     </span>
   )
-}
+})
 
 /**
  * Resolves a user ID into a ResourceCell with an avatar icon and display name.
