@@ -15,7 +15,6 @@ export const simFoundations: Course = {
     'Learn the core building blocks of Sim — blocks, connections, agents, and automation — through hands-on interactive exercises.',
   estimatedMinutes: 45,
   modules: [
-    // ─── Module 1: The Canvas ──────────────────────────────────────────────────
     {
       id: 'sim-foundations-m1',
       title: 'The Canvas',
@@ -121,7 +120,6 @@ export const simFoundations: Course = {
       ],
     },
 
-    // ─── Module 2: Agents ─────────────────────────────────────────────────────
     {
       id: 'sim-foundations-m2',
       title: 'Working with Agents',
@@ -258,7 +256,6 @@ export const simFoundations: Course = {
       ],
     },
 
-    // ─── Module 3: Logic & Flow ───────────────────────────────────────────────
     {
       id: 'sim-foundations-m3',
       title: 'Logic & Flow Control',

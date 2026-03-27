@@ -27,7 +27,6 @@ export default function CertificatePage({ params }: CertificatePageProps) {
         </div>
       ) : (
         <div className='w-full max-w-2xl'>
-          {/* Certificate card */}
           <div className='rounded-[12px] border border-[#3A4A3A] bg-[#1C2A1C] p-10 text-center'>
             <div className='mb-6 flex justify-center'>
               <div className='flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#4CAF50]/40 bg-[#4CAF50]/10'>
@@ -56,7 +55,6 @@ export default function CertificatePage({ params }: CertificatePageProps) {
             </div>
           </div>
 
-          {/* Certificate details */}
           <div className='mt-6 divide-y divide-[#2A2A2A] rounded-[8px] border border-[#2A2A2A] bg-[#222]'>
             <div className='flex items-center justify-between px-5 py-3.5'>
               <span className='text-[#666] text-[13px]'>Certificate number</span>

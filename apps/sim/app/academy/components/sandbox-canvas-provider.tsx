@@ -355,7 +355,6 @@ export function SandboxCanvasProvider({
     <GlobalCommandsProvider>
       <SandboxWorkspacePermissionsProvider>
         <div className={cn('flex h-full w-full overflow-hidden', className)}>
-          {/* Left sidebar: video (optional) + checklist + hints */}
           <div className='flex w-56 flex-shrink-0 flex-col gap-3 overflow-y-auto border-[#1F1F1F] border-r bg-[#141414] p-3'>
             {videoUrl && (
               <div className='flex flex-col gap-2'>
@@ -420,7 +419,6 @@ export function SandboxCanvasProvider({
             </div>
           </div>
 
-          {/* Real canvas in sandbox mode */}
           <div className='relative flex-1 overflow-hidden'>
             <Workflow workspaceId={SANDBOX_WORKSPACE_ID} workflowId={workflowId} sandbox />
           </div>

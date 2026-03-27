@@ -3,8 +3,6 @@
  * Course content is file-based (lib/academy/content/); only certificates are DB-backed.
  */
 
-// ─── File-based Content Types ─────────────────────────────────────────────────
-
 export type LessonType = 'video' | 'exercise' | 'quiz' | 'mixed'
 
 export interface Course {
@@ -38,8 +36,6 @@ export interface Lesson {
   quizConfig?: QuizDefinition
 }
 
-// ─── Certificate Types ────────────────────────────────────────────────────────
-
 export type AcademyCertStatus = 'active' | 'revoked' | 'expired'
 
 export interface AcademyCertificate {
@@ -60,8 +56,6 @@ export interface CertificateMetadata {
   /** Course title at time of issuance */
   courseTitle: string
 }
-
-// ─── Exercise Definition ──────────────────────────────────────────────────────
 
 /**
  * Full configuration for an interactive canvas exercise.
@@ -107,13 +101,9 @@ export interface ExerciseEdgeState {
 }
 
 export interface MockBlockOutput {
-  /** Mock response object shown in the output panel */
   response: Record<string, unknown>
-  /** Simulated execution delay in milliseconds */
   delay?: number
 }
-
-// ─── Exercise Validation ──────────────────────────────────────────────────────
 
 export type ValidationRule =
   | { type: 'block_exists'; blockType: string; count?: number; label?: string }
@@ -140,8 +130,6 @@ export interface ValidationResult {
   passed: boolean
   results: ValidationRuleResult[]
 }
-
-// ─── Quiz Definition ──────────────────────────────────────────────────────────
 
 /** Full configuration for a quiz. Defined inline in each lesson file. */
 export interface QuizDefinition {

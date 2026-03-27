@@ -5,9 +5,6 @@ interface LessonVideoProps {
   title: string
 }
 
-/**
- * Embeds a YouTube or Vimeo video in a responsive 16:9 container.
- */
 export function LessonVideo({ url, title }: LessonVideoProps) {
   const embedUrl = resolveEmbedUrl(url)
 
@@ -36,7 +33,6 @@ function resolveEmbedUrl(url: string): string | null {
   try {
     const parsed = new URL(url)
 
-    // YouTube: https://youtu.be/ID or https://www.youtube.com/watch?v=ID
     if (parsed.hostname === 'youtu.be') {
       return `https://www.youtube.com/embed${parsed.pathname}`
     }
@@ -45,7 +41,6 @@ function resolveEmbedUrl(url: string): string | null {
       if (v) return `https://www.youtube.com/embed/${v}`
     }
 
-    // Vimeo: https://vimeo.com/ID
     if (parsed.hostname === 'vimeo.com') {
       const id = parsed.pathname.replace(/^\//, '')
       if (id) return `https://player.vimeo.com/video/${id}`

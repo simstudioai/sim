@@ -3,7 +3,6 @@ import { createLogger } from '@sim/logger'
 const logger = createLogger('AcademyProgress')
 const STORAGE_KEY = 'academy:completed'
 
-/** Returns the set of completed lesson IDs stored in localStorage. */
 export function getCompletedLessons(): Set<string> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -15,7 +14,6 @@ export function getCompletedLessons(): Set<string> {
   }
 }
 
-/** Marks a lesson as completed in localStorage. */
 export function markLessonComplete(lessonId: string): void {
   try {
     const ids = getCompletedLessons()
