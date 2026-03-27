@@ -50,7 +50,7 @@ const getLogLevel = (): string | undefined => {
 /**
  * Get the minimum log level from environment variable or use defaults
  * - Development: DEBUG (show all logs)
- * - Production: ERROR (only show errors, but can be overridden by LOG_LEVEL env var)
+ * - Production: INFO (show info, warn, and error logs, but can be overridden by LOG_LEVEL env var)
  * - Test: ERROR (only show errors in tests)
  */
 const getMinLogLevel = (): LogLevel => {
@@ -64,7 +64,7 @@ const getMinLogLevel = (): LogLevel => {
     case 'development':
       return LogLevel.DEBUG
     case 'production':
-      return LogLevel.ERROR
+      return LogLevel.INFO
     case 'test':
       return LogLevel.ERROR
     default:
