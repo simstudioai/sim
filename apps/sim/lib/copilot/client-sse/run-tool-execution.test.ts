@@ -41,6 +41,8 @@ vi.mock('@/stores/terminal', () => ({
     executionEnded: vi.fn(),
     persist: vi.fn(),
   },
+  saveExecutionPointer: vi.fn(),
+  clearExecutionPointer: vi.fn(),
 }))
 
 import {
