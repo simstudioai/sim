@@ -39,7 +39,7 @@ export default function CertificatePage({ params }: CertificatePageProps) {
             </div>
 
             <h1 className='mb-1 font-[430] text-[#ECECEC] text-[28px] leading-[120%]'>
-              {certificate.courseTitle}
+              {certificate.metadata?.courseTitle}
             </h1>
 
             {certificate.metadata?.recipientName && (
@@ -98,7 +98,7 @@ export default function CertificatePage({ params }: CertificatePageProps) {
 
           <p className='mt-5 text-center text-[#555] text-[13px]'>
             This certificate was issued by Sim AI, Inc. and verifies the holder has completed the{' '}
-            {certificate.courseTitle} program.
+            {certificate.metadata?.courseTitle} program.
           </p>
         </div>
       )}
