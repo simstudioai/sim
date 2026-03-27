@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
-import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/continue'
+import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 

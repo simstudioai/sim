@@ -8,9 +8,9 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1SessionKind,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/continue'
-import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/continue'
 import { finalizeStream } from '@/lib/copilot/request/lifecycle/finalize'
+import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/run'
+import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 import {
   cleanupAbortMarker,
   registerActiveStream,

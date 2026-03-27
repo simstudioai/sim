@@ -8,7 +8,7 @@ import {
   buildPersistedUserMessage,
 } from '@/lib/copilot/chat/persisted-message'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
-import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/continue'
+import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
 import { taskPubSub } from '@/lib/copilot/tasks'

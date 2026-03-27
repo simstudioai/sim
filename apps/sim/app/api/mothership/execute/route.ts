@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
-import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/continue'
+import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
