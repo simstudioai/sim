@@ -143,7 +143,7 @@ export function validateFileType(fileName: string, mimeType: string): FileValida
   if (!SUPPORTED_DOCUMENT_EXTENSIONS.includes(extension)) {
     return {
       code: 'UNSUPPORTED_FILE_TYPE',
-      message: `Unsupported file type: ${extension}. Supported types are: ${SUPPORTED_DOCUMENT_EXTENSIONS.join(', ')}`,
+      message: `Unsupported file type${extension ? `: ${extension}` : ` for "${fileName}"`}. Supported types are: ${SUPPORTED_DOCUMENT_EXTENSIONS.join(', ')}`,
       supportedTypes: [...SUPPORTED_DOCUMENT_EXTENSIONS],
     }
   }
@@ -231,7 +231,7 @@ export function validateMediaFileType(
   if (!isAudio && !isVideo) {
     return {
       code: 'UNSUPPORTED_FILE_TYPE',
-      message: `Unsupported media file type: ${extension}. Supported audio types: ${SUPPORTED_AUDIO_EXTENSIONS.join(', ')}. Supported video types: ${SUPPORTED_VIDEO_EXTENSIONS.join(', ')}`,
+      message: `Unsupported media file type${extension ? `: ${extension}` : ` for "${fileName}"`}. Supported audio types: ${SUPPORTED_AUDIO_EXTENSIONS.join(', ')}. Supported video types: ${SUPPORTED_VIDEO_EXTENSIONS.join(', ')}`,
       supportedTypes: [...SUPPORTED_AUDIO_EXTENSIONS, ...SUPPORTED_VIDEO_EXTENSIONS],
     }
   }
