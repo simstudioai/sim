@@ -14,13 +14,14 @@ export const DEMO_REQUEST_REGION_VALUES = [
   'other',
 ] as const
 
-export const DEMO_REQUEST_USER_COUNT_VALUES = [
+export const DEMO_REQUEST_COMPANY_SIZE_VALUES = [
   '1_10',
   '11_50',
   '51_200',
   '201_500',
   '501_1000',
-  '1000_plus',
+  '1001_10000',
+  '10000_plus',
 ] as const
 
 export const DEMO_REQUEST_REGION_OPTIONS = [
@@ -32,13 +33,14 @@ export const DEMO_REQUEST_REGION_OPTIONS = [
   { value: 'other', label: 'Other' },
 ] as const
 
-export const DEMO_REQUEST_USER_COUNT_OPTIONS = [
-  { value: '1_10', label: '1-10' },
-  { value: '11_50', label: '11-50' },
-  { value: '51_200', label: '51-200' },
-  { value: '201_500', label: '201-500' },
-  { value: '501_1000', label: '501-1,000' },
-  { value: '1000_plus', label: '1,000+' },
+export const DEMO_REQUEST_COMPANY_SIZE_OPTIONS = [
+  { value: '1_10', label: '1–10' },
+  { value: '11_50', label: '11–50' },
+  { value: '51_200', label: '51–200' },
+  { value: '201_500', label: '201–500' },
+  { value: '501_1000', label: '501–1,000' },
+  { value: '1001_10000', label: '1,001–10,000' },
+  { value: '10000_plus', label: '10,000+' },
 ] as const
 
 export const demoRequestSchema = z.object({
@@ -74,8 +76,8 @@ export const demoRequestSchema = z.object({
   region: z.enum(DEMO_REQUEST_REGION_VALUES, {
     errorMap: () => ({ message: 'Please select a region' }),
   }),
-  userCount: z.enum(DEMO_REQUEST_USER_COUNT_VALUES, {
-    errorMap: () => ({ message: 'Please select the number of users' }),
+  companySize: z.enum(DEMO_REQUEST_COMPANY_SIZE_VALUES, {
+    errorMap: () => ({ message: 'Please select company size' }),
   }),
   details: z.string().trim().min(1, 'Details are required').max(2000),
 })
@@ -86,6 +88,6 @@ export function getDemoRequestRegionLabel(value: DemoRequestPayload['region']): 
   return DEMO_REQUEST_REGION_OPTIONS.find((option) => option.value === value)?.label ?? value
 }
 
-export function getDemoRequestUserCountLabel(value: DemoRequestPayload['userCount']): string {
-  return DEMO_REQUEST_USER_COUNT_OPTIONS.find((option) => option.value === value)?.label ?? value
+export function getDemoRequestCompanySizeLabel(value: DemoRequestPayload['companySize']): string {
+  return DEMO_REQUEST_COMPANY_SIZE_OPTIONS.find((option) => option.value === value)?.label ?? value
 }
