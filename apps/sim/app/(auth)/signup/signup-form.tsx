@@ -379,7 +379,7 @@ function SignupFormContent({
           <SSOLoginButton
             callbackURL={redirectUrl || '/workspace'}
             variant='primary'
-            primaryClassName={buttonClass}
+            className={buttonClass}
           />
         </div>
       )}
