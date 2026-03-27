@@ -216,6 +216,14 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --selection: #1a5cf6;
     --warning: #ea580c;
 
+    /* Inverted surface (dark chrome on light page, e.g. tag dropdown) */
+    --surface-inverted: #1b1b1b;
+    --surface-inverted-hover: #363636;
+    --border-inverted: #363636;
+
+    /* Tooltip (true inversion: always opposite of page) */
+    --tooltip-bg: #1b1b1b;
+
     /* Utility */
     --white: #ffffff;
 
@@ -361,6 +369,14 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --brand-accent: #33c482;
     --selection: #4b83f7;
     --warning: #ff6600;
+
+    /* Inverted surface (in dark mode, falls back to standard surfaces) */
+    --surface-inverted: #242424;
+    --surface-inverted-hover: #363636;
+    --border-inverted: #3d3d3d;
+
+    /* Tooltip (true inversion: always opposite of page) */
+    --tooltip-bg: #fdfdfd;
 
     /* Utility */
     --white: #ffffff;
