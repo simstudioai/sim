@@ -216,7 +216,7 @@ export function EvalInput({
                         placeholder='How accurate is the response?'
                         disabled={isPreview || disabled}
                         className={cn(
-                          'min-h-[80px] whitespace-pre-wrap text-transparent caret-white'
+                          'min-h-[80px] whitespace-pre-wrap text-transparent caret-foreground'
                         )}
                         rows={3}
                       />
