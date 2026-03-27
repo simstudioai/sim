@@ -138,8 +138,11 @@ export function WorkspaceHeader({
   const currentPlan = subscriptionResponse?.data?.plan
   const showPlanInfo = isBillingEnabled && typeof currentPlan !== 'undefined'
   const rawPlanName = showPlanInfo ? getDisplayPlanName(currentPlan) : ''
-  const planDisplayName =
-    showPlanInfo && rawPlanName.includes('for Teams') ? rawPlanName : `${rawPlanName} Plan`
+  const planDisplayName = showPlanInfo
+    ? rawPlanName.includes('for Teams')
+      ? rawPlanName
+      : `${rawPlanName} Plan`
+    : ''
   const isFreePlan = showPlanInfo && isFree(currentPlan)
 
   // Listen for open-invite-modal event from context menu
