@@ -124,7 +124,6 @@ export function ConnectorsSection({
         {
           onSuccess: () => {
             setError(null)
-            removeFromSet(setSyncingIds, connectorId)
             const timer = setTimeout(() => {
               cooldownTimers.current.delete(timer)
               forceUpdate((n) => n + 1)
@@ -134,10 +133,10 @@ export function ConnectorsSection({
           onError: (err) => {
             logger.error('Sync trigger failed', { error: err.message })
             setError(err.message)
-            removeFromSet(setSyncingIds, connectorId)
             delete syncTriggeredAt.current[connectorId]
             forceUpdate((n) => n + 1)
           },
+          onSettled: () => removeFromSet(setSyncingIds, connectorId),
         }
       )
     },
