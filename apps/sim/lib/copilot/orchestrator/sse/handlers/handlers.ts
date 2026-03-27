@@ -25,6 +25,25 @@ import { executeToolAndReport, waitForToolCompletion } from './tool-execution'
 
 const logger = createLogger('CopilotSseHandlers')
 
+/**
+ * Builds an AbortSignal that fires when either the main abort signal OR
+ * the client-disconnect signal fires. Used for client-executable tool waits
+ * so the orchestrator doesn't block for the full timeout when the browser dies.
+ */
+function buildClientToolAbortSignal(options: OrchestratorOptions): AbortSignal | undefined {
+  const { abortSignal, clientDisconnectedSignal } = options
+  if (!clientDisconnectedSignal || clientDisconnectedSignal.aborted) {
+    return clientDisconnectedSignal?.aborted ? AbortSignal.abort() : abortSignal
+  }
+  if (!abortSignal) return clientDisconnectedSignal
+
+  const combined = new AbortController()
+  const fire = () => combined.abort()
+  abortSignal.addEventListener('abort', fire, { once: true })
+  clientDisconnectedSignal.addEventListener('abort', fire, { once: true })
+  return combined.signal
+}
+
 function registerPendingToolPromise(
   context: StreamingContext,
   toolCallId: string,
@@ -538,10 +557,11 @@ export const sseHandlers: Record<string, SSEHandler> = {
             }
           )
         })
+        const clientWaitSignal = buildClientToolAbortSignal(options)
         const completion = await waitForToolCompletion(
           toolCallId,
           options.timeout || STREAM_TIMEOUT_MS,
-          options.abortSignal
+          clientWaitSignal
         )
         handleClientCompletion(toolCall, toolCallId, completion, context)
         await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options, context)
@@ -794,10 +814,11 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
             }
           )
         })
+        const clientWaitSignal = buildClientToolAbortSignal(options)
         const completion = await waitForToolCompletion(
           toolCallId,
           options.timeout || STREAM_TIMEOUT_MS,
-          options.abortSignal
+          clientWaitSignal
         )
         handleClientCompletion(toolCall, toolCallId, completion, context)
         await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options, context)

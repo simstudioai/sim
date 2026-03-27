@@ -39,7 +39,7 @@ import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
 import type { ChatContext } from '@/stores/panel'
-import { useTerminalConsoleStore } from '@/stores/terminal'
+import { consolePersistence, useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type {
   ChatMessage,
@@ -145,6 +145,22 @@ function isTerminalStreamStatus(status?: string | null): boolean {
 function isActiveStreamConflictError(input: unknown): boolean {
   if (typeof input !== 'string') return false
   return input.includes('A response is already in progress for this chat')
+}
+
+/**
+ * Extracts tool call IDs from snapshot events so that replayed client-executable
+ * tool calls are not re-executed after a page refresh.
+ */
+function extractToolCallIdsFromSnapshot(snapshot?: StreamSnapshot | null): Set<string> {
+  const ids = new Set<string>()
+  if (!snapshot?.events) return ids
+  for (const entry of snapshot.events) {
+    const event = entry.event
+    if (event.type === 'tool_call' && typeof event.toolCallId === 'string') {
+      ids.add(event.toolCallId)
+    }
+  }
+  return ids
 }
 
 function buildReplayStream(events: StreamEventEnvelope[]): ReadableStream<Uint8Array> {
@@ -860,7 +876,7 @@ export function useChat(
       sendingRef.current = true
       streamingContentRef.current = ''
       streamingBlocksRef.current = []
-      clientExecutionStartedRef.current.clear()
+      clientExecutionStartedRef.current = extractToolCallIdsFromSnapshot(snapshot)
 
       const assistantId = crypto.randomUUID()
 
@@ -2071,6 +2087,7 @@ export function useChat(
       })
 
       executionStream.cancel(workflowId)
+      consolePersistence.executionEnded()
       execState.setIsExecuting(workflowId, false)
       execState.setIsDebugging(workflowId, false)
       execState.setActiveBlocks(workflowId, new Set())

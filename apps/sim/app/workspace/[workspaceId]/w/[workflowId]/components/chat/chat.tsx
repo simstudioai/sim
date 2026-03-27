@@ -56,7 +56,7 @@ import { useChatStore } from '@/stores/chat/store'
 import { getChatPosition } from '@/stores/chat/utils'
 import { useCurrentWorkflowExecution } from '@/stores/execution'
 import { useOperationQueue } from '@/stores/operation-queue/store'
-import { useTerminalConsoleStore } from '@/stores/terminal'
+import { useTerminalConsoleStore, useWorkflowConsoleEntries } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -265,8 +265,9 @@ export function Chat() {
   )
 
   const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
-  const entriesFromStore = useTerminalConsoleStore((state) => state.entries)
-  const entries = hasConsoleHydrated ? entriesFromStore : []
+  const entries = useWorkflowConsoleEntries(
+    hasConsoleHydrated && typeof activeWorkflowId === 'string' ? activeWorkflowId : undefined
+  )
   const { isExecuting } = useCurrentWorkflowExecution()
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const { data: session } = useSession()
@@ -427,9 +428,8 @@ export function Chat() {
   })
 
   const outputEntries = useMemo(() => {
-    if (!activeWorkflowId) return []
-    return entries.filter((entry) => entry.workflowId === activeWorkflowId && entry.output)
-  }, [entries, activeWorkflowId])
+    return entries.filter((entry) => entry.output)
+  }, [entries])
 
   const workflowMessages = useMemo(() => {
     if (!activeWorkflowId) return []

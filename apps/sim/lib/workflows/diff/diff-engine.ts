@@ -18,6 +18,7 @@ function hasBlockChanged(currentBlock: BlockState, proposedBlock: BlockState): b
   if (currentBlock.enabled !== proposedBlock.enabled) return true
   if (currentBlock.triggerMode !== proposedBlock.triggerMode) return true
   if (!!currentBlock.locked !== !!proposedBlock.locked) return true
+  if ((currentBlock.data?.parentId ?? null) !== (proposedBlock.data?.parentId ?? null)) return true
 
   // Compare subBlocks
   const currentSubKeys = Object.keys(currentBlock.subBlocks || {})
@@ -48,15 +49,32 @@ function computeFieldDiff(
   const unchangedFields: string[] = []
 
   // Check basic fields
-  const fieldsToCheck = ['type', 'name', 'enabled', 'triggerMode', 'horizontalHandles'] as const
+  const fieldsToCheck = [
+    'type',
+    'name',
+    'enabled',
+    'triggerMode',
+    'horizontalHandles',
+    'locked',
+  ] as const
   for (const field of fieldsToCheck) {
     const currentValue = currentBlock[field]
     const proposedValue = proposedBlock[field]
-    if (JSON.stringify(currentValue) !== JSON.stringify(proposedValue)) {
+    if (
+      field === 'locked'
+        ? !!currentValue !== !!proposedValue
+        : JSON.stringify(currentValue) !== JSON.stringify(proposedValue)
+    ) {
       changedFields.push(field)
     } else if (currentValue !== undefined) {
       unchangedFields.push(field)
     }
+  }
+
+  if ((currentBlock.data?.parentId ?? null) !== (proposedBlock.data?.parentId ?? null)) {
+    changedFields.push('parentId')
+  } else {
+    unchangedFields.push('parentId')
   }
 
   // Check subBlocks - use just the key name for UI compatibility

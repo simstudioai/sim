@@ -13,7 +13,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 const logger = createLogger('ExecutionStreamReconnectAPI')
 
 const POLL_INTERVAL_MS = 500
-const MAX_POLL_DURATION_MS = 10 * 60 * 1000 // 10 minutes
+const MAX_POLL_DURATION_MS = 55 * 60 * 1000 // 55 minutes (just under Redis 1hr TTL)
 
 function isTerminalStatus(status: ExecutionStreamStatus): boolean {
   return status === 'complete' || status === 'error' || status === 'cancelled'
@@ -101,6 +101,7 @@ export async function GET(
           const events = await readExecutionEvents(executionId, lastEventId)
           for (const entry of events) {
             if (closed) return
+            entry.event.eventId = entry.eventId
             enqueue(formatSSEEvent(entry.event))
             lastEventId = entry.eventId
           }
@@ -119,6 +120,7 @@ export async function GET(
             const newEvents = await readExecutionEvents(executionId, lastEventId)
             for (const entry of newEvents) {
               if (closed) return
+              entry.event.eventId = entry.eventId
               enqueue(formatSSEEvent(entry.event))
               lastEventId = entry.eventId
             }
@@ -128,6 +130,7 @@ export async function GET(
               const finalEvents = await readExecutionEvents(executionId, lastEventId)
               for (const entry of finalEvents) {
                 if (closed) return
+                entry.event.eventId = entry.eventId
                 enqueue(formatSSEEvent(entry.event))
                 lastEventId = entry.eventId
               }

@@ -166,6 +166,12 @@ export interface OrchestratorOptions {
   abortSignal?: AbortSignal
   /** Fires only on explicit user stop, never on passive transport disconnect. */
   userStopSignal?: AbortSignal
+  /**
+   * Fires when the SSE client disconnects (tab close, navigation, etc.).
+   * Used to short-circuit `waitForToolCompletion` for client-executable tools
+   * so the orchestrator doesn't block for the full 60-min timeout.
+   */
+  clientDisconnectedSignal?: AbortSignal
   interactive?: boolean
 }
 

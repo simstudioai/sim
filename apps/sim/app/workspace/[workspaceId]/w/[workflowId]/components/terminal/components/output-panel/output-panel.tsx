@@ -33,7 +33,7 @@ import { ToggleButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/compo
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import type { ConsoleEntry } from '@/stores/terminal'
-import { useTerminalStore } from '@/stores/terminal'
+import { safeConsoleStringify, useTerminalStore } from '@/stores/terminal'
 
 interface OutputCodeContentProps {
   code: string
@@ -93,11 +93,10 @@ export interface OutputPanelProps {
   handleTrainingClick: (e: React.MouseEvent) => void
   showCopySuccess: boolean
   handleCopy: () => void
-  filteredEntries: ConsoleEntry[]
+  hasEntries: boolean
   handleExportConsole: (e: React.MouseEvent) => void
   handleClearConsole: (e: React.MouseEvent) => void
   shouldShowCodeDisplay: boolean
-  outputDataStringified: string
   outputData: unknown
   handleClearConsoleFromMenu: () => void
 }
@@ -121,11 +120,10 @@ export const OutputPanel = React.memo(function OutputPanel({
   handleTrainingClick,
   showCopySuccess,
   handleCopy,
-  filteredEntries,
+  hasEntries,
   handleExportConsole,
   handleClearConsole,
   shouldShowCodeDisplay,
-  outputDataStringified,
   outputData,
   handleClearConsoleFromMenu,
 }: OutputPanelProps) {
@@ -276,6 +274,19 @@ export const OutputPanel = React.memo(function OutputPanel({
     [isOutputSearchActive, outputSearchQuery]
   )
 
+  const outputDataStringified = useMemo(() => {
+    if (
+      structuredView ||
+      shouldShowCodeDisplay ||
+      outputData === null ||
+      outputData === undefined
+    ) {
+      return ''
+    }
+
+    return safeConsoleStringify(outputData)
+  }, [outputData, shouldShowCodeDisplay, structuredView])
+
   return (
     <>
       <div
@@ -420,7 +431,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 <span>{showCopySuccess ? 'Copied' : 'Copy output'}</span>
               </Tooltip.Content>
             </Tooltip.Root>
-            {filteredEntries.length > 0 && (
+            {hasEntries && (
               <>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
