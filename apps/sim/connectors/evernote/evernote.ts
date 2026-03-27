@@ -393,13 +393,14 @@ export const evernoteConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const notebookGuid = (sourceConfig.notebookGuid as string) || undefined
+    const retryOptions = { maxRetries: 3, initialDelayMs: 500 }
 
     if (syncContext && !syncContext.tagMap) {
-      const tags = await apiListTags(accessToken)
+      const tags = await apiListTags(accessToken, retryOptions)
       syncContext.tagMap = Object.fromEntries(tags.map((t) => [t.guid, t.name]))
     }
     if (syncContext && !syncContext.notebookMap) {
-      const notebooks = await apiListNotebooks(accessToken)
+      const notebooks = await apiListNotebooks(accessToken, retryOptions)
       syncContext.notebookMap = Object.fromEntries(notebooks.map((nb) => [nb.guid, nb.name]))
     }
 
@@ -412,7 +413,6 @@ export const evernoteConnector: ConnectorConfig = {
 
     logger.info('Listing Evernote notes', { offset, maxNotes: NOTES_PER_PAGE })
 
-    const retryOptions = { maxRetries: 3, initialDelayMs: 500 }
     const result = await apiFindNotesMetadata(
       accessToken,
       offset,
@@ -468,11 +468,11 @@ export const evernoteConnector: ConnectorConfig = {
       const host = getHost(accessToken)
 
       if (syncContext && !syncContext.tagMap) {
-        const tags = await apiListTags(accessToken)
+        const tags = await apiListTags(accessToken, retryOptions)
         syncContext.tagMap = Object.fromEntries(tags.map((t) => [t.guid, t.name]))
       }
       if (syncContext && !syncContext.notebookMap) {
-        const notebooks = await apiListNotebooks(accessToken)
+        const notebooks = await apiListNotebooks(accessToken, retryOptions)
         syncContext.notebookMap = Object.fromEntries(notebooks.map((nb) => [nb.guid, nb.name]))
       }
 
@@ -482,9 +482,9 @@ export const evernoteConnector: ConnectorConfig = {
         tagMap = syncContext.tagMap as Record<string, string>
         notebookMap = syncContext.notebookMap as Record<string, string>
       } else {
-        const tags = await apiListTags(accessToken)
+        const tags = await apiListTags(accessToken, retryOptions)
         tagMap = Object.fromEntries(tags.map((t) => [t.guid, t.name]))
-        const notebooks = await apiListNotebooks(accessToken)
+        const notebooks = await apiListNotebooks(accessToken, retryOptions)
         notebookMap = Object.fromEntries(notebooks.map((nb) => [nb.guid, nb.name]))
       }
 
