@@ -98,8 +98,8 @@ const STYLES = {
       search: 'text-[var(--text-muted-inverse)] dark:text-[var(--text-muted)]',
       searchInput:
         'text-white placeholder:text-[var(--text-muted-inverse)] dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-muted)]',
-      content: 'bg-[var(--bg)] text-white dark:bg-[var(--surface-3)] dark:text-foreground',
-      divider: 'border-[var(--surface-5)] dark:border-[var(--border-1)]',
+      content: 'bg-[var(--surface-inverted)] text-white dark:text-foreground',
+      divider: 'border-[var(--border-inverted)]',
     },
   } satisfies Record<
     PopoverColorScheme,
@@ -126,9 +126,9 @@ const STYLES = {
     },
     inverted: {
       active:
-        'bg-[var(--surface-5)] text-white [&_svg]:text-white dark:bg-[var(--surface-5)] dark:text-[var(--text-primary)] dark:[&_svg]:text-[var(--text-primary)]',
+        'bg-[var(--surface-inverted-hover)] text-white [&_svg]:text-white dark:text-[var(--text-primary)] dark:[&_svg]:text-[var(--text-primary)]',
       hover:
-        'hover-hover:bg-[var(--surface-5)] hover-hover:text-white hover-hover:[&_svg]:text-white dark:hover-hover:bg-[var(--surface-5)] dark:hover-hover:text-[var(--text-primary)] dark:hover-hover:[&_svg]:text-[var(--text-primary)]',
+        'hover-hover:bg-[var(--surface-inverted-hover)] hover-hover:text-white hover-hover:[&_svg]:text-white dark:hover-hover:text-[var(--text-primary)] dark:hover-hover:[&_svg]:text-[var(--text-primary)]',
     },
   },
 } as const
@@ -650,7 +650,7 @@ const PopoverContent = React.forwardRef<
                 arrowClassName ??
                 cn(
                   colorScheme === 'inverted'
-                    ? 'fill-[#242424] stroke-[var(--surface-5)] dark:fill-[var(--surface-3)] dark:stroke-[var(--border-1)]'
+                    ? 'fill-[var(--surface-inverted)] stroke-[var(--border-inverted)]'
                     : 'fill-[var(--surface-3)] stroke-[var(--border-1)] dark:fill-[var(--surface-3)]'
                 )
               }

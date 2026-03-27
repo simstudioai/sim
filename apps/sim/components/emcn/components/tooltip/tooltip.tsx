@@ -50,13 +50,13 @@ const Content = React.forwardRef<
       collisionPadding={8}
       avoidCollisions={true}
       className={cn(
-        'z-[var(--z-tooltip)] max-w-[260px] rounded-[4px] bg-[#1b1b1b] px-2 py-[3.5px] font-base text-white text-xs shadow-sm dark:bg-[#fdfdfd] dark:text-black',
+        'z-[var(--z-tooltip)] max-w-[260px] rounded-[4px] bg-[var(--tooltip-bg)] px-2 py-[3.5px] font-base text-white text-xs shadow-sm dark:text-black',
         className
       )}
       {...props}
     >
       {props.children}
-      <TooltipPrimitive.Arrow className='fill-[var(--bg)] dark:fill-[#fdfdfd]' />
+      <TooltipPrimitive.Arrow className='fill-[var(--tooltip-bg)]' />
     </TooltipPrimitive.Content>
   </TooltipPrimitive.Portal>
 ))
