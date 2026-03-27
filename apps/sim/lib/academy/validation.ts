@@ -22,7 +22,7 @@ export function validateExercise(
     return {
       rule,
       passed,
-      message: getRuleMessage(rule, passed),
+      message: getRuleMessage(rule),
     } satisfies ValidationRuleResult
   })
 
@@ -79,38 +79,25 @@ function checkRule(
   }
 }
 
-function getRuleMessage(rule: ValidationRule, passed: boolean): string {
+function getRuleMessage(rule: ValidationRule): string {
+  if (rule.label) return rule.label
+
   switch (rule.type) {
     case 'block_exists': {
       const count = rule.count ?? 1
-      const label = count > 1 ? `${count} ${rule.blockType} blocks` : `a ${rule.blockType} block`
-      return passed ? `Added ${label}` : `Add ${label} to the canvas`
+      return count > 1
+        ? `Add ${count} ${rule.blockType} blocks to the canvas`
+        : `Add a ${rule.blockType} block to the canvas`
     }
-
-    case 'block_configured': {
-      return passed
-        ? `Configured ${rule.blockType} — ${rule.subBlockId}`
-        : `Configure the ${rule.blockType} block's ${rule.subBlockId} field`
-    }
-
-    case 'edge_exists': {
-      return passed
-        ? `Connected ${rule.sourceType} → ${rule.targetType}`
-        : `Connect the ${rule.sourceType} block to the ${rule.targetType} block`
-    }
-
-    case 'block_count_min': {
-      return passed
-        ? `At least ${rule.count} blocks added`
-        : `Add at least ${rule.count} blocks to the canvas`
-    }
-
-    case 'block_count_max': {
-      return passed ? `Block count within limit` : `Remove blocks — maximum is ${rule.count}`
-    }
-
-    case 'custom': {
-      return passed ? 'Custom check passed' : 'Complete the custom requirement'
-    }
+    case 'block_configured':
+      return `Configure the ${rule.blockType} block's ${rule.subBlockId} field`
+    case 'edge_exists':
+      return `Connect the ${rule.sourceType} block to the ${rule.targetType} block`
+    case 'block_count_min':
+      return `Add at least ${rule.count} blocks to the canvas`
+    case 'block_count_max':
+      return `Remove blocks — maximum is ${rule.count}`
+    case 'custom':
+      return 'Complete the custom requirement'
   }
 }

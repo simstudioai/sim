@@ -30,7 +30,7 @@ export default function LessonPage({ params }: LessonPageProps) {
   const nextLesson = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null
 
   const handleComplete = useCallback(() => setExerciseComplete(true), [])
-  const canAdvance = !lesson.exerciseConfig || exerciseComplete
+  const canAdvance = (!lesson.exerciseConfig && !lesson.quizConfig) || exerciseComplete
 
   if (!course || !lesson) {
     return (

@@ -116,18 +116,19 @@ export interface MockBlockOutput {
 // ─── Exercise Validation ──────────────────────────────────────────────────────
 
 export type ValidationRule =
-  | { type: 'block_exists'; blockType: string; count?: number }
+  | { type: 'block_exists'; blockType: string; count?: number; label?: string }
   | {
       type: 'block_configured'
       blockType: string
       subBlockId: string
       valueNotEmpty?: boolean
       valuePattern?: string
+      label?: string
     }
-  | { type: 'edge_exists'; sourceType: string; targetType: string }
-  | { type: 'block_count_min'; count: number }
-  | { type: 'block_count_max'; count: number }
-  | { type: 'custom'; validatorId: string; params?: Record<string, unknown> }
+  | { type: 'edge_exists'; sourceType: string; targetType: string; label?: string }
+  | { type: 'block_count_min'; count: number; label?: string }
+  | { type: 'block_count_max'; count: number; label?: string }
+  | { type: 'custom'; validatorId: string; params?: Record<string, unknown>; label?: string }
 
 export interface ValidationRuleResult {
   rule: ValidationRule

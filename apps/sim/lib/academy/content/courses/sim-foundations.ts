@@ -178,6 +178,7 @@ export const simFoundations: Course = {
                 blockType: 'agent',
                 subBlockId: 'messages',
                 valueNotEmpty: true,
+                label: 'Add a system prompt in the Messages field',
               },
             ],
             hints: [
