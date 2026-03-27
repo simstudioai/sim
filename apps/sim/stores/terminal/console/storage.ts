@@ -199,3 +199,40 @@ class ConsolePersistenceManager {
 }
 
 export const consolePersistence = new ConsolePersistenceManager()
+
+const EXEC_POINTER_PREFIX = 'terminal-active-execution:'
+
+/**
+ * Lightweight pointer to an in-flight execution, persisted immediately on
+ * execution start so the reconnect flow can find it even if no console
+ * entries have been written yet. Keyed per-workflow so multiple tabs
+ * running different workflows don't overwrite each other.
+ */
+export interface ExecutionPointer {
+  workflowId: string
+  executionId: string
+  lastEventId: number
+}
+
+export async function loadExecutionPointer(workflowId: string): Promise<ExecutionPointer | null> {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = await get<string>(`${EXEC_POINTER_PREFIX}${workflowId}`)
+    if (!raw) return null
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    if (!parsed?.executionId) return null
+    return parsed as ExecutionPointer
+  } catch {
+    return null
+  }
+}
+
+export function saveExecutionPointer(pointer: ExecutionPointer): void {
+  if (typeof window === 'undefined') return
+  set(`${EXEC_POINTER_PREFIX}${pointer.workflowId}`, JSON.stringify(pointer)).catch(() => {})
+}
+
+export function clearExecutionPointer(workflowId: string): void {
+  if (typeof window === 'undefined') return
+  set(`${EXEC_POINTER_PREFIX}${workflowId}`, '').catch(() => {})
+}

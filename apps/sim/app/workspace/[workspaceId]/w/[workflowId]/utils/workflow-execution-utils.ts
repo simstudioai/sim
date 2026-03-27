@@ -19,7 +19,7 @@ const logger = createLogger('workflow-execution-utils')
 
 import { useExecutionStore } from '@/stores/execution'
 import type { ConsoleEntry, ConsoleUpdate } from '@/stores/terminal'
-import { useTerminalConsoleStore } from '@/stores/terminal'
+import { saveExecutionPointer, useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -667,6 +667,7 @@ export async function executeWorkflowWithFullLogging(
   if (serverExecutionId) {
     executionIdRef.current = serverExecutionId
     setCurrentExecutionId(wfId, serverExecutionId)
+    saveExecutionPointer({ workflowId: wfId, executionId: serverExecutionId, lastEventId: 0 })
   }
 
   let executionResult: ExecutionResult = {
@@ -679,6 +680,16 @@ export async function executeWorkflowWithFullLogging(
     await processSSEStream(
       response.body.getReader(),
       {
+        onEventId: (eventId) => {
+          if (wfId && executionIdRef.current && eventId % 5 === 0) {
+            saveExecutionPointer({
+              workflowId: wfId,
+              executionId: executionIdRef.current,
+              lastEventId: eventId,
+            })
+          }
+        },
+
         onExecutionStarted: (data) => {
           logger.info('Execution started', { startTime: data.startTime })
         },
