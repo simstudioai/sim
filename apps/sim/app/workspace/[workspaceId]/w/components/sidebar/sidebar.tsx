@@ -78,7 +78,6 @@ import {
 import { getBrandConfig } from '@/ee/whitelabeling'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
-import { useWorkspaceSchedules } from '@/hooks/queries/schedules'
 import { useTablesList } from '@/hooks/queries/tables'
 import {
   useDeleteTask,
@@ -88,7 +87,6 @@ import {
   useRenameTask,
   useTasks,
 } from '@/hooks/queries/tasks'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useTaskEvents } from '@/hooks/use-task-events'
@@ -750,9 +748,7 @@ export const Sidebar = memo(function Sidebar() {
   )
 
   const { data: fetchedTables = [] } = useTablesList(workspaceId)
-  const { data: fetchedFiles = [] } = useWorkspaceFiles(workspaceId)
   const { data: fetchedKnowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
-  const { data: fetchedSchedules = [] } = useWorkspaceSchedules(workspaceId)
 
   const searchModalTables = useMemo(
     () =>
@@ -766,18 +762,6 @@ export const Sidebar = memo(function Sidebar() {
     [fetchedTables, workspaceId, permissionConfig.hideTablesTab]
   )
 
-  const searchModalFiles = useMemo(
-    () =>
-      permissionConfig.hideFilesTab
-        ? []
-        : fetchedFiles.map((f) => ({
-            id: f.id,
-            name: f.name,
-            href: `/workspace/${workspaceId}/files`,
-          })),
-    [fetchedFiles, workspaceId, permissionConfig.hideFilesTab]
-  )
-
   const searchModalKnowledgeBases = useMemo(
     () =>
       permissionConfig.hideKnowledgeBaseTab
@@ -788,18 +772,6 @@ export const Sidebar = memo(function Sidebar() {
             href: `/workspace/${workspaceId}/knowledge/${kb.id}`,
           })),
     [fetchedKnowledgeBases, workspaceId, permissionConfig.hideKnowledgeBaseTab]
-  )
-
-  const searchModalJobs = useMemo(
-    () =>
-      fetchedSchedules
-        .filter((s) => s.sourceType === 'job')
-        .map((s) => ({
-          id: s.id,
-          name: s.jobTitle || 'Untitled Job',
-          href: `/workspace/${workspaceId}/scheduled-tasks`,
-        })),
-    [fetchedSchedules, workspaceId]
   )
 
   const taskIds = useMemo(() => tasks.map((t) => t.id).filter((id) => id !== 'new'), [tasks])
@@ -1729,9 +1701,7 @@ export const Sidebar = memo(function Sidebar() {
         workspaces={searchModalWorkspaces}
         tasks={tasks}
         tables={searchModalTables}
-        files={searchModalFiles}
         knowledgeBases={searchModalKnowledgeBases}
-        jobs={searchModalJobs}
         isOnWorkflowPage={!!workflowId}
       />
 

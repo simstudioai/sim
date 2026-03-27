@@ -3,7 +3,7 @@
 import type { ComponentType } from 'react'
 import { memo } from 'react'
 import { Command } from 'cmdk'
-import { Calendar, Database, File, Table } from '@/components/emcn/icons'
+import { Database, Table } from '@/components/emcn/icons'
 import type {
   SearchBlockItem,
   SearchDocItem,
@@ -244,9 +244,7 @@ export const PagesGroup = memo(function PagesGroup({
 })
 
 export const TablesGroup = createIconGroup('Tables', 'table', Table)
-export const FilesGroup = createIconGroup('Files', 'file', File)
 export const KnowledgeBasesGroup = createIconGroup('Knowledge Bases', 'knowledge-base', Database)
-export const JobsGroup = createIconGroup('Jobs', 'job', Calendar)
 
 function createIconGroup(
   heading: string,
