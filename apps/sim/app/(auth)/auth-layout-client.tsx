@@ -14,8 +14,8 @@ export default function AuthLayoutClient({ children }: { children: React.ReactNo
 
   return (
     <AuthBackground className='dark font-[430] font-season'>
-      <main className='relative flex min-h-full flex-col text-[#ECECEC]'>
-        <header className='shrink-0 bg-[#1C1C1C]'>
+      <main className='relative flex min-h-full flex-col text-[var(--landing-text)]'>
+        <header className='shrink-0 bg-[var(--landing-bg)]'>
           <Navbar logoOnly />
         </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>

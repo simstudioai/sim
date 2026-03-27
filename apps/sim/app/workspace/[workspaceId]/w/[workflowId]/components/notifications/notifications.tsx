@@ -26,7 +26,7 @@ const ACTION_LABELS: Record<NotificationAction['type'], string> = {
 } as const
 
 function isAutoDismissable(n: Notification): boolean {
-  return n.level === 'error' && !!n.workflowId
+  return !!n.workflowId
 }
 
 function NotificationCountdownRing({ onPause }: { onPause: () => void }) {
@@ -37,7 +37,7 @@ function NotificationCountdownRing({ onPause }: { onPause: () => void }) {
           variant='ghost'
           onClick={onPause}
           aria-label='Keep notifications visible'
-          className='!p-[4px] -m-[2px] shrink-0 rounded-[5px] text-[var(--text-icon)] hover:bg-[var(--surface-active)]'
+          className='!p-1 -m-0.5 shrink-0 rounded-[5px] text-[var(--text-icon)] hover-hover:bg-[var(--surface-active)]'
         >
           <CountdownRing duration={AUTO_DISMISS_MS} />
         </Button>
@@ -54,7 +54,7 @@ function NotificationCountdownRing({ onPause }: { onPause: () => void }) {
  * Positioned in the bottom-right workspace area, reactive to panel width and terminal height.
  * Shows both global notifications and workflow-specific notifications.
  *
- * Workflow error notifications auto-dismiss after {@link AUTO_DISMISS_MS}ms with a countdown
+ * Workflow-scoped notifications auto-dismiss after {@link AUTO_DISMISS_MS}ms with a countdown
  * ring. Clicking the ring pauses all timers until the notification stack clears.
  */
 interface NotificationsProps {
@@ -207,7 +207,7 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
   }
 
   return (
-    <div ref={preventZoomRef} className='absolute right-[16px] bottom-[16px] z-30 grid'>
+    <div ref={preventZoomRef} className='absolute right-[16px] bottom-4 z-30 grid'>
       {[...visibleNotifications].reverse().map((notification, index, stacked) => {
         const depth = stacked.length - index - 1
         const xOffset = depth * STACK_OFFSET_PX
@@ -226,17 +226,17 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
                 gridArea: '1 / 1',
               } as React.CSSProperties
             }
-            className='w-[240px] self-end overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+            className='w-[240px] self-end overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
           >
-            <div className='flex flex-col gap-[8px] p-[8px]'>
-              <div className='flex items-start gap-[8px]'>
-                <div className='line-clamp-2 min-w-0 flex-1 font-medium text-[12px] text-[var(--text-body)]'>
+            <div className='flex flex-col gap-2 p-2'>
+              <div className='flex items-start gap-2'>
+                <div className='line-clamp-2 min-w-0 flex-1 font-medium text-[var(--text-body)] text-caption'>
                   {notification.level === 'error' && (
-                    <span className='mr-[8px] mb-[2px] inline-block h-[8px] w-[8px] rounded-[2px] bg-[var(--text-error)] align-middle' />
+                    <span className='mr-2 mb-0.5 inline-block h-[8px] w-[8px] rounded-xs bg-[var(--text-error)] align-middle' />
                   )}
                   {notification.message}
                 </div>
-                <div className='flex shrink-0 items-start gap-[2px]'>
+                <div className='flex shrink-0 items-start gap-0.5'>
                   {showCountdown && <NotificationCountdownRing onPause={pauseAll} />}
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
@@ -244,7 +244,7 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
                         variant='ghost'
                         onClick={() => removeNotification(notification.id)}
                         aria-label='Dismiss notification'
-                        className='!p-[4px] -m-[2px] shrink-0 rounded-[5px] hover:bg-[var(--surface-active)]'
+                        className='!p-1 -m-0.5 shrink-0 rounded-[5px] hover-hover:bg-[var(--surface-active)]'
                       >
                         <X className='h-[14px] w-[14px] text-[var(--text-icon)]' />
                       </Button>
@@ -259,7 +259,7 @@ export const Notifications = memo(function Notifications({ embedded }: Notificat
                 <Button
                   variant='active'
                   onClick={() => executeAction(notification.id, notification.action!)}
-                  className='w-full rounded-[5px] px-[8px] py-[4px] font-medium text-[12px]'
+                  className='w-full rounded-[5px] px-2 py-1 font-medium text-caption'
                 >
                   {embedded && notification.action!.type === 'copilot'
                     ? 'Fix in Mothership'

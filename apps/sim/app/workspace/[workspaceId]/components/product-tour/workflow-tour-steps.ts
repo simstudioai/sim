@@ -10,7 +10,7 @@ export const workflowTourSteps: Step[] = [
     disableBeacon: true,
   },
   {
-    target: '[data-tab-button="copilot"]',
+    target: '[data-tour="tab-copilot"]',
     title: 'AI Copilot',
     content:
       'Build and debug workflows using natural language. Describe what you want and Copilot creates the blocks for you.',
@@ -19,7 +19,7 @@ export const workflowTourSteps: Step[] = [
     spotlightPadding: 0,
   },
   {
-    target: '[data-tab-button="toolbar"]',
+    target: '[data-tour="tab-toolbar"]',
     title: 'Block Library',
     content:
       'Browse all available blocks and triggers. Drag them onto the canvas to build your workflow step by step.',
@@ -28,7 +28,7 @@ export const workflowTourSteps: Step[] = [
     spotlightPadding: 0,
   },
   {
-    target: '[data-tab-button="editor"]',
+    target: '[data-tour="tab-editor"]',
     title: 'Block Editor',
     content:
       'Click any block on the canvas to configure it here. Set inputs, credentials, and fine-tune behavior.',

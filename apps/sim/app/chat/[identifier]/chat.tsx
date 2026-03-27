@@ -466,7 +466,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   if (authRequired) {
     // const title = new URLSearchParams(window.location.search).get('title') || 'chat'
     // const primaryColor =
-    //   new URLSearchParams(window.location.search).get('color') || 'var(--brand-primary-hover-hex)'
+    //   new URLSearchParams(window.location.search).get('color') || 'var(--brand-hover)'
 
     if (authRequired === 'password') {
       return <PasswordAuth identifier={identifier} onAuthSuccess={handleAuthSuccess} />

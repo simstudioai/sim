@@ -1,98 +1,14 @@
 import { db } from '@sim/db'
-import { member, userStats } from '@sim/db/schema'
+import { member } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { getSimplifiedBillingSummary } from '@/lib/billing/core/billing'
 import { getOrganizationBillingData } from '@/lib/billing/core/organization'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getPlanTierCredits } from '@/lib/billing/plan-helpers'
-
-/**
- * Gets the effective billing blocked status for a user.
- * If user is in an org, also checks if the org owner is blocked.
- */
-async function getEffectiveBillingStatus(userId: string): Promise<{
-  billingBlocked: boolean
-  billingBlockedReason: 'payment_failed' | 'dispute' | null
-  blockedByOrgOwner: boolean
-}> {
-  // Check user's own status
-  const userStatsRows = await db
-    .select({
-      blocked: userStats.billingBlocked,
-      blockedReason: userStats.billingBlockedReason,
-    })
-    .from(userStats)
-    .where(eq(userStats.userId, userId))
-    .limit(1)
-
-  const userBlocked = userStatsRows.length > 0 ? !!userStatsRows[0].blocked : false
-  const userBlockedReason = userStatsRows.length > 0 ? userStatsRows[0].blockedReason : null
-
-  if (userBlocked) {
-    return {
-      billingBlocked: true,
-      billingBlockedReason: userBlockedReason,
-      blockedByOrgOwner: false,
-    }
-  }
-
-  // Check if user is in an org where owner is blocked
-  const memberships = await db
-    .select({ organizationId: member.organizationId })
-    .from(member)
-    .where(eq(member.userId, userId))
-
-  // Fetch all org owners in parallel
-  const ownerResults = await Promise.all(
-    memberships.map((m) =>
-      db
-        .select({ userId: member.userId })
-        .from(member)
-        .where(and(eq(member.organizationId, m.organizationId), eq(member.role, 'owner')))
-        .limit(1)
-    )
-  )
-
-  // Collect owner IDs that are not the current user
-  const otherOwnerIds = ownerResults
-    .filter((owners) => owners.length > 0 && owners[0].userId !== userId)
-    .map((owners) => owners[0].userId)
-
-  if (otherOwnerIds.length > 0) {
-    // Fetch all owner stats in parallel
-    const ownerStatsResults = await Promise.all(
-      otherOwnerIds.map((ownerId) =>
-        db
-          .select({
-            blocked: userStats.billingBlocked,
-            blockedReason: userStats.billingBlockedReason,
-          })
-          .from(userStats)
-          .where(eq(userStats.userId, ownerId))
-          .limit(1)
-      )
-    )
-
-    for (const stats of ownerStatsResults) {
-      if (stats.length > 0 && stats[0].blocked) {
-        return {
-          billingBlocked: true,
-          billingBlockedReason: stats[0].blockedReason,
-          blockedByOrgOwner: true,
-        }
-      }
-    }
-  }
-
-  return {
-    billingBlocked: false,
-    billingBlockedReason: null,
-    blockedByOrgOwner: false,
-  }
-}
 
 const logger = createLogger('UnifiedBillingAPI')
 

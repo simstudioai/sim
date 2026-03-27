@@ -119,13 +119,15 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={'font-medium text-[#ECECEC] text-[32px] tracking-tight'}>Loading</h1>
-          <p className={'font-[380] text-[#999] text-[16px]'}>
+          <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
+            Loading
+          </h1>
+          <p className={'font-[380] text-[var(--text-subtle)] text-md'}>
             Validating your unsubscribe link...
           </p>
         </div>
         <div className={'mt-8 flex w-full items-center justify-center py-8'}>
-          <Loader2 className='h-8 w-8 animate-spin text-[#999]' />
+          <Loader2 className='h-8 w-8 animate-spin text-[var(--text-subtle)]' />
         </div>
       </InviteLayout>
     )
@@ -135,10 +137,10 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={'font-medium text-[#ECECEC] text-[32px] tracking-tight'}>
+          <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
             Invalid Unsubscribe Link
           </h1>
-          <p className={'font-[380] text-[#999] text-[16px]'}>{error}</p>
+          <p className={'font-[380] text-[var(--text-subtle)] text-md'}>{error}</p>
         </div>
 
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
@@ -152,10 +154,10 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={'font-medium text-[#ECECEC] text-[32px] tracking-tight'}>
+          <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
             Important Account Emails
           </h1>
-          <p className={'font-[380] text-[#999] text-[16px]'}>
+          <p className={'font-[380] text-[var(--text-subtle)] text-md'}>
             Transactional emails like password resets, account confirmations, and security alerts
             cannot be unsubscribed from as they contain essential information for your account.
           </p>
@@ -172,10 +174,10 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={'font-medium text-[#ECECEC] text-[32px] tracking-tight'}>
+          <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
             Successfully Unsubscribed
           </h1>
-          <p className={'font-[380] text-[#999] text-[16px]'}>
+          <p className={'font-[380] text-[var(--text-subtle)] text-md'}>
             You have been unsubscribed from our emails. You will stop receiving emails within 48
             hours.
           </p>
@@ -193,13 +195,13 @@ function UnsubscribeContent() {
   return (
     <InviteLayout>
       <div className='space-y-1 text-center'>
-        <h1 className={'font-medium text-[#ECECEC] text-[32px] tracking-tight'}>
+        <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
           Email Preferences
         </h1>
-        <p className={'font-[380] text-[#999] text-[16px]'}>
+        <p className={'font-[380] text-[var(--text-subtle)] text-md'}>
           Choose which emails you'd like to stop receiving.
         </p>
-        <p className={'mt-2 font-[380] text-[#999] text-[14px]'}>{data?.email}</p>
+        <p className={'mt-2 font-[380] text-[var(--text-subtle)] text-sm'}>{data?.email}</p>
       </div>
 
       <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
@@ -215,7 +217,9 @@ function UnsubscribeContent() {
         </BrandedButton>
 
         <div className='py-2 text-center'>
-          <span className={'font-[380] text-[#999] text-[14px]'}>or choose specific types</span>
+          <span className={'font-[380] text-[var(--text-subtle)] text-sm'}>
+            or choose specific types
+          </span>
         </div>
 
         <BrandedButton
@@ -259,7 +263,7 @@ function UnsubscribeContent() {
       </div>
 
       <div className={'mt-6 max-w-[410px] text-center'}>
-        <p className='font-[380] text-[#999] text-[13px]'>
+        <p className='font-[380] text-[var(--text-subtle)] text-small'>
           You'll continue receiving important account emails like password resets and security
           alerts.
         </p>
@@ -274,13 +278,15 @@ export default function Unsubscribe() {
       fallback={
         <InviteLayout>
           <div className='space-y-1 text-center'>
-            <h1 className={'font-medium text-[#ECECEC] text-[32px] tracking-tight'}>Loading</h1>
-            <p className={'font-[380] text-[#999] text-[16px]'}>
+            <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
+              Loading
+            </h1>
+            <p className={'font-[380] text-[var(--text-subtle)] text-md'}>
               Validating your unsubscribe link...
             </p>
           </div>
           <div className={'mt-8 flex w-full items-center justify-center py-8'}>
-            <Loader2 className='h-8 w-8 animate-spin text-[#999]' />
+            <Loader2 className='h-8 w-8 animate-spin text-[var(--text-subtle)]' />
           </div>
         </InviteLayout>
       }

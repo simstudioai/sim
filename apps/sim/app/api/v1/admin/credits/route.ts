@@ -26,12 +26,16 @@
 import { db } from '@sim/db'
 import { organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { addCredits } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
-import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
+import { isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
+import {
+  ENTITLED_SUBSCRIPTION_STATUSES,
+  getEffectiveSeats,
+} from '@/lib/billing/subscriptions/utils'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -95,7 +99,7 @@ export const POST = withAdminAuth(async (request) => {
 
     const userSubscription = await getHighestPrioritySubscription(resolvedUserId)
 
-    if (!userSubscription || !['pro', 'team', 'enterprise'].includes(userSubscription.plan)) {
+    if (!userSubscription || !isPaid(userSubscription.plan)) {
       return badRequestResponse(
         'User must have an active Pro, Team, or Enterprise subscription to receive credits'
       )
@@ -106,7 +110,7 @@ export const POST = withAdminAuth(async (request) => {
     const plan = userSubscription.plan
     let seats: number | null = null
 
-    if (plan === 'team' || plan === 'enterprise') {
+    if (isOrgPlan(plan)) {
       entityType = 'organization'
       entityId = userSubscription.referenceId
 
@@ -123,7 +127,12 @@ export const POST = withAdminAuth(async (request) => {
       const [subData] = await db
         .select()
         .from(subscription)
-        .where(and(eq(subscription.referenceId, entityId), eq(subscription.status, 'active')))
+        .where(
+          and(
+            eq(subscription.referenceId, entityId),
+            inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          )
+        )
         .limit(1)
 
       seats = getEffectiveSeats(subData)

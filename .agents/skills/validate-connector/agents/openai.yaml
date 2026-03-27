@@ -1,0 +1,5 @@
+interface:
+  display_name: "Validate Connector"
+  short_description: "Audit a Sim knowledge connector"
+  brand_color: "#059669"
+  default_prompt: "Use $validate-connector to audit and fix a Sim knowledge connector against its API docs."

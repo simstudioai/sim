@@ -70,8 +70,8 @@ export function TeamSeats({
         <ModalBody>
           <p className='text-[var(--text-secondary)]'>{description}</p>
 
-          <div className='mt-[16px] flex flex-col gap-[4px]'>
-            <Label htmlFor='seats' className='text-[13px]'>
+          <div className='mt-4 flex flex-col gap-1'>
+            <Label htmlFor='seats' className='text-small'>
               Number of seats
             </Label>
             <Combobox
@@ -89,22 +89,22 @@ export function TeamSeats({
             />
           </div>
 
-          <p className='mt-[12px] text-[13px] text-[var(--text-muted)]'>
+          <p className='mt-3 text-[var(--text-muted)] text-small'>
             Your team will have {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} with a
             total of {(selectedSeats * seatCredits).toLocaleString()} inference credits per month.
           </p>
 
           {showCostBreakdown && currentSeats !== undefined && (
-            <div className='mt-[16px] rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[12px] py-[10px]'>
-              <div className='flex justify-between text-[13px]'>
+            <div className='mt-4 rounded-md border border-[var(--border-1)] bg-[var(--surface-4)] px-3 py-2.5'>
+              <div className='flex justify-between text-small'>
                 <span className='text-[var(--text-muted)]'>Current seats:</span>
                 <span className='text-[var(--text-primary)]'>{currentSeats}</span>
               </div>
-              <div className='mt-[8px] flex justify-between text-[13px]'>
+              <div className='mt-2 flex justify-between text-small'>
                 <span className='text-[var(--text-muted)]'>New seats:</span>
                 <span className='text-[var(--text-primary)]'>{selectedSeats}</span>
               </div>
-              <div className='mt-[12px] flex justify-between border-[var(--border-1)] border-t pt-[12px] text-[13px]'>
+              <div className='mt-3 flex justify-between border-[var(--border-1)] border-t pt-3 text-small'>
                 <span className='font-medium text-[var(--text-primary)]'>
                   Monthly credit change:
                 </span>
@@ -120,7 +120,7 @@ export function TeamSeats({
           )}
 
           {error && (
-            <p className='mt-[12px] text-[13px] text-[var(--text-error)]'>
+            <p className='mt-3 text-[var(--text-error)] text-small'>
               {error instanceof Error && error.message ? error.message : String(error)}
             </p>
           )}

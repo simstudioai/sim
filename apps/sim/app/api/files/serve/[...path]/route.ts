@@ -94,18 +94,19 @@ export async function GET(
     const isCloudPath = isS3Path || isBlobPath
     const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
 
-    const contextParam = request.nextUrl.searchParams.get('context')
-    const raw = request.nextUrl.searchParams.get('raw') === '1'
+    const isPublicByKeyPrefix =
+      cloudKey.startsWith('profile-pictures/') || cloudKey.startsWith('og-images/')
 
-    const context = contextParam || (isCloudPath ? inferContextFromKey(cloudKey) : undefined)
-
-    if (context === 'profile-pictures' || context === 'og-images') {
+    if (isPublicByKeyPrefix) {
+      const context = inferContextFromKey(cloudKey)
       logger.info(`Serving public ${context}:`, { cloudKey })
       if (isUsingCloudStorage() || isCloudPath) {
         return await handleCloudProxyPublic(cloudKey, context)
       }
       return await handleLocalFilePublic(fullPath)
     }
+
+    const raw = request.nextUrl.searchParams.get('raw') === '1'
 
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
 
@@ -120,7 +121,7 @@ export async function GET(
     const userId = authResult.userId
 
     if (isUsingCloudStorage()) {
-      return await handleCloudProxy(cloudKey, userId, contextParam, raw)
+      return await handleCloudProxy(cloudKey, userId, raw)
     }
 
     return await handleLocalFile(cloudKey, userId, raw)
@@ -192,19 +193,11 @@ async function handleLocalFile(
 async function handleCloudProxy(
   cloudKey: string,
   userId: string,
-  contextParam?: string | null,
   raw = false
 ): Promise<NextResponse> {
   try {
-    let context: StorageContext
-
-    if (contextParam) {
-      context = contextParam as StorageContext
-      logger.info(`Using explicit context: ${context} for key: ${cloudKey}`)
-    } else {
-      context = inferContextFromKey(cloudKey)
-      logger.info(`Inferred context: ${context} from key pattern: ${cloudKey}`)
-    }
+    const context = inferContextFromKey(cloudKey)
+    logger.info(`Inferred context: ${context} from key pattern: ${cloudKey}`)
 
     const hasAccess = await verifyFileAccess(
       cloudKey,

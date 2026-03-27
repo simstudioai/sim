@@ -7,7 +7,10 @@ import { RateLimiter } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
-import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+import {
+  getFromEmailAddress,
+  NO_EMAIL_HEADER_CONTROL_CHARS_REGEX,
+} from '@/lib/messaging/email/utils'
 
 const logger = createLogger('IntegrationRequestAPI')
 
@@ -20,7 +23,12 @@ const PUBLIC_ENDPOINT_RATE_LIMIT: TokenBucketConfig = {
 }
 
 const integrationRequestSchema = z.object({
-  integrationName: z.string().min(1, 'Integration name is required').max(200),
+  integrationName: z
+    .string()
+    .trim()
+    .min(1, 'Integration name is required')
+    .max(200)
+    .regex(NO_EMAIL_HEADER_CONTROL_CHARS_REGEX, 'Invalid characters'),
   email: z.string().email('A valid email is required'),
   useCase: z.string().max(2000).optional(),
 })

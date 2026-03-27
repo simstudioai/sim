@@ -3,7 +3,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/core/utils/cn'
 
 /** Shared base styles for status color badge variants */
-const STATUS_BASE = 'gap-[6px] rounded-[6px]'
+const STATUS_BASE = 'gap-1.5 rounded-md'
 
 const badgeVariants = cva(
   'inline-flex items-center font-medium focus:outline-none transition-colors',
@@ -11,27 +11,27 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          'gap-[4px] rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] hover:text-[var(--text-primary)] hover:border-[var(--border-1)] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
+          'gap-1 rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)] hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--surface-5)]',
         outline:
-          'gap-[4px] rounded-[40px] border border-[var(--border-1)] bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-5)] dark:hover:bg-transparent dark:hover:border-[var(--surface-6)]',
-        type: 'gap-[4px] rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] dark:bg-[var(--surface-6)]',
-        green: `${STATUS_BASE} bg-[#bbf7d0] text-[#15803d] dark:bg-[rgba(34,197,94,0.2)] dark:text-[#86efac]`,
-        red: `${STATUS_BASE} bg-[#fecaca] text-[var(--text-error)] dark:bg-[#551a1a] dark:text-[var(--text-error)]`,
-        gray: `${STATUS_BASE} bg-[#e7e5e4] text-[#57534e] dark:bg-[var(--terminal-status-info-bg)] dark:text-[var(--terminal-status-info-color)]`,
-        blue: `${STATUS_BASE} bg-[#bfdbfe] text-[#1d4ed8] dark:bg-[rgba(59,130,246,0.2)] dark:text-[#93c5fd]`,
-        'blue-secondary': `${STATUS_BASE} bg-[#bae6fd] text-[#0369a1] dark:bg-[rgba(51,180,255,0.2)] dark:text-[var(--brand-secondary)]`,
-        purple: `${STATUS_BASE} bg-[#e9d5ff] text-[#7c3aed] dark:bg-[rgba(168,85,247,0.2)] dark:text-[#d8b4fe]`,
-        orange: `${STATUS_BASE} bg-[#fed7aa] text-[#c2410c] dark:bg-[rgba(249,115,22,0.2)] dark:text-[#fdba74]`,
-        amber: `${STATUS_BASE} bg-[#fde68a] text-[#a16207] dark:bg-[rgba(245,158,11,0.2)] dark:text-[#fcd34d]`,
-        teal: `${STATUS_BASE} bg-[#99f6e4] text-[#0f766e] dark:bg-[rgba(20,184,166,0.2)] dark:text-[#5eead4]`,
-        cyan: `${STATUS_BASE} bg-[var(--surface-4)] text-[#0891b2] dark:bg-[rgba(14,165,233,0.2)] dark:text-[#7dd3fc]`,
-        pink: `${STATUS_BASE} bg-[#fbcfe8] text-[#be185d] dark:bg-[rgba(236,72,153,0.2)] dark:text-[#f9a8d4]`,
+          'gap-1 rounded-[40px] border border-[var(--border-1)] bg-transparent text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)] hover-hover:bg-[var(--surface-5)] dark:hover-hover:bg-transparent dark:hover-hover:border-[var(--surface-6)]',
+        type: 'gap-1 rounded-[40px] border border-[var(--border)] text-[var(--text-secondary)] bg-[var(--surface-4)] dark:bg-[var(--surface-6)]',
+        green: `${STATUS_BASE} bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]`,
+        red: `${STATUS_BASE} bg-[var(--badge-error-bg)] text-[var(--badge-error-text)]`,
+        gray: `${STATUS_BASE} bg-[var(--badge-gray-bg)] text-[var(--badge-gray-text)]`,
+        blue: `${STATUS_BASE} bg-[var(--badge-blue-bg)] text-[var(--badge-blue-text)]`,
+        'blue-secondary': `${STATUS_BASE} bg-[var(--badge-blue-secondary-bg)] text-[var(--badge-blue-secondary-text)]`,
+        purple: `${STATUS_BASE} bg-[var(--badge-purple-bg)] text-[var(--badge-purple-text)]`,
+        orange: `${STATUS_BASE} bg-[var(--badge-orange-bg)] text-[var(--badge-orange-text)]`,
+        amber: `${STATUS_BASE} bg-[var(--badge-amber-bg)] text-[var(--badge-amber-text)]`,
+        teal: `${STATUS_BASE} bg-[var(--badge-teal-bg)] text-[var(--badge-teal-text)]`,
+        cyan: `${STATUS_BASE} bg-[var(--badge-cyan-bg)] text-[var(--badge-cyan-text)]`,
+        pink: `${STATUS_BASE} bg-[var(--badge-pink-bg)] text-[var(--badge-pink-text)]`,
         'gray-secondary': `${STATUS_BASE} bg-[var(--surface-4)] text-[var(--text-secondary)]`,
       },
       size: {
-        sm: 'px-[7px] py-[1px] text-[11px]',
-        md: 'px-[9px] py-[2px] text-[12px]',
-        lg: 'px-[9px] py-[2.25px] text-[12px]',
+        sm: 'px-[7px] py-[1px] text-xs',
+        md: 'px-[9px] py-0.5 text-caption',
+        lg: 'px-[9px] py-[2.25px] text-caption',
       },
     },
     defaultVariants: {
@@ -59,16 +59,16 @@ const STATUS_VARIANTS = [
 
 /** Dot sizes corresponding to badge size variants */
 const DOT_SIZES: Record<string, string> = {
-  sm: 'h-[5px] w-[5px]',
-  md: 'h-[6px] w-[6px]',
-  lg: 'h-[6px] w-[6px]',
+  sm: 'size-[5px]',
+  md: 'size-1.5',
+  lg: 'size-1.5',
 }
 
 /** Icon sizes corresponding to badge size variants */
 const ICON_SIZES: Record<string, string> = {
-  sm: 'h-[10px] w-[10px]',
-  md: 'h-[12px] w-[12px]',
-  lg: 'h-[12px] w-[12px]',
+  sm: 'size-2.5',
+  md: 'size-3',
+  lg: 'size-3',
 }
 
 export interface BadgeProps
@@ -107,7 +107,7 @@ function Badge({
   return (
     <div className={cn(badgeVariants({ variant, size }), className)} {...props}>
       {isStatusVariant && dot && (
-        <div className={cn('rounded-[2px] bg-current', DOT_SIZES[effectiveSize])} />
+        <div className={cn('rounded-xs bg-current', DOT_SIZES[effectiveSize])} />
       )}
       {Icon && <Icon className={ICON_SIZES[effectiveSize]} />}
       {children}

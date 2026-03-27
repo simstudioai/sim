@@ -33,7 +33,7 @@ import { ToggleButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/compo
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import type { ConsoleEntry } from '@/stores/terminal'
-import { useTerminalStore } from '@/stores/terminal'
+import { safeConsoleStringify, useTerminalStore } from '@/stores/terminal'
 
 interface OutputCodeContentProps {
   code: string
@@ -93,11 +93,10 @@ export interface OutputPanelProps {
   handleTrainingClick: (e: React.MouseEvent) => void
   showCopySuccess: boolean
   handleCopy: () => void
-  filteredEntries: ConsoleEntry[]
+  hasEntries: boolean
   handleExportConsole: (e: React.MouseEvent) => void
   handleClearConsole: (e: React.MouseEvent) => void
   shouldShowCodeDisplay: boolean
-  outputDataStringified: string
   outputData: unknown
   handleClearConsoleFromMenu: () => void
 }
@@ -121,11 +120,10 @@ export const OutputPanel = React.memo(function OutputPanel({
   handleTrainingClick,
   showCopySuccess,
   handleCopy,
-  filteredEntries,
+  hasEntries,
   handleExportConsole,
   handleClearConsole,
   shouldShowCodeDisplay,
-  outputDataStringified,
   outputData,
   handleClearConsoleFromMenu,
 }: OutputPanelProps) {
@@ -276,6 +274,19 @@ export const OutputPanel = React.memo(function OutputPanel({
     [isOutputSearchActive, outputSearchQuery]
   )
 
+  const outputDataStringified = useMemo(() => {
+    if (
+      structuredView ||
+      shouldShowCodeDisplay ||
+      outputData === null ||
+      outputData === undefined
+    ) {
+      return ''
+    }
+
+    return safeConsoleStringify(outputData)
+  }, [outputData, shouldShowCodeDisplay, structuredView])
+
   return (
     <>
       <div
@@ -284,7 +295,7 @@ export const OutputPanel = React.memo(function OutputPanel({
       >
         {/* Horizontal Resize Handle */}
         <div
-          className='-ml-[4px] absolute top-0 bottom-0 left-0 z-20 w-[8px] cursor-ew-resize'
+          className='-ml-1 absolute top-0 bottom-0 left-0 z-20 w-[8px] cursor-ew-resize'
           onMouseDown={handleOutputPanelResizeMouseDown}
           role='separator'
           aria-label='Resize output panel'
@@ -293,14 +304,14 @@ export const OutputPanel = React.memo(function OutputPanel({
 
         {/* Header */}
         <div
-          className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-[16px] pl-[10px]'
+          className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-2.5'
           onClick={handleHeaderClick}
         >
           <div className='flex items-center'>
             <Button
               variant='ghost'
               className={clsx(
-                'px-[8px] py-[6px] text-small',
+                'px-2 py-1.5 text-small',
                 !showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-icon)]'
               )}
               onClick={handleOutputButtonClick}
@@ -312,7 +323,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               <Button
                 variant='ghost'
                 className={clsx(
-                  'px-[8px] py-[6px] text-small',
+                  'px-2 py-1.5 text-small',
                   showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-icon)]'
                 )}
                 onClick={handleInputButtonClick}
@@ -322,7 +333,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               </Button>
             )}
           </div>
-          <div className='flex flex-shrink-0 items-center gap-[8px]'>
+          <div className='flex flex-shrink-0 items-center gap-2'>
             {isOutputSearchActive ? (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -420,7 +431,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 <span>{showCopySuccess ? 'Copied' : 'Copy output'}</span>
               </Tooltip.Content>
             </Tooltip.Root>
-            {filteredEntries.length > 0 && (
+            {hasEntries && (
               <>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
@@ -472,7 +483,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 collisionPadding={0}
                 onClick={(e) => e.stopPropagation()}
                 style={{ minWidth: '140px', maxWidth: '160px' }}
-                className='gap-[2px]'
+                className='gap-0.5'
               >
                 <PopoverItem
                   active={structuredView}
@@ -500,7 +511,7 @@ export const OutputPanel = React.memo(function OutputPanel({
         {/* Search Overlay */}
         {isOutputSearchActive && (
           <div
-            className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-[6px] rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--bg)] px-[6px] shadow-sm'
+            className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--bg)] px-1.5 shadow-sm'
             onClick={(e) => e.stopPropagation()}
             data-toolbar-root
             data-search-active='true'
@@ -511,11 +522,11 @@ export const OutputPanel = React.memo(function OutputPanel({
               value={outputSearchQuery}
               onChange={(e) => setOutputSearchQuery(e.target.value)}
               placeholder='Search...'
-              className='mr-[2px] h-[23px] w-[94px] text-[12px]'
+              className='mr-0.5 h-[23px] w-[94px] text-caption'
             />
             <span
               className={clsx(
-                'w-[58px] font-medium text-[11px]',
+                'w-[58px] font-medium text-xs',
                 matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
               )}
             >

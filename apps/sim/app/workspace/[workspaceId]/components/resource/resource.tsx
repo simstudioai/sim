@@ -242,7 +242,7 @@ export const ResourceTable = memo(function ResourceTable({
   if (rows.length === 0 && emptyMessage) {
     return (
       <div className='flex min-h-0 flex-1 items-center justify-center'>
-        <span className='text-[13px] text-[var(--text-secondary)]'>{emptyMessage}</span>
+        <span className='text-[var(--text-secondary)] text-small'>{emptyMessage}</span>
       </div>
     )
   }
@@ -250,12 +250,12 @@ export const ResourceTable = memo(function ResourceTable({
   return (
     <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
       <div ref={headerRef} className='overflow-hidden'>
-        <table className='w-full table-fixed text-[13px]'>
+        <table className='w-full table-fixed text-small'>
           <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
           <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
             <tr>
               {hasCheckbox && (
-                <th className='h-10 w-[52px] py-[6px] pr-0 pl-[20px] text-left align-middle'>
+                <th className='h-10 w-[52px] py-1.5 pr-0 pl-5 text-left align-middle'>
                   <Checkbox
                     size='sm'
                     checked={selectable.isAllSelected}
@@ -270,7 +270,7 @@ export const ResourceTable = memo(function ResourceTable({
                   return (
                     <th
                       key={col.id}
-                      className='h-10 px-[24px] py-[6px] text-left align-middle font-base text-[12px] text-[var(--text-muted)]'
+                      className='h-10 px-6 py-1.5 text-left align-middle font-base text-[var(--text-muted)] text-caption'
                     >
                       {col.header}
                     </th>
@@ -279,10 +279,10 @@ export const ResourceTable = memo(function ResourceTable({
                 const isActive = internalSort.column === col.id
                 const SortIcon = internalSort.direction === 'asc' ? ArrowUp : ArrowDown
                 return (
-                  <th key={col.id} className='h-10 px-[16px] py-[6px] text-left align-middle'>
+                  <th key={col.id} className='h-10 px-4 py-1.5 text-left align-middle'>
                     <Button
                       variant='subtle'
-                      className='px-[8px] py-[4px] font-base text-[var(--text-muted)] hover:text-[var(--text-muted)]'
+                      className='px-2 py-1 font-base text-[var(--text-muted)] hover-hover:text-[var(--text-muted)]'
                       onClick={() =>
                         handleSort(
                           col.id,
@@ -292,7 +292,7 @@ export const ResourceTable = memo(function ResourceTable({
                     >
                       {col.header}
                       {isActive && (
-                        <SortIcon className='ml-[4px] h-[12px] w-[12px] text-[var(--text-icon)]' />
+                        <SortIcon className='ml-1 h-[12px] w-[12px] text-[var(--text-icon)]' />
                       )}
                     </Button>
                   </th>
@@ -303,7 +303,7 @@ export const ResourceTable = memo(function ResourceTable({
         </table>
       </div>
       <div className='min-h-0 flex-1 overflow-auto' onScroll={handleBodyScroll}>
-        <table className='w-full table-fixed text-[13px]'>
+        <table className='w-full table-fixed text-small'>
           <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
           <tbody>
             {displayRows.map((row) => {
@@ -314,7 +314,7 @@ export const ResourceTable = memo(function ResourceTable({
                   data-resource-row
                   data-row-id={row.id}
                   className={cn(
-                    'transition-colors hover:bg-[var(--surface-3)]',
+                    'transition-colors hover-hover:bg-[var(--surface-3)]',
                     onRowClick && 'cursor-pointer',
                     (selectedRowId === row.id || isSelected) && 'bg-[var(--surface-3)]'
                   )}
@@ -323,7 +323,7 @@ export const ResourceTable = memo(function ResourceTable({
                   onContextMenu={(e) => onRowContextMenu?.(e, row.id)}
                 >
                   {hasCheckbox && (
-                    <td className='w-[52px] py-[10px] pr-0 pl-[20px] align-middle'>
+                    <td className='w-[52px] py-2.5 pr-0 pl-5 align-middle'>
                       <Checkbox
                         size='sm'
                         checked={isSelected}
@@ -339,7 +339,7 @@ export const ResourceTable = memo(function ResourceTable({
                   {columns.map((col, colIdx) => {
                     const cell = row.cells[col.id]
                     return (
-                      <td key={col.id} className='px-[24px] py-[10px] align-middle'>
+                      <td key={col.id} className='px-6 py-2.5 align-middle'>
                         <CellContent
                           cell={{ ...cell, label: cell?.label || EMPTY_CELL_PLACEHOLDER }}
                           primary={colIdx === 0}
@@ -356,12 +356,12 @@ export const ResourceTable = memo(function ResourceTable({
                   'transition-colors',
                   create.disabled
                     ? 'cursor-not-allowed'
-                    : 'cursor-pointer hover:bg-[var(--surface-3)]'
+                    : 'cursor-pointer hover-hover:bg-[var(--surface-3)]'
                 )}
                 onClick={create.disabled ? undefined : create.onClick}
               >
-                <td colSpan={totalColSpan} className='px-[24px] py-[10px] align-middle'>
-                  <span className='flex items-center gap-[12px] font-medium text-[14px] text-[var(--text-secondary)]'>
+                <td colSpan={totalColSpan} className='px-6 py-2.5 align-middle'>
+                  <span className='flex items-center gap-3 font-medium text-[var(--text-secondary)] text-sm'>
                     <Plus className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
                     {create.label}
                   </span>
@@ -371,7 +371,7 @@ export const ResourceTable = memo(function ResourceTable({
           </tbody>
         </table>
         {hasMore && (
-          <div ref={loadMoreRef} className='flex items-center justify-center py-[12px]'>
+          <div ref={loadMoreRef} className='flex items-center justify-center py-3'>
             {isLoadingMore && (
               <Loader className='h-[16px] w-[16px] text-[var(--text-secondary)]' animate />
             )}
@@ -400,7 +400,7 @@ function Pagination({
   onPageChange: (page: number) => void
 }) {
   return (
-    <div className='flex items-center justify-center border-[var(--border)] border-t bg-[var(--bg)] px-4 py-[10px]'>
+    <div className='flex items-center justify-center border-[var(--border)] border-t bg-[var(--bg)] px-4 py-2.5'>
       <div className='flex items-center gap-1'>
         <Button
           variant='ghost'
@@ -409,7 +409,7 @@ function Pagination({
         >
           <ChevronLeft className='h-3.5 w-3.5' />
         </Button>
-        <div className='mx-[12px] flex items-center gap-[16px]'>
+        <div className='mx-3 flex items-center gap-4'>
           {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
             let page: number
             if (totalPages <= 5) {
@@ -428,7 +428,7 @@ function Pagination({
                 type='button'
                 onClick={() => onPageChange(page)}
                 className={cn(
-                  'font-medium text-sm transition-colors hover:text-[var(--text-body)]',
+                  'font-medium text-sm transition-colors hover-hover:text-[var(--text-body)]',
                   page === currentPage ? 'text-[var(--text-body)]' : 'text-[var(--text-secondary)]'
                 )}
               >
@@ -454,7 +454,7 @@ function CellContent({ cell, primary }: { cell: ResourceCell; primary?: boolean 
   return (
     <span
       className={cn(
-        'flex min-w-0 items-center gap-[12px] font-medium text-[14px]',
+        'flex min-w-0 items-center gap-3 font-medium text-sm',
         primary ? 'text-[var(--text-body)]' : 'text-[var(--text-secondary)]'
       )}
     >
@@ -500,19 +500,19 @@ function DataTableSkeleton({
   return (
     <>
       <div className='overflow-hidden'>
-        <table className='w-full table-fixed text-[13px]'>
+        <table className='w-full table-fixed text-small'>
           <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
           <thead className='shadow-[inset_0_-1px_0_var(--border)]'>
             <tr>
               {hasCheckbox && (
-                <th className='h-10 w-[52px] py-[10px] pr-0 pl-[20px] text-left align-middle'>
-                  <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+                <th className='h-10 w-[52px] py-2.5 pr-0 pl-5 text-left align-middle'>
+                  <Skeleton className='h-[14px] w-[14px] rounded-xs' />
                 </th>
               )}
               {columns.map((col) => (
                 <th
                   key={col.id}
-                  className='h-10 px-[24px] py-[10px] text-left align-middle font-base text-[var(--text-muted)]'
+                  className='h-10 px-6 py-2.5 text-left align-middle font-base text-[var(--text-muted)]'
                 >
                   <div className='flex min-h-[20px] items-center'>
                     <Skeleton className='h-[12px] w-[56px]' />
@@ -524,20 +524,20 @@ function DataTableSkeleton({
         </table>
       </div>
       <div className='min-h-0 flex-1 overflow-auto'>
-        <table className='w-full table-fixed text-[13px]'>
+        <table className='w-full table-fixed text-small'>
           <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
           <tbody>
             {Array.from({ length: rowCount }, (_, i) => (
               <tr key={i}>
                 {hasCheckbox && (
-                  <td className='w-[52px] py-[10px] pr-0 pl-[20px] align-middle'>
-                    <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+                  <td className='w-[52px] py-2.5 pr-0 pl-5 align-middle'>
+                    <Skeleton className='h-[14px] w-[14px] rounded-xs' />
                   </td>
                 )}
                 {columns.map((col, colIdx) => (
-                  <td key={col.id} className='px-[24px] py-[10px] align-middle'>
-                    <span className='flex min-h-[21px] items-center gap-[12px]'>
-                      {colIdx === 0 && <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />}
+                  <td key={col.id} className='px-6 py-2.5 align-middle'>
+                    <span className='flex min-h-[21px] items-center gap-3'>
+                      {colIdx === 0 && <Skeleton className='h-[14px] w-[14px] rounded-xs' />}
                       <Skeleton className='h-[14px] w-[128px]' />
                     </span>
                   </td>

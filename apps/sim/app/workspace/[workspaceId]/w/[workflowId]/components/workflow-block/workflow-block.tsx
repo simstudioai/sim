@@ -828,9 +828,9 @@ const SubBlockRow = memo(function SubBlockRow({
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (
-    <div className='flex items-center gap-[8px]'>
+    <div className='flex items-center gap-2'>
       <span
-        className='min-w-0 truncate text-[14px] text-[var(--text-tertiary)] capitalize'
+        className='min-w-0 truncate text-[var(--text-tertiary)] text-sm capitalize'
         title={title}
       >
         {title}
@@ -838,7 +838,7 @@ const SubBlockRow = memo(function SubBlockRow({
       {displayValue !== undefined && (
         <span
           className={cn(
-            'flex-1 truncate text-right text-[14px] text-[var(--text-primary)]',
+            'flex-1 truncate text-right text-[var(--text-primary)] text-sm',
             isMonospaceField && 'font-mono'
           )}
           title={displayValue}
@@ -1090,12 +1090,12 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     const colorClasses = isError ? '!bg-[var(--text-error)]' : '!bg-[var(--workflow-edge)]'
 
     const positionClasses = {
-      left: '!left-[-8px] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none hover:!left-[-11px] hover:!w-[10px] hover:!rounded-l-full',
+      left: '!left-[-8px] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none hover-hover:!left-[-11px] hover-hover:!w-[10px] hover-hover:!rounded-l-full',
       right:
-        '!right-[-8px] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none hover:!right-[-11px] hover:!w-[10px] hover:!rounded-r-full',
-      top: '!top-[-8px] !h-[7px] !w-5 !rounded-t-[2px] !rounded-b-none hover:!top-[-11px] hover:!h-[10px] hover:!rounded-t-full',
+        '!right-[-8px] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none hover-hover:!right-[-11px] hover-hover:!w-[10px] hover-hover:!rounded-r-full',
+      top: '!top-[-8px] !h-[7px] !w-5 !rounded-t-[2px] !rounded-b-none hover-hover:!top-[-11px] hover-hover:!h-[10px] hover-hover:!rounded-t-full',
       bottom:
-        '!bottom-[-8px] !h-[7px] !w-5 !rounded-b-[2px] !rounded-t-none hover:!bottom-[-11px] hover:!h-[10px] hover:!rounded-b-full',
+        '!bottom-[-8px] !h-[7px] !w-5 !rounded-b-[2px] !rounded-t-none hover-hover:!bottom-[-11px] hover-hover:!h-[10px] hover-hover:!rounded-b-full',
     }
 
     return cn(baseClasses, colorClasses, positionClasses[position])
@@ -1194,7 +1194,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         ref={contentRef}
         onClick={handleClick}
         className={cn(
-          'workflow-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] [&:active]:cursor-grabbing'
+          'workflow-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-lg border border-[var(--border-1)] bg-[var(--surface-2)] [&:active]:cursor-grabbing'
         )}
       >
         {isPending && (
@@ -1228,13 +1228,13 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
         <div
           className={cn(
-            'flex items-center justify-between p-[8px]',
+            'flex items-center justify-between p-2',
             hasContentBelowHeader && 'border-[var(--border-1)] border-b'
           )}
         >
-          <div className='relative z-10 flex min-w-0 flex-1 items-center gap-[10px]'>
+          <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
             <div
-              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
+              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-md'
               style={{
                 background: isEnabled ? config.bgColor : 'gray',
               }}
@@ -1243,7 +1243,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             </div>
             <span
               className={cn(
-                'truncate font-medium text-[16px]',
+                'truncate font-medium text-md',
                 !isEnabled && runPathStatus !== 'success' && 'text-[var(--text-muted)]'
               )}
               title={name}
@@ -1352,7 +1352,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
               </Tooltip.Root>
             )}
             {/* {isActive && (
-              <div className='mr-[2px] ml-2 flex h-[16px] w-[16px] items-center justify-center'>
+              <div className='mr-0.5 ml-2 flex h-[16px] w-[16px] items-center justify-center'>
                 <div
                   className='h-full w-full animate-spin-slow rounded-full border-[2.5px] border-[rgba(255,102,0,0.25)] border-t-[var(--warning)]'
                   aria-hidden='true'
@@ -1363,7 +1363,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         </div>
 
         {hasContentBelowHeader && (
-          <div className='flex flex-col gap-[8px] p-[8px]'>
+          <div className='flex flex-col gap-2 p-2'>
             {type === 'condition' ? (
               conditionRows.map((cond) => (
                 <SubBlockRow key={cond.id} title={cond.title} value={getDisplayValue(cond.value)} />
@@ -1556,9 +1556,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
           </>
         )}
         {hasRing && (
-          <div
-            className={cn('pointer-events-none absolute inset-0 z-40 rounded-[8px]', ringStyles)}
-          />
+          <div className={cn('pointer-events-none absolute inset-0 z-40 rounded-lg', ringStyles)} />
         )}
       </div>
     </div>

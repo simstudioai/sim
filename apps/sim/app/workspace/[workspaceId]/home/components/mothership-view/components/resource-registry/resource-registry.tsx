@@ -67,7 +67,7 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
   const DocIcon = getDocumentIcon('', item.name)
   return (
     <>
-      <DocIcon className='mr-[8px] h-[14px] w-[14px] text-[var(--text-icon)]' />
+      <DocIcon className='mr-2 h-[14px] w-[14px] text-[var(--text-icon)]' />
       <span className='truncate'>{item.name}</span>
     </>
   )
@@ -138,6 +138,7 @@ const RESOURCE_INVALIDATORS: Record<
   knowledgebase: (qc, _wId, id) => {
     qc.invalidateQueries({ queryKey: knowledgeKeys.lists() })
     qc.invalidateQueries({ queryKey: knowledgeKeys.detail(id) })
+    qc.invalidateQueries({ queryKey: knowledgeKeys.tagDefinitions(id) })
   },
 }
 

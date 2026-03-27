@@ -56,7 +56,7 @@ import { useChatStore } from '@/stores/chat/store'
 import { getChatPosition } from '@/stores/chat/utils'
 import { useCurrentWorkflowExecution } from '@/stores/execution'
 import { useOperationQueue } from '@/stores/operation-queue/store'
-import { useTerminalConsoleStore } from '@/stores/terminal'
+import { useTerminalConsoleStore, useWorkflowConsoleEntries } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -265,8 +265,9 @@ export function Chat() {
   )
 
   const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
-  const entriesFromStore = useTerminalConsoleStore((state) => state.entries)
-  const entries = hasConsoleHydrated ? entriesFromStore : []
+  const entries = useWorkflowConsoleEntries(
+    hasConsoleHydrated && typeof activeWorkflowId === 'string' ? activeWorkflowId : undefined
+  )
   const { isExecuting } = useCurrentWorkflowExecution()
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const { data: session } = useSession()
@@ -427,9 +428,8 @@ export function Chat() {
   })
 
   const outputEntries = useMemo(() => {
-    if (!activeWorkflowId) return []
-    return entries.filter((entry) => entry.workflowId === activeWorkflowId && entry.output)
-  }, [entries, activeWorkflowId])
+    return entries.filter((entry) => entry.output)
+  }, [entries])
 
   const workflowMessages = useMemo(() => {
     if (!activeWorkflowId) return []
@@ -901,7 +901,7 @@ export function Chat() {
   return (
     <div
       ref={preventZoomRef}
-      className='fixed z-30 flex flex-col overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] px-[10px] pt-[2px] pb-[8px]'
+      className='fixed z-30 flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
       style={{
         left: `${actualPosition.x}px`,
         top: `${actualPosition.y}px`,
@@ -915,21 +915,21 @@ export function Chat() {
     >
       {/* Header with drag handle */}
       <div
-        className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between gap-[10px] bg-[var(--surface-1)] p-0 active:cursor-grabbing'
+        className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >
-        <span className='flex-shrink-0 pr-[2px] font-medium text-[14px] text-[var(--text-primary)]'>
+        <span className='flex-shrink-0 pr-0.5 font-medium text-[var(--text-primary)] text-sm'>
           Chat
         </span>
 
         {/* Start inputs button and output selector - with max-width to prevent overflow */}
         <div
-          className='ml-auto flex min-w-0 flex-shrink items-center gap-[6px]'
+          className='ml-auto flex min-w-0 flex-shrink items-center gap-1.5'
           onMouseDown={(e) => e.stopPropagation()}
         >
           {shouldShowConfigureStartInputsButton && (
             <div
-              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[9px] py-[2px] font-medium font-sans text-[12px] text-[var(--text-primary)] hover:bg-[var(--surface-7)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]'
+              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-0.5 font-medium font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-7)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]'
               title='Add chat inputs to Start block'
               onMouseDown={(e) => {
                 e.stopPropagation()
@@ -951,7 +951,7 @@ export function Chat() {
           />
         </div>
 
-        <div className='flex flex-shrink-0 items-center gap-[8px]'>
+        <div className='flex flex-shrink-0 items-center gap-2'>
           {/* More menu with actions */}
           <Popover variant='default' size='sm' open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
             <PopoverTrigger asChild>
@@ -1007,12 +1007,12 @@ export function Chat() {
         {/* Messages */}
         <div className='flex-1 overflow-hidden'>
           {workflowMessages.length === 0 ? (
-            <div className='flex h-full items-center justify-center text-[#8D8D8D] text-[13px]'>
+            <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
               No messages yet
             </div>
           ) : (
             <div ref={scrollAreaRef} className='h-full overflow-y-auto overflow-x-hidden'>
-              <div className='w-full max-w-full space-y-[8px] overflow-hidden py-[8px]'>
+              <div className='w-full max-w-full space-y-2 overflow-hidden py-2'>
                 {workflowMessages.map((message) => (
                   <ChatMessage key={message.id} message={message} />
                 ))}
@@ -1032,16 +1032,16 @@ export function Chat() {
           {/* Error messages */}
           {uploadErrors.length > 0 && (
             <div>
-              <div className='rounded-lg border border-[#883827] bg-[#491515]'>
+              <div className='rounded-lg border border-[var(--terminal-status-error-border)] bg-[var(--terminal-status-error-bg)]'>
                 <div className='flex items-start gap-2'>
                   <AlertCircle className='mt-0.5 h-3 w-3 shrink-0 text-[var(--text-error)]' />
                   <div className='flex-1'>
-                    <div className='mb-1 font-medium text-[12px] text-[var(--text-error)]'>
+                    <div className='mb-1 font-medium text-[var(--text-error)] text-caption'>
                       File upload error
                     </div>
                     <div className='space-y-1'>
                       {uploadErrors.map((err, idx) => (
-                        <div key={idx} className='text-[10px] text-[var(--text-error)]'>
+                        <div key={idx} className='text-[var(--text-error)] text-micro'>
                           {err}
                         </div>
                       ))}
@@ -1054,13 +1054,13 @@ export function Chat() {
 
           {/* Combined input container */}
           <div
-            className={`rounded-[4px] border bg-[var(--surface-5)] py-0 pr-[6px] pl-[4px] transition-colors ${
+            className={`rounded-sm border bg-[var(--surface-5)] py-0 pr-1.5 pl-1 transition-colors ${
               isDragOver ? 'border-[var(--brand-secondary)]' : 'border-[var(--border-1)]'
             }`}
           >
             {/* File thumbnails */}
             {chatFiles.length > 0 && (
-              <div className='mt-[4px] flex flex-wrap gap-[6px]'>
+              <div className='mt-1 flex flex-wrap gap-1.5'>
                 {chatFiles.map((file) => {
                   const previewUrl = getFilePreviewUrl(file)
 
@@ -1068,10 +1068,10 @@ export function Chat() {
                     <div
                       key={file.id}
                       className={cn(
-                        'group relative flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface-2)]',
+                        'group relative flex-shrink-0 overflow-hidden rounded-md bg-[var(--surface-2)]',
                         previewUrl
                           ? 'h-[40px] w-[40px]'
-                          : 'flex min-w-[80px] max-w-[120px] items-center justify-center px-[8px] py-[2px]'
+                          : 'flex min-w-[80px] max-w-[120px] items-center justify-center px-2 py-0.5'
                       )}
                     >
                       {previewUrl ? (
@@ -1082,7 +1082,7 @@ export function Chat() {
                         />
                       ) : (
                         <div className='min-w-0 flex-1'>
-                          <div className='truncate font-medium text-[10px] text-[var(--white)]'>
+                          <div className='truncate font-medium text-[var(--white)] text-micro'>
                             {file.name}
                           </div>
                           <div className='text-[9px] text-[var(--text-tertiary)]'>
@@ -1118,18 +1118,18 @@ export function Chat() {
                 }}
                 onKeyDown={handleKeyPress}
                 placeholder={isDragOver ? 'Drop files here...' : 'Type a message...'}
-                className='w-full border-0 bg-transparent pr-[56px] pl-[4px] shadow-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                className='w-full border-0 bg-transparent pr-[56px] pl-1 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0'
                 disabled={!activeWorkflowId}
               />
 
               {/* Buttons positioned absolutely on the right */}
-              <div className='-translate-y-1/2 absolute top-1/2 right-[2px] flex items-center gap-[10px]'>
+              <div className='-translate-y-1/2 absolute top-1/2 right-[2px] flex items-center gap-2.5'>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Badge
                       onClick={() => document.getElementById('floating-chat-file-input')?.click()}
                       className={cn(
-                        '!bg-transparent !border-0 cursor-pointer rounded-[6px] p-[0px]',
+                        '!bg-transparent !border-0 cursor-pointer rounded-md p-[0px]',
                         (!activeWorkflowId || isExecuting || chatFiles.length >= 15) &&
                           'cursor-not-allowed opacity-50'
                       )}
@@ -1143,9 +1143,9 @@ export function Chat() {
                 {isStreaming ? (
                   <Button
                     onClick={handleStopStreaming}
-                    className='!bg-[var(--c-C0C0C0)] hover:!bg-[var(--c-D0D0D0)] h-[22px] w-[22px] rounded-full p-0 transition-colors'
+                    className='h-[22px] w-[22px] rounded-full border-0 bg-[var(--text-primary)] p-0 transition-colors hover-hover:bg-[var(--text-secondary)] dark:bg-[var(--border-1)] dark:hover-hover:bg-[var(--text-body)]'
                   >
-                    <Square className='h-2.5 w-2.5 fill-black text-black' />
+                    <Square className='h-2.5 w-2.5 fill-white text-white dark:fill-black dark:text-black' />
                   </Button>
                 ) : (
                   <Button
@@ -1157,13 +1157,16 @@ export function Chat() {
                       isStreaming
                     }
                     className={cn(
-                      'h-[22px] w-[22px] rounded-full p-0 transition-colors',
+                      'h-[22px] w-[22px] rounded-full border-0 p-0 transition-colors',
                       chatMessage.trim() || chatFiles.length > 0
-                        ? '!bg-[var(--c-C0C0C0)] hover:!bg-[var(--c-D0D0D0)]'
-                        : '!bg-[var(--c-C0C0C0)]'
+                        ? 'bg-[var(--text-primary)] hover-hover:bg-[var(--text-secondary)] dark:bg-[var(--border-1)] dark:hover-hover:bg-[var(--text-body)]'
+                        : 'bg-[var(--text-subtle)] dark:bg-[var(--text-subtle)]'
                     )}
                   >
-                    <ArrowUp className='h-3.5 w-3.5 text-black' strokeWidth={2.25} />
+                    <ArrowUp
+                      className='h-3.5 w-3.5 text-white dark:text-black'
+                      strokeWidth={2.25}
+                    />
                   </Button>
                 )}
               </div>

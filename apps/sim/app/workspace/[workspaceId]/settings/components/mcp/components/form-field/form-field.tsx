@@ -8,11 +8,11 @@ interface FormFieldProps {
 
 export function FormField({ label, children, optional }: FormFieldProps) {
   return (
-    <div className='flex items-center justify-between gap-[12px]'>
-      <Label className='w-[100px] shrink-0 font-medium text-[14px] text-[var(--text-secondary)]'>
+    <div className='flex items-center justify-between gap-3'>
+      <Label className='w-[100px] shrink-0 font-medium text-[var(--text-secondary)] text-sm'>
         {label}
         {optional && (
-          <span className='ml-1 font-normal text-[11px] text-[var(--text-muted)]'>(optional)</span>
+          <span className='ml-1 font-normal text-[var(--text-muted)] text-xs'>(optional)</span>
         )}
       </Label>
       <div className='relative flex-1'>{children}</div>

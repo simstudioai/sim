@@ -134,8 +134,12 @@ export default function SSOForm() {
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className={'font-[500] text-[#ECECEC] text-[32px] tracking-tight'}>Sign in with SSO</h1>
-        <p className={'font-[380] text-[#999] text-[16px]'}>Enter your work email to continue</p>
+        <h1 className={'font-[500] text-[32px] text-[var(--text-primary)] tracking-tight'}>
+          Sign in with SSO
+        </h1>
+        <p className={'font-[380] text-[var(--text-subtle)] text-md'}>
+          Enter your work email to continue
+        </p>
       </div>
 
       <form onSubmit={onSubmit} className={'mt-8 space-y-8'}>
@@ -186,10 +190,12 @@ export default function SSOForm() {
         <>
           <div className='relative my-6 font-light'>
             <div className='absolute inset-0 flex items-center'>
-              <div className='w-full border-[#2A2A2A] border-t' />
+              <div className='w-full border-[var(--landing-bg-elevated)] border-t' />
             </div>
             <div className='relative flex justify-center text-sm'>
-              <span className='bg-[#1C1C1C] px-4 font-[340] text-[#999]'>Or</span>
+              <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--landing-text-muted)]'>
+                Or
+              </span>
             </div>
           </div>
 
@@ -207,24 +213,24 @@ export default function SSOForm() {
 
       {/* Only show signup link if email/password signup is enabled */}
       {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
-        <div className='pt-6 text-center font-light text-[15px]'>
+        <div className='pt-6 text-center font-light text-base'>
           <span className='font-normal'>Don't have an account? </span>
           <Link
             href={`/signup${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
-            className='font-medium text-[#ECECEC] underline-offset-4 transition hover:text-white hover:underline'
+            className='font-medium text-[var(--text-primary)] underline-offset-4 transition hover:text-white hover:underline'
           >
             Sign up
           </Link>
         </div>
       )}
 
-      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[#999] text-[14px] leading-relaxed sm:px-8 md:px-[44px]'>
+      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[var(--text-subtle)] text-sm leading-relaxed sm:px-8 md:px-[44px]'>
         By signing in, you agree to our{' '}
         <Link
           href='/terms'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[#999] underline-offset-4 transition hover:text-[#ECECEC] hover:underline'
+          className='text-[var(--text-subtle)] underline-offset-4 transition hover:text-[var(--text-primary)] hover:underline'
         >
           Terms of Service
         </Link>{' '}
@@ -233,7 +239,7 @@ export default function SSOForm() {
           href='/privacy'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[#999] underline-offset-4 transition hover:text-[#ECECEC] hover:underline'
+          className='text-[var(--text-subtle)] underline-offset-4 transition hover:text-[var(--text-primary)] hover:underline'
         >
           Privacy Policy
         </Link>

@@ -3,6 +3,7 @@ export {
   assistantMessageHasRenderableContent,
   MessageContent,
 } from './message-content'
+export { MothershipChat } from './mothership-chat/mothership-chat'
 export { MothershipView } from './mothership-view'
 export { QueuedMessages } from './queued-messages'
 export { TemplatePrompts } from './template-prompts'

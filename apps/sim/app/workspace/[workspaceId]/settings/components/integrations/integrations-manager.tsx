@@ -30,15 +30,12 @@ import {
   readPendingCredentialCreateRequest,
   writeOAuthReturnContext,
 } from '@/lib/credentials/client-state'
-import {
-  getCanonicalScopesForProvider,
-  getServiceConfigByProviderId,
-  type OAuthProvider,
-} from '@/lib/oauth'
+import { getCanonicalScopesForProvider, getServiceConfigByProviderId } from '@/lib/oauth'
+import { getScopeDescription } from '@/lib/oauth/utils'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { CredentialSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credentials/credential-skeleton'
-import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import {
+  useCreateCredentialDraft,
   useCreateWorkspaceCredential,
   useDeleteWorkspaceCredential,
   useRemoveWorkspaceCredentialMember,
@@ -82,7 +79,8 @@ export function IntegrationsManager() {
   const [detailsError, setDetailsError] = useState<string | null>(null)
   const [selectedDescriptionDraft, setSelectedDescriptionDraft] = useState('')
   const [selectedDisplayNameDraft, setSelectedDisplayNameDraft] = useState('')
-  const [showCreateOAuthRequiredModal, setShowCreateOAuthRequiredModal] = useState(false)
+  const [createStep, setCreateStep] = useState<1 | 2>(1)
+  const [serviceSearch, setServiceSearch] = useState('')
   const [copyIdSuccess, setCopyIdSuccess] = useState(false)
   const [credentialToDelete, setCredentialToDelete] = useState<WorkspaceCredential | null>(null)
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false)
@@ -125,6 +123,7 @@ export function IntegrationsManager() {
     selectedCredential?.id
   )
 
+  const createDraft = useCreateCredentialDraft()
   const createCredential = useCreateWorkspaceCredential()
   const updateCredential = useUpdateWorkspaceCredential()
   const deleteCredential = useDeleteWorkspaceCredential()
@@ -155,11 +154,17 @@ export function IntegrationsManager() {
 
   const sortedCredentials = useMemo(() => {
     return [...filteredCredentials].sort((a, b) => {
-      const aDate = new Date(a.updatedAt).getTime()
-      const bDate = new Date(b.updatedAt).getTime()
-      return bDate - aDate
+      const aProvider = a.providerId || ''
+      const bProvider = b.providerId || ''
+      return aProvider.localeCompare(bProvider)
     })
   }, [filteredCredentials])
+
+  const filteredAvailableIntegrations = useMemo(() => {
+    if (!searchTerm.trim()) return oauthConnections
+    const normalized = searchTerm.toLowerCase()
+    return oauthConnections.filter((service) => service.name.toLowerCase().includes(normalized))
+  }, [oauthConnections, searchTerm])
 
   const oauthServiceOptions = useMemo(
     () =>
@@ -202,6 +207,14 @@ export function IntegrationsManager() {
     return getCanonicalScopesForProvider(createOAuthProviderId)
   }, [selectedOAuthService, createOAuthProviderId])
 
+  const createDisplayScopes = useMemo(
+    () =>
+      createOAuthRequiredScopes.filter(
+        (s) => !s.includes('userinfo.email') && !s.includes('userinfo.profile')
+      ),
+    [createOAuthRequiredScopes]
+  )
+
   const existingOAuthDisplayName = useMemo(() => {
     const name = createDisplayName.trim()
     if (!name) return null
@@ -237,6 +250,8 @@ export function IntegrationsManager() {
           ...(isDisplayNameDirty ? { displayName: selectedDisplayNameDraft.trim() } : {}),
           ...(isDescriptionDirty ? { description: selectedDescriptionDraft.trim() || null } : {}),
         })
+        if (isDisplayNameDirty) setSelectedDisplayNameDraft((v) => v.trim())
+        if (isDescriptionDirty) setSelectedDescriptionDraft((v) => v.trim())
       }
 
       await refetchCredentials()
@@ -254,15 +269,17 @@ export function IntegrationsManager() {
       setShowUnsavedChangesAlert(true)
     } else {
       setSelectedCredentialId(null)
+      setSelectedDescriptionDraft('')
+      setSelectedDisplayNameDraft('')
     }
   }, [isDetailsDirty, isSavingDetails])
 
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedChangesAlert(false)
-    setSelectedDescriptionDraft(selectedCredential?.description || '')
-    setSelectedDisplayNameDraft(selectedCredential?.displayName || '')
+    setSelectedDescriptionDraft('')
+    setSelectedDisplayNameDraft('')
     setSelectedCredentialId(null)
-  }, [selectedCredential])
+  }, [])
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -290,7 +307,6 @@ export function IntegrationsManager() {
       pendingReturnOriginRef.current = request.returnOrigin
 
       setShowCreateModal(true)
-      setShowCreateOAuthRequiredModal(false)
       setCreateError(null)
       setCreateDescription('')
       setCreateOAuthProviderId(request.providerId)
@@ -330,18 +346,6 @@ export function IntegrationsManager() {
     }
   }, [workspaceId, applyPendingCredentialCreateRequest])
 
-  useEffect(() => {
-    if (!selectedCredential) {
-      setSelectedDescriptionDraft('')
-      setSelectedDisplayNameDraft('')
-      return
-    }
-
-    setDetailsError(null)
-    setSelectedDescriptionDraft(selectedCredential.description || '')
-    setSelectedDisplayNameDraft(selectedCredential.displayName)
-  }, [selectedCredential])
-
   const isSelectedAdmin = selectedCredential?.role === 'admin'
   const selectedOAuthServiceConfig = useMemo(() => {
     if (
@@ -360,28 +364,16 @@ export function IntegrationsManager() {
     setCreateDescription('')
     setCreateOAuthProviderId('')
     setCreateError(null)
-    setShowCreateOAuthRequiredModal(false)
+    setCreateStep(1)
+    setServiceSearch('')
     pendingReturnOriginRef.current = undefined
   }
 
   const handleSelectCredential = (credential: WorkspaceCredential) => {
     setSelectedCredentialId(credential.id)
     setDetailsError(null)
-  }
-
-  const handleCreateCredential = async () => {
-    if (!workspaceId) return
-    setCreateError(null)
-
-    if (!selectedOAuthService) {
-      setCreateError('Select an OAuth service before connecting.')
-      return
-    }
-    if (!createDisplayName.trim()) {
-      setCreateError('Display name is required.')
-      return
-    }
-    setShowCreateOAuthRequiredModal(true)
+    setSelectedDescriptionDraft(credential.description || '')
+    setSelectedDisplayNameDraft(credential.displayName)
   }
 
   const handleConnectOAuthService = async () => {
@@ -398,15 +390,11 @@ export function IntegrationsManager() {
 
     setCreateError(null)
     try {
-      await fetch('/api/credentials/draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId,
-          providerId: selectedOAuthService.providerId,
-          displayName,
-          description: createDescription.trim() || undefined,
-        }),
+      await createDraft.mutateAsync({
+        workspaceId,
+        providerId: selectedOAuthService.providerId,
+        displayName,
+        description: createDescription.trim() || undefined,
       })
 
       const oauthPreCount = credentials.filter(
@@ -490,6 +478,8 @@ export function IntegrationsManager() {
 
       if (selectedCredentialId === credentialToDelete.id) {
         setSelectedCredentialId(null)
+        setSelectedDescriptionDraft('')
+        setSelectedDisplayNameDraft('')
       }
       setShowDeleteConfirmDialog(false)
       setCredentialToDelete(null)
@@ -539,16 +529,12 @@ export function IntegrationsManager() {
     setDetailsError(null)
 
     try {
-      await fetch('/api/credentials/draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId,
-          providerId: selectedCredential.providerId,
-          displayName: selectedCredential.displayName,
-          description: selectedCredential.description || undefined,
-          credentialId: selectedCredential.id,
-        }),
+      await createDraft.mutateAsync({
+        workspaceId,
+        providerId: selectedCredential.providerId,
+        displayName: selectedCredential.displayName,
+        description: selectedCredential.description || undefined,
+        credentialId: selectedCredential.id,
       })
 
       const oauthPreCount = credentials.filter(
@@ -618,8 +604,31 @@ export function IntegrationsManager() {
   }
 
   const hasCredentials = oauthCredentials && oauthCredentials.length > 0
+
+  const connectedProviderIds = useMemo(
+    () => new Set(oauthCredentials.map((c) => c.providerId).filter(Boolean) as string[]),
+    [oauthCredentials]
+  )
+
   const showNoResults =
-    searchTerm.trim() && sortedCredentials.length === 0 && oauthCredentials.length > 0
+    searchTerm.trim() &&
+    sortedCredentials.length === 0 &&
+    filteredAvailableIntegrations.length === 0
+
+  const handleAddForProvider = useCallback((providerId: string) => {
+    setCreateOAuthProviderId(providerId)
+    setCreateStep(2)
+    setCreateDisplayName('')
+    setCreateDescription('')
+    setCreateError(null)
+    setShowCreateModal(true)
+  }, [])
+
+  const filteredServices = useMemo(() => {
+    if (!serviceSearch.trim()) return oauthServiceOptions
+    const q = serviceSearch.toLowerCase()
+    return oauthServiceOptions.filter((s) => s.label.toLowerCase().includes(q))
+  }, [oauthServiceOptions, serviceSearch])
 
   const createModalJsx = (
     <Modal
@@ -630,126 +639,197 @@ export function IntegrationsManager() {
       }}
     >
       <ModalContent size='md'>
-        <ModalHeader>Connect Integration</ModalHeader>
-        <ModalBody>
-          {(createError || existingOAuthDisplayName) && (
-            <div className='mb-3 flex flex-col gap-2'>
-              {createError && (
-                <Badge variant='red' size='lg' dot className='max-w-full'>
-                  {createError}
-                </Badge>
+        {createStep === 1 ? (
+          <>
+            <ModalHeader>Connect Integration</ModalHeader>
+            <ModalBody>
+              <div className='flex flex-col gap-3'>
+                <div className='flex items-center gap-2 rounded-[8px] border border-[var(--border)] bg-transparent px-2 py-[5px]'>
+                  <Search
+                    className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+                    strokeWidth={2}
+                  />
+                  <UiInput
+                    placeholder='Search services...'
+                    value={serviceSearch}
+                    onChange={(e) => setServiceSearch(e.target.value)}
+                    className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                    autoFocus
+                  />
+                </div>
+                <div className='flex max-h-[320px] flex-col overflow-y-auto'>
+                  {filteredServices.map((service) => {
+                    const config = getServiceConfigByProviderId(service.value)
+                    return (
+                      <button
+                        key={service.value}
+                        type='button'
+                        onClick={() => {
+                          setCreateOAuthProviderId(service.value)
+                          setCreateStep(2)
+                          setServiceSearch('')
+                        }}
+                        className='flex items-center gap-2.5 rounded-[6px] px-2 py-2 text-left hover:bg-[var(--surface-5)]'
+                      >
+                        <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                          {config ? (
+                            createElement(config.icon, { className: 'h-4 w-4' })
+                          ) : (
+                            <span className='font-medium text-[11px] text-[var(--text-tertiary)]'>
+                              {service.label.slice(0, 2)}
+                            </span>
+                          )}
+                        </div>
+                        <span className='font-medium text-[15px] text-[var(--text-primary)]'>
+                          {service.label}
+                        </span>
+                      </button>
+                    )
+                  })}
+                  {filteredServices.length === 0 && (
+                    <div className='py-6 text-center text-[13px] text-[var(--text-muted)]'>
+                      No services found
+                    </div>
+                  )}
+                </div>
+              </div>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant='default' onClick={() => setShowCreateModal(false)}>
+                Cancel
+              </Button>
+            </ModalFooter>
+          </>
+        ) : (
+          <>
+            <ModalHeader>
+              <div className='flex items-center gap-2.5'>
+                <button
+                  type='button'
+                  onClick={() => {
+                    setCreateStep(1)
+                    setCreateError(null)
+                  }}
+                  className='flex h-6 w-6 items-center justify-center rounded-[4px] text-[var(--text-muted)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                  aria-label='Back'
+                >
+                  ←
+                </button>
+                <span>
+                  Connect{' '}
+                  {selectedOAuthService?.name || resolveProviderLabel(createOAuthProviderId)}
+                </span>
+              </div>
+            </ModalHeader>
+            <ModalBody>
+              {(createError || existingOAuthDisplayName) && (
+                <div className='mb-3 flex flex-col gap-2'>
+                  {createError && (
+                    <Badge variant='red' size='lg' dot className='max-w-full'>
+                      {createError}
+                    </Badge>
+                  )}
+                  {existingOAuthDisplayName && (
+                    <Badge variant='red' size='lg' dot className='max-w-full'>
+                      An integration named "{existingOAuthDisplayName.displayName}" already exists.
+                    </Badge>
+                  )}
+                </div>
               )}
-              {existingOAuthDisplayName && (
-                <Badge variant='red' size='lg' dot className='max-w-full'>
-                  An integration named "{existingOAuthDisplayName.displayName}" already exists.
-                </Badge>
-              )}
-            </div>
-          )}
-          <div className='flex flex-col gap-[12px]'>
-            <div className='flex flex-col gap-[10px]'>
-              <div>
-                <Label>Account</Label>
-                <div className='mt-[6px]'>
-                  <Combobox
-                    options={oauthServiceOptions}
-                    value={
-                      oauthServiceOptions.find((option) => option.value === createOAuthProviderId)
-                        ?.label || ''
-                    }
-                    selectedValue={createOAuthProviderId}
-                    onChange={(value) => {
-                      setCreateOAuthProviderId(value)
-                      setCreateError(null)
-                    }}
-                    placeholder='Select OAuth service'
-                    searchable
-                    searchPlaceholder='Search services...'
-                    overlayContent={
-                      createOAuthProviderId
-                        ? (() => {
-                            const config = getServiceConfigByProviderId(createOAuthProviderId)
-                            const label =
-                              oauthServiceOptions.find((o) => o.value === createOAuthProviderId)
-                                ?.label || ''
-                            return (
-                              <div className='flex items-center gap-[8px]'>
-                                {config &&
-                                  createElement(config.icon, {
-                                    className: 'h-[14px] w-[14px] flex-shrink-0',
-                                  })}
-                                <span className='truncate'>{label}</span>
-                              </div>
-                            )
-                          })()
-                        : undefined
-                    }
+              <div className='flex flex-col gap-4'>
+                <div className='flex items-center gap-3'>
+                  <div className='flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[var(--surface-5)]'>
+                    {selectedOAuthService &&
+                      createElement(selectedOAuthService.icon, { className: 'h-[18px] w-[18px]' })}
+                  </div>
+                  <div>
+                    <p className='font-medium text-[13px] text-[var(--text-primary)]'>
+                      Connect your {selectedOAuthService?.name} account
+                    </p>
+                    <p className='text-[12px] text-[var(--text-tertiary)]'>
+                      Grant access to use {selectedOAuthService?.name} in your workflows
+                    </p>
+                  </div>
+                </div>
+
+                {createDisplayScopes.length > 0 && (
+                  <div className='rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
+                    <div className='border-[var(--border-1)] border-b px-3.5 py-2.5'>
+                      <h4 className='font-medium text-[12px] text-[var(--text-primary)]'>
+                        Permissions requested
+                      </h4>
+                    </div>
+                    <ul className='max-h-[200px] space-y-2.5 overflow-y-auto px-3.5 py-3'>
+                      {createDisplayScopes.map((scope) => (
+                        <li key={scope} className='flex items-start gap-2.5'>
+                          <div className='mt-0.5 flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+                            <Check className='h-[10px] w-[10px] text-[var(--text-primary)]' />
+                          </div>
+                          <span className='text-[12px] text-[var(--text-primary)]'>
+                            {getScopeDescription(scope)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div>
+                  <Label>
+                    Display name<span className='ml-1'>*</span>
+                  </Label>
+                  <Input
+                    value={createDisplayName}
+                    onChange={(event) => setCreateDisplayName(event.target.value)}
+                    placeholder='Integration name'
+                    autoComplete='off'
+                    data-lpignore='true'
+                    className='mt-1.5'
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <Label>Description</Label>
+                  <Textarea
+                    value={createDescription}
+                    onChange={(event) => setCreateDescription(event.target.value)}
+                    placeholder='Optional description'
+                    maxLength={500}
+                    autoComplete='off'
+                    data-lpignore='true'
+                    className='mt-1.5 min-h-[80px] resize-none'
                   />
                 </div>
               </div>
-              <div>
-                <Label>
-                  Display name<span className='ml-1'>*</span>
-                </Label>
-                <Input
-                  value={createDisplayName}
-                  onChange={(event) => setCreateDisplayName(event.target.value)}
-                  placeholder='Integration name'
-                  autoComplete='off'
-                  data-lpignore='true'
-                  className='mt-[6px]'
-                />
-              </div>
-              <div>
-                <Label>Description</Label>
-                <Textarea
-                  value={createDescription}
-                  onChange={(event) => setCreateDescription(event.target.value)}
-                  placeholder='Optional description'
-                  maxLength={500}
-                  autoComplete='off'
-                  data-lpignore='true'
-                  className='mt-[6px] min-h-[80px] resize-none'
-                />
-              </div>
-            </div>
-          </div>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' onClick={() => setShowCreateModal(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant='primary'
-            onClick={handleCreateCredential}
-            disabled={
-              !createOAuthProviderId ||
-              !createDisplayName.trim() ||
-              connectOAuthService.isPending ||
-              Boolean(existingOAuthDisplayName) ||
-              disconnectOAuthService.isPending
-            }
-          >
-            {connectOAuthService.isPending ? 'Connecting...' : 'Connect'}
-          </Button>
-        </ModalFooter>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                variant='default'
+                onClick={() => {
+                  setCreateStep(1)
+                  setCreateError(null)
+                }}
+              >
+                Back
+              </Button>
+              <Button
+                variant='primary'
+                onClick={handleConnectOAuthService}
+                disabled={
+                  !createOAuthProviderId ||
+                  !createDisplayName.trim() ||
+                  connectOAuthService.isPending ||
+                  Boolean(existingOAuthDisplayName) ||
+                  disconnectOAuthService.isPending
+                }
+              >
+                {connectOAuthService.isPending ? 'Connecting...' : 'Connect'}
+              </Button>
+            </ModalFooter>
+          </>
+        )}
       </ModalContent>
     </Modal>
-  )
-
-  const oauthRequiredModalJsx = showCreateOAuthRequiredModal && createOAuthProviderId && (
-    <OAuthRequiredModal
-      isOpen={showCreateOAuthRequiredModal}
-      onClose={() => setShowCreateOAuthRequiredModal(false)}
-      provider={createOAuthProviderId as OAuthProvider}
-      toolName={resolveProviderLabel(createOAuthProviderId)}
-      requiredScopes={createOAuthRequiredScopes}
-      newScopes={[]}
-      serviceId={selectedOAuthService?.id || createOAuthProviderId}
-      onConnect={async () => {
-        await handleConnectOAuthService()
-      }}
-    />
   )
 
   const handleCloseDeleteDialog = () => {
@@ -774,10 +854,10 @@ export function IntegrationsManager() {
             ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
           </p>
           {deleteError && (
-            <div className='mt-[12px] rounded-[8px] border border-red-500/50 bg-red-50 p-[12px] dark:bg-red-950/30'>
-              <div className='flex items-start gap-[10px]'>
+            <div className='mt-3 rounded-lg border border-red-500/50 bg-red-50 p-3 dark:bg-red-950/30'>
+              <div className='flex items-start gap-2.5'>
                 <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
-                <p className='text-[13px] text-red-700 dark:text-red-300'>{deleteError}</p>
+                <p className='text-red-700 text-small dark:text-red-300'>{deleteError}</p>
               </div>
             </div>
           )}
@@ -822,24 +902,24 @@ export function IntegrationsManager() {
   if (selectedCredential) {
     return (
       <>
-        <div className='flex h-full flex-col gap-[18px]'>
+        <div className='flex h-full flex-col gap-4.5'>
           <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='flex flex-col gap-[18px]'>
-              <div className='flex items-center gap-[10px] border-[var(--border)] border-b pb-[12px]'>
-                <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-[var(--surface-5)]'>
+            <div className='flex flex-col gap-4.5'>
+              <div className='flex items-center gap-2.5 border-[var(--border)] border-b pb-3'>
+                <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-5)]'>
                   {selectedOAuthServiceConfig ? (
                     createElement(selectedOAuthServiceConfig.icon, {
                       className: 'h-[18px] w-[18px]',
                     })
                   ) : (
-                    <span className='font-medium text-[13px] text-[var(--text-tertiary)]'>
+                    <span className='font-medium text-[var(--text-tertiary)] text-small'>
                       {resolveProviderLabel(selectedCredential.providerId).slice(0, 1)}
                     </span>
                   )}
                 </div>
                 <div className='min-w-0 flex-1'>
-                  <div className='flex items-center gap-[8px]'>
-                    <p className='truncate font-medium text-[15px] text-[var(--text-primary)]'>
+                  <div className='flex items-center gap-2'>
+                    <p className='truncate font-medium text-[var(--text-primary)] text-base'>
                       {resolveProviderLabel(selectedCredential.providerId) || 'Unknown service'}
                     </p>
                     <Badge variant='gray-secondary' size='sm'>
@@ -851,12 +931,12 @@ export function IntegrationsManager() {
                       </Badge>
                     )}
                   </div>
-                  <p className='text-[13px] text-[var(--text-muted)]'>Connected service</p>
+                  <p className='text-[var(--text-muted)] text-small'>Connected service</p>
                 </div>
               </div>
 
-              <div className='flex flex-col gap-[6px]'>
-                <Label className='flex items-center gap-[6px]'>
+              <div className='flex flex-col gap-1.5'>
+                <Label className='flex items-center gap-1.5'>
                   Display Name
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
@@ -892,7 +972,7 @@ export function IntegrationsManager() {
                 />
               </div>
 
-              <div className='flex flex-col gap-[6px]'>
+              <div className='flex flex-col gap-1.5'>
                 <Label>Description</Label>
                 <Textarea
                   id='credential-description'
@@ -908,42 +988,42 @@ export function IntegrationsManager() {
               </div>
 
               {detailsError && (
-                <div className='rounded-[8px] border border-[var(--status-red)]/40 bg-[var(--status-red)]/10 px-[10px] py-[8px] text-[13px] text-[var(--status-red)]'>
+                <div className='rounded-lg border border-[color-mix(in_srgb,var(--status-red)_40%,transparent)] bg-[color-mix(in_srgb,var(--status-red)_10%,transparent)] px-2.5 py-2 text-[var(--status-red)] text-small'>
                   {detailsError}
                 </div>
               )}
 
-              <div className='flex flex-col gap-[6px] border-[var(--border)] border-t pt-[16px]'>
+              <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
                 <Label>Members ({activeMembers.length})</Label>
 
                 {membersLoading ? (
-                  <div className='flex flex-col gap-[8px]'>
-                    <Skeleton className='h-[44px] w-full rounded-[8px]' />
-                    <Skeleton className='h-[44px] w-full rounded-[8px]' />
+                  <div className='flex flex-col gap-2'>
+                    <Skeleton className='h-[44px] w-full rounded-lg' />
+                    <Skeleton className='h-[44px] w-full rounded-lg' />
                   </div>
                 ) : (
-                  <div className='flex flex-col gap-[8px]'>
+                  <div className='flex flex-col gap-2'>
                     {activeMembers.map((member) => (
                       <div
                         key={member.id}
-                        className='grid grid-cols-[1fr_120px_72px] items-center gap-[8px]'
+                        className='grid grid-cols-[1fr_120px_72px] items-center gap-2'
                       >
-                        <div className='flex min-w-0 items-center gap-[10px]'>
+                        <div className='flex min-w-0 items-center gap-2.5'>
                           <Avatar className='h-8 w-8 flex-shrink-0'>
                             <AvatarFallback
                               style={{
                                 background: getUserColor(member.userId || member.userEmail || ''),
                               }}
-                              className='border-0 text-[13px] text-white'
+                              className='border-0 text-small text-white'
                             >
                               {(member.userName || member.userEmail || '?').charAt(0).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <div className='min-w-0'>
-                            <p className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                            <p className='truncate font-medium text-[var(--text-primary)] text-sm'>
                               {member.userName || member.userEmail || member.userId}
                             </p>
-                            <p className='truncate text-[12px] text-[var(--text-tertiary)]'>
+                            <p className='truncate text-[var(--text-tertiary)] text-caption'>
                               {member.userEmail || member.userId}
                             </p>
                           </div>
@@ -989,7 +1069,7 @@ export function IntegrationsManager() {
                       </div>
                     ))}
                     {isSelectedAdmin && (
-                      <div className='grid grid-cols-[1fr_120px_72px] items-center gap-[8px] border-[var(--border)] border-t pt-[8px]'>
+                      <div className='grid grid-cols-[1fr_120px_72px] items-center gap-2 border-[var(--border)] border-t pt-2'>
                         <Combobox
                           options={workspaceUserOptions}
                           value={
@@ -1032,8 +1112,8 @@ export function IntegrationsManager() {
             </div>
           </div>
 
-          <div className='mt-auto flex items-center justify-between border-[var(--border)] border-t pt-[10px]'>
-            <div className='flex items-center gap-[8px]'>
+          <div className='mt-auto flex items-center justify-between border-[var(--border)] border-t pt-2.5'>
+            <div className='flex items-center gap-2'>
               {isSelectedAdmin && (
                 <>
                   <Button
@@ -1051,7 +1131,7 @@ export function IntegrationsManager() {
                       onClick={handleShareWithWorkspace}
                       disabled={isShareingWithWorkspace || workspaceUserOptions.length === 0}
                     >
-                      <Share2 className='mr-[6px] h-[13px] w-[13px]' />
+                      <Share2 className='mr-1.5 h-[13px] w-[13px]' />
                       {isShareingWithWorkspace ? 'Sharing...' : 'Share'}
                     </Button>
                   )}
@@ -1065,7 +1145,7 @@ export function IntegrationsManager() {
                 </>
               )}
             </div>
-            <div className='flex items-center gap-[8px]'>
+            <div className='flex items-center gap-2'>
               <Button onClick={handleBackAttempt} variant='default'>
                 Back
               </Button>
@@ -1083,7 +1163,6 @@ export function IntegrationsManager() {
         </div>
 
         {createModalJsx}
-        {oauthRequiredModalJsx}
         {deleteConfirmDialogJsx}
         {unsavedChangesAlertJsx}
       </>
@@ -1092,9 +1171,9 @@ export function IntegrationsManager() {
 
   return (
     <>
-      <div className='flex h-full flex-col gap-[18px]'>
-        <div className='flex items-center gap-[8px]'>
-          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
+      <div className='flex h-full flex-col gap-4.5'>
+        <div className='flex items-center gap-2'>
+          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
@@ -1112,47 +1191,42 @@ export function IntegrationsManager() {
             disabled={credentialsLoading}
             variant='primary'
           >
-            <Plus className='mr-[6px] h-[13px] w-[13px]' />
+            <Plus className='mr-1.5 h-[13px] w-[13px]' />
             Connect
           </Button>
         </div>
 
         <div className='min-h-0 flex-1 overflow-y-auto'>
           {credentialsLoading ? (
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               <CredentialSkeleton />
               <CredentialSkeleton />
               <CredentialSkeleton />
-            </div>
-          ) : !hasCredentials ? (
-            <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
-              Click "Connect" above to get started
             </div>
           ) : (
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               {sortedCredentials.map((credential) => {
                 const serviceConfig = credential.providerId
                   ? getServiceConfigByProviderId(credential.providerId)
                   : null
-
                 return (
-                  <div key={credential.id} className='flex items-center justify-between gap-[12px]'>
-                    <div className='flex min-w-0 items-center gap-[10px]'>
+                  <div key={credential.id} className='flex items-center justify-between gap-3'>
+                    <div className='flex min-w-0 items-center gap-2.5'>
                       {serviceConfig && (
-                        <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                        <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-5)]'>
                           {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}
                         </div>
                       )}
                       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                        <span className='truncate font-medium text-[15px]'>
+                        <span className='truncate font-medium text-base'>
                           {credential.displayName}
                         </span>
-                        <p className='truncate text-[14px] text-[var(--text-muted)]'>
+                        <p className='truncate text-[var(--text-muted)] text-sm'>
                           {credential.description || resolveProviderLabel(credential.providerId)}
                         </p>
                       </div>
                     </div>
-                    <div className='flex flex-shrink-0 items-center gap-[4px]'>
+                    <div className='flex flex-shrink-0 items-center gap-1'>
                       <Button variant='default' onClick={() => handleSelectCredential(credential)}>
                         Details
                       </Button>
@@ -1169,9 +1243,45 @@ export function IntegrationsManager() {
                   </div>
                 )
               })}
+
               {showNoResults && (
-                <div className='py-[16px] text-center text-[14px] text-[var(--text-muted)]'>
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                   No integrations found matching &ldquo;{searchTerm}&rdquo;
+                </div>
+              )}
+
+              {filteredAvailableIntegrations.length > 0 && (
+                <div
+                  className={`flex flex-col gap-2${hasCredentials || showNoResults ? ' mt-2 border-[var(--border)] border-t pt-4' : ''}`}
+                >
+                  <p className='mb-1 font-medium text-[12px] text-[var(--text-muted)]'>
+                    Available integrations
+                  </p>
+                  {filteredAvailableIntegrations.map((service) => {
+                    const serviceConfig = getServiceConfigByProviderId(service.providerId)
+                    const isConnected = connectedProviderIds.has(service.providerId)
+                    return (
+                      <div
+                        key={service.providerId}
+                        className='flex items-center justify-between gap-3'
+                      >
+                        <div className='flex min-w-0 items-center gap-2.5'>
+                          {serviceConfig && (
+                            <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                              {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}
+                            </div>
+                          )}
+                          <span className='truncate font-medium text-[15px]'>{service.name}</span>
+                        </div>
+                        <Button
+                          variant='default'
+                          onClick={() => handleAddForProvider(service.providerId)}
+                        >
+                          {isConnected ? 'Add account' : 'Connect'}
+                        </Button>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -1180,7 +1290,6 @@ export function IntegrationsManager() {
       </div>
 
       {createModalJsx}
-      {oauthRequiredModalJsx}
       {deleteConfirmDialogJsx}
     </>
   )

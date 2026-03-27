@@ -304,7 +304,7 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
 
 function MockUserInput({ text }: { text: string }) {
   return (
-    <div className='flex w-[380px] items-center gap-[6px] rounded-[16px] border border-[#E0E0E0] bg-white px-[10px] py-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'>
+    <div className='flex w-[380px] items-center gap-1.5 rounded-[16px] border border-[#E0E0E0] bg-white px-2.5 py-2 shadow-[0_2px_8px_rgba(0,0,0,0.06)]'>
       <div className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-full border border-[#E8E8E8]'>
         <svg width='12' height='12' viewBox='0 0 12 12' fill='none'>
           <path d='M6 2.5v7M2.5 6h7' stroke='#999' strokeWidth='1.5' strokeLinecap='round' />
@@ -364,7 +364,7 @@ function MiniCardHeader({
   color?: string
 }) {
   return (
-    <div className='flex items-center gap-[4px] border-[#F0F0F0] border-b px-[8px] py-[5px]'>
+    <div className='flex items-center gap-1 border-[#F0F0F0] border-b px-2 py-1.5'>
       <MiniCardIcon variant={variant} color={color} />
       <span className='truncate font-medium text-[#888] text-[7px] leading-none'>{label}</span>
     </div>
@@ -419,7 +419,7 @@ function MiniCardBody({ variant, color }: { variant: CardVariant; color?: string
 
 function PromptCardBody() {
   return (
-    <div className='px-[8px] py-[6px]'>
+    <div className='px-2 py-1.5'>
       <p className='break-words text-[#AAAAAA] text-[6.5px] leading-[10px]'>{TYPING_PROMPT}</p>
     </div>
   )
@@ -427,7 +427,7 @@ function PromptCardBody() {
 
 function FileCardBody() {
   return (
-    <div className='flex flex-col gap-[3px] px-[8px] py-[6px]'>
+    <div className='flex flex-col gap-[3px] px-2 py-1.5'>
       <div className='h-[2px] w-[78%] rounded-full bg-[#E8E8E8]' />
       <div className='h-[2px] w-[92%] rounded-full bg-[#E8E8E8]' />
       <div className='h-[2px] w-[62%] rounded-full bg-[#E8E8E8]' />
@@ -450,7 +450,7 @@ const TABLE_ROW_WIDTHS = [
 function TableCardBody() {
   return (
     <div className='flex flex-col'>
-      <div className='flex items-center gap-[4px] bg-[#FAFAFA] px-[6px] py-[3px]'>
+      <div className='flex items-center gap-1 bg-[#FAFAFA] px-1.5 py-[3px]'>
         <div className='h-[2px] flex-1 rounded-full bg-[#D4D4D4]' />
         <div className='h-[2px] flex-1 rounded-full bg-[#D4D4D4]' />
         <div className='h-[2px] flex-1 rounded-full bg-[#D4D4D4]' />
@@ -458,7 +458,7 @@ function TableCardBody() {
       {TABLE_ROW_WIDTHS.map((row, i) => (
         <div
           key={i}
-          className='flex items-center gap-[4px] border-[#F5F5F5] border-b px-[6px] py-[3.5px]'
+          className='flex items-center gap-1 border-[#F5F5F5] border-b px-1.5 py-[3.5px]'
         >
           <div className='h-[1.5px] rounded-full bg-[#EBEBEB]' style={{ width: `${row[0]}%` }} />
           <div className='h-[1.5px] rounded-full bg-[#EBEBEB]' style={{ width: `${row[1]}%` }} />
@@ -472,17 +472,17 @@ function TableCardBody() {
 function WorkflowCardBody({ color }: { color: string }) {
   return (
     <div className='relative h-full w-full'>
-      <div className='absolute top-[10px] left-[10px] h-[14px] w-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8]' />
+      <div className='absolute top-2.5 left-[10px] h-[14px] w-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8]' />
       <div className='absolute top-[16px] left-[24px] h-[1px] w-[16px] bg-[#D8D8D8]' />
       <div
-        className='absolute top-[10px] left-[40px] h-[14px] w-[14px] rounded-[3px] border-[2px]'
+        className='absolute top-2.5 left-[40px] h-[14px] w-[14px] rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
           borderColor: `${color}60`,
           backgroundClip: 'padding-box',
         }}
       />
-      <div className='absolute top-[24px] left-[46px] h-[12px] w-[1px] bg-[#D8D8D8]' />
+      <div className='absolute top-6 left-[46px] h-[12px] w-[1px] bg-[#D8D8D8]' />
       <div className='absolute top-[36px] left-[40px] h-[14px] w-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8]' />
       <div className='absolute top-[42px] left-[54px] h-[1px] w-[14px] bg-[#D8D8D8]' />
       <div
@@ -502,9 +502,9 @@ const KB_WIDTHS = [70, 85, 55, 80, 48] as const
 
 function KnowledgeCardBody() {
   return (
-    <div className='flex flex-col gap-[5px] px-[8px] py-[6px]'>
+    <div className='flex flex-col gap-[5px] px-2 py-1.5'>
       {KB_WIDTHS.map((w, i) => (
-        <div key={i} className='flex items-center gap-[4px]'>
+        <div key={i} className='flex items-center gap-1'>
           <div className='h-[3px] w-[3px] flex-shrink-0 rounded-full bg-[#D4D4D4]' />
           <div className='h-[1.5px] rounded-full bg-[#E8E8E8]' style={{ width: `${w}%` }} />
         </div>
@@ -524,9 +524,9 @@ const LOG_ENTRIES = [
 
 function LogsCardBody() {
   return (
-    <div className='flex flex-col gap-[3px] px-[6px] py-[4px]'>
+    <div className='flex flex-col gap-[3px] px-1.5 py-1'>
       {LOG_ENTRIES.map((entry, i) => (
-        <div key={i} className='flex items-center gap-[4px] py-[1px]'>
+        <div key={i} className='flex items-center gap-1 py-[1px]'>
           <div
             className='h-[3px] w-[3px] flex-shrink-0 rounded-full'
             style={{ backgroundColor: entry.color }}
@@ -608,17 +608,20 @@ const MOCK_KB_DATA = [
 
 const MD_COMPONENTS: Components = {
   h1: ({ children }) => (
-    <h1 className='mb-4 border-[#E5E5E5] border-b pb-2 font-semibold text-[#1C1C1C] text-[20px]'>
+    <p
+      role='presentation'
+      className='mb-4 border-[#E5E5E5] border-b pb-2 font-semibold text-[#1C1C1C] text-[20px]'
+    >
       {children}
-    </h1>
+    </p>
   ),
   h2: ({ children }) => (
     <h2 className='mt-5 mb-3 border-[#E5E5E5] border-b pb-1.5 font-semibold text-[#1C1C1C] text-[16px]'>
       {children}
     </h2>
   ),
-  ul: ({ children }) => <ul className='mb-3 list-disc pl-[24px]'>{children}</ul>,
-  ol: ({ children }) => <ol className='mb-3 list-decimal pl-[24px]'>{children}</ol>,
+  ul: ({ children }) => <ul className='mb-3 list-disc pl-6'>{children}</ul>,
+  ol: ({ children }) => <ol className='mb-3 list-decimal pl-6'>{children}</ol>,
   li: ({ children }) => (
     <li className='mb-1 text-[#1C1C1C] text-[14px] leading-[1.6]'>{children}</li>
   ),
@@ -630,8 +633,8 @@ function MockFullFiles() {
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-[24px]'>
-        <div className='flex items-center gap-[6px]'>
+      <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
+        <div className='flex items-center gap-1.5'>
           <File className='h-[14px] w-[14px] text-[#999]' />
           <span className='text-[#999] text-[13px]'>Files</span>
           <span className='text-[#D4D4D4] text-[13px]'>/</span>
@@ -651,7 +654,7 @@ function MockFullFiles() {
             onChange={(e) => setSource(e.target.value)}
             spellCheck={false}
             autoCorrect='off'
-            className='h-full w-full resize-none overflow-auto whitespace-pre-wrap bg-transparent p-[24px] font-[300] font-mono text-[#1C1C1C] text-[12px] leading-[1.7] outline-none'
+            className='h-full w-full resize-none overflow-auto whitespace-pre-wrap bg-transparent p-6 font-[300] font-mono text-[#1C1C1C] text-[12px] leading-[1.7] outline-none'
           />
         </motion.div>
 
@@ -663,7 +666,7 @@ function MockFullFiles() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.4, delay: 0.5 }}
         >
-          <div className='h-full overflow-auto p-[24px]'>
+          <div className='h-full overflow-auto p-6'>
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
               {source}
             </ReactMarkdown>
@@ -683,8 +686,8 @@ const KB_STATUS_STYLES: Record<string, { bg: string; text: string; label: string
 function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-[24px]'>
-        <div className='flex items-center gap-[6px]'>
+      <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
+        <div className='flex items-center gap-1.5'>
           <Database className='h-[14px] w-[14px] text-[#999]' />
           <span className='text-[#999] text-[13px]'>Knowledge Base</span>
           <span className='text-[#D4D4D4] text-[13px]'>/</span>
@@ -692,12 +695,12 @@ function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
         </div>
       </div>
 
-      <div className='flex h-[36px] shrink-0 items-center border-[#E5E5E5] border-b px-[24px]'>
-        <div className='flex items-center gap-[6px]'>
-          <div className='flex h-[24px] items-center gap-[4px] rounded-[6px] border border-[#E5E5E5] px-[8px] text-[#999] text-[12px]'>
+      <div className='flex h-[36px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
+        <div className='flex items-center gap-1.5'>
+          <div className='flex h-[24px] items-center gap-1 rounded-[6px] border border-[#E5E5E5] px-2 text-[#999] text-[12px]'>
             Sort
           </div>
-          <div className='flex h-[24px] items-center gap-[4px] rounded-[6px] border border-[#E5E5E5] px-[8px] text-[#999] text-[12px]'>
+          <div className='flex h-[24px] items-center gap-1 rounded-[6px] border border-[#E5E5E5] px-2 text-[#999] text-[12px]'>
             Filter
           </div>
         </div>
@@ -713,7 +716,7 @@ function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
           </colgroup>
           <thead>
             <tr>
-              <th className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-[4px] py-[7px] text-center align-middle'>
+              <th className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-1 py-[7px] text-center align-middle'>
                 <div className='flex items-center justify-center'>
                   <div className='h-[13px] w-[13px] rounded-[2px] border border-[#D4D4D4]' />
                 </div>
@@ -721,7 +724,7 @@ function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
               {MOCK_KB_COLUMNS.map((col) => (
                 <th
                   key={col}
-                  className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-[8px] py-[7px] text-left align-middle'
+                  className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-2 py-[7px] text-left align-middle'
                 >
                   <span className='font-base text-[#999] text-[13px]'>{col}</span>
                 </th>
@@ -739,11 +742,11 @@ function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, ease: 'easeOut' }}
                 >
-                  <td className='border-[#E5E5E5] border-r border-b px-[4px] py-[7px] text-center align-middle'>
+                  <td className='border-[#E5E5E5] border-r border-b px-1 py-[7px] text-center align-middle'>
                     <span className='text-[#999] text-[11px] tabular-nums'>{i + 1}</span>
                   </td>
-                  <td className='border-[#E5E5E5] border-r border-b px-[8px] py-[7px] align-middle'>
-                    <span className='flex items-center gap-[8px] text-[#1C1C1C] text-[13px]'>
+                  <td className='border-[#E5E5E5] border-r border-b px-2 py-[7px] align-middle'>
+                    <span className='flex items-center gap-2 text-[#1C1C1C] text-[13px]'>
                       <DocIcon className='h-[14px] w-[14px] shrink-0' />
                       <span className='truncate'>{row[0]}</span>
                     </span>
@@ -751,14 +754,14 @@ function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
                   {row.slice(1, 4).map((cell, j) => (
                     <td
                       key={j}
-                      className='border-[#E5E5E5] border-r border-b px-[8px] py-[7px] align-middle'
+                      className='border-[#E5E5E5] border-r border-b px-2 py-[7px] align-middle'
                     >
                       <span className='text-[#999] text-[13px]'>{cell}</span>
                     </td>
                   ))}
-                  <td className='border-[#E5E5E5] border-r border-b px-[8px] py-[7px] align-middle'>
+                  <td className='border-[#E5E5E5] border-r border-b px-2 py-[7px] align-middle'>
                     <span
-                      className='inline-flex items-center rounded-full px-[8px] py-[2px] font-medium text-[11px]'
+                      className='inline-flex items-center rounded-full px-2 py-0.5 font-medium text-[11px]'
                       style={{ backgroundColor: status.bg, color: status.text }}
                     >
                       {status.label}
@@ -882,8 +885,8 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
   return (
     <div className='relative flex h-full'>
       <div className='flex min-w-0 flex-1 flex-col'>
-        <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-[24px]'>
-          <div className='flex items-center gap-[6px]'>
+        <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
+          <div className='flex items-center gap-1.5'>
             <Library className='h-[14px] w-[14px] text-[#999]' />
             <span className='font-medium text-[#1C1C1C] text-[13px]'>Logs</span>
           </div>
@@ -899,7 +902,7 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
             <thead className='shadow-[inset_0_-1px_0_#E5E5E5]'>
               <tr>
                 {['Workflow', 'Date', 'Status', 'Cost', 'Trigger', 'Duration'].map((col) => (
-                  <th key={col} className='h-10 px-[24px] py-[10px] text-left align-middle'>
+                  <th key={col} className='h-10 px-6 py-2.5 text-left align-middle'>
                     <span className='font-base text-[#999] text-[13px]'>{col}</span>
                   </th>
                 ))}
@@ -921,8 +924,8 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
                     )}
                     onClick={() => setSelectedRow(i)}
                   >
-                    <td className='px-[24px] py-[10px] align-middle'>
-                      <span className='flex items-center gap-[12px] font-medium text-[#1C1C1C] text-[14px]'>
+                    <td className='px-6 py-2.5 align-middle'>
+                      <span className='flex items-center gap-3 font-medium text-[#1C1C1C] text-[14px]'>
                         <div
                           className='h-[10px] w-[10px] shrink-0 rounded-[3px] border-[1.5px]'
                           style={{
@@ -934,26 +937,26 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
                         <span className='truncate'>{row[0]}</span>
                       </span>
                     </td>
-                    <td className='px-[24px] py-[10px] align-middle'>
+                    <td className='px-6 py-2.5 align-middle'>
                       <span className='font-medium text-[#999] text-[14px]'>{row[1]}</span>
                     </td>
-                    <td className='px-[24px] py-[10px] align-middle'>
+                    <td className='px-6 py-2.5 align-middle'>
                       <span
-                        className='inline-flex items-center rounded-full px-[8px] py-[2px] font-medium text-[11px]'
+                        className='inline-flex items-center rounded-full px-2 py-0.5 font-medium text-[11px]'
                         style={{ backgroundColor: statusStyle.bg, color: statusStyle.text }}
                       >
                         {statusStyle.label}
                       </span>
                     </td>
-                    <td className='px-[24px] py-[10px] align-middle'>
+                    <td className='px-6 py-2.5 align-middle'>
                       <span className='font-medium text-[#999] text-[14px]'>{row[3]}</span>
                     </td>
-                    <td className='px-[24px] py-[10px] align-middle'>
-                      <span className='rounded-[4px] bg-[#F5F5F5] px-[6px] py-[2px] text-[#666] text-[11px]'>
+                    <td className='px-6 py-2.5 align-middle'>
+                      <span className='rounded-[4px] bg-[#F5F5F5] px-1.5 py-0.5 text-[#666] text-[11px]'>
                         {row[4]}
                       </span>
                     </td>
-                    <td className='px-[24px] py-[10px] align-middle'>
+                    <td className='px-6 py-2.5 align-middle'>
                       <span className='font-medium text-[#999] text-[14px]'>{row[5]}</span>
                     </td>
                   </motion.tr>
@@ -998,7 +1001,7 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
   const isNextDisabled = selectedRow === MOCK_LOG_DATA.length - 1
 
   return (
-    <div className='flex h-full flex-col overflow-y-auto px-[14px] pt-[12px]'>
+    <div className='flex h-full flex-col overflow-y-auto px-3.5 pt-3'>
       <div className='flex items-center justify-between'>
         <span className='font-medium text-[#1C1C1C] text-[14px]'>Log Details</span>
         <div className='flex items-center gap-[1px]'>
@@ -1027,18 +1030,18 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
         </div>
       </div>
 
-      <div className='mt-[20px] flex flex-col gap-[10px]'>
-        <div className='flex items-center gap-[16px] px-[1px]'>
-          <div className='flex w-[120px] shrink-0 flex-col gap-[8px]'>
+      <div className='mt-5 flex flex-col gap-2.5'>
+        <div className='flex items-center gap-4 px-[1px]'>
+          <div className='flex w-[120px] shrink-0 flex-col gap-2'>
             <span className='font-medium text-[#999] text-[12px]'>Timestamp</span>
-            <div className='flex items-center gap-[6px]'>
+            <div className='flex items-center gap-1.5'>
               <span className='font-medium text-[#666] text-[13px]'>{date}</span>
               <span className='font-medium text-[#666] text-[13px]'>{time}</span>
             </div>
           </div>
-          <div className='flex min-w-0 flex-1 flex-col gap-[8px]'>
+          <div className='flex min-w-0 flex-1 flex-col gap-2'>
             <span className='font-medium text-[#999] text-[12px]'>Workflow</span>
-            <div className='flex items-center gap-[8px]'>
+            <div className='flex items-center gap-2'>
               <div
                 className='h-[10px] w-[10px] shrink-0 rounded-[3px] border-[1.5px]'
                 style={{
@@ -1053,42 +1056,39 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
         </div>
 
         <div className='flex flex-col'>
-          <div className='flex h-[42px] items-center justify-between border-[#E5E5E5] border-b px-[8px]'>
+          <div className='flex h-[42px] items-center justify-between border-[#E5E5E5] border-b px-2'>
             <span className='font-medium text-[#999] text-[12px]'>Level</span>
             <span
-              className='inline-flex items-center rounded-full px-[8px] py-[2px] font-medium text-[11px]'
+              className='inline-flex items-center rounded-full px-2 py-0.5 font-medium text-[11px]'
               style={{ backgroundColor: statusStyle.bg, color: statusStyle.text }}
             >
               {statusStyle.label}
             </span>
           </div>
-          <div className='flex h-[42px] items-center justify-between border-[#E5E5E5] border-b px-[8px]'>
+          <div className='flex h-[42px] items-center justify-between border-[#E5E5E5] border-b px-2'>
             <span className='font-medium text-[#999] text-[12px]'>Trigger</span>
-            <span className='rounded-[4px] bg-[#F5F5F5] px-[6px] py-[2px] text-[#666] text-[11px]'>
+            <span className='rounded-[4px] bg-[#F5F5F5] px-1.5 py-0.5 text-[#666] text-[11px]'>
               {row[4]}
             </span>
           </div>
-          <div className='flex h-[42px] items-center justify-between px-[8px]'>
+          <div className='flex h-[42px] items-center justify-between px-2'>
             <span className='font-medium text-[#999] text-[12px]'>Duration</span>
             <span className='font-medium text-[#666] text-[13px]'>{row[5]}</span>
           </div>
         </div>
 
-        <div className='flex flex-col gap-[6px] rounded-[6px] border border-[#E5E5E5] bg-[#FAFAFA] px-[10px] py-[8px]'>
+        <div className='flex flex-col gap-1.5 rounded-[6px] border border-[#E5E5E5] bg-[#FAFAFA] px-2.5 py-2'>
           <span className='font-medium text-[#999] text-[12px]'>Workflow Output</span>
-          <div className='rounded-[6px] bg-[#F0F0F0] p-[10px] font-mono text-[#555] text-[11px] leading-[1.5]'>
+          <div className='rounded-[6px] bg-[#F0F0F0] p-2.5 font-mono text-[#555] text-[11px] leading-[1.5]'>
             {detail.output}
           </div>
         </div>
 
-        <div className='flex flex-col gap-[6px] rounded-[6px] border border-[#E5E5E5] bg-[#FAFAFA] px-[10px] py-[8px]'>
+        <div className='flex flex-col gap-1.5 rounded-[6px] border border-[#E5E5E5] bg-[#FAFAFA] px-2.5 py-2'>
           <span className='font-medium text-[#999] text-[12px]'>Trace Spans</span>
-          <div className='flex flex-col gap-[6px]'>
+          <div className='flex flex-col gap-1.5'>
             {detail.spans.map((span, i) => (
-              <div
-                key={i}
-                className={cn('flex flex-col gap-[3px]', span.depth === 1 && 'ml-[12px]')}
-              >
+              <div key={i} className={cn('flex flex-col gap-[3px]', span.depth === 1 && 'ml-3')}>
                 <div className='flex items-center justify-between'>
                   <span className='font-mono text-[#555] text-[11px]'>{span.name}</span>
                   <span className='font-medium text-[#999] text-[11px]'>{span.ms}ms</span>
@@ -1113,8 +1113,8 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-[24px]'>
-        <div className='flex items-center gap-[6px]'>
+      <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
+        <div className='flex items-center gap-1.5'>
           <Table className='h-[14px] w-[14px] text-[#999]' />
           <span className='text-[#999] text-[13px]'>Tables</span>
           <span className='text-[#D4D4D4] text-[13px]'>/</span>
@@ -1122,12 +1122,12 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
         </div>
       </div>
 
-      <div className='flex h-[36px] shrink-0 items-center border-[#E5E5E5] border-b px-[24px]'>
-        <div className='flex items-center gap-[6px]'>
-          <div className='flex h-[24px] items-center gap-[4px] rounded-[6px] border border-[#E5E5E5] px-[8px] text-[#999] text-[12px]'>
+      <div className='flex h-[36px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
+        <div className='flex items-center gap-1.5'>
+          <div className='flex h-[24px] items-center gap-1 rounded-[6px] border border-[#E5E5E5] px-2 text-[#999] text-[12px]'>
             Sort
           </div>
-          <div className='flex h-[24px] items-center gap-[4px] rounded-[6px] border border-[#E5E5E5] px-[8px] text-[#999] text-[12px]'>
+          <div className='flex h-[24px] items-center gap-1 rounded-[6px] border border-[#E5E5E5] px-2 text-[#999] text-[12px]'>
             Filter
           </div>
         </div>
@@ -1143,7 +1143,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
           </colgroup>
           <thead>
             <tr>
-              <th className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-[4px] py-[7px] text-center align-middle'>
+              <th className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-1 py-[7px] text-center align-middle'>
                 <div className='flex items-center justify-center'>
                   <div className='h-[13px] w-[13px] rounded-[2px] border border-[#D4D4D4]' />
                 </div>
@@ -1151,9 +1151,9 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
               {MOCK_TABLE_COLUMNS.map((col) => (
                 <th
                   key={col}
-                  className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-[8px] py-[7px] text-left align-middle'
+                  className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-2 py-[7px] text-left align-middle'
                 >
-                  <div className='flex items-center gap-[6px]'>
+                  <div className='flex items-center gap-1.5'>
                     <ColumnTypeIcon />
                     <span className='font-medium text-[#1C1C1C] text-[13px]'>{col}</span>
                     <ChevronDown className='ml-auto h-[7px] w-[9px] shrink-0 text-[#CCC]' />
@@ -1176,7 +1176,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
                 >
                   <td
                     className={cn(
-                      'border-[#E5E5E5] border-r border-b px-[4px] py-[7px] text-center align-middle',
+                      'border-[#E5E5E5] border-r border-b px-1 py-[7px] text-center align-middle',
                       isSelected ? 'bg-[rgba(37,99,235,0.06)]' : 'hover:bg-[#FAFAFA]'
                     )}
                   >
@@ -1186,7 +1186,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
                     <td
                       key={j}
                       className={cn(
-                        'relative border-[#E5E5E5] border-r border-b px-[8px] py-[7px] align-middle',
+                        'relative border-[#E5E5E5] border-r border-b px-2 py-[7px] align-middle',
                         isSelected ? 'bg-[rgba(37,99,235,0.06)]' : 'hover:bg-[#FAFAFA]'
                       )}
                     >
@@ -1308,13 +1308,13 @@ function DefaultPreview() {
         return (
           <motion.div
             key={key}
-            className='absolute flex items-center justify-center rounded-xl border border-[#E5E5E5] bg-white p-[10px] shadow-[0_2px_4px_0_rgba(0,0,0,0.06)]'
+            className='absolute flex items-center justify-center rounded-xl border border-[#E5E5E5] bg-white p-2.5 shadow-[0_2px_4px_0_rgba(0,0,0,0.06)]'
             initial={{ top: '50%', left: '50%', opacity: 0, scale: 0, x: '-50%', y: '-50%' }}
             animate={inView ? { top, left, opacity: 1, scale: 1, x: '-50%', y: '-50%' } : undefined}
             transition={{
               type: 'spring',
-              stiffness: 50,
-              damping: 12,
+              stiffness: 80,
+              damping: 20,
               delay: explodeDelay,
             }}
             style={{ color }}
@@ -1331,7 +1331,7 @@ function DefaultPreview() {
         animate={inView ? { opacity: 1, x: '-50%', y: '-50%' } : undefined}
         transition={{ duration: 0.4, ease: 'easeOut', delay: 0 }}
       >
-        <div className='flex h-[36px] items-center gap-[8px] rounded-[8px] border border-[#E5E5E5] bg-white px-[10px] shadow-[0_2px_6px_0_rgba(0,0,0,0.08)]'>
+        <div className='flex h-[36px] items-center gap-2 rounded-[8px] border border-[#E5E5E5] bg-white px-2.5 shadow-[0_2px_6px_0_rgba(0,0,0,0.08)]'>
           <div className='flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-[5px] bg-[#1e1e1e]'>
             <svg width='11' height='11' viewBox='0 0 10 10' fill='none'>
               <path

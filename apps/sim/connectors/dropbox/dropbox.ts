@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { DropboxIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('DropboxConnector')
 
@@ -33,6 +33,7 @@ interface DropboxFileEntry {
   client_modified?: string
   server_modified?: string
   size?: number
+  content_hash?: string
   is_downloadable?: boolean
 }
 
@@ -76,37 +77,20 @@ async function downloadFileContent(accessToken: string, filePath: string): Promi
   return text
 }
 
-async function fileToDocument(
-  accessToken: string,
-  entry: DropboxFileEntry
-): Promise<ExternalDocument | null> {
-  try {
-    const content = await downloadFileContent(accessToken, entry.path_lower)
-    if (!content.trim()) {
-      logger.info(`Skipping empty file: ${entry.name}`)
-      return null
-    }
-
-    const contentHash = await computeContentHash(content)
-
-    return {
-      externalId: entry.id,
-      title: entry.name,
-      content,
-      mimeType: 'text/plain',
-      sourceUrl: `https://www.dropbox.com/home${entry.path_display}`,
-      contentHash,
-      metadata: {
-        path: entry.path_display,
-        lastModified: entry.server_modified || entry.client_modified,
-        fileSize: entry.size,
-      },
-    }
-  } catch (error) {
-    logger.warn(`Failed to extract content from file: ${entry.name}`, {
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return null
+function fileToStub(entry: DropboxFileEntry): ExternalDocument {
+  return {
+    externalId: entry.id,
+    title: entry.name,
+    content: '',
+    contentDeferred: true,
+    mimeType: 'text/plain',
+    sourceUrl: `https://www.dropbox.com/home${entry.path_display}`,
+    contentHash: `dropbox:${entry.id}:${entry.content_hash ?? entry.server_modified ?? ''}`,
+    metadata: {
+      path: entry.path_display,
+      lastModified: entry.server_modified || entry.client_modified,
+      fileSize: entry.size,
+    },
   }
 }
 
@@ -210,24 +194,19 @@ export const dropboxConnector: ConnectorConfig = {
     const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
-    const CONCURRENCY = 5
-    const documents: ExternalDocument[] = []
-    for (let i = 0; i < supportedFiles.length; i += CONCURRENCY) {
-      if (maxFiles > 0 && previouslyFetched + documents.length >= maxFiles) break
-      const batch = supportedFiles.slice(i, i + CONCURRENCY)
-      const results = await Promise.all(batch.map((entry) => fileToDocument(accessToken, entry)))
-      documents.push(...(results.filter(Boolean) as ExternalDocument[]))
-    }
+    let documents = supportedFiles.map(fileToStub)
+
     if (maxFiles > 0) {
       const remaining = maxFiles - previouslyFetched
       if (documents.length > remaining) {
-        documents.splice(remaining)
+        documents = documents.slice(0, remaining)
       }
     }
 
     const totalFetched = previouslyFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxFiles > 0 && totalFetched >= maxFiles
+    if (hitLimit && syncContext) syncContext.listingCapped = true
 
     return {
       documents,
@@ -260,7 +239,11 @@ export const dropboxConnector: ConnectorConfig = {
 
       if (!isSupportedFile(entry)) return null
 
-      return fileToDocument(accessToken, entry)
+      const content = await downloadFileContent(accessToken, entry.path_lower)
+      if (!content.trim()) return null
+
+      const stub = fileToStub(entry)
+      return { ...stub, content, contentDeferred: false }
     } catch (error) {
       logger.warn(`Failed to fetch document ${externalId}`, {
         error: error instanceof Error ? error.message : String(error),

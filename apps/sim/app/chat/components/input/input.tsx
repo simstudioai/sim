@@ -303,7 +303,7 @@ export const ChatInput: React.FC<{
                             <div className='truncate font-medium text-gray-800 text-xs dark:text-gray-200'>
                               {file.name}
                             </div>
-                            <div className='text-[10px] text-gray-500 dark:text-gray-400'>
+                            <div className='text-gray-500 text-micro dark:text-gray-400'>
                               {formatFileSize(file.size)}
                             </div>
                           </div>

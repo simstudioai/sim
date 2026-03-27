@@ -37,9 +37,15 @@ export default {
         ],
       },
       fontSize: {
+        micro: '10px',
         xs: '11px',
-        small: '13px', // Override default 14px to 13px
-        base: '15px', // Override default 16px to 15px
+        caption: '12px',
+        small: '13px',
+        base: '15px',
+        md: '16px',
+      },
+      spacing: {
+        '4.5': '18px',
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -106,9 +112,19 @@ export default {
         semibold: 'var(--font-weight-semibold)',
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
+        xs: '2px',
         sm: 'calc(var(--radius) - 4px)',
+        md: 'calc(var(--radius) - 2px)',
+        lg: 'var(--radius)',
+      },
+      boxShadow: {
+        subtle: 'var(--shadow-subtle)',
+        medium: 'var(--shadow-medium)',
+        overlay: 'var(--shadow-overlay)',
+        kbd: 'var(--shadow-kbd)',
+        'kbd-sm': 'var(--shadow-kbd-sm)',
+        'brand-inset': 'var(--shadow-brand-inset)',
+        card: 'var(--shadow-card)',
       },
       transitionProperty: {
         width: 'width',
@@ -184,6 +200,14 @@ export default {
           from: { opacity: '0', transform: 'scale(0.96) translateY(4px)' },
           to: { opacity: '1', transform: 'scale(1) translateY(0)' },
         },
+        'collapsible-down': {
+          from: { height: '0' },
+          to: { height: 'var(--radix-collapsible-content-height)' },
+        },
+        'collapsible-up': {
+          from: { height: 'var(--radix-collapsible-content-height)' },
+          to: { height: '0' },
+        },
       },
       animation: {
         'caret-blink': 'caret-blink 1.25s ease-out infinite',
@@ -198,8 +222,18 @@ export default {
         'slide-in-right': 'slide-in-right 350ms ease-out forwards',
         'slide-in-bottom': 'slide-in-bottom 400ms cubic-bezier(0.16, 1, 0.3, 1)',
         'tour-tooltip-in': 'tour-tooltip-in 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+        'collapsible-down': 'collapsible-down 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+        'collapsible-up': 'collapsible-up 300ms cubic-bezier(0.4, 0, 0.2, 1)',
       },
     },
   },
-  plugins: [require('tailwindcss-animate'), require('@tailwindcss/typography')],
+  plugins: [
+    require('tailwindcss-animate'),
+    require('@tailwindcss/typography'),
+    require('tailwindcss/plugin')(
+      ({ addVariant }: { addVariant: (name: string, definition: string) => void }) => {
+        addVariant('hover-hover', '@media (hover: hover) and (pointer: fine) { &:hover }')
+      }
+    ),
+  ],
 } satisfies Config

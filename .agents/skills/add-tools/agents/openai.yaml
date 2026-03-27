@@ -1,0 +1,5 @@
+interface:
+  display_name: "Add Tools"
+  short_description: "Build Sim tools from API docs"
+  brand_color: "#EA580C"
+  default_prompt: "Use $add-tools to create or update Sim tool definitions from service API docs."

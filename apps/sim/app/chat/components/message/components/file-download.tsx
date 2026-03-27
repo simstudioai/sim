@@ -119,7 +119,7 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
       <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center'>{renderIcon()}</div>
       <div className='min-w-0 flex-1 text-left'>
         <div className='w-[100px] truncate text-xs'>{file.name}</div>
-        <div className='text-[10px] text-[var(--text-muted)]'>{formatFileSize(file.size)}</div>
+        <div className='text-[var(--text-muted)] text-micro'>{formatFileSize(file.size)}</div>
       </div>
       <div className='flex-shrink-0'>
         {isDownloading ? (

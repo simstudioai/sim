@@ -4,6 +4,7 @@ import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
+import { clearExecutionPointer, consolePersistence, saveExecutionPointer } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CopilotRunToolExecution')
@@ -148,10 +149,32 @@ async function doExecuteRunTool(
   const abortController = new AbortController()
   activeRunAbortByWorkflowId.set(targetWorkflowId, abortController)
 
+  consolePersistence.executionStarted()
   setIsExecuting(targetWorkflowId, true)
   const executionId = uuidv4()
   setCurrentExecutionId(targetWorkflowId, executionId)
+  saveExecutionPointer({ workflowId: targetWorkflowId, executionId, lastEventId: 0 })
   const executionStartTime = new Date().toISOString()
+
+  const onPageHide = () => {
+    if (manuallyStoppedToolCallIds.has(toolCallId)) return
+    navigator.sendBeacon(
+      COPILOT_CONFIRM_API_PATH,
+      new Blob(
+        [
+          JSON.stringify({
+            toolCallId,
+            status: 'background',
+            message: 'Client disconnected, execution continuing server-side',
+          }),
+        ],
+        { type: 'application/json' }
+      )
+    )
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', onPageHide)
+  }
 
   logger.info('[RunTool] Starting client-side workflow execution', {
     toolCallId,
@@ -230,6 +253,9 @@ async function doExecuteRunTool(
       await reportCompletion(toolCallId, 'error', msg)
     }
   } finally {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pagehide', onPageHide)
+    }
     manuallyStoppedToolCallIds.delete(toolCallId)
     const activeToolCallId = activeRunToolByWorkflowId.get(targetWorkflowId)
     if (activeToolCallId === toolCallId) {
@@ -241,6 +267,8 @@ async function doExecuteRunTool(
     }
     const { setCurrentExecutionId: clearExecId } = useExecutionStore.getState()
     clearExecId(targetWorkflowId, null)
+    clearExecutionPointer(targetWorkflowId)
+    consolePersistence.executionEnded()
     setIsExecuting(targetWorkflowId, false)
   }
 }

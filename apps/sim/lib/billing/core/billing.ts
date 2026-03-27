@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { member, organization, subscription, user, userStats } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import {
   getBillingInterval,
   getHighestPrioritySubscription,
@@ -19,7 +19,12 @@ import {
   isPro,
   isTeam,
 } from '@/lib/billing/plan-helpers'
-import { getFreeTierLimit, getPlanPricing } from '@/lib/billing/subscriptions/utils'
+import {
+  ENTITLED_SUBSCRIPTION_STATUSES,
+  getFreeTierLimit,
+  getPlanPricing,
+  hasPaidSubscriptionStatus,
+} from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 
 export { getPlanPricing }
@@ -36,7 +41,12 @@ export async function getOrganizationSubscription(organizationId: string) {
     const orgSubs = await db
       .select()
       .from(subscription)
-      .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
       .limit(1)
 
     return orgSubs.length > 0 ? orgSubs[0] : null
@@ -299,10 +309,11 @@ export async function getSimplifiedBillingSummary(
 
     // Determine subscription type flags
     const plan = subscription?.plan || 'free'
-    const planIsPaid = isPaid(plan)
-    const planIsPro = isPro(plan)
-    const planIsTeam = isTeam(plan)
-    const planIsEnterprise = isEnterprise(plan)
+    const hasPaidEntitlement = hasPaidSubscriptionStatus(subscription?.status)
+    const planIsPaid = hasPaidEntitlement && isPaid(plan)
+    const planIsPro = hasPaidEntitlement && isPro(plan)
+    const planIsTeam = hasPaidEntitlement && isTeam(plan)
+    const planIsEnterprise = hasPaidEntitlement && isEnterprise(plan)
 
     if (organizationId) {
       // Organization billing summary

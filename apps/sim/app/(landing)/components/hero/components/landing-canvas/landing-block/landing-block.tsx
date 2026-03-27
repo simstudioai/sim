@@ -44,20 +44,20 @@ export const LandingBlock = React.memo(function LandingBlock({
 
   return (
     <div
-      className={`z-10 flex w-[250px] flex-col rounded-[8px] border border-[#E5E5E5] bg-white ${className ?? ''}`}
+      className={`z-10 flex w-[250px] flex-col rounded-lg border border-[var(--landing-border-light)] bg-white ${className ?? ''}`}
     >
       {/* Header - matches workflow-block.tsx header styling */}
       <div
-        className={`flex items-center justify-between p-[8px] ${hasContentBelowHeader ? 'border-[#E5E5E5] border-b' : ''}`}
+        className={`flex items-center justify-between p-2 ${hasContentBelowHeader ? 'border-[var(--landing-border-light)] border-b' : ''}`}
       >
-        <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-2.5'>
           <div
-            className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
+            className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-md'
             style={{ background: color as string }}
           >
             {icon}
           </div>
-          <span className='truncate font-medium text-[#171717] text-[16px]' title={name}>
+          <span className='truncate font-medium text-[#171717] text-md' title={name}>
             {name}
           </span>
         </div>
@@ -65,7 +65,7 @@ export const LandingBlock = React.memo(function LandingBlock({
 
       {/* Content - SubBlock Rows matching workflow-block.tsx */}
       {hasContentBelowHeader && (
-        <div className='flex flex-col gap-[8px] p-[8px]'>
+        <div className='flex flex-col gap-2 p-2'>
           {tags.map((tag) => (
             <SubBlockRow key={tag.label} icon={tag.icon} label={tag.label} />
           ))}

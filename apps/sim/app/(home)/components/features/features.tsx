@@ -152,7 +152,7 @@ function DotGrid({
   return (
     <div
       aria-hidden='true'
-      className={`h-full shrink-0 bg-[#F6F6F6] p-[6px] ${borderLeft ? 'border-[#E9E9E9] border-l' : ''}`}
+      className={`h-full shrink-0 bg-[var(--landing-bg-section)] p-1.5 ${borderLeft ? 'border-[var(--divider)] border-l' : ''}`}
       style={{
         width: width ? `${width}px` : undefined,
         display: 'grid',
@@ -181,7 +181,7 @@ export default function Features() {
     <section
       id='features'
       aria-labelledby='features-heading'
-      className='relative overflow-hidden bg-[#F6F6F6]'
+      className='relative overflow-hidden bg-[var(--landing-bg-section)]'
     >
       <div aria-hidden='true' className='absolute top-0 left-0 w-full'>
         <Image
@@ -195,10 +195,7 @@ export default function Features() {
       </div>
 
       <div className='relative z-10 pt-[60px] lg:pt-[100px]'>
-        <div
-          ref={sectionRef}
-          className='flex flex-col items-start gap-[20px] px-[24px] lg:px-[80px]'
-        >
+        <div ref={sectionRef} className='flex flex-col items-start gap-5 px-6 lg:px-20'>
           <Badge
             variant='blue'
             size='md'
@@ -216,31 +213,31 @@ export default function Features() {
           </Badge>
           <h2
             id='features-heading'
-            className='max-w-[900px] font-[430] font-season text-[#1C1C1C] text-[28px] leading-[110%] tracking-[-0.02em] md:text-[40px]'
+            className='max-w-[900px] text-balance font-[430] font-season text-[28px] text-[var(--landing-text-dark)] leading-[110%] tracking-[-0.02em] md:text-[40px]'
           >
             {HEADING_LETTERS.map((char, i) => (
               <ScrollLetter key={i} scrollYProgress={scrollYProgress} charIndex={i}>
                 {char}
               </ScrollLetter>
             ))}
-            <span className='text-[#1C1C1C]/40'>
+            <span className='text-[color-mix(in_srgb,var(--landing-text-dark)_40%,transparent)]'>
               Design powerful workflows, connect your data, and monitor every run — all in one
               platform.
             </span>
           </h2>
         </div>
 
-        <div className='relative mt-[40px] pb-[40px] lg:mt-[73px] lg:pb-[80px]'>
+        <div className='relative mt-10 pb-10 lg:mt-[73px] lg:pb-20'>
           <div
             aria-hidden='true'
-            className='absolute top-0 bottom-0 left-[80px] z-20 hidden w-px bg-[#E9E9E9] lg:block'
+            className='absolute top-0 bottom-0 left-[80px] z-20 hidden w-px bg-[var(--divider)] lg:block'
           />
           <div
             aria-hidden='true'
-            className='absolute top-0 right-[80px] bottom-0 z-20 hidden w-px bg-[#E9E9E9] lg:block'
+            className='absolute top-0 right-[80px] bottom-0 z-20 hidden w-px bg-[var(--divider)] lg:block'
           />
 
-          <div className='flex h-[68px] border border-[#E9E9E9] lg:overflow-hidden'>
+          <div className='flex h-[68px] border border-[var(--divider)] lg:overflow-hidden'>
             <div className='h-full shrink-0'>
               <div className='h-full lg:hidden'>
                 <DotGrid cols={3} rows={8} width={24} />
@@ -258,7 +255,7 @@ export default function Features() {
                   role='tab'
                   aria-selected={index === activeTab}
                   onClick={() => setActiveTab(index)}
-                  className={`relative h-full flex-1 items-center justify-center whitespace-nowrap px-[12px] font-medium font-season text-[#212121] text-[12px] uppercase lg:px-0 lg:text-[14px]${tab.hideOnMobile ? ' hidden lg:flex' : ' flex'}${index > 0 ? ' border-[#E9E9E9] border-l' : ''}`}
+                  className={`relative h-full flex-1 items-center justify-center whitespace-nowrap px-3 font-medium font-season text-[var(--landing-text-dark)] text-caption uppercase lg:px-0 lg:text-sm${tab.hideOnMobile ? ' hidden lg:flex' : ' flex'}${index > 0 ? ' border-[var(--divider)] border-l' : ''}`}
                   style={{ backgroundColor: index === activeTab ? '#FDFDFD' : '#F6F6F6' }}
                 >
                   {tab.mobileLabel ? (
@@ -298,19 +295,19 @@ export default function Features() {
             </div>
           </div>
 
-          <div className='mt-[32px] flex flex-col gap-[24px] px-[24px] lg:mt-[60px] lg:grid lg:grid-cols-[1fr_2.8fr] lg:gap-[60px] lg:px-[120px]'>
-            <div className='flex flex-col items-start justify-between gap-[24px] pt-[20px] lg:h-[560px] lg:gap-0'>
-              <div className='flex flex-col items-start gap-[16px]'>
-                <h3 className='font-[430] font-season text-[#1C1C1C] text-[24px] leading-[120%] tracking-[-0.02em] lg:text-[28px]'>
+          <div className='mt-8 flex flex-col gap-6 px-6 lg:mt-[60px] lg:grid lg:grid-cols-[1fr_2.8fr] lg:gap-[60px] lg:px-[120px]'>
+            <div className='flex flex-col items-start justify-between gap-6 pt-5 lg:h-[560px] lg:gap-0'>
+              <div className='flex flex-col items-start gap-4'>
+                <h3 className='font-[430] font-season text-[24px] text-[var(--landing-text-dark)] leading-[120%] tracking-[-0.02em] lg:text-[28px]'>
                   {FEATURE_TABS[activeTab].title}
                 </h3>
-                <p className='font-[430] font-season text-[#1C1C1C]/50 text-[16px] leading-[150%] tracking-[0.02em] lg:text-[18px]'>
+                <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-dark)_50%,transparent)] text-md leading-[150%] tracking-[0.02em] lg:text-lg'>
                   {FEATURE_TABS[activeTab].description}
                 </p>
               </div>
               <Link
                 href='/signup'
-                className='group/cta inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-[10px] font-[430] font-season text-[14px] text-white transition-colors hover:border-[#2A2A2A] hover:bg-[#2A2A2A]'
+                className='group/cta inline-flex h-[32px] items-center gap-1.5 rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-2.5 font-[430] font-season text-sm text-white transition-colors hover:border-[var(--landing-bg-elevated)] hover:bg-[var(--landing-bg-elevated)]'
               >
                 {FEATURE_TABS[activeTab].cta}
                 <span className='relative h-[10px] w-[10px] shrink-0'>
@@ -336,7 +333,7 @@ export default function Features() {
             <FeaturesPreview activeTab={activeTab} />
           </div>
 
-          <div aria-hidden='true' className='mt-[60px] hidden h-px bg-[#E9E9E9] lg:block' />
+          <div aria-hidden='true' className='mt-[60px] hidden h-px bg-[var(--divider)] lg:block' />
         </div>
       </div>
     </section>

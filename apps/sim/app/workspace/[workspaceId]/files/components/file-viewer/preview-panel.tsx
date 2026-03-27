@@ -100,7 +100,7 @@ const PREVIEW_MARKDOWN_COMPONENTS = {
       return (
         <code
           {...props}
-          className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[#F59E0B] text-[13px]'
+          className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[13px] text-[var(--caution)]'
         >
           {children}
         </code>
@@ -181,7 +181,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
   )
 
   return (
-    <div ref={scrollRef} className='h-full overflow-auto p-[24px]'>
+    <div ref={scrollRef} className='h-full overflow-auto p-6'>
       {committedMarkdown}
       {incoming && (
         <div
@@ -234,14 +234,14 @@ function CsvPreview({ content }: { content: string }) {
 
   if (headers.length === 0) {
     return (
-      <div className='flex h-full items-center justify-center p-[24px]'>
+      <div className='flex h-full items-center justify-center p-6'>
         <p className='text-[13px] text-[var(--text-muted)]'>No data to display</p>
       </div>
     )
   }
 
   return (
-    <div className='h-full overflow-auto p-[24px]'>
+    <div className='h-full overflow-auto p-6'>
       <div className='overflow-x-auto rounded-md border border-[var(--border)]'>
         <table className='w-full border-collapse text-[13px]'>
           <thead className='bg-[var(--surface-2)]'>

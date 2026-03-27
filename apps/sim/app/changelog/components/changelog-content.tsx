@@ -47,35 +47,37 @@ export default async function ChangelogContent() {
     <div className='min-h-screen'>
       <div className='relative grid md:grid-cols-2'>
         {/* Left intro panel */}
-        <div className='relative top-0 overflow-hidden border-[#2A2A2A] border-b px-6 py-16 sm:px-10 md:sticky md:h-dvh md:border-r md:border-b-0 md:px-12 md:py-24'>
+        <div className='relative top-0 overflow-hidden border-[var(--landing-bg-elevated)] border-b px-6 py-16 sm:px-10 md:sticky md:h-dvh md:border-r md:border-b-0 md:px-12 md:py-24'>
           <div className='relative mx-auto h-full max-w-xl md:flex md:flex-col md:justify-center'>
-            <h1 className='mt-6 font-[500] text-4xl tracking-tight sm:text-5xl'>Changelog</h1>
-            <p className='mt-4 text-[#999] text-sm'>
+            <h1 className='mt-6 text-balance font-[500] text-4xl tracking-tight sm:text-5xl'>
+              Changelog
+            </h1>
+            <p className='mt-4 text-[var(--landing-text-muted)] text-sm'>
               Stay up-to-date with the latest features, improvements, and bug fixes in Sim. All
               changes are documented here with detailed release notes.
             </p>
-            <hr className='mt-6 border-[#2A2A2A]' />
+            <hr className='mt-6 border-[var(--landing-bg-elevated)]' />
 
             <div className='mt-6 flex flex-wrap items-center gap-3 text-sm'>
               <Link
                 href='https://github.com/simstudioai/sim/releases'
                 target='_blank'
                 rel='noopener noreferrer'
-                className='inline-flex items-center gap-2 rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[9px] py-[5px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                className='inline-flex items-center gap-2 rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-[9px] py-[5px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
               >
                 <Github className='h-4 w-4' />
                 View on GitHub
               </Link>
               <Link
                 href='https://docs.sim.ai'
-                className='inline-flex items-center gap-2 rounded-[5px] border border-[#3d3d3d] px-[9px] py-[5px] text-[#ECECEC] text-[13.5px] transition-colors hover:bg-[#2A2A2A]'
+                className='inline-flex items-center gap-2 rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] py-[5px] text-[13.5px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
               >
                 <BookOpen className='h-4 w-4' />
                 Documentation
               </Link>
               <Link
                 href='/changelog.xml'
-                className='inline-flex items-center gap-2 rounded-[5px] border border-[#3d3d3d] px-[9px] py-[5px] text-[#ECECEC] text-[13.5px] transition-colors hover:bg-[#2A2A2A]'
+                className='inline-flex items-center gap-2 rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] py-[5px] text-[13.5px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
               >
                 <Rss className='h-4 w-4' />
                 RSS Feed

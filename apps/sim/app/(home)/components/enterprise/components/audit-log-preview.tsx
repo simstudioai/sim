@@ -125,7 +125,7 @@ function AuditRow({ entry, index }: AuditRowProps) {
   const timeAgo = formatTimeAgo(entry.insertedAt)
 
   return (
-    <div className='group relative overflow-hidden border-[#2A2A2A] border-b bg-[#1C1C1C] transition-colors duration-150 last:border-b-0 hover:bg-[#212121]'>
+    <div className='group relative overflow-hidden border-[var(--landing-border)] border-b bg-[var(--landing-bg)] transition-colors duration-150 last:border-b-0 hover:bg-[#212121]'>
       {/* Left accent bar -- brightness encodes recency */}
       <div
         aria-hidden='true'
@@ -209,8 +209,8 @@ export function AuditLogPreview() {
             transition={{
               layout: {
                 type: 'spring',
-                stiffness: 380,
-                damping: 38,
+                stiffness: 350,
+                damping: 50,
                 mass: 0.8,
               },
               y: { duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] },

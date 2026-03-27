@@ -1,0 +1,506 @@
+---
+title: Rippling
+description: Manage employees, leave, departments, and company data in Rippling
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="rippling"
+  color="#FFCC1C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Rippling](https://www.rippling.com/) is a unified workforce management platform that brings together HR, IT, and Finance into a single system. Rippling lets companies manage payroll, benefits, devices, apps, and more — all from one place — while automating the tedious manual work that typically bogs down HR teams. Its robust API provides programmatic access to employee data, organizational structure, leave management, and onboarding workflows.
+
+**Why Rippling?**
+- **Unified Employee System of Record:** A single source of truth for employee profiles, departments, teams, levels, and work locations — no more syncing data across disconnected tools.
+- **Leave Management:** Full visibility into leave requests, balances, and types with the ability to approve or decline requests programmatically.
+- **Company Insights:** Access company activity events, custom fields, and organizational hierarchy to power reporting and compliance workflows.
+- **Onboarding Automation:** Push candidates directly into Rippling's onboarding flow, eliminating manual data entry when bringing on new hires.
+- **Group Management:** Create and update groups for third-party app provisioning via SCIM-compatible endpoints.
+
+**Using Rippling in Sim**
+
+Sim's Rippling integration connects your agentic workflows directly to your Rippling account using an API key. With 19 operations spanning employees, departments, teams, leave, groups, and candidates, you can build powerful HR automations without writing backend code.
+
+**Key benefits of using Rippling in Sim:**
+- **Employee directory automation:** List, search, and retrieve employee details — including terminated employees — to power onboarding checklists, offboarding workflows, and org chart updates.
+- **Leave workflow automation:** Monitor leave requests, check balances, and programmatically approve or decline requests based on custom business rules.
+- **Organizational intelligence:** Query departments, teams, levels, work locations, and custom fields to build dynamic org reports or trigger actions based on structural changes.
+- **Candidate onboarding:** Push candidates from your ATS or recruiting pipeline directly into Rippling's onboarding flow, complete with job title, department, and start date.
+- **Activity monitoring:** Track company activity events to build audit trails, compliance dashboards, or alert workflows when key changes occur.
+
+Whether you're automating new hire onboarding, building leave approval workflows, or syncing employee data across your tool stack, Rippling in Sim gives you direct, secure access to your HR platform — no middleware required. Simply configure your API key, select the operation you need, and let Sim handle the rest.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Rippling into your workflow. Manage employees, departments, teams, leave requests, work locations, groups, candidates, and company information.
+
+
+
+## Tools
+
+### `rippling_list_employees`
+
+List all employees in Rippling with optional pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `limit` | number | No | Maximum number of employees to return \(default 100, max 100\) |
+| `offset` | number | No | Offset for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `employees` | array | List of employees |
+|   ↳ `id` | string | Employee ID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `workEmail` | string | Work email address |
+|   ↳ `personalEmail` | string | Personal email address |
+|   ↳ `roleState` | string | Employment status |
+|   ↳ `department` | string | Department name or ID |
+|   ↳ `title` | string | Job title |
+|   ↳ `startDate` | string | Employment start date |
+|   ↳ `endDate` | string | Employment end date |
+|   ↳ `manager` | string | Manager ID or name |
+|   ↳ `phone` | string | Phone number |
+| `totalCount` | number | Number of employees returned on this page |
+
+### `rippling_get_employee`
+
+Get details for a specific employee by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `employeeId` | string | Yes | The ID of the employee to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Employee ID |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `workEmail` | string | Work email address |
+| `personalEmail` | string | Personal email address |
+| `roleState` | string | Employment status |
+| `department` | string | Department name or ID |
+| `title` | string | Job title |
+| `startDate` | string | Employment start date |
+| `endDate` | string | Employment end date |
+| `manager` | string | Manager ID or name |
+| `phone` | string | Phone number |
+
+### `rippling_list_employees_with_terminated`
+
+List all employees in Rippling including terminated employees with optional pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `limit` | number | No | Maximum number of employees to return \(default 100, max 100\) |
+| `offset` | number | No | Offset for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `employees` | array | List of employees including terminated |
+|   ↳ `id` | string | Employee ID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `workEmail` | string | Work email address |
+|   ↳ `personalEmail` | string | Personal email address |
+|   ↳ `roleState` | string | Employment status |
+|   ↳ `department` | string | Department name or ID |
+|   ↳ `title` | string | Job title |
+|   ↳ `startDate` | string | Employment start date |
+|   ↳ `endDate` | string | Employment end date |
+|   ↳ `manager` | string | Manager ID or name |
+|   ↳ `phone` | string | Phone number |
+| `totalCount` | number | Number of employees returned on this page |
+
+### `rippling_list_departments`
+
+List all departments in the Rippling organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `limit` | number | No | Maximum number of departments to return |
+| `offset` | number | No | Offset for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `departments` | array | List of departments |
+|   ↳ `id` | string | Department ID |
+|   ↳ `name` | string | Department name |
+|   ↳ `parent` | string | Parent department ID |
+| `totalCount` | number | Number of departments returned on this page |
+
+### `rippling_list_teams`
+
+List all teams in Rippling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `limit` | number | No | Maximum number of teams to return |
+| `offset` | number | No | Offset for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teams` | array | List of teams |
+|   ↳ `id` | string | Team ID |
+|   ↳ `name` | string | Team name |
+|   ↳ `parent` | string | Parent team ID |
+| `totalCount` | number | Number of teams returned on this page |
+
+### `rippling_list_levels`
+
+List all position levels in Rippling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `limit` | number | No | Maximum number of levels to return |
+| `offset` | number | No | Offset for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `levels` | array | List of position levels |
+|   ↳ `id` | string | Level ID |
+|   ↳ `name` | string | Level name |
+|   ↳ `parent` | string | Parent level ID |
+| `totalCount` | number | Number of levels returned on this page |
+
+### `rippling_list_work_locations`
+
+List all work locations in Rippling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `limit` | number | No | Maximum number of work locations to return |
+| `offset` | number | No | Offset for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workLocations` | array | List of work locations |
+|   ↳ `id` | string | Work location ID |
+|   ↳ `nickname` | string | Location nickname |
+|   ↳ `street` | string | Street address |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State or province |
+|   ↳ `zip` | string | ZIP or postal code |
+|   ↳ `country` | string | Country |
+| `totalCount` | number | Number of work locations returned on this page |
+
+### `rippling_get_company`
+
+Get details for the current company in Rippling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Company ID |
+| `name` | string | Company name |
+| `address` | json | Company address with street, city, state, zip, country |
+| `email` | string | Company email address |
+| `phone` | string | Company phone number |
+| `workLocations` | array | List of work location IDs |
+
+### `rippling_get_company_activity`
+
+Get activity events for the current company in Rippling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `startDate` | string | No | Start date filter in ISO format \(e.g. 2024-01-01\) |
+| `endDate` | string | No | End date filter in ISO format \(e.g. 2024-12-31\) |
+| `limit` | number | No | Maximum number of activity events to return |
+| `next` | string | No | Cursor for fetching the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | List of company activity events |
+|   ↳ `id` | string | Event ID |
+|   ↳ `type` | string | Event type |
+|   ↳ `description` | string | Event description |
+|   ↳ `createdAt` | string | Event creation timestamp |
+|   ↳ `actor` | json | Actor who triggered the event \(id, name\) |
+| `totalCount` | number | Number of activity events returned on this page |
+| `nextCursor` | string | Cursor for fetching the next page of results |
+
+### `rippling_list_custom_fields`
+
+List all custom fields defined in Rippling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `limit` | number | No | Maximum number of custom fields to return |
+| `offset` | number | No | Offset for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customFields` | array | List of custom fields |
+|   ↳ `id` | string | Custom field ID |
+|   ↳ `type` | string | Field type |
+|   ↳ `title` | string | Field title |
+|   ↳ `mandatory` | boolean | Whether the field is mandatory |
+| `totalCount` | number | Number of custom fields returned on this page |
+
+### `rippling_get_current_user`
+
+Get the current authenticated user details
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | User ID |
+| `workEmail` | string | Work email address |
+| `company` | string | Company ID |
+
+### `rippling_list_leave_requests`
+
+List leave requests in Rippling with optional filtering by date range and status
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `startDate` | string | No | Filter by start date \(ISO date string\) |
+| `endDate` | string | No | Filter by end date \(ISO date string\) |
+| `status` | string | No | Filter by status \(e.g. pending, approved, declined\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leaveRequests` | array | List of leave requests |
+|   ↳ `id` | string | Leave request ID |
+|   ↳ `requestedBy` | string | Employee ID who requested leave |
+|   ↳ `status` | string | Request status \(pending/approved/declined\) |
+|   ↳ `startDate` | string | Leave start date |
+|   ↳ `endDate` | string | Leave end date |
+|   ↳ `reason` | string | Reason for leave |
+|   ↳ `leaveType` | string | Type of leave |
+|   ↳ `createdAt` | string | When the request was created |
+| `totalCount` | number | Total number of leave requests returned |
+
+### `rippling_process_leave_request`
+
+Approve or decline a leave request in Rippling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `leaveRequestId` | string | Yes | The ID of the leave request to process |
+| `action` | string | Yes | Action to take on the leave request \(approve or decline\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Leave request ID |
+| `status` | string | Updated status of the leave request |
+| `requestedBy` | string | Employee ID who requested leave |
+| `startDate` | string | Leave start date |
+| `endDate` | string | Leave end date |
+
+### `rippling_list_leave_balances`
+
+List leave balances for all employees in Rippling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `limit` | number | No | Maximum number of leave balances to return |
+| `offset` | number | No | Offset for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leaveBalances` | array | List of employee leave balances |
+|   ↳ `employeeId` | string | Employee ID |
+|   ↳ `balances` | array | Leave balance entries |
+|     ↳ `leaveType` | string | Type of leave |
+|     ↳ `minutesRemaining` | number | Minutes of leave remaining |
+| `totalCount` | number | Number of leave balances returned on this page |
+
+### `rippling_get_leave_balance`
+
+Get leave balance for a specific employee by role ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `roleId` | string | Yes | The employee/role ID to retrieve leave balance for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `employeeId` | string | Employee ID |
+| `balances` | array | Leave balance entries |
+|   ↳ `leaveType` | string | Type of leave |
+|   ↳ `minutesRemaining` | number | Minutes of leave remaining |
+
+### `rippling_list_leave_types`
+
+List company leave types configured in Rippling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `managedBy` | string | No | Filter leave types by manager |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leaveTypes` | array | List of company leave types |
+|   ↳ `id` | string | Leave type ID |
+|   ↳ `name` | string | Leave type name |
+|   ↳ `managedBy` | string | Manager of this leave type |
+| `totalCount` | number | Total number of leave types returned |
+
+### `rippling_create_group`
+
+Create a new group in Rippling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `name` | string | Yes | Name of the group |
+| `spokeId` | string | Yes | Third-party app identifier |
+| `users` | json | No | Array of user ID strings to add to the group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Group ID |
+| `name` | string | Group name |
+| `spokeId` | string | Third-party app identifier |
+| `users` | array | Array of user IDs in the group |
+| `version` | number | Group version number |
+
+### `rippling_update_group`
+
+Update an existing group in Rippling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `groupId` | string | Yes | The ID of the group to update |
+| `name` | string | No | New name for the group |
+| `spokeId` | string | No | Third-party app identifier |
+| `users` | json | No | Array of user ID strings to set for the group |
+| `version` | number | No | Group version number for optimistic concurrency |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Group ID |
+| `name` | string | Group name |
+| `spokeId` | string | Third-party app identifier |
+| `users` | array | Array of user IDs in the group |
+| `version` | number | Group version number |
+
+### `rippling_push_candidate`
+
+Push a candidate to onboarding in Rippling
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rippling API key |
+| `firstName` | string | Yes | Candidate first name |
+| `lastName` | string | Yes | Candidate last name |
+| `email` | string | Yes | Candidate email address |
+| `phone` | string | No | Candidate phone number |
+| `jobTitle` | string | No | Job title for the candidate |
+| `department` | string | No | Department for the candidate |
+| `startDate` | string | No | Start date in ISO 8601 format \(e.g., 2025-01-15\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Candidate ID |
+| `firstName` | string | Candidate first name |
+| `lastName` | string | Candidate last name |
+| `email` | string | Candidate email address |
+| `status` | string | Candidate onboarding status |
+
+

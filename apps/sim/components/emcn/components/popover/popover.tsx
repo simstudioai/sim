@@ -67,25 +67,25 @@ type PopoverVariant = 'default' | 'secondary'
 const STYLES = {
   /** Base classes shared by all interactive items */
   itemBase:
-    'flex min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-medium disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
+    'flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-1.5 font-medium disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
 
   /** Content container */
-  content: 'px-[6px] py-[6px] rounded-[6px]',
+  content: 'px-1.5 py-1.5 rounded-md',
 
   /** Size variants */
   size: {
-    sm: { item: 'h-[22px] text-[11px]', icon: 'h-3 w-3', section: 'px-[6px] py-[4px] text-[11px]' },
+    sm: { item: 'h-[22px] text-xs', icon: 'h-3 w-3', section: 'px-1.5 py-1 text-xs' },
     md: {
-      item: 'h-[26px] text-[12px]',
+      item: 'h-[26px] text-caption',
       icon: 'h-3.5 w-3.5',
-      section: 'px-[6px] py-[4px] text-[11px]',
+      section: 'px-1.5 py-1 text-xs',
     },
   } satisfies Record<PopoverSize, { item: string; icon: string; section: string }>,
 
   /** Color scheme variants */
   colorScheme: {
     default: {
-      text: 'text-[var(--text-primary)]',
+      text: 'text-[var(--text-body)]',
       section: 'text-[var(--text-tertiary)]',
       search: 'text-[var(--text-muted)]',
       searchInput: 'text-[var(--text-primary)] placeholder:text-[var(--text-muted)]',
@@ -98,8 +98,8 @@ const STYLES = {
       search: 'text-[var(--text-muted-inverse)] dark:text-[var(--text-muted)]',
       searchInput:
         'text-white placeholder:text-[var(--text-muted-inverse)] dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-muted)]',
-      content: 'bg-[#1b1b1b] text-white dark:bg-[var(--surface-3)] dark:text-foreground',
-      divider: 'border-[#363636] dark:border-[var(--border-1)]',
+      content: 'bg-[var(--surface-inverted)] text-white dark:text-foreground',
+      divider: 'border-[var(--border-inverted)]',
     },
   } satisfies Record<
     PopoverColorScheme,
@@ -116,19 +116,19 @@ const STYLES = {
   /** Interactive state styles: default, secondary (brand), inverted (dark bg in light mode) */
   states: {
     default: {
-      active: 'bg-[var(--border-1)] text-[var(--text-primary)] [&_svg]:text-[var(--text-primary)]',
-      hover:
-        'hover:bg-[var(--border-1)] hover:text-[var(--text-primary)] hover:[&_svg]:text-[var(--text-primary)]',
+      active: 'bg-[var(--border-1)]',
+      hover: 'hover-hover:bg-[var(--border-1)]',
     },
     secondary: {
       active: 'bg-[var(--brand-secondary)] text-white [&_svg]:text-white',
-      hover: 'hover:bg-[var(--brand-secondary)] hover:text-white hover:[&_svg]:text-white',
+      hover:
+        'hover-hover:bg-[var(--brand-secondary)] hover-hover:text-white hover-hover:[&_svg]:text-white',
     },
     inverted: {
       active:
-        'bg-[#363636] text-white [&_svg]:text-white dark:bg-[var(--surface-5)] dark:text-[var(--text-primary)] dark:[&_svg]:text-[var(--text-primary)]',
+        'bg-[var(--surface-inverted-hover)] text-white [&_svg]:text-white dark:text-[var(--text-primary)] dark:[&_svg]:text-[var(--text-primary)]',
       hover:
-        'hover:bg-[#363636] hover:text-white hover:[&_svg]:text-white dark:hover:bg-[var(--surface-5)] dark:hover:text-[var(--text-primary)] dark:hover:[&_svg]:text-[var(--text-primary)]',
+        'hover-hover:bg-[var(--surface-inverted-hover)] hover-hover:text-white hover-hover:[&_svg]:text-white dark:hover-hover:text-[var(--text-primary)] dark:hover-hover:[&_svg]:text-[var(--text-primary)]',
     },
   },
 } as const
@@ -606,7 +606,7 @@ const PopoverContent = React.forwardRef<
         onCloseAutoFocus={handleCloseAutoFocus}
         {...restProps}
         className={cn(
-          'z-[10000200] flex flex-col outline-none will-change-transform',
+          'z-[var(--z-popover)] flex flex-col outline-none',
           showArrow ? 'overflow-visible' : 'overflow-auto',
           STYLES.colorScheme[colorScheme].content,
           STYLES.content,
@@ -630,7 +630,10 @@ const PopoverContent = React.forwardRef<
         }}
       >
         {showArrow ? (
-          <div data-popover-scroll className='min-h-0 flex-1 overflow-auto'>
+          <div
+            className='flex flex-1 flex-col overflow-auto'
+            style={{ maxHeight: `${maxHeight || 400}px` }}
+          >
             {children}
           </div>
         ) : (
@@ -647,7 +650,7 @@ const PopoverContent = React.forwardRef<
                 arrowClassName ??
                 cn(
                   colorScheme === 'inverted'
-                    ? 'fill-[#242424] stroke-[#363636] dark:fill-[var(--surface-3)] dark:stroke-[var(--border-1)]'
+                    ? 'fill-[var(--surface-inverted)] stroke-[var(--border-inverted)]'
                     : 'fill-[var(--surface-3)] stroke-[var(--border-1)] dark:fill-[var(--surface-3)]'
                 )
               }
@@ -678,7 +681,7 @@ const PopoverScrollArea = React.forwardRef<HTMLDivElement, PopoverScrollAreaProp
     <div
       className={cn(
         'min-h-0 overflow-auto overscroll-contain',
-        '[&>div:has([data-popover-section]):not(:first-child)]:mt-[6px]',
+        '[&>div:has([data-popover-section]):not(:first-child)]:mt-1.5',
         className
       )}
       ref={ref}
@@ -791,7 +794,7 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
           STYLES.colorScheme[colorScheme].text,
           STYLES.size[size].item,
           getItemStateClasses(variant, colorScheme, !!isActive),
-          suppressHover && 'hover:!bg-transparent',
+          suppressHover && 'hover-hover:!bg-transparent',
           disabled && 'pointer-events-none cursor-not-allowed opacity-50',
           className
         )}
@@ -830,7 +833,7 @@ const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
     return (
       <div
         className={cn(
-          'mt-[6px] min-w-0 font-medium first:mt-0 first:pt-0',
+          'mt-1.5 min-w-0 font-medium first:mt-0 first:pt-0',
           STYLES.colorScheme[colorScheme].section,
           STYLES.size[size].section,
           className
@@ -985,7 +988,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
             STYLES.colorScheme[colorScheme].text,
             STYLES.size[size].item,
             getItemStateClasses(variant, colorScheme, isActive || isHoverOpen),
-            suppressHover && 'hover:!bg-transparent',
+            suppressHover && 'hover-hover:!bg-transparent',
             className
           )}
           role='menuitem'
@@ -1007,7 +1010,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
           createPortal(
             <DismissableLayerBranch
               className={cn(
-                'fixed z-[10000201] min-w-[120px]',
+                'fixed z-[calc(var(--z-popover)+1)] min-w-[120px]',
                 STYLES.content,
                 STYLES.colorScheme[colorScheme].content,
                 'shadow-lg'
@@ -1139,7 +1142,7 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
     }, [setSearchQuery, onValueChange])
 
     return (
-      <div ref={ref} className={cn('flex items-center px-[8px] py-[6px]', className)} {...props}>
+      <div ref={ref} className={cn('flex items-center px-2 py-1.5', className)} {...props}>
         <Search
           className={cn(
             'mr-2 shrink-0',
@@ -1152,7 +1155,7 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
           className={cn(
             'w-full bg-transparent font-medium focus:outline-none',
             STYLES.colorScheme[colorScheme].searchInput,
-            size === 'sm' ? 'text-[11px]' : 'text-[12px]'
+            size === 'sm' ? 'text-xs' : 'text-caption'
           )}
           placeholder={placeholder}
           value={searchQuery}
@@ -1183,7 +1186,7 @@ const PopoverDivider = React.forwardRef<HTMLDivElement, PopoverDividerProps>(
     return (
       <div
         ref={ref}
-        className={cn('my-[6px] border-t', STYLES.colorScheme[colorScheme].divider, className)}
+        className={cn('my-1.5 border-t', STYLES.colorScheme[colorScheme].divider, className)}
         role='separator'
         {...props}
       />

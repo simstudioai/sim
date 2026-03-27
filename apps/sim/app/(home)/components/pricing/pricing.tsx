@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Badge } from '@/components/emcn'
+import { DemoRequestModal } from '@/app/(home)/components/demo-request/demo-request-modal'
 
 interface PricingTier {
   id: string
@@ -9,7 +10,7 @@ interface PricingTier {
   billingPeriod?: string
   color: string
   features: string[]
-  cta: { label: string; href: string }
+  cta: { label: string; href?: string; action?: 'demo-request' }
 }
 
 const PRICING_TIERS: PricingTier[] = [
@@ -78,7 +79,7 @@ const PRICING_TIERS: PricingTier[] = [
       'SSO & SCIM · SOC2 & HIPAA',
       'Self hosting · Dedicated support',
     ],
-    cta: { label: 'Book a demo', href: 'https://form.typeform.com/to/jqCO12pF' },
+    cta: { label: 'Book a demo', action: 'demo-request' },
   },
 ]
 
@@ -101,49 +102,49 @@ interface PricingCardProps {
 }
 
 function PricingCard({ tier }: PricingCardProps) {
-  const isEnterprise = tier.id === 'enterprise'
+  const isDemoRequest = tier.cta.action === 'demo-request'
   const isPro = tier.id === 'pro'
 
   return (
     <article className='flex flex-1 flex-col' aria-labelledby={`${tier.id}-heading`}>
-      <div className='flex flex-1 flex-col gap-6 rounded-t-lg border border-[#E5E5E5] border-b-0 bg-white p-5'>
+      <div className='flex flex-1 flex-col gap-6 rounded-t-lg border border-[var(--landing-border-light)] border-b-0 bg-white p-5'>
         <div className='flex flex-col'>
           <h3
             id={`${tier.id}-heading`}
-            className='font-[430] font-season text-[#1C1C1C] text-[24px] leading-[100%] tracking-[-0.02em]'
+            className='font-[430] font-season text-[24px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em]'
           >
             {tier.name}
           </h3>
-          <p className='mt-2 min-h-[44px] font-[430] font-season text-[#5c5c5c] text-[14px] leading-[125%] tracking-[0.02em]'>
+          <p className='mt-2 min-h-[44px] font-[430] font-season text-[#5c5c5c] text-sm leading-[125%] tracking-[0.02em]'>
             {tier.description}
           </p>
-          <p className='mt-4 flex items-center gap-1.5 font-[430] font-season text-[#1C1C1C] text-[20px] leading-[100%] tracking-[-0.02em]'>
+          <p className='mt-4 flex items-center gap-1.5 font-[430] font-season text-[20px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em]'>
             {tier.price}
             {tier.billingPeriod && (
-              <span className='text-[#737373] text-[16px]'>{tier.billingPeriod}</span>
+              <span className='text-[#737373] text-md'>{tier.billingPeriod}</span>
             )}
           </p>
           <div className='mt-4'>
-            {isEnterprise ? (
-              <a
-                href={tier.cta.href}
-                target='_blank'
-                rel='noopener noreferrer'
-                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#E5E5E5] px-[10px] font-[430] font-season text-[#1C1C1C] text-[14px] transition-colors hover:bg-[#F0F0F0]'
-              >
-                {tier.cta.label}
-              </a>
+            {isDemoRequest ? (
+              <DemoRequestModal theme='light'>
+                <button
+                  type='button'
+                  className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--landing-border-light)] bg-transparent px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text-dark)] transition-colors hover:bg-[var(--landing-bg-hover)]'
+                >
+                  {tier.cta.label}
+                </button>
+              </DemoRequestModal>
             ) : isPro ? (
               <Link
-                href={tier.cta.href}
-                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-[10px] font-[430] font-season text-[14px] text-white transition-colors hover:border-[#2A2A2A] hover:bg-[#2A2A2A]'
+                href={tier.cta.href || '/signup'}
+                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-2.5 font-[430] font-season text-[14px] text-white transition-colors hover:border-[var(--landing-border)] hover:bg-[var(--landing-bg-elevated)]'
               >
                 {tier.cta.label}
               </Link>
             ) : (
               <Link
-                href={tier.cta.href}
-                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#E5E5E5] px-[10px] font-[430] font-season text-[#1C1C1C] text-[14px] transition-colors hover:bg-[#F0F0F0]'
+                href={tier.cta.href || '/signup'}
+                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--landing-border-light)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text-dark)] transition-colors hover:bg-[var(--landing-bg-hover)]'
               >
                 {tier.cta.label}
               </Link>
@@ -155,7 +156,7 @@ function PricingCard({ tier }: PricingCardProps) {
           {tier.features.map((feature) => (
             <li key={feature} className='flex items-center gap-2'>
               <CheckIcon color='#404040' />
-              <span className='font-[400] font-season text-[#5c5c5c] text-[14px] leading-[125%] tracking-[0.02em]'>
+              <span className='font-[400] font-season text-[#5c5c5c] text-sm leading-[125%] tracking-[0.02em]'>
                 {feature}
               </span>
             </li>
@@ -186,9 +187,13 @@ function PricingCard({ tier }: PricingCardProps) {
  */
 export default function Pricing() {
   return (
-    <section id='pricing' aria-labelledby='pricing-heading' className='bg-[#F6F6F6]'>
-      <div className='px-4 pt-[60px] pb-[40px] sm:px-8 sm:pt-[80px] sm:pb-0 md:px-[80px] md:pt-[100px]'>
-        <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-[20px]'>
+    <section
+      id='pricing'
+      aria-labelledby='pricing-heading'
+      className='bg-[var(--landing-bg-section)]'
+    >
+      <div className='px-4 pt-[60px] pb-10 sm:px-8 sm:pt-20 sm:pb-0 md:px-20 md:pt-[100px]'>
+        <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-5'>
           <Badge
             variant='blue'
             size='md'
@@ -200,7 +205,7 @@ export default function Pricing() {
 
           <h2
             id='pricing-heading'
-            className='font-[430] font-season text-[#1C1C1C] text-[32px] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
+            className='text-balance font-[430] font-season text-[32px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em] sm:text-[36px] md:text-[40px]'
           >
             Pricing
           </h2>

@@ -447,8 +447,8 @@ export function FolderItem({
         aria-expanded={isExpanded}
         aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
         className={clsx(
-          'group mx-[2px] flex h-[30px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[8px] text-[14px]',
-          !isAnyDragActive && 'hover:bg-[var(--surface-active)]',
+          'group mx-0.5 flex h-[30px] cursor-pointer items-center gap-2 rounded-lg px-2 text-sm',
+          !isAnyDragActive && 'hover-hover:bg-[var(--surface-active)]',
           isSelected ? 'bg-[var(--surface-active)]' : '',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
@@ -485,7 +485,7 @@ export function FolderItem({
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleRenameKeyDown}
             onBlur={handleInputBlur}
-            className='min-w-0 flex-1 border-0 bg-transparent p-0 font-base text-[14px] text-[var(--text-body)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='min-w-0 flex-1 border-0 bg-transparent p-0 font-base text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
             maxLength={50}
             disabled={isRenaming}
             onClick={(e) => {
@@ -498,7 +498,7 @@ export function FolderItem({
             spellCheck='false'
           />
         ) : (
-          <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+          <div className='flex min-w-0 flex-1 items-center gap-2'>
             <span
               className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'
               onDoubleClick={handleDoubleClick}
@@ -511,7 +511,7 @@ export function FolderItem({
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
               className={clsx(
-                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)]',
+                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity hover-hover:bg-[var(--surface-7)]',
                 !isAnyDragActive && 'group-hover:opacity-100'
               )}
             >

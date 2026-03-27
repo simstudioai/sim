@@ -564,16 +564,16 @@ export function Document({
 
   const filterContent = (
     <div className='w-[200px]'>
-      <div className='border-[var(--border-1)] border-b px-[12px] py-[8px]'>
-        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>Status</span>
+      <div className='border-[var(--border-1)] border-b px-3 py-2'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
       </div>
-      <div className='flex flex-col gap-[2px] px-[12px] py-[8px]'>
+      <div className='flex flex-col gap-0.5 px-3 py-2'>
         {(['all', 'enabled', 'disabled'] as const).map((value) => (
           <button
             key={value}
             type='button'
             className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--surface-active)]',
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
               enabledFilter === value && 'bg-[var(--surface-active)]'
             )}
             onClick={() => {
@@ -822,9 +822,9 @@ export function Document({
           cells: {
             content: {
               content: (
-                <div className='flex items-center gap-[8px]'>
+                <div className='flex items-center gap-2'>
                   <FileText className='h-5 w-5 flex-shrink-0 text-[var(--text-muted)]' />
-                  <span className='text-[14px] text-[var(--text-muted)] italic'>
+                  <span className='text-[var(--text-muted)] text-sm italic'>
                     {documentData?.processingStatus === 'pending' &&
                       'Document processing pending...'}
                     {documentData?.processingStatus === 'processing' &&
@@ -849,7 +849,7 @@ export function Document({
         content: {
           content: (
             <span
-              className='block min-w-0 truncate text-[14px] text-[var(--text-primary)]'
+              className='block min-w-0 truncate text-[var(--text-primary)] text-sm'
               title={chunk.content}
             >
               <SearchHighlight
@@ -861,9 +861,7 @@ export function Document({
         },
         index: {
           content: (
-            <span className='font-mono text-[14px] text-[var(--text-primary)]'>
-              {chunk.chunkIndex}
-            </span>
+            <span className='font-mono text-[var(--text-primary)] text-sm'>{chunk.chunkIndex}</span>
           ),
         },
         tokens: {
@@ -1043,7 +1041,7 @@ export function Document({
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
           <ResourceHeader icon={FileText} breadcrumbs={loadingBreadcrumbs} />
           <div className='flex flex-1 items-center justify-center'>
-            <span className='text-[14px] text-[var(--text-muted)]'>Loading chunk...</span>
+            <span className='text-[var(--text-muted)] text-sm'>Loading chunk...</span>
           </div>
         </div>
       )

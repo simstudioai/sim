@@ -245,8 +245,8 @@ const renderLabel = (
   const canonicalToggleDisabledResolved = canonicalToggleIsDisabled ?? canonicalToggle?.disabled
 
   return (
-    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
-      <Label className='flex items-baseline gap-[6px] whitespace-nowrap'>
+    <div className='flex items-center justify-between gap-1.5 pl-0.5'>
+      <Label className='flex items-baseline gap-1.5 whitespace-nowrap'>
         {config.title}
         {required && <span className='ml-0.5'>*</span>}
         {labelSuffix}
@@ -266,7 +266,7 @@ const renderLabel = (
             </Tooltip.Root>
           )}
       </Label>
-      <div className='flex min-w-0 flex-1 items-center justify-end gap-[6px]'>
+      <div className='flex min-w-0 flex-1 items-center justify-end gap-1.5'>
         {showCopy && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
@@ -293,13 +293,13 @@ const renderLabel = (
             {!wandState.isSearchActive ? (
               <Button
                 variant='active'
-                className='-my-1 h-5 px-2 py-0 text-[11px]'
+                className='-my-1 h-5 px-2 py-0 text-xs'
                 onClick={wandState.onSearchClick}
               >
                 Generate
               </Button>
             ) : (
-              <div className='-my-1 flex min-w-[120px] max-w-[280px] flex-1 items-center gap-[4px]'>
+              <div className='-my-1 flex min-w-[120px] max-w-[280px] flex-1 items-center gap-1'>
                 <Input
                   ref={wandState.searchInputRef}
                   value={wandState.isStreaming ? 'Generating...' : wandState.searchQuery}
@@ -325,7 +325,7 @@ const renderLabel = (
                   }}
                   disabled={wandState.isStreaming}
                   className={cn(
-                    'h-5 min-w-[80px] flex-1 text-[11px]',
+                    'h-5 min-w-[80px] flex-1 text-xs',
                     wandState.isStreaming && 'text-muted-foreground'
                   )}
                   placeholder='Generate with AI...'
@@ -1148,7 +1148,7 @@ function SubBlockComponent({
   }
 
   return (
-    <div onMouseDown={handleMouseDown} className='subblock-content flex flex-col gap-[10px]'>
+    <div onMouseDown={handleMouseDown} className='subblock-content flex flex-col gap-2.5'>
       {renderLabel(
         config,
         isValidJson,

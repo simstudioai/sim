@@ -39,7 +39,11 @@ import {
   isPro,
   isTeam,
 } from '@/lib/billing/plan-helpers'
-import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
+import {
+  getEffectiveSeats,
+  hasPaidSubscriptionStatus,
+  hasUsableSubscriptionAccess,
+} from '@/lib/billing/subscriptions/utils'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
@@ -98,45 +102,45 @@ interface WorkspaceAdmin {
 
 function SubscriptionSkeleton() {
   return (
-    <div className='flex h-full flex-col gap-[20px]'>
-      <div className='flex flex-col gap-[12px]'>
+    <div className='flex h-full flex-col gap-5'>
+      <div className='flex flex-col gap-3'>
         <div className='flex items-center justify-between'>
-          <div className='flex flex-col gap-[4px]'>
+          <div className='flex flex-col gap-1'>
             <div className='flex h-[18px] items-center'>
-              <Skeleton className='h-[12px] w-[40px] rounded-[4px]' />
+              <Skeleton className='h-[12px] w-[40px] rounded-sm' />
             </div>
-            <div className='flex h-[21px] items-center gap-[4px]'>
-              <Skeleton className='h-[14px] w-[50px] rounded-[4px]' />
-              <span className='font-medium text-[15px] text-[var(--text-primary)]'>/</span>
-              <Skeleton className='h-[14px] w-[50px] rounded-[4px]' />
+            <div className='flex h-[21px] items-center gap-1'>
+              <Skeleton className='h-[14px] w-[50px] rounded-sm' />
+              <span className='font-medium text-[var(--text-primary)] text-base'>/</span>
+              <Skeleton className='h-[14px] w-[50px] rounded-sm' />
             </div>
           </div>
-          <div className='flex flex-col items-end gap-[8px]'>
-            <div className='flex w-[100px] items-center gap-[4px]'>
+          <div className='flex flex-col items-end gap-2'>
+            <div className='flex w-[100px] items-center gap-1'>
               {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className='h-[6px] flex-1 rounded-[2px]' />
+                <Skeleton key={i} className='h-[6px] flex-1 rounded-xs' />
               ))}
             </div>
           </div>
         </div>
       </div>
-      <div className='flex flex-col gap-[10px]'>
-        <div className='grid grid-cols-2 gap-[10px]'>
+      <div className='flex flex-col gap-2.5'>
+        <div className='grid grid-cols-2 gap-2.5'>
           {[0, 1].map((i) => (
             <article
               key={i}
-              className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'
+              className='flex flex-1 flex-col overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'
             >
-              <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
-                <Skeleton className='h-[14px] w-[32px] rounded-[4px]' />
-                <Skeleton className='h-[14px] w-[50px] rounded-[4px]' />
+              <div className='flex items-center justify-between gap-2 px-3.5 py-2.5'>
+                <Skeleton className='h-[14px] w-[32px] rounded-sm' />
+                <Skeleton className='h-[14px] w-[50px] rounded-sm' />
               </div>
-              <div className='flex flex-1 flex-col gap-[18px] rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[16px]'>
-                <ul className='flex flex-1 flex-col gap-[14px]'>
+              <div className='flex flex-1 flex-col gap-4.5 rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-4'>
+                <ul className='flex flex-1 flex-col gap-3.5'>
                   {[...Array(5)].map((_, j) => (
-                    <li key={j} className='flex items-center gap-[8px]'>
-                      <Skeleton className='h-[12px] w-[12px] flex-shrink-0 rounded-[4px]' />
-                      <Skeleton className='h-[12px] w-[120px] rounded-[4px]' />
+                    <li key={j} className='flex items-center gap-2'>
+                      <Skeleton className='h-[12px] w-[12px] flex-shrink-0 rounded-sm' />
+                      <Skeleton className='h-[12px] w-[120px] rounded-sm' />
                     </li>
                   ))}
                 </ul>
@@ -188,63 +192,61 @@ function CreditPlanCard({
 
   return (
     <article className='flex flex-1 flex-col overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-      <div className='flex items-center justify-between gap-[8px] px-[14px] py-[10px]'>
+      <div className='flex min-h-[44px] items-center justify-between gap-2 px-3.5 py-2.5'>
         <span className='font-medium text-[14px] text-[var(--text-primary)]'>{name}</span>
-        <div className='flex items-baseline gap-[4px]'>
+        <div className='flex shrink-0 items-baseline gap-1 whitespace-nowrap'>
           <span className='font-medium text-[14px] text-[var(--text-primary)]'>
             ${isAnnual ? discountedMonthly : dollars}
           </span>
-          <span className='text-[12px] text-[var(--text-secondary)]'>{perUnit}/mo</span>
+          <span className='text-[var(--text-secondary)] text-caption'>{perUnit}/mo</span>
           {isAnnual && (
-            <span className='ml-[2px] text-[11px] text-[var(--text-muted)] line-through'>
-              ${dollars}
-            </span>
+            <span className='ml-0.5 text-[var(--text-muted)] text-xs line-through'>${dollars}</span>
           )}
         </div>
       </div>
 
-      <div className='flex items-center gap-[12px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[10px]'>
+      <div className='flex items-center gap-3 rounded-t-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-2.5'>
         <div className='flex flex-col'>
-          <span className='font-semibold text-[18px] text-[var(--text-primary)]'>
+          <span className='font-semibold text-[var(--text-primary)] text-lg tabular-nums'>
             {credits.toLocaleString()}
           </span>
-          <span className='text-[11px] text-[var(--text-secondary)]'>credits/mo</span>
+          <span className='text-[var(--text-secondary)] text-xs'>credits/mo</span>
         </div>
         <div className='h-[28px] w-[1px] bg-[var(--border-1)]' />
         <div className='flex flex-col'>
-          <span className='font-semibold text-[14px] text-[var(--text-primary)]'>
+          <span className='font-semibold text-[var(--text-primary)] text-sm tabular-nums'>
             +{dailyRefresh.toLocaleString()}
           </span>
-          <span className='text-[11px] text-[var(--text-secondary)]'>daily refresh</span>
+          <span className='text-[var(--text-secondary)] text-xs'>daily refresh</span>
         </div>
       </div>
 
       {features && features.length > 0 && (
-        <ul className='flex flex-col gap-[10px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[12px]'>
+        <ul className='flex flex-col gap-2.5 border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3'>
           {features.map((feature, idx) => (
-            <li key={idx} className='flex items-center gap-[8px]'>
+            <li key={idx} className='flex items-center gap-2'>
               <feature.icon className='h-[13px] w-[13px] flex-shrink-0 text-[var(--text-muted)]' />
-              <span className='text-[12px] text-[var(--text-secondary)]'>{feature.text}</span>
+              <span className='text-[var(--text-secondary)] text-caption'>{feature.text}</span>
             </li>
           ))}
         </ul>
       )}
 
       {isCurrentPlan && isLegacyPlan && (
-        <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[8px]'>
+        <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-2'>
           <Badge variant='amber' size='sm' dot>
             You are on an old version of this plan
           </Badge>
         </div>
       )}
 
-      <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[14px]'>
+      <div className='flex min-h-[60px] items-center border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3.5'>
         {isCurrentPlan ? (
-          <Button onClick={onManagePlan} className='w-full' variant='default'>
+          <Button onClick={onManagePlan} className='h-[32px] w-full' variant='default'>
             {isCancelledAtPeriodEnd ? 'Restore Subscription' : 'Manage plan'}
           </Button>
         ) : (
-          <Button onClick={onButtonClick} className='w-full' variant='primary'>
+          <Button onClick={onButtonClick} className='h-[32px] w-full' variant='primary'>
             {buttonText}
           </Button>
         )}
@@ -306,7 +308,9 @@ export function Subscription() {
     isPro: isPro(subscriptionData?.data?.plan),
     isTeam: isTeam(subscriptionData?.data?.plan),
     isEnterprise: isEnterprise(subscriptionData?.data?.plan),
-    isPaid: isPaid(subscriptionData?.data?.plan) && subscriptionData?.data?.status === 'active',
+    isPaid:
+      isPaid(subscriptionData?.data?.plan) &&
+      hasPaidSubscriptionStatus(subscriptionData?.data?.status),
     plan: subscriptionData?.data?.plan || 'free',
     status: subscriptionData?.data?.status || 'inactive',
     seats: getEffectiveSeats(subscriptionData?.data),
@@ -364,7 +368,7 @@ export function Subscription() {
     isTeamAdmin &&
     organizationBillingData?.data
       ? organizationBillingData.data.minimumBillingAmount
-      : getPlanTierDollars(subscription.plan)
+      : getPlanTierCredits(subscription.plan) / CREDIT_MULTIPLIER
 
   const effectiveUsageLimit =
     (subscription.isTeam || subscription.isEnterprise) &&
@@ -468,8 +472,12 @@ export function Subscription() {
   }
   const badgeConfig = getBadgeConfig()
 
+  const hasUsablePaidAccess = subscription.isPaid
+    ? hasUsableSubscriptionAccess(subscription.status, isBlocked)
+    : false
+
   const onDemandState: 'hidden' | 'enable' | 'disable' = (() => {
-    if (!subscription.isPaid || !permissions.canEditUsageLimit || isBlocked) return 'hidden'
+    if (!hasUsablePaidAccess || !permissions.canEditUsageLimit) return 'hidden'
     return isOnDemandActive ? 'disable' : 'enable'
   })()
 
@@ -560,7 +568,7 @@ export function Subscription() {
   const showTeamCard = visiblePlans.includes('pro') || visiblePlans.includes('team')
 
   return (
-    <div className='flex h-full flex-col gap-[20px]'>
+    <div className='flex h-full flex-col gap-5'>
       {/* Current Plan & Usage Overview */}
       {permissions.canViewUsageInfo ? (
         <UsageHeader
@@ -636,7 +644,7 @@ export function Subscription() {
         />
       ) : (
         <div className='flex items-center'>
-          <span className='font-medium text-[15px] text-[var(--text-primary)]'>
+          <span className='font-medium text-[var(--text-primary)] text-base'>
             {formatPlanName(subscription.plan)}
           </span>
         </div>
@@ -644,17 +652,17 @@ export function Subscription() {
 
       {/* Upgrade Plans */}
       {showUpgradePlans && (
-        <div className='flex flex-col gap-[12px]'>
+        <div className='flex flex-col gap-3'>
           {/* Billing toggle */}
           <div className='flex items-center justify-start'>
-            <div className='flex rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] p-[2px]'>
+            <div className='flex rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] p-0.5'>
               <button
                 type='button'
                 className={cn(
-                  'rounded-[4px] px-[10px] py-[4px] font-medium text-[12px] transition-colors',
+                  'rounded-sm px-2.5 py-1 font-medium text-caption transition-colors',
                   !isAnnual
                     ? 'bg-[var(--surface-3)] text-[var(--text-primary)]'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    : 'text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
                 )}
                 onClick={() => setIsAnnual(false)}
               >
@@ -663,15 +671,15 @@ export function Subscription() {
               <button
                 type='button'
                 className={cn(
-                  'flex items-center gap-[4px] rounded-[4px] px-[10px] py-[4px] font-medium text-[12px] transition-colors',
+                  'flex items-center gap-1 rounded-sm px-2.5 py-1 font-medium text-caption transition-colors',
                   isAnnual
                     ? 'bg-[var(--surface-3)] text-[var(--text-primary)]'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    : 'text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
                 )}
                 onClick={() => setIsAnnual(true)}
               >
                 Annual
-                <span className='rounded-[3px] bg-[#10b981] px-[4px] py-[1px] font-semibold text-[10px] text-white'>
+                <span className='rounded-[3px] bg-[var(--success)] px-1 py-[1px] font-semibold text-micro text-white'>
                   -15%
                 </span>
               </button>
@@ -701,7 +709,7 @@ export function Subscription() {
             const showProCard = !isOnMaxTier
 
             return (
-              <div className='grid grid-cols-2 gap-[10px]'>
+              <div className='grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-2.5'>
                 {showProCard && (
                   <CreditPlanCard
                     name='Pro'
@@ -751,7 +759,9 @@ export function Subscription() {
                         ? `Switch to ${isAnnual ? 'Annual' : 'Monthly'}`
                         : subscription.isTeam
                           ? 'Upgrade Team'
-                          : 'Upgrade'
+                          : subscription.isFree
+                            ? 'Get started'
+                            : 'Upgrade'
                   }
                   onButtonClick={
                     isOnMax
@@ -789,6 +799,15 @@ export function Subscription() {
                   features={MAX_PLAN_FEATURES}
                   isLegacyPlan={isLegacyPlan && isOnMaxTier}
                 />
+                {hasEnterprise && (
+                  <PlanCard
+                    name='Enterprise'
+                    price=''
+                    features={ENTERPRISE_PLAN_FEATURES}
+                    buttonText='Contact'
+                    onButtonClick={() => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')}
+                  />
+                )}
               </div>
             )
           })()}
@@ -912,43 +931,46 @@ export function Subscription() {
 
       {/* Billing details section */}
       {(subscription.isPaid || (!isLoading && isTeamAdmin)) && (
-        <div className='flex flex-col gap-[14px] rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[14px] py-[12px]'>
+        <div className='flex flex-col gap-4'>
           {subscription.isPaid && permissions.canViewUsageInfo && (
-            <CreditBalance
-              balance={subscriptionData?.data?.creditBalance ?? 0}
-              canPurchase={permissions.canEditUsageLimit}
-              entityType={
-                subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
-              }
-              isLoading={isLoading}
-              onPurchaseComplete={() => refetchSubscription()}
-            />
+            <div>
+              <CreditBalance
+                balance={subscriptionData?.data?.creditBalance ?? 0}
+                canPurchase={hasUsablePaidAccess && permissions.canEditUsageLimit}
+                entityType={
+                  subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+                }
+                isLoading={isLoading}
+                onPurchaseComplete={() => refetchSubscription()}
+              />
+            </div>
           )}
 
           {subscription.isPaid &&
             subscriptionData?.data?.periodEnd &&
             !permissions.showTeamMemberView &&
             !permissions.isEnterpriseMember && (
-              <div className='flex items-center justify-between'>
+              <div className='flex items-center justify-between gap-4'>
                 <Label>{isCancelledAtPeriodEnd ? 'Access Until' : 'Next Billing Date'}</Label>
-                <span className='text-[13px] text-[var(--text-secondary)]'>
+                <span className='text-[var(--text-secondary)] text-small'>
                   {new Date(subscriptionData.data.periodEnd).toLocaleDateString()}
                 </span>
               </div>
             )}
 
           {subscription.isPaid && permissions.canViewUsageInfo && (
-            <BillingUsageNotificationsToggle />
+            <div>
+              <BillingUsageNotificationsToggle />
+            </div>
           )}
 
           {subscription.isPaid &&
             !permissions.showTeamMemberView &&
             !permissions.isEnterpriseMember && (
-              <div className='flex items-center justify-between'>
+              <div className='flex items-center justify-between gap-4'>
                 <Label>Invoices</Label>
                 <Button
-                  variant='outline'
-                  size='sm'
+                  variant='active'
                   disabled={openBillingPortal.isPending}
                   onClick={() => {
                     const portalWindow = window.open('', '_blank')
@@ -983,8 +1005,8 @@ export function Subscription() {
             )}
 
           {!isLoading && isTeamAdmin && (
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-[6px]'>
+            <div className='flex items-center justify-between gap-4'>
+              <div className='flex items-center gap-1.5'>
                 <Label htmlFor='billed-account'>Billed Account</Label>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
@@ -996,7 +1018,7 @@ export function Subscription() {
                 </Tooltip.Root>
               </div>
               {workspaceAdmins.length === 0 ? (
-                <div className='rounded-[6px] border border-[var(--border)] border-dashed px-[12px] py-[6px] text-[13px] text-[var(--text-muted)]'>
+                <div className='rounded-md border border-[var(--border)] border-dashed px-3 py-1.5 text-[var(--text-muted)] text-small'>
                   No admins available
                 </div>
               ) : (
@@ -1027,18 +1049,6 @@ export function Subscription() {
             </div>
           )}
         </div>
-      )}
-
-      {/* Enterprise */}
-      {hasEnterprise && (
-        <PlanCard
-          name='Enterprise'
-          price=''
-          features={ENTERPRISE_PLAN_FEATURES}
-          buttonText='Contact'
-          onButtonClick={() => window.open(CONSTANTS.TYPEFORM_ENTERPRISE_URL, '_blank')}
-          inlineButton
-        />
       )}
     </div>
   )
@@ -1083,23 +1093,21 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
           </p>
 
           {/* Plan toggle */}
-          <div className='mt-[16px] flex flex-col gap-[4px]'>
-            <Label className='text-[13px]'>Plan</Label>
-            <div className='flex gap-[8px]'>
+          <div className='mt-4 flex flex-col gap-1'>
+            <Label className='text-small'>Plan</Label>
+            <div className='flex gap-2'>
               <button
                 type='button'
                 className={cn(
-                  'flex-1 rounded-[6px] border px-[12px] py-[10px] text-left transition-colors',
+                  'flex-1 rounded-md border px-3 py-2.5 text-left transition-colors',
                   selectedTier === PRO_TIER.credits
-                    ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                    : 'border-[var(--border-1)] hover:border-[var(--border-2)]'
+                    ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_5%,transparent)]'
+                    : 'border-[var(--border-1)] hover-hover:border-[var(--border-2)]'
                 )}
                 onClick={() => setSelectedTier(PRO_TIER.credits)}
               >
-                <span className='block font-medium text-[13px] text-[var(--text-primary)]'>
-                  Pro
-                </span>
-                <span className='block text-[12px] text-[var(--text-secondary)]'>
+                <span className='block font-medium text-[var(--text-primary)] text-small'>Pro</span>
+                <span className='block text-[var(--text-secondary)] text-caption tabular-nums'>
                   {PRO_TIER.credits.toLocaleString()} credits/seat &middot; ${PRO_TIER.dollars}
                   /seat/mo
                 </span>
@@ -1107,17 +1115,15 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
               <button
                 type='button'
                 className={cn(
-                  'flex-1 rounded-[6px] border px-[12px] py-[10px] text-left transition-colors',
+                  'flex-1 rounded-md border px-3 py-2.5 text-left transition-colors',
                   selectedTier === MAX_TIER.credits
-                    ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                    : 'border-[var(--border-1)] hover:border-[var(--border-2)]'
+                    ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_5%,transparent)]'
+                    : 'border-[var(--border-1)] hover-hover:border-[var(--border-2)]'
                 )}
                 onClick={() => setSelectedTier(MAX_TIER.credits)}
               >
-                <span className='block font-medium text-[13px] text-[var(--text-primary)]'>
-                  Max
-                </span>
-                <span className='block text-[12px] text-[var(--text-secondary)]'>
+                <span className='block font-medium text-[var(--text-primary)] text-small'>Max</span>
+                <span className='block text-[var(--text-secondary)] text-caption tabular-nums'>
                   {MAX_TIER.credits.toLocaleString()} credits/seat &middot; ${MAX_TIER.dollars}
                   /seat/mo
                 </span>
@@ -1126,8 +1132,8 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
           </div>
 
           {/* Seat selector */}
-          <div className='mt-[16px] flex flex-col gap-[4px]'>
-            <Label className='text-[13px]'>Seats</Label>
+          <div className='mt-4 flex flex-col gap-1'>
+            <Label className='text-small'>Seats</Label>
             <Combobox
               options={seatOptions}
               value={selectedSeats > 0 ? selectedSeats.toString() : ''}
@@ -1141,8 +1147,8 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
           </div>
 
           {/* Cost summary */}
-          <div className='mt-[16px] rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-4)] px-[12px] py-[10px]'>
-            <div className='flex justify-between text-[13px]'>
+          <div className='mt-4 rounded-md border border-[var(--border-1)] bg-[var(--surface-4)] px-3 py-2.5'>
+            <div className='flex justify-between text-small'>
               <span className='text-[var(--text-muted)]'>
                 {selectedSeats} {selectedSeats === 1 ? 'seat' : 'seats'} &times; $
                 {monthlyCostPerSeat}/mo
@@ -1152,11 +1158,11 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
               </span>
             </div>
             {isAnnual && (
-              <div className='mt-[4px] flex justify-between text-[12px]'>
+              <div className='mt-1 flex justify-between text-caption'>
                 <span className='text-[var(--text-muted)]'>Annual total</span>
                 <span className='text-[var(--text-secondary)]'>
                   ${annualTotal}/yr
-                  <span className='ml-[4px] text-[var(--text-muted)] line-through'>
+                  <span className='ml-1 text-[var(--text-muted)] line-through'>
                     ${totalMonthly * 12}
                   </span>
                 </span>
@@ -1303,31 +1309,31 @@ function ManagePlanModal({
           </p>
 
           {isLegacyPlan && (
-            <Badge variant='amber' size='lg' dot className='mt-[8px]'>
+            <Badge variant='amber' size='lg' dot className='mt-2'>
               You're on an older version of this plan
             </Badge>
           )}
 
-          <div className='mt-[16px] flex flex-col'>
+          <div className='mt-4 flex flex-col'>
             {actions.map((action, i) => (
               <div
                 key={action.title}
                 className={cn(
-                  'flex items-center justify-between py-[12px]',
+                  'flex items-center justify-between py-3',
                   i > 0 && 'border-[var(--border-1)] border-t'
                 )}
               >
                 <div className='min-w-0 flex-1'>
-                  <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                  <span className='font-medium text-[var(--text-primary)] text-small'>
                     {action.title}
                   </span>
-                  <span className='block text-[12px] text-[var(--text-secondary)]'>
+                  <span className='block text-[var(--text-secondary)] text-caption'>
                     {action.description}
                   </span>
                 </div>
                 <Button
                   variant='primary'
-                  className='ml-[12px] shrink-0'
+                  className='ml-3 shrink-0'
                   onClick={action.onClick}
                   disabled={action.disabled}
                 >
@@ -1338,7 +1344,7 @@ function ManagePlanModal({
           </div>
 
           {error && (
-            <span className='mt-[4px] block text-[12px] text-[var(--text-error)]'>{error}</span>
+            <span className='mt-1 block text-[var(--text-error)] text-caption'>{error}</span>
           )}
         </ModalBody>
         <ModalFooter>
@@ -1374,11 +1380,9 @@ function BillingUsageNotificationsToggle() {
 
   return (
     <div className='flex items-center justify-between'>
-      <div className='flex flex-col gap-[4px]'>
+      <div className='flex flex-col gap-1'>
         <Label htmlFor='usage-notifications'>Usage notifications</Label>
-        <span className='text-[13px] text-[var(--text-muted)]'>
-          Email me when I reach 80% usage
-        </span>
+        <span className='text-[var(--text-muted)] text-small'>Email me when I reach 80% usage</span>
       </div>
       <Switch
         id='usage-notifications'

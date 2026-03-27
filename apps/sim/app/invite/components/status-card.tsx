@@ -32,11 +32,13 @@ export function InviteStatusCard({
     return (
       <>
         <div className='space-y-1 text-center'>
-          <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>Loading</h1>
-          <p className='font-[380] text-[#999] text-[16px]'>{description}</p>
+          <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
+            Loading
+          </h1>
+          <p className='font-[380] text-[var(--landing-text-muted)] text-md'>{description}</p>
         </div>
         <div className='mt-8 flex w-full items-center justify-center py-8'>
-          <Loader2 className='h-8 w-8 animate-spin text-[#999]' />
+          <Loader2 className='h-8 w-8 animate-spin text-[var(--landing-text-muted)]' />
         </div>
       </>
     )
@@ -45,8 +47,10 @@ export function InviteStatusCard({
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>{title}</h1>
-        <p className='font-[380] text-[#999] text-[16px]'>{description}</p>
+        <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
+          {title}
+        </h1>
+        <p className='font-[380] text-[var(--landing-text-muted)] text-md'>{description}</p>
       </div>
 
       <div className='mt-8 w-full max-w-[410px] space-y-3'>
@@ -66,7 +70,7 @@ export function InviteStatusCard({
             showArrow={false}
             className={
               index !== 0
-                ? 'border-[#3d3d3d] bg-transparent text-[#ECECEC] hover:border-[#3d3d3d] hover:bg-[#2A2A2A]'
+                ? 'border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-elevated)]'
                 : undefined
             }
           >

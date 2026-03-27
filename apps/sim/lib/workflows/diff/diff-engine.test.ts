@@ -212,6 +212,30 @@ describe('WorkflowDiffEngine', () => {
         expect(result.diff?.diffAnalysis?.edited_blocks).not.toContain('block-1')
       })
     })
+
+    describe('parent scope changes', () => {
+      it.concurrent('should detect when a block moves into a subflow', async () => {
+        const freshEngine = new WorkflowDiffEngine()
+        const baseline = createMockWorkflowState({
+          'block-1': createMockBlock({ id: 'block-1' }),
+        })
+
+        const proposed = createMockWorkflowState({
+          'block-1': createMockBlock({
+            id: 'block-1',
+            data: { parentId: 'loop-1', extent: 'parent' },
+          }),
+        })
+
+        const result = await freshEngine.createDiffFromWorkflowState(proposed, undefined, baseline)
+
+        expect(result.success).toBe(true)
+        expect(result.diff?.diffAnalysis?.edited_blocks).toContain('block-1')
+        expect(result.diff?.diffAnalysis?.field_diffs?.['block-1']?.changed_fields).toContain(
+          'parentId'
+        )
+      })
+    })
   })
 
   describe('diff lifecycle', () => {

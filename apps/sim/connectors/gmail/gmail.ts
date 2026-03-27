@@ -2,14 +2,13 @@ import { createLogger } from '@sim/logger'
 import { GmailIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GmailConnector')
 
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 const DEFAULT_MAX_THREADS = 500
 const THREADS_PER_PAGE = 100
-const CONCURRENCY = 5
 
 interface GmailHeader {
   name: string
@@ -281,6 +280,27 @@ async function resolveLabelNames(
     .filter((name) => !name.startsWith('CATEGORY_') && name !== 'UNREAD')
 }
 
+/**
+ * Creates a lightweight document stub from a thread list entry.
+ * Uses metadata-based contentHash for change detection without downloading content.
+ */
+function threadToStub(thread: {
+  id: string
+  snippet?: string
+  historyId?: string
+}): ExternalDocument {
+  return {
+    externalId: thread.id,
+    title: thread.snippet || 'Untitled Thread',
+    content: '',
+    contentDeferred: true,
+    mimeType: 'text/plain',
+    sourceUrl: `https://mail.google.com/mail/u/0/#inbox/${thread.id}`,
+    contentHash: `gmail:${thread.id}:${thread.historyId ?? ''}`,
+    metadata: {},
+  }
+}
+
 export const gmailConnector: ConnectorConfig = {
   id: 'gmail',
   name: 'Gmail',
@@ -421,57 +441,20 @@ export const gmailConnector: ConnectorConfig = {
     }
 
     const data = await response.json()
-    const threadStubs = (data.threads || []) as { id: string }[]
+    const threads = (data.threads || []) as { id: string; snippet?: string; historyId?: string }[]
 
-    if (threadStubs.length === 0) {
+    if (threads.length === 0) {
       return { documents: [], hasMore: false }
     }
 
-    // Fetch full threads with concurrency limit
-    const documents: ExternalDocument[] = []
-    for (let i = 0; i < threadStubs.length; i += CONCURRENCY) {
-      const batch = threadStubs.slice(i, i + CONCURRENCY)
-      const results = await Promise.all(
-        batch.map(async (stub) => {
-          try {
-            const thread = await fetchThread(accessToken, stub.id)
-            if (!thread) return null
-
-            const { content, subject, metadata } = formatThread(thread)
-            if (!content.trim()) return null
-
-            // Resolve label names
-            const labelIds = (metadata.labelIds as string[]) || []
-            const labelNames = await resolveLabelNames(accessToken, labelIds, syncContext)
-            metadata.labels = labelNames
-
-            const contentHash = await computeContentHash(content)
-
-            return {
-              externalId: thread.id,
-              title: subject,
-              content,
-              mimeType: 'text/plain' as const,
-              sourceUrl: `https://mail.google.com/mail/u/0/#inbox/${thread.id}`,
-              contentHash,
-              metadata,
-            }
-          } catch (error) {
-            logger.warn(`Failed to process thread ${stub.id}`, {
-              error: error instanceof Error ? error.message : String(error),
-            })
-            return null
-          }
-        })
-      )
-      documents.push(...(results.filter(Boolean) as ExternalDocument[]))
-    }
+    const documents = threads.map(threadToStub)
 
     const newTotal = totalFetched + documents.length
     if (syncContext) syncContext.totalThreadsFetched = newTotal
 
     const nextPageToken = data.nextPageToken as string | undefined
     const hitLimit = newTotal >= maxThreads
+    if (hitLimit && syncContext) syncContext.listingCapped = true
 
     return {
       documents,
@@ -497,15 +480,14 @@ export const gmailConnector: ConnectorConfig = {
       const labelNames = await resolveLabelNames(accessToken, labelIds, syncContext)
       metadata.labels = labelNames
 
-      const contentHash = await computeContentHash(content)
-
       return {
         externalId: thread.id,
         title: subject,
         content,
+        contentDeferred: false,
         mimeType: 'text/plain',
         sourceUrl: `https://mail.google.com/mail/u/0/#inbox/${thread.id}`,
-        contentHash,
+        contentHash: `gmail:${thread.id}:${thread.historyId ?? ''}`,
         metadata,
       }
     } catch (error) {
@@ -630,9 +612,9 @@ export const gmailConnector: ConnectorConfig = {
       result.from = metadata.from
     }
 
-    const labels = Array.isArray(metadata.labels) ? (metadata.labels as string[]) : []
-    if (labels.length > 0) {
-      result.labels = labels.join(', ')
+    const labels = joinTagArray(metadata.labels)
+    if (labels) {
+      result.labels = labels
     }
 
     if (typeof metadata.messageCount === 'number') {

@@ -73,6 +73,7 @@ import { GoogleTranslateBlock } from '@/blocks/blocks/google_translate'
 import { GoogleVaultBlock } from '@/blocks/blocks/google_vault'
 import { GrafanaBlock } from '@/blocks/blocks/grafana'
 import { GrainBlock } from '@/blocks/blocks/grain'
+import { GranolaBlock } from '@/blocks/blocks/granola'
 import { GreenhouseBlock } from '@/blocks/blocks/greenhouse'
 import { GreptileBlock } from '@/blocks/blocks/greptile'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
@@ -91,6 +92,7 @@ import { JinaBlock } from '@/blocks/blocks/jina'
 import { JiraBlock } from '@/blocks/blocks/jira'
 import { JiraServiceManagementBlock } from '@/blocks/blocks/jira_service_management'
 import { KalshiBlock, KalshiV2Block } from '@/blocks/blocks/kalshi'
+import { KetchBlock } from '@/blocks/blocks/ketch'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LangsmithBlock } from '@/blocks/blocks/langsmith'
 import { LemlistBlock } from '@/blocks/blocks/lemlist'
@@ -145,6 +147,7 @@ import { ReductoBlock, ReductoV2Block } from '@/blocks/blocks/reducto'
 import { ResendBlock } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
 import { RevenueCatBlock } from '@/blocks/blocks/revenuecat'
+import { RipplingBlock } from '@/blocks/blocks/rippling'
 import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 import { RssBlock } from '@/blocks/blocks/rss'
 import { S3Block } from '@/blocks/blocks/s3'
@@ -291,6 +294,7 @@ export const registry: Record<string, BlockConfig> = {
   google_vault: GoogleVaultBlock,
   grafana: GrafanaBlock,
   grain: GrainBlock,
+  granola: GranolaBlock,
   greenhouse: GreenhouseBlock,
   greptile: GreptileBlock,
   guardrails: GuardrailsBlock,
@@ -311,6 +315,7 @@ export const registry: Record<string, BlockConfig> = {
   jira_service_management: JiraServiceManagementBlock,
   kalshi: KalshiBlock,
   kalshi_v2: KalshiV2Block,
+  ketch: KetchBlock,
   knowledge: KnowledgeBlock,
   langsmith: LangsmithBlock,
   lemlist: LemlistBlock,
@@ -367,6 +372,7 @@ export const registry: Record<string, BlockConfig> = {
   resend: ResendBlock,
   response: ResponseBlock,
   revenuecat: RevenueCatBlock,
+  rippling: RipplingBlock,
   router: RouterBlock,
   router_v2: RouterV2Block,
   rss: RssBlock,

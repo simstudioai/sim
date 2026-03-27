@@ -69,10 +69,10 @@ function ResetPasswordContent() {
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
+        <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           Reset your password
         </h1>
-        <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
+        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
           Enter a new password for your account
         </p>
       </div>
@@ -87,10 +87,10 @@ function ResetPasswordContent() {
         />
       </div>
 
-      <div className='pt-6 text-center font-light text-[14px]'>
+      <div className='pt-6 text-center font-light text-sm'>
         <Link
           href='/login'
-          className='font-medium text-[#ECECEC] underline-offset-4 transition hover:text-white hover:underline'
+          className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
         >
           Back to login
         </Link>

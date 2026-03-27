@@ -333,8 +333,8 @@ export function WorkspaceHeader({
                 type='button'
                 aria-label='Switch workspace'
                 className={cn(
-                  'group flex h-[32px] min-w-0 items-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] pl-[5px] transition-colors hover:bg-[var(--surface-5)]',
-                  isCollapsed ? 'w-[32px]' : 'w-full cursor-pointer gap-[8px] pr-[8px]'
+                  'group flex h-[32px] min-w-0 items-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] pl-1.5 transition-colors hover-hover:bg-[var(--surface-5)]',
+                  isCollapsed ? 'w-[32px]' : 'w-full cursor-pointer gap-2 pr-2'
                 )}
                 title={activeWorkspace?.name || 'Loading...'}
                 onContextMenu={(e) => {
@@ -344,16 +344,16 @@ export function WorkspaceHeader({
                 }}
               >
                 <div
-                  className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] font-medium text-[12px] text-white leading-none'
+                  className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
                   style={{
-                    backgroundColor: activeWorkspaceFull?.color || 'var(--brand-tertiary-2)',
+                    backgroundColor: activeWorkspaceFull?.color || 'var(--brand-accent)',
                   }}
                 >
                   {workspaceInitial}
                 </div>
                 {!isCollapsed && (
                   <>
-                    <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
+                    <span className='min-w-0 flex-1 truncate text-left font-base text-[var(--text-primary)] text-sm'>
                       {activeWorkspace?.name || 'Loading...'}
                     </span>
                     <ChevronDown className='sidebar-collapse-hide h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]' />
@@ -381,36 +381,34 @@ export function WorkspaceHeader({
               onCloseAutoFocus={(e) => e.preventDefault()}
             >
               {isWorkspacesLoading ? (
-                <div className='px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-secondary)]'>
+                <div className='px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption'>
                   Loading workspaces...
                 </div>
               ) : (
                 <>
-                  <div className='flex items-center gap-[8px] px-[2px] py-[2px]'>
+                  <div className='flex items-center gap-2 px-0.5 py-0.5'>
                     <div
-                      className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-[6px] font-medium text-[12px] text-white'
+                      className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-md font-medium text-caption text-white'
                       style={{
-                        backgroundColor: activeWorkspaceFull?.color || 'var(--brand-tertiary-2)',
+                        backgroundColor: activeWorkspaceFull?.color || 'var(--brand-accent)',
                       }}
                     >
                       {workspaceInitial}
                     </div>
                     <div className='flex min-w-0 flex-col'>
-                      <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+                      <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                         {activeWorkspace?.name || 'Loading...'}
                       </span>
-                      <span className='text-[11px] text-[var(--text-tertiary)]'>
-                        {planDisplayName}
-                      </span>
+                      <span className='text-[var(--text-tertiary)] text-xs'>{planDisplayName}</span>
                     </div>
                   </div>
 
-                  <DropdownMenuGroup className='mt-[4px] min-h-0 flex-1'>
-                    <div className='flex max-h-[130px] flex-col gap-[2px] overflow-y-auto'>
+                  <DropdownMenuGroup className='mt-1 min-h-0 flex-1'>
+                    <div className='flex max-h-[130px] flex-col gap-0.5 overflow-y-auto'>
                       {workspaces.map((workspace) => (
                         <div key={workspace.id}>
                           {editingWorkspaceId === workspace.id ? (
-                            <div className='flex items-center gap-[8px] rounded-[5px] bg-[var(--surface-active)] px-[8px] py-[5px]'>
+                            <div className='flex items-center gap-2 rounded-[5px] bg-[var(--surface-active)] px-2 py-[5px]'>
                               <input
                                 ref={(el) => {
                                   if (el && !hasInputFocusedRef.current) {
@@ -450,7 +448,7 @@ export function WorkspaceHeader({
                                   }
                                   setEditingWorkspaceId(null)
                                 }}
-                                className='w-full border-0 bg-transparent p-0 font-medium text-[12px] text-[var(--text-primary)] outline-none selection:bg-[#add6ff] selection:text-[#1b1b1b] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[#264f78] dark:selection:text-white'
+                                className='w-full border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-caption outline-none selection:bg-[var(--selection-bg)] selection:text-[var(--bg)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
                                 maxLength={100}
                                 autoComplete='off'
                                 autoCorrect='off'
@@ -465,7 +463,7 @@ export function WorkspaceHeader({
                           ) : (
                             <div
                               className={cn(
-                                'group flex cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)]',
+                                'group flex cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
                                 workspace.id === workspaceId && 'bg-[var(--surface-active)]'
                               )}
                               onClick={() => onWorkspaceSwitch(workspace)}
@@ -484,7 +482,7 @@ export function WorkspaceHeader({
                                   const rect = e.currentTarget.getBoundingClientRect()
                                   openContextMenuAt(workspace, rect.right, rect.top)
                                 }}
-                                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] group-hover:opacity-100'
+                                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity hover-hover:bg-[var(--surface-7)] group-hover:opacity-100'
                               >
                                 <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
                               </button>
@@ -495,10 +493,10 @@ export function WorkspaceHeader({
                     </div>
                   </DropdownMenuGroup>
 
-                  <div className='mt-[4px] flex flex-col gap-[2px]'>
+                  <div className='mt-1 flex flex-col gap-0.5'>
                     <button
                       type='button'
-                      className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
+                      className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)] disabled:pointer-events-none disabled:opacity-50'
                       onClick={(e) => {
                         e.stopPropagation()
                         setIsWorkspaceMenuOpen(false)
@@ -516,7 +514,7 @@ export function WorkspaceHeader({
                       <DropdownMenuSeparator />
                       <button
                         type='button'
-                        className='flex w-full cursor-pointer select-none items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)] outline-none transition-colors hover:bg-[var(--surface-active)]'
+                        className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]'
                         onClick={() => {
                           setIsInviteModalOpen(true)
                           setIsWorkspaceMenuOpen(false)
@@ -536,21 +534,21 @@ export function WorkspaceHeader({
             type='button'
             aria-label='Switch workspace'
             className={cn(
-              'flex h-[32px] min-w-0 items-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] pl-[5px]',
-              isCollapsed ? 'w-[32px]' : 'w-full gap-[8px] pr-[8px]'
+              'flex h-[32px] min-w-0 items-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] pl-[5px]',
+              isCollapsed ? 'w-[32px]' : 'w-full gap-2 pr-2'
             )}
             title={activeWorkspace?.name || 'Loading...'}
             disabled
           >
             <div
-              className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] font-medium text-[12px] text-white leading-none'
-              style={{ backgroundColor: activeWorkspaceFull?.color || 'var(--brand-tertiary-2)' }}
+              className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
+              style={{ backgroundColor: activeWorkspaceFull?.color || 'var(--brand-accent)' }}
             >
               {workspaceInitial}
             </div>
             {!isCollapsed && (
               <>
-                <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
+                <span className='min-w-0 flex-1 truncate text-left font-base text-[var(--text-primary)] text-sm'>
                   {activeWorkspace?.name || 'Loading...'}
                 </span>
                 <ChevronDown className='sidebar-collapse-hide h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)]' />

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { TEMPLATES } from '@/app/workspace/[workspaceId]/home/components/template-prompts/consts'
 import { IntegrationIcon } from '../components/integration-icon'
 import { blockTypeToIconMap } from '../data/icon-mapping'
@@ -11,6 +13,7 @@ import { TemplateCardButton } from './components/template-card-button'
 
 const allIntegrations = integrations as Integration[]
 const INTEGRATION_COUNT = allIntegrations.length
+const baseUrl = getBaseUrl()
 
 /** Fast O(1) lookups — avoids repeated linear scans inside render loops. */
 const bySlug = new Map(allIntegrations.map((i) => [i.slug, i]))
@@ -173,16 +176,24 @@ export async function generateMetadata({
     openGraph: {
       title: `${name} Integration — AI Workflow Automation | Sim`,
       description: `Connect ${name} to ${INTEGRATION_COUNT - 1}+ tools using AI agents. ${description.slice(0, 100).trimEnd()}.`,
-      url: `https://sim.ai/integrations/${slug}`,
+      url: `${baseUrl}/integrations/${slug}`,
       type: 'website',
-      images: [{ url: 'https://sim.ai/opengraph-image.png', width: 1200, height: 630 }],
+      images: [
+        {
+          url: `${baseUrl}/opengraph-image.png`,
+          width: 1200,
+          height: 630,
+          alt: `${name} Integration — Sim`,
+        },
+      ],
     },
     twitter: {
       card: 'summary_large_image',
       title: `${name} Integration | Sim`,
       description: `Automate ${name} with AI-powered workflows. Connect to ${INTEGRATION_COUNT - 1}+ tools. Free to start.`,
+      images: [{ url: `${baseUrl}/opengraph-image.png`, alt: `${name} Integration — Sim` }],
     },
-    alternates: { canonical: `https://sim.ai/integrations/${slug}` },
+    alternates: { canonical: `${baseUrl}/integrations/${slug}` },
   }
 }
 
@@ -211,14 +222,14 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sim.ai' },
+      { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
       {
         '@type': 'ListItem',
         position: 2,
         name: 'Integrations',
-        item: 'https://sim.ai/integrations',
+        item: `${baseUrl}/integrations`,
       },
-      { '@type': 'ListItem', position: 3, name, item: `https://sim.ai/integrations/${slug}` },
+      { '@type': 'ListItem', position: 3, name, item: `${baseUrl}/integrations/${slug}` },
     ],
   }
 
@@ -227,7 +238,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
     '@type': 'SoftwareApplication',
     name: `${name} Integration`,
     description,
-    url: `https://sim.ai/integrations/${slug}`,
+    url: `${baseUrl}/integrations/${slug}`,
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web',
     featureList: operations.map((o) => o.name),
@@ -296,15 +307,18 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           aria-label='Breadcrumb'
           className='mb-10 flex items-center gap-2 text-[#555] text-[13px]'
         >
-          <Link href='/' className='transition-colors hover:text-[#999]'>
+          <Link href='/' className='transition-colors hover:text-[var(--landing-text-muted)]'>
             Home
           </Link>
           <span aria-hidden='true'>/</span>
-          <Link href='/integrations' className='transition-colors hover:text-[#999]'>
+          <Link
+            href='/integrations'
+            className='transition-colors hover:text-[var(--landing-text-muted)]'
+          >
             Integrations
           </Link>
           <span aria-hidden='true'>/</span>
-          <span className='text-[#999]'>{name}</span>
+          <span className='text-[var(--landing-text-muted)]'>{name}</span>
         </nav>
 
         {/* Hero */}
@@ -323,20 +337,22 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               <p className='mb-0.5 text-[#555] text-[12px]'>Integration</p>
               <h1
                 id='integration-heading'
-                className='font-[500] text-[#ECECEC] text-[36px] leading-tight sm:text-[44px]'
+                className='font-[500] text-[36px] text-[var(--landing-text)] leading-tight sm:text-[44px]'
               >
                 {name}
               </h1>
             </div>
           </div>
 
-          <p className='mb-8 max-w-[700px] text-[#999] text-[17px] leading-[1.7]'>{description}</p>
+          <p className='mb-8 max-w-[700px] text-[17px] text-[var(--landing-text-muted)] leading-[1.7]'>
+            {description}
+          </p>
 
           {/* CTAs */}
-          <div className='flex flex-wrap gap-[8px]'>
+          <div className='flex flex-wrap gap-2'>
             <a
               href='https://sim.ai'
-              className='inline-flex h-[32px] items-center rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[10px] font-[430] font-season text-[#1C1C1C] text-[14px] transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+              className='inline-flex h-[32px] items-center rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text-dark)] transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
             >
               Start building free
             </a>
@@ -344,7 +360,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               href={docsUrl}
               target='_blank'
               rel='noopener noreferrer'
-              className='inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#3d3d3d] px-[10px] font-[430] font-season text-[#ECECEC] text-[14px] transition-colors hover:bg-[#2A2A2A]'
+              className='inline-flex h-[32px] items-center gap-1.5 rounded-[5px] border border-[var(--landing-border-strong)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
             >
               View docs
               <svg
@@ -370,16 +386,24 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             {/* Overview */}
             {longDescription && (
               <section aria-labelledby='overview-heading'>
-                <h2 id='overview-heading' className='mb-4 font-[500] text-[#ECECEC] text-[20px]'>
+                <h2
+                  id='overview-heading'
+                  className='mb-4 font-[500] text-[20px] text-[var(--landing-text)]'
+                >
                   Overview
                 </h2>
-                <p className='text-[#999] text-[15px] leading-[1.8]'>{longDescription}</p>
+                <p className='text-[15px] text-[var(--landing-text-muted)] leading-[1.8]'>
+                  {longDescription}
+                </p>
               </section>
             )}
 
             {/* How to automate — targets "how to connect X" queries */}
             <section aria-labelledby='how-it-works-heading'>
-              <h2 id='how-it-works-heading' className='mb-6 font-[500] text-[#ECECEC] text-[20px]'>
+              <h2
+                id='how-it-works-heading'
+                className='mb-6 font-[500] text-[20px] text-[var(--landing-text)]'
+              >
                 How to automate {name} with Sim
               </h2>
               <ol className='space-y-4' aria-label='Steps to set up automation'>
@@ -407,14 +431,18 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                 ].map(({ step, title, body }) => (
                   <li key={step} className='flex gap-4'>
                     <span
-                      className='mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#3d3d3d] font-[500] text-[#555] text-[11px]'
+                      className='mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--landing-border-strong)] font-[500] text-[#555] text-[11px]'
                       aria-hidden='true'
                     >
                       {step}
                     </span>
                     <div>
-                      <h3 className='mb-1 font-[500] text-[#ECECEC] text-[15px]'>{title}</h3>
-                      <p className='text-[#999] text-[14px] leading-relaxed'>{body}</p>
+                      <h3 className='mb-1 font-[500] text-[15px] text-[var(--landing-text)]'>
+                        {title}
+                      </h3>
+                      <p className='text-[14px] text-[var(--landing-text-muted)] leading-relaxed'>
+                        {body}
+                      </p>
                     </div>
                   </li>
                 ))}
@@ -424,10 +452,13 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             {/* Triggers */}
             {triggers.length > 0 && (
               <section aria-labelledby='triggers-heading'>
-                <h2 id='triggers-heading' className='mb-2 font-[500] text-[#ECECEC] text-[20px]'>
+                <h2
+                  id='triggers-heading'
+                  className='mb-2 font-[500] text-[20px] text-[var(--landing-text)]'
+                >
                   Real-time triggers
                 </h2>
-                <p className='mb-4 text-[#999] text-[14px] leading-relaxed'>
+                <p className='mb-4 text-[14px] text-[var(--landing-text-muted)] leading-relaxed'>
                   Connect a {name} webhook to Sim and your workflow fires the instant an event
                   happens — no polling, no delay. Sim receives the full event payload and makes
                   every field available as a variable inside your workflow.
@@ -441,10 +472,10 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                   {triggers.map((trigger) => (
                     <li
                       key={trigger.id}
-                      className='rounded-lg border border-[#2A2A2A] bg-[#242424] p-4'
+                      className='rounded-lg border border-[var(--landing-border)] bg-[var(--landing-bg-card)] p-4'
                     >
                       <div className='mb-2 flex items-center gap-2'>
-                        <span className='inline-flex items-center gap-1 rounded-[4px] bg-[#2A2A2A] px-1.5 py-0.5 font-[500] text-[#ECECEC] text-[11px]'>
+                        <span className='inline-flex items-center gap-1 rounded-[4px] bg-[var(--landing-bg-elevated)] px-1.5 py-0.5 font-[500] text-[11px] text-[var(--landing-text)]'>
                           <svg
                             aria-hidden='true'
                             className='h-2.5 w-2.5'
@@ -458,9 +489,11 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                           Event
                         </span>
                       </div>
-                      <p className='font-[500] text-[#ECECEC] text-[13px]'>{trigger.name}</p>
+                      <p className='font-[500] text-[13px] text-[var(--landing-text)]'>
+                        {trigger.name}
+                      </p>
                       {trigger.description && (
-                        <p className='mt-1 text-[#999] text-[12px] leading-relaxed'>
+                        <p className='mt-1 text-[12px] text-[var(--landing-text-muted)] leading-relaxed'>
                           {trigger.description}
                         </p>
                       )}
@@ -473,10 +506,13 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             {/* Workflow templates */}
             {matchingTemplates.length > 0 && (
               <section aria-labelledby='templates-heading'>
-                <h2 id='templates-heading' className='mb-2 font-[500] text-[#ECECEC] text-[20px]'>
+                <h2
+                  id='templates-heading'
+                  className='mb-2 font-[500] text-[20px] text-[var(--landing-text)]'
+                >
                   Workflow templates
                 </h2>
-                <p className='mb-6 text-[#999] text-[14px]'>
+                <p className='mb-6 text-[14px] text-[var(--landing-text-muted)]'>
                   Ready-to-use workflows featuring {name}. Click any to build it instantly.
                 </p>
                 <ul
@@ -511,7 +547,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                                       →
                                     </span>
                                   )}
-                                  <span className='inline-flex items-center gap-1 rounded-[3px] bg-[#2A2A2A] px-1.5 py-0.5 font-[500] text-[#ECECEC]'>
+                                  <span className='inline-flex items-center gap-1 rounded-[3px] bg-[var(--landing-bg-elevated)] px-1.5 py-0.5 font-[500] text-[var(--landing-text)]'>
                                     <IntegrationIcon
                                       bgColor={int?.bgColor ?? '#6B7280'}
                                       name={intName}
@@ -528,11 +564,11 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                             })}
                           </div>
 
-                          <p className='mb-1 font-[500] text-[#ECECEC] text-[14px]'>
+                          <p className='mb-1 font-[500] text-[14px] text-[var(--landing-text)]'>
                             {template.title}
                           </p>
 
-                          <p className='mt-3 text-[#555] text-[13px] transition-colors group-hover:text-[#999]'>
+                          <p className='mt-3 text-[#555] text-[13px] transition-colors group-hover:text-[var(--landing-text-muted)]'>
                             Try this workflow →
                           </p>
                         </TemplateCardButton>
@@ -546,10 +582,13 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             {/* Tools */}
             {operations.length > 0 && (
               <section aria-labelledby='tools-heading'>
-                <h2 id='tools-heading' className='mb-2 font-[500] text-[#ECECEC] text-[20px]'>
+                <h2
+                  id='tools-heading'
+                  className='mb-2 font-[500] text-[20px] text-[var(--landing-text)]'
+                >
                   Supported tools
                 </h2>
-                <p className='mb-6 text-[#999] text-[14px]'>
+                <p className='mb-6 text-[14px] text-[var(--landing-text-muted)]'>
                   {operations.length} {name} tool{operations.length === 1 ? '' : 's'} available in
                   Sim
                 </p>
@@ -560,9 +599,9 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                   {operations.map((op) => (
                     <li
                       key={op.name}
-                      className='rounded-[6px] border border-[#2A2A2A] bg-[#242424] px-3.5 py-3'
+                      className='rounded-[6px] border border-[var(--landing-border)] bg-[var(--landing-bg-card)] px-3.5 py-3'
                     >
-                      <p className='font-[500] text-[#ECECEC] text-[13px]'>{op.name}</p>
+                      <p className='font-[500] text-[13px] text-[var(--landing-text)]'>{op.name}</p>
                       {op.description && (
                         <p className='mt-0.5 text-[#555] text-[12px] leading-relaxed'>
                           {op.description}
@@ -576,7 +615,10 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
 
             {/* FAQ */}
             <section aria-labelledby='faq-heading'>
-              <h2 id='faq-heading' className='mb-8 font-[500] text-[#ECECEC] text-[20px]'>
+              <h2
+                id='faq-heading'
+                className='mb-8 font-[500] text-[20px] text-[var(--landing-text)]'
+              >
                 Frequently asked questions
               </h2>
               <IntegrationFAQ faqs={faqs} />
@@ -586,24 +628,24 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           {/* Sidebar */}
           <aside className='space-y-5' aria-label='Integration details'>
             {/* Quick details */}
-            <div className='rounded-lg border border-[#2A2A2A] bg-[#242424] p-5'>
-              <h3 className='mb-4 font-[500] text-[#ECECEC] text-[14px]'>Details</h3>
+            <div className='rounded-lg border border-[var(--landing-border)] bg-[var(--landing-bg-card)] p-5'>
+              <h3 className='mb-4 font-[500] text-[14px] text-[var(--landing-text)]'>Details</h3>
               <dl className='space-y-3 text-[13px]'>
                 {operations.length > 0 && (
                   <div>
                     <dt className='text-[#555]'>Tools</dt>
-                    <dd className='text-[#ECECEC]'>{operations.length} supported</dd>
+                    <dd className='text-[var(--landing-text)]'>{operations.length} supported</dd>
                   </div>
                 )}
                 {triggers.length > 0 && (
                   <div>
                     <dt className='text-[#555]'>Triggers</dt>
-                    <dd className='text-[#ECECEC]'>{triggers.length} available</dd>
+                    <dd className='text-[var(--landing-text)]'>{triggers.length} available</dd>
                   </div>
                 )}
                 <div>
                   <dt className='text-[#555]'>Auth</dt>
-                  <dd className='text-[#ECECEC]'>
+                  <dd className='text-[var(--landing-text)]'>
                     {authType === 'oauth'
                       ? 'One-click OAuth'
                       : authType === 'api-key'
@@ -613,13 +655,13 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                 </div>
                 <div>
                   <dt className='text-[#555]'>Pricing</dt>
-                  <dd className='text-[#ECECEC]'>Free to start</dd>
+                  <dd className='text-[var(--landing-text)]'>Free to start</dd>
                 </div>
               </dl>
               <div className='mt-5 flex flex-col gap-2'>
                 <a
                   href='https://sim.ai'
-                  className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] font-[430] font-season text-[#1C1C1C] text-[13px] transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                  className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--white)] bg-[var(--white)] font-[430] font-season text-[13px] text-[var(--landing-text-dark)] transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                 >
                   Get started free
                 </a>
@@ -627,7 +669,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                   href={docsUrl}
                   target='_blank'
                   rel='noopener noreferrer'
-                  className='flex h-[32px] w-full items-center justify-center gap-1.5 rounded-[5px] border border-[#3d3d3d] font-[430] font-season text-[#ECECEC] text-[13px] transition-colors hover:bg-[#2A2A2A]'
+                  className='flex h-[32px] w-full items-center justify-center gap-1.5 rounded-[5px] border border-[var(--landing-border-strong)] font-[430] font-season text-[13px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
                 >
                   View docs
                   <svg
@@ -647,62 +689,69 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             </div>
 
             {/* Related integrations — internal linking for SEO */}
-            {relatedIntegrations.length > 0 && (
-              <div className='rounded-lg border border-[#2A2A2A] bg-[#242424] p-5'>
-                <h3 className='mb-4 font-[500] text-[#ECECEC] text-[14px]'>Related integrations</h3>
-                <ul className='space-y-2'>
-                  {relatedIntegrations.map((rel) => (
-                    <li key={rel.slug}>
-                      <Link
-                        href={`/integrations/${rel.slug}`}
-                        className='flex items-center gap-2.5 rounded-[6px] p-1.5 text-[#999] text-[13px] transition-colors hover:bg-[#2A2A2A] hover:text-[#ECECEC]'
-                      >
-                        <IntegrationIcon
-                          bgColor={rel.bgColor}
-                          name={rel.name}
-                          Icon={blockTypeToIconMap[rel.type]}
-                          as='span'
-                          className='h-6 w-6 rounded-[4px]'
-                          iconClassName='h-3.5 w-3.5'
-                          fallbackClassName='text-[10px]'
-                          aria-hidden='true'
-                        />
-                        {rel.name}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href='/integrations'
-                  className='mt-4 block text-[#555] text-[12px] transition-colors hover:text-[#999]'
-                >
-                  All integrations →
-                </Link>
-              </div>
-            )}
+            <div className='rounded-lg border border-[var(--landing-border)] bg-[var(--landing-bg-card)] p-5'>
+              {relatedIntegrations.length > 0 && (
+                <>
+                  <h3 className='mb-4 font-[500] text-[14px] text-[var(--landing-text)]'>
+                    Related integrations
+                  </h3>
+                  <ul className='space-y-2'>
+                    {relatedIntegrations.map((rel) => (
+                      <li key={rel.slug}>
+                        <Link
+                          href={`/integrations/${rel.slug}`}
+                          className='flex items-center gap-2.5 rounded-[6px] p-1.5 text-[13px] text-[var(--landing-text-muted)] transition-colors hover:bg-[var(--landing-bg-elevated)] hover:text-[var(--landing-text)]'
+                        >
+                          <IntegrationIcon
+                            bgColor={rel.bgColor}
+                            name={rel.name}
+                            Icon={blockTypeToIconMap[rel.type]}
+                            as='span'
+                            className='h-6 w-6 rounded-[4px]'
+                            iconClassName='h-3.5 w-3.5'
+                            fallbackClassName='text-[10px]'
+                            aria-hidden='true'
+                          />
+                          {rel.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <Link
+                href='/integrations'
+                className={`block text-[#555] text-[12px] transition-colors hover:text-[var(--landing-text-muted)]${relatedIntegrations.length > 0 ? ' mt-4' : ''}`}
+              >
+                All integrations →
+              </Link>
+            </div>
           </aside>
         </div>
 
         {/* Bottom CTA */}
         <section
           aria-labelledby='cta-heading'
-          className='mt-20 rounded-xl border border-[#2A2A2A] bg-[#242424] p-8 text-center sm:p-12'
+          className='mt-20 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-bg-card)] p-8 text-center sm:p-12'
         >
           {/* Logo pair: Sim × Integration */}
           <div className='mx-auto mb-6 flex items-center justify-center gap-3'>
-            <img
+            <Image
               src='/brandbook/logo/small.png'
               alt='Sim'
-              className='h-14 w-14 shrink-0 rounded-xl'
+              width={56}
+              height={56}
+              className='shrink-0 rounded-xl'
+              unoptimized
             />
             <div className='flex items-center gap-2'>
               <span className='h-px w-5 bg-[#3d3d3d]' aria-hidden='true' />
               <span
-                className='flex h-7 w-7 items-center justify-center rounded-full border border-[#3d3d3d]'
+                className='flex h-7 w-7 items-center justify-center rounded-full border border-[var(--landing-border-strong)]'
                 aria-hidden='true'
               >
                 <svg
-                  className='h-3.5 w-3.5 text-[#666]'
+                  className='h-3.5 w-3.5 text-[var(--landing-text-secondary)]'
                   viewBox='0 0 24 24'
                   fill='none'
                   stroke='currentColor'
@@ -727,17 +776,17 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           </div>
           <h2
             id='cta-heading'
-            className='mb-3 font-[500] text-[#ECECEC] text-[28px] sm:text-[34px]'
+            className='mb-3 font-[500] text-[28px] text-[var(--landing-text)] sm:text-[34px]'
           >
             Start automating {name} today
           </h2>
-          <p className='mx-auto mb-8 max-w-[480px] text-[#999] text-[16px] leading-relaxed'>
+          <p className='mx-auto mb-8 max-w-[480px] text-[16px] text-[var(--landing-text-muted)] leading-relaxed'>
             Build your first AI workflow with {name} in minutes. Connect to every tool your team
             uses. Free to start — no credit card required.
           </p>
           <a
             href='https://sim.ai'
-            className='inline-flex h-[32px] items-center rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[10px] font-[430] font-season text-[#1C1C1C] text-[14px] transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+            className='inline-flex h-[32px] items-center rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text-dark)] transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
           >
             Build for free →
           </a>

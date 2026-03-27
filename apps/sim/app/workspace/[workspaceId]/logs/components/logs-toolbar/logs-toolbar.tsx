@@ -396,17 +396,17 @@ export const LogsToolbar = memo(function LogsToolbar({
     <div className='flex flex-col gap-[19px]'>
       {/* Header Section */}
       <div className='flex items-start justify-between'>
-        <div className='flex items-start gap-[12px]'>
-          <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#D4A843] bg-[#FDF6E3] dark:border-[#7A5F11] dark:bg-[#514215]'>
+        <div className='flex items-start gap-3'>
+          <div className='flex h-[26px] w-[26px] items-center justify-center rounded-md border border-[#D4A843] bg-[#FDF6E3] dark:border-[#7A5F11] dark:bg-[#514215]'>
             <Library className='h-[14px] w-[14px] text-[#D4A843] dark:text-[#FBBC04]' />
           </div>
-          <h1 className='font-medium text-[18px]'>Logs</h1>
+          <h1 className='font-medium text-lg'>Logs</h1>
         </div>
-        <div className='flex items-center gap-[8px]'>
+        <div className='flex items-center gap-2'>
           {/* More options menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant='default' className='h-[32px] w-[32px] rounded-[6px] p-0'>
+              <Button variant='default' className='h-[32px] w-[32px] rounded-md p-0'>
                 <MoreHorizontal className='h-[14px] w-[14px]' />
                 <span className='sr-only'>More options</span>
               </Button>
@@ -426,7 +426,7 @@ export const LogsToolbar = memo(function LogsToolbar({
           {/* Refresh button */}
           <Button
             variant='default'
-            className='h-[32px] rounded-[6px] px-[10px]'
+            className='h-[32px] rounded-md px-2.5'
             onClick={isRefreshing ? undefined : onRefresh}
             disabled={isRefreshing}
           >
@@ -442,8 +442,8 @@ export const LogsToolbar = memo(function LogsToolbar({
             variant={isLive ? 'tertiary' : 'default'}
             onClick={onToggleLive}
             className={cn(
-              'h-[32px] rounded-[6px] px-[10px]',
-              isLive && 'border border-[var(--brand-tertiary-2)]'
+              'h-[32px] rounded-md px-2.5',
+              isLive && 'border border-[var(--brand-accent)]'
             )}
           >
             Live
@@ -451,13 +451,13 @@ export const LogsToolbar = memo(function LogsToolbar({
 
           {/* View mode toggle */}
           <div
-            className='flex h-[32px] cursor-pointer items-center rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] p-[2px]'
+            className='flex h-[32px] cursor-pointer items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-0.5'
             onClick={() => onViewModeChange(isDashboardView ? 'logs' : 'dashboard')}
           >
             <Button
               variant={!isDashboardView ? 'active' : 'ghost'}
               className={cn(
-                'h-[26px] rounded-[4px] px-[10px]',
+                'h-[26px] rounded-sm px-2.5',
                 isDashboardView && 'border border-transparent'
               )}
             >
@@ -466,7 +466,7 @@ export const LogsToolbar = memo(function LogsToolbar({
             <Button
               variant={isDashboardView ? 'active' : 'ghost'}
               className={cn(
-                'h-[26px] rounded-[4px] px-[10px]',
+                'h-[26px] rounded-sm px-2.5',
                 !isDashboardView && 'border border-transparent'
               )}
             >
@@ -477,7 +477,7 @@ export const LogsToolbar = memo(function LogsToolbar({
       </div>
 
       {/* Filter Bar Section */}
-      <div className='flex w-full items-center gap-[12px]'>
+      <div className='flex w-full items-center gap-3'>
         <div className='min-w-[200px] max-w-[400px] flex-1'>
           <AutocompleteSearch
             value={searchQuery}
@@ -486,13 +486,13 @@ export const LogsToolbar = memo(function LogsToolbar({
             onOpenChange={onSearchOpenChange}
           />
         </div>
-        <div className='ml-auto flex items-center gap-[8px]'>
+        <div className='ml-auto flex items-center gap-2'>
           {/* Clear Filters Button */}
           {filtersActive && (
             <Button
               variant='active'
               onClick={handleClearFilters}
-              className='h-[32px] rounded-[6px] px-[10px]'
+              className='h-[32px] rounded-md px-2.5'
             >
               <span>Clear</span>
             </Button>
@@ -501,18 +501,15 @@ export const LogsToolbar = memo(function LogsToolbar({
           {/* Filters dropdown - Small screens only */}
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant='active'
-                className='h-[32px] gap-[6px] rounded-[6px] px-[10px] xl:hidden'
-              >
+              <Button variant='active' className='h-[32px] gap-1.5 rounded-md px-2.5 xl:hidden'>
                 <span>Filters</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align='end' sideOffset={4} className='w-[280px] p-[12px]'>
-              <div className='flex flex-col gap-[12px]'>
+            <DropdownMenuContent align='end' sideOffset={4} className='w-[280px] p-3'>
+              <div className='flex flex-col gap-3'>
                 {/* Status Filter */}
-                <div className='flex flex-col gap-[6px]'>
-                  <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                <div className='flex flex-col gap-1.5'>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Status
                   </span>
                   <Combobox
@@ -522,7 +519,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     onMultiSelectChange={handleStatusChange}
                     placeholder='All statuses'
                     overlayContent={
-                      <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
+                      <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
                         {selectedStatusColor && (
                           <div
                             className='flex-shrink-0 rounded-[3px]'
@@ -535,13 +532,13 @@ export const LogsToolbar = memo(function LogsToolbar({
                     showAllOption
                     allOptionLabel='All statuses'
                     size='sm'
-                    className='h-[32px] w-full rounded-[6px]'
+                    className='h-[32px] w-full rounded-md'
                   />
                 </div>
 
                 {/* Workflow Filter */}
-                <div className='flex flex-col gap-[6px]'>
-                  <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                <div className='flex flex-col gap-1.5'>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Workflow
                   </span>
                   <Combobox
@@ -551,10 +548,10 @@ export const LogsToolbar = memo(function LogsToolbar({
                     onMultiSelectChange={setWorkflowIds}
                     placeholder='All workflows'
                     overlayContent={
-                      <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
+                      <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
                         {selectedWorkflow && (
                           <div
-                            className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px] border-[1.5px]'
+                            className='h-[8px] w-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
                             style={{
                               backgroundColor: selectedWorkflow.color,
                               borderColor: `${selectedWorkflow.color}60`,
@@ -570,13 +567,13 @@ export const LogsToolbar = memo(function LogsToolbar({
                     showAllOption
                     allOptionLabel='All workflows'
                     size='sm'
-                    className='h-[32px] w-full rounded-[6px]'
+                    className='h-[32px] w-full rounded-md'
                   />
                 </div>
 
                 {/* Folder Filter */}
-                <div className='flex flex-col gap-[6px]'>
-                  <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                <div className='flex flex-col gap-1.5'>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Folder
                   </span>
                   <Combobox
@@ -595,13 +592,13 @@ export const LogsToolbar = memo(function LogsToolbar({
                     showAllOption
                     allOptionLabel='All folders'
                     size='sm'
-                    className='h-[32px] w-full rounded-[6px]'
+                    className='h-[32px] w-full rounded-md'
                   />
                 </div>
 
                 {/* Trigger Filter */}
-                <div className='flex flex-col gap-[6px]'>
-                  <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                <div className='flex flex-col gap-1.5'>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Trigger
                   </span>
                   <Combobox
@@ -620,13 +617,13 @@ export const LogsToolbar = memo(function LogsToolbar({
                     showAllOption
                     allOptionLabel='All triggers'
                     size='sm'
-                    className='h-[32px] w-full rounded-[6px]'
+                    className='h-[32px] w-full rounded-md'
                   />
                 </div>
 
                 {/* Time Filter */}
-                <div className='flex flex-col gap-[6px]'>
-                  <span className='font-medium text-[12px] text-[var(--text-secondary)]'>
+                <div className='flex flex-col gap-1.5'>
+                  <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Time Range
                   </span>
                   <Combobox
@@ -640,7 +637,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                       </span>
                     }
                     size='sm'
-                    className='h-[32px] w-full rounded-[6px]'
+                    className='h-[32px] w-full rounded-md'
                   />
                 </div>
               </div>
@@ -648,7 +645,7 @@ export const LogsToolbar = memo(function LogsToolbar({
           </DropdownMenu>
 
           {/* Inline Filters - Large screens only */}
-          <div className='hidden items-center gap-[8px] xl:flex'>
+          <div className='hidden items-center gap-2 xl:flex'>
             {/* Status Filter */}
             <Combobox
               options={statusOptions}
@@ -657,7 +654,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               onMultiSelectChange={handleStatusChange}
               placeholder='Status'
               overlayContent={
-                <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
+                <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
                   {selectedStatusColor && (
                     <div
                       className='flex-shrink-0 rounded-[3px]'
@@ -671,7 +668,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               allOptionLabel='All statuses'
               size='sm'
               align='end'
-              className='h-[32px] w-[120px] rounded-[6px]'
+              className='h-[32px] w-[120px] rounded-md'
             />
 
             {/* Workflow Filter */}
@@ -682,10 +679,10 @@ export const LogsToolbar = memo(function LogsToolbar({
               onMultiSelectChange={setWorkflowIds}
               placeholder='Workflow'
               overlayContent={
-                <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
+                <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
                   {selectedWorkflow && (
                     <div
-                      className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px] border-[1.5px]'
+                      className='h-[8px] w-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
                       style={{
                         backgroundColor: selectedWorkflow.color,
                         borderColor: `${selectedWorkflow.color}60`,
@@ -702,7 +699,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               allOptionLabel='All workflows'
               size='sm'
               align='end'
-              className='h-[32px] w-[120px] rounded-[6px]'
+              className='h-[32px] w-[120px] rounded-md'
             />
 
             {/* Folder Filter */}
@@ -721,7 +718,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               allOptionLabel='All folders'
               size='sm'
               align='end'
-              className='h-[32px] w-[120px] rounded-[6px]'
+              className='h-[32px] w-[120px] rounded-md'
             />
 
             {/* Trigger Filter */}
@@ -740,7 +737,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               allOptionLabel='All triggers'
               size='sm'
               align='end'
-              className='h-[32px] w-[120px] rounded-[6px]'
+              className='h-[32px] w-[120px] rounded-md'
             />
 
             {/* Timeline Filter */}
@@ -759,7 +756,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     }
                     size='sm'
                     align='end'
-                    className='h-[32px] w-[120px] rounded-[6px]'
+                    className='h-[32px] w-[120px] rounded-md'
                   />
                 </div>
               </DropdownMenuTrigger>

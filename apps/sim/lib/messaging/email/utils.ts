@@ -1,6 +1,14 @@
 import { env } from '@/lib/core/config/env'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 
+export const EMAIL_HEADER_CONTROL_CHARS_REGEX = /[\r\n]/
+
+export const NO_EMAIL_HEADER_CONTROL_CHARS_REGEX = /^[^\r\n]*$/
+
+export function hasEmailHeaderControlChars(value: string): boolean {
+  return EMAIL_HEADER_CONTROL_CHARS_REGEX.test(value)
+}
+
 /**
  * Get the from email address, preferring FROM_EMAIL_ADDRESS over EMAIL_DOMAIN
  */

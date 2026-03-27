@@ -33,7 +33,7 @@ const logger = createLogger('CopilotSettings')
  */
 // function McpServerSkeleton() {
 //   return (
-//     <div className='flex items-center justify-between gap-[12px]'>
+//     <div className='flex items-center justify-between gap-3'>
 //       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
 //         <Skeleton className='h-5 w-[120px]' />
 //         <Skeleton className='h-5 w-[80px]' />
@@ -145,28 +145,28 @@ export function Copilot() {
 
   return (
     <>
-      <div className='flex h-full flex-col gap-[18px]'>
+      <div className='flex h-full flex-col gap-4.5'>
         {/* MCP Tools Section — uncomment when ready to allow users to toggle MCP servers for Mothership
-        <div className='flex flex-col gap-[8px]'>
-          <div className='font-medium text-[14px] text-[var(--text-secondary)]'>
+        <div className='flex flex-col gap-2'>
+          <div className='font-medium text-sm text-[var(--text-secondary)]'>
             MCP Tools
           </div>
           {mcpLoading ? (
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               <McpServerSkeleton />
               <McpServerSkeleton />
             </div>
           ) : enabledServers.length === 0 ? (
-            <div className='text-[14px] text-[var(--text-muted)]'>
+            <div className='text-sm text-[var(--text-muted)]'>
               No MCP servers configured. Add servers in the MCP Tools tab.
             </div>
           ) : (
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               {enabledServers.map((server) => (
-                <div key={server.id} className='flex items-center justify-between gap-[12px]'>
+                <div key={server.id} className='flex items-center justify-between gap-3'>
                   <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                    <span className='truncate font-medium text-[15px]'>{server.name}</span>
-                    <p className='truncate text-[14px] text-[var(--text-muted)]'>
+                    <span className='truncate font-medium text-base'>{server.name}</span>
+                    <p className='truncate text-sm text-[var(--text-muted)]'>
                       {server.toolCount ?? 0} tool{server.toolCount === 1 ? '' : 's'}
                     </p>
                   </div>
@@ -182,8 +182,8 @@ export function Copilot() {
         */}
 
         {/* Search Input and Create Button */}
-        <div className='flex items-center gap-[8px]'>
-          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
+        <div className='flex items-center gap-2'>
+          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
@@ -203,7 +203,7 @@ export function Copilot() {
             variant='primary'
             disabled={isLoading}
           >
-            <Plus className='mr-[6px] h-[13px] w-[13px]' />
+            <Plus className='mr-1.5 h-[13px] w-[13px]' />
             Create
           </Button>
         </div>
@@ -211,31 +211,29 @@ export function Copilot() {
         {/* Scrollable Content */}
         <div className='min-h-0 flex-1 overflow-y-auto'>
           {isLoading ? (
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               <CopilotKeySkeleton />
               <CopilotKeySkeleton />
               <CopilotKeySkeleton />
             </div>
           ) : showEmptyState ? (
-            <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
+            <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
               Click "Create" above to get started
             </div>
           ) : (
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               {filteredKeys.map((key) => (
-                <div key={key.id} className='flex items-center justify-between gap-[12px]'>
+                <div key={key.id} className='flex items-center justify-between gap-3'>
                   <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                    <div className='flex items-center gap-[6px]'>
-                      <span className='max-w-[280px] truncate font-medium text-[15px]'>
+                    <div className='flex items-center gap-1.5'>
+                      <span className='max-w-[280px] truncate font-medium text-base'>
                         {key.name || 'Unnamed Key'}
                       </span>
-                      <span className='text-[14px] text-[var(--text-secondary)]'>
+                      <span className='text-[var(--text-secondary)] text-sm'>
                         (last used: {formatLastUsed(key.lastUsed).toLowerCase()})
                       </span>
                     </div>
-                    <p className='truncate text-[14px] text-[var(--text-muted)]'>
-                      {key.displayKey}
-                    </p>
+                    <p className='truncate text-[var(--text-muted)] text-sm'>{key.displayKey}</p>
                   </div>
                   <Button
                     variant='ghost'
@@ -250,7 +248,7 @@ export function Copilot() {
                 </div>
               ))}
               {showNoResults && (
-                <div className='py-[16px] text-center text-[14px] text-[var(--text-muted)]'>
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                   No API keys found matching "{searchTerm}"
                 </div>
               )}
@@ -269,8 +267,8 @@ export function Copilot() {
               you won't be able to see it again.
             </p>
 
-            <div className='mt-[16px] flex flex-col gap-[8px]'>
-              <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
+            <div className='mt-4 flex flex-col gap-2'>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>
                 Enter a name for your API key to help you identify it later.
               </p>
               <EmcnInput
@@ -284,7 +282,7 @@ export function Copilot() {
                 autoFocus
               />
               {createError && (
-                <p className='text-[13px] text-[var(--text-error)] leading-tight'>{createError}</p>
+                <p className='text-[var(--text-error)] text-small leading-tight'>{createError}</p>
               )}
             </div>
           </ModalBody>
@@ -334,15 +332,15 @@ export function Copilot() {
             </p>
 
             {newKey && (
-              <div className='relative mt-[10px]'>
-                <div className='flex h-9 items-center rounded-[6px] border bg-[var(--surface-1)] px-[10px] pr-[40px]'>
-                  <code className='flex-1 truncate font-mono text-[14px] text-[var(--text-primary)]'>
+              <div className='relative mt-2.5'>
+                <div className='flex h-9 items-center rounded-md border bg-[var(--surface-1)] px-2.5 pr-10'>
+                  <code className='flex-1 truncate font-mono text-[var(--text-primary)] text-sm'>
                     {newKey}
                   </code>
                 </div>
                 <Button
                   variant='ghost'
-                  className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] rounded-[4px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] rounded-sm text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
                   onClick={() => copyToClipboard(newKey)}
                 >
                   {copySuccess ? (

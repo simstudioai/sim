@@ -16,6 +16,7 @@ export function ShieldCheck(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path d='M10.25 1.25L2.25 5.25V10.25C2.25 15.25 5.65 19.85 10.25 20.75C14.85 19.85 18.25 15.25 18.25 10.25V5.25L10.25 1.25Z' />

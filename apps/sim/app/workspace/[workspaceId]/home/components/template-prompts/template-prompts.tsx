@@ -76,7 +76,7 @@ function PreviewTable() {
     <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--surface-2)]'>
       <div className='flex shrink-0 items-center border-[var(--border-1)] border-b bg-[var(--surface-3)]'>
         {['Name', 'Email', 'Company', 'Status'].map((col) => (
-          <div key={col} className='flex flex-1 items-center px-[6px] py-[5px]'>
+          <div key={col} className='flex flex-1 items-center px-1.5 py-[5px]'>
             <span className='font-medium text-[7px] text-[var(--text-tertiary)]'>{col}</span>
           </div>
         ))}
@@ -84,7 +84,7 @@ function PreviewTable() {
       {MINI_TABLE_DATA.map((row, i) => (
         <div key={i} className='flex items-center border-[var(--border-1)] border-b'>
           {row.map((cell, j) => (
-            <div key={j} className='flex flex-1 items-center px-[6px] py-[2.5px]'>
+            <div key={j} className='flex flex-1 items-center px-1.5 py-[2.5px]'>
               {j === 3 ? (
                 <div className='flex items-center gap-[3px]'>
                   <div className={`h-[4px] w-[4px] shrink-0 rounded-full ${STATUS_DOT[cell]}`} />
@@ -110,28 +110,26 @@ function PreviewKnowledge() {
     <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--surface-2)]'>
       <div className='flex shrink-0 items-center border-[var(--border-1)] border-b bg-[var(--surface-3)]'>
         {['Name', 'Size', 'Tokens', 'Status'].map((col) => (
-          <div key={col} className='flex flex-1 items-center px-[6px] py-[5px]'>
+          <div key={col} className='flex flex-1 items-center px-1.5 py-[5px]'>
             <span className='font-medium text-[7px] text-[var(--text-tertiary)]'>{col}</span>
           </div>
         ))}
       </div>
       {MINI_KB_DATA.map((row, i) => (
         <div key={i} className='flex items-center border-[var(--border-1)] border-b'>
-          <div className='flex flex-1 items-center px-[6px] py-[2.5px]'>
+          <div className='flex flex-1 items-center px-1.5 py-[2.5px]'>
             <span className='truncate font-medium text-[7px] text-[var(--text-body)] leading-[1.2]'>
               {row[0]}
             </span>
           </div>
-          <div className='flex flex-1 items-center px-[6px] py-[2.5px]'>
+          <div className='flex flex-1 items-center px-1.5 py-[2.5px]'>
             <span className='text-[7px] text-[var(--text-tertiary)] leading-[1.2]'>{row[1]}</span>
           </div>
-          <div className='flex flex-1 items-center px-[6px] py-[2.5px]'>
+          <div className='flex flex-1 items-center px-1.5 py-[2.5px]'>
             <span className='text-[7px] text-[var(--text-tertiary)] leading-[1.2]'>{row[2]}</span>
           </div>
-          <div className='flex flex-1 items-center px-[6px] py-[2.5px]'>
-            <span
-              className={`inline-block rounded-full px-[4px] py-px text-[6px] ${KB_BADGE[row[3]]}`}
-            >
+          <div className='flex flex-1 items-center px-1.5 py-[2.5px]'>
+            <span className={`inline-block rounded-full px-1 py-px text-[6px] ${KB_BADGE[row[3]]}`}>
               {row[3]}
             </span>
           </div>
@@ -144,14 +142,14 @@ function PreviewKnowledge() {
 function PreviewFile() {
   return (
     <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--surface-2)]'>
-      <div className='flex shrink-0 items-center gap-[4px] border-[var(--border-1)] border-b px-[10px] py-[5px]'>
+      <div className='flex shrink-0 items-center gap-1 border-[var(--border-1)] border-b px-2.5 py-[5px]'>
         <span className='text-[7px] text-[var(--text-tertiary)]'>Files</span>
         <span className='text-[7px] text-[var(--text-tertiary)] opacity-40'>/</span>
         <span className='font-medium text-[7px] text-[var(--text-body)]'>meeting-notes.md</span>
       </div>
-      <div className='flex-1 overflow-hidden px-[10px] py-[6px]'>
+      <div className='flex-1 overflow-hidden px-2.5 py-1.5'>
         <p className='font-semibold text-[8px] text-[var(--text-body)]'>Meeting Notes</p>
-        <p className='mt-[4px] font-medium text-[7px] text-[var(--text-body)]'>Action Items</p>
+        <p className='mt-1 font-medium text-[7px] text-[var(--text-body)]'>Action Items</p>
         <p className='mt-[1px] text-[6.5px] text-[var(--text-tertiary)]'>
           • Review Q1 metrics with Sarah
         </p>
@@ -159,11 +157,11 @@ function PreviewFile() {
         <p className='text-[6.5px] text-[var(--text-tertiary)]'>
           • Schedule design review for v2.0
         </p>
-        <p className='mt-[4px] font-medium text-[7px] text-[var(--text-body)]'>Discussion Points</p>
+        <p className='mt-1 font-medium text-[7px] text-[var(--text-body)]'>Discussion Points</p>
         <p className='mt-[1px] text-[6.5px] text-[var(--text-tertiary)]'>
           The team agreed to prioritize the new onboarding flow...
         </p>
-        <p className='mt-[4px] font-medium text-[7px] text-[var(--text-body)]'>Next Steps</p>
+        <p className='mt-1 font-medium text-[7px] text-[var(--text-body)]'>Next Steps</p>
         <p className='mt-[1px] text-[6.5px] text-[var(--text-tertiary)]'>
           Follow up with engineering on the API v2 migration.
         </p>
@@ -180,9 +178,9 @@ const WorkflowMiniBlock = memo(function WorkflowMiniBlock({
 }: WorkflowBlockDef) {
   const hasRows = rows.length > 0
   return (
-    <div className='w-[76px] rounded-[4px] border border-[var(--border-1)] bg-[var(--white)] dark:bg-[var(--surface-4)]'>
+    <div className='w-[76px] rounded-sm border border-[var(--border-1)] bg-[var(--white)] dark:bg-[var(--surface-4)]'>
       <div
-        className={`flex items-center gap-[4px] px-[5px] py-[3px] ${hasRows ? 'border-[var(--border-1)] border-b' : ''}`}
+        className={`flex items-center gap-1 px-[5px] py-[3px] ${hasRows ? 'border-[var(--border-1)] border-b' : ''}`}
       >
         <div
           className='flex h-[11px] w-[11px] shrink-0 items-center justify-center rounded-[3px]'
@@ -193,7 +191,7 @@ const WorkflowMiniBlock = memo(function WorkflowMiniBlock({
         <span className='truncate font-medium text-[6.5px] text-[var(--text-body)]'>{name}</span>
       </div>
       {rows.map((row) => (
-        <div key={row.title} className='flex items-center gap-[3px] px-[5px] py-[2px]'>
+        <div key={row.title} className='flex items-center gap-[3px] px-[5px] py-0.5'>
           <span className='shrink-0 text-[5.5px] text-[var(--text-tertiary)]'>{row.title}</span>
           <span className='ml-auto truncate text-[5.5px] text-[var(--text-body)]'>{row.value}</span>
         </div>
@@ -319,8 +317,8 @@ interface TemplatePromptsProps {
 
 export function TemplatePrompts({ onSelect }: TemplatePromptsProps) {
   return (
-    <div className='flex flex-col gap-[24px] lg:gap-[32px]'>
-      <div className='grid grid-cols-1 gap-[12px] md:grid-cols-2 md:gap-[16px] lg:grid-cols-3'>
+    <div className='flex flex-col gap-6 lg:gap-8'>
+      <div className='grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3'>
         {FEATURED_TEMPLATES.map((template) => (
           <TemplateCard key={template.title} template={template} onSelect={onSelect} />
         ))}
@@ -329,11 +327,11 @@ export function TemplatePrompts({ onSelect }: TemplatePromptsProps) {
       {GROUPED_EXTRAS.map((group) => (
         <div
           key={group.category}
-          className='flex flex-col gap-[12px]'
+          className='flex flex-col gap-3'
           style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 200px' }}
         >
-          <h3 className='font-medium text-[13px] text-[var(--text-secondary)]'>{group.label}</h3>
-          <div className='grid grid-cols-1 gap-[12px] md:grid-cols-2 md:gap-[16px] lg:grid-cols-3'>
+          <h3 className='font-medium text-[var(--text-secondary)] text-small'>{group.label}</h3>
+          <div className='grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3'>
             {group.templates.map((template) => (
               <TemplateCard key={template.title} template={template} onSelect={onSelect} />
             ))}
@@ -359,7 +357,7 @@ const TemplateCard = memo(function TemplateCard({ template, onSelect }: Template
       aria-label={`Select template: ${template.title}`}
       className='group flex cursor-pointer flex-col text-left'
     >
-      <div className='overflow-hidden rounded-[8px] border border-[var(--border-1)] transition-colors group-hover:bg-[var(--surface-2)]'>
+      <div className='overflow-hidden rounded-lg border border-[var(--border-1)] transition-colors group-hover:bg-[var(--surface-2)]'>
         <div className='relative h-[120px] w-full overflow-hidden'>
           {template.image ? (
             <Image
@@ -373,9 +371,9 @@ const TemplateCard = memo(function TemplateCard({ template, onSelect }: Template
             <TemplatePreview modules={template.modules} template={template} />
           )}
         </div>
-        <div className='flex items-center gap-[6px] border-[var(--border-1)] border-t bg-[var(--white)] px-[12px] py-[8px] transition-colors group-hover:bg-[var(--surface-2)] dark:bg-[var(--surface-4)]'>
+        <div className='flex items-center gap-1.5 border-[var(--border-1)] border-t bg-[var(--white)] px-3 py-2 transition-colors group-hover:bg-[var(--surface-2)] dark:bg-[var(--surface-4)]'>
           <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-          <span className='text-[13px] text-[var(--text-body)]'>{template.title}</span>
+          <span className='text-[var(--text-body)] text-small'>{template.title}</span>
         </div>
       </div>
     </button>

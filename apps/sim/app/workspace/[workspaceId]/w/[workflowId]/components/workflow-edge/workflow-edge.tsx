@@ -92,10 +92,10 @@ const WorkflowEdgeComponent = ({
       color = 'var(--text-error)'
       opacity = 0.7
     } else if (edgeDiffStatus === 'new') {
-      color = 'var(--brand-tertiary-2)'
+      color = 'var(--brand-accent)'
     } else if (edgeRunStatus === 'success') {
       // Use green for preview mode, default for canvas execution
-      color = previewExecutionStatus ? 'var(--brand-tertiary-2)' : 'var(--border-success)'
+      color = previewExecutionStatus ? 'var(--brand-accent)' : 'var(--border-success)'
     } else if (edgeRunStatus === 'error') {
       color = 'var(--text-error)'
     } else if (isErrorEdge) {
@@ -145,7 +145,7 @@ const WorkflowEdgeComponent = ({
               }
             }}
           >
-            <X className='h-4 w-4 text-[var(--text-error)] transition-colors group-hover:text-[var(--text-error)]/80' />
+            <X className='h-4 w-4 text-[var(--text-error)] transition-colors group-hover:text-[color-mix(in_srgb,var(--text-error)_80%,transparent)]' />
           </div>
         </EdgeLabelRenderer>
       )}

@@ -27,9 +27,9 @@ export function EmbedCodeGenerator({ formUrl }: EmbedCodeGeneratorProps) {
   }, [iframeCode])
 
   return (
-    <div className='pb-[12px]'>
+    <div className='pb-3'>
       <div className='mb-[6.5px] flex items-center justify-between'>
-        <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+        <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Embed Code
         </Label>
         <Tooltip.Root>
@@ -54,7 +54,7 @@ export function EmbedCodeGenerator({ formUrl }: EmbedCodeGeneratorProps) {
         code={iframeCode}
         language='javascript'
         wrapText
-        className='!min-h-0 rounded-[4px] border border-[var(--border-1)]'
+        className='!min-h-0 rounded-sm border border-[var(--border-1)]'
       />
     </div>
   )

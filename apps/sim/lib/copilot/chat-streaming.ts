@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import type { OrchestrateStreamOptions } from '@/lib/copilot/orchestrator'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import {
@@ -22,9 +23,12 @@ const CHAT_STREAM_LOCK_TTL_SECONDS = 2 * 60 * 60
 const STREAM_ABORT_TTL_SECONDS = 10 * 60
 const STREAM_ABORT_POLL_MS = 1000
 
-// Registry of in-flight Sim→Go streams so the explicit abort endpoint can
-// reach them. Keyed by streamId, cleaned up when the stream completes.
-const activeStreams = new Map<string, AbortController>()
+interface ActiveStreamEntry {
+  abortController: AbortController
+  userStopController: AbortController
+}
+
+const activeStreams = new Map<string, ActiveStreamEntry>()
 
 // Tracks in-flight streams by chatId so that a subsequent request for the
 // same chat can force-abort the previous stream and wait for it to settle
@@ -183,9 +187,10 @@ export async function abortActiveStream(streamId: string): Promise<boolean> {
       })
     }
   }
-  const controller = activeStreams.get(streamId)
-  if (!controller) return published
-  controller.abort()
+  const entry = activeStreams.get(streamId)
+  if (!entry) return published
+  entry.userStopController.abort()
+  entry.abortController.abort()
   activeStreams.delete(streamId)
   return true
 }
@@ -205,8 +210,9 @@ export async function requestChatTitle(params: {
   message: string
   model: string
   provider?: string
+  messageId?: string
 }): Promise<string | null> {
-  const { message, model, provider } = params
+  const { message, model, provider, messageId } = params
   if (!message || !model) return null
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -223,17 +229,20 @@ export async function requestChatTitle(params: {
 
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) {
-      logger.warn('Failed to generate chat title via copilot backend', {
-        status: response.status,
-        error: payload,
-      })
+      logger.warn(
+        appendCopilotLogContext('Failed to generate chat title via copilot backend', { messageId }),
+        {
+          status: response.status,
+          error: payload,
+        }
+      )
       return null
     }
 
     const title = typeof payload?.title === 'string' ? payload.title.trim() : ''
     return title || null
   } catch (error) {
-    logger.error('Error generating chat title:', error)
+    logger.error(appendCopilotLogContext('Error generating chat title', { messageId }), error)
     return null
   }
 }
@@ -274,11 +283,15 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     orchestrateOptions,
     pendingChatStreamAlreadyRegistered = false,
   } = params
+  const messageId =
+    typeof requestPayload.messageId === 'string' ? requestPayload.messageId : streamId
 
   let eventWriter: ReturnType<typeof createStreamEventWriter> | null = null
   let clientDisconnected = false
   const abortController = new AbortController()
-  activeStreams.set(streamId, abortController)
+  const userStopController = new AbortController()
+  const clientDisconnectedController = new AbortController()
+  activeStreams.set(streamId, { abortController, userStopController })
 
   if (chatId && !pendingChatStreamAlreadyRegistered) {
     registerPendingChatStream(chatId, streamId)
@@ -287,6 +300,24 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   return new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder()
+      const markClientDisconnected = (reason: string) => {
+        if (clientDisconnected) return
+        clientDisconnected = true
+        if (!clientDisconnectedController.signal.aborted) {
+          clientDisconnectedController.abort()
+        }
+        logger.info(
+          appendCopilotLogContext('Client disconnected from live SSE stream', {
+            requestId,
+            messageId,
+          }),
+          {
+            streamId,
+            runId,
+            reason,
+          }
+        )
+      }
 
       await resetStreamBuffer(streamId)
       await setStreamMeta(streamId, { status: 'active', userId, executionId, runId })
@@ -303,9 +334,15 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           provider: (requestPayload.provider as string | undefined) || null,
           requestContext: { requestId },
         }).catch((error) => {
-          logger.warn(`[${requestId}] Failed to create copilot run segment`, {
-            error: error instanceof Error ? error.message : String(error),
-          })
+          logger.warn(
+            appendCopilotLogContext('Failed to create copilot run segment', {
+              requestId,
+              messageId,
+            }),
+            {
+              error: error instanceof Error ? error.message : String(error),
+            }
+          )
         })
       }
       eventWriter = createStreamEventWriter(streamId)
@@ -320,14 +357,21 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             try {
               const shouldAbort = await redis.get(getStreamAbortKey(streamId))
               if (shouldAbort && !abortController.signal.aborted) {
+                userStopController.abort()
                 abortController.abort()
                 await redis.del(getStreamAbortKey(streamId))
               }
             } catch (error) {
-              logger.warn(`[${requestId}] Failed to poll distributed stream abort`, {
-                streamId,
-                error: error instanceof Error ? error.message : String(error),
-              })
+              logger.warn(
+                appendCopilotLogContext('Failed to poll distributed stream abort', {
+                  requestId,
+                  messageId,
+                }),
+                {
+                  streamId,
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              )
             }
           })()
         }, STREAM_ABORT_POLL_MS)
@@ -344,11 +388,14 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             await eventWriter.flush()
           }
         } catch (error) {
-          logger.error(`[${requestId}] Failed to persist stream event`, {
-            eventType: event.type,
-            eventId,
-            error: error instanceof Error ? error.message : String(error),
-          })
+          logger.error(
+            appendCopilotLogContext('Failed to persist stream event', { requestId, messageId }),
+            {
+              eventType: event.type,
+              eventId,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          )
           // Keep the live SSE stream going even if durable buffering hiccups.
         }
 
@@ -359,7 +406,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             )
           }
         } catch {
-          clientDisconnected = true
+          markClientDisconnected('enqueue_failed')
         }
       }
 
@@ -367,7 +414,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         try {
           await pushEvent(event)
         } catch (error) {
-          logger.error(`[${requestId}] Failed to push event`, {
+          logger.error(appendCopilotLogContext('Failed to push event', { requestId, messageId }), {
             eventType: event.type,
             error: error instanceof Error ? error.message : String(error),
           })
@@ -379,7 +426,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       }
 
       if (chatId && !currentChat?.title && isNewChat) {
-        requestChatTitle({ message, model: titleModel, provider: titleProvider })
+        requestChatTitle({ message, model: titleModel, provider: titleProvider, messageId })
           .then(async (title) => {
             if (title) {
               await db.update(copilotChats).set({ title }).where(eq(copilotChats.id, chatId!))
@@ -390,7 +437,10 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             }
           })
           .catch((error) => {
-            logger.error(`[${requestId}] Title generation failed:`, error)
+            logger.error(
+              appendCopilotLogContext('Title generation failed', { requestId, messageId }),
+              error
+            )
           })
       }
 
@@ -399,7 +449,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         try {
           controller.enqueue(encoder.encode(': keepalive\n\n'))
         } catch {
-          clientDisconnected = true
+          markClientDisconnected('keepalive_failed')
         }
       }, 15_000)
 
@@ -409,13 +459,17 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           executionId,
           runId,
           abortSignal: abortController.signal,
+          userStopSignal: userStopController.signal,
+          clientDisconnectedSignal: clientDisconnectedController.signal,
           onEvent: async (event) => {
             await pushEvent(event)
           },
         })
 
         if (abortController.signal.aborted) {
-          logger.info(`[${requestId}] Stream aborted by explicit stop`)
+          logger.error(
+            appendCopilotLogContext('Stream aborted by explicit stop', { requestId, messageId })
+          )
           await eventWriter.close().catch(() => {})
           await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
           await updateRunStatus(runId, 'cancelled', { completedAt: new Date() }).catch(() => {})
@@ -429,14 +483,23 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             'An unexpected error occurred while processing the response.'
 
           if (clientDisconnected) {
-            logger.info(`[${requestId}] Stream failed after client disconnect`, {
-              error: errorMessage,
-            })
+            logger.error(
+              appendCopilotLogContext('Stream failed after client disconnect', {
+                requestId,
+                messageId,
+              }),
+              {
+                error: errorMessage,
+              }
+            )
           }
 
-          logger.error(`[${requestId}] Orchestration returned failure`, {
-            error: errorMessage,
-          })
+          logger.error(
+            appendCopilotLogContext('Orchestration returned failure', { requestId, messageId }),
+            {
+              error: errorMessage,
+            }
+          )
           await pushEventBestEffort({
             type: 'error',
             error: errorMessage,
@@ -462,20 +525,43 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         await eventWriter.close()
         await setStreamMeta(streamId, { status: 'complete', userId, executionId, runId })
         await updateRunStatus(runId, 'complete', { completedAt: new Date() }).catch(() => {})
+        if (clientDisconnected) {
+          logger.info(
+            appendCopilotLogContext('Orchestration completed after client disconnect', {
+              requestId,
+              messageId,
+            }),
+            {
+              streamId,
+              runId,
+            }
+          )
+        }
       } catch (error) {
         if (abortController.signal.aborted) {
-          logger.info(`[${requestId}] Stream aborted by explicit stop`)
+          logger.error(
+            appendCopilotLogContext('Stream aborted by explicit stop', { requestId, messageId })
+          )
           await eventWriter.close().catch(() => {})
           await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
           await updateRunStatus(runId, 'cancelled', { completedAt: new Date() }).catch(() => {})
           return
         }
         if (clientDisconnected) {
-          logger.info(`[${requestId}] Stream errored after client disconnect`, {
-            error: error instanceof Error ? error.message : 'Stream error',
-          })
+          logger.error(
+            appendCopilotLogContext('Stream errored after client disconnect', {
+              requestId,
+              messageId,
+            }),
+            {
+              error: error instanceof Error ? error.message : 'Stream error',
+            }
+          )
         }
-        logger.error(`[${requestId}] Orchestration error:`, error)
+        logger.error(
+          appendCopilotLogContext('Orchestration error', { requestId, messageId }),
+          error
+        )
         const errorMessage = error instanceof Error ? error.message : 'Stream error'
         await pushEventBestEffort({
           type: 'error',
@@ -497,6 +583,12 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           error: errorMessage,
         }).catch(() => {})
       } finally {
+        logger.info(appendCopilotLogContext('Closing live SSE stream', { requestId, messageId }), {
+          streamId,
+          runId,
+          clientDisconnected,
+          aborted: abortController.signal.aborted,
+        })
         clearInterval(keepaliveInterval)
         if (abortPoller) {
           clearInterval(abortPoller)
@@ -519,7 +611,22 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       }
     },
     cancel() {
-      clientDisconnected = true
+      logger.info(
+        appendCopilotLogContext('ReadableStream cancel received from client', {
+          requestId,
+          messageId,
+        }),
+        {
+          streamId,
+          runId,
+        }
+      )
+      if (!clientDisconnected) {
+        clientDisconnected = true
+        if (!clientDisconnectedController.signal.aborted) {
+          clientDisconnectedController.abort()
+        }
+      }
       if (eventWriter) {
         eventWriter.flush().catch(() => {})
       }

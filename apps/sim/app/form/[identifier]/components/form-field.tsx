@@ -95,7 +95,7 @@ export function FormField({
               onCheckedChange={onChange}
               style={value ? { backgroundColor: primaryColor } : undefined}
             />
-            <span className={'text-[14px] text-muted-foreground'}>{value ? 'Yes' : 'No'}</span>
+            <span className={'text-muted-foreground text-sm'}>{value ? 'Yes' : 'No'}</span>
           </div>
         )
 
@@ -122,7 +122,7 @@ export function FormField({
             placeholder={
               placeholder || (field.type === 'array' ? '["item1", "item2"]' : '{"key": "value"}')
             }
-            className='min-h-[100px] rounded-[10px] font-mono text-[13px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100'
+            className='min-h-[100px] rounded-[10px] font-mono text-small shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100'
           />
         )
 
@@ -141,7 +141,7 @@ export function FormField({
               className={cn(
                 'flex cursor-pointer flex-col items-center justify-center rounded-[10px] border-2 border-dashed px-6 py-8 transition-colors',
                 isDragging
-                  ? 'border-[var(--brand-primary-hex)] bg-[var(--brand-primary-hex)]/5'
+                  ? 'border-[var(--brand)] bg-[color-mix(in_srgb,var(--brand)_5%,transparent)]'
                   : 'border-border hover:border-muted-foreground/50'
               )}
             >
@@ -156,7 +156,7 @@ export function FormField({
                 className='mb-2 h-6 w-6 text-muted-foreground'
                 style={isDragging ? { color: primaryColor } : undefined}
               />
-              <p className={'text-center text-[14px] text-muted-foreground'}>
+              <p className={'text-center text-muted-foreground text-sm'}>
                 <span style={{ color: primaryColor }} className='font-medium'>
                   Click to upload
                 </span>{' '}
@@ -169,13 +169,13 @@ export function FormField({
                 {files.map((file, idx) => (
                   <div
                     key={idx}
-                    className='flex items-center justify-between rounded-[8px] border border-border bg-muted/30 px-3 py-2'
+                    className='flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2'
                   >
                     <div className='min-w-0 flex-1'>
-                      <p className={'truncate font-medium text-[13px] text-foreground'}>
+                      <p className={'truncate font-medium text-foreground text-small'}>
                         {file.name}
                       </p>
-                      <p className={'text-[12px] text-muted-foreground'}>
+                      <p className={'text-caption text-muted-foreground'}>
                         {formatFileSize(file.size)}
                       </p>
                     </div>
@@ -212,7 +212,7 @@ export function FormField({
 
   return (
     <div className='space-y-2'>
-      <Label className={'font-medium text-[14px] text-foreground'}>
+      <Label className={'font-medium text-foreground text-sm'}>
         {displayLabel}
         {isRequired && <span className='ml-0.5 text-[var(--text-error)]'>*</span>}
       </Label>

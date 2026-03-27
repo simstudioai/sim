@@ -223,7 +223,7 @@ export function DocumentTagEntry({
 
   if (!isLoading && tagDefinitions.length === 0 && knowledgeBaseId) {
     return (
-      <div className='flex h-32 items-center justify-center rounded-[4px] border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] dark:bg-[#1F1F1F]'>
+      <div className='flex h-32 items-center justify-center rounded-sm border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] dark:bg-[var(--code-bg)]'>
         <div className='text-center'>
           <p className='font-medium text-[var(--text-secondary)] text-sm'>
             No tags defined for this knowledge base
@@ -242,11 +242,11 @@ export function DocumentTagEntry({
    */
   const renderTagHeader = (tag: DocumentTag, index: number) => (
     <div
-      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-[10px] py-[5px]'
+      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
       onClick={() => toggleCollapse(tag.id)}
     >
-      <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-        <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
+      <div className='flex min-w-0 flex-1 items-center gap-2'>
+        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
           {tag.collapsed ? tag.tagName || `Tag ${index + 1}` : `Tag ${index + 1}`}
         </span>
         {tag.collapsed && tag.tagName && (
@@ -255,7 +255,7 @@ export function DocumentTagEntry({
           </Badge>
         )}
       </div>
-      <div className='flex items-center gap-[8px] pl-[8px]' onClick={(e) => e.stopPropagation()}>
+      <div className='flex items-center gap-2 pl-2' onClick={(e) => e.stopPropagation()}>
         <Button
           variant='ghost'
           onClick={addTag}
@@ -269,7 +269,7 @@ export function DocumentTagEntry({
           variant='ghost'
           onClick={() => removeTag(tag.id)}
           disabled={isReadOnly}
-          className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
+          className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
         >
           <Trash className='h-[14px] w-[14px]' />
           <span className='sr-only'>Delete Tag</span>
@@ -327,7 +327,7 @@ export function DocumentTagEntry({
             if (el) overlayRefs.current[cellKey] = el
           }}
           className={cn(
-            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm',
+            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
             !isReadOnly && 'pointer-events-none'
           )}
         >
@@ -369,9 +369,9 @@ export function DocumentTagEntry({
     }))
 
     return (
-      <div className='flex flex-col gap-[8px] rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[10px] pt-[6px] pb-[10px]'>
-        <div className='flex flex-col gap-[6px]'>
-          <Label className='text-[13px]'>Tag</Label>
+      <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+        <div className='flex flex-col gap-1.5'>
+          <Label className='text-small'>Tag</Label>
           <Combobox
             options={tagOptions}
             value={tag.tagName}
@@ -381,8 +381,8 @@ export function DocumentTagEntry({
           />
         </div>
 
-        <div className='flex flex-col gap-[6px]'>
-          <Label className='text-[13px]'>Value</Label>
+        <div className='flex flex-col gap-1.5'>
+          <Label className='text-small'>Value</Label>
           {renderValueInput(tag)}
         </div>
       </div>
@@ -390,13 +390,13 @@ export function DocumentTagEntry({
   }
 
   return (
-    <div className='space-y-[8px]'>
+    <div className='space-y-2'>
       {tags.map((tag, index) => (
         <div
           key={tag.id}
           data-tag-id={tag.id}
           className={cn(
-            'rounded-[4px] border border-[var(--border-1)]',
+            'rounded-sm border border-[var(--border-1)]',
             tag.collapsed ? 'overflow-hidden' : 'overflow-visible'
           )}
         >

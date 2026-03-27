@@ -18,18 +18,18 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
   if (messageQueue.length === 0) return null
 
   return (
-    <div className='-mb-[12px] mx-[14px] overflow-hidden rounded-t-[16px] border border-[var(--border-1)] border-b-0 bg-[var(--surface-3)] pb-[12px]'>
+    <div className='-mb-3 mx-3.5 overflow-hidden rounded-t-[16px] border border-[var(--border-1)] border-b-0 bg-[var(--surface-3)] pb-3'>
       <button
         type='button'
         onClick={() => setIsExpanded(!isExpanded)}
-        className='flex w-full items-center gap-[6px] px-[14px] py-[8px] transition-colors hover:bg-[var(--surface-active)]'
+        className='flex w-full items-center gap-1.5 px-3.5 py-2 transition-colors hover-hover:bg-[var(--surface-active)]'
       >
         {isExpanded ? (
           <ChevronDown className='h-[14px] w-[14px] text-[var(--text-icon)]' />
         ) : (
           <ChevronRight className='h-[14px] w-[14px] text-[var(--text-icon)]' />
         )}
-        <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
+        <span className='font-medium text-[var(--text-secondary)] text-small'>
           {messageQueue.length} Queued
         </span>
       </button>
@@ -39,17 +39,17 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
           {messageQueue.map((msg) => (
             <div
               key={msg.id}
-              className='flex items-center gap-[8px] px-[14px] py-[6px] transition-colors hover:bg-[var(--surface-active)]'
+              className='flex items-center gap-2 px-3.5 py-1.5 transition-colors hover-hover:bg-[var(--surface-active)]'
             >
               <div className='flex h-[16px] w-[16px] shrink-0 items-center justify-center'>
-                <div className='h-[10px] w-[10px] rounded-full border-[1.5px] border-[var(--text-tertiary)]/40' />
+                <div className='h-[10px] w-[10px] rounded-full border-[1.5px] border-[color-mix(in_srgb,var(--text-tertiary)_40%,transparent)]' />
               </div>
 
               <div className='min-w-0 flex-1'>
-                <p className='truncate text-[13px] text-[var(--text-primary)]'>{msg.content}</p>
+                <p className='truncate text-[var(--text-primary)] text-small'>{msg.content}</p>
               </div>
 
-              <div className='flex shrink-0 items-center gap-[2px]'>
+              <div className='flex shrink-0 items-center gap-0.5'>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <button
@@ -58,7 +58,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
                         e.stopPropagation()
                         onEdit(msg.id)
                       }}
-                      className='rounded-[6px] p-[5px] text-[var(--text-icon)] transition-colors hover:bg-[var(--surface-active)] hover:text-[var(--text-primary)]'
+                      className='rounded-md p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                     >
                       <Pencil className='h-[13px] w-[13px]' />
                     </button>
@@ -76,7 +76,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
                         e.stopPropagation()
                         void onSendNow(msg.id)
                       }}
-                      className='rounded-[6px] p-[5px] text-[var(--text-icon)] transition-colors hover:bg-[var(--surface-active)] hover:text-[var(--text-primary)]'
+                      className='rounded-md p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                     >
                       <ArrowUp className='h-[13px] w-[13px]' />
                     </button>
@@ -94,7 +94,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
                         e.stopPropagation()
                         onRemove(msg.id)
                       }}
-                      className='rounded-[6px] p-[5px] text-[var(--text-icon)] transition-colors hover:bg-[var(--surface-active)] hover:text-[var(--text-primary)]'
+                      className='rounded-md p-[5px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                     >
                       <Trash2 className='h-[13px] w-[13px]' />
                     </button>

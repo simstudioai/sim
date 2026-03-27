@@ -5,12 +5,17 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { writeBillingInterval } from '@/lib/billing/core/subscription'
 import { getPlanType, isEnterprise, isOrgPlan } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import {
+  hasUsableSubscriptionAccess,
+  hasUsableSubscriptionStatus,
+} from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('SwitchPlan')
@@ -60,6 +65,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No active subscription found' }, { status: 404 })
     }
 
+    const billingStatus = await getEffectiveBillingStatus(userId)
+    if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) {
+      return NextResponse.json({ error: 'An active subscription is required' }, { status: 400 })
+    }
+
     if (isEnterprise(sub.plan) || isEnterprise(targetPlanName)) {
       return NextResponse.json(
         { error: 'Enterprise plan changes must be handled via support' },
@@ -91,7 +101,7 @@ export async function POST(request: NextRequest) {
     const stripe = requireStripeClient()
     const stripeSubscription = await stripe.subscriptions.retrieve(sub.stripeSubscriptionId)
 
-    if (stripeSubscription.status !== 'active') {
+    if (!hasUsableSubscriptionStatus(stripeSubscription.status)) {
       return NextResponse.json({ error: 'Stripe subscription is not active' }, { status: 400 })
     }
 

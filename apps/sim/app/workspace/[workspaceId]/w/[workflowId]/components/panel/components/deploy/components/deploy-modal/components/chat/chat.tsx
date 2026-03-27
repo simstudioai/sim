@@ -322,13 +322,13 @@ export function ChatDeploy({
         className='-mx-1 space-y-4 overflow-y-auto px-1'
       >
         {errors.general && (
-          <div className='flex items-center gap-2 rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-400'>
+          <div className='flex items-center gap-2 rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-red-400 text-small'>
             <AlertTriangle className='h-4 w-4 flex-shrink-0' />
             <span>{errors.general}</span>
           </div>
         )}
 
-        <div className='space-y-[12px]'>
+        <div className='space-y-3'>
           <IdentifierInput
             value={formData.identifier}
             onChange={(value) => updateField('identifier', value)}
@@ -341,7 +341,7 @@ export function ChatDeploy({
           <div>
             <Label
               htmlFor='title'
-              className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
+              className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
             >
               Title
             </Label>
@@ -357,7 +357,7 @@ export function ChatDeploy({
           </div>
 
           <div>
-            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+            <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               Output
             </Label>
             <OutputSelect
@@ -387,7 +387,7 @@ export function ChatDeploy({
           <div>
             <Label
               htmlFor='welcomeMessage'
-              className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
+              className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
             >
               Welcome message
             </Label>
@@ -400,7 +400,7 @@ export function ChatDeploy({
               disabled={chatSubmitting}
               className='min-h-[80px] resize-none'
             />
-            <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
+            <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
               This message will be displayed when users first open the chat
             </p>
           </div>
@@ -455,27 +455,27 @@ export function ChatDeploy({
 function LoadingSkeleton() {
   return (
     <div className='-mx-1 space-y-4 px-1'>
-      <div className='space-y-[12px]'>
+      <div className='space-y-3'>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[26px]' />
-          <Skeleton className='h-[34px] w-full rounded-[4px]' />
+          <Skeleton className='h-[34px] w-full rounded-sm' />
           <Skeleton className='mt-[6.5px] h-[14px] w-[320px]' />
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[30px]' />
-          <Skeleton className='h-[34px] w-full rounded-[4px]' />
+          <Skeleton className='h-[34px] w-full rounded-sm' />
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[46px]' />
-          <Skeleton className='h-[34px] w-full rounded-[4px]' />
+          <Skeleton className='h-[34px] w-full rounded-sm' />
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[95px]' />
-          <Skeleton className='h-[28px] w-[170px] rounded-[4px]' />
+          <Skeleton className='h-[28px] w-[170px] rounded-sm' />
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[115px]' />
-          <Skeleton className='h-[80px] w-full rounded-[4px]' />
+          <Skeleton className='h-[80px] w-full rounded-sm' />
           <Skeleton className='mt-[6.5px] h-[14px] w-[340px]' />
         </div>
       </div>
@@ -527,17 +527,17 @@ function IdentifierInput({
     <div>
       <Label
         htmlFor='chat-url'
-        className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
+        className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
       >
         URL
       </Label>
       <div
         className={cn(
-          'relative flex items-stretch overflow-hidden rounded-[4px] border border-[var(--border-1)]',
+          'relative flex items-stretch overflow-hidden rounded-sm border border-[var(--border-1)]',
           error && 'border-[var(--text-error)]'
         )}
       >
-        <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-[6px] pl-[8px] font-medium text-[var(--text-secondary)] text-sm dark:bg-[var(--surface-5)]'>
+        <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-1.5 pl-2 font-medium text-[var(--text-secondary)] text-sm dark:bg-[var(--surface-5)]'>
           {getDomainPrefix()}
         </div>
         <div className='relative flex-1'>
@@ -550,7 +550,7 @@ function IdentifierInput({
             disabled={disabled}
             className={cn(
               'rounded-none border-0 pl-0 shadow-none disabled:bg-transparent disabled:opacity-100',
-              (isChecking || (isValid && value)) && 'pr-[32px]'
+              (isChecking || (isValid && value)) && 'pr-8'
             )}
           />
           {isChecking ? (
@@ -564,7 +564,7 @@ function IdentifierInput({
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <div className='-translate-y-1/2 absolute top-1/2 right-2'>
-                    <Check className='h-4 w-4 text-[var(--brand-tertiary-2)]' />
+                    <Check className='h-4 w-4 text-[var(--brand-accent)]' />
                   </div>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -575,8 +575,8 @@ function IdentifierInput({
           )}
         </div>
       </div>
-      {error && <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>{error}</p>}
-      <p className='mt-[6.5px] truncate text-[11px] text-[var(--text-secondary)]'>
+      {error && <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{error}</p>}
+      <p className='mt-[6.5px] truncate text-[var(--text-secondary)] text-xs'>
         {isEditingExisting && value ? (
           <>
             Live at:{' '}
@@ -584,7 +584,7 @@ function IdentifierInput({
               href={fullUrl}
               target='_blank'
               rel='noopener noreferrer'
-              className='text-[var(--text-primary)] hover:underline'
+              className='text-[var(--text-primary)] hover-hover:underline'
             >
               {displayUrl}
             </a>
@@ -686,9 +686,9 @@ function AuthSelector({
     : (['public', 'password', 'email'] as const)
 
   return (
-    <div className='space-y-[16px]'>
+    <div className='space-y-4'>
       <div>
-        <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Access control
         </Label>
         <ButtonGroup
@@ -706,7 +706,7 @@ function AuthSelector({
 
       {authType === 'password' && (
         <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Password
           </Label>
           <div className='relative'>
@@ -778,7 +778,7 @@ function AuthSelector({
               </Tooltip.Root>
             </div>
           </div>
-          <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
+          <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             {isExistingChat
               ? 'Leave empty to keep the current password'
               : 'This password will be required to access your chat'}
@@ -788,7 +788,7 @@ function AuthSelector({
 
       {(authType === 'email' || authType === 'sso') && (
         <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             {authType === 'email' ? 'Allowed emails' : 'Allowed SSO emails'}
           </Label>
           <TagInput
@@ -800,9 +800,9 @@ function AuthSelector({
             disabled={disabled}
           />
           {emailError && (
-            <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>{emailError}</p>
+            <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{emailError}</p>
           )}
-          <p className='mt-[6.5px] text-[11px] text-[var(--text-secondary)]'>
+          <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             {authType === 'email'
               ? 'Add specific emails or entire domains (@example.com)'
               : 'Add emails or domains that can access via SSO'}
@@ -810,7 +810,7 @@ function AuthSelector({
         </div>
       )}
 
-      {error && <p className='mt-[6.5px] text-[12px] text-[var(--text-error)]'>{error}</p>}
+      {error && <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{error}</p>}
     </div>
   )
 }

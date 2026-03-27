@@ -180,12 +180,12 @@ export function CommandList() {
     >
       <div
         data-tour='command-list'
-        className='pointer-events-auto flex flex-col gap-[8px]'
+        className='pointer-events-auto flex flex-col gap-2'
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
         {/* Logo */}
-        <div className='mb-[20px] flex justify-center'>
+        <div className='mb-5 flex justify-center'>
           <Image
             src='/logo/b&w/text/b&w.svg'
             alt='Sim'
@@ -209,17 +209,17 @@ export function CommandList() {
               onClick={() => handleCommandClick(command.label)}
             >
               {/* Left side: Icon and Label */}
-              <div className='flex items-center gap-[8px]'>
+              <div className='flex items-center gap-2'>
                 <Icon className='h-[14px] w-[14px] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]' />
-                <span className='font-medium text-[14px] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'>
+                <span className='font-medium text-[var(--text-tertiary)] text-sm group-hover:text-[var(--text-primary)]'>
                   {command.label}
                 </span>
               </div>
 
               {/* Right side: Keyboard Shortcut */}
-              <div className='flex items-center gap-[4px]'>
+              <div className='flex items-center gap-1'>
                 <Button
-                  className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-[12px] hover:translate-y-0 hover:text-[var(--text-tertiary)] hover:shadow-[0_2px_0_0_rgba(48,48,48,1)] group-hover:text-[var(--text-primary)] group-hover:shadow-[0_4px_0_0_rgba(48,48,48,1)]'
+                  className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-caption hover-hover:translate-y-0 hover-hover:text-[var(--text-tertiary)] hover-hover:shadow-kbd-sm group-hover:text-[var(--text-primary)] group-hover:shadow-kbd'
                   variant='3d'
                 >
                   <span>⌘</span>
@@ -227,7 +227,7 @@ export function CommandList() {
                 {shortcuts.map((key, index) => (
                   <Button
                     key={index}
-                    className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-[12px] hover:translate-y-0 hover:text-[var(--text-tertiary)] hover:shadow-[0_2px_0_0_rgba(48,48,48,1)] group-hover:text-[var(--text-primary)] group-hover:shadow-[0_4px_0_0_rgba(48,48,48,1)]'
+                    className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-caption hover-hover:translate-y-0 hover-hover:text-[var(--text-tertiary)] hover-hover:shadow-kbd-sm group-hover:text-[var(--text-primary)] group-hover:shadow-kbd'
                     variant='3d'
                   >
                     {key}

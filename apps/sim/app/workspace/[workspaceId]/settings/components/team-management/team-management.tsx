@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Skeleton, type TagItem } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
+import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getPlanTierCredits, getPlanTierDollars } from '@/lib/billing/plan-helpers'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import {
@@ -45,8 +46,9 @@ export function TeamManagement() {
   const activeOrganization = organizationsData?.activeOrganization
 
   const { data: userSubscriptionData } = useSubscriptionData()
-  const hasTeamPlan = userSubscriptionData?.data?.isTeam ?? false
-  const hasEnterprisePlan = userSubscriptionData?.data?.isEnterprise ?? false
+  const subscriptionAccess = getSubscriptionAccessState(userSubscriptionData?.data)
+  const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
+  const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
 
   const {
     data: organization,
@@ -290,27 +292,27 @@ export function TeamManagement() {
 
   if (isLoading && !displayOrganization && !(hasTeamPlan || hasEnterprisePlan)) {
     return (
-      <div className='flex h-full flex-col gap-[18px]'>
+      <div className='flex h-full flex-col gap-4.5'>
         {/* Team Seats Overview */}
         <div>
-          <div className='rounded-[8px] border bg-[var(--surface-3)] p-4 shadow-xs'>
-            <div className='space-y-[12px]'>
+          <div className='rounded-lg border bg-[var(--surface-3)] p-4 shadow-xs'>
+            <div className='space-y-3'>
               <div className='flex items-center justify-between'>
                 <Skeleton className='h-5 w-24' />
-                <Skeleton className='h-8 w-20 rounded-[6px]' />
+                <Skeleton className='h-8 w-20 rounded-md' />
               </div>
-              <div className='flex items-center gap-[18px]'>
-                <div className='flex flex-col gap-[4px]'>
+              <div className='flex items-center gap-4.5'>
+                <div className='flex flex-col gap-1'>
                   <Skeleton className='h-3 w-16' />
                   <Skeleton className='h-6 w-8' />
                 </div>
                 <div className='h-8 w-px bg-[var(--border)]' />
-                <div className='flex flex-col gap-[4px]'>
+                <div className='flex flex-col gap-1'>
                   <Skeleton className='h-3 w-20' />
                   <Skeleton className='h-6 w-8' />
                 </div>
                 <div className='h-8 w-px bg-[var(--border)]' />
-                <div className='flex flex-col gap-[4px]'>
+                <div className='flex flex-col gap-1'>
                   <Skeleton className='h-3 w-24' />
                   <Skeleton className='h-6 w-12' />
                 </div>
@@ -321,13 +323,13 @@ export function TeamManagement() {
 
         {/* Team Members */}
         <div>
-          <Skeleton className='mb-[12px] h-5 w-32' />
-          <div className='space-y-[8px]'>
+          <Skeleton className='mb-3 h-5 w-32' />
+          <div className='space-y-2'>
             {[...Array(3)].map((_, i) => (
-              <div key={i} className='flex items-center justify-between rounded-[8px] border p-3'>
-                <div className='flex items-center gap-[12px]'>
+              <div key={i} className='flex items-center justify-between rounded-lg border p-3'>
+                <div className='flex items-center gap-3'>
                   <Skeleton className='h-10 w-10 rounded-full' />
-                  <div className='space-y-[4px]'>
+                  <div className='space-y-1'>
                     <Skeleton className='h-4 w-32' />
                     <Skeleton className='h-3 w-24' />
                   </div>
@@ -340,11 +342,11 @@ export function TeamManagement() {
 
         {/* Invite Member Card */}
         <div>
-          <div className='rounded-[8px] border bg-[var(--surface-3)] p-4'>
-            <Skeleton className='mb-[12px] h-5 w-32' />
-            <div className='space-y-[12px]'>
-              <Skeleton className='h-9 w-full rounded-[8px]' />
-              <Skeleton className='h-9 w-full rounded-[8px]' />
+          <div className='rounded-lg border bg-[var(--surface-3)] p-4'>
+            <Skeleton className='mb-3 h-5 w-32' />
+            <div className='space-y-3'>
+              <Skeleton className='h-9 w-full rounded-lg' />
+              <Skeleton className='h-9 w-full rounded-lg' />
             </div>
           </div>
         </div>
@@ -372,7 +374,7 @@ export function TeamManagement() {
   }
 
   return (
-    <div className='flex h-full flex-col gap-[20px]'>
+    <div className='flex h-full flex-col gap-5'>
       {/* Seats Overview - Full Width */}
       {adminOrOwner && (
         <div>
@@ -423,11 +425,11 @@ export function TeamManagement() {
       </div>
 
       {/* Additional Info - Subtle and collapsed */}
-      <div className='flex flex-col gap-[10px]'>
+      <div className='flex flex-col gap-2.5'>
         {/* Single Organization Notice */}
         {adminOrOwner && (
-          <div className='rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[14px] py-[10px]'>
-            <p className='text-[13px] text-[var(--text-muted)]'>
+          <div className='rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-3.5 py-2.5'>
+            <p className='text-[var(--text-muted)] text-small'>
               <span className='font-medium'>Note:</span> Users can only be part of one organization
               at a time.
             </p>
@@ -435,8 +437,8 @@ export function TeamManagement() {
         )}
 
         {/* Team Information */}
-        <details className='group overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-          <summary className='flex cursor-pointer items-center justify-between px-[14px] py-[10px] font-medium text-[15px] text-[var(--text-primary)] hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
+        <details className='group overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
+          <summary className='flex cursor-pointer items-center justify-between px-3.5 py-2.5 font-medium text-[var(--text-primary)] text-base hover-hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
             <span>Team Information</span>
             <svg
               className='h-4 w-4 transition-transform group-open:rotate-180'
@@ -452,10 +454,10 @@ export function TeamManagement() {
               />
             </svg>
           </summary>
-          <div className='flex flex-col gap-[8px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[12px] text-[13px]'>
+          <div className='flex flex-col gap-2 border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3 text-small'>
             <div className='flex justify-between'>
               <span className='text-[var(--text-muted)]'>Team ID:</span>
-              <span className='font-mono text-[10px] text-[var(--text-primary)]'>
+              <span className='font-mono text-[var(--text-primary)] text-micro'>
                 {displayOrganization.id}
               </span>
             </div>
@@ -474,8 +476,8 @@ export function TeamManagement() {
 
         {/* Team Billing Information (only show for Team Plan, not Enterprise) */}
         {hasTeamPlan && !hasEnterprisePlan && (
-          <details className='group overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-            <summary className='flex cursor-pointer items-center justify-between px-[14px] py-[10px] font-medium text-[15px] text-[var(--text-primary)] hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
+          <details className='group overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
+            <summary className='flex cursor-pointer items-center justify-between px-3.5 py-2.5 font-medium text-[var(--text-primary)] text-base hover-hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
               <span>Billing Information</span>
               <svg
                 className='h-4 w-4 transition-transform group-open:rotate-180'
@@ -491,8 +493,8 @@ export function TeamManagement() {
                 />
               </svg>
             </summary>
-            <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[12px]'>
-              <ul className='ml-4 flex list-disc flex-col gap-[8px] text-[13px] text-[var(--text-muted)]'>
+            <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3'>
+              <ul className='ml-4 flex list-disc flex-col gap-2 text-[var(--text-muted)] text-small'>
                 <li>
                   Your team is billed a minimum of $
                   {((subscriptionData?.seats ?? 0) * costPerSeat).toLocaleString()}/month for{' '}

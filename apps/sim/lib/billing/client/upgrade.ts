@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { client, useSession, useSubscription } from '@/lib/auth/auth-client'
 import { buildPlanName, isOrgPlan } from '@/lib/billing/plan-helpers'
+import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { organizationKeys } from '@/hooks/queries/organization'
 
 const logger = createLogger('SubscriptionUpgrade')
@@ -41,7 +42,7 @@ export function useSubscriptionUpgrade() {
         const listResult = await client.subscription.list()
         allSubscriptions = listResult.data || []
         const activePersonalSub = allSubscriptions.find(
-          (sub: any) => sub.status === 'active' && sub.referenceId === userId
+          (sub: any) => hasPaidSubscriptionStatus(sub.status) && sub.referenceId === userId
         )
         currentSubscriptionId = activePersonalSub?.id
       } catch (_e) {
@@ -67,7 +68,9 @@ export function useSubscriptionUpgrade() {
             // Check if this org already has an active team subscription
             const existingTeamSub = allSubscriptions.find(
               (sub: any) =>
-                sub.status === 'active' && sub.referenceId === existingOrg.id && isOrgPlan(sub.plan)
+                hasPaidSubscriptionStatus(sub.status) &&
+                sub.referenceId === existingOrg.id &&
+                isOrgPlan(sub.plan)
             )
 
             if (existingTeamSub) {
