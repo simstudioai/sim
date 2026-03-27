@@ -149,8 +149,12 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
   const handleClearAll = useCallback(() => {
     setLocalValue('')
     lastReportedRef.current = ''
-    search.onClearAll?.()
-  }, [search.onClearAll])
+    if (search.onClearAll) {
+      search.onClearAll()
+    } else {
+      search.onChange('')
+    }
+  }, [search.onClearAll, search.onChange])
 
   return (
     <div className='relative flex flex-1 items-center'>

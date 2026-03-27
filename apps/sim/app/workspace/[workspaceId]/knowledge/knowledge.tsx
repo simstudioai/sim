@@ -62,10 +62,8 @@ export function Knowledge() {
 
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
-  const searchValueRef = useRef('')
 
   const handleSearchChange = useCallback((value: string) => {
-    searchValueRef.current = value
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
     searchTimerRef.current = setTimeout(() => {
       setDebouncedSearchQuery(value)
