@@ -30,7 +30,7 @@ export default function LessonPage({ params }: LessonPageProps) {
   const nextLesson = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null
 
   const handleComplete = useCallback(() => setExerciseComplete(true), [])
-  const canAdvance = (!lesson.exerciseConfig && !lesson.quizConfig) || exerciseComplete
+  const canAdvance = (!lesson?.exerciseConfig && !lesson?.quizConfig) || exerciseComplete
 
   if (!course || !lesson) {
     return (
@@ -46,7 +46,6 @@ export default function LessonPage({ params }: LessonPageProps) {
 
   return (
     <div className='flex h-screen flex-col overflow-hidden bg-[#1C1C1C]'>
-      {/* Top nav */}
       <header className='flex h-[52px] flex-shrink-0 items-center justify-between border-[#2A2A2A] border-b bg-[#1C1C1C] px-5'>
         <div className='flex items-center gap-3 text-[13px]'>
           <Link href='/' aria-label='Sim home'>
@@ -102,7 +101,6 @@ export default function LessonPage({ params }: LessonPageProps) {
         </div>
       </header>
 
-      {/* Lesson body */}
       <div className='flex min-h-0 flex-1 overflow-hidden'>
         {lesson.lessonType === 'video' && hasVideo && (
           <div className='flex flex-1 items-center justify-center overflow-y-auto p-10'>

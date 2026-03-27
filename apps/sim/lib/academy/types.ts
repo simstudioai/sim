@@ -62,7 +62,7 @@ export interface CertificateMetadata {
  * Defined inline in each lesson file.
  */
 export interface ExerciseDefinition {
-  /** Markdown instructions shown to the learner */
+  /** Instructions shown to the learner above the checklist */
   instructions: string
   /** Block type IDs available in the exercise toolbar */
   availableBlocks: string[]

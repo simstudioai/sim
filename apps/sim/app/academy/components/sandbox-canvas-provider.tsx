@@ -353,6 +353,11 @@ export function SandboxCanvasProvider({
                 <div className='border-[#1F1F1F] border-t' />
               </div>
             )}
+            {exerciseConfig.instructions && (
+              <p className='text-[#999] text-[11px] leading-relaxed'>
+                {exerciseConfig.instructions}
+              </p>
+            )}
             <ValidationChecklist
               results={validationResult.results}
               allPassed={validationResult.passed}

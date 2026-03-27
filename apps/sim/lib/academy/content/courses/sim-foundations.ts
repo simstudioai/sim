@@ -38,7 +38,7 @@ export const simFoundations: Course = {
           description: 'Place an Agent block and wire it to the Starter.',
           exerciseConfig: {
             instructions:
-              "Every workflow starts with a **Starter** block. Your job: drag an **Agent** block onto the canvas and connect the Starter's output to the Agent's input.\n\nOnce connected, click **Run** to see it execute.",
+              "Every workflow starts with a Starter block. Drag an Agent block onto the canvas and connect the Starter's output to the Agent's input. Once connected, click Run to see it execute.",
             availableBlocks: ['agent'],
             initialBlocks: [
               {
@@ -144,7 +144,7 @@ export const simFoundations: Course = {
           videoDurationSeconds: 150,
           exerciseConfig: {
             instructions:
-              'The Agent block is already connected. Click it to open the panel on the right, then add a **system prompt** in the Messages field.\n\nTry something like: *"You are a helpful assistant."*\n\nOnce the system prompt is set, click **Run**.',
+              'The Agent block is already connected. Click it to open the panel on the right, then add a system prompt in the Messages field — try "You are a helpful assistant." Once set, click Run.',
             availableBlocks: [],
             initialBlocks: [
               {
@@ -269,7 +269,7 @@ export const simFoundations: Course = {
           description: 'Add a Condition block to route different inputs down different paths.',
           exerciseConfig: {
             instructions:
-              'Build a workflow that classifies input and takes different paths:\n\n1. Connect the **Starter** to a **Condition** block\n2. Connect the **true** path to one **Agent**, and the **false** path to another\n\nThe Condition block evaluates an expression and routes to the matching branch.',
+              'Build a branching workflow: connect the Starter to a Condition block, then connect the true path to one Agent and the false path to another. The Condition block evaluates an expression and routes execution to the matching branch.',
             availableBlocks: ['condition', 'agent'],
             initialBlocks: [
               {
