@@ -376,11 +376,7 @@ function SignupFormContent({
         return hasOnlySSO
       })() && (
         <div className='mt-8'>
-          <SSOLoginButton
-            callbackURL={redirectUrl || '/workspace'}
-            variant='primary'
-            className={buttonClass}
-          />
+          <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='primary' />
         </div>
       )}
 
