@@ -132,19 +132,21 @@ export const ResourceHeader = memo(function ResourceHeader({
   )
 })
 
-function BreadcrumbSegment({
-  icon: Icon,
-  label,
-  onClick,
-  dropdownItems,
-  editing,
-}: {
+interface BreadcrumbSegmentProps {
   icon?: React.ElementType
   label: string
   onClick?: () => void
   dropdownItems?: DropdownOption[]
   editing?: BreadcrumbEditing
-}) {
+}
+
+const BreadcrumbSegment = memo(function BreadcrumbSegment({
+  icon: Icon,
+  label,
+  onClick,
+  dropdownItems,
+  editing,
+}: BreadcrumbSegmentProps) {
   if (editing?.isEditing) {
     return (
       <span className='inline-flex items-center px-2 py-1'>
@@ -203,4 +205,4 @@ function BreadcrumbSegment({
       {content}
     </span>
   )
-}
+})

@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 
 interface DeleteKnowledgeBaseModalProps {
@@ -29,7 +30,7 @@ interface DeleteKnowledgeBaseModalProps {
  * Delete confirmation modal for knowledge base items.
  * Displays a warning message and confirmation buttons.
  */
-export function DeleteKnowledgeBaseModal({
+export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
   isOpen,
   onClose,
   onConfirm,
@@ -67,4 +68,4 @@ export function DeleteKnowledgeBaseModal({
       </ModalContent>
     </Modal>
   )
-}
+})

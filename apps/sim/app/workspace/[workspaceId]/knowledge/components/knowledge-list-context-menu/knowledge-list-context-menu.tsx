@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +21,7 @@ interface KnowledgeListContextMenuProps {
  * Context menu component for the knowledge base list page.
  * Displays "Add knowledge base" option when right-clicking on empty space.
  */
-export function KnowledgeListContextMenu({
+export const KnowledgeListContextMenu = memo(function KnowledgeListContextMenu({
   isOpen,
   position,
   onClose,
@@ -58,4 +59,4 @@ export function KnowledgeListContextMenu({
       </DropdownMenuContent>
     </DropdownMenu>
   )
-}
+})
