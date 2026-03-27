@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { Button, Tooltip } from '@/components/emcn'
 import { Columns3, Eye, PanelLeft, Pencil } from '@/components/emcn/icons'
-import { isEphemeralResource } from '@/lib/copilot/resource-extraction'
+import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'

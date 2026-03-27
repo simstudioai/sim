@@ -17,6 +17,7 @@ export interface TaskChatHistory {
   messages: PersistedMessage[]
   activeStreamId: string | null
   resources: MothershipResource[]
+  streamSnapshot?: { events: unknown[]; status: string } | null
 }
 
 export const taskKeys = {

@@ -85,6 +85,20 @@ export interface ToolCallResult {
   error?: string
 }
 
+export interface GenericResourceEntry {
+  toolCallId: string
+  toolName: string
+  displayTitle: string
+  status: ToolCallStatus
+  params?: Record<string, unknown>
+  streamingArgs?: string
+  result?: ToolCallResult
+}
+
+export interface GenericResourceData {
+  entries: GenericResourceEntry[]
+}
+
 export interface ToolCallData {
   id: string
   toolName: string

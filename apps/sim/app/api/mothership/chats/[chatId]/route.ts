@@ -4,15 +4,15 @@ import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getAccessibleCopilotChat } from '@/lib/copilot/chat-lifecycle'
-import { getStreamMeta, readStreamEvents } from '@/lib/copilot/orchestrator/stream/buffer'
+import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
+import { readEvents } from '@/lib/copilot/request/session/buffer'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
-import { taskPubSub } from '@/lib/copilot/task-events'
+} from '@/lib/copilot/request/http'
+import { taskPubSub } from '@/lib/copilot/tasks'
 
 const logger = createLogger('MothershipChatAPI')
 
@@ -46,29 +46,24 @@ export async function GET(
     }
 
     let streamSnapshot: {
-      events: Array<{ eventId: number; streamId: string; event: Record<string, unknown> }>
+      events: unknown[]
       status: string
     } | null = null
 
     if (chat.conversationId) {
       try {
-        const [meta, events] = await Promise.all([
-          getStreamMeta(chat.conversationId),
-          readStreamEvents(chat.conversationId, 0),
-        ])
+        const events = await readEvents(chat.conversationId, '0')
 
         streamSnapshot = {
           events: events || [],
-          status: meta?.status || 'unknown',
+          status: events.length > 0 ? 'active' : 'unknown',
         }
       } catch (error) {
-        logger
-          .withMetadata({ messageId: chat.conversationId || undefined })
-          .warn('Failed to read stream snapshot for mothership chat', {
-            chatId,
-            conversationId: chat.conversationId,
-            error: error instanceof Error ? error.message : String(error),
-          })
+        logger.warn('Failed to read stream snapshot for mothership chat', {
+          chatId,
+          conversationId: chat.conversationId,
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
     }
 
