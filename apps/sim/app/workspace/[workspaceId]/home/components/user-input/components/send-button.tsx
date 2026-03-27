@@ -27,6 +27,7 @@ export const SendButton = React.memo(function SendButton({
     return (
       <Button
         onClick={onStopGeneration}
+        variant='ghost'
         className={cn(SEND_BUTTON_BASE, SEND_BUTTON_ACTIVE)}
         title='Stop generation'
       >
@@ -43,6 +44,7 @@ export const SendButton = React.memo(function SendButton({
   return (
     <Button
       onClick={onSubmit}
+      variant='ghost'
       disabled={!canSubmit}
       className={cn(SEND_BUTTON_BASE, canSubmit ? SEND_BUTTON_ACTIVE : SEND_BUTTON_DISABLED)}
     >
