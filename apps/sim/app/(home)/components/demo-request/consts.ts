@@ -18,7 +18,8 @@ export const DEMO_REQUEST_COMPANY_SIZE_VALUES = [
   '1_10',
   '11_50',
   '51_200',
-  '201_1000',
+  '201_500',
+  '501_1000',
   '1001_10000',
   '10000_plus',
 ] as const
@@ -36,7 +37,8 @@ export const DEMO_REQUEST_COMPANY_SIZE_OPTIONS = [
   { value: '1_10', label: '1–10' },
   { value: '11_50', label: '11–50' },
   { value: '51_200', label: '51–200' },
-  { value: '201_1000', label: '201–1,000' },
+  { value: '201_500', label: '201–500' },
+  { value: '501_1000', label: '501–1,000' },
   { value: '1001_10000', label: '1,001–10,000' },
   { value: '10000_plus', label: '10,000+' },
 ] as const
