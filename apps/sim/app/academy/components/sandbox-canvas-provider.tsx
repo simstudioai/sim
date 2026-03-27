@@ -18,6 +18,7 @@ import { SandboxWorkspacePermissionsProvider } from '@/app/workspace/[workspaceI
 import Workflow from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow'
 import { getBlock } from '@/blocks/registry'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useTerminalConsoleStore } from '@/stores/terminal/console/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -29,6 +30,24 @@ const logger = createLogger('SandboxCanvasProvider')
 
 const SANDBOX_WORKSPACE_ID = 'sandbox'
 
+function resolveEmbedUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname === 'youtu.be') return `https://www.youtube.com/embed${parsed.pathname}`
+    if (parsed.hostname.includes('youtube.com')) {
+      const v = parsed.searchParams.get('v')
+      if (v) return `https://www.youtube.com/embed/${v}`
+    }
+    if (parsed.hostname === 'vimeo.com') {
+      const id = parsed.pathname.replace(/^\//, '')
+      if (id) return `https://player.vimeo.com/video/${id}`
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 interface SandboxCanvasProviderProps {
   /** Unique ID for this exercise instance */
   exerciseId: string
@@ -39,6 +58,10 @@ interface SandboxCanvasProviderProps {
    * Receives the current canvas state so the caller can persist it.
    */
   onComplete?: (blocks: ExerciseBlockState[], edges: ExerciseEdgeState[]) => void
+  /** Optional video URL (YouTube/Vimeo) shown above the checklist — used for mixed lessons */
+  videoUrl?: string
+  /** Optional description shown below the video (or below checklist if no video) */
+  description?: string
   className?: string
 }
 
@@ -117,10 +140,7 @@ function readCurrentCanvasState(workflowId: string): {
   const blocks: ExerciseBlockState[] = Object.values(workflowStore.blocks).map((block) => {
     const storedValues = subBlockStore.workflowValues[workflowId] ?? {}
     const blockValues = storedValues[block.id] ?? {}
-    const subBlocks: Record<string, unknown> = {}
-    for (const [key, entry] of Object.entries(blockValues)) {
-      subBlocks[key] = (entry as { value: unknown } | null)?.value ?? null
-    }
+    const subBlocks: Record<string, unknown> = { ...blockValues }
     return {
       id: block.id,
       type: block.type,
@@ -152,6 +172,8 @@ export function SandboxCanvasProvider({
   exerciseId,
   exerciseConfig,
   onComplete,
+  videoUrl,
+  description,
   className,
 }: SandboxCanvasProviderProps) {
   const [isReady, setIsReady] = useState(false)
@@ -212,6 +234,7 @@ export function SandboxCanvasProvider({
       color: '#3972F6',
       workspaceId: SANDBOX_WORKSPACE_ID,
       sortOrder: 0,
+      isSandbox: true,
     }
 
     useWorkflowStore.getState().replaceWorkflowState(workflowState)
@@ -243,10 +266,21 @@ export function SandboxCanvasProvider({
 
     const unsubWorkflow = useWorkflowStore.subscribe(scheduleValidation)
     const unsubSubBlock = useSubBlockStore.subscribe(scheduleValidation)
+
+    // When the panel's Run button is clicked, useWorkflowExecution sets isExecuting=true
+    // and returns immediately (no API call). Detect that signal here and run mock execution.
+    const unsubExecution = useExecutionStore.subscribe((state) => {
+      const isExec = state.workflowExecutions.get(workflowId)?.isExecuting
+      if (isExec && !isMockRunningRef.current) {
+        void handleMockRun()
+      }
+    })
+
     unsubscribeRef.current = () => {
       if (rafId !== null) cancelAnimationFrame(rafId)
       unsubWorkflow()
       unsubSubBlock()
+      unsubExecution()
     }
 
     runValidation()
@@ -285,13 +319,29 @@ export function SandboxCanvasProvider({
 
     isMockRunningRef.current = true
     setIsMockRunning(true)
+
     const { setActiveBlocks, setIsExecuting } = useExecutionStore.getState()
+    const { addConsole, clearWorkflowConsole } = useTerminalConsoleStore.getState()
+    const workflowBlocks = useWorkflowStore.getState().blocks
 
     setIsExecuting(workflowId, true)
+    clearWorkflowConsole(workflowId)
+    useTerminalConsoleStore.setState({ isOpen: true })
 
-    for (const step of plan) {
+    for (let i = 0; i < plan.length; i++) {
+      const step = plan[i]
       setActiveBlocks(workflowId, new Set([step.blockId]))
       await new Promise((resolve) => setTimeout(resolve, step.delay))
+      addConsole({
+        workflowId,
+        blockId: step.blockId,
+        blockName: workflowBlocks[step.blockId]?.name ?? step.blockType,
+        blockType: step.blockType,
+        executionOrder: i,
+        output: step.output,
+        success: true,
+        durationMs: step.delay,
+      })
       setActiveBlocks(workflowId, new Set())
     }
 
@@ -325,8 +375,31 @@ export function SandboxCanvasProvider({
     <GlobalCommandsProvider>
       <SandboxWorkspacePermissionsProvider>
         <div className={cn('flex h-full w-full overflow-hidden', className)}>
-          {/* Left sidebar: checklist + hints */}
-          <div className='flex w-52 flex-shrink-0 flex-col gap-4 border-[#1F1F1F] border-r bg-[#141414] p-3'>
+          {/* Left sidebar: video (optional) + checklist + hints */}
+          <div className='flex w-56 flex-shrink-0 flex-col gap-3 overflow-y-auto border-[#1F1F1F] border-r bg-[#141414] p-3'>
+            {videoUrl && (
+              <div className='flex flex-col gap-2'>
+                <div className='aspect-video w-full overflow-hidden rounded-[6px] bg-black'>
+                  <iframe
+                    src={resolveEmbedUrl(videoUrl) ?? ''}
+                    title='Lesson video'
+                    allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
+                    allowFullScreen
+                    className='h-full w-full border-0'
+                  />
+                </div>
+                {description && (
+                  <p className='text-[#666] text-[11px] leading-relaxed'>{description}</p>
+                )}
+                <div className='border-[#1F1F1F] border-t' />
+              </div>
+            )}
+            {!videoUrl && description && (
+              <div className='flex flex-col gap-2'>
+                <p className='text-[#666] text-[11px] leading-relaxed'>{description}</p>
+                <div className='border-[#1F1F1F] border-t' />
+              </div>
+            )}
             <ValidationChecklist
               results={validationResult.results}
               allPassed={validationResult.passed}

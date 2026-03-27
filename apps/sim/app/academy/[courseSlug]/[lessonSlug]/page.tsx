@@ -142,32 +142,26 @@ export default function LessonPage({ params }: LessonPageProps) {
 
         {isMixed && (
           <>
-            <div className='flex w-[360px] flex-shrink-0 flex-col gap-5 overflow-y-auto border-[#2A2A2A] border-r p-5'>
-              {hasVideo && <LessonVideo url={lesson.videoUrl!} title={lesson.title} />}
-              {lesson.description && (
-                <p className='text-[#999] text-[14px] leading-[160%]'>{lesson.description}</p>
-              )}
-            </div>
-            <div className='flex min-w-0 flex-1 flex-col overflow-hidden'>
-              {hasExercise && (
-                <ExerciseView
-                  lessonId={lesson.id}
-                  exerciseConfig={lesson.exerciseConfig!}
-                  onComplete={handleComplete}
-                />
-              )}
-              {!hasExercise && hasQuiz && (
-                <div className='flex flex-1 items-start justify-center overflow-y-auto p-8'>
-                  <div className='w-full max-w-xl'>
-                    <LessonQuiz
-                      lessonId={lesson.id}
-                      quizConfig={lesson.quizConfig!}
-                      onPass={handleComplete}
-                    />
-                  </div>
+            {hasExercise && (
+              <ExerciseView
+                lessonId={lesson.id}
+                exerciseConfig={lesson.exerciseConfig!}
+                onComplete={handleComplete}
+                videoUrl={lesson.videoUrl}
+                description={lesson.description}
+              />
+            )}
+            {!hasExercise && hasQuiz && (
+              <div className='flex flex-1 items-start justify-center overflow-y-auto p-8'>
+                <div className='w-full max-w-xl'>
+                  <LessonQuiz
+                    lessonId={lesson.id}
+                    quizConfig={lesson.quizConfig!}
+                    onPass={handleComplete}
+                  />
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </>
         )}
       </div>

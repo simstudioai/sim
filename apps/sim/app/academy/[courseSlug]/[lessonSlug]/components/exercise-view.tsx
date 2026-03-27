@@ -10,13 +10,21 @@ interface ExerciseViewProps {
   lessonId: string
   exerciseConfig: ExerciseDefinition
   onComplete?: () => void
+  videoUrl?: string
+  description?: string
 }
 
 /**
  * Orchestrates the sandbox canvas for an exercise lesson.
  * Completion is determined client-side by the validation engine and persisted to localStorage.
  */
-export function ExerciseView({ lessonId, exerciseConfig, onComplete }: ExerciseViewProps) {
+export function ExerciseView({
+  lessonId,
+  exerciseConfig,
+  onComplete,
+  videoUrl,
+  description,
+}: ExerciseViewProps) {
   const [completed, setCompleted] = useState(false)
   const completedRef = useRef(false)
 
@@ -37,6 +45,8 @@ export function ExerciseView({ lessonId, exerciseConfig, onComplete }: ExerciseV
         exerciseId={lessonId}
         exerciseConfig={exerciseConfig}
         onComplete={handleComplete}
+        videoUrl={videoUrl}
+        description={description}
         className='flex-1'
       />
 

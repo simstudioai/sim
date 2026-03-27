@@ -54,7 +54,7 @@ export const simFoundations: Course = {
               { type: 'edge_exists', sourceType: 'starter', targetType: 'agent' },
             ],
             hints: [
-              'Drag the Agent block from the toolbar on the left onto the canvas.',
+              'Drag the Agent block from the toolbar on the right onto the canvas.',
               "Hover over the Starter block's right edge to reveal its output handle, then drag to the Agent block.",
             ],
             mockOutputs: {
@@ -146,7 +146,7 @@ export const simFoundations: Course = {
           videoDurationSeconds: 150,
           exerciseConfig: {
             instructions:
-              "Configure the Agent block with:\n\n1. A **system prompt** that defines the agent's role\n2. A **response format** (the shape of the output you want)\n\nThen click **Run** to see structured output from your agent.",
+              'The Agent block is already connected. Click it to open the panel on the right, then add a **system prompt** in the Messages field.\n\nTry something like: *"You are a helpful assistant."*\n\nOnce the system prompt is set, click **Run**.',
             availableBlocks: [],
             initialBlocks: [
               {
@@ -160,6 +160,7 @@ export const simFoundations: Course = {
                 type: 'agent',
                 position: { x: 360, y: 220 },
                 locked: false,
+                subBlocks: { model: 'claude-sonnet-4-5' },
               },
             ],
             initialEdges: [
@@ -175,28 +176,18 @@ export const simFoundations: Course = {
               {
                 type: 'block_configured',
                 blockType: 'agent',
-                subBlockId: 'systemPrompt',
-                valueNotEmpty: true,
-              },
-              {
-                type: 'block_configured',
-                blockType: 'agent',
-                subBlockId: 'responseFormat',
+                subBlockId: 'messages',
                 valueNotEmpty: true,
               },
             ],
             hints: [
-              'Click the Agent block to open its configuration panel on the right.',
-              'Fill in the System Prompt field — try something like "You are a helpful assistant that extracts structured data."',
-              'Set the Response Format to a JSON schema, e.g. {"name": "string", "summary": "string"}',
+              'Click the Agent block to select it — the panel will open on the right.',
+              'In the Messages field, add a system message. Try: "You are a helpful assistant."',
             ],
             mockOutputs: {
               'agent-1': {
                 response: {
-                  result: JSON.stringify({
-                    name: 'Acme Corp',
-                    summary: 'A leading provider of enterprise software solutions.',
-                  }),
+                  result: "Hello! I'm your configured Sim agent. How can I help you today?",
                 },
                 delay: 1800,
               },
