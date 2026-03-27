@@ -62,8 +62,7 @@ export async function GET(
     }
 
     // Verify caller is either an org member or the invitee
-    const isInvitee =
-      session.user.email?.toLowerCase() === orgInvitation.email.toLowerCase()
+    const isInvitee = session.user.email?.toLowerCase() === orgInvitation.email.toLowerCase()
 
     if (!isInvitee) {
       const memberEntry = await db
