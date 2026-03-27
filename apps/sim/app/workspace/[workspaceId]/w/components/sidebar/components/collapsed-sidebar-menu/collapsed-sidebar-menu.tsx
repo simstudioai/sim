@@ -361,6 +361,7 @@ export function CollapsedWorkflowFlyoutItem({
                 disabled={!canRename}
                 onSelect={(e) => {
                   e.preventDefault()
+                  setActionsOpen(false)
                   onRename()
                 }}
               >
