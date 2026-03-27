@@ -209,9 +209,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const hasResponseCode = (err: unknown): err is { responseCode: number } => {
+      return typeof err === 'object' && err !== null && 'responseCode' in err
+    }
+
+    if (hasResponseCode(error)) {
+      if (error.responseCode >= 500) {
+        errorMessage = 'SMTP server error - please try again later'
+      } else if (error.responseCode >= 400) {
+        errorMessage = 'Email rejected by SMTP server - check recipient addresses'
+      }
+    }
+
     logger.error(`[${requestId}] Error sending email via SMTP:`, {
       error: error instanceof Error ? error.message : String(error),
       code: isNodeError(error) ? error.code : undefined,
+      responseCode: hasResponseCode(error) ? error.responseCode : undefined,
     })
 
     return NextResponse.json(
