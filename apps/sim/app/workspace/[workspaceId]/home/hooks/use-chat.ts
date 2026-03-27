@@ -147,6 +147,22 @@ function isActiveStreamConflictError(input: unknown): boolean {
   return input.includes('A response is already in progress for this chat')
 }
 
+/**
+ * Extracts tool call IDs from snapshot events so that replayed client-executable
+ * tool calls are not re-executed after a page refresh.
+ */
+function extractToolCallIdsFromSnapshot(snapshot?: StreamSnapshot | null): Set<string> {
+  const ids = new Set<string>()
+  if (!snapshot?.events) return ids
+  for (const entry of snapshot.events) {
+    const event = entry.event
+    if (event.type === 'tool_call' && typeof event.toolCallId === 'string') {
+      ids.add(event.toolCallId)
+    }
+  }
+  return ids
+}
+
 function buildReplayStream(events: StreamEventEnvelope[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
   return new ReadableStream<Uint8Array>({
@@ -860,7 +876,7 @@ export function useChat(
       sendingRef.current = true
       streamingContentRef.current = ''
       streamingBlocksRef.current = []
-      clientExecutionStartedRef.current.clear()
+      clientExecutionStartedRef.current = extractToolCallIdsFromSnapshot(snapshot)
 
       const assistantId = crypto.randomUUID()
 
