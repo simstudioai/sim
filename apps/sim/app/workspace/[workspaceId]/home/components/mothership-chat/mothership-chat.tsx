@@ -12,12 +12,12 @@ import { PendingTagIndicator } from '@/app/workspace/[workspaceId]/home/componen
 import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import { UserInput } from '@/app/workspace/[workspaceId]/home/components/user-input'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
-import { useAutoScroll } from '@/app/workspace/[workspaceId]/home/hooks'
 import type {
   ChatMessage,
   FileAttachmentForApi,
   QueuedMessage,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'
 
 interface MothershipChatProps {

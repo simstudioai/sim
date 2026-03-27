@@ -190,6 +190,22 @@ export interface ToolCallResult {
   error?: string
 }
 
+/** A single tool call result entry in the generic Results resource tab. */
+export interface GenericResourceEntry {
+  toolCallId: string
+  toolName: string
+  displayTitle: string
+  status: ToolCallStatus
+  params?: Record<string, unknown>
+  streamingArgs?: string
+  result?: ToolCallResult
+}
+
+/** Accumulated feed of tool call results shown in the generic Results tab. */
+export interface GenericResourceData {
+  entries: GenericResourceEntry[]
+}
+
 export interface ToolCallData {
   id: string
   toolName: string

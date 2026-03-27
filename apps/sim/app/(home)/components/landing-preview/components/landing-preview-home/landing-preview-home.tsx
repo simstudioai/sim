@@ -3,7 +3,7 @@
 import { memo, useCallback, useRef, useState } from 'react'
 import { ArrowUp } from 'lucide-react'
 import { useLandingSubmit } from '@/app/(home)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
-import { useAnimatedPlaceholder } from '@/app/workspace/[workspaceId]/home/hooks/use-animated-placeholder'
+import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 
 const C = {
   SURFACE: '#292929',

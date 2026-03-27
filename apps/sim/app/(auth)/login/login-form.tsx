@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -20,10 +20,9 @@ import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
-import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 
 const logger = createLogger('LoginForm')
 
@@ -87,8 +86,6 @@ export default function LoginPage({
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
-  const buttonClass = useBrandedButtonClass()
-
   const callbackUrlParam = searchParams?.get('callbackUrl')
   const isValidCallbackUrl = callbackUrlParam ? validateCallbackUrl(callbackUrlParam) : false
   const invalidCallbackRef = useRef(false)
@@ -353,11 +350,7 @@ export default function LoginPage({
       {/* SSO Login Button (primary top-only when it is the only method) */}
       {showTopSSO && (
         <div className='mt-8'>
-          <SSOLoginButton
-            callbackURL={callbackUrl}
-            variant='primary'
-            primaryClassName={buttonClass}
-          />
+          <SSOLoginButton callbackURL={callbackUrl} variant='primary' />
         </div>
       )}
 
@@ -454,14 +447,16 @@ export default function LoginPage({
             </div>
           )}
 
-          <BrandedButton
-            type='submit'
-            disabled={isLoading}
-            loading={isLoading}
-            loadingText='Signing in'
-          >
-            Sign in
-          </BrandedButton>
+          <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
+            {isLoading ? (
+              <span className='flex items-center gap-2'>
+                <Loader2 className='h-4 w-4 animate-spin' />
+                Signing in...
+              </span>
+            ) : (
+              'Sign in'
+            )}
+          </button>
         </form>
       )}
 
@@ -488,11 +483,7 @@ export default function LoginPage({
             callbackURL={callbackUrl}
           >
             {ssoEnabled && !hasOnlySSO && (
-              <SSOLoginButton
-                callbackURL={callbackUrl}
-                variant='outline'
-                primaryClassName={buttonClass}
-              />
+              <SSOLoginButton callbackURL={callbackUrl} variant='outline' />
             )}
           </SocialLoginButtons>
         </div>
@@ -571,14 +562,16 @@ export default function LoginPage({
                     <p>{resetStatus.message}</p>
                   </div>
                 )}
-                <BrandedButton
-                  type='submit'
-                  disabled={isSubmittingReset}
-                  loading={isSubmittingReset}
-                  loadingText='Sending'
-                >
-                  Send Reset Link
-                </BrandedButton>
+                <button type='submit' disabled={isSubmittingReset} className={AUTH_SUBMIT_BTN}>
+                  {isSubmittingReset ? (
+                    <span className='flex items-center gap-2'>
+                      <Loader2 className='h-4 w-4 animate-spin' />
+                      Sending...
+                    </span>
+                  ) : (
+                    'Send Reset Link'
+                  )}
+                </button>
               </div>
             </form>
           </ModalBody>

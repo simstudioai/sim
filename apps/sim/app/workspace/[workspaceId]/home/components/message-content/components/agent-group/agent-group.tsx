@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, PillsRing } from '@/components/emcn'
+import { ChevronDown, Expandable, ExpandableContent, PillsRing } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { ToolCallData } from '../../../../types'
 import { getAgentIcon } from '../../utils'
@@ -19,8 +19,6 @@ interface AgentGroupProps {
   autoCollapse?: boolean
   defaultExpanded?: boolean
 }
-
-const FADE_MS = 300
 
 function isToolDone(status: ToolCallData['status']): boolean {
   return status === 'success' || status === 'error' || status === 'cancelled'
@@ -42,14 +40,12 @@ export function AgentGroup({
   const allDone = toolItems.length > 0 && toolItems.every((t) => isToolDone(t.data.status))
 
   const [expanded, setExpanded] = useState(defaultExpanded || !allDone)
-  const [mounted, setMounted] = useState(defaultExpanded || !allDone)
   const didAutoCollapseRef = useRef(allDone)
   const wasAutoExpandedRef = useRef(defaultExpanded)
 
   useEffect(() => {
     if (defaultExpanded) {
       wasAutoExpandedRef.current = true
-      setMounted(true)
       setExpanded(true)
       return
     }
@@ -65,15 +61,6 @@ export function AgentGroup({
     didAutoCollapseRef.current = true
     setExpanded(false)
   }, [autoCollapse])
-
-  useEffect(() => {
-    if (expanded) {
-      setMounted(true)
-      return
-    }
-    const timer = setTimeout(() => setMounted(false), FADE_MS)
-    return () => clearTimeout(timer)
-  }, [expanded])
 
   return (
     <div className='flex flex-col gap-1.5'>
@@ -113,31 +100,30 @@ export function AgentGroup({
           <span className='font-base text-[var(--text-body)] text-sm'>{agentLabel}</span>
         </div>
       )}
-      {hasItems && mounted && (
-        <div
-          className={cn(
-            'flex flex-col gap-1.5 transition-opacity duration-300 ease-out',
-            expanded ? 'opacity-100' : 'opacity-0'
-          )}
-        >
-          {items.map((item, idx) =>
-            item.type === 'tool' ? (
-              <ToolCallItem
-                key={item.data.id}
-                toolName={item.data.toolName}
-                displayTitle={item.data.displayTitle}
-                status={item.data.status}
-              />
-            ) : (
-              <span
-                key={`text-${idx}`}
-                className='pl-6 font-base text-[var(--text-secondary)] text-small'
-              >
-                {item.content.trim()}
-              </span>
-            )
-          )}
-        </div>
+      {hasItems && (
+        <Expandable expanded={expanded}>
+          <ExpandableContent>
+            <div className='flex flex-col gap-1.5 pt-0.5'>
+              {items.map((item, idx) =>
+                item.type === 'tool' ? (
+                  <ToolCallItem
+                    key={item.data.id}
+                    toolName={item.data.toolName}
+                    displayTitle={item.data.displayTitle}
+                    status={item.data.status}
+                  />
+                ) : (
+                  <span
+                    key={`text-${idx}`}
+                    className='pl-6 font-base text-[var(--text-secondary)] text-small'
+                  >
+                    {item.content.trim()}
+                  </span>
+                )
+              )}
+            </div>
+          </ExpandableContent>
+        </Expandable>
       )}
     </div>
   )
