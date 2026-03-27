@@ -6,9 +6,9 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { getCourse } from '@/lib/academy/content'
 import type { Lesson } from '@/lib/academy/types'
+import { LessonVideo } from '@/app/academy/components/lesson-video'
 import { ExerciseView } from './components/exercise-view'
 import { LessonQuiz } from './components/lesson-quiz'
-import { LessonVideo } from './components/lesson-video'
 
 interface LessonPageProps {
   params: Promise<{ courseSlug: string; lessonSlug: string }>
@@ -30,7 +30,7 @@ export default function LessonPage({ params }: LessonPageProps) {
   const nextLesson = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null
 
   const handleComplete = useCallback(() => setExerciseComplete(true), [])
-  const canAdvance = !lesson?.exerciseConfig || exerciseComplete
+  const canAdvance = !lesson.exerciseConfig || exerciseComplete
 
   if (!course || !lesson) {
     return (
@@ -90,7 +90,6 @@ export default function LessonPage({ params }: LessonPageProps) {
           {nextLesson && (
             <Link
               href={`/academy/${courseSlug}/${nextLesson.slug}`}
-              aria-disabled={!canAdvance}
               onClick={(e) => {
                 if (!canAdvance) e.preventDefault()
               }}

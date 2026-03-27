@@ -24,29 +24,12 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState, SubBlockState, WorkflowState } from '@/stores/workflows/workflow/types'
+import { LessonVideo } from './lesson-video'
 import { ValidationChecklist } from './validation-checklist'
 
 const logger = createLogger('SandboxCanvasProvider')
 
 const SANDBOX_WORKSPACE_ID = 'sandbox'
-
-function resolveEmbedUrl(url: string): string | null {
-  try {
-    const parsed = new URL(url)
-    if (parsed.hostname === 'youtu.be') return `https://www.youtube.com/embed${parsed.pathname}`
-    if (parsed.hostname.includes('youtube.com')) {
-      const v = parsed.searchParams.get('v')
-      if (v) return `https://www.youtube.com/embed/${v}`
-    }
-    if (parsed.hostname === 'vimeo.com') {
-      const id = parsed.pathname.replace(/^\//, '')
-      if (id) return `https://player.vimeo.com/video/${id}`
-    }
-    return null
-  } catch {
-    return null
-  }
-}
 
 interface SandboxCanvasProviderProps {
   /** Unique ID for this exercise instance */
@@ -181,7 +164,6 @@ export function SandboxCanvasProvider({
     passed: false,
     results: [],
   })
-  const [isMockRunning, setIsMockRunning] = useState(false)
   const [hintIndex, setHintIndex] = useState(-1)
   const completedRef = useRef(false)
   const onCompleteRef = useRef(onComplete)
@@ -318,7 +300,6 @@ export function SandboxCanvasProvider({
     if (plan.length === 0) return
 
     isMockRunningRef.current = true
-    setIsMockRunning(true)
 
     const { setActiveBlocks, setIsExecuting } = useExecutionStore.getState()
     const { addConsole, clearWorkflowConsole } = useTerminalConsoleStore.getState()
@@ -347,7 +328,6 @@ export function SandboxCanvasProvider({
 
     setIsExecuting(workflowId, false)
     isMockRunningRef.current = false
-    setIsMockRunning(false)
   }, [workflowId, exerciseConfig.validationRules, exerciseConfig.mockOutputs])
 
   const handleShowHint = useCallback(() => {
@@ -379,15 +359,7 @@ export function SandboxCanvasProvider({
           <div className='flex w-56 flex-shrink-0 flex-col gap-3 overflow-y-auto border-[#1F1F1F] border-r bg-[#141414] p-3'>
             {videoUrl && (
               <div className='flex flex-col gap-2'>
-                <div className='aspect-video w-full overflow-hidden rounded-[6px] bg-black'>
-                  <iframe
-                    src={resolveEmbedUrl(videoUrl) ?? ''}
-                    title='Lesson video'
-                    allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
-                    allowFullScreen
-                    className='h-full w-full border-0'
-                  />
-                </div>
+                <LessonVideo url={videoUrl} title='Lesson video' />
                 {description && (
                   <p className='text-[#666] text-[11px] leading-relaxed'>{description}</p>
                 )}

@@ -20,7 +20,7 @@ interface QuizResult {
   feedback: Array<{ correct: boolean; explanation?: string }>
 }
 
-function scoreQuiz(questions: QuizQuestion[], answers: Answers): QuizResult {
+function scoreQuiz(questions: QuizQuestion[], answers: Answers, passingScore: number): QuizResult {
   const feedback = questions.map((q, i) => {
     const answer = answers[i]
     let correct = false
@@ -35,7 +35,7 @@ function scoreQuiz(questions: QuizQuestion[], answers: Answers): QuizResult {
     return { correct, explanation: 'explanation' in q ? q.explanation : undefined }
   })
   const score = Math.round((feedback.filter((f) => f.correct).length / questions.length) * 100)
-  return { score, passed: false, feedback }
+  return { score, passed: score >= passingScore, feedback }
 }
 
 /**
@@ -61,7 +61,7 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
   const allAnswered = quizConfig.questions.every((_, i) => answers[i] !== undefined)
 
   const handleSubmit = () => {
-    const scored = scoreQuiz(quizConfig.questions, answers)
+    const scored = scoreQuiz(quizConfig.questions, answers, quizConfig.passingScore)
     const passed = scored.score >= quizConfig.passingScore
     const finalResult = { ...scored, passed }
     setResult(finalResult)
