@@ -77,7 +77,7 @@ function cqlResultToStub(item: Record<string, unknown>, domain: string): Externa
   const labelsWrapper = metadata?.labels as Record<string, unknown> | undefined
   const labelResults = (labelsWrapper?.results || []) as Record<string, unknown>[]
   const labels = labelResults.map((l) => l.name as string)
-  const versionNumber = version?.number ?? ''
+  const versionNumber = version?.number
 
   return {
     externalId: String(item.id),
@@ -86,7 +86,7 @@ function cqlResultToStub(item: Record<string, unknown>, domain: string): Externa
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
-    contentHash: `confluence:${item.id}:${versionNumber}`,
+    contentHash: `confluence:${item.id}:${versionNumber ?? ''}`,
     metadata: {
       spaceId: (item.space as Record<string, unknown>)?.key,
       status: item.status,
@@ -274,7 +274,7 @@ export const confluenceConnector: ConnectorConfig = {
 
     const links = page._links as Record<string, unknown> | undefined
     const version = page.version as Record<string, unknown> | undefined
-    const versionNumber = version?.number ?? ''
+    const versionNumber = version?.number
 
     return {
       externalId: String(page.id),
@@ -283,7 +283,7 @@ export const confluenceConnector: ConnectorConfig = {
       contentDeferred: false,
       mimeType: 'text/plain',
       sourceUrl: links?.webui ? `https://${domain}/wiki${links.webui}` : undefined,
-      contentHash: `confluence:${page.id}:${versionNumber}`,
+      contentHash: `confluence:${page.id}:${versionNumber ?? ''}`,
       metadata: {
         spaceId: page.spaceId,
         status: page.status,
@@ -410,7 +410,7 @@ async function listDocumentsV2(
   const documents: ExternalDocument[] = results.map((page: Record<string, unknown>) => {
     const pageId = String(page.id)
     const version = page.version as Record<string, unknown> | undefined
-    const versionNumber = version?.number ?? ''
+    const versionNumber = version?.number
 
     return {
       externalId: pageId,
@@ -421,7 +421,7 @@ async function listDocumentsV2(
       sourceUrl: (page._links as Record<string, string>)?.webui
         ? `https://${domain}/wiki${(page._links as Record<string, string>).webui}`
         : undefined,
-      contentHash: `confluence:${pageId}:${versionNumber}`,
+      contentHash: `confluence:${pageId}:${versionNumber ?? ''}`,
       metadata: {
         spaceId: page.spaceId,
         status: page.status,

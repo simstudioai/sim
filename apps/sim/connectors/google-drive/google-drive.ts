@@ -221,6 +221,11 @@ export const googleDriveConnector: ConnectorConfig = {
 
     const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+
+    if (maxFiles > 0 && previouslyFetched >= maxFiles) {
+      return { documents: [], hasMore: false }
+    }
+
     const remaining = maxFiles > 0 ? maxFiles - previouslyFetched : 0
     const effectivePageSize = maxFiles > 0 ? Math.min(pageSize, remaining) : pageSize
 
