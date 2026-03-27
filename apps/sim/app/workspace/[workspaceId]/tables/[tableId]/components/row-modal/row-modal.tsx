@@ -164,8 +164,10 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
             )}
             <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
-              {isSingleRow ? 'this row' : `these ${deleteCount} rows`}? This will permanently remove
-              all data in {isSingleRow ? 'this row' : 'these rows'}.{' '}
+              {isSingleRow ? 'this row' : `these ${deleteCount} rows`}?{' '}
+              <span className='text-[var(--text-error)]'>
+                This will permanently remove all data in {isSingleRow ? 'this row' : 'these rows'}.
+              </span>{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>

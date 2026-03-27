@@ -40,7 +40,7 @@ import { cn } from '@/lib/core/utils/cn'
  * Matches the input and combobox styling patterns.
  */
 const timePickerVariants = cva(
-  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus-visible:border-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 hover-hover:border-[var(--surface-7)] hover-hover:bg-[var(--surface-5)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)] transition-colors',
+  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-colors',
   {
     variants: {
       variant: {
@@ -256,7 +256,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
             <div className='flex items-center gap-1.5'>
               <input
                 ref={hourInputRef}
-                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-medium font-sans text-[var(--text-primary)] text-small outline-none transition-colors placeholder:text-[var(--text-muted)] focus-visible:border-[var(--text-muted)]'
+                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-medium font-sans text-[var(--text-primary)] text-small outline-none transition-colors placeholder:text-[var(--text-muted)]'
                 value={hour}
                 onChange={handleHourChange}
                 onBlur={handleHourBlur}
@@ -268,7 +268,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
               />
               <span className='font-medium text-[var(--text-muted)] text-small'>:</span>
               <input
-                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-medium font-sans text-[var(--text-primary)] text-small outline-none transition-colors placeholder:text-[var(--text-muted)] focus-visible:border-[var(--text-muted)]'
+                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-medium font-sans text-[var(--text-primary)] text-small outline-none transition-colors placeholder:text-[var(--text-muted)]'
                 value={minute}
                 onChange={handleMinuteChange}
                 onBlur={handleMinuteBlur}
@@ -291,7 +291,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
                       'px-2 py-[5px] font-medium font-sans text-caption transition-colors',
                       ampm === period
                         ? 'bg-[var(--brand-secondary)] text-[var(--bg)]'
-                        : 'bg-[var(--surface-5)] text-[var(--text-secondary)] hover-hover:bg-[var(--surface-7)] hover-hover:text-[var(--text-primary)] dark:hover-hover:bg-[var(--surface-5)]'
+                        : 'bg-[var(--surface-5)] text-[var(--text-secondary)] hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                     )}
                   >
                     {period}

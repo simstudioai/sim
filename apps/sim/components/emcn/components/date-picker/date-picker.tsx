@@ -40,7 +40,7 @@ import { cn } from '@/lib/core/utils/cn'
  * Matches the combobox and input styling patterns.
  */
 const datePickerVariants = cva(
-  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus-visible:border-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50 hover-hover:border-[var(--surface-7)] hover-hover:bg-[var(--surface-5)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]',
+  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       variant: {

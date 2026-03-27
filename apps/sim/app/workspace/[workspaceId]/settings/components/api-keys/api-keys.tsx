@@ -371,8 +371,10 @@ export function ApiKeys() {
           <ModalBody>
             <p className='text-[var(--text-secondary)]'>
               Deleting{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{deleteKey?.name}</span> will
-              immediately revoke access for any integrations using it.{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{deleteKey?.name}</span>{' '}
+              <span className='text-[var(--text-error)]'>
+                will immediately revoke access for any integrations using it.
+              </span>{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>

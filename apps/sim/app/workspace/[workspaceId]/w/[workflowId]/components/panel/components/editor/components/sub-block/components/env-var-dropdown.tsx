@@ -280,7 +280,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   }
 
   return (
-    <Popover open={visible} onOpenChange={(open) => !open && onClose?.()}>
+    <Popover open={visible} onOpenChange={(open) => !open && onClose?.()} colorScheme='inverted'>
       <PopoverAnchor asChild>
         <div
           className={cn('pointer-events-none', className)}

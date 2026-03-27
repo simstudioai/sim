@@ -416,9 +416,11 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
           <ModalBody>
             <div className='space-y-2'>
               <p className='text-[var(--text-secondary)]'>
-                Are you sure you want to delete the "{selectedTag?.displayName}" tag? This will
-                remove this tag from {selectedTagUsage?.documentCount || 0} document
-                {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.{' '}
+                Are you sure you want to delete the "{selectedTag?.displayName}" tag?{' '}
+                <span className='text-[var(--text-error)]'>
+                  This will remove this tag from {selectedTagUsage?.documentCount || 0} document
+                  {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.
+                </span>{' '}
                 <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
               </p>
 
