@@ -105,20 +105,20 @@ export interface MockBlockOutput {
   delay?: number
 }
 
-export type ValidationRule =
-  | { type: 'block_exists'; blockType: string; count?: number; label?: string }
+export type ValidationRule = { label?: string } & (
+  | { type: 'block_exists'; blockType: string; count?: number }
   | {
       type: 'block_configured'
       blockType: string
       subBlockId: string
       valueNotEmpty?: boolean
       valuePattern?: string
-      label?: string
     }
-  | { type: 'edge_exists'; sourceType: string; targetType: string; label?: string }
-  | { type: 'block_count_min'; count: number; label?: string }
-  | { type: 'block_count_max'; count: number; label?: string }
-  | { type: 'custom'; validatorId: string; params?: Record<string, unknown>; label?: string }
+  | { type: 'edge_exists'; sourceType: string; targetType: string }
+  | { type: 'block_count_min'; count: number }
+  | { type: 'block_count_max'; count: number }
+  | { type: 'custom'; validatorId: string; params?: Record<string, unknown> }
+)
 
 export interface ValidationRuleResult {
   rule: ValidationRule

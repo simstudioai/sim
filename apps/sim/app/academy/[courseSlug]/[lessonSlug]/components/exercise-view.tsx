@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { CheckCircle2 } from 'lucide-react'
 import { markLessonComplete } from '@/lib/academy/local-progress'
 import type { ExerciseBlockState, ExerciseDefinition, ExerciseEdgeState } from '@/lib/academy/types'
@@ -26,12 +26,9 @@ export function ExerciseView({
   description,
 }: ExerciseViewProps) {
   const [completed, setCompleted] = useState(false)
-  const completedRef = useRef(false)
 
   const handleComplete = useCallback(
     (_blocks: ExerciseBlockState[], _edges: ExerciseEdgeState[]) => {
-      if (completedRef.current) return
-      completedRef.current = true
       setCompleted(true)
       markLessonComplete(lessonId)
       onComplete?.()

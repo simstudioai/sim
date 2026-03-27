@@ -43,10 +43,6 @@ export default function LessonPage({ params }: LessonPageProps) {
   const hasVideo = Boolean(lesson.videoUrl)
   const hasExercise = Boolean(lesson.exerciseConfig)
   const hasQuiz = Boolean(lesson.quizConfig)
-  const isExercise = lesson.lessonType === 'exercise'
-  const isQuiz = lesson.lessonType === 'quiz'
-  const isMixed = lesson.lessonType === 'mixed'
-  const isVideo = lesson.lessonType === 'video'
 
   return (
     <div className='flex h-screen flex-col overflow-hidden bg-[#1C1C1C]'>
@@ -108,7 +104,7 @@ export default function LessonPage({ params }: LessonPageProps) {
 
       {/* Lesson body */}
       <div className='flex min-h-0 flex-1 overflow-hidden'>
-        {isVideo && hasVideo && (
+        {lesson.lessonType === 'video' && hasVideo && (
           <div className='flex flex-1 items-center justify-center overflow-y-auto p-10'>
             <div className='w-full max-w-3xl'>
               <LessonVideo url={lesson.videoUrl!} title={lesson.title} />
@@ -119,7 +115,7 @@ export default function LessonPage({ params }: LessonPageProps) {
           </div>
         )}
 
-        {isExercise && hasExercise && (
+        {lesson.lessonType === 'exercise' && hasExercise && (
           <ExerciseView
             lessonId={lesson.id}
             exerciseConfig={lesson.exerciseConfig!}
@@ -127,7 +123,7 @@ export default function LessonPage({ params }: LessonPageProps) {
           />
         )}
 
-        {isQuiz && hasQuiz && (
+        {lesson.lessonType === 'quiz' && hasQuiz && (
           <div className='flex flex-1 items-start justify-center overflow-y-auto p-10'>
             <div className='w-full max-w-2xl'>
               <LessonQuiz
@@ -139,7 +135,7 @@ export default function LessonPage({ params }: LessonPageProps) {
           </div>
         )}
 
-        {isMixed && (
+        {lesson.lessonType === 'mixed' && (
           <>
             {hasExercise && (
               <ExerciseView

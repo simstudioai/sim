@@ -168,21 +168,13 @@ export function SandboxCanvasProvider({
   const completedRef = useRef(false)
   const onCompleteRef = useRef(onComplete)
   onCompleteRef.current = onComplete
-  const unsubscribeRef = useRef<(() => void) | null>(null)
   const isMockRunningRef = useRef(false)
-  /** Last-known canvas state, updated by runValidation and reused by handleMockRun. */
-  const lastCanvasStateRef = useRef<{ blocks: ExerciseBlockState[]; edges: ExerciseEdgeState[] }>({
-    blocks: [],
-    edges: [],
-  })
 
   // Stable exercise ID — used as the workflow ID in the stores
   const workflowId = `sandbox-${exerciseId}`
 
   const runValidation = useCallback(() => {
-    const canvasState = readCurrentCanvasState(workflowId)
-    lastCanvasStateRef.current = canvasState
-    const { blocks, edges } = canvasState
+    const { blocks, edges } = readCurrentCanvasState(workflowId)
     const result = validateExercise(blocks, edges, exerciseConfig.validationRules)
 
     setValidationResult((prev) => {
@@ -258,17 +250,13 @@ export function SandboxCanvasProvider({
       }
     })
 
-    unsubscribeRef.current = () => {
+    runValidation()
+
+    return () => {
       if (rafId !== null) cancelAnimationFrame(rafId)
       unsubWorkflow()
       unsubSubBlock()
       unsubExecution()
-    }
-
-    runValidation()
-
-    return () => {
-      unsubscribeRef.current?.()
       useWorkflowRegistry.setState((state) => {
         const { [workflowId]: _removed, ...rest } = state.workflows
         return {
@@ -291,7 +279,7 @@ export function SandboxCanvasProvider({
   const handleMockRun = useCallback(async () => {
     if (isMockRunningRef.current) return
 
-    const { blocks, edges } = lastCanvasStateRef.current
+    const { blocks, edges } = readCurrentCanvasState(workflowId)
     const result = validateExercise(blocks, edges, exerciseConfig.validationRules)
     setValidationResult(result)
     if (!result.passed) return
@@ -356,18 +344,12 @@ export function SandboxCanvasProvider({
       <SandboxWorkspacePermissionsProvider>
         <div className={cn('flex h-full w-full overflow-hidden', className)}>
           <div className='flex w-56 flex-shrink-0 flex-col gap-3 overflow-y-auto border-[#1F1F1F] border-r bg-[#141414] p-3'>
-            {videoUrl && (
+            {(videoUrl || description) && (
               <div className='flex flex-col gap-2'>
-                <LessonVideo url={videoUrl} title='Lesson video' />
+                {videoUrl && <LessonVideo url={videoUrl} title='Lesson video' />}
                 {description && (
                   <p className='text-[#666] text-[11px] leading-relaxed'>{description}</p>
                 )}
-                <div className='border-[#1F1F1F] border-t' />
-              </div>
-            )}
-            {!videoUrl && description && (
-              <div className='flex flex-col gap-2'>
-                <p className='text-[#666] text-[11px] leading-relaxed'>{description}</p>
                 <div className='border-[#1F1F1F] border-t' />
               </div>
             )}
