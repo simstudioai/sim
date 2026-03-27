@@ -163,3 +163,27 @@ export const MemoizedPageItem = memo(
     prev.name === next.name &&
     prev.shortcut === next.shortcut
 )
+
+export const MemoizedIconItem = memo(
+  function IconItem({
+    value,
+    onSelect,
+    name,
+    icon: Icon,
+  }: {
+    value: string
+    onSelect: () => void
+    name: string
+    icon: ComponentType<{ className?: string }>
+  }) {
+    return (
+      <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
+        <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+          <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+        </div>
+        <span className='truncate font-base text-[var(--text-body)]'>{name}</span>
+      </Command.Item>
+    )
+  },
+  (prev, next) => prev.value === next.value && prev.name === next.name && prev.icon === next.icon
+)
