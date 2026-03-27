@@ -141,7 +141,6 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const next = e.target.value
       setLocalValue(next)
-      lastReportedRef.current = next
       search.onChange(next)
     },
     [search.onChange]

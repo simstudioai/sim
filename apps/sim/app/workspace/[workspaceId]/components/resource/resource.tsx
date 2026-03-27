@@ -461,10 +461,9 @@ const DataRow = memo(function DataRow({
     onRowClick?.(row.id)
   }, [onRowClick, row.id])
 
-  const handleMouseEnter = useMemo(
-    () => (onRowHover ? () => onRowHover(row.id) : undefined),
-    [onRowHover, row.id]
-  )
+  const handleMouseEnter = useCallback(() => {
+    onRowHover?.(row.id)
+  }, [onRowHover, row.id])
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {

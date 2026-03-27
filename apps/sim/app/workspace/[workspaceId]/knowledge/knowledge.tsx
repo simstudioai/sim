@@ -258,13 +258,12 @@ export function Knowledge() {
 
   const searchConfig: SearchConfig = useMemo(
     () => ({
-      get value() {
-        return searchValueRef.current
-      },
+      value: debouncedSearchQuery,
       onChange: handleSearchChange,
+      onClearAll: () => handleSearchChange(''),
       placeholder: 'Search knowledge bases...',
     }),
-    [handleSearchChange]
+    [handleSearchChange, debouncedSearchQuery]
   )
 
   return (
