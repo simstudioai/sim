@@ -456,6 +456,7 @@ async function listDocumentsV2(
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
+  if (hitLimit && syncContext) syncContext.listingCapped = true
 
   return {
     documents,
@@ -621,6 +622,7 @@ async function listDocumentsViaCql(
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
+  if (hitLimit && syncContext) syncContext.listingCapped = true
 
   const totalSize = (data.totalSize as number) ?? 0
   const nextStart = start + results.length

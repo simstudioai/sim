@@ -454,6 +454,7 @@ async function listFromWorkspace(
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
+  if (hitLimit && syncContext) syncContext.listingCapped = true
 
   const nextCursor = hitLimit ? undefined : ((data.next_cursor as string) ?? undefined)
 
@@ -509,6 +510,7 @@ async function listFromDatabase(
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
+  if (hitLimit && syncContext) syncContext.listingCapped = true
 
   const nextCursor = hitLimit ? undefined : ((data.next_cursor as string) ?? undefined)
 
@@ -604,6 +606,7 @@ async function listFromParentPage(
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
+  if (hitLimit && syncContext) syncContext.listingCapped = true
 
   const nextCursor = hitLimit ? undefined : ((data.next_cursor as string) ?? undefined)
 

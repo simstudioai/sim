@@ -393,8 +393,8 @@ export const sharepointConnector: ConnectorConfig = {
 
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxFiles > 0 && totalFetched >= maxFiles
+    if (hitLimit && syncContext) syncContext.listingCapped = true
 
-    // Determine next cursor
     if (hitLimit) {
       return { documents, hasMore: false }
     }
