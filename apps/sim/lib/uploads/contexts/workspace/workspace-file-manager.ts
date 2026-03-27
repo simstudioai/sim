@@ -13,14 +13,10 @@ import {
   incrementStorageUsage,
 } from '@/lib/billing/storage'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
-import {
-  downloadFile,
-  hasCloudStorage,
-  uploadFile,
-} from '@/lib/uploads/core/storage-service'
-import { getFileMetadataByKey, insertFileMetadata } from '@/lib/uploads/server/metadata'
 import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { downloadFile, hasCloudStorage, uploadFile } from '@/lib/uploads/core/storage-service'
+import { getFileMetadataByKey, insertFileMetadata } from '@/lib/uploads/server/metadata'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
@@ -256,7 +252,10 @@ export async function uploadWorkspaceFile(
     }
   }
 
-  logger.error(`Failed to upload workspace file after ${MAX_UPLOAD_UNIQUE_RETRIES} attempts`, lastError)
+  logger.error(
+    `Failed to upload workspace file after ${MAX_UPLOAD_UNIQUE_RETRIES} attempts`,
+    lastError
+  )
   throw new FileConflictError(fileName)
 }
 
@@ -278,7 +277,13 @@ export async function trackChatUpload(
   const updated = await db
     .update(workspaceFiles)
     .set({ chatId, context: 'mothership' })
-    .where(and(eq(workspaceFiles.key, s3Key), eq(workspaceFiles.workspaceId, workspaceId), isNull(workspaceFiles.deletedAt)))
+    .where(
+      and(
+        eq(workspaceFiles.key, s3Key),
+        eq(workspaceFiles.workspaceId, workspaceId),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
     .returning({ id: workspaceFiles.id })
 
   if (updated.length > 0) {
@@ -345,7 +350,10 @@ export async function listWorkspaceFiles(
       .from(workspaceFiles)
       .where(
         scope === 'all'
-          ? and(eq(workspaceFiles.workspaceId, workspaceId), eq(workspaceFiles.context, 'workspace'))
+          ? and(
+              eq(workspaceFiles.workspaceId, workspaceId),
+              eq(workspaceFiles.context, 'workspace')
+            )
           : scope === 'archived'
             ? and(
                 eq(workspaceFiles.workspaceId, workspaceId),
@@ -414,7 +422,9 @@ export function normalizeWorkspaceFileReference(fileReference: string): string {
 /**
  * Canonical sandbox mount path for an existing workspace file.
  */
-export function getSandboxWorkspaceFilePath(file: Pick<WorkspaceFileRecord, 'id' | 'name'>): string {
+export function getSandboxWorkspaceFilePath(
+  file: Pick<WorkspaceFileRecord, 'id' | 'name'>
+): string {
   return `/home/user/files/${file.id}/${file.name}`
 }
 

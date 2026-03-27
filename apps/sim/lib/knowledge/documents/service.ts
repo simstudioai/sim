@@ -25,10 +25,11 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
+import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { env } from '@/lib/core/config/env'
-import { getStorageMethod, isRedisStorage } from '@/lib/core/storage'
+import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
-import { DocumentProcessingQueue } from '@/lib/knowledge/documents/queue'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 import {
@@ -87,22 +88,8 @@ const REDIS_PROCESSING_CONFIG = {
   delayBetweenDocuments: env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS || 50,
 }
 
-let documentQueue: DocumentProcessingQueue | null = null
-
-export function getDocumentQueue(): DocumentProcessingQueue {
-  if (!documentQueue) {
-    const config = isRedisStorage() ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
-    documentQueue = new DocumentProcessingQueue({
-      maxConcurrent: config.maxConcurrentDocuments,
-      retryDelay: env.KB_CONFIG_MIN_TIMEOUT || 1000,
-      maxRetries: env.KB_CONFIG_MAX_ATTEMPTS || 3,
-    })
-  }
-  return documentQueue
-}
-
 export function getProcessingConfig() {
-  return isRedisStorage() ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
+  return isBullMQEnabled() ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
 }
 
 export interface DocumentData {
@@ -132,6 +119,54 @@ export interface DocumentJobData {
   }
   processingOptions: ProcessingOptions
   requestId: string
+}
+
+export async function dispatchDocumentProcessingJob(payload: DocumentJobData): Promise<void> {
+  if (isTriggerAvailable()) {
+    await tasks.trigger('knowledge-process-document', payload)
+    return
+  }
+
+  if (isBullMQEnabled()) {
+    const workspaceRows = await db
+      .select({
+        workspaceId: knowledgeBase.workspaceId,
+        userId: knowledgeBase.userId,
+      })
+      .from(knowledgeBase)
+      .where(and(eq(knowledgeBase.id, payload.knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .limit(1)
+
+    const workspaceId = workspaceRows[0]?.workspaceId
+    const userId = workspaceRows[0]?.userId
+    if (!workspaceId || !userId) {
+      throw new Error(`Knowledge base not found: ${payload.knowledgeBaseId}`)
+    }
+
+    await enqueueWorkspaceDispatch({
+      workspaceId,
+      lane: 'knowledge',
+      queueName: 'knowledge-process-document',
+      bullmqJobName: 'knowledge-process-document',
+      bullmqPayload: createBullMQJobData(payload),
+      metadata: {
+        userId,
+      },
+    })
+    return
+  }
+
+  void processDocumentAsync(
+    payload.knowledgeBaseId,
+    payload.documentId,
+    payload.docData,
+    payload.processingOptions
+  ).catch((error) => {
+    logger.error(`[${payload.requestId}] Direct document processing failed`, {
+      documentId: payload.documentId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  })
 }
 
 export interface DocumentTagData {
@@ -322,7 +357,7 @@ export async function processDocumentTags(
 }
 
 /**
- * Process documents with best available method: Trigger.dev > Redis queue > in-memory concurrency control
+ * Process documents with the configured background execution backend.
  */
 export async function processDocumentsWithQueue(
   createdDocuments: DocumentData[],
@@ -330,76 +365,29 @@ export async function processDocumentsWithQueue(
   processingOptions: ProcessingOptions,
   requestId: string
 ): Promise<void> {
-  // Priority 1: Trigger.dev
-  if (isTriggerAvailable()) {
-    try {
-      logger.info(
-        `[${requestId}] Using Trigger.dev background processing for ${createdDocuments.length} documents`
-      )
-
-      const triggerPayloads = createdDocuments.map((doc) => ({
-        knowledgeBaseId,
-        documentId: doc.documentId,
-        docData: {
-          filename: doc.filename,
-          fileUrl: doc.fileUrl,
-          fileSize: doc.fileSize,
-          mimeType: doc.mimeType,
-        },
-        processingOptions,
-        requestId,
-      }))
-
-      const result = await processDocumentsWithTrigger(triggerPayloads, requestId)
-
-      if (result.success) {
-        logger.info(
-          `[${requestId}] Successfully triggered background processing: ${result.message}`
-        )
-        return
-      }
-      logger.warn(`[${requestId}] Trigger.dev failed: ${result.message}, falling back to Redis`)
-    } catch (error) {
-      logger.warn(`[${requestId}] Trigger.dev processing failed, falling back to Redis:`, error)
-    }
-  }
-
-  // Priority 2: Queue-based processing (Redis or in-memory based on storage method)
-  const queue = getDocumentQueue()
-  const storageMethod = getStorageMethod()
+  const jobPayloads = createdDocuments.map<DocumentJobData>((doc) => ({
+    knowledgeBaseId,
+    documentId: doc.documentId,
+    docData: {
+      filename: doc.filename,
+      fileUrl: doc.fileUrl,
+      fileSize: doc.fileSize,
+      mimeType: doc.mimeType,
+    },
+    processingOptions,
+    requestId,
+  }))
 
   logger.info(
-    `[${requestId}] Using ${storageMethod} queue for ${createdDocuments.length} documents`
+    `[${requestId}] Dispatching background processing for ${jobPayloads.length} documents`,
+    {
+      backend: isTriggerAvailable() ? 'trigger-dev' : isBullMQEnabled() ? 'bullmq' : 'direct',
+    }
   )
 
-  const jobPromises = createdDocuments.map((doc) =>
-    queue.addJob<DocumentJobData>('process-document', {
-      knowledgeBaseId,
-      documentId: doc.documentId,
-      docData: {
-        filename: doc.filename,
-        fileUrl: doc.fileUrl,
-        fileSize: doc.fileSize,
-        mimeType: doc.mimeType,
-      },
-      processingOptions,
-      requestId,
-    })
-  )
+  await Promise.all(jobPayloads.map((payload) => dispatchDocumentProcessingJob(payload)))
 
-  await Promise.all(jobPromises)
-
-  queue
-    .processJobs(async (job) => {
-      const data = job.data as DocumentJobData
-      const { knowledgeBaseId, documentId, docData, processingOptions } = data
-      await processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions)
-    })
-    .catch((error) => {
-      logger.error(`[${requestId}] Error in queue processing:`, error)
-    })
-
-  logger.info(`[${requestId}] All documents queued for processing`)
+  logger.info(`[${requestId}] All documents dispatched for processing`)
   return
 }
 
@@ -659,7 +647,7 @@ export async function processDocumentAsync(
  * Check if Trigger.dev is available and configured
  */
 export function isTriggerAvailable(): boolean {
-  return !!(env.TRIGGER_SECRET_KEY && env.TRIGGER_DEV_ENABLED !== false)
+  return Boolean(env.TRIGGER_SECRET_KEY) && isTriggerDevEnabled
 }
 
 /**

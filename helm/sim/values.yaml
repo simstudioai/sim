@@ -124,6 +124,11 @@ app:
     OLLAMA_URL: ""                                        # Ollama local LLM server URL
     ELEVENLABS_API_KEY: ""                                # ElevenLabs API key for text-to-speech in deployed chat
     
+    # Admission & Dispatch Queue Configuration
+    ADMISSION_GATE_MAX_INFLIGHT: "500"                    # Max concurrent in-flight execution requests per pod
+    DISPATCH_MAX_QUEUE_PER_WORKSPACE: "1000"              # Max queued dispatch jobs per workspace
+    DISPATCH_MAX_QUEUE_GLOBAL: "50000"                    # Max queued dispatch jobs globally
+
     # Rate Limiting Configuration (per minute)
     RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
     RATE_LIMIT_FREE_SYNC: "50"                            # Sync API executions per minute
