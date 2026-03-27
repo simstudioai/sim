@@ -286,27 +286,29 @@ export function CollapsedWorkflowFlyoutItem({
 
   if (isEditing) {
     return (
-      <div className={EDIT_ROW_CLASS}>
-        <WorkflowColorSwatch color={workflow.color} />
-        <input
-          aria-label={`Rename workflow ${workflow.name}`}
-          ref={inputRef}
-          value={editValue ?? workflow.name}
-          onChange={(e) => onEditValueChange?.(e.target.value)}
-          onKeyDown={onEditKeyDown}
-          onBlur={onEditBlur}
-          className='w-full min-w-0 border-0 bg-transparent p-0 font-medium text-[12px] text-[var(--text-body)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
-          maxLength={100}
-          disabled={isRenaming}
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
-          autoComplete='off'
-          autoCorrect='off'
-          autoCapitalize='off'
-          spellCheck='false'
-        />
+      <div className='group relative'>
+        <div className='flex min-w-0 cursor-default select-none items-center gap-2 rounded-[5px] bg-[var(--surface-active)] px-2 py-2 font-medium text-[var(--text-body)] text-caption outline-none'>
+          <WorkflowColorSwatch color={workflow.color} />
+          <input
+            aria-label={`Rename workflow ${workflow.name}`}
+            ref={inputRef}
+            value={editValue ?? workflow.name}
+            onChange={(e) => onEditValueChange?.(e.target.value)}
+            onKeyDown={onEditKeyDown}
+            onBlur={onEditBlur}
+            className='w-full min-w-0 border-0 bg-transparent p-0 font-medium text-[var(--text-body)] text-caption outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+            maxLength={100}
+            disabled={isRenaming}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+            }}
+            autoComplete='off'
+            autoCorrect='off'
+            autoCapitalize='off'
+            spellCheck='false'
+          />
+        </div>
       </div>
     )
   }
