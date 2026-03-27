@@ -21,7 +21,10 @@ import type {
 import {
   BlocksGroup,
   DocsGroup,
+  FilesGroup,
+  KnowledgeBasesGroup,
   PagesGroup,
+  TablesGroup,
   TasksGroup,
   ToolOpsGroup,
   ToolsGroup,
@@ -40,6 +43,9 @@ export function SearchModal({
   workflows = [],
   workspaces = [],
   tasks = [],
+  tables = [],
+  files = [],
+  knowledgeBases = [],
   isOnWorkflowPage = false,
 }: SearchModalProps) {
   const params = useParams()
@@ -284,6 +290,20 @@ export function SearchModal({
     return filterAndSort(docs, (d) => `${d.name} docs documentation doc-${d.id}`, deferredSearch)
   }, [isOnWorkflowPage, docs, deferredSearch])
 
+  const filteredTables = useMemo(
+    () => filterAndSort(tables, (t) => `${t.name} table-${t.id}`, deferredSearch),
+    [tables, deferredSearch]
+  )
+  const filteredFiles = useMemo(
+    () => filterAndSort(files, (f) => `${f.name} file-${f.id}`, deferredSearch),
+    [files, deferredSearch]
+  )
+  const filteredKnowledgeBases = useMemo(
+    () =>
+      filterAndSort(knowledgeBases, (kb) => `${kb.name} knowledge-base-${kb.id}`, deferredSearch),
+    [knowledgeBases, deferredSearch]
+  )
+
   const filteredWorkflows = useMemo(
     () => filterAndSort(workflows, (w) => `${w.name} workflow-${w.id}`, deferredSearch),
     [workflows, deferredSearch]
@@ -346,6 +366,9 @@ export function SearchModal({
             <TriggersGroup items={filteredTriggers} onSelect={handleBlockSelectAsTrigger} />
             <WorkflowsGroup items={filteredWorkflows} onSelect={handleWorkflowSelect} />
             <TasksGroup items={filteredTasks} onSelect={handleTaskSelect} />
+            <TablesGroup items={filteredTables} onSelect={handleTaskSelect} />
+            <FilesGroup items={filteredFiles} onSelect={handleTaskSelect} />
+            <KnowledgeBasesGroup items={filteredKnowledgeBases} onSelect={handleTaskSelect} />
             <ToolOpsGroup items={filteredToolOps} onSelect={handleToolOperationSelect} />
             <WorkspacesGroup items={filteredWorkspaces} onSelect={handleWorkspaceSelect} />
             <DocsGroup items={filteredDocs} onSelect={handleDocSelect} />

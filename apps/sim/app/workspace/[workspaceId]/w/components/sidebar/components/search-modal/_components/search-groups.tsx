@@ -1,7 +1,9 @@
 'use client'
 
+import type { ComponentType } from 'react'
 import { memo } from 'react'
 import { Command } from 'cmdk'
+import { Database, File, Table } from '@/components/emcn/icons'
 import type {
   SearchBlockItem,
   SearchDocItem,
@@ -11,6 +13,7 @@ import type { PageItem, TaskItem, WorkflowItem, WorkspaceItem } from '../utils'
 import { GROUP_HEADING_CLASSNAME } from '../utils'
 import {
   MemoizedCommandItem,
+  MemoizedIconItem,
   MemoizedPageItem,
   MemoizedTaskItem,
   MemoizedWorkflowItem,
@@ -239,3 +242,36 @@ export const PagesGroup = memo(function PagesGroup({
     </Command.Group>
   )
 })
+
+export const TablesGroup = createIconGroup('Tables', 'table', Table)
+export const FilesGroup = createIconGroup('Files', 'file', File)
+export const KnowledgeBasesGroup = createIconGroup('Knowledge Bases', 'knowledge-base', Database)
+
+function createIconGroup(
+  heading: string,
+  prefix: string,
+  icon: ComponentType<{ className?: string }>
+) {
+  return memo(function IconGroup({
+    items,
+    onSelect,
+  }: {
+    items: TaskItem[]
+    onSelect: (item: TaskItem) => void
+  }) {
+    if (items.length === 0) return null
+    return (
+      <Command.Group heading={heading} className={GROUP_HEADING_CLASSNAME}>
+        {items.map((item) => (
+          <MemoizedIconItem
+            key={item.id}
+            value={`${item.name} ${prefix}-${item.id}`}
+            onSelect={() => onSelect(item)}
+            name={item.name}
+            icon={icon}
+          />
+        ))}
+      </Command.Group>
+    )
+  })
+}
