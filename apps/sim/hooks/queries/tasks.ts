@@ -133,13 +133,29 @@ export async function fetchChatHistory(
   chatId: string,
   signal?: AbortSignal
 ): Promise<TaskChatHistory> {
-  const response = await fetch(`/api/mothership/chats/${chatId}`, { signal })
+  const mothershipRes = await fetch(`/api/mothership/chats/${chatId}`, { signal })
 
-  if (!response.ok) {
+  if (mothershipRes.ok) {
+    const { chat } = await mothershipRes.json()
+    return {
+      id: chat.id,
+      title: chat.title,
+      messages: Array.isArray(chat.messages) ? chat.messages : [],
+      activeStreamId: chat.conversationId || null,
+      resources: Array.isArray(chat.resources) ? chat.resources : [],
+      streamSnapshot: chat.streamSnapshot || null,
+    }
+  }
+
+  const copilotRes = await fetch(`/api/copilot/chat?chatId=${encodeURIComponent(chatId)}`, {
+    signal,
+  })
+
+  if (!copilotRes.ok) {
     throw new Error('Failed to load chat')
   }
 
-  const { chat } = await response.json()
+  const { chat } = await copilotRes.json()
   return {
     id: chat.id,
     title: chat.title,
