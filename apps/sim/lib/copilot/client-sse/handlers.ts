@@ -21,7 +21,6 @@ import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { captureBaselineSnapshot } from '@/stores/workflow-diff/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { executeRunToolOnClient } from './run-tool-execution'
 import type { ClientContentBlock, ClientStreamingContext } from './types'
 
 const logger = createLogger('CopilotClientSseHandlers')
@@ -986,10 +985,6 @@ export const sseHandlers: Record<string, SSEHandler> = {
 
     if (isPartial) {
       return
-    }
-
-    if (clientExecutable && initialState === ClientToolCallState.executing) {
-      executeRunToolOnClient(id, toolName, args || existing?.params || {})
     }
 
     if (toolName === 'oauth_request_access' && args && typeof window !== 'undefined') {

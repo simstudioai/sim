@@ -4872,6 +4872,33 @@
     "tags": ["meeting", "note-taking"]
   },
   {
+    "type": "granola",
+    "slug": "granola",
+    "name": "Granola",
+    "description": "Access meeting notes and transcripts from Granola",
+    "longDescription": "Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts.",
+    "bgColor": "#B2C147",
+    "iconName": "GranolaIcon",
+    "docsUrl": "https://docs.sim.ai/tools/granola",
+    "operations": [
+      {
+        "name": "List Notes",
+        "description": "Lists meeting notes from Granola with optional date filters and pagination."
+      },
+      {
+        "name": "Get Note",
+        "description": "Retrieves a specific meeting note from Granola by ID, including summary, attendees, calendar event details, and optionally the transcript."
+      }
+    ],
+    "operationCount": 2,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "productivity",
+    "tags": ["meeting", "note-taking"]
+  },
+  {
     "type": "greenhouse",
     "slug": "greenhouse",
     "name": "Greenhouse",
@@ -6120,6 +6147,45 @@
     "category": "tools",
     "integrationType": "analytics",
     "tags": ["prediction-markets", "data-analytics"]
+  },
+  {
+    "type": "ketch",
+    "slug": "ketch",
+    "name": "Ketch",
+    "description": "Manage privacy consent, subscriptions, and data subject rights",
+    "longDescription": "Integrate Ketch into the workflow. Retrieve and update consent preferences, manage subscription topics and controls, and submit data subject rights requests for access, deletion, correction, or processing restriction.",
+    "bgColor": "#9B5CFF",
+    "iconName": "KetchIcon",
+    "docsUrl": "https://docs.sim.ai/tools/ketch",
+    "operations": [
+      {
+        "name": "Get Consent",
+        "description": "Retrieve consent status for a data subject. Returns the current consent preferences for each configured purpose."
+      },
+      {
+        "name": "Set Consent",
+        "description": "Update consent preferences for a data subject. Sets the consent status for specified purposes with the appropriate legal basis."
+      },
+      {
+        "name": "Get Subscriptions",
+        "description": "Retrieve subscription preferences for a data subject. Returns the current subscription topic and control statuses."
+      },
+      {
+        "name": "Set Subscriptions",
+        "description": "Update subscription preferences for a data subject. Sets topic and control statuses for email, SMS, and other contact methods."
+      },
+      {
+        "name": "Invoke Right",
+        "description": "Submit a data subject rights request (e.g., access, delete, correct, restrict processing). Initiates a privacy rights workflow in Ketch."
+      }
+    ],
+    "operationCount": 5,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationType": "security",
+    "tags": ["identity"]
   },
   {
     "type": "knowledge",

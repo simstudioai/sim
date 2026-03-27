@@ -78,7 +78,7 @@ export function FieldItem({
       onDragStart={handleDragStart}
       onClick={handleClick}
       className={clsx(
-        'group flex h-[26px] cursor-grab items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover:bg-[var(--surface-5)]',
+        'group flex h-[26px] cursor-grab items-center gap-2 rounded-lg px-1.5 text-sm hover-hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover-hover:bg-[var(--surface-5)]',
         hasChildren && 'cursor-pointer'
       )}
     >
@@ -90,7 +90,7 @@ export function FieldItem({
       >
         {field.name}
       </span>
-      <Badge className='flex-shrink-0 rounded-[4px] px-[6px] py-[1px] font-mono text-[11px]'>
+      <Badge className='flex-shrink-0 rounded-sm px-1.5 py-[1px] font-mono text-xs'>
         {field.type}
       </Badge>
       {hasChildren && (

@@ -24,6 +24,7 @@ export interface BaseExecutionEvent {
   type: ExecutionEventType
   timestamp: string
   executionId: string
+  eventId?: number
 }
 
 /**

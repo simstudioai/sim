@@ -50,10 +50,10 @@ export default async function BlogIndex({
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(blogJsonLd) }}
       />
-      <h1 className='mb-3 font-[500] text-[#ECECEC] text-[40px] leading-tight sm:text-[56px]'>
+      <h1 className='mb-3 text-balance font-[500] text-[40px] text-[var(--landing-text)] leading-tight sm:text-[56px]'>
         Blog
       </h1>
-      <p className='mb-10 text-[#999] text-[18px]'>
+      <p className='mb-10 text-[var(--landing-text-muted)] text-lg'>
         Announcements, insights, and guides for building AI agent workflows.
       </p>
 
@@ -75,18 +75,18 @@ export default async function BlogIndex({
           {pageNum > 1 && (
             <Link
               href={`/blog?page=${pageNum - 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
-              className='rounded-[5px] border border-[#3d3d3d] px-3 py-1 text-[#ECECEC] text-sm transition-colors hover:bg-[#2A2A2A]'
+              className='rounded-[5px] border border-[var(--landing-border-strong)] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
             >
               Previous
             </Link>
           )}
-          <span className='text-[#999] text-sm'>
+          <span className='text-[var(--landing-text-muted)] text-sm'>
             Page {pageNum} of {totalPages}
           </span>
           {pageNum < totalPages && (
             <Link
               href={`/blog?page=${pageNum + 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
-              className='rounded-[5px] border border-[#3d3d3d] px-3 py-1 text-[#ECECEC] text-sm transition-colors hover:bg-[#2A2A2A]'
+              className='rounded-[5px] border border-[var(--landing-border-strong)] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
             >
               Next
             </Link>

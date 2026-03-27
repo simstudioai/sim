@@ -85,7 +85,7 @@ export function SlackChannelSelector({
   }
 
   return (
-    <div className='flex flex-col gap-[4px]'>
+    <div className='flex flex-col gap-1'>
       <Combobox
         options={options}
         value={value}
@@ -104,11 +104,11 @@ export function SlackChannelSelector({
         searchPlaceholder='Search channels...'
       />
       {selectedChannel && !fetchError && (
-        <p className='text-[12px] text-[var(--text-muted)]'>
+        <p className='text-[var(--text-muted)] text-caption'>
           {selectedChannel.isPrivate ? 'Private' : 'Public'} channel: #{selectedChannel.name}
         </p>
       )}
-      {error && <p className='text-[12px] text-[var(--text-error)]'>{error}</p>}
+      {error && <p className='text-[var(--text-error)] text-caption'>{error}</p>}
     </div>
   )
 }

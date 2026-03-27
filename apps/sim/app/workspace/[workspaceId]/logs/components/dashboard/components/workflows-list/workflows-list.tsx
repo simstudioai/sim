@@ -39,15 +39,15 @@ function WorkflowsListInner({
   const workflows = useWorkflowRegistry((s) => s.workflows)
 
   return (
-    <div className='flex h-full flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)] dark:bg-[var(--surface-1)]'>
+    <div className='flex h-full flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-1)]'>
       {/* Table header */}
-      <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-[24px] py-[10px] dark:bg-[var(--surface-3)]'>
-        <div className='flex items-center gap-[16px]'>
-          <span className='w-[160px] flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
+      <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-6 py-2.5 dark:bg-[var(--surface-3)]'>
+        <div className='flex items-center gap-4'>
+          <span className='w-[160px] flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
             Workflow
           </span>
-          <span className='flex-1 font-medium text-[12px] text-[var(--text-tertiary)]'>Logs</span>
-          <span className='w-[100px] flex-shrink-0 pl-[16px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+          <span className='flex-1 font-medium text-[var(--text-tertiary)] text-caption'>Logs</span>
+          <span className='w-[100px] flex-shrink-0 pl-4 font-medium text-[var(--text-tertiary)] text-caption'>
             Success Rate
           </span>
         </div>
@@ -56,8 +56,8 @@ function WorkflowsListInner({
       {/* Table body - scrollable */}
       <div className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden'>
         {filteredExecutions.length === 0 ? (
-          <div className='flex items-center justify-center py-[32px]'>
-            <span className='text-[13px] text-[var(--text-secondary)]'>
+          <div className='flex items-center justify-center py-8'>
+            <span className='text-[var(--text-secondary)] text-small'>
               {searchQuery ? `No workflows found matching "${searchQuery}"` : 'No workflows found'}
             </span>
           </div>
@@ -75,7 +75,7 @@ function WorkflowsListInner({
                 <div
                   key={workflow.workflowId}
                   className={cn(
-                    'flex h-[44px] items-center gap-[16px] px-[24px] hover:bg-[var(--surface-3)] dark:hover:bg-[var(--surface-4)]',
+                    'flex h-[44px] items-center gap-4 px-6 hover-hover:bg-[var(--surface-3)] dark:hover-hover:bg-[var(--surface-4)]',
                     canToggle ? 'cursor-pointer' : 'cursor-default',
                     isSelected && 'bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'
                   )}
@@ -86,7 +86,7 @@ function WorkflowsListInner({
                   }}
                 >
                   {/* Workflow name with color */}
-                  <div className='flex w-[160px] flex-shrink-0 items-center gap-[8px] pr-[8px]'>
+                  <div className='flex w-[160px] flex-shrink-0 items-center gap-2 pr-2'>
                     <div
                       className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
                       style={{
@@ -95,7 +95,7 @@ function WorkflowsListInner({
                         backgroundClip: 'padding-box',
                       }}
                     />
-                    <span className='min-w-0 truncate font-medium text-[12px] text-[var(--text-primary)]'>
+                    <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-caption'>
                       {workflow.workflowName}
                     </span>
                   </div>
@@ -113,7 +113,7 @@ function WorkflowsListInner({
                   </div>
 
                   {/* Success rate */}
-                  <span className='w-[100px] flex-shrink-0 pl-[16px] font-medium text-[12px] text-[var(--text-primary)]'>
+                  <span className='w-[100px] flex-shrink-0 pl-4 font-medium text-[var(--text-primary)] text-caption'>
                     {workflow.overallSuccessRate.toFixed(1)}%
                   </span>
                 </div>

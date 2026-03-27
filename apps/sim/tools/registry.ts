@@ -980,6 +980,7 @@ import {
   grainListTeamsTool,
   grainListViewsTool,
 } from '@/tools/grain'
+import { granolaGetNoteTool, granolaListNotesTool } from '@/tools/granola'
 import {
   greenhouseGetApplicationTool,
   greenhouseGetCandidateTool,
@@ -1259,6 +1260,13 @@ import {
   kalshiGetTradesTool,
   kalshiGetTradesV2Tool,
 } from '@/tools/kalshi'
+import {
+  ketchGetConsentTool,
+  ketchGetSubscriptionsTool,
+  ketchInvokeRightTool,
+  ketchSetConsentTool,
+  ketchSetSubscriptionsTool,
+} from '@/tools/ketch'
 import {
   knowledgeCreateDocumentTool,
   knowledgeDeleteChunkTool,
@@ -2660,6 +2668,8 @@ export const tools: Record<string, ToolConfig> = {
   greenhouse_list_departments: greenhouseListDepartmentsTool,
   greenhouse_list_offices: greenhouseListOfficesTool,
   greenhouse_list_job_stages: greenhouseListJobStagesTool,
+  granola_list_notes: granolaListNotesTool,
+  granola_get_note: granolaGetNoteTool,
   guardrails_validate: guardrailsValidateTool,
   hex_cancel_run: hexCancelRunTool,
   hex_create_collection: hexCreateCollectionTool,
@@ -2679,6 +2689,11 @@ export const tools: Record<string, ToolConfig> = {
   hex_update_project: hexUpdateProjectTool,
   jina_read_url: jinaReadUrlTool,
   jina_search: jinaSearchTool,
+  ketch_get_consent: ketchGetConsentTool,
+  ketch_get_subscriptions: ketchGetSubscriptionsTool,
+  ketch_invoke_right: ketchInvokeRightTool,
+  ketch_set_consent: ketchSetConsentTool,
+  ketch_set_subscriptions: ketchSetSubscriptionsTool,
   linkup_search: linkupSearchTool,
   loops_create_contact: loopsCreateContactTool,
   loops_create_contact_property: loopsCreateContactPropertyTool,

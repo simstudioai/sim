@@ -5,7 +5,7 @@ import { createLogger } from '@sim/logger'
 import { useExecutionStore } from '@/stores/execution'
 import { useVariablesStore } from '@/stores/panel'
 import { useEnvironmentStore } from '@/stores/settings/environment'
-import { useTerminalConsoleStore } from '@/stores/terminal'
+import { consolePersistence, useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -217,7 +217,13 @@ export const resetAllStores = () => {
   useSubBlockStore.getState().clear()
   useEnvironmentStore.getState().reset()
   useExecutionStore.getState().reset()
-  useTerminalConsoleStore.setState({ entries: [], isOpen: false })
+  useTerminalConsoleStore.setState({
+    workflowEntries: {},
+    entryIdsByBlockExecution: {},
+    entryLocationById: {},
+    isOpen: false,
+  })
+  consolePersistence.persist()
   // Custom tools are managed by React Query cache, not a Zustand store
   // Variables store has no tracking to reset; registry hydrates
 }

@@ -292,7 +292,7 @@ export async function executeSync(
     const externalDocs: ExternalDocument[] = []
     let cursor: string | undefined
     let hasMore = true
-    const syncContext: Record<string, unknown> = {}
+    const syncContext: Record<string, unknown> = { syncRunId: crypto.randomUUID() }
 
     // Determine if this sync should be incremental
     const isIncremental =
@@ -401,10 +401,9 @@ export async function executeSync(
 
     const seenExternalIds = new Set<string>()
 
-    const pendingProcessing: DocumentData[] = []
-
     const pendingOps: DocOp[] = []
     for (const extDoc of externalDocs) {
+      if (seenExternalIds.has(extDoc.externalId)) continue
       seenExternalIds.add(extDoc.externalId)
 
       if (excludedExternalIds.has(extDoc.externalId)) {
@@ -458,13 +457,24 @@ export async function executeSync(
               syncContext
             )
             if (!fullDoc?.content.trim()) return null
+            const hydratedHash = fullDoc.contentHash ?? op.extDoc.contentHash
+            if (
+              op.type === 'update' &&
+              existingByExternalId.get(op.extDoc.externalId)?.contentHash === hydratedHash
+            ) {
+              result.docsUnchanged++
+              return null
+            }
             return {
               ...op,
               extDoc: {
                 ...op.extDoc,
+                title: fullDoc.title || op.extDoc.title,
                 content: fullDoc.content,
-                contentHash: fullDoc.contentHash ?? op.extDoc.contentHash,
+                contentHash: hydratedHash,
                 contentDeferred: false,
+                sourceUrl: fullDoc.sourceUrl ?? op.extDoc.sourceUrl,
+                metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
               },
             }
           })
@@ -508,10 +518,11 @@ export async function executeSync(
         })
       )
 
+      const batchDocs: DocumentData[] = []
       for (let j = 0; j < settled.length; j++) {
         const outcome = settled[j]
         if (outcome.status === 'fulfilled') {
-          pendingProcessing.push(outcome.value)
+          batchDocs.push(outcome.value)
           if (batch[j].type === 'add') result.docsAdded++
           else result.docsUpdated++
         } else {
@@ -524,17 +535,44 @@ export async function executeSync(
           })
         }
       }
+
+      if (batchDocs.length > 0) {
+        try {
+          await processDocumentsWithQueue(
+            batchDocs,
+            connector.knowledgeBaseId,
+            {},
+            crypto.randomUUID()
+          )
+        } catch (error) {
+          logger.warn('Failed to enqueue batch for processing — will retry on next sync', {
+            connectorId,
+            count: batchDocs.length,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
     }
 
-    // Skip deletion reconciliation during incremental syncs — results only contain changed docs
-    if (!isIncremental && (options?.fullSync || connector.syncMode === 'full')) {
+    // Reconcile deletions for non-incremental syncs that returned ALL docs.
+    // Skip when listing was capped (maxFiles/maxThreads) — unseen docs may still exist in the source.
+    if (!isIncremental && (!syncContext?.listingCapped || options?.fullSync)) {
       const removedIds = existingDocs
         .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
         .map((d) => d.id)
 
       if (removedIds.length > 0) {
-        await hardDeleteDocuments(removedIds, syncLogId)
-        result.docsDeleted += removedIds.length
+        const deletionRatio = existingDocs.length > 0 ? removedIds.length / existingDocs.length : 0
+
+        if (deletionRatio > 0.5 && removedIds.length > 5 && !options?.fullSync) {
+          logger.warn(
+            `Skipping deletion of ${removedIds.length}/${existingDocs.length} docs — exceeds safety threshold. Trigger a full sync to force cleanup.`,
+            { connectorId, deletionRatio: Math.round(deletionRatio * 100) }
+          )
+        } else {
+          await hardDeleteDocuments(removedIds, syncLogId)
+          result.docsDeleted += removedIds.length
+        }
       }
     }
 
@@ -603,24 +641,6 @@ export async function executeSync(
         logger.warn('Failed to enqueue stuck documents for reprocessing', {
           connectorId,
           count: stuckDocs.length,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    }
-
-    // Enqueue all added/updated documents for processing in a single batch
-    if (pendingProcessing.length > 0) {
-      try {
-        await processDocumentsWithQueue(
-          pendingProcessing,
-          connector.knowledgeBaseId,
-          {},
-          crypto.randomUUID()
-        )
-      } catch (error) {
-        logger.warn('Failed to enqueue documents for processing — will retry on next sync', {
-          connectorId,
-          count: pendingProcessing.length,
           error: error instanceof Error ? error.message : String(error),
         })
       }

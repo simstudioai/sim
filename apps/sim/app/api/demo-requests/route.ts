@@ -9,8 +9,8 @@ import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import {
   demoRequestSchema,
+  getDemoRequestCompanySizeLabel,
   getDemoRequestRegionLabel,
-  getDemoRequestUserCountLabel,
 } from '@/app/(home)/components/demo-request/consts'
 
 const logger = createLogger('DemoRequestAPI')
@@ -58,13 +58,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { firstName, lastName, companyEmail, phoneNumber, region, userCount, details } =
+    const { firstName, lastName, companyEmail, phoneNumber, region, companySize, details } =
       validationResult.data
 
     logger.info(`[${requestId}] Processing demo request`, {
       email: `${companyEmail.substring(0, 3)}***`,
       region,
-      userCount,
+      companySize,
     })
 
     const emailText = `Demo request submitted
@@ -73,7 +73,7 @@ Name: ${firstName} ${lastName}
 Email: ${companyEmail}
 Phone: ${phoneNumber ?? 'Not provided'}
 Region: ${getDemoRequestRegionLabel(region)}
-Users: ${getDemoRequestUserCountLabel(userCount)}
+Company size: ${getDemoRequestCompanySizeLabel(companySize)}
 
 Details:
 ${details}

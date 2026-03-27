@@ -114,7 +114,6 @@ export function Home({ chatId }: HomeProps = {}) {
   const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
-  const [isResourceAnimatingIn, setIsResourceAnimatingIn] = useState(false)
   const [skipResourceTransition, setSkipResourceTransition] = useState(false)
   const isResourceCollapsedRef = useRef(isResourceCollapsed)
   isResourceCollapsedRef.current = isResourceCollapsed
@@ -123,27 +122,16 @@ export function Home({ chatId }: HomeProps = {}) {
     clearWidth()
     setIsResourceCollapsed(true)
   }, [clearWidth])
-  const animatingInTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const startAnimatingIn = useCallback(() => {
-    if (animatingInTimerRef.current) clearTimeout(animatingInTimerRef.current)
-    setIsResourceAnimatingIn(true)
-    animatingInTimerRef.current = setTimeout(() => {
-      setIsResourceAnimatingIn(false)
-      animatingInTimerRef.current = null
-    }, 400)
-  }, [])
 
   const expandResource = useCallback(() => {
     setIsResourceCollapsed(false)
-    startAnimatingIn()
-  }, [startAnimatingIn])
+  }, [])
 
   const handleResourceEvent = useCallback(() => {
     if (isResourceCollapsedRef.current) {
       setIsResourceCollapsed(false)
-      startAnimatingIn()
     }
-  }, [startAnimatingIn])
+  }, [])
 
   const {
     messages,
@@ -163,6 +151,7 @@ export function Home({ chatId }: HomeProps = {}) {
     sendNow,
     editQueuedMessage,
     streamingFile,
+    genericResourceData,
   } = useChat(
     workspaceId,
     chatId,
@@ -300,10 +289,10 @@ export function Home({ chatId }: HomeProps = {}) {
   if (!hasMessages && !chatId) {
     return (
       <div className='h-full overflow-y-auto bg-[var(--bg)] [scrollbar-gutter:stable_both-edges]'>
-        <div className='flex min-h-full flex-col items-center justify-center px-[24px] pb-[2vh]'>
+        <div className='flex min-h-full flex-col items-center justify-center px-6 pb-[2vh]'>
           <h1
             data-tour='home-greeting'
-            className='mb-[24px] max-w-[42rem] font-[430] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'
+            className='mb-6 max-w-[42rem] text-balance font-[430] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'
           >
             What should we get done
             {session?.user?.name ? `, ${session.user.name.split(' ')[0]}` : ''}?
@@ -322,7 +311,7 @@ export function Home({ chatId }: HomeProps = {}) {
         <div
           ref={templateRef}
           data-tour='home-templates'
-          className='-mt-[30vh] mx-auto w-full max-w-[68rem] px-[16px] pb-[32px] sm:px-[24px] lg:px-[40px]'
+          className='-mt-[30vh] mx-auto w-full max-w-[68rem] px-4 pb-8 sm:px-6 lg:px-10'
         >
           <TemplatePrompts onSelect={handleSubmit} />
         </div>
@@ -379,13 +368,8 @@ export function Home({ chatId }: HomeProps = {}) {
         onCollapse={collapseResource}
         isCollapsed={isResourceCollapsed}
         streamingFile={streamingFile}
-        className={
-          isResourceAnimatingIn
-            ? 'animate-slide-in-right'
-            : skipResourceTransition
-              ? '!transition-none'
-              : undefined
-        }
+        genericResourceData={genericResourceData}
+        className={skipResourceTransition ? '!transition-none' : undefined}
       />
 
       {isResourceCollapsed && (
@@ -393,7 +377,7 @@ export function Home({ chatId }: HomeProps = {}) {
           <button
             type='button'
             onClick={expandResource}
-            className='flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover:bg-[var(--surface-active)]'
+            className='flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover-hover:bg-[var(--surface-active)]'
             aria-label='Expand resource view'
           >
             <PanelLeft className='h-[16px] w-[16px] text-[var(--text-icon)]' />

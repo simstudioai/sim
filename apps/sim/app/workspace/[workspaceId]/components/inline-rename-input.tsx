@@ -32,7 +32,7 @@ export function InlineRenameInput({ value, onChange, onSubmit, onCancel }: Inlin
       }}
       onBlur={onSubmit}
       onClick={(e) => e.stopPropagation()}
-      className='min-w-0 flex-1 truncate border-0 bg-transparent p-0 font-medium text-[14px] text-[var(--text-body)] outline-none focus:outline-none focus:ring-0'
+      className='min-w-0 flex-1 truncate border-0 bg-transparent p-0 font-medium text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0'
     />
   )
 }

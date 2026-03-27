@@ -2,6 +2,9 @@
   "name": "@sim/testing",
   "version": "0.1.0",
   "private": true,
+  "sideEffects": [
+    "./src/setup/*"
+  ],
   "type": "module",
   "license": "Apache-2.0",
   "engines": {

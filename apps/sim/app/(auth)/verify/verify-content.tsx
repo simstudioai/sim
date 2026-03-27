@@ -1,10 +1,11 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { useVerification } from '@/app/(auth)/verify/use-verification'
 
 interface VerifyContentProps {
@@ -59,10 +60,10 @@ function VerificationForm({
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
+        <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           {isVerified ? 'Email Verified!' : 'Verify Your Email'}
         </h1>
-        <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
+        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
           {isVerified
             ? 'Your email has been verified. Redirecting to dashboard...'
             : !isEmailVerificationEnabled
@@ -78,7 +79,7 @@ function VerificationForm({
       {!isVerified && isEmailVerificationEnabled && (
         <div className='mt-8 space-y-8'>
           <div className='space-y-6'>
-            <p className='text-center text-[#999] text-sm'>
+            <p className='text-center text-[var(--landing-text-muted)] text-sm'>
               Enter the 6-digit code to verify your account.
               {hasEmailService ? " If you don't see it in your inbox, check your spam folder." : ''}
             </p>
@@ -110,27 +111,33 @@ function VerificationForm({
             )}
           </div>
 
-          <BrandedButton
+          <button
             onClick={verifyCode}
             disabled={!isOtpComplete || isLoading}
-            loading={isLoading}
-            loadingText='Verifying'
-            showArrow={false}
+            className={AUTH_SUBMIT_BTN}
           >
-            Verify Email
-          </BrandedButton>
+            {isLoading ? (
+              <span className='flex items-center gap-2'>
+                <Loader2 className='h-4 w-4 animate-spin' />
+                Verifying...
+              </span>
+            ) : (
+              'Verify Email'
+            )}
+          </button>
 
           {hasEmailService && (
             <div className='text-center'>
-              <p className='text-[#999] text-sm'>
+              <p className='text-[var(--landing-text-muted)] text-sm'>
                 Didn't receive a code?{' '}
                 {countdown > 0 ? (
                   <span>
-                    Resend in <span className='font-medium text-[#ECECEC]'>{countdown}s</span>
+                    Resend in{' '}
+                    <span className='font-medium text-[var(--landing-text)]'>{countdown}s</span>
                   </span>
                 ) : (
                   <button
-                    className='font-medium text-[#ECECEC] underline-offset-4 transition hover:text-white hover:underline'
+                    className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
                     onClick={handleResend}
                     disabled={isLoading || isResendDisabled}
                   >
@@ -141,7 +148,7 @@ function VerificationForm({
             </div>
           )}
 
-          <div className='text-center font-light text-[14px]'>
+          <div className='text-center font-light text-sm'>
             <button
               onClick={() => {
                 if (typeof window !== 'undefined') {
@@ -151,7 +158,7 @@ function VerificationForm({
                 }
                 router.push('/signup')
               }}
-              className='font-medium text-[#ECECEC] underline-offset-4 transition hover:text-white hover:underline'
+              className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
             >
               Back to signup
             </button>
@@ -166,8 +173,8 @@ function VerificationFormFallback() {
   return (
     <div className='text-center'>
       <div className='animate-pulse'>
-        <div className='mx-auto mb-4 h-8 w-48 rounded bg-[#2A2A2A]' />
-        <div className='mx-auto h-4 w-64 rounded bg-[#2A2A2A]' />
+        <div className='mx-auto mb-4 h-8 w-48 rounded bg-[var(--surface-4)]' />
+        <div className='mx-auto h-4 w-64 rounded bg-[var(--surface-4)]' />
       </div>
     </div>
   )

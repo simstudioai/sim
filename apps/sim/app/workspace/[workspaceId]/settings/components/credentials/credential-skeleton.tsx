@@ -8,12 +8,12 @@ const GRID_COLS = 'grid grid-cols-[minmax(0,1fr)_8px_minmax(0,1fr)_auto] items-c
 export function CredentialSkeleton() {
   return (
     <div className={GRID_COLS}>
-      <Skeleton className='h-9 rounded-[6px]' />
+      <Skeleton className='h-9 rounded-md' />
       <div />
-      <Skeleton className='h-9 rounded-[6px]' />
-      <div className='ml-[8px] flex items-center gap-0'>
-        <Skeleton className='h-9 w-9 rounded-[6px]' />
-        <Skeleton className='h-9 w-9 rounded-[6px]' />
+      <Skeleton className='h-9 rounded-md' />
+      <div className='ml-2 flex items-center gap-0'>
+        <Skeleton className='h-9 w-9 rounded-md' />
+        <Skeleton className='h-9 w-9 rounded-md' />
       </div>
     </div>
   )
@@ -24,19 +24,19 @@ export function CredentialSkeleton() {
  */
 export function CredentialsSkeleton() {
   return (
-    <div className='flex h-full flex-col gap-[16px]'>
-      <div className='flex items-center gap-[8px]'>
-        <Skeleton className='h-[30px] flex-1 rounded-[8px]' />
-        <Skeleton className='h-[30px] w-[56px] rounded-[6px]' />
-        <Skeleton className='h-[30px] w-[50px] rounded-[6px]' />
+    <div className='flex h-full flex-col gap-4'>
+      <div className='flex items-center gap-2'>
+        <Skeleton className='h-[30px] flex-1 rounded-lg' />
+        <Skeleton className='h-[30px] w-[56px] rounded-md' />
+        <Skeleton className='h-[30px] w-[50px] rounded-md' />
       </div>
-      <div className='flex flex-col gap-[8px]'>
+      <div className='flex flex-col gap-2'>
         <Skeleton className='h-5 w-[70px]' />
-        <div className='text-[13px] text-[var(--text-muted)]'>
+        <div className='text-[var(--text-muted)] text-small'>
           <Skeleton className='h-5 w-[160px]' />
         </div>
       </div>
-      <div className='flex flex-col gap-[8px]'>
+      <div className='flex flex-col gap-2'>
         <Skeleton className='h-5 w-[55px]' />
         <CredentialSkeleton />
         <CredentialSkeleton />

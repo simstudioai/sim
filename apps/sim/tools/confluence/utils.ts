@@ -1,11 +1,22 @@
-export async function getConfluenceCloudId(domain: string, accessToken: string): Promise<string> {
-  const response = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/json',
+import type { RetryOptions } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
+
+export async function getConfluenceCloudId(
+  domain: string,
+  accessToken: string,
+  retryOptions?: RetryOptions
+): Promise<string> {
+  const response = await fetchWithRetry(
+    'https://api.atlassian.com/oauth/token/accessible-resources',
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
     },
-  })
+    retryOptions
+  )
 
   const resources = await response.json()
 

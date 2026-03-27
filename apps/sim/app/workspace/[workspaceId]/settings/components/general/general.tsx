@@ -251,12 +251,12 @@ export function General() {
   }
 
   return (
-    <div className='flex h-full flex-col gap-[18px]'>
+    <div className='flex h-full flex-col gap-4.5'>
       {/* User Info Section */}
-      <div className='flex items-center gap-[12px]'>
+      <div className='flex items-center gap-3'>
         <div className='relative'>
           <div
-            className={`group relative flex h-9 w-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-all hover:bg-[var(--bg)] ${!imageUrl ? 'border border-[var(--border)]' : ''}`}
+            className={`group relative flex h-9 w-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-all hover-hover:bg-[var(--bg)] ${!imageUrl ? 'border border-[var(--border)]' : ''}`}
             onClick={handleProfilePictureClick}
           >
             {(() => {
@@ -275,7 +275,7 @@ export function General() {
                 )
               }
               return (
-                <span className='font-medium text-[15px] text-[var(--text-primary)]'>
+                <span className='font-medium text-[var(--text-primary)] text-base'>
                   {getInitials(profile?.name) || ''}
                 </span>
               )
@@ -302,12 +302,12 @@ export function General() {
           />
         </div>
         <div className='flex flex-1 flex-col justify-center gap-[1px]'>
-          <div className='flex items-center gap-[8px]'>
+          <div className='flex items-center gap-2'>
             {isEditingName ? (
               <>
                 <div className='relative inline-flex'>
                   <span
-                    className='invisible whitespace-pre font-medium text-[15px]'
+                    className='invisible whitespace-pre font-medium text-base'
                     aria-hidden='true'
                   >
                     {name || '\u00A0'}
@@ -318,7 +318,7 @@ export function General() {
                     onChange={(e) => setName(e.target.value)}
                     onKeyDown={handleKeyDown}
                     onBlur={handleInputBlur}
-                    className='absolute top-0 left-0 h-full w-full border-0 bg-transparent p-0 font-medium text-[15px] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                    className='absolute top-0 left-0 h-full w-full border-0 bg-transparent p-0 font-medium text-base outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
                     maxLength={100}
                     disabled={updateProfile.isPending}
                     autoComplete='off'
@@ -339,7 +339,7 @@ export function General() {
               </>
             ) : (
               <>
-                <h3 className='font-medium text-[15px]'>{profile?.name || ''}</h3>
+                <h3 className='font-medium text-base'>{profile?.name || ''}</h3>
                 <Button
                   variant='ghost'
                   className='h-[10.5px] w-[10.5px] flex-shrink-0 p-0'
@@ -351,12 +351,12 @@ export function General() {
               </>
             )}
           </div>
-          <p className='text-[14px] text-[var(--text-tertiary)]'>{profile?.email || ''}</p>
+          <p className='text-[var(--text-tertiary)] text-sm'>{profile?.email || ''}</p>
         </div>
       </div>
-      {uploadError && <p className='text-[14px] text-[var(--text-error)]'>{uploadError}</p>}
+      {uploadError && <p className='text-[var(--text-error)] text-sm'>{uploadError}</p>}
 
-      <div className='flex items-center justify-between border-b pb-[12px]'>
+      <div className='flex items-center justify-between border-b pb-3'>
         <Label htmlFor='theme-select'>Theme</Label>
         <div className='w-[100px]'>
           <Combobox
@@ -376,7 +376,7 @@ export function General() {
       </div>
 
       <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-[6px]'>
+        <div className='flex items-center gap-1.5'>
           <Label htmlFor='auto-connect'>Auto-connect on drop</Label>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
@@ -400,7 +400,7 @@ export function General() {
       </div>
 
       <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-[6px]'>
+        <div className='flex items-center gap-1.5'>
           <Label htmlFor='error-notifications'>Canvas error notifications</Label>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
@@ -453,7 +453,7 @@ export function General() {
         />
       </div>
 
-      <div className='flex items-center justify-between border-t pt-[16px]'>
+      <div className='flex items-center justify-between border-t pt-4'>
         <Label htmlFor='telemetry'>Allow anonymous telemetry</Label>
         <Switch
           id='telemetry'
@@ -462,7 +462,7 @@ export function General() {
         />
       </div>
 
-      <p className='-mt-[8px] text-[13px] text-[var(--text-muted)]'>
+      <p className='-mt-2 text-[var(--text-muted)] text-small'>
         We use OpenTelemetry to collect anonymous usage data to improve Sim. You can opt-out at any
         time.
       </p>
@@ -478,7 +478,7 @@ export function General() {
         </div>
       )}
 
-      <div className='mt-auto flex items-center gap-[8px]'>
+      <div className='mt-auto flex items-center gap-2'>
         {!isAuthDisabled && (
           <>
             <Button onClick={handleSignOut} variant='active'>
@@ -511,7 +511,7 @@ export function General() {
               Click the link in the email to create a new password.
             </p>
             {resetPassword.error && (
-              <p className='mt-[8px] text-[13px] text-[var(--text-error)]'>
+              <p className='mt-2 text-[var(--text-error)] text-small'>
                 {resetPassword.error.message}
               </p>
             )}

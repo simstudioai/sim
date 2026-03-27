@@ -62,7 +62,7 @@ interface CollapsedWorkflowFlyoutItemProps {
 }
 
 const EDIT_ROW_CLASS =
-  'mx-[2px] flex min-h-[30px] min-w-0 cursor-default select-none items-center gap-[8px] rounded-[5px] bg-[var(--surface-active)] px-[8px] py-[5px] font-medium text-[12px] text-[var(--text-body)]'
+  'mx-0.5 flex min-h-[30px] min-w-0 cursor-default select-none items-center gap-2 rounded-[5px] bg-[var(--surface-active)] px-2 py-1.5 font-medium text-[12px] text-[var(--text-body)]'
 
 function FlyoutMoreButton({
   ariaLabel,
@@ -109,7 +109,7 @@ function TaskStatusIcon({
       {!isActive && isUnread && (
         <span
           className={cn(
-            '-right-[1px] -bottom-[1px] absolute h-[6px] w-[6px] rounded-full border border-[var(--surface-1)] bg-[#33C482]',
+            '-right-[1px] -bottom-[1px] absolute h-[6px] w-[6px] rounded-full border border-[var(--surface-1)] bg-[var(--indicator-online)]',
             hideStatusOnHover && 'group-hover:hidden'
           )}
         />
@@ -140,7 +140,7 @@ export function CollapsedSidebarMenu({
   primaryAction,
 }: CollapsedSidebarMenuProps) {
   return (
-    <div className={cn('flex flex-col px-[8px]', className)}>
+    <div className={cn('flex flex-col px-2', className)}>
       <DropdownMenu
         open={hover.isOpen}
         onOpenChange={(open) => {
@@ -154,7 +154,7 @@ export function CollapsedSidebarMenu({
             <button
               type='button'
               aria-label={ariaLabel}
-              className='mx-[2px] flex h-[30px] items-center rounded-[8px] px-[8px] hover:bg-[var(--surface-active)]'
+              className='mx-0.5 flex h-[30px] items-center rounded-[8px] px-2 hover:bg-[var(--surface-active)]'
             >
               {icon}
             </button>
@@ -221,11 +221,11 @@ export function CollapsedTaskFlyoutItem({
   }
 
   return (
-    <div className='group relative mx-[2px]'>
+    <div className='group relative mx-0.5'>
       <Link
         href={task.href}
         className={cn(
-          'flex min-h-[30px] min-w-0 items-center rounded-[5px] px-[8px] py-[5px] pr-[30px] font-medium text-[12px] text-[var(--text-body)] hover:bg-[var(--surface-active)] group-focus-within:bg-[var(--surface-active)] group-hover:bg-[var(--surface-active)]',
+          'flex min-h-[30px] min-w-0 items-center rounded-[5px] px-2 py-[5px] pr-[30px] font-medium text-[12px] text-[var(--text-body)] hover:bg-[var(--surface-active)] group-focus-within:bg-[var(--surface-active)] group-hover:bg-[var(--surface-active)]',
           isCurrentRoute && 'bg-[var(--surface-active)]'
         )}
         onContextMenu={
@@ -299,11 +299,11 @@ export function CollapsedWorkflowFlyoutItem({
   }
 
   return (
-    <div className='group relative mx-[2px]'>
+    <div className='group relative mx-0.5'>
       <Link
         href={href}
         className={cn(
-          'flex min-h-[30px] min-w-0 items-center gap-[8px] rounded-[5px] px-[8px] py-[5px] pr-[30px] font-medium text-[12px] text-[var(--text-body)] hover:bg-[var(--surface-active)] group-focus-within:bg-[var(--surface-active)] group-hover:bg-[var(--surface-active)]',
+          'flex min-h-[30px] min-w-0 items-center gap-2 rounded-[5px] px-2 py-[5px] pr-[30px] font-medium text-[12px] text-[var(--text-body)] hover:bg-[var(--surface-active)] group-focus-within:bg-[var(--surface-active)] group-hover:bg-[var(--surface-active)]',
           isCurrentRoute && 'bg-[var(--surface-active)]'
         )}
         onContextMenu={onContextMenu ? (e) => onContextMenu(e, workflow) : undefined}

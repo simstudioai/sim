@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { Button, Tooltip } from '@/components/emcn'
 import { Columns3, Eye, PanelLeft, Pencil } from '@/components/emcn/icons'
+import { isEphemeralResource } from '@/lib/copilot/resource-extraction'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -142,7 +143,9 @@ export function ResourceTabs({
     (e: React.MouseEvent, resource: MothershipResource) => {
       e.stopPropagation()
       if (!chatId) return
-      removeResource.mutate({ chatId, resourceType: resource.type, resourceId: resource.id })
+      if (!isEphemeralResource(resource)) {
+        removeResource.mutate({ chatId, resourceType: resource.type, resourceId: resource.id })
+      }
       onRemoveResource(resource.type, resource.id)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -240,7 +243,10 @@ export function ResourceTabs({
       reordered.splice(insertAt, 0, moved)
       onReorderResources(reordered)
       if (chatId) {
-        reorderResources.mutate({ chatId, resources: reordered })
+        const persistable = reordered.filter((r) => !isEphemeralResource(r))
+        if (persistable.length > 0) {
+          reorderResources.mutate({ chatId, resources: persistable })
+        }
       }
       setDraggedIdx(null)
       setDropGapIdx(null)
@@ -260,7 +266,7 @@ export function ResourceTabs({
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center border-[var(--border)] border-b px-[16px] py-[8.5px]',
+        'flex shrink-0 items-center border-[var(--border)] border-b px-4 py-[8.5px]',
         RESOURCE_TAB_GAP_CLASS
       )}
     >
@@ -333,12 +339,12 @@ export function ResourceTabs({
                       onMouseEnter={() => setHoveredTabId(resource.id)}
                       onMouseLeave={() => setHoveredTabId(null)}
                       className={cn(
-                        'group relative shrink-0 bg-transparent px-[8px] py-[4px] pr-[22px] text-[12px] transition-opacity duration-150',
+                        'group relative shrink-0 bg-transparent px-2 py-1 pr-[22px] text-caption transition-opacity duration-150',
                         isActive && 'bg-[var(--surface-4)]',
                         isDragging && 'opacity-30'
                       )}
                     >
-                      {config.renderTabIcon(resource, 'mr-[6px] h-[14px] w-[14px]')}
+                      {config.renderTabIcon(resource, 'mr-1.5 h-[14px] w-[14px]')}
                       {displayName}
                       {(isHovered || isActive) && chatId && (
                         <span
@@ -349,7 +355,7 @@ export function ResourceTabs({
                             if (e.key === 'Enter')
                               handleRemove(e as unknown as React.MouseEvent, resource)
                           }}
-                          className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-[4px] p-[1px] hover:bg-[var(--surface-5)]'
+                          className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-sm p-[1px] hover-hover:bg-[var(--surface-5)]'
                           aria-label={`Close ${displayName}`}
                         >
                           <svg

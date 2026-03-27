@@ -18,7 +18,12 @@ vi.mock('@/stores/constants', () => ({
 }))
 
 import type { ConsoleEntry } from '@/stores/terminal'
-import { buildEntryTree, type EntryNode, groupEntriesByExecution } from './utils'
+import {
+  buildEntryTree,
+  type EntryNode,
+  flattenVisibleExecutionRows,
+  groupEntriesByExecution,
+} from './utils'
 
 let entryCounter = 0
 
@@ -474,5 +479,74 @@ describe('groupEntriesByExecution', () => {
     // Child entry should be nested under workflow block, not at top level
     const topLevelChild = tree.find((n) => n.entry.blockId === 'child-func')
     expect(topLevelChild).toBeUndefined()
+  })
+})
+
+describe('flattenVisibleExecutionRows', () => {
+  it('only includes children for expanded nodes', () => {
+    const childBlock = makeEntry({
+      id: 'child',
+      blockId: 'child',
+      blockName: 'Child',
+      blockType: 'function',
+      executionId: 'exec-1',
+      executionOrder: 2,
+    })
+
+    const tree: EntryNode[] = [
+      {
+        entry: makeEntry({
+          id: 'workflow-parent',
+          blockId: 'workflow-parent',
+          blockName: 'Workflow Parent',
+          blockType: 'workflow',
+          executionId: 'exec-1',
+          executionOrder: 1,
+        }),
+        children: [{ entry: childBlock, children: [], nodeType: 'block' }],
+        nodeType: 'workflow',
+      },
+    ]
+
+    const rowsCollapsed = flattenVisibleExecutionRows(
+      [
+        {
+          executionId: 'exec-1',
+          startTime: '2025-01-01T00:00:00Z',
+          endTime: '2025-01-01T00:00:01Z',
+          startTimeMs: 0,
+          endTimeMs: 1,
+          duration: 1,
+          status: 'success',
+          entries: [],
+          entryTree: tree,
+        },
+      ],
+      new Set()
+    )
+
+    expect(rowsCollapsed).toHaveLength(1)
+    expect(rowsCollapsed[0].node?.entry.id).toBe('workflow-parent')
+
+    const rowsExpanded = flattenVisibleExecutionRows(
+      [
+        {
+          executionId: 'exec-1',
+          startTime: '2025-01-01T00:00:00Z',
+          endTime: '2025-01-01T00:00:01Z',
+          startTimeMs: 0,
+          endTimeMs: 1,
+          duration: 1,
+          status: 'success',
+          entries: [],
+          entryTree: tree,
+        },
+      ],
+      new Set(['workflow-parent'])
+    )
+
+    expect(rowsExpanded).toHaveLength(2)
+    expect(rowsExpanded[1].node?.entry.id).toBe('child')
+    expect(rowsExpanded[1].depth).toBe(1)
   })
 })

@@ -103,8 +103,8 @@ export function EditKnowledgeBaseModal({
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody>
-            <div className='space-y-[12px]'>
-              <div className='flex flex-col gap-[8px]'>
+            <div className='space-y-3'>
+              <div className='flex flex-col gap-2'>
                 <Label htmlFor='kb-name'>Name</Label>
                 <Input
                   id='kb-name'
@@ -118,11 +118,11 @@ export function EditKnowledgeBaseModal({
                   data-form-type='other'
                 />
                 {errors.name && (
-                  <p className='text-[12px] text-[var(--text-error)]'>{errors.name.message}</p>
+                  <p className='text-[var(--text-error)] text-caption'>{errors.name.message}</p>
                 )}
               </div>
 
-              <div className='flex flex-col gap-[8px]'>
+              <div className='flex flex-col gap-2'>
                 <Label htmlFor='description'>Description</Label>
                 <Textarea
                   id='description'
@@ -132,7 +132,7 @@ export function EditKnowledgeBaseModal({
                   className={cn(errors.description && 'border-[var(--text-error)]')}
                 />
                 {errors.description && (
-                  <p className='text-[12px] text-[var(--text-error)]'>
+                  <p className='text-[var(--text-error)] text-caption'>
                     {errors.description.message}
                   </p>
                 )}
@@ -141,15 +141,15 @@ export function EditKnowledgeBaseModal({
           </ModalBody>
 
           <ModalFooter>
-            <div className='flex w-full items-center justify-between gap-[12px]'>
+            <div className='flex w-full items-center justify-between gap-3'>
               {error ? (
-                <p className='min-w-0 flex-1 truncate text-[12px] text-[var(--text-error)] leading-tight'>
+                <p className='min-w-0 flex-1 truncate text-[var(--text-error)] text-caption leading-tight'>
                   {error}
                 </p>
               ) : (
                 <div />
               )}
-              <div className='flex flex-shrink-0 gap-[8px]'>
+              <div className='flex flex-shrink-0 gap-2'>
                 <Button
                   variant='default'
                   onClick={() => onOpenChange(false)}

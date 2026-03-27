@@ -398,7 +398,7 @@ const TagIcon: React.FC<{
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (
-      <span className='!text-white font-bold text-[10px]'>{icon}</span>
+      <span className='!text-white font-bold text-micro'>{icon}</span>
     ) : (
       (() => {
         const IconComponent = icon
@@ -530,7 +530,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
           >
             <span className='flex-1 truncate'>{child.display}</span>
             {childType && childType !== 'any' && (
-              <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>
+              <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
                 {childType}
               </span>
             )}
@@ -565,7 +565,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             }}
           >
             <span className='flex-1 truncate'>{nestedChild.display}</span>
-            <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>{'>'}</span>
+            <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>{'>'}</span>
           </PopoverItem>
         )
       })}
@@ -729,7 +729,7 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
     >
       <span className='flex-1 truncate'>{nestedTag.display}</span>
       {tagDescription && tagDescription !== 'any' && (
-        <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>
+        <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
           {tagDescription}
         </span>
       )}
@@ -799,7 +799,7 @@ const VariableTagItem: React.FC<{
         {tag.startsWith(TAG_PREFIXES.VARIABLE) ? tag.substring(TAG_PREFIXES.VARIABLE.length) : tag}
       </span>
       {variableInfo && (
-        <span className='ml-auto text-[10px] text-[var(--text-muted-inverse)]'>
+        <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
           {variableInfo.type}
         </span>
       )}
@@ -1786,7 +1786,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           <PopoverScrollArea ref={scrollAreaRef}>
             <TagDropdownBackButton setSelectedIndex={setSelectedIndex} />
             {flatTagList.length === 0 ? (
-              <div className='px-[6px] py-[8px] text-[12px] text-[var(--white)]/60'>
+              <div className='px-1.5 py-2 text-[color-mix(in_srgb,var(--white)_60%,transparent)] text-caption'>
                 No matching tags found
               </div>
             ) : (
@@ -1794,7 +1794,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                 {variableTags.length > 0 && (
                   <>
                     <PopoverSection rootOnly>
-                      <div className='flex items-center gap-[6px]'>
+                      <div className='flex items-center gap-1.5'>
                         <TagIcon icon='V' color={BLOCK_COLORS.VARIABLE} />
                         Variables
                       </div>

@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(home)/components/navbar/navbar'
 
@@ -33,18 +32,18 @@ export function PasswordAuth({ onSubmit, error }: PasswordAuthProps) {
 
   return (
     <AuthBackground className='dark font-[430] font-season'>
-      <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
-        <header className='shrink-0 bg-[#1C1C1C]'>
+      <main className='relative flex min-h-full flex-col text-[var(--landing-text)]'>
+        <header className='shrink-0 bg-[var(--landing-bg)]'>
           <Navbar logoOnly />
         </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>
+                <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
                   Password Required
                 </h1>
-                <p className='font-[380] text-[#999] text-[16px]'>
+                <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
                   Enter the password to access this form.
                 </p>
               </div>
@@ -65,22 +64,28 @@ export function PasswordAuth({ onSubmit, error }: PasswordAuthProps) {
                     <button
                       type='button'
                       onClick={() => setShowPassword(!showPassword)}
-                      className='-translate-y-1/2 absolute top-1/2 right-3 text-[#999] hover:text-[#ECECEC]'
+                      className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] hover:text-[var(--landing-text)]'
                     >
                       {showPassword ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
                     </button>
                   </div>
-                  {error && <p className='text-[14px] text-red-500'>{error}</p>}
+                  {error && <p className='text-red-500 text-sm'>{error}</p>}
                 </div>
 
-                <BrandedButton
+                <button
                   type='submit'
-                  disabled={!password.trim()}
-                  loading={isSubmitting}
-                  loadingText='Verifying'
+                  disabled={!password.trim() || isSubmitting}
+                  className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
                 >
-                  Continue
-                </BrandedButton>
+                  {isSubmitting ? (
+                    <span className='flex items-center gap-2'>
+                      <Loader2 className='h-4 w-4 animate-spin' />
+                      Verifying...
+                    </span>
+                  ) : (
+                    'Continue'
+                  )}
+                </button>
               </form>
             </div>
           </div>

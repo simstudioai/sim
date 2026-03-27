@@ -290,6 +290,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   let clientDisconnected = false
   const abortController = new AbortController()
   const userStopController = new AbortController()
+  const clientDisconnectedController = new AbortController()
   activeStreams.set(streamId, { abortController, userStopController })
 
   if (chatId && !pendingChatStreamAlreadyRegistered) {
@@ -302,6 +303,9 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       const markClientDisconnected = (reason: string) => {
         if (clientDisconnected) return
         clientDisconnected = true
+        if (!clientDisconnectedController.signal.aborted) {
+          clientDisconnectedController.abort()
+        }
         logger.info(
           appendCopilotLogContext('Client disconnected from live SSE stream', {
             requestId,
@@ -456,6 +460,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           runId,
           abortSignal: abortController.signal,
           userStopSignal: userStopController.signal,
+          clientDisconnectedSignal: clientDisconnectedController.signal,
           onEvent: async (event) => {
             await pushEvent(event)
           },
@@ -616,7 +621,12 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           runId,
         }
       )
-      clientDisconnected = true
+      if (!clientDisconnected) {
+        clientDisconnected = true
+        if (!clientDisconnectedController.signal.aborted) {
+          clientDisconnectedController.abort()
+        }
+      }
       if (eventWriter) {
         eventWriter.flush().catch(() => {})
       }

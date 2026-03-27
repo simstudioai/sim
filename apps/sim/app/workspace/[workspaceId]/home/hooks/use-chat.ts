@@ -15,6 +15,7 @@ import {
 } from '@/lib/copilot/constants'
 import {
   extractResourcesFromToolResult,
+  isEphemeralResource,
   isResourceToolName,
 } from '@/lib/copilot/resource-extraction'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
@@ -39,7 +40,7 @@ import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
 import type { ChatContext } from '@/stores/panel'
-import { useTerminalConsoleStore } from '@/stores/terminal'
+import { consolePersistence, useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type {
   ChatMessage,
@@ -47,6 +48,8 @@ import type {
   ContentBlock,
   ContentBlockType,
   FileAttachmentForApi,
+  GenericResourceData,
+  GenericResourceEntry,
   MothershipResource,
   MothershipResourceType,
   QueuedMessage,
@@ -78,6 +81,7 @@ export interface UseChatReturn {
   sendNow: (id: string) => Promise<void>
   editQueuedMessage: (id: string) => QueuedMessage | undefined
   streamingFile: { fileName: string; content: string } | null
+  genericResourceData: GenericResourceData
 }
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
@@ -145,6 +149,22 @@ function isTerminalStreamStatus(status?: string | null): boolean {
 function isActiveStreamConflictError(input: unknown): boolean {
   if (typeof input !== 'string') return false
   return input.includes('A response is already in progress for this chat')
+}
+
+/**
+ * Extracts tool call IDs from snapshot events so that replayed client-executable
+ * tool calls are not re-executed after a page refresh.
+ */
+function extractToolCallIdsFromSnapshot(snapshot?: StreamSnapshot | null): Set<string> {
+  const ids = new Set<string>()
+  if (!snapshot?.events) return ids
+  for (const entry of snapshot.events) {
+    const event = entry.event
+    if (event.type === 'tool_call' && typeof event.toolCallId === 'string') {
+      ids.add(event.toolCallId)
+    }
+  }
+  return ids
 }
 
 function buildReplayStream(events: StreamEventEnvelope[]): ReadableStream<Uint8Array> {
@@ -422,6 +442,11 @@ export function useChat(
   const streamingFileRef = useRef(streamingFile)
   streamingFileRef.current = streamingFile
 
+  const [genericResourceData, setGenericResourceData] = useState<GenericResourceData>({
+    entries: [],
+  })
+  const genericResourceDataRef = useRef<GenericResourceData>({ entries: [] })
+
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
   messageQueueRef.current = messageQueue
@@ -483,7 +508,7 @@ export function useChat(
     })
     setActiveResourceId(resource.id)
 
-    if (resource.id === 'streaming-file') {
+    if (isEphemeralResource(resource)) {
       return true
     }
 
@@ -547,6 +572,8 @@ export function useChat(
     setActiveResourceId(null)
     setStreamingFile(null)
     streamingFileRef.current = null
+    genericResourceDataRef.current = { entries: [] }
+    setGenericResourceData({ entries: [] })
     setMessageQueue([])
     lastEventIdRef.current = 0
     clientExecutionStartedRef.current.clear()
@@ -571,6 +598,8 @@ export function useChat(
     setActiveResourceId(null)
     setStreamingFile(null)
     streamingFileRef.current = null
+    genericResourceDataRef.current = { entries: [] }
+    setGenericResourceData({ entries: [] })
     setMessageQueue([])
     lastEventIdRef.current = 0
     clientExecutionStartedRef.current.clear()
@@ -860,7 +889,7 @@ export function useChat(
       sendingRef.current = true
       streamingContentRef.current = ''
       streamingBlocksRef.current = []
-      clientExecutionStartedRef.current.clear()
+      clientExecutionStartedRef.current = extractToolCallIdsFromSnapshot(snapshot)
 
       const assistantId = crypto.randomUUID()
 
@@ -900,6 +929,13 @@ export function useChat(
       const blocks: ContentBlock[] = preserveExistingState ? [...streamingBlocksRef.current] : []
       const toolMap = new Map<string, number>()
       const toolArgsMap = new Map<string, Record<string, unknown>>()
+      // Maps toolCallId → index in genericResourceDataRef.current.entries for fast lookup
+      const genericEntryMap = new Map<string, number>()
+      if (preserveExistingState) {
+        for (const [idx, entry] of genericResourceDataRef.current.entries.entries()) {
+          genericEntryMap.set(entry.toolCallId, idx)
+        }
+      }
       const clientExecutionStarted = clientExecutionStartedRef.current
       let activeSubagent: string | undefined
       let activeCompactionId: string | undefined
@@ -979,6 +1015,23 @@ export function useChat(
             { id: assistantId, role: 'assistant' as const, content: '', ...snapshot },
           ]
         })
+      }
+
+      const appendGenericEntry = (entry: GenericResourceEntry): number => {
+        const entries = [...genericResourceDataRef.current.entries, entry]
+        genericResourceDataRef.current.entries = entries
+        setGenericResourceData({ entries })
+        return entries.length - 1
+      }
+
+      const updateGenericEntry = (
+        entryIdx: number,
+        changes: Partial<GenericResourceEntry>
+      ): void => {
+        const entries = genericResourceDataRef.current.entries.slice()
+        entries[entryIdx] = { ...entries[entryIdx], ...changes }
+        genericResourceDataRef.current.entries = entries
+        setGenericResourceData({ entries })
       }
 
       try {
@@ -1160,6 +1213,32 @@ export function useChat(
                 }
                 flush()
 
+                // TODO: Uncomment when rich UI for Results tab is ready
+                // if (shouldOpenGenericResource(name)) {
+                //   if (!genericEntryMap.has(id)) {
+                //     const entryIdx = appendGenericEntry({
+                //       toolCallId: id,
+                //       toolName: name,
+                //       displayTitle: displayTitle ?? name,
+                //       status: 'executing',
+                //       params: args,
+                //     })
+                //     genericEntryMap.set(id, entryIdx)
+                //     const opened = addResource({ type: 'generic', id: 'results', title: 'Results' })
+                //     if (opened) onResourceEventRef.current?.()
+                //     else setActiveResourceId('results')
+                //   } else {
+                //     const entryIdx = genericEntryMap.get(id)
+                //     if (entryIdx !== undefined) {
+                //       updateGenericEntry(entryIdx, {
+                //         toolName: name,
+                //         ...(displayTitle && { displayTitle }),
+                //         ...(args && { params: args }),
+                //       })
+                //     }
+                //   }
+                // }
+
                 if (
                   parsed.type === 'tool_call' &&
                   ui?.clientExecutable &&
@@ -1254,6 +1333,20 @@ export function useChat(
                   tc.streamingArgs = (tc.streamingArgs ?? '') + delta
                   flush()
                 }
+
+                // TODO: Uncomment when rich UI for Results tab is ready
+                // if (toolName && shouldOpenGenericResource(toolName)) {
+                //   const entryIdx = genericEntryMap.get(id)
+                //   if (entryIdx !== undefined) {
+                //     const entry = genericResourceDataRef.current.entries[entryIdx]
+                //     if (entry) {
+                //       updateGenericEntry(entryIdx, {
+                //         streamingArgs: (entry.streamingArgs ?? '') + delta,
+                //       })
+                //     }
+                //   }
+                // }
+
                 break
               }
               case 'tool_result': {
@@ -1360,6 +1453,34 @@ export function useChat(
                       setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
                     }
                   }
+
+                  // TODO: Uncomment when rich UI for Results tab is ready
+                  // if (
+                  //   shouldOpenGenericResource(tc.name) ||
+                  //   (isDeferredResourceTool(tc.name) && extractedResources.length === 0)
+                  // ) {
+                  //   const entryIdx = genericEntryMap.get(id)
+                  //   if (entryIdx !== undefined) {
+                  //     updateGenericEntry(entryIdx, {
+                  //       status: tc.status,
+                  //       result: tc.result ?? undefined,
+                  //       streamingArgs: undefined,
+                  //     })
+                  //   } else {
+                  //     const newIdx = appendGenericEntry({
+                  //       toolCallId: id,
+                  //       toolName: tc.name,
+                  //       displayTitle: tc.displayTitle ?? tc.name,
+                  //       status: tc.status,
+                  //       params: toolArgsMap.get(id) as Record<string, unknown> | undefined,
+                  //       result: tc.result ?? undefined,
+                  //     })
+                  //     genericEntryMap.set(id, newIdx)
+                  //     if (addResource({ type: 'generic', id: 'results', title: 'Results' })) {
+                  //       onResourceEventRef.current?.()
+                  //     }
+                  //   }
+                  // }
                 }
 
                 break
@@ -1447,13 +1568,22 @@ export function useChat(
                 if (!id) break
                 const idx = toolMap.get(id)
                 if (idx !== undefined && blocks[idx].toolCall) {
+                  const toolCallName = blocks[idx].toolCall!.name
                   blocks[idx].toolCall!.status = 'error'
-                  if (blocks[idx].toolCall?.name === 'workspace_file') {
+                  if (toolCallName === 'workspace_file') {
                     setStreamingFile(null)
                     streamingFileRef.current = null
                     setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
                   }
                   flush()
+
+                  // TODO: Uncomment when rich UI for Results tab is ready
+                  // if (toolCallName && shouldOpenGenericResource(toolCallName)) {
+                  //   const entryIdx = genericEntryMap.get(id)
+                  //   if (entryIdx !== undefined) {
+                  //     updateGenericEntry(entryIdx, { status: 'error', streamingArgs: undefined })
+                  //   }
+                  // }
                 }
                 break
               }
@@ -2071,6 +2201,7 @@ export function useChat(
       })
 
       executionStream.cancel(workflowId)
+      consolePersistence.executionEnded()
       execState.setIsExecuting(workflowId, false)
       execState.setIsDebugging(workflowId, false)
       execState.setActiveBlocks(workflowId, new Set())
@@ -2159,5 +2290,6 @@ export function useChat(
     sendNow,
     editQueuedMessage,
     streamingFile,
+    genericResourceData,
   }
 }

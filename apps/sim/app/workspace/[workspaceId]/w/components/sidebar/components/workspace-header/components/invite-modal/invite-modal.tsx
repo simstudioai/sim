@@ -481,11 +481,11 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
           autoComplete='off'
         >
           <ModalBody>
-            <div className='space-y-[12px]'>
+            <div className='space-y-3'>
               <div>
                 <Label
                   htmlFor='invite-field'
-                  className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
+                  className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
                 >
                   Email Addresses
                 </Label>
@@ -535,10 +535,10 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                 />
               </div>
               {errorMessage && (
-                <p className='mt-[4px] text-[12px] text-[var(--text-error)]'>{errorMessage}</p>
+                <p className='mt-1 text-[var(--text-error)] text-caption'>{errorMessage}</p>
               )}
             </div>
-            <div className='mt-[8px]'>
+            <div className='mt-2'>
               <PermissionsTable
                 userPermissions={userPermissions}
                 onPermissionChange={handlePermissionChange}
@@ -561,7 +561,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
           <ModalFooter className='justify-between'>
             <div
-              className={`flex gap-[8px] ${hasPendingChanges && userPerms.canAdmin ? '' : 'pointer-events-none invisible'}`}
+              className={`flex gap-2 ${hasPendingChanges && userPerms.canAdmin ? '' : 'pointer-events-none invisible'}`}
               aria-hidden={!(hasPendingChanges && userPerms.canAdmin)}
             >
               <Button

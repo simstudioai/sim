@@ -9,7 +9,7 @@ export function PoweredBySim() {
   return (
     <div
       className={
-        'fixed right-0 bottom-0 left-0 z-50 pb-8 text-center font-[340] text-[#999] text-[13px] leading-relaxed'
+        'fixed right-0 bottom-0 left-0 z-50 pb-8 text-center font-[340] text-[var(--landing-text-muted)] text-small leading-relaxed'
       }
     >
       <a

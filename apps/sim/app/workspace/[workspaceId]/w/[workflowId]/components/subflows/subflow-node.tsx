@@ -42,9 +42,9 @@ const getHandleClasses = (position: 'left' | 'right') => {
   const colorClasses = '!bg-[var(--workflow-edge)]'
 
   const positionClasses = {
-    left: '!left-[-8px] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none hover:!left-[-11px] hover:!w-[10px] hover:!rounded-l-full',
+    left: '!left-[-8px] !h-5 !w-[7px] !rounded-l-[2px] !rounded-r-none hover-hover:!left-[-11px] hover-hover:!w-[10px] hover-hover:!rounded-l-full',
     right:
-      '!right-[-8px] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none hover:!right-[-11px] hover:!w-[10px] hover:!rounded-r-full',
+      '!right-[-8px] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none hover-hover:!right-[-11px] hover-hover:!w-[10px] hover-hover:!rounded-r-full',
   }
 
   return cn(baseClasses, colorClasses, positionClasses[position])
@@ -136,10 +136,10 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
   const getRingColor = (): string | undefined => {
     if (!hasRing) return undefined
     if (isFocused || isSelected || isPreviewSelected) return 'var(--brand-secondary)'
-    if (diffStatus === 'new') return 'var(--brand-tertiary-2)'
+    if (diffStatus === 'new') return 'var(--brand-accent)'
     if (diffStatus === 'edited') return 'var(--warning)'
     if (runPathStatus === 'success') {
-      return executionStatus ? 'var(--brand-tertiary-2)' : 'var(--border-success)'
+      return executionStatus ? 'var(--brand-accent)' : 'var(--border-success)'
     }
     if (runPathStatus === 'error') return 'var(--text-error)'
     return undefined
@@ -149,7 +149,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
   return (
     <div className='group pointer-events-none relative'>
       <div
-        className='relative select-none rounded-[8px] border border-[var(--border-1)] transition-block-bg'
+        className='relative select-none rounded-lg border border-[var(--border-1)] transition-block-bg'
         style={{
           width: data.width || 500,
           height: data.height || 300,
@@ -171,19 +171,19 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
         {/* Header Section */}
         <div
           onClick={() => setCurrentBlockId(id)}
-          className='workflow-drag-handle flex cursor-grab items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px] [&:active]:cursor-grabbing'
+          className='workflow-drag-handle flex cursor-grab items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-2 pr-3 pl-2 [&:active]:cursor-grabbing'
           style={{ pointerEvents: 'auto' }}
         >
-          <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
+          <div className='flex min-w-0 flex-1 items-center gap-2.5'>
             <div
-              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
+              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-md'
               style={{ backgroundColor: isEnabled ? blockIconBg : 'gray' }}
             >
               <BlockIcon className='h-[16px] w-[16px] text-white' />
             </div>
             <span
               className={cn(
-                'truncate font-medium text-[16px]',
+                'truncate font-medium text-md',
                 !isEnabled && 'text-[var(--text-muted)]'
               )}
               title={blockName}
@@ -211,25 +211,25 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
 
         {!isPreview && (
           <div
-            className='absolute right-[8px] bottom-[8px] z-20 flex h-[32px] w-[32px] cursor-se-resize items-center justify-center text-muted-foreground'
+            className='absolute right-[8px] bottom-2 z-20 flex h-[32px] w-[32px] cursor-se-resize items-center justify-center text-muted-foreground'
             style={{ pointerEvents: 'auto' }}
           />
         )}
 
         <div
-          className='relative h-[calc(100%-50px)] pt-[16px] pr-[80px] pb-[16px] pl-[16px]'
+          className='relative h-[calc(100%-50px)] pt-4 pr-[80px] pb-4 pl-4'
           data-dragarea='true'
           style={{ pointerEvents: 'none' }}
         >
           {/* Subflow Start */}
           <div
-            className='absolute top-[16px] left-[16px] flex items-center justify-center rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] px-[12px] py-[6px]'
+            className='absolute top-4 left-[16px] flex items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-2)] px-3 py-1.5'
             style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
             data-parent-id={id}
             data-node-role={`${data.kind}-start`}
             data-extent='parent'
           >
-            <span className='font-medium text-[14px] text-[var(--text-primary)]'>Start</span>
+            <span className='font-medium text-[var(--text-primary)] text-sm'>Start</span>
 
             <Handle
               type='source'

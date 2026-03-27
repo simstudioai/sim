@@ -16,6 +16,7 @@ export function KeySquare(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <rect x='1.25' y='0.75' width='18' height='18' rx='2.5' />

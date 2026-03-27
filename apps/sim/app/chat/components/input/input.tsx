@@ -1,21 +1,18 @@
 'use client'
 
 import type React from 'react'
-import { useEffect, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
-import { Paperclip, Send, Square, X } from 'lucide-react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
+import { ArrowUp, Mic, Paperclip, X } from 'lucide-react'
 import { Badge, Tooltip } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { VoiceInput } from '@/app/chat/components/input/voice-input'
 
 const logger = createLogger('ChatInput')
 
-import { createLogger } from '@sim/logger'
+const MAX_TEXTAREA_HEIGHT = 200
 
-const PLACEHOLDER_MOBILE = 'Enter a message'
-const PLACEHOLDER_DESKTOP = 'Enter a message or click the mic to speak'
-const MAX_TEXTAREA_HEIGHT = 120 // Max height in pixels (e.g., for about 3-4 lines)
-const MAX_TEXTAREA_HEIGHT_MOBILE = 100 // Smaller for mobile
 const IS_STT_AVAILABLE =
   typeof window !== 'undefined' &&
   !!(
@@ -40,71 +37,26 @@ export const ChatInput: React.FC<{
   onVoiceStart?: () => void
   voiceOnly?: boolean
 }> = ({ onSubmit, isStreaming = false, onStopStreaming, onVoiceStart, voiceOnly = false }) => {
-  const wrapperRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null) // Ref for the textarea
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [isActive, setIsActive] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [inputValue, setInputValue] = useState('')
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [uploadErrors, setUploadErrors] = useState<string[]>([])
   const [dragCounter, setDragCounter] = useState(0)
   const isDragOver = dragCounter > 0
 
-  // Function to adjust textarea height
-  const adjustTextareaHeight = () => {
-    if (textareaRef.current) {
-      const el = textareaRef.current
-      el.style.height = 'auto' // Reset height to correctly calculate scrollHeight
-      const scrollHeight = el.scrollHeight
-
-      // Use mobile height on mobile devices, desktop height on desktop
-      const isMobile = window.innerWidth < 768
-      const maxHeight = isMobile ? MAX_TEXTAREA_HEIGHT_MOBILE : MAX_TEXTAREA_HEIGHT
-
-      if (scrollHeight > maxHeight) {
-        el.style.height = `${maxHeight}px`
-        el.style.overflowY = 'auto'
-      } else {
-        el.style.height = `${scrollHeight}px`
-        el.style.overflowY = 'hidden'
-      }
-    }
-  }
-
-  // Close the input when clicking outside (only when empty)
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        if (!inputValue) {
-          setIsActive(false)
-          if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto' // Reset height
-            textareaRef.current.style.overflowY = 'hidden' // Ensure overflow is hidden
-          }
-        }
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+  useLayoutEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT)}px`
   }, [inputValue])
 
-  const handleActivate = () => {
-    setIsActive(true)
-    requestAnimationFrame(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus()
-        adjustTextareaHeight()
-      }
-    })
-  }
-
-  // Handle file selection
   const handleFileSelect = async (selectedFiles: FileList | null) => {
     if (!selectedFiles) return
 
     const newFiles: AttachedFile[] = []
-    const maxSize = 10 * 1024 * 1024 // 10MB limit
+    const maxSize = 10 * 1024 * 1024
     const maxFiles = 15
 
     for (let i = 0; i < selectedFiles.length; i++) {
@@ -112,22 +64,19 @@ export const ChatInput: React.FC<{
 
       const file = selectedFiles[i]
 
-      // Check file size
       if (file.size > maxSize) {
         setUploadErrors((prev) => [...prev, `${file.name} is too large (max 10MB)`])
         continue
       }
 
-      // Check for duplicates
       const isDuplicate = attachedFiles.some(
-        (existingFile) => existingFile.name === file.name && existingFile.size === file.size
+        (existing) => existing.name === file.name && existing.size === file.size
       )
       if (isDuplicate) {
         setUploadErrors((prev) => [...prev, `${file.name} already added`])
         continue
       }
 
-      // Read file as data URL if it's an image
       let dataUrl: string | undefined
       if (file.type.startsWith('image/')) {
         try {
@@ -153,50 +102,54 @@ export const ChatInput: React.FC<{
     }
 
     if (newFiles.length > 0) {
-      setAttachedFiles([...attachedFiles, ...newFiles])
-      setUploadErrors([]) // Clear errors when files are successfully added
+      setAttachedFiles((prev) => [...prev, ...newFiles])
+      setUploadErrors([])
     }
   }
 
-  const handleRemoveFile = (fileId: string) => {
-    setAttachedFiles(attachedFiles.filter((f) => f.id !== fileId))
-  }
+  const handleRemoveFile = useCallback((fileId: string) => {
+    setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId))
+  }, [])
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (isStreaming) return
     if (!inputValue.trim() && attachedFiles.length === 0) return
-    onSubmit?.(inputValue.trim(), false, attachedFiles) // false = not voice input
+    onSubmit?.(inputValue.trim(), false, attachedFiles)
     setInputValue('')
     setAttachedFiles([])
-    setUploadErrors([]) // Clear errors when sending message
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto' // Reset height after submit
-      textareaRef.current.style.overflowY = 'hidden' // Ensure overflow is hidden
-    }
-    setIsActive(false)
-  }
+    setUploadErrors([])
+  }, [isStreaming, inputValue, attachedFiles, onSubmit])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputValue(e.target.value)
-    adjustTextareaHeight()
-  }
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+        e.preventDefault()
+        handleSubmit()
+      }
+    },
+    [handleSubmit]
+  )
 
-  // Handle voice start with smooth transition to voice-first mode
-  const handleVoiceStart = () => {
-    onVoiceStart?.() // This will trigger the voice-first mode transition
-  }
+  const handleContainerClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('button')) return
+    textareaRef.current?.focus()
+  }, [])
 
-  // Voice-only mode interface (for voice-first UI)
+  const canSubmit = (inputValue.trim().length > 0 || attachedFiles.length > 0) && !isStreaming
+
   if (voiceOnly) {
     return (
       <Tooltip.Provider>
         <div className='flex items-center justify-center'>
-          {/* Voice Input Only */}
           {IS_STT_AVAILABLE && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <div>
-                  <VoiceInput onVoiceStart={handleVoiceStart} disabled={isStreaming} large={true} />
+                  <VoiceInput
+                    onVoiceStart={onVoiceStart ?? (() => {})}
+                    disabled={isStreaming}
+                    large={true}
+                  />
                 </div>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>
@@ -211,8 +164,8 @@ export const ChatInput: React.FC<{
 
   return (
     <Tooltip.Provider>
-      <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-gradient-to-t from-white to-transparent px-4 pb-4 text-black md:px-0 md:pb-4'>
-        <div ref={wrapperRef} className='w-full max-w-3xl md:max-w-[748px]'>
+      <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-gradient-to-t from-[var(--landing-bg)] to-transparent px-4 pb-4 md:px-0 md:pb-4'>
+        <div className='w-full max-w-3xl md:max-w-[748px]'>
           {/* Error Messages */}
           {uploadErrors.length > 0 && (
             <div className='mb-3 flex flex-col gap-2'>
@@ -224,30 +177,22 @@ export const ChatInput: React.FC<{
             </div>
           )}
 
-          {/* Text Input Area with Controls */}
-          <motion.div
-            className={`rounded-2xl border shadow-sm transition-all duration-200 md:rounded-3xl ${
-              isDragOver
-                ? 'border-purple-500 bg-purple-50/50 dark:border-purple-500 dark:bg-purple-950/20'
-                : 'border-gray-200 bg-white'
-            }`}
-            onClick={handleActivate}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
+          {/* Input container */}
+          <div
+            onClick={handleContainerClick}
+            className={cn(
+              'relative z-10 cursor-text rounded-[20px] border border-[var(--border-1)] bg-[var(--landing-bg-elevated)] px-2.5 py-2',
+              isDragOver && 'border-purple-500'
+            )}
             onDragEnter={(e) => {
               e.preventDefault()
               e.stopPropagation()
-              if (!isStreaming) {
-                setDragCounter((prev) => prev + 1)
-              }
+              if (!isStreaming) setDragCounter((prev) => prev + 1)
             }}
             onDragOver={(e) => {
               e.preventDefault()
               e.stopPropagation()
-              if (!isStreaming) {
-                e.dataTransfer.dropEffect = 'copy'
-              }
+              if (!isStreaming) e.dataTransfer.dropEffect = 'copy'
             }}
             onDragLeave={(e) => {
               e.preventDefault()
@@ -258,196 +203,151 @@ export const ChatInput: React.FC<{
               e.preventDefault()
               e.stopPropagation()
               setDragCounter(0)
-              if (!isStreaming) {
-                handleFileSelect(e.dataTransfer.files)
-              }
+              if (!isStreaming) handleFileSelect(e.dataTransfer.files)
             }}
           >
-            {/* File Previews */}
+            {/* File thumbnails */}
             {attachedFiles.length > 0 && (
-              <div className='mb-2 flex max-h-[160px] flex-wrap gap-2 overflow-y-auto px-3 pt-3 md:px-4'>
-                {attachedFiles.map((file) => {
-                  const formatFileSize = (bytes: number) => {
-                    if (bytes === 0) return '0 B'
-                    const k = 1024
-                    const sizes = ['B', 'KB', 'MB', 'GB']
-                    const i = Math.floor(Math.log(bytes) / Math.log(k))
-                    return `${Math.round((bytes / k ** i) * 10) / 10} ${sizes[i]}`
-                  }
-
-                  return (
-                    <div
-                      key={file.id}
-                      className={`group relative overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 ${
-                        file.dataUrl
-                          ? 'h-16 w-16 md:h-20 md:w-20'
-                          : 'flex h-16 min-w-[120px] max-w-[200px] items-center gap-2 px-2 md:h-20 md:min-w-[140px] md:max-w-[220px] md:px-3'
-                      }`}
-                      title=''
-                    >
-                      {file.dataUrl ? (
-                        <img
-                          src={file.dataUrl}
-                          alt={file.name}
-                          className='h-full w-full object-cover'
-                        />
-                      ) : (
-                        <>
-                          <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-gray-100 md:h-10 md:w-10 dark:bg-gray-700'>
-                            <Paperclip
-                              size={16}
-                              className='text-gray-500 md:h-5 md:w-5 dark:text-gray-400'
-                            />
+              <div className='mb-1.5 flex flex-wrap gap-1.5'>
+                {attachedFiles.map((file) => (
+                  <Tooltip.Root key={file.id}>
+                    <Tooltip.Trigger asChild>
+                      <div className='group relative h-[56px] w-[56px] flex-shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--landing-bg)]'>
+                        {file.dataUrl ? (
+                          <img
+                            src={file.dataUrl}
+                            alt={file.name}
+                            className='h-full w-full object-cover'
+                          />
+                        ) : (
+                          <div className='flex h-full w-full flex-col items-center justify-center gap-0.5 text-[var(--landing-text-muted)]'>
+                            <Paperclip className='h-[18px] w-[18px]' />
+                            <span className='max-w-[48px] truncate px-[2px] text-[9px]'>
+                              {file.name.split('.').pop()}
+                            </span>
                           </div>
-                          <div className='min-w-0 flex-1'>
-                            <div className='truncate font-medium text-gray-800 text-xs dark:text-gray-200'>
-                              {file.name}
-                            </div>
-                            <div className='text-[10px] text-gray-500 dark:text-gray-400'>
-                              {formatFileSize(file.size)}
-                            </div>
-                          </div>
-                        </>
-                      )}
-                      <button
-                        type='button'
-                        onClick={() => handleRemoveFile(file.id)}
-                        className='absolute top-1 right-1 rounded-full bg-gray-800/80 p-1 text-white opacity-0 transition-opacity hover:bg-gray-800/80 hover:text-white group-hover:opacity-100 dark:bg-black/70 dark:hover:bg-black/70 dark:hover:text-white'
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                  )
-                })}
+                        )}
+                        <button
+                          type='button'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRemoveFile(file.id)
+                          }}
+                          className='absolute top-[2px] right-[2px] flex h-[16px] w-[16px] items-center justify-center rounded-full bg-black/60 opacity-0 group-hover:opacity-100'
+                        >
+                          <X className='h-[10px] w-[10px] text-white' />
+                        </button>
+                      </div>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>
+                      <p className='max-w-[200px] truncate'>{file.name}</p>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                ))}
               </div>
             )}
 
-            <div className='flex items-center gap-2 p-3 md:p-4'>
-              {/* Paperclip Button */}
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <button
-                    type='button'
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isStreaming || attachedFiles.length >= 15}
-                    className='flex items-center justify-center rounded-full p-1.5 text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 md:p-2'
-                  >
-                    <Paperclip size={16} className='md:h-5 md:w-5' />
-                  </button>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top'>
-                  <p>Attach files</p>
-                </Tooltip.Content>
-              </Tooltip.Root>
+            {/* Textarea */}
+            <textarea
+              ref={textareaRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={isDragOver ? 'Drop files here...' : 'Enter a message...'}
+              rows={1}
+              className='m-0 h-auto min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent px-1 py-1 text-[15px] text-[var(--landing-text)] leading-[24px] caret-[var(--landing-text)] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--landing-text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
+            />
 
-              {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type='file'
-                multiple
-                accept={CHAT_ACCEPT_ATTRIBUTE}
-                onChange={(e) => {
-                  handleFileSelect(e.target.files)
-                  if (fileInputRef.current) {
-                    fileInputRef.current.value = ''
-                  }
-                }}
-                className='hidden'
-                disabled={isStreaming}
-              />
-
-              {/* Text Input Container */}
-              <div className='relative flex-1'>
-                <textarea
-                  ref={textareaRef}
-                  value={inputValue}
-                  onChange={handleInputChange}
-                  className='flex w-full resize-none items-center overflow-hidden bg-transparent text-base outline-none placeholder:text-gray-400 md:font-[330]'
-                  placeholder={isDragOver ? 'Drop files here...' : isActive ? '' : ''}
-                  rows={1}
-                  style={{
-                    minHeight: window.innerWidth >= 768 ? '24px' : '28px',
-                    lineHeight: '1.4',
-                    paddingTop: window.innerWidth >= 768 ? '4px' : '3px',
-                    paddingBottom: window.innerWidth >= 768 ? '4px' : '3px',
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      handleSubmit()
-                    }
-                  }}
-                />
-
-                {/* Placeholder */}
-                <div className='pointer-events-none absolute top-0 left-0 flex h-full w-full items-center'>
-                  {!isActive && !inputValue && (
-                    <>
-                      {/* Mobile placeholder */}
-                      <div
-                        className='-translate-y-1/2 absolute top-1/2 left-0 transform select-none text-base text-gray-400 md:hidden'
-                        style={{ paddingTop: '3px', paddingBottom: '3px' }}
-                      >
-                        {isDragOver ? 'Drop files here...' : PLACEHOLDER_MOBILE}
-                      </div>
-                      {/* Desktop placeholder */}
-                      <div
-                        className='-translate-y-1/2 absolute top-1/2 left-0 hidden transform select-none font-[330] text-base text-gray-400 md:block'
-                        style={{ paddingTop: '4px', paddingBottom: '4px' }}
-                      >
-                        {isDragOver ? 'Drop files here...' : PLACEHOLDER_DESKTOP}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Voice Input */}
-              {IS_STT_AVAILABLE && (
+            {/* Bottom row */}
+            <div className='flex items-center justify-between'>
+              {/* Left: attach */}
+              <div>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <div>
-                      <VoiceInput onVoiceStart={handleVoiceStart} disabled={isStreaming} minimal />
-                    </div>
+                    <button
+                      type='button'
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isStreaming || attachedFiles.length >= 15}
+                      className='flex h-[28px] w-[28px] items-center justify-center rounded-full text-[var(--landing-text-muted)] transition-colors hover:bg-[#F7F7F7] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-[#303030]'
+                    >
+                      <Paperclip className='h-[16px] w-[16px]' strokeWidth={2} />
+                    </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>
-                    <p>Start voice conversation</p>
+                    <p>Attach files</p>
                   </Tooltip.Content>
                 </Tooltip.Root>
-              )}
 
-              {/* Send Button */}
-              <button
-                className={`flex items-center justify-center rounded-full p-1.5 text-white transition-colors md:p-2 ${
-                  inputValue.trim() || attachedFiles.length > 0
-                    ? 'bg-black hover:bg-zinc-700'
-                    : 'cursor-default bg-gray-300 hover:bg-gray-400'
-                }`}
-                title={isStreaming ? 'Stop' : 'Send'}
-                type='button'
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (isStreaming) {
-                    onStopStreaming?.()
-                  } else {
-                    handleSubmit()
-                  }
-                }}
-              >
-                {isStreaming ? (
-                  <>
-                    <Square size={16} className='md:hidden' />
-                    <Square size={18} className='hidden md:block' />
-                  </>
-                ) : (
-                  <>
-                    <Send size={16} className='md:hidden' />
-                    <Send size={18} className='hidden md:block' />
-                  </>
+                <input
+                  ref={fileInputRef}
+                  type='file'
+                  multiple
+                  accept={CHAT_ACCEPT_ATTRIBUTE}
+                  onChange={(e) => {
+                    handleFileSelect(e.target.files)
+                    if (fileInputRef.current) fileInputRef.current.value = ''
+                  }}
+                  className='hidden'
+                  disabled={isStreaming}
+                />
+              </div>
+
+              {/* Right: mic + send */}
+              <div className='flex items-center gap-1.5'>
+                {IS_STT_AVAILABLE && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        type='button'
+                        onClick={onVoiceStart}
+                        disabled={isStreaming}
+                        className='flex h-[28px] w-[28px] items-center justify-center rounded-full text-[var(--landing-text-muted)] transition-colors hover:bg-[#F7F7F7] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-[#303030]'
+                      >
+                        <Mic className='h-[16px] w-[16px]' strokeWidth={2} />
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>
+                      <p>Start voice conversation</p>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
                 )}
-              </button>
+
+                {isStreaming ? (
+                  <button
+                    type='button'
+                    onClick={onStopStreaming}
+                    className='flex h-[28px] w-[28px] items-center justify-center rounded-full border-0 bg-[#383838] p-0 transition-colors hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover:bg-[#CFCFCF]'
+                    title='Stop generation'
+                  >
+                    <svg
+                      className='block h-[14px] w-[14px] fill-white dark:fill-black'
+                      viewBox='0 0 24 24'
+                      xmlns='http://www.w3.org/2000/svg'
+                    >
+                      <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    type='button'
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
+                    className={cn(
+                      'flex h-[28px] w-[28px] items-center justify-center rounded-full border-0 p-0 transition-colors',
+                      canSubmit
+                        ? 'bg-[#383838] hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover:bg-[#CFCFCF]'
+                        : 'bg-[#808080] dark:bg-[#808080]'
+                    )}
+                  >
+                    <ArrowUp
+                      className='block h-[16px] w-[16px] text-white dark:text-black'
+                      strokeWidth={2.25}
+                    />
+                  </button>
+                )}
+              </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </Tooltip.Provider>

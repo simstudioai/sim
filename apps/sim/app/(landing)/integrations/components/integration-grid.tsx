@@ -105,8 +105,8 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
           onClick={() => setActiveCategory(null)}
           className={`rounded-md border px-3 py-1 text-[12px] transition-colors ${
             activeCategory === null
-              ? 'border-[#555] bg-[#333] text-[#ECECEC]'
-              : 'border-[#2A2A2A] bg-transparent text-[#999] hover:border-[#3d3d3d] hover:text-[#ECECEC]'
+              ? 'border-[#555] bg-[#333] text-[var(--landing-text)]'
+              : 'border-[var(--landing-border)] bg-transparent text-[var(--landing-text-muted)] hover:border-[var(--landing-border-strong)] hover:text-[var(--landing-text)]'
           }`}
         >
           All
@@ -118,8 +118,8 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
             onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
             className={`rounded-md border px-3 py-1 text-[12px] transition-colors ${
               activeCategory === cat
-                ? 'border-[#555] bg-[#333] text-[#ECECEC]'
-                : 'border-[#2A2A2A] bg-transparent text-[#999] hover:border-[#3d3d3d] hover:text-[#ECECEC]'
+                ? 'border-[#555] bg-[#333] text-[var(--landing-text)]'
+                : 'border-[var(--landing-border)] bg-transparent text-[var(--landing-text-muted)] hover:border-[var(--landing-border-strong)] hover:text-[var(--landing-text)]'
             }`}
           >
             {CATEGORY_LABELS[cat] || cat}

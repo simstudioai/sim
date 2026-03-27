@@ -95,7 +95,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     let childWorkflowSnapshotId: string | undefined
     try {
       if (ctx.isDeployedContext) {
-        const hasActiveDeployment = await this.checkChildDeployment(workflowId)
+        const hasActiveDeployment = await this.checkChildDeployment(workflowId, ctx.userId)
         if (!hasActiveDeployment) {
           throw new Error(
             `Child workflow is not deployed. Please deploy the workflow before invoking it.`
@@ -104,8 +104,8 @@ export class WorkflowBlockHandler implements BlockHandler {
       }
 
       const childWorkflow = ctx.isDeployedContext
-        ? await this.loadChildWorkflowDeployed(workflowId)
-        : await this.loadChildWorkflow(workflowId)
+        ? await this.loadChildWorkflowDeployed(workflowId, ctx.userId)
+        : await this.loadChildWorkflow(workflowId, ctx.userId)
 
       if (!childWorkflow) {
         throw new Error(`Child workflow ${workflowId} not found`)
@@ -323,8 +323,8 @@ export class WorkflowBlockHandler implements BlockHandler {
     return { chain, rootError: rootError.trim() || 'Unknown error' }
   }
 
-  private async loadChildWorkflow(workflowId: string) {
-    const headers = await buildAuthHeaders()
+  private async loadChildWorkflow(workflowId: string, userId?: string) {
+    const headers = await buildAuthHeaders(userId)
     const url = buildAPIUrl(`/api/workflows/${workflowId}`)
 
     const response = await fetch(url.toString(), { headers })
@@ -384,9 +384,9 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
   }
 
-  private async checkChildDeployment(workflowId: string): Promise<boolean> {
+  private async checkChildDeployment(workflowId: string, userId?: string): Promise<boolean> {
     try {
-      const headers = await buildAuthHeaders()
+      const headers = await buildAuthHeaders(userId)
       const url = buildAPIUrl(`/api/workflows/${workflowId}/deployed`)
 
       const response = await fetch(url.toString(), {
@@ -404,8 +404,8 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
   }
 
-  private async loadChildWorkflowDeployed(workflowId: string) {
-    const headers = await buildAuthHeaders()
+  private async loadChildWorkflowDeployed(workflowId: string, userId?: string) {
+    const headers = await buildAuthHeaders(userId)
     const deployedUrl = buildAPIUrl(`/api/workflows/${workflowId}/deployed`)
 
     const deployedRes = await fetch(deployedUrl.toString(), {

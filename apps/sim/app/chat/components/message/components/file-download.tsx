@@ -119,7 +119,9 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
       <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center'>{renderIcon()}</div>
       <div className='min-w-0 flex-1 text-left'>
         <div className='w-[100px] truncate text-xs'>{file.name}</div>
-        <div className='text-[10px] text-[var(--text-muted)]'>{formatFileSize(file.size)}</div>
+        <div className='text-[var(--landing-text-muted)] text-micro'>
+          {formatFileSize(file.size)}
+        </div>
       </div>
       <div className='flex-shrink-0'>
         {isDownloading ? (
@@ -170,7 +172,7 @@ export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
     <button
       onClick={handleDownloadAll}
       disabled={isDownloading}
-      className='text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50'
+      className='text-[var(--landing-text-muted)] transition-colors hover:bg-[var(--landing-bg-elevated)] disabled:opacity-50'
     >
       {isDownloading ? (
         <Loader2 className='h-3 w-3 animate-spin' strokeWidth={2} />

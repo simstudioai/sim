@@ -117,7 +117,7 @@ export function SkillInput({
 
   return (
     <>
-      <div className='w-full space-y-[8px]'>
+      <div className='w-full space-y-2'>
         <Combobox
           options={[]}
           groups={skillGroups}
@@ -136,28 +136,28 @@ export function SkillInput({
             return (
               <div
                 key={stored.skillId}
-                className='group relative flex flex-col overflow-hidden rounded-[4px] border border-[var(--border-1)] transition-all duration-200 ease-in-out'
+                className='group relative flex flex-col overflow-hidden rounded-sm border border-[var(--border-1)] transition-all duration-200 ease-in-out'
               >
                 <div
-                  className='flex cursor-pointer items-center justify-between gap-[8px] rounded-t-[4px] bg-[var(--surface-4)] px-[8px] py-[6.5px]'
+                  className='flex cursor-pointer items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-[6.5px]'
                   onClick={() => {
                     if (fullSkill && !disabled && !isPreview) {
                       setEditingSkill(fullSkill)
                     }
                   }}
                 >
-                  <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+                  <div className='flex min-w-0 flex-1 items-center gap-2'>
                     <div
-                      className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                      className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
                       style={{ backgroundColor: '#e0e0e0' }}
                     >
-                      <AgentSkillsIcon className='h-[10px] w-[10px] text-[#333]' />
+                      <AgentSkillsIcon className='h-[10px] w-[10px] text-[var(--border)]' />
                     </div>
-                    <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+                    <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                       {resolveSkillName(stored)}
                     </span>
                   </div>
-                  <div className='flex flex-shrink-0 items-center gap-[8px]'>
+                  <div className='flex flex-shrink-0 items-center gap-2'>
                     {!disabled && !isPreview && (
                       <button
                         type='button'
@@ -165,7 +165,7 @@ export function SkillInput({
                           e.stopPropagation()
                           handleRemove(stored.skillId)
                         }}
-                        className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                        className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                         aria-label='Remove skill'
                       >
                         <XIcon className='h-[13px] w-[13px]' />

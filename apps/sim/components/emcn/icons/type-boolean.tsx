@@ -16,6 +16,7 @@ export function TypeBoolean(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <rect x='2.5' y='2.75' width='15.5' height='15.5' rx='2.5' />

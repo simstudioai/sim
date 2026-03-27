@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { MicrosoftOneDriveIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('OneDriveConnector')
 
@@ -96,42 +96,25 @@ async function fetchFileContent(
 }
 
 /**
- * Converts a OneDrive item to an ExternalDocument.
+ * Converts a OneDrive item to a lightweight metadata stub (no content).
  */
-async function itemToDocument(
-  accessToken: string,
-  item: OneDriveItem
-): Promise<ExternalDocument | null> {
-  try {
-    const content = await fetchFileContent(accessToken, item.id, item.name)
-    if (!content.trim()) {
-      logger.info(`Skipping empty file: ${item.name} (${item.id})`)
-      return null
-    }
-
-    const contentHash = await computeContentHash(content)
-
-    return {
-      externalId: item.id,
-      title: item.name || 'Untitled',
-      content,
-      mimeType: 'text/plain',
-      sourceUrl: item.webUrl,
-      contentHash,
-      metadata: {
-        name: item.name,
-        lastModifiedDateTime: item.lastModifiedDateTime,
-        createdBy: item.createdBy?.user?.displayName,
-        size: item.size,
-        webUrl: item.webUrl,
-        parentPath: item.parentReference?.path,
-      },
-    }
-  } catch (error) {
-    logger.warn(`Failed to extract content from file: ${item.name} (${item.id})`, {
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return null
+function fileToStub(item: OneDriveItem): ExternalDocument {
+  return {
+    externalId: item.id,
+    title: item.name || 'Untitled',
+    content: '',
+    contentDeferred: true,
+    mimeType: 'text/plain',
+    sourceUrl: item.webUrl,
+    contentHash: `onedrive:${item.id}:${item.lastModifiedDateTime ?? ''}`,
+    metadata: {
+      name: item.name,
+      lastModifiedDateTime: item.lastModifiedDateTime,
+      createdBy: item.createdBy?.user?.displayName,
+      size: item.size,
+      webUrl: item.webUrl,
+      parentPath: item.parentReference?.path,
+    },
   }
 }
 
@@ -199,7 +182,9 @@ export const onedriveConnector: ConnectorConfig = {
         pageUrl = cursor
       }
     } else {
-      pageUrl = buildListUrl(folderPath)
+      const baseUrl = buildListUrl(folderPath)
+      const separator = baseUrl.includes('?') ? '&' : '?'
+      pageUrl = `${baseUrl}${separator}$orderby=lastModifiedDateTime desc`
     }
 
     logger.info('Listing OneDrive files', {
@@ -242,24 +227,19 @@ export const onedriveConnector: ConnectorConfig = {
     const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
-    const CONCURRENCY = 5
-    const documents: ExternalDocument[] = []
-    for (let i = 0; i < textFiles.length; i += CONCURRENCY) {
-      if (maxFiles > 0 && previouslyFetched + documents.length >= maxFiles) break
-      const batch = textFiles.slice(i, i + CONCURRENCY)
-      const results = await Promise.all(batch.map((item) => itemToDocument(accessToken, item)))
-      documents.push(...(results.filter(Boolean) as ExternalDocument[]))
-    }
+    let documents = textFiles.map(fileToStub)
+
     if (maxFiles > 0) {
       const remaining = maxFiles - previouslyFetched
       if (documents.length > remaining) {
-        documents.splice(remaining)
+        documents = documents.slice(0, remaining)
       }
     }
 
     const totalFetched = previouslyFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxFiles > 0 && totalFetched >= maxFiles
+    if (hitLimit && syncContext) syncContext.listingCapped = true
 
     const nextLink = data['@odata.nextLink']
 
@@ -273,7 +253,7 @@ export const onedriveConnector: ConnectorConfig = {
         hasMore = true
       } else if (folderQueue.length > 0) {
         const nextFolderId = folderQueue.shift()!
-        const nextUrl = `${GRAPH_BASE_URL}/me/drive/items/${nextFolderId}/children`
+        const nextUrl = `${GRAPH_BASE_URL}/me/drive/items/${nextFolderId}/children?$orderby=lastModifiedDateTime desc`
         nextCursor = JSON.stringify({ pageUrl: nextUrl, folderQueue })
         hasMore = true
       }
@@ -308,10 +288,20 @@ export const onedriveConnector: ConnectorConfig = {
 
     const item = (await response.json()) as OneDriveItem
 
-    // Only process files with supported extensions
     if (!item.file || !isSupportedTextFile(item.name)) return null
 
-    return itemToDocument(accessToken, item)
+    try {
+      const content = await fetchFileContent(accessToken, item.id, item.name)
+      if (!content.trim()) return null
+
+      const stub = fileToStub(item)
+      return { ...stub, content, contentDeferred: false }
+    } catch (error) {
+      logger.warn(`Failed to fetch content for file: ${item.name} (${item.id})`, {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return null
+    }
   },
 
   validateConfig: async (

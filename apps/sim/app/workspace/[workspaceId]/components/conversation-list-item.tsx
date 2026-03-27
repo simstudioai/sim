@@ -22,7 +22,7 @@ export function ConversationListItem({
   actions,
 }: ConversationListItemProps) {
   return (
-    <div className={cn('flex w-full min-w-0 items-center gap-[8px]', className)}>
+    <div className={cn('flex w-full min-w-0 items-center gap-2', className)}>
       <span className='relative flex-shrink-0'>
         <Blimp className='h-[16px] w-[16px] text-[var(--text-icon)]' />
         {isActive && (
@@ -36,7 +36,7 @@ export function ConversationListItem({
         {!isActive && isUnread && (
           <span
             className={cn(
-              '-right-[1px] -bottom-[1px] absolute h-[6px] w-[6px] rounded-full border border-[var(--surface-1)] bg-[#33C482]',
+              '-right-[1px] -bottom-[1px] absolute h-[6px] w-[6px] rounded-full border border-[var(--surface-1)] bg-[var(--indicator-online)]',
               statusIndicatorClassName
             )}
           />

@@ -173,7 +173,7 @@ export function SelectorCombobox({
                 className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10 h-6 w-6 p-0'
                 onClick={handleClear}
               >
-                <X className='h-4 w-4 opacity-50 hover:opacity-100' />
+                <X className='h-4 w-4 opacity-50 hover-hover:opacity-100' />
               </Button>
             )}
           </div>

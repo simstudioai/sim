@@ -154,21 +154,21 @@ export default function Templates({
   return (
     <div className='flex h-full flex-1 flex-col'>
       <div className='flex flex-1 overflow-hidden'>
-        <div className='flex flex-1 flex-col overflow-auto bg-[var(--bg)] px-[24px] pt-[28px] pb-[24px]'>
+        <div className='flex flex-1 flex-col overflow-auto bg-[var(--bg)] px-6 pt-7 pb-6'>
           <div>
-            <div className='flex items-start gap-[12px]'>
-              <div className='flex h-[26px] w-[26px] items-center justify-center rounded-[6px] border border-[#5BA8D9] bg-[#E8F4FB] dark:border-[#1A5070] dark:bg-[#153347]'>
+            <div className='flex items-start gap-3'>
+              <div className='flex h-[26px] w-[26px] items-center justify-center rounded-md border border-[#5BA8D9] bg-[#E8F4FB] dark:border-[#1A5070] dark:bg-[#153347]'>
                 <Layout className='h-[14px] w-[14px] text-[#5BA8D9] dark:text-[#33b4ff]' />
               </div>
-              <h1 className='font-medium text-[18px]'>Templates</h1>
+              <h1 className='font-medium text-lg'>Templates</h1>
             </div>
-            <p className='mt-[10px] text-[14px] text-[var(--text-tertiary)]'>
+            <p className='mt-2.5 text-[var(--text-tertiary)] text-sm'>
               Grab a template and start building, or make one from scratch.
             </p>
           </div>
 
-          <div className='mt-[14px] flex items-center justify-between'>
-            <div className='flex h-[32px] w-[400px] items-center gap-[6px] rounded-[8px] bg-[var(--surface-4)] px-[8px]'>
+          <div className='mt-3.5 flex items-center justify-between'>
+            <div className='flex h-[32px] w-[400px] items-center gap-1.5 rounded-lg bg-[var(--surface-4)] px-2'>
               <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
               <Input
                 placeholder='Search'
@@ -177,17 +177,17 @@ export default function Templates({
                 className='flex-1 border-0 bg-transparent px-0 font-medium text-[var(--text-secondary)] text-small leading-none placeholder:text-[var(--text-subtle)] focus-visible:ring-0 focus-visible:ring-offset-0'
               />
             </div>
-            <div className='flex items-center gap-[8px]'>
+            <div className='flex items-center gap-2'>
               <Button
                 variant={activeTab === 'gallery' ? 'active' : 'default'}
-                className='h-[32px] rounded-[6px]'
+                className='h-[32px] rounded-md'
                 onClick={() => setActiveTab('gallery')}
               >
                 Gallery
               </Button>
               <Button
                 variant={activeTab === 'your' ? 'active' : 'default'}
-                className='h-[32px] rounded-[6px]'
+                className='h-[32px] rounded-md'
                 onClick={() => setActiveTab('your')}
               >
                 Your Templates
@@ -195,7 +195,7 @@ export default function Templates({
               {isSuperUser && (
                 <Button
                   variant={activeTab === 'pending' ? 'active' : 'default'}
-                  className='h-[32px] rounded-[6px]'
+                  className='h-[32px] rounded-md'
                   onClick={() => setActiveTab('pending')}
                 >
                   Pending
@@ -204,7 +204,7 @@ export default function Templates({
             </div>
           </div>
 
-          <div className='mt-[24px] grid grid-cols-1 gap-x-[20px] gap-y-[40px] md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
+          <div className='mt-6 grid grid-cols-1 gap-x-5 gap-y-10 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
             {loading ? (
               Array.from({ length: 8 }).map((_, index) => (
                 <TemplateCardSkeleton key={`skeleton-${index}`} />

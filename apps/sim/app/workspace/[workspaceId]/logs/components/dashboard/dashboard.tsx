@@ -33,16 +33,16 @@ const SKELETON_BAR_HEIGHTS = [
 
 function GraphCardSkeleton({ title }: { title: string }) {
   return (
-    <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
-      <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px] dark:bg-[var(--surface-3)]'>
+    <div className='flex flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
+      <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-[9px] dark:bg-[var(--surface-3)]'>
         <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
           {title}
         </span>
         <Skeleton className='h-[20px] w-[40px]' />
       </div>
-      <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-[14px] py-[10px] dark:bg-[var(--surface-1)]'>
-        <div className='flex h-[166px] flex-col justify-end gap-[4px]'>
-          <div className='flex items-end gap-[2px]'>
+      <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-3.5 py-2.5 dark:bg-[var(--surface-1)]'>
+        <div className='flex h-[166px] flex-col justify-end gap-1'>
+          <div className='flex items-end gap-0.5'>
             {SKELETON_BAR_HEIGHTS.map((height, i) => (
               <Skeleton
                 key={i}
@@ -61,15 +61,15 @@ function GraphCardSkeleton({ title }: { title: string }) {
 
 function WorkflowRowSkeleton() {
   return (
-    <div className='flex h-[44px] items-center gap-[16px] px-[24px]'>
-      <div className='flex w-[160px] flex-shrink-0 items-center gap-[8px] pr-[8px]'>
+    <div className='flex h-[44px] items-center gap-4 px-6'>
+      <div className='flex w-[160px] flex-shrink-0 items-center gap-2 pr-2'>
         <Skeleton className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]' />
         <Skeleton className='h-[16px] flex-1' />
       </div>
       <div className='flex-1'>
-        <Skeleton className='h-[24px] w-full rounded-[4px]' />
+        <Skeleton className='h-[24px] w-full rounded-sm' />
       </div>
-      <div className='w-[100px] flex-shrink-0 pl-[16px]'>
+      <div className='w-[100px] flex-shrink-0 pl-4'>
         <Skeleton className='h-[16px] w-[50px]' />
       </div>
     </div>
@@ -78,14 +78,14 @@ function WorkflowRowSkeleton() {
 
 function WorkflowsListSkeleton({ rowCount = 5 }: { rowCount?: number }) {
   return (
-    <div className='flex h-full flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)] dark:bg-[var(--surface-1)]'>
-      <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-[24px] py-[10px] dark:bg-[var(--surface-3)]'>
-        <div className='flex items-center gap-[16px]'>
-          <span className='w-[160px] flex-shrink-0 font-medium text-[12px] text-[var(--text-tertiary)]'>
+    <div className='flex h-full flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-1)]'>
+      <div className='flex-shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-6 py-2.5 dark:bg-[var(--surface-3)]'>
+        <div className='flex items-center gap-4'>
+          <span className='w-[160px] flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
             Workflow
           </span>
-          <span className='flex-1 font-medium text-[12px] text-[var(--text-tertiary)]'>Logs</span>
-          <span className='w-[100px] flex-shrink-0 pl-[16px] font-medium text-[12px] text-[var(--text-tertiary)]'>
+          <span className='flex-1 font-medium text-[var(--text-tertiary)] text-caption'>Logs</span>
+          <span className='w-[100px] flex-shrink-0 pl-4 font-medium text-[var(--text-tertiary)] text-caption'>
             Success Rate
           </span>
         </div>
@@ -101,9 +101,9 @@ function WorkflowsListSkeleton({ rowCount = 5 }: { rowCount?: number }) {
 
 function DashboardSkeleton() {
   return (
-    <div className='mt-[24px] flex min-h-0 flex-1 flex-col pb-[24px]'>
-      <div className='mb-[16px] flex-shrink-0'>
-        <div className='grid grid-cols-1 gap-[16px] md:grid-cols-3'>
+    <div className='mt-6 flex min-h-0 flex-1 flex-col pb-6'>
+      <div className='mb-4 flex-shrink-0'>
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
           <GraphCardSkeleton title='Runs' />
           <GraphCardSkeleton title='Errors' />
           <GraphCardSkeleton title='Latency' />
@@ -450,10 +450,10 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
 
   if (error) {
     return (
-      <div className='mt-[24px] flex flex-1 items-center justify-center'>
+      <div className='mt-6 flex flex-1 items-center justify-center'>
         <div className='text-[var(--text-error)]'>
-          <p className='font-medium text-[13px]'>Error loading data</p>
-          <p className='text-[12px]'>{error.message}</p>
+          <p className='font-medium text-small'>Error loading data</p>
+          <p className='text-caption'>{error.message}</p>
         </div>
       </div>
     )
@@ -461,23 +461,21 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
 
   if (Object.keys(allWorkflows).length === 0) {
     return (
-      <div className='mt-[24px] flex flex-1 items-center justify-center'>
+      <div className='mt-6 flex flex-1 items-center justify-center'>
         <div className='text-center text-[var(--text-secondary)]'>
-          <p className='font-medium text-[13px]'>No workflows</p>
-          <p className='mt-[4px] text-[12px]'>
-            Create a workflow to see its execution history here
-          </p>
+          <p className='font-medium text-small'>No workflows</p>
+          <p className='mt-1 text-caption'>Create a workflow to see its execution history here</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className='mt-[24px] flex min-h-0 flex-1 flex-col pb-[24px]'>
-      <div className='mb-[16px] flex-shrink-0'>
-        <div className='grid grid-cols-1 gap-[16px] md:grid-cols-3'>
-          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
-            <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px] dark:bg-[var(--surface-3)]'>
+    <div className='mt-6 flex min-h-0 flex-1 flex-col pb-6'>
+      <div className='mb-4 flex-shrink-0'>
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
+          <div className='flex flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
+            <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
                 Runs
               </span>
@@ -487,12 +485,12 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
                 </span>
               )}
             </div>
-            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-[14px] py-[10px] dark:bg-[var(--surface-1)]'>
+            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-3.5 py-2.5 dark:bg-[var(--surface-1)]'>
               {globalDetails ? (
                 <LineChart
                   data={globalDetails.executionCounts}
                   label=''
-                  color='var(--brand-tertiary)'
+                  color='var(--success)'
                   unit=''
                 />
               ) : (
@@ -503,8 +501,8 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
             </div>
           </div>
 
-          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
-            <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px] dark:bg-[var(--surface-3)]'>
+          <div className='flex flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
+            <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
                 Errors
               </span>
@@ -514,7 +512,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
                 </span>
               )}
             </div>
-            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-[14px] py-[10px] dark:bg-[var(--surface-1)]'>
+            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-3.5 py-2.5 dark:bg-[var(--surface-1)]'>
               {globalDetails ? (
                 <LineChart
                   data={globalDetails.failureCounts}
@@ -530,8 +528,8 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
             </div>
           </div>
 
-          <div className='flex flex-col overflow-hidden rounded-[6px] bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
-            <div className='flex min-w-0 items-center justify-between gap-[8px] bg-[var(--surface-3)] px-[16px] py-[9px] dark:bg-[var(--surface-3)]'>
+          <div className='flex flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-2)]'>
+            <div className='flex min-w-0 items-center justify-between gap-2 bg-[var(--surface-3)] px-4 py-[9px] dark:bg-[var(--surface-3)]'>
               <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-sm'>
                 Latency
               </span>
@@ -541,12 +539,12 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
                 </span>
               )}
             </div>
-            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-[14px] py-[10px] dark:bg-[var(--surface-1)]'>
+            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-3.5 py-2.5 dark:bg-[var(--surface-1)]'>
               {globalDetails ? (
                 <LineChart
                   data={globalDetails.latencies}
                   label=''
-                  color='var(--c-F59E0B)'
+                  color='var(--caution)'
                   unit='latency'
                 />
               ) : (

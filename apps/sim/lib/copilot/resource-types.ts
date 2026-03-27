@@ -1,4 +1,4 @@
-export type MothershipResourceType = 'table' | 'file' | 'workflow' | 'knowledgebase'
+export type MothershipResourceType = 'table' | 'file' | 'workflow' | 'knowledgebase' | 'generic'
 
 export interface MothershipResource {
   type: MothershipResourceType

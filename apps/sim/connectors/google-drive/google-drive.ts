@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { GoogleDriveIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GoogleDriveConnector')
 
@@ -68,8 +68,12 @@ async function downloadTextFile(accessToken: string, fileId: string): Promise<st
   }
 
   const text = await response.text()
-  if (text.length > MAX_EXPORT_SIZE) {
-    return text.slice(0, MAX_EXPORT_SIZE)
+  if (Buffer.byteLength(text, 'utf8') > MAX_EXPORT_SIZE) {
+    logger.warn(`File exceeds ${MAX_EXPORT_SIZE} bytes, truncating`)
+    const buf = Buffer.from(text, 'utf8')
+    let end = MAX_EXPORT_SIZE
+    while (end > 0 && (buf[end] & 0xc0) === 0x80) end--
+    return buf.subarray(0, end).toString('utf8')
   }
   return text
 }
@@ -143,40 +147,23 @@ function buildQuery(sourceConfig: Record<string, unknown>): string {
   return parts.join(' and ')
 }
 
-async function fileToDocument(
-  accessToken: string,
-  file: DriveFile
-): Promise<ExternalDocument | null> {
-  try {
-    const content = await fetchFileContent(accessToken, file.id, file.mimeType)
-    if (!content.trim()) {
-      logger.info(`Skipping empty file: ${file.name} (${file.id})`)
-      return null
-    }
-
-    const contentHash = await computeContentHash(content)
-
-    return {
-      externalId: file.id,
-      title: file.name || 'Untitled',
-      content,
-      mimeType: 'text/plain',
-      sourceUrl: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`,
-      contentHash,
-      metadata: {
-        originalMimeType: file.mimeType,
-        modifiedTime: file.modifiedTime,
-        createdTime: file.createdTime,
-        owners: file.owners?.map((o) => o.displayName || o.emailAddress).filter(Boolean),
-        starred: file.starred,
-        fileSize: file.size ? Number(file.size) : undefined,
-      },
-    }
-  } catch (error) {
-    logger.warn(`Failed to extract content from file: ${file.name} (${file.id})`, {
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return null
+function fileToStub(file: DriveFile): ExternalDocument {
+  return {
+    externalId: file.id,
+    title: file.name || 'Untitled',
+    content: '',
+    contentDeferred: true,
+    mimeType: 'text/plain',
+    sourceUrl: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`,
+    contentHash: `gdrive:${file.id}:${file.modifiedTime ?? ''}`,
+    metadata: {
+      originalMimeType: file.mimeType,
+      modifiedTime: file.modifiedTime,
+      createdTime: file.createdTime,
+      owners: file.owners?.map((o) => o.displayName || o.emailAddress).filter(Boolean),
+      starred: file.starred,
+      fileSize: file.size ? Number(file.size) : undefined,
+    },
   }
 }
 
@@ -232,9 +219,20 @@ export const googleDriveConnector: ConnectorConfig = {
     const query = buildQuery(sourceConfig)
     const pageSize = 100
 
+    const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
+    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+
+    if (maxFiles > 0 && previouslyFetched >= maxFiles) {
+      return { documents: [], hasMore: false }
+    }
+
+    const remaining = maxFiles > 0 ? maxFiles - previouslyFetched : 0
+    const effectivePageSize = maxFiles > 0 ? Math.min(pageSize, remaining) : pageSize
+
     const queryParams = new URLSearchParams({
       q: query,
-      pageSize: String(pageSize),
+      pageSize: String(effectivePageSize),
+      orderBy: 'modifiedTime desc',
       fields:
         'nextPageToken,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,parents,owners,size,starred)',
       supportsAllDrives: 'true',
@@ -269,18 +267,14 @@ export const googleDriveConnector: ConnectorConfig = {
     const data = await response.json()
     const files = (data.files || []) as DriveFile[]
 
-    const CONCURRENCY = 5
-    const documents: ExternalDocument[] = []
-    for (let i = 0; i < files.length; i += CONCURRENCY) {
-      const batch = files.slice(i, i + CONCURRENCY)
-      const results = await Promise.all(batch.map((file) => fileToDocument(accessToken, file)))
-      documents.push(...(results.filter(Boolean) as ExternalDocument[]))
-    }
+    const documents = files
+      .filter((f) => isGoogleWorkspaceFile(f.mimeType) || isSupportedTextFile(f.mimeType))
+      .map(fileToStub)
 
-    const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+    const totalFetched = previouslyFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
     const hitLimit = maxFiles > 0 && totalFetched >= maxFiles
+    if (hitLimit && syncContext) syncContext.listingCapped = true
 
     const nextPageToken = data.nextPageToken as string | undefined
 
@@ -317,7 +311,18 @@ export const googleDriveConnector: ConnectorConfig = {
 
     if (file.trashed) return null
 
-    return fileToDocument(accessToken, file)
+    try {
+      const content = await fetchFileContent(accessToken, file.id, file.mimeType)
+      if (!content.trim()) return null
+
+      const stub = fileToStub(file)
+      return { ...stub, content, contentDeferred: false }
+    } catch (error) {
+      logger.warn(`Failed to fetch content for file: ${file.name} (${file.id})`, {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return null
+    }
   },
 
   validateConfig: async (

@@ -121,12 +121,10 @@ export function CreateApiKeyModal({
                 : "This key will have access to your personal workflows. Make sure to copy it after creation as you won't be able to see it again."}
             </p>
 
-            <div className='mt-[16px] flex flex-col gap-[18px]'>
+            <div className='mt-4 flex flex-col gap-4.5'>
               {canManageWorkspaceKeys && (
-                <div className='flex flex-col gap-[8px]'>
-                  <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                    Sim Key Type
-                  </p>
+                <div className='flex flex-col gap-2'>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Sim Key Type</p>
                   <ButtonGroup
                     value={keyType}
                     onValueChange={(value) => {
@@ -141,8 +139,8 @@ export function CreateApiKeyModal({
                   </ButtonGroup>
                 </div>
               )}
-              <div className='flex flex-col gap-[8px]'>
-                <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>
                   Enter a name for your Sim key to help you identify it later.
                 </p>
                 {/* Hidden decoy fields to prevent browser autofill */}
@@ -176,9 +174,7 @@ export function CreateApiKeyModal({
                   data-form-type='other'
                 />
                 {createError && (
-                  <p className='text-[13px] text-[var(--text-error)] leading-tight'>
-                    {createError}
-                  </p>
+                  <p className='text-[var(--text-error)] text-small leading-tight'>{createError}</p>
                 )}
               </div>
             </div>
@@ -226,15 +222,15 @@ export function CreateApiKeyModal({
             </p>
 
             {newKey && (
-              <div className='relative mt-[10px]'>
-                <div className='flex h-9 items-center rounded-[6px] border bg-[var(--surface-1)] px-[10px] pr-[40px]'>
-                  <code className='flex-1 truncate font-mono text-[14px] text-[var(--text-primary)]'>
+              <div className='relative mt-2.5'>
+                <div className='flex h-9 items-center rounded-md border bg-[var(--surface-1)] px-2.5 pr-10'>
+                  <code className='flex-1 truncate font-mono text-[var(--text-primary)] text-sm'>
                     {newKey.key}
                   </code>
                 </div>
                 <Button
                   variant='ghost'
-                  className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] rounded-[4px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  className='-translate-y-1/2 absolute top-1/2 right-[4px] h-[28px] w-[28px] rounded-sm text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
                   onClick={() => copyToClipboard(newKey.key)}
                 >
                   {copySuccess ? (

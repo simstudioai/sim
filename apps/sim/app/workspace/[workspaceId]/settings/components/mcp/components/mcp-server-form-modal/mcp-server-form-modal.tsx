@@ -149,7 +149,7 @@ function FormattedInput({
         onInput={handleScroll}
         className='h-9 text-transparent caret-[var(--text-primary)] placeholder:text-[var(--text-muted)]'
       />
-      <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-[8px] py-[6px] font-medium font-sans text-sm'>
+      <div className='pointer-events-none absolute inset-0 flex items-center overflow-hidden px-2 py-1.5 font-medium font-sans text-sm'>
         <div className='whitespace-nowrap' style={{ transform: `translateX(-${scrollLeft}px)` }}>
           {formatDisplayText(value, { availableEnvVars })}
         </div>
@@ -219,7 +219,7 @@ function HeaderRow({
   }
 
   return (
-    <div className='relative flex items-center gap-[8px]'>
+    <div className='relative flex items-center gap-2'>
       <FormattedInput
         placeholder='Name'
         value={header.key || ''}
@@ -598,7 +598,7 @@ export function McpServerFormModal({
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
           {formMode === 'json' ? (
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               <Textarea
                 placeholder={`{\n  "mcpServers": {\n    "server-name": {\n      "url": "https://...",\n      "headers": {\n        "X-API-Key": "..."\n      }\n    }\n  }\n}`}
                 value={jsonInput}
@@ -608,12 +608,12 @@ export function McpServerFormModal({
                   if (testResult) clearTestResult()
                   if (submitError) setSubmitError(null)
                 }}
-                className='min-h-[200px] font-mono text-[13px]'
+                className='min-h-[200px] font-mono text-small'
               />
-              {jsonError && <p className='text-[12px] text-[var(--text-error)]'>{jsonError}</p>}
+              {jsonError && <p className='text-[var(--text-error)] text-caption'>{jsonError}</p>}
             </div>
           ) : (
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               <FormField label='Server Name'>
                 <EmcnInput
                   placeholder='e.g., My MCP Server'
@@ -646,17 +646,15 @@ export function McpServerFormModal({
                   onScroll={setUrlScrollLeft}
                 />
                 {isDomainBlocked && (
-                  <p className='mt-[4px] text-[12px] text-[var(--text-error)]'>
+                  <p className='mt-1 text-[var(--text-error)] text-caption'>
                     Domain not permitted by server policy
                   </p>
                 )}
               </FormField>
 
-              <div className='flex flex-col gap-[8px]'>
-                <span className='font-medium text-[13px] text-[var(--text-secondary)]'>
-                  Headers
-                </span>
-                <div className='flex max-h-[140px] flex-col gap-[8px] overflow-y-auto'>
+              <div className='flex flex-col gap-2'>
+                <span className='font-medium text-[var(--text-secondary)] text-small'>Headers</span>
+                <div className='flex max-h-[140px] flex-col gap-2 overflow-y-auto'>
                   {(formData.headers || []).map((header, index) => (
                     <HeaderRow
                       key={index}
@@ -683,10 +681,10 @@ export function McpServerFormModal({
         </ModalBody>
         <ModalFooter>
           {submitError && (
-            <p className='mb-[8px] w-full text-[13px] text-[var(--text-error)]'>{submitError}</p>
+            <p className='mb-2 w-full text-[var(--text-error)] text-small'>{submitError}</p>
           )}
           <div className='flex w-full items-center justify-between'>
-            <div className='flex items-center gap-[8px]'>
+            <div className='flex items-center gap-2'>
               {mode === 'add' && (
                 <Button
                   type='button'
@@ -711,7 +709,7 @@ export function McpServerFormModal({
                 </Button>
               )}
             </div>
-            <div className='flex items-center gap-[8px]'>
+            <div className='flex items-center gap-2'>
               <Button variant='ghost' onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>

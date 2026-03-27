@@ -10,7 +10,11 @@ import { isTest } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
-import { isMcpDomainAllowed, validateMcpDomain } from '@/lib/mcp/domain-check'
+import {
+  isMcpDomainAllowed,
+  validateMcpDomain,
+  validateMcpServerSsrf,
+} from '@/lib/mcp/domain-check'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import {
   createMcpCacheAdapter,
@@ -68,6 +72,7 @@ class McpService {
       strict: true,
     })
     validateMcpDomain(resolvedConfig.url)
+    await validateMcpServerSsrf(resolvedConfig.url)
     return resolvedConfig
   }
 

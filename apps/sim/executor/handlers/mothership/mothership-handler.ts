@@ -32,7 +32,7 @@ export class MothershipBlockHandler implements BlockHandler {
     const chatId = crypto.randomUUID()
 
     const url = buildAPIUrl('/api/mothership/execute')
-    const headers = await buildAuthHeaders()
+    const headers = await buildAuthHeaders(ctx.userId)
 
     const body: Record<string, unknown> = {
       messages,

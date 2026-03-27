@@ -75,7 +75,7 @@ const LogRow = memo(
       <div
         ref={isSelected ? selectedRowRef : null}
         className={cn(
-          'relative flex h-[44px] cursor-pointer items-center px-[24px] hover:bg-[var(--surface-3)] dark:hover:bg-[var(--surface-4)]',
+          'relative flex h-[44px] cursor-pointer items-center px-6 hover-hover:bg-[var(--surface-3)] dark:hover-hover:bg-[var(--surface-4)]',
           isSelected && 'bg-[var(--surface-3)] dark:bg-[var(--surface-4)]'
         )}
         onClick={handleClick}
@@ -84,7 +84,7 @@ const LogRow = memo(
       >
         <div className='flex flex-1 items-center'>
           <div
-            className={`flex ${LOG_COLUMNS.workflow.width} ${LOG_COLUMNS.workflow.minWidth} items-center gap-[8px] pr-[8px]`}
+            className={`flex ${LOG_COLUMNS.workflow.width} ${LOG_COLUMNS.workflow.minWidth} items-center gap-2 pr-2`}
           >
             <div
               className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
@@ -96,7 +96,7 @@ const LogRow = memo(
             />
             <span
               className={cn(
-                'min-w-0 truncate font-medium text-[12px]',
+                'min-w-0 truncate font-medium text-caption',
                 isDeletedWorkflow ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]'
               )}
             >
@@ -105,7 +105,7 @@ const LogRow = memo(
           </div>
 
           <span
-            className={`${LOG_COLUMNS.date.width} ${LOG_COLUMNS.date.minWidth} font-medium text-[12px] text-[var(--text-primary)]`}
+            className={`${LOG_COLUMNS.date.width} ${LOG_COLUMNS.date.minWidth} font-medium text-[var(--text-primary)] text-caption`}
           >
             {formattedDate.compactDate} {formattedDate.compactTime}
           </span>
@@ -115,7 +115,7 @@ const LogRow = memo(
           </div>
 
           <span
-            className={`${LOG_COLUMNS.cost.width} ${LOG_COLUMNS.cost.minWidth} font-medium text-[12px] text-[var(--text-primary)]`}
+            className={`${LOG_COLUMNS.cost.width} ${LOG_COLUMNS.cost.minWidth} font-medium text-[var(--text-primary)] text-caption`}
           >
             {typeof log.cost?.total === 'number'
               ? `${dollarsToCredits(log.cost.total).toLocaleString()} credits`
@@ -126,12 +126,12 @@ const LogRow = memo(
             {log.trigger ? (
               <TriggerBadge trigger={log.trigger} />
             ) : (
-              <span className='font-medium text-[12px] text-[var(--text-primary)]'>—</span>
+              <span className='font-medium text-[var(--text-primary)] text-caption'>—</span>
             )}
           </div>
 
           <div className={`${LOG_COLUMNS.duration.width} ${LOG_COLUMNS.duration.minWidth}`}>
-            <Badge variant='default' className='rounded-[6px] px-[9px] py-[2px] text-[12px]'>
+            <Badge variant='default' className='rounded-md px-[9px] py-0.5 text-caption'>
               {formatDuration(log.duration, { precision: 2 }) || '—'}
             </Badge>
           </div>
@@ -145,7 +145,7 @@ const LogRow = memo(
             rel='noopener noreferrer'
             className={cn(
               buttonVariants({ variant: 'active' }),
-              'absolute right-[24px] h-[26px] w-[26px] rounded-[6px] p-0'
+              'absolute right-[24px] h-[26px] w-[26px] rounded-md p-0'
             )}
             aria-label='Open resume console'
             onClick={(e) => e.stopPropagation()}
@@ -197,14 +197,14 @@ function Row({
   if (index >= logs.length) {
     return (
       <div style={style} className='flex items-center justify-center'>
-        <div ref={loaderRef} className='flex items-center gap-[8px] text-[var(--text-secondary)]'>
+        <div ref={loaderRef} className='flex items-center gap-2 text-[var(--text-secondary)]'>
           {isFetchingNextPage ? (
             <>
               <Loader2 className='h-[16px] w-[16px] animate-spin' />
-              <span className='text-[13px]'>Loading more...</span>
+              <span className='text-small'>Loading more...</span>
             </>
           ) : (
-            <span className='text-[13px]'>Scroll to load more</span>
+            <span className='text-small'>Scroll to load more</span>
           )}
         </div>
       </div>

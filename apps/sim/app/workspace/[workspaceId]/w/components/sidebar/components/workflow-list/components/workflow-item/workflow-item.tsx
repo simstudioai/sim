@@ -385,9 +385,9 @@ export function WorkflowItem({
         href={`/workspace/${workspaceId}/w/${workflow.id}`}
         data-item-id={workflow.id}
         className={clsx(
-          'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px]',
+          'group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm',
           active && 'bg-[var(--surface-active)]',
-          !active && !isAnyDragActive && 'hover:bg-[var(--surface-active)]',
+          !active && !isAnyDragActive && 'hover-hover:bg-[var(--surface-active)]',
           isSelected && selectedWorkflows.size > 1 && !active && 'bg-[var(--surface-active)]',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
@@ -398,7 +398,7 @@ export function WorkflowItem({
         onContextMenu={handleContextMenu}
       >
         <div
-          className='h-[16px] w-[16px] flex-shrink-0 rounded-[4px] border-[2.5px]'
+          className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
           style={{
             backgroundColor: workflow.color,
             borderColor: `${workflow.color}60`,
@@ -406,7 +406,7 @@ export function WorkflowItem({
           }}
         />
         <div className='min-w-0 flex-1'>
-          <div className='flex min-w-0 items-center gap-[8px]'>
+          <div className='flex min-w-0 items-center gap-2'>
             {isEditing ? (
               <input
                 ref={inputRef}
@@ -414,7 +414,7 @@ export function WorkflowItem({
                 onChange={(e) => setEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleInputBlur}
-                className='w-full min-w-0 border-0 bg-transparent p-0 font-base text-[14px] text-[var(--text-body)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                className='w-full min-w-0 border-0 bg-transparent p-0 font-base text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
                 maxLength={100}
                 disabled={isRenaming}
                 onClick={(e) => {
@@ -445,7 +445,7 @@ export function WorkflowItem({
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
               className={clsx(
-                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)]',
+                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity hover-hover:bg-[var(--surface-7)]',
                 !isAnyDragActive && 'group-hover:opacity-100'
               )}
             >

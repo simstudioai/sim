@@ -80,9 +80,9 @@ export function RenameDocumentModal({
       <ModalContent size='sm'>
         <ModalHeader>Rename Document</ModalHeader>
         <form onSubmit={handleSubmit} className='flex min-h-0 flex-1 flex-col'>
-          <ModalBody className='!pb-[16px]'>
-            <div className='space-y-[12px]'>
-              <div className='flex flex-col gap-[8px]'>
+          <ModalBody className='!pb-4'>
+            <div className='space-y-3'>
+              <div className='flex flex-col gap-2'>
                 <Label htmlFor='document-name'>Name</Label>
                 <Input
                   id='document-name'
@@ -106,15 +106,15 @@ export function RenameDocumentModal({
             </div>
           </ModalBody>
           <ModalFooter>
-            <div className='flex w-full items-center justify-between gap-[12px]'>
+            <div className='flex w-full items-center justify-between gap-3'>
               {error ? (
-                <p className='min-w-0 flex-1 truncate text-[12px] text-[var(--text-error)] leading-tight'>
+                <p className='min-w-0 flex-1 truncate text-[var(--text-error)] text-caption leading-tight'>
                   {error}
                 </p>
               ) : (
                 <div />
               )}
-              <div className='flex flex-shrink-0 gap-[8px]'>
+              <div className='flex flex-shrink-0 gap-2'>
                 <Button
                   variant='default'
                   onClick={() => onOpenChange(false)}

@@ -6,8 +6,8 @@ import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import { useAutoScroll } from '@/app/workspace/[workspaceId]/home/hooks/use-auto-scroll'
-import { useStreamingReveal } from '@/app/workspace/[workspaceId]/home/hooks/use-streaming-reveal'
+import { useAutoScroll } from '@/hooks/use-auto-scroll'
+import { useStreamingReveal } from '@/hooks/use-streaming-reveal'
 
 type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | null
 
@@ -63,12 +63,12 @@ const PREVIEW_MARKDOWN_COMPONENTS = {
     </p>
   ),
   h1: ({ children }: any) => (
-    <h1 className='mt-6 mb-4 break-words border-[var(--border)] border-b pb-2 font-semibold text-[24px] text-[var(--text-primary)] first:mt-0'>
+    <h1 className='mt-6 mb-4 break-words font-semibold text-[24px] text-[var(--text-primary)] first:mt-0'>
       {children}
     </h1>
   ),
   h2: ({ children }: any) => (
-    <h2 className='mt-5 mb-3 break-words border-[var(--border)] border-b pb-1.5 font-semibold text-[20px] text-[var(--text-primary)] first:mt-0'>
+    <h2 className='mt-5 mb-3 break-words font-semibold text-[20px] text-[var(--text-primary)] first:mt-0'>
       {children}
     </h2>
   ),
@@ -100,7 +100,7 @@ const PREVIEW_MARKDOWN_COMPONENTS = {
       return (
         <code
           {...props}
-          className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[#F59E0B] text-[13px]'
+          className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[13px] text-[var(--caution)]'
         >
           {children}
         </code>
@@ -143,7 +143,7 @@ const PREVIEW_MARKDOWN_COMPONENTS = {
     <img src={src} alt={alt ?? ''} className='my-3 max-w-full rounded-md' loading='lazy' />
   ),
   table: ({ children }: any) => (
-    <div className='my-4 max-w-full overflow-x-auto rounded-md border border-[var(--border)]'>
+    <div className='my-4 max-w-full overflow-x-auto'>
       <table className='w-full border-collapse text-[13px]'>{children}</table>
     </div>
   ),
@@ -181,7 +181,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
   )
 
   return (
-    <div ref={scrollRef} className='h-full overflow-auto p-[24px]'>
+    <div ref={scrollRef} className='h-full overflow-auto p-6'>
       {committedMarkdown}
       {incoming && (
         <div
@@ -234,14 +234,14 @@ function CsvPreview({ content }: { content: string }) {
 
   if (headers.length === 0) {
     return (
-      <div className='flex h-full items-center justify-center p-[24px]'>
+      <div className='flex h-full items-center justify-center p-6'>
         <p className='text-[13px] text-[var(--text-muted)]'>No data to display</p>
       </div>
     )
   }
 
   return (
-    <div className='h-full overflow-auto p-[24px]'>
+    <div className='h-full overflow-auto p-6'>
       <div className='overflow-x-auto rounded-md border border-[var(--border)]'>
         <table className='w-full border-collapse text-[13px]'>
           <thead className='bg-[var(--surface-2)]'>

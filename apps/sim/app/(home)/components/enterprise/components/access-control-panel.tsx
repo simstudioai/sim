@@ -100,14 +100,14 @@ export function AccessControlPanel() {
               <span className='font-[430] font-season text-[#F6F6F6]/30 text-[10px] uppercase leading-none tracking-[0.08em]'>
                 {category.label}
               </span>
-              <div className='mt-[8px] grid grid-cols-2 gap-x-4 gap-y-[8px]'>
+              <div className='mt-2 grid grid-cols-2 gap-x-4 gap-y-2'>
                 {category.features.map((feature, featIdx) => {
                   const enabled = accessState[feature.key]
 
                   return (
                     <motion.div
                       key={feature.key}
-                      className='flex cursor-pointer items-center gap-[8px] rounded-[4px] py-[2px]'
+                      className='flex cursor-pointer items-center gap-2 rounded-[4px] py-0.5'
                       initial={{ opacity: 0, x: -6 }}
                       animate={isInView ? { opacity: 1, x: 0 } : {}}
                       transition={{
@@ -143,7 +143,7 @@ export function AccessControlPanel() {
             <span className='font-[430] font-season text-[#F6F6F6]/30 text-[10px] uppercase leading-none tracking-[0.08em]'>
               {category.label}
             </span>
-            <div className='mt-[8px] grid grid-cols-2 gap-x-4 gap-y-[8px]'>
+            <div className='mt-2 grid grid-cols-2 gap-x-4 gap-y-2'>
               {category.features.map((feature, featIdx) => {
                 const enabled = accessState[feature.key]
                 const currentIndex =
@@ -155,7 +155,7 @@ export function AccessControlPanel() {
                 return (
                   <motion.div
                     key={feature.key}
-                    className='flex cursor-pointer items-center gap-[8px] rounded-[4px] py-[2px]'
+                    className='flex cursor-pointer items-center gap-2 rounded-[4px] py-0.5'
                     initial={{ opacity: 0, x: -6 }}
                     animate={isInView ? { opacity: 1, x: 0 } : {}}
                     transition={{

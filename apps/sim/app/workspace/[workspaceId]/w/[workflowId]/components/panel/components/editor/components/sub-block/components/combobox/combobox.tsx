@@ -453,7 +453,7 @@ export const ComboBox = memo(function ComboBox({
     const displayLabel = inputValue
     return (
       <div className='flex w-full items-center truncate [scrollbar-width:none]'>
-        {SelectedIcon && <SelectedIcon className='mr-[8px] h-3 w-3 flex-shrink-0' />}
+        {SelectedIcon && <SelectedIcon className='mr-2 h-3 w-3 flex-shrink-0' />}
         <div className='truncate'>
           {formatDisplayText(displayLabel, {
             accessiblePrefixes,
@@ -568,7 +568,7 @@ export const ComboBox = memo(function ComboBox({
               inputRef={ref as React.RefObject<HTMLInputElement>}
               filterOptions
               searchable={config.searchable}
-              className={cn('allow-scroll overflow-x-auto', selectedOptionIcon && 'pl-[28px]')}
+              className={cn('allow-scroll overflow-x-auto', selectedOptionIcon && 'pl-7')}
               inputProps={comboboxInputProps}
               isLoading={isLoadingOptions}
               error={fetchError}

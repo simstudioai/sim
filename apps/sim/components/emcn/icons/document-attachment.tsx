@@ -12,6 +12,7 @@ export function DocumentAttachment(props: SVGProps<SVGSVGElement>) {
       viewBox='0 0 12 13'
       fill='none'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path

@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { NotionIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('NotionConnector')
 
@@ -38,6 +38,18 @@ function blocksToPlainText(blocks: Record<string, unknown>[]): string {
       const type = block.type as string
       const blockData = block[type] as Record<string, unknown> | undefined
       if (!blockData) return ''
+
+      if (type === 'code') {
+        const richText = blockData.rich_text as Record<string, unknown>[] | undefined
+        const language = (blockData.language as string) || ''
+        const code = richText ? richTextToPlain(richText) : ''
+        return language ? `\`\`\`${language}\n${code}\n\`\`\`` : `\`\`\`\n${code}\n\`\`\``
+      }
+
+      if (type === 'equation') {
+        const expression = (blockData.expression as string) || ''
+        return expression ? `$$${expression}$$` : ''
+      }
 
       const richText = blockData.rich_text as Record<string, unknown>[] | undefined
       if (!richText) return ''
@@ -135,32 +147,25 @@ function extractTags(properties: Record<string, unknown>): string[] {
 }
 
 /**
- * Converts a Notion page to an ExternalDocument by fetching its block content.
+ * Converts a Notion page to a lightweight metadata stub (no content fetching).
  */
-async function pageToExternalDocument(
-  accessToken: string,
-  page: Record<string, unknown>
-): Promise<ExternalDocument> {
+function pageToStub(page: Record<string, unknown>): ExternalDocument {
   const pageId = page.id as string
   const properties = (page.properties || {}) as Record<string, unknown>
   const title = extractTitle(properties)
   const url = page.url as string
+  const lastEditedTime = (page.last_edited_time as string) ?? ''
 
-  // Fetch page content
-  const blocks = await fetchAllBlocks(accessToken, pageId)
-  const plainText = blocksToPlainText(blocks)
-  const contentHash = await computeContentHash(plainText)
-
-  // Extract tags from multi_select/select properties
   const tags = extractTags(properties)
 
   return {
     externalId: pageId,
     title: title || 'Untitled',
-    content: plainText,
+    content: '',
+    contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: url,
-    contentHash,
+    contentHash: `notion:${pageId}:${lastEditedTime}`,
     metadata: {
       tags,
       lastModified: page.last_edited_time as string,
@@ -260,7 +265,8 @@ export const notionConnector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     _sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    _syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const response = await fetchWithRetry(`${NOTION_BASE_URL}/pages/${externalId}`, {
       method: 'GET',
@@ -276,7 +282,20 @@ export const notionConnector: ConnectorConfig = {
     }
 
     const page = await response.json()
-    return pageToExternalDocument(accessToken, page)
+    if (page.archived) return null
+
+    try {
+      const blocks = await fetchAllBlocks(accessToken, externalId)
+      const blockContent = blocksToPlainText(blocks)
+      const stub = pageToStub(page)
+      const content = blockContent.trim() || stub.title
+      return { ...stub, content, contentDeferred: false }
+    } catch (error) {
+      logger.warn(`Failed to fetch content for Notion page: ${externalId}`, {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return null
+    }
   },
 
   validateConfig: async (
@@ -430,11 +449,12 @@ async function listFromWorkspace(
   const results = (data.results || []) as Record<string, unknown>[]
   const pages = results.filter((r) => r.object === 'page' && !(r.archived as boolean))
 
-  const documents = await processPages(accessToken, pages)
+  const documents = pages.map(pageToStub)
 
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
+  if (hitLimit && syncContext) syncContext.listingCapped = true
 
   const nextCursor = hitLimit ? undefined : ((data.next_cursor as string) ?? undefined)
 
@@ -485,11 +505,12 @@ async function listFromDatabase(
   const results = (data.results || []) as Record<string, unknown>[]
   const pages = results.filter((r) => r.object === 'page' && !(r.archived as boolean))
 
-  const documents = await processPages(accessToken, pages)
+  const documents = pages.map(pageToStub)
 
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
+  if (hitLimit && syncContext) syncContext.listingCapped = true
 
   const nextCursor = hitLimit ? undefined : ((data.next_cursor as string) ?? undefined)
 
@@ -504,7 +525,7 @@ async function listFromDatabase(
  * Lists child pages under a specific parent page.
  *
  * Uses the blocks children endpoint to find child_page blocks,
- * then fetches each page's content.
+ * then fetches each page's metadata to build lightweight stubs.
  */
 async function listFromParentPage(
   accessToken: string,
@@ -536,15 +557,17 @@ async function listFromParentPage(
   }
 
   const data = await response.json()
-  const blocks = (data.results || []) as Record<string, unknown>[]
+  const blockResults = (data.results || []) as Record<string, unknown>[]
 
   // Filter to child_page blocks only (child_database blocks cannot be fetched via the Pages API)
-  const childPageIds = blocks.filter((b) => b.type === 'child_page').map((b) => b.id as string)
+  const childPageIds = blockResults
+    .filter((b) => b.type === 'child_page')
+    .map((b) => b.id as string)
 
   // Also include the root page itself on the first call (no cursor)
   const pageIdsToFetch = !cursor ? [rootPageId, ...childPageIds] : childPageIds
 
-  // Fetch child pages in concurrent batches
+  // Fetch page metadata (not content) in concurrent batches to build stubs
   const CHILD_PAGE_CONCURRENCY = 5
 
   const documents: ExternalDocument[] = []
@@ -568,7 +591,7 @@ async function listFromParentPage(
           }
           const page = await pageResponse.json()
           if (page.archived) return null
-          return pageToExternalDocument(accessToken, page)
+          return pageToStub(page)
         } catch (error) {
           logger.warn(`Failed to process child page ${pageId}`, {
             error: error instanceof Error ? error.message : String(error),
@@ -583,6 +606,7 @@ async function listFromParentPage(
   const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
+  if (hitLimit && syncContext) syncContext.listingCapped = true
 
   const nextCursor = hitLimit ? undefined : ((data.next_cursor as string) ?? undefined)
 
@@ -591,32 +615,4 @@ async function listFromParentPage(
     nextCursor,
     hasMore: hitLimit ? false : data.has_more === true,
   }
-}
-
-/**
- * Converts an array of Notion page objects to ExternalDocuments.
- */
-async function processPages(
-  accessToken: string,
-  pages: Record<string, unknown>[]
-): Promise<ExternalDocument[]> {
-  const CONCURRENCY = 3
-  const documents: ExternalDocument[] = []
-  for (let i = 0; i < pages.length; i += CONCURRENCY) {
-    const batch = pages.slice(i, i + CONCURRENCY)
-    const results = await Promise.all(
-      batch.map(async (page) => {
-        try {
-          return await pageToExternalDocument(accessToken, page)
-        } catch (error) {
-          logger.warn(`Failed to process Notion page ${page.id}`, {
-            error: error instanceof Error ? error.message : String(error),
-          })
-          return null
-        }
-      })
-    )
-    documents.push(...(results.filter(Boolean) as ExternalDocument[]))
-  }
-  return documents
 }

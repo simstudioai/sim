@@ -16,6 +16,7 @@ export function Check(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path d='M18.25 2.75L7.25 15.75L1.75 10.25' />

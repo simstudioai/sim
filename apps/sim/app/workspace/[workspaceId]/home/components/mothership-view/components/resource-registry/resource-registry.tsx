@@ -2,7 +2,12 @@
 
 import type { ElementType, ReactNode } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
-import { Database, File as FileIcon, Table as TableIcon } from '@/components/emcn/icons'
+import {
+  Database,
+  File as FileIcon,
+  Table as TableIcon,
+  TerminalWindow,
+} from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -67,13 +72,22 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
   const DocIcon = getDocumentIcon('', item.name)
   return (
     <>
-      <DocIcon className='mr-[8px] h-[14px] w-[14px] text-[var(--text-icon)]' />
+      <DocIcon className='mr-2 h-[14px] w-[14px] text-[var(--text-icon)]' />
       <span className='truncate'>{item.name}</span>
     </>
   )
 }
 
 export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfig> = {
+  generic: {
+    type: 'generic',
+    label: 'Results',
+    icon: TerminalWindow,
+    renderTabIcon: (_resource, className) => (
+      <TerminalWindow className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
+  },
   workflow: {
     type: 'workflow',
     label: 'Workflows',
@@ -119,8 +133,10 @@ export function getResourceConfig(type: MothershipResourceType): ResourceTypeCon
   return RESOURCE_REGISTRY[type]
 }
 
+type CacheableResourceType = Exclude<MothershipResourceType, 'generic'>
+
 const RESOURCE_INVALIDATORS: Record<
-  MothershipResourceType,
+  CacheableResourceType,
   (qc: QueryClient, workspaceId: string, resourceId: string) => void
 > = {
   table: (qc, _wId, id) => {
@@ -153,5 +169,6 @@ export function invalidateResourceQueries(
   resourceType: MothershipResourceType,
   resourceId: string
 ): void {
+  if (resourceType === 'generic') return
   RESOURCE_INVALIDATORS[resourceType](queryClient, workspaceId, resourceId)
 }

@@ -148,7 +148,7 @@ export function SkillModal({
 
   const createForm = (
     <div className='flex flex-col gap-[18px]'>
-      <div className='flex flex-col gap-[4px]'>
+      <div className='flex flex-col gap-1'>
         <Label htmlFor='skill-name' className='font-medium text-[14px]'>
           Name
         </Label>
@@ -171,7 +171,7 @@ export function SkillModal({
         )}
       </div>
 
-      <div className='flex flex-col gap-[4px]'>
+      <div className='flex flex-col gap-1'>
         <Label htmlFor='skill-description' className='font-medium text-[14px]'>
           Description
         </Label>
@@ -191,7 +191,7 @@ export function SkillModal({
         )}
       </div>
 
-      <div className='flex flex-col gap-[4px]'>
+      <div className='flex flex-col gap-1'>
         <Label htmlFor='skill-content' className='font-medium text-[14px]'>
           Content
         </Label>

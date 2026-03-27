@@ -93,15 +93,15 @@ const SKELETON_COL_COUNT = 4
 const SKELETON_ROW_COUNT = 10
 const ROW_HEIGHT_ESTIMATE = 35
 
-const CELL = 'border-[var(--border)] border-r border-b px-[8px] py-[7px] align-middle select-none'
+const CELL = 'border-[var(--border)] border-r border-b px-2 py-[7px] align-middle select-none'
 const CELL_CHECKBOX =
-  'border-[var(--border)] border-r border-b px-[4px] py-[7px] align-middle select-none'
+  'border-[var(--border)] border-r border-b px-1 py-[7px] align-middle select-none'
 const CELL_HEADER =
-  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-[8px] py-[7px] text-left align-middle'
+  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
 const CELL_HEADER_CHECKBOX =
-  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-[4px] py-[7px] text-center align-middle'
+  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-1 py-[7px] text-center align-middle'
 const CELL_CONTENT =
-  'relative min-h-[20px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[13px]'
+  'relative min-h-[20px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-small'
 const SELECTION_OVERLAY =
   'pointer-events-none absolute -top-px -right-px -bottom-px -left-px z-[5] border-[2px] border-[var(--selection)]'
 
@@ -1579,11 +1579,11 @@ export function Table({
 
   if (!isLoadingTable && !tableData) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
         <TableX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
-        <div className='flex flex-col items-center gap-[4px]'>
+        <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>Table not found</h2>
-          <p className='text-[13px] text-[var(--text-muted)]'>
+          <p className='text-[var(--text-muted)] text-small'>
             This table may have been deleted or moved
           </p>
         </div>
@@ -1612,7 +1612,7 @@ export function Table({
       >
         <div className='relative h-fit' style={{ width: `${tableWidth}px` }}>
           <table
-            className='table-fixed border-separate border-spacing-0 text-[13px]'
+            className='table-fixed border-separate border-spacing-0 text-small'
             style={{ width: `${tableWidth}px` }}
           >
             {isLoadingTable ? (
@@ -1631,20 +1631,20 @@ export function Table({
                 <tr>
                   <th className={CELL_HEADER_CHECKBOX}>
                     <div className='flex items-center justify-center'>
-                      <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+                      <Skeleton className='h-[14px] w-[14px] rounded-xs' />
                     </div>
                   </th>
                   {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
                     <th key={i} className={CELL_HEADER}>
-                      <div className='flex h-[20px] min-w-0 items-center gap-[6px]'>
-                        <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-[2px]' />
+                      <div className='flex h-[20px] min-w-0 items-center gap-1.5'>
+                        <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
                         <Skeleton className='h-[14px]' style={{ width: `${56 + i * 16}px` }} />
                       </div>
                     </th>
                   ))}
                   <th className={CELL_HEADER}>
-                    <div className='flex h-[20px] items-center gap-[8px]'>
-                      <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-[2px]' />
+                    <div className='flex h-[20px] items-center gap-2'>
+                      <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
                       <Skeleton className='h-[14px] w-[72px]' />
                     </div>
                   </th>
@@ -1911,7 +1911,7 @@ const PositionGapRows = React.memo(
               >
                 <span
                   className={cn(
-                    'text-[11px] text-[var(--text-tertiary)] tabular-nums',
+                    'text-[var(--text-tertiary)] text-xs tabular-nums',
                     isGapChecked ? 'hidden' : 'block group-hover/checkbox:hidden'
                   )}
                 >
@@ -2154,7 +2154,7 @@ const DataRow = React.memo(function DataRow({
       >
         <span
           className={cn(
-            'text-[11px] text-[var(--text-tertiary)] tabular-nums',
+            'text-[var(--text-tertiary)] text-xs tabular-nums',
             isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
           )}
         >
@@ -2405,7 +2405,7 @@ function InlineDateEditor({
         onBlur={handleBlur}
         placeholder='mm/dd/yyyy'
         className={cn(
-          'w-full min-w-0 select-text border-none bg-transparent p-0 text-[13px] text-[var(--text-primary)] outline-none'
+          'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
         )}
       />
       <div className='absolute top-full left-0 h-0 w-0'>
@@ -2499,7 +2499,7 @@ function InlineTextEditor({
       onKeyDown={handleKeyDown}
       onBlur={() => doSave('blur')}
       className={cn(
-        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[13px] text-[var(--text-primary)] outline-none'
+        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
       )}
     />
   )
@@ -2529,7 +2529,7 @@ const TableBodySkeleton = React.memo(function TableBodySkeleton({
         <tr key={rowIndex}>
           <td className={cn(CELL_CHECKBOX, 'text-center')}>
             <div className='flex min-h-[20px] items-center justify-center'>
-              <span className='text-[11px] text-[var(--text-tertiary)] tabular-nums'>
+              <span className='text-[var(--text-tertiary)] text-xs tabular-nums'>
                 {rowIndex + 1}
               </span>
             </div>
@@ -2710,7 +2710,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         <div className='pointer-events-none absolute top-0 right-[-1px] bottom-0 z-10 w-[2px] bg-[var(--selection)]' />
       )}
       {isRenaming ? (
-        <div className='flex h-full w-full min-w-0 items-center px-[8px] py-[7px]'>
+        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon type={column.type} />
           <input
             ref={renameInputRef}
@@ -2722,13 +2722,13 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               if (e.key === 'Escape') onRenameCancel()
             }}
             onBlur={onRenameSubmit}
-            className='ml-[6px] min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-[13px] text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0'
+            className='ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-small outline-none focus:outline-none focus:ring-0'
           />
         </div>
       ) : readOnly ? (
-        <div className='flex h-full w-full min-w-0 items-center px-[8px] py-[7px]'>
+        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon type={column.type} />
-          <span className='ml-[6px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
+          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
             {column.name}
           </span>
         </div>
@@ -2737,13 +2737,13 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           <DropdownMenuTrigger asChild>
             <button
               type='button'
-              className='flex h-full w-full min-w-0 cursor-grab items-center px-[8px] py-[7px] outline-none active:cursor-grabbing'
+              className='flex h-full w-full min-w-0 cursor-pointer items-center px-2 py-[7px] outline-none active:cursor-grabbing'
             >
               <ColumnTypeIcon type={column.type} />
-              <span className='ml-[6px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
+              <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
                 {column.name}
               </span>
-              <ChevronDown className='ml-[8px] h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
+              <ChevronDown className='ml-2 h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='start'>
@@ -2828,12 +2828,12 @@ const AddColumnButton = React.memo(function AddColumnButton({
     <th className={CELL_HEADER}>
       <button
         type='button'
-        className='flex h-[20px] cursor-pointer items-center gap-[8px]'
+        className='flex h-[20px] cursor-pointer items-center gap-2'
         onClick={onClick}
         disabled={disabled}
       >
         <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='font-medium text-[13px] text-[var(--text-body)]'>New column</span>
+        <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
       </button>
     </th>
   )
@@ -2841,14 +2841,14 @@ const AddColumnButton = React.memo(function AddColumnButton({
 
 const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: () => void }) {
   return (
-    <div className='px-[8px] py-[7px]'>
+    <div className='px-2 py-[7px]'>
       <button
         type='button'
-        className='flex h-[20px] cursor-pointer items-center gap-[8px]'
+        className='flex h-[20px] cursor-pointer items-center gap-2'
         onClick={onClick}
       >
         <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='font-medium text-[13px] text-[var(--text-body)]'>New row</span>
+        <span className='font-medium text-[var(--text-body)] text-small'>New row</span>
       </button>
     </div>
   )

@@ -662,6 +662,14 @@ export interface NavigableBlockEntry {
   parentNodeIds: string[]
 }
 
+export interface VisibleTerminalRow {
+  id: string
+  rowType: 'separator' | 'node'
+  executionId: string
+  depth: number
+  node?: EntryNode
+}
+
 /**
  * Flattens entry tree to only include actual block entries (not subflows/iterations).
  * Also tracks parent node IDs for auto-expanding when navigating.
@@ -688,6 +696,50 @@ export function flattenBlockEntriesOnly(
   return result
 }
 
+export function flattenVisibleExecutionRows(
+  executionGroups: ExecutionGroup[],
+  expandedNodes: Set<string>
+): VisibleTerminalRow[] {
+  const rows: VisibleTerminalRow[] = []
+
+  const appendNodeRows = (nodes: EntryNode[], executionId: string, depth: number) => {
+    for (const node of nodes) {
+      rows.push({
+        id: `${executionId}:${node.entry.id}`,
+        rowType: 'node',
+        executionId,
+        depth,
+        node,
+      })
+
+      if (
+        node.children.length > 0 &&
+        (node.nodeType === 'subflow' ||
+          node.nodeType === 'iteration' ||
+          node.nodeType === 'workflow') &&
+        expandedNodes.has(node.entry.id)
+      ) {
+        appendNodeRows(node.children, executionId, depth + 1)
+      }
+    }
+  }
+
+  executionGroups.forEach((group, index) => {
+    if (index > 0) {
+      rows.push({
+        id: `separator:${group.executionId}`,
+        rowType: 'separator',
+        executionId: group.executionId,
+        depth: 0,
+      })
+    }
+
+    appendNodeRows(group.entryTree, group.executionId, 0)
+  })
+
+  return rows
+}
+
 /**
  * Terminal height configuration constants
  */
@@ -695,4 +747,5 @@ export const TERMINAL_CONFIG = {
   NEAR_MIN_THRESHOLD: 40,
   BLOCK_COLUMN_WIDTH_PX: TERMINAL_BLOCK_COLUMN_WIDTH,
   HEADER_TEXT_CLASS: 'font-base text-[var(--text-icon)] text-small',
+  LOG_ROW_HEIGHT_PX: 32,
 } as const

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button, Input, Label } from '@/components/emcn'
@@ -10,7 +11,7 @@ import { env, isFalsy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 
 const logger = createLogger('SSOForm')
 
@@ -50,13 +51,11 @@ export default function SSOForm() {
         }
       }
 
-      // Pre-fill email if provided in URL (e.g., from deployed chat SSO)
       const emailParam = searchParams.get('email')
       if (emailParam) {
         setEmail(emailParam)
       }
 
-      // Check for SSO error from redirect
       const error = searchParams.get('error')
       if (error) {
         const errorMessages: Record<string, string> = {
@@ -134,8 +133,20 @@ export default function SSOForm() {
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className={'font-[500] text-[#ECECEC] text-[32px] tracking-tight'}>Sign in with SSO</h1>
-        <p className={'font-[380] text-[#999] text-[16px]'}>Enter your work email to continue</p>
+        <h1
+          className={
+            'text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'
+          }
+        >
+          Sign in with SSO
+        </h1>
+        <p
+          className={
+            'font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'
+          }
+        >
+          Enter your work email to continue
+        </p>
       </div>
 
       <form onSubmit={onSubmit} className={'mt-8 space-y-8'}>
@@ -171,14 +182,16 @@ export default function SSOForm() {
           </div>
         </div>
 
-        <BrandedButton
-          type='submit'
-          disabled={isLoading}
-          loading={isLoading}
-          loadingText='Redirecting to SSO provider'
-        >
-          Continue with SSO
-        </BrandedButton>
+        <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
+          {isLoading ? (
+            <span className='flex items-center gap-2'>
+              <Loader2 className='h-4 w-4 animate-spin' />
+              Redirecting to SSO provider...
+            </span>
+          ) : (
+            'Continue with SSO'
+          )}
+        </button>
       </form>
 
       {/* Only show divider and email signin button if email/password is enabled */}
@@ -186,10 +199,12 @@ export default function SSOForm() {
         <>
           <div className='relative my-6 font-light'>
             <div className='absolute inset-0 flex items-center'>
-              <div className='w-full border-[#2A2A2A] border-t' />
+              <div className='w-full border-[var(--landing-bg-elevated)] border-t' />
             </div>
             <div className='relative flex justify-center text-sm'>
-              <span className='bg-[#1C1C1C] px-4 font-[340] text-[#999]'>Or</span>
+              <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--landing-text-muted)]'>
+                Or
+              </span>
             </div>
           </div>
 
@@ -207,24 +222,24 @@ export default function SSOForm() {
 
       {/* Only show signup link if email/password signup is enabled */}
       {!isFalsy(env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED) && (
-        <div className='pt-6 text-center font-light text-[15px]'>
+        <div className='pt-6 text-center font-light text-base'>
           <span className='font-normal'>Don't have an account? </span>
           <Link
             href={`/signup${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
-            className='font-medium text-[#ECECEC] underline-offset-4 transition hover:text-white hover:underline'
+            className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
           >
             Sign up
           </Link>
         </div>
       )}
 
-      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[#999] text-[14px] leading-relaxed sm:px-8 md:px-[44px]'>
+      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[var(--landing-text-muted)] text-sm leading-relaxed sm:px-8 md:px-[44px]'>
         By signing in, you agree to our{' '}
         <Link
           href='/terms'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[#999] underline-offset-4 transition hover:text-[#ECECEC] hover:underline'
+          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
         >
           Terms of Service
         </Link>{' '}
@@ -233,7 +248,7 @@ export default function SSOForm() {
           href='/privacy'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[#999] underline-offset-4 transition hover:text-[#ECECEC] hover:underline'
+          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
         >
           Privacy Policy
         </Link>

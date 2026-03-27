@@ -156,7 +156,7 @@ export async function executeDeployChat(
         primaryColor:
           params.customizations?.primaryColor ||
           existingCustomizations.primaryColor ||
-          'var(--brand-primary-hover-hex)',
+          'var(--brand-hover)',
         welcomeMessage:
           params.customizations?.welcomeMessage ||
           existingCustomizations.welcomeMessage ||
