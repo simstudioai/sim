@@ -211,8 +211,13 @@ export function ConnectorsSection({
           <ModalHeader>Delete Connector</ModalHeader>
           <ModalBody>
             <p className='text-[var(--text-secondary)] text-sm'>
-              Are you sure you want to remove this connected source? Documents already synced will
-              remain in the knowledge base.
+              Are you sure you want to remove this connected source?{' '}
+              <span className='text-[var(--text-error)]'>
+                This will stop future syncs from this source.
+              </span>{' '}
+              <span className='text-[var(--text-tertiary)]'>
+                Documents already synced will remain in the knowledge base.
+              </span>
             </p>
           </ModalBody>
           <ModalFooter>

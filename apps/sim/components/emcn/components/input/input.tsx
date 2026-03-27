@@ -26,7 +26,7 @@ import { cn } from '@/lib/core/utils/cn'
  * Currently supports a 'default' variant.
  */
 const inputVariants = cva(
-  'flex w-full touch-manipulation rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-medium font-sans text-sm text-[var(--text-primary)] transition-colors placeholder:text-[var(--text-muted)] outline-none focus-visible:border-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50',
+  'flex w-full touch-manipulation rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-medium font-sans text-sm text-[var(--text-primary)] transition-colors placeholder:text-[var(--text-muted)] outline-none disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       variant: {

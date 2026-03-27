@@ -47,10 +47,17 @@ export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
               <>
                 Are you sure you want to delete{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
-                All associated documents, chunks, and embeddings will be removed.
+                <span className='text-[var(--text-error)]'>
+                  All associated documents, chunks, and embeddings will be removed.
+                </span>
               </>
             ) : (
-              'Are you sure you want to delete this knowledge base? All associated documents, chunks, and embeddings will be removed.'
+              <>
+                Are you sure you want to delete this knowledge base?{' '}
+                <span className='text-[var(--text-error)]'>
+                  All associated documents, chunks, and embeddings will be removed.
+                </span>
+              </>
             )}{' '}
             <span className='text-[var(--text-tertiary)]'>
               You can restore it from Recently Deleted in Settings.

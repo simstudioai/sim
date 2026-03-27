@@ -929,7 +929,7 @@ export function Chat() {
         >
           {shouldShowConfigureStartInputsButton && (
             <div
-              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-0.5 font-medium font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-7)] dark:hover-hover:border-[var(--surface-7)] dark:hover-hover:bg-[var(--border-1)]'
+              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-0.5 font-medium font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-active)]'
               title='Add chat inputs to Start block'
               onMouseDown={(e) => {
                 e.stopPropagation()

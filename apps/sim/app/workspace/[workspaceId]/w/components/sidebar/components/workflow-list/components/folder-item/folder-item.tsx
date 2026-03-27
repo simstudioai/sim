@@ -448,8 +448,11 @@ export function FolderItem({
         aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
         className={clsx(
           'group mx-0.5 flex h-[30px] cursor-pointer items-center gap-2 rounded-lg px-2 text-sm',
-          !isAnyDragActive && 'hover-hover:bg-[var(--surface-active)]',
-          isSelected ? 'bg-[var(--surface-active)]' : '',
+          !isSelected &&
+            !isContextMenuOpen &&
+            !isAnyDragActive &&
+            'hover-hover:bg-[var(--surface-hover)]',
+          (isSelected || isContextMenuOpen) && 'bg-[var(--surface-active)]',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         onClick={handleClick}
@@ -511,8 +514,9 @@ export function FolderItem({
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
               className={clsx(
-                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity hover-hover:bg-[var(--surface-7)]',
-                !isAnyDragActive && 'group-hover:opacity-100'
+                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity',
+                !isAnyDragActive && 'group-hover:opacity-100',
+                isContextMenuOpen && 'opacity-100'
               )}
             >
               <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />

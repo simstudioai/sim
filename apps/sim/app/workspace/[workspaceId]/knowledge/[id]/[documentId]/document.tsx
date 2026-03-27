@@ -1138,9 +1138,12 @@ export function Document({
               <span className='font-medium text-[var(--text-primary)]'>
                 {effectiveDocumentName}
               </span>
-              ? This will permanently delete the document and all {documentData?.chunkCount ?? 0}{' '}
-              chunk
-              {documentData?.chunkCount === 1 ? '' : 's'} within it.{' '}
+              ?{' '}
+              <span className='text-[var(--text-error)]'>
+                This will permanently delete the document and all {documentData?.chunkCount ?? 0}{' '}
+                chunk
+                {documentData?.chunkCount === 1 ? '' : 's'} within it.
+              </span>{' '}
               {documentData?.connectorId ? (
                 <span className='text-[var(--text-error)]'>
                   This document is synced from a connector. Deleting it will permanently exclude it

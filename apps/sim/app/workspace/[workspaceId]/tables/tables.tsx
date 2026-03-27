@@ -320,8 +320,10 @@ export function Tables() {
           <ModalBody>
             <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?
-              All {activeTable?.rowCount} rows will be removed.{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
+              <span className='text-[var(--text-error)]'>
+                All {activeTable?.rowCount} rows will be removed.
+              </span>{' '}
               <span className='text-[var(--text-tertiary)]'>
                 You can restore it from Recently Deleted in Settings.
               </span>

@@ -1106,8 +1106,10 @@ export function KnowledgeBase({
             <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
-              The knowledge base and all {pagination.total} document
-              {pagination.total === 1 ? '' : 's'} within it will be removed.{' '}
+              <span className='text-[var(--text-error)]'>
+                The knowledge base and all {pagination.total} document
+                {pagination.total === 1 ? '' : 's'} within it will be removed.
+              </span>{' '}
               <span className='text-[var(--text-tertiary)]'>
                 You can restore it from Recently Deleted in Settings.
               </span>
@@ -1147,7 +1149,9 @@ export function KnowledgeBase({
                       it from future syncs. To temporarily hide it from search, disable it instead.
                     </span>
                   ) : (
-                    <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+                    <span className='text-[var(--text-error)]'>
+                      This will permanently delete the document.
+                    </span>
                   )}
                 </p>
               )
@@ -1177,7 +1181,10 @@ export function KnowledgeBase({
             <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete {selectedDocuments.size} document
               {selectedDocuments.size === 1 ? '' : 's'}?{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              <span className='text-[var(--text-error)]'>
+                This will permanently delete the selected document
+                {selectedDocuments.size === 1 ? '' : 's'}.
+              </span>
             </p>
           </ModalBody>
           <ModalFooter>
