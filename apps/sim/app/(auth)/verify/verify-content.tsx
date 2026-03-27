@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { useVerification } from '@/app/(auth)/verify/use-verification'
 
 interface VerifyContentProps {
@@ -113,7 +114,7 @@ function VerificationForm({
           <button
             onClick={verifyCode}
             disabled={!isOtpComplete || isLoading}
-            className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
+            className={AUTH_SUBMIT_BTN}
           >
             {isLoading ? (
               <span className='flex items-center gap-2'>

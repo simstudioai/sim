@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 
 interface SSOLoginButtonProps {
   callbackURL?: string
@@ -27,10 +28,6 @@ export function SSOLoginButton({
     router.push(ssoUrl)
   }
 
-  const primaryBtnClasses = cn(
-    'flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#6f3dfa] bg-gradient-to-b from-[#8357ff] to-[#6f3dfa] font-medium text-base text-white shadow-[inset_0_2px_4px_0_#9b77ff] transition-all duration-200 hover:opacity-90'
-  )
-
   const outlineBtnClasses = cn('w-full rounded-[10px]')
 
   return (
@@ -38,7 +35,7 @@ export function SSOLoginButton({
       type='button'
       onClick={handleSSOClick}
       variant={variant === 'outline' ? 'outline' : undefined}
-      className={cn(variant === 'outline' ? outlineBtnClasses : primaryBtnClasses, className)}
+      className={cn(variant === 'outline' ? outlineBtnClasses : AUTH_SUBMIT_BTN, className)}
     >
       Sign in with SSO
     </Button>

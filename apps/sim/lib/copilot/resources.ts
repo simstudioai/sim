@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
+import { isEphemeralResource } from '@/lib/copilot/resource-extraction'
 import type { MothershipResource } from '@/lib/copilot/resource-types'
 
 export {
