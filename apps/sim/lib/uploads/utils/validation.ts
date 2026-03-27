@@ -137,7 +137,8 @@ export interface FileValidationError {
  * Validate if a file type is supported for document processing
  */
 export function validateFileType(fileName: string, mimeType: string): FileValidationError | null {
-  const extension = path.extname(fileName).toLowerCase().substring(1) as SupportedDocumentExtension
+  const raw = path.extname(fileName).toLowerCase().substring(1)
+  const extension = (/^[a-z0-9]+$/.test(raw) ? raw : '') as SupportedDocumentExtension
 
   if (!SUPPORTED_DOCUMENT_EXTENSIONS.includes(extension)) {
     return {
@@ -221,7 +222,8 @@ export function validateMediaFileType(
   fileName: string,
   mimeType: string
 ): FileValidationError | null {
-  const extension = path.extname(fileName).toLowerCase().substring(1)
+  const raw = path.extname(fileName).toLowerCase().substring(1)
+  const extension = /^[a-z0-9]+$/.test(raw) ? raw : ''
 
   const isAudio = SUPPORTED_AUDIO_EXTENSIONS.includes(extension as SupportedAudioExtension)
   const isVideo = SUPPORTED_VIDEO_EXTENSIONS.includes(extension as SupportedVideoExtension)

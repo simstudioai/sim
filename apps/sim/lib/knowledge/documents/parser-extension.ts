@@ -29,9 +29,8 @@ export function resolveParserExtension(
   mimeType?: string,
   fallback?: string
 ): string {
-  const filenameExtension = filename.includes('.')
-    ? filename.split('.').pop()?.toLowerCase()
-    : undefined
+  const raw = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : undefined
+  const filenameExtension = raw && /^[a-z0-9]+$/.test(raw) ? raw : undefined
 
   if (filenameExtension && isSupportedParserExtension(filenameExtension)) {
     return filenameExtension
