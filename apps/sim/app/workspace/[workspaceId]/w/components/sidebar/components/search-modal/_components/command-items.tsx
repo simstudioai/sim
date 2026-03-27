@@ -185,9 +185,5 @@ export const MemoizedIconItem = memo(
       </Command.Item>
     )
   },
-  (prev, next) =>
-    prev.value === next.value &&
-    prev.name === next.name &&
-    prev.icon === next.icon &&
-    prev.onSelect === next.onSelect
+  (prev, next) => prev.value === next.value && prev.name === next.name && prev.icon === next.icon
 )
