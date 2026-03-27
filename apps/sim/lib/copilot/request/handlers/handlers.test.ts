@@ -1,0 +1,356 @@
+/**
+ * @vitest-environment node
+ */
+
+import { loggerMock } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@sim/logger', () => loggerMock)
+
+const { isSimExecuted, executeTool, ensureHandlersRegistered } = vi.hoisted(() => ({
+  isSimExecuted: vi.fn().mockReturnValue(true),
+  executeTool: vi.fn().mockResolvedValue({ success: true, output: { ok: true } }),
+  ensureHandlersRegistered: vi.fn(),
+}))
+
+const { upsertAsyncToolCall, markAsyncToolRunning, completeAsyncToolCall } = vi.hoisted(() => ({
+  upsertAsyncToolCall: vi.fn(),
+  markAsyncToolRunning: vi.fn(),
+  completeAsyncToolCall: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/tool-executor', () => ({
+  isSimExecuted,
+  executeTool,
+  ensureHandlersRegistered,
+}))
+
+vi.mock('@/lib/copilot/async-runs/repository', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/copilot/async-runs/repository')>(
+    '@/lib/copilot/async-runs/repository'
+  )
+  return {
+    ...actual,
+    upsertAsyncToolCall,
+    markAsyncToolRunning,
+    completeAsyncToolCall,
+  }
+})
+
+import {
+  MothershipStreamV1EventType,
+  MothershipStreamV1ToolExecutor,
+  MothershipStreamV1ToolMode,
+  MothershipStreamV1ToolOutcome,
+  MothershipStreamV1ToolPhase,
+} from '@/lib/copilot/generated/mothership-stream-v1'
+import { Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
+import { sseHandlers } from '@/lib/copilot/request/handlers'
+import type { ExecutionContext, StreamEvent, StreamingContext } from '@/lib/copilot/request/types'
+
+describe('sse-handlers tool lifecycle', () => {
+  let context: StreamingContext
+  let execContext: ExecutionContext
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    upsertAsyncToolCall.mockResolvedValue(null)
+    markAsyncToolRunning.mockResolvedValue(null)
+    completeAsyncToolCall.mockResolvedValue(null)
+    context = {
+      chatId: undefined,
+      messageId: 'msg-1',
+      accumulatedContent: '',
+      contentBlocks: [],
+      toolCalls: new Map(),
+      pendingToolPromises: new Map(),
+      currentThinkingBlock: null,
+      isInThinkingBlock: false,
+      subAgentParentToolCallId: undefined,
+      subAgentParentStack: [],
+      subAgentContent: {},
+      subAgentToolCalls: {},
+      pendingContent: '',
+      streamComplete: false,
+      wasAborted: false,
+      errors: [],
+    }
+    execContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+  })
+
+  it('executes tool_call and emits tool_result', async () => {
+    executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
+    const onEvent = vi.fn()
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-1',
+          toolName: ReadTool.id,
+          arguments: { workflowId: 'workflow-1' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    // tool_call fires execution without awaiting (fire-and-forget for parallel execution),
+    // so we flush pending microtasks before asserting
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(executeTool).toHaveBeenCalledTimes(1)
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: MothershipStreamV1EventType.tool,
+        payload: expect.objectContaining({
+          toolCallId: 'tool-1',
+          success: true,
+          phase: MothershipStreamV1ToolPhase.result,
+        }),
+      })
+    )
+
+    const updated = context.toolCalls.get('tool-1')
+    expect(updated?.status).toBe(MothershipStreamV1ToolOutcome.success)
+    expect(updated?.result?.output).toEqual({ ok: true })
+  })
+
+  it('skips duplicate tool_call after result', async () => {
+    executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
+
+    const event = {
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'tool-dup',
+        toolName: ReadTool.id,
+        arguments: { workflowId: 'workflow-1' },
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.call,
+      },
+    }
+
+    await sseHandlers.tool(event as StreamEvent, context, execContext, { interactive: false })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sseHandlers.tool(event as StreamEvent, context, execContext, { interactive: false })
+
+    expect(executeTool).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks an in-flight tool as cancelled when aborted mid-execution', async () => {
+    const abortController = new AbortController()
+    const userStopController = new AbortController()
+    execContext.abortSignal = abortController.signal
+    execContext.userStopSignal = userStopController.signal
+
+    executeTool.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve({ success: true, output: { ok: true } }), 0)
+        })
+    )
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-cancel',
+          toolName: ReadTool.id,
+          arguments: { workflowId: 'workflow-1' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      {
+        interactive: false,
+        timeout: 1000,
+        abortSignal: abortController.signal,
+        userStopSignal: userStopController.signal,
+      }
+    )
+
+    userStopController.abort()
+    abortController.abort()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    const updated = context.toolCalls.get('tool-cancel')
+    expect(updated?.status).toBe(MothershipStreamV1ToolOutcome.cancelled)
+  })
+
+  it('does not replace an in-flight pending promise on duplicate tool_call', async () => {
+    let resolveTool: ((value: { success: boolean; output: { ok: boolean } }) => void) | undefined
+    executeTool.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveTool = resolve
+        })
+    )
+
+    const event = {
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'tool-inflight',
+        toolName: ReadTool.id,
+        arguments: { workflowId: 'workflow-1' },
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.call,
+      },
+    }
+
+    await sseHandlers.tool(event as StreamEvent, context, execContext, { interactive: false })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const firstPromise = context.pendingToolPromises.get('tool-inflight')
+    expect(firstPromise).toBeDefined()
+
+    await sseHandlers.tool(event as StreamEvent, context, execContext, { interactive: false })
+
+    expect(executeTool).toHaveBeenCalledTimes(1)
+    expect(context.pendingToolPromises.get('tool-inflight')).toBe(firstPromise)
+
+    resolveTool?.({ success: true, output: { ok: true } })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(context.pendingToolPromises.has('tool-inflight')).toBe(false)
+  })
+
+  it('still executes the tool when async row upsert fails', async () => {
+    upsertAsyncToolCall.mockRejectedValueOnce(new Error('db down'))
+    executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-upsert-fail',
+          toolName: ReadTool.id,
+          arguments: { workflowId: 'workflow-1' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent: vi.fn(), interactive: false, timeout: 1000 }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(executeTool).toHaveBeenCalledTimes(1)
+    expect(context.toolCalls.get('tool-upsert-fail')?.status).toBe(
+      MothershipStreamV1ToolOutcome.success
+    )
+  })
+
+  it('does not execute a tool if a terminal tool_result arrives before local execution starts', async () => {
+    let resolveUpsert: ((value: null) => void) | undefined
+    upsertAsyncToolCall.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveUpsert = resolve
+        })
+    )
+    const onEvent = vi.fn()
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-race',
+          toolName: ReadTool.id,
+          arguments: { workflowId: 'workflow-1' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-race',
+          toolName: ReadTool.id,
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.result,
+          success: true,
+          result: { ok: true },
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    resolveUpsert?.(null)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(context.toolCalls.get('tool-race')?.status).toBe(MothershipStreamV1ToolOutcome.success)
+    expect(context.toolCalls.get('tool-race')?.result?.output).toEqual({ ok: true })
+  })
+
+  it('does not execute a tool if a tool_result arrives before the tool_call event', async () => {
+    const onEvent = vi.fn()
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-early-result',
+          toolName: ReadTool.id,
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.result,
+          success: true,
+          result: { ok: true },
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-early-result',
+          toolName: ReadTool.id,
+          arguments: { workflowId: 'workflow-1' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(context.toolCalls.get('tool-early-result')?.status).toBe(
+      MothershipStreamV1ToolOutcome.success
+    )
+  })
+})

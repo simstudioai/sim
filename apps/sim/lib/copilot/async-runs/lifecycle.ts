@@ -1,13 +1,7 @@
 import type { CopilotAsyncToolStatus } from '@sim/db/schema'
+import { MothershipStreamV1AsyncToolRecordStatus } from '@/lib/copilot/generated/mothership-stream-v1'
 
-export const ASYNC_TOOL_STATUS = {
-  pending: 'pending',
-  running: 'running',
-  completed: 'completed',
-  failed: 'failed',
-  cancelled: 'cancelled',
-  delivered: 'delivered',
-} as const
+export const ASYNC_TOOL_STATUS = MothershipStreamV1AsyncToolRecordStatus
 
 export type AsyncLifecycleStatus =
   | typeof ASYNC_TOOL_STATUS.pending

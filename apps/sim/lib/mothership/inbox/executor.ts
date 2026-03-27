@@ -5,8 +5,8 @@ import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
 import { requestChatTitle } from '@/lib/copilot/chat-streaming'
-import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
-import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
+import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/continue'
+import type { OrchestratorResult } from '@/lib/copilot/request/types'
 import { taskPubSub } from '@/lib/copilot/task-events'
 import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -188,22 +188,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       ...(fileAttachments.length > 0 ? { fileAttachments } : {}),
     }
 
-    const executionId = crypto.randomUUID()
-    const runId = crypto.randomUUID()
-    const runStreamId = crypto.randomUUID()
-
-    if (chatId) {
-      await createRunSegment({
-        id: runId,
-        executionId,
-        chatId,
-        userId,
-        workspaceId: ws.id,
-        streamId: runStreamId,
-      }).catch(() => {})
-    }
-
-    const result = await orchestrateCopilotStream(requestPayload, {
+    const result = await runCopilotLifecycle(requestPayload, {
       userId,
       workspaceId: ws.id,
       chatId: chatId ?? undefined,

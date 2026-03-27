@@ -44,12 +44,14 @@ import {
   UpdateJobHistory,
   UpdateWorkspaceMcpServer,
 } from '@/lib/copilot/generated/tool-catalog-v1'
+import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
+import { getRegisteredServerToolNames } from '@/lib/copilot/tools/server/router'
 import {
   executeDeployApi,
   executeDeployChat,
   executeDeployMcp,
   executeRedeploy,
-} from '@/lib/copilot/orchestrator/tool-executor/deployment-tools/deploy'
+} from '../tools/handlers/deployment/deploy'
 import {
   executeCheckDeploymentStatus,
   executeCreateWorkspaceMcpServer,
@@ -58,29 +60,22 @@ import {
   executeListWorkspaceMcpServers,
   executeRevertToVersion,
   executeUpdateWorkspaceMcpServer,
-} from '@/lib/copilot/orchestrator/tool-executor/deployment-tools/manage'
-import { executeGetPlatformActions } from '@/lib/copilot/orchestrator/tool-executor/get-platform-actions'
+} from '../tools/handlers/deployment/manage'
 import {
   executeCompleteJob,
   executeCreateJob,
   executeManageJob,
   executeUpdateJobHistory,
-} from '@/lib/copilot/orchestrator/tool-executor/job-tools'
-import { executeManageCredential } from '@/lib/copilot/orchestrator/tool-executor/manage-credential'
-import { executeManageCustomTool } from '@/lib/copilot/orchestrator/tool-executor/manage-custom-tool'
-import { executeManageMcpTool } from '@/lib/copilot/orchestrator/tool-executor/manage-mcp-tool'
-import { executeManageSkill } from '@/lib/copilot/orchestrator/tool-executor/manage-skill'
-import { executeMaterializeFile } from '@/lib/copilot/orchestrator/tool-executor/materialize-file'
-import {
-  executeOAuthGetAuthLink,
-  executeOAuthRequestAccess,
-} from '@/lib/copilot/orchestrator/tool-executor/oauth-tools'
-import { executeOpenResource } from '@/lib/copilot/orchestrator/tool-executor/open-resource'
-import {
-  executeVfsGlob,
-  executeVfsGrep,
-  executeVfsRead,
-} from '@/lib/copilot/orchestrator/tool-executor/vfs-tools'
+} from '../tools/handlers/jobs'
+import { executeManageCredential } from '../tools/handlers/management/manage-credential'
+import { executeManageCustomTool } from '../tools/handlers/management/manage-custom-tool'
+import { executeManageMcpTool } from '../tools/handlers/management/manage-mcp-tool'
+import { executeManageSkill } from '../tools/handlers/management/manage-skill'
+import { executeMaterializeFile } from '../tools/handlers/materialize-file'
+import { executeOAuthGetAuthLink, executeOAuthRequestAccess } from '../tools/handlers/oauth'
+import { executeGetPlatformActions } from '../tools/handlers/platform'
+import { executeOpenResource } from '../tools/handlers/resources'
+import { executeVfsGlob, executeVfsGrep, executeVfsRead } from '../tools/handlers/vfs'
 import {
   executeCreateFolder,
   executeCreateWorkflow,
@@ -92,7 +87,7 @@ import {
   executeRunWorkflow,
   executeRunWorkflowUntilBlock,
   executeSetGlobalWorkflowVariables,
-} from '@/lib/copilot/orchestrator/tool-executor/workflow-tools/mutations'
+} from '../tools/handlers/workflow/mutations'
 import {
   executeGetBlockOutputs,
   executeGetBlockUpstreamReferences,
@@ -100,10 +95,9 @@ import {
   executeGetWorkflowData,
   executeListFolders,
   executeListUserWorkspaces,
-} from '@/lib/copilot/orchestrator/tool-executor/workflow-tools/queries'
-import { getRegisteredServerToolNames, routeExecution } from '@/lib/copilot/tools/server/router'
+} from '../tools/handlers/workflow/queries'
 import { registerHandlers } from './executor'
-import type { ToolExecutionResult, ToolHandler } from './types'
+import type { ToolHandler } from './types'
 
 const logger = createLogger('ToolHandlerRegistration')
 
@@ -185,46 +179,4 @@ function buildServerToolHandlers(): Record<string, ToolHandler> {
     handlers[toolId] = createServerToolHandler(toolId)
   }
   return handlers
-}
-
-function createServerToolHandler(toolId: string): ToolHandler {
-  return async (params, context): Promise<ToolExecutionResult> => {
-    const enrichedParams = { ...params }
-    if (!enrichedParams.workflowId && context.workflowId)
-      enrichedParams.workflowId = context.workflowId
-    if (!enrichedParams.workspaceId && context.workspaceId)
-      enrichedParams.workspaceId = context.workspaceId
-
-    try {
-      const result = await routeExecution(toolId, enrichedParams, {
-        userId: context.userId,
-        workspaceId: context.workspaceId,
-        userPermission: context.userPermission ?? undefined,
-        chatId: context.chatId,
-        abortSignal: context.abortSignal,
-      })
-
-      const rec =
-        result && typeof result === 'object' && !Array.isArray(result)
-          ? (result as Record<string, unknown>)
-          : null
-      if (rec?.success === false) {
-        const message =
-          (typeof rec.error === 'string' && rec.error) ||
-          (typeof rec.message === 'string' && rec.message) ||
-          `${toolId} failed`
-        return { success: false, error: message, output: result }
-      }
-      return { success: true, output: result }
-    } catch (error) {
-      logger.error('Server tool execution failed', {
-        toolId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Server tool execution failed',
-      }
-    }
-  }
 }

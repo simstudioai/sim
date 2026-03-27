@@ -14,9 +14,9 @@ import {
   SSE_RESPONSE_HEADERS,
 } from '@/lib/copilot/chat-streaming'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
-import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
-import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
 import { resolveActiveResourceContext } from '@/lib/copilot/process-contents'
+import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/continue'
+import type { OrchestratorResult } from '@/lib/copilot/request/types'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -476,21 +476,7 @@ export async function POST(req: NextRequest) {
       return new Response(sseStream, { headers: SSE_RESPONSE_HEADERS })
     }
 
-    const nsExecutionId = crypto.randomUUID()
-    const nsRunId = crypto.randomUUID()
-
-    if (actualChatId) {
-      await createRunSegment({
-        id: nsRunId,
-        executionId: nsExecutionId,
-        chatId: actualChatId,
-        userId: authenticatedUserId,
-        workflowId,
-        streamId: userMessageIdToUse,
-      }).catch(() => {})
-    }
-
-    const nonStreamingResult = await orchestrateCopilotStream(requestPayload, {
+    const nonStreamingResult = await runCopilotLifecycle(requestPayload, {
       userId: authenticatedUserId,
       workflowId,
       chatId: actualChatId,

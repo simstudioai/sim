@@ -4,7 +4,8 @@ import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
-import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
+import { appendCopilotLogContext } from '@/lib/copilot/logging'
+import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/continue'
 import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
 import {
   assertActiveWorkspaceAccess,
@@ -72,19 +73,7 @@ export async function POST(req: NextRequest) {
       ...(userPermission ? { userPermission } : {}),
     }
 
-    const executionId = crypto.randomUUID()
-    const runId = crypto.randomUUID()
-
-    await createRunSegment({
-      id: runId,
-      executionId,
-      chatId: effectiveChatId,
-      userId,
-      workspaceId,
-      streamId: messageId,
-    }).catch(() => {})
-
-    const result = await orchestrateCopilotStream(requestPayload, {
+    const result = await runCopilotLifecycle(requestPayload, {
       userId,
       workspaceId,
       chatId: effectiveChatId,

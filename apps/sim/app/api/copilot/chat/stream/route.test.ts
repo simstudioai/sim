@@ -7,12 +7,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   getLatestRunForStream,
-  readEnvelopes,
+  readEvents,
   checkForReplayGap,
   authenticateCopilotRequestSessionOnly,
 } = vi.hoisted(() => ({
   getLatestRunForStream: vi.fn(),
-  readEnvelopes: vi.fn(),
+  readEvents: vi.fn(),
   checkForReplayGap: vi.fn(),
   authenticateCopilotRequestSessionOnly: vi.fn(),
 }))
@@ -21,8 +21,8 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
   getLatestRunForStream,
 }))
 
-vi.mock('@/lib/copilot/mothership-stream', () => ({
-  readEnvelopes,
+vi.mock('@/lib/copilot/request/session', () => ({
+  readEvents,
   checkForReplayGap,
   encodeSSEEnvelope: (event: Record<string, unknown>) =>
     new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`),
@@ -44,7 +44,7 @@ describe('copilot chat stream replay route', () => {
       userId: 'user-1',
       isAuthenticated: true,
     })
-    readEnvelopes.mockResolvedValue([])
+    readEvents.mockResolvedValue([])
     checkForReplayGap.mockResolvedValue(null)
   })
 

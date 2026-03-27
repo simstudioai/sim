@@ -54,7 +54,7 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
   completeAsyncToolCall,
 }))
 
-vi.mock('@/lib/copilot/orchestrator/persistence', () => ({
+vi.mock('@/lib/copilot/persistence/tool-confirm', () => ({
   publishToolConfirmation,
 }))
 

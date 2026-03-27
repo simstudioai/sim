@@ -1,13 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { ASYNC_TOOL_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import {
   completeAsyncToolCall,
   getAsyncToolCall,
   getRunSegment,
   upsertAsyncToolCall,
 } from '@/lib/copilot/async-runs/repository'
-import { publishToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
+import { publishToolConfirmation } from '@/lib/copilot/persistence/tool-confirm'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -42,17 +43,17 @@ async function updateToolCallStatus(
   const toolCallId = existing.toolCallId
   const durableStatus =
     status === 'success'
-      ? 'completed'
+      ? ASYNC_TOOL_STATUS.completed
       : status === 'cancelled'
-        ? 'cancelled'
+        ? ASYNC_TOOL_STATUS.cancelled
         : status === 'error' || status === 'rejected'
-          ? 'failed'
-          : 'pending'
+          ? ASYNC_TOOL_STATUS.failed
+          : ASYNC_TOOL_STATUS.pending
   try {
     if (
-      durableStatus === 'completed' ||
-      durableStatus === 'failed' ||
-      durableStatus === 'cancelled'
+      durableStatus === ASYNC_TOOL_STATUS.completed ||
+      durableStatus === ASYNC_TOOL_STATUS.failed ||
+      durableStatus === ASYNC_TOOL_STATUS.cancelled
     ) {
       await completeAsyncToolCall({
         toolCallId,
@@ -107,13 +108,25 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const { toolCallId, status, message, data } = ConfirmationSchema.parse(body)
-    const existing = await getAsyncToolCall(toolCallId).catch(() => null)
+    const existing = await getAsyncToolCall(toolCallId).catch((err) => {
+      logger.warn('Failed to fetch async tool call', {
+        toolCallId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return null
+    })
 
     if (!existing) {
       return createNotFoundResponse('Tool call not found')
     }
 
-    const run = await getRunSegment(existing.runId).catch(() => null)
+    const run = await getRunSegment(existing.runId).catch((err) => {
+      logger.warn('Failed to fetch run segment', {
+        runId: existing.runId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return null
+    })
     if (!run) {
       return createNotFoundResponse('Tool call run not found')
     }

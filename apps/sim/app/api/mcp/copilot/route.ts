@@ -20,10 +20,10 @@ import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { ORCHESTRATION_TIMEOUT_MS, SIM_AGENT_API_URL } from '@/lib/copilot/constants'
-import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
-import { orchestrateSubagentStream } from '@/lib/copilot/orchestrator/subagent'
-import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
+import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/continue'
+import { orchestrateSubagentStream } from '@/lib/copilot/request/subagent'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
+import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/definitions'
 import { env } from '@/lib/core/config/env'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -727,20 +727,7 @@ async function handleBuildToolCall(
       chatId,
     }
 
-    const executionId = crypto.randomUUID()
-    const runId = crypto.randomUUID()
-    const messageId = requestPayload.messageId as string
-
-    await createRunSegment({
-      id: runId,
-      executionId,
-      chatId,
-      userId,
-      workflowId: resolved.workflowId,
-      streamId: messageId,
-    }).catch(() => {})
-
-    const result = await orchestrateCopilotStream(requestPayload, {
+    const result = await runCopilotLifecycle(requestPayload, {
       userId,
       workflowId: resolved.workflowId,
       chatId,

@@ -1,12 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
+import { MothershipStreamV1CompletionStatus } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   checkForReplayGap,
   encodeSSEEnvelope,
-  readEnvelopes,
+  readEvents,
   SSE_RESPONSE_HEADERS,
-} from '@/lib/copilot/mothership-stream'
+} from '@/lib/copilot/request/session'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
 
 export const maxDuration = 3600
@@ -31,7 +32,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'streamId is required' }, { status: 400 })
   }
 
-  const run = await getLatestRunForStream(streamId, authenticatedUserId).catch(() => null)
+  const run = await getLatestRunForStream(streamId, authenticatedUserId).catch((err) => {
+    logger.warn('Failed to fetch latest run for stream', {
+      streamId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return null
+  })
   logger.info('[Resume] Stream lookup', {
     streamId,
     afterCursor,
@@ -76,7 +83,7 @@ export async function GET(request: NextRequest) {
       request.signal.addEventListener('abort', abortListener, { once: true })
 
       const flushEvents = async () => {
-        const events = await readEnvelopes(streamId, cursor)
+        const events = await readEvents(streamId, cursor)
         if (events.length > 0) {
           logger.info('[Resume] Flushing events', {
             streamId,
@@ -105,7 +112,13 @@ export async function GET(request: NextRequest) {
 
         while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
           const currentRun = await getLatestRunForStream(streamId, authenticatedUserId).catch(
-            () => null
+            (err) => {
+              logger.warn('Failed to poll latest run for stream', {
+                streamId,
+                error: err instanceof Error ? err.message : String(err),
+              })
+              return null
+            }
           )
           if (!currentRun) break
 
@@ -115,9 +128,9 @@ export async function GET(request: NextRequest) {
             break
           }
           if (
-            currentRun.status === 'complete' ||
-            currentRun.status === 'error' ||
-            currentRun.status === 'cancelled'
+            currentRun.status === MothershipStreamV1CompletionStatus.complete ||
+            currentRun.status === MothershipStreamV1CompletionStatus.error ||
+            currentRun.status === MothershipStreamV1CompletionStatus.cancelled
           ) {
             break
           }

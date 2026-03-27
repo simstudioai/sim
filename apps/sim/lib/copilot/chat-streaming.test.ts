@@ -3,29 +3,30 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
 
 const {
-  orchestrateCopilotStream,
+  runCopilotLifecycle,
   createRunSegment,
   updateRunStatus,
-  resetOutbox,
+  resetBuffer,
   allocateCursor,
-  appendEnvelope,
+  appendEvent,
   cleanupAbortMarker,
   hasAbortMarker,
 } = vi.hoisted(() => ({
-  orchestrateCopilotStream: vi.fn(),
+  runCopilotLifecycle: vi.fn(),
   createRunSegment: vi.fn(),
   updateRunStatus: vi.fn(),
-  resetOutbox: vi.fn(),
+  resetBuffer: vi.fn(),
   allocateCursor: vi.fn(),
-  appendEnvelope: vi.fn(),
+  appendEvent: vi.fn(),
   cleanupAbortMarker: vi.fn(),
   hasAbortMarker: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/orchestrator', () => ({
-  orchestrateCopilotStream,
+vi.mock('@/lib/copilot/request/lifecycle/continue', () => ({
+  runCopilotLifecycle,
 }))
 
 vi.mock('@/lib/copilot/async-runs/repository', () => ({
@@ -35,17 +36,17 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
 
 let mockPublisherController: ReadableStreamDefaultController | null = null
 
-vi.mock('@/lib/copilot/mothership-stream', () => ({
-  resetOutbox,
+vi.mock('@/lib/copilot/request/session', () => ({
+  resetBuffer,
   allocateCursor,
-  appendEnvelope,
+  appendEvent,
   cleanupAbortMarker,
   hasAbortMarker,
   registerActiveStream: vi.fn(),
   unregisterActiveStream: vi.fn(),
   startAbortPoller: vi.fn().mockReturnValue(setInterval(() => {}, 999999)),
   SSE_RESPONSE_HEADERS: {},
-  StreamPublisher: vi.fn().mockImplementation(() => ({
+  StreamWriter: vi.fn().mockImplementation(() => ({
     attach: vi.fn().mockImplementation((ctrl: ReadableStreamDefaultController) => {
       mockPublisherController = ctrl
     }),
@@ -60,7 +61,7 @@ vi.mock('@/lib/copilot/mothership-stream', () => ({
     }),
     markDisconnected: vi.fn(),
     publish: vi.fn().mockImplementation(async (event: Record<string, unknown>) => {
-      appendEnvelope(event)
+      appendEvent(event)
     }),
     get clientDisconnected() {
       return false
@@ -69,6 +70,9 @@ vi.mock('@/lib/copilot/mothership-stream', () => ({
       return false
     },
   })),
+}))
+vi.mock('@/lib/copilot/request/session/sse', () => ({
+  SSE_RESPONSE_HEADERS: {},
 }))
 
 vi.mock('@sim/db', () => ({
@@ -98,12 +102,12 @@ async function drainStream(stream: ReadableStream) {
 describe('createSSEStream terminal error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    resetOutbox.mockResolvedValue(undefined)
+    resetBuffer.mockResolvedValue(undefined)
     allocateCursor
       .mockResolvedValueOnce({ seq: 1, cursor: '1' })
       .mockResolvedValueOnce({ seq: 2, cursor: '2' })
       .mockResolvedValueOnce({ seq: 3, cursor: '3' })
-    appendEnvelope.mockImplementation(async (envelope: unknown) => envelope)
+    appendEvent.mockImplementation(async (event: unknown) => event)
     cleanupAbortMarker.mockResolvedValue(undefined)
     hasAbortMarker.mockResolvedValue(false)
     createRunSegment.mockResolvedValue(null)
@@ -111,7 +115,7 @@ describe('createSSEStream terminal error handling', () => {
   })
 
   it('writes a terminal error event before close when orchestration returns success=false', async () => {
-    orchestrateCopilotStream.mockResolvedValue({
+    runCopilotLifecycle.mockResolvedValue({
       success: false,
       error: 'resume failed',
       content: '',
@@ -135,15 +139,15 @@ describe('createSSEStream terminal error handling', () => {
 
     await drainStream(stream)
 
-    expect(appendEnvelope).toHaveBeenCalledWith(
+    expect(appendEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: 'error',
+        type: MothershipStreamV1EventType.error,
       })
     )
   })
 
   it('writes the thrown terminal error event before close for replay durability', async () => {
-    orchestrateCopilotStream.mockRejectedValue(new Error('kaboom'))
+    runCopilotLifecycle.mockRejectedValue(new Error('kaboom'))
 
     const stream = createSSEStream({
       requestPayload: { message: 'hello' },
@@ -161,9 +165,9 @@ describe('createSSEStream terminal error handling', () => {
 
     await drainStream(stream)
 
-    expect(appendEnvelope).toHaveBeenCalledWith(
+    expect(appendEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: 'error',
+        type: MothershipStreamV1EventType.error,
       })
     )
   })

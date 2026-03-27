@@ -4,7 +4,11 @@
 
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createEnvelope } from '@/lib/copilot/mothership-stream/envelope'
+import {
+  MothershipStreamV1EventType,
+  MothershipStreamV1TextChannel,
+} from '@/lib/copilot/generated/mothership-stream-v1'
+import { createEvent } from '@/lib/copilot/request/session/event'
 
 vi.mock('@sim/logger', () => loggerMock)
 
@@ -71,11 +75,7 @@ vi.mock('@/lib/core/config/redis', () => ({
   getRedisClient: () => mockRedis,
 }))
 
-import {
-  allocateCursor,
-  appendEnvelope,
-  readEnvelopes,
-} from '@/lib/copilot/mothership-stream/outbox'
+import { allocateCursor, appendEvent, readEvents } from '@/lib/copilot/request/session/buffer'
 
 describe('mothership-stream-outbox', () => {
   beforeEach(() => {
@@ -87,31 +87,31 @@ describe('mothership-stream-outbox', () => {
     const firstCursor = await allocateCursor('stream-1')
     const secondCursor = await allocateCursor('stream-1')
 
-    await appendEnvelope(
-      createEnvelope({
+    await appendEvent(
+      createEvent({
         streamId: 'stream-1',
         cursor: firstCursor.cursor,
         seq: firstCursor.seq,
         requestId: 'req-1',
-        type: 'text',
-        payload: { channel: 'assistant', text: 'hello' },
+        type: MothershipStreamV1EventType.text,
+        payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'hello' },
       })
     )
-    await appendEnvelope(
-      createEnvelope({
+    await appendEvent(
+      createEvent({
         streamId: 'stream-1',
         cursor: secondCursor.cursor,
         seq: secondCursor.seq,
         requestId: 'req-1',
-        type: 'text',
-        payload: { channel: 'assistant', text: 'world' },
+        type: MothershipStreamV1EventType.text,
+        payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'world' },
       })
     )
 
-    const allEvents = await readEnvelopes('stream-1', '0')
+    const allEvents = await readEvents('stream-1', '0')
     expect(allEvents.map((entry) => entry.payload.text)).toEqual(['hello', 'world'])
 
-    const replayed = await readEnvelopes('stream-1', '1')
+    const replayed = await readEvents('stream-1', '1')
     expect(replayed.map((entry) => entry.payload.text)).toEqual(['world'])
   })
 })
