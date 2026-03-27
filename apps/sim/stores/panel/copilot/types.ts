@@ -1,4 +1,4 @@
-import type { ServerToolUI } from '@/lib/copilot/store-utils'
+import type { ServerToolUI } from '@/lib/copilot/tools/client/store-utils'
 import type {
   ClientToolCallState,
   ClientToolDisplay,

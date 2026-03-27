@@ -11,7 +11,7 @@ import {
   isResourceToolName,
   persistChatResources,
   removeChatResources,
-} from '@/lib/copilot/resources'
+} from '@/lib/copilot/resources/persistence'
 
 const logger = createLogger('CopilotResourceEffects')
 

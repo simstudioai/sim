@@ -1,4 +1,4 @@
-import type { MothershipResource } from '@/lib/copilot/resource-types'
+import type { MothershipResource } from '@/lib/copilot/resources/types'
 
 export interface ToolExecutionContext {
   userId: string

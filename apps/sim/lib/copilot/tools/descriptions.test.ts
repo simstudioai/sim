@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
+import { getCopilotToolDescription } from './descriptions'
 
 describe('getCopilotToolDescription', () => {
   it.concurrent('returns the base description when hosted keys are not active', () => {

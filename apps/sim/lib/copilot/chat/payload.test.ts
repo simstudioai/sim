@@ -58,7 +58,7 @@ vi.mock('@/tools/params', () => ({
 }))
 
 import { getUserSubscriptionState } from '@/lib/billing/core/subscription'
-import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
+import { buildIntegrationToolSchemas } from './payload'
 
 const mockedGetUserSubscriptionState = getUserSubscriptionState as unknown as {
   mockResolvedValue: (value: unknown) => void

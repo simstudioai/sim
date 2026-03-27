@@ -31,7 +31,7 @@ vi.mock('@/lib/copilot/request/session', () => ({
   },
 }))
 
-vi.mock('@/lib/copilot/request-helpers', () => ({
+vi.mock('@/lib/copilot/request/http', () => ({
   authenticateCopilotRequestSessionOnly,
 }))
 

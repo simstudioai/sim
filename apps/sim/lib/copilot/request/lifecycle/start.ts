@@ -20,7 +20,7 @@ import {
   unregisterActiveStream,
 } from '@/lib/copilot/request/session'
 import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
-import { taskPubSub } from '@/lib/copilot/task-events'
+import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
 
 export { SSE_RESPONSE_HEADERS }

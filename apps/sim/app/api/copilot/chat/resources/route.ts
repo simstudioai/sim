@@ -10,8 +10,8 @@ import {
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
-import type { ChatResource, ResourceType } from '@/lib/copilot/resources'
+} from '@/lib/copilot/request/http'
+import type { ChatResource, ResourceType } from '@/lib/copilot/resources/persistence'
 
 const logger = createLogger('CopilotChatResourcesAPI')
 

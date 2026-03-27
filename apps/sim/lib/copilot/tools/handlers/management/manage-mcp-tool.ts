@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
-import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { validateMcpDomain } from '@/lib/mcp/domain-check'
 import { mcpService } from '@/lib/mcp/service'
@@ -230,9 +229,9 @@ export async function executeManageMcpTool(
     return { success: false, error: `Unsupported operation for manage_mcp_tool: ${operation}` }
   } catch (error) {
     logger.error(
-      appendCopilotLogContext('manage_mcp_tool execution failed', {
-        messageId: context.messageId,
-      }),
+      context.messageId
+        ? `manage_mcp_tool execution failed [messageId:${context.messageId}]`
+        : 'manage_mcp_tool execution failed',
       {
         operation,
         workspaceId,

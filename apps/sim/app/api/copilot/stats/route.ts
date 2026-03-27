@@ -7,7 +7,7 @@ import {
   createInternalServerErrorResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
+} from '@/lib/copilot/request/http'
 import { env } from '@/lib/core/config/env'
 
 const BodySchema = z.object({

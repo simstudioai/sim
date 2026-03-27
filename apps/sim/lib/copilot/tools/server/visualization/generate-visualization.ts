@@ -65,7 +65,8 @@ async function collectSandboxFiles(
   inputTables?: string[],
   messageId?: string
 ): Promise<SandboxFile[]> {
-  const reqLogger = logger.withMetadata({ messageId })
+  const withMessageId = (message: string) =>
+    messageId ? `${message} [messageId:${messageId}]` : message
   const sandboxFiles: SandboxFile[] = []
   let totalSize = 0
 
@@ -152,7 +153,8 @@ export const generateVisualizationServerTool: BaseServerTool<
     params: VisualizationArgs,
     context?: ServerToolContext
   ): Promise<VisualizationResult> {
-    const reqLogger = logger.withMetadata({ messageId: context?.messageId })
+    const withMessageId = (message: string) =>
+      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
 
     if (!context?.userId) {
       throw new Error('Authentication required')

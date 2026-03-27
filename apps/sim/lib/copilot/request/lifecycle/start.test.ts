@@ -89,7 +89,7 @@ vi.mock('@/lib/copilot/task-events', () => ({
   taskPubSub: null,
 }))
 
-import { createSSEStream } from './chat-streaming'
+import { createSSEStream } from './start'
 
 async function drainStream(stream: ReadableStream) {
   const reader = stream.getReader()

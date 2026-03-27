@@ -17,6 +17,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull, ne } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
+import { buildWorkspaceMd, type WorkspaceMdData } from '@/lib/copilot/chat/workspace-context'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import type { DirEntry, GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
@@ -49,7 +50,6 @@ import {
   serializeVersions,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
-import { buildWorkspaceMd, type WorkspaceMdData } from '@/lib/copilot/workspace-context'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,

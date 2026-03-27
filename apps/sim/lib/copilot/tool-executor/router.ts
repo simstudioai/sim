@@ -1,10 +1,15 @@
-import {
-  getToolEntry,
-  isToolInCatalog,
-  type ToolCatalogEntry,
-  type ToolExecutor,
-} from '@/lib/copilot/tool-catalog'
+import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ToolCallDescriptor } from './types'
+
+export type ToolExecutor = ToolCatalogEntry['executor']
+
+export function isToolInCatalog(toolId: string): boolean {
+  return toolId in TOOL_CATALOG
+}
+
+export function getToolEntry(toolId: string): ToolCatalogEntry | undefined {
+  return TOOL_CATALOG[toolId]
+}
 
 export type ToolRoute = {
   executor: ToolExecutor

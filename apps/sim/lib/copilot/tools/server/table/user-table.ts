@@ -241,7 +241,8 @@ async function batchInsertAll(
 export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult> = {
   name: 'user_table',
   async execute(params: UserTableArgs, context?: ServerToolContext): Promise<UserTableResult> {
-    const reqLogger = logger.withMetadata({ messageId: context?.messageId })
+    const withMessageId = (message: string) =>
+      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
 
     if (!context?.userId) {
       logger.error('Unauthorized attempt to access user table - no authenticated user context')

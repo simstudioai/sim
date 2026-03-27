@@ -124,7 +124,8 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
     params: DownloadToWorkspaceFileArgs,
     context?: ServerToolContext
   ): Promise<DownloadToWorkspaceFileResult> {
-    const reqLogger = logger.withMetadata({ messageId: context?.messageId })
+    const withMessageId = (message: string) =>
+      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
 
     if (!context?.userId) {
       throw new Error('Authentication required')

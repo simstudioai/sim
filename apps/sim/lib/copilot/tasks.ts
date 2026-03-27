@@ -9,7 +9,7 @@
 
 import { createPubSubChannel } from '@/lib/events/pubsub'
 
-export interface TaskStatusEvent {
+interface TaskStatusEvent {
   workspaceId: string
   chatId: string
   type: 'started' | 'completed' | 'created' | 'deleted' | 'renamed'

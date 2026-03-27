@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { extractResourcesFromToolResult } from './resource-extraction'
+import { extractResourcesFromToolResult } from './extraction'
 
 describe('extractResourcesFromToolResult', () => {
   it('uses the knowledge base id for knowledge_base tag mutations', () => {

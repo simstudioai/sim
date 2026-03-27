@@ -22,7 +22,7 @@ import type {
   ToolCallState,
 } from '@/lib/copilot/request/types'
 import { isSimExecuted } from '@/lib/copilot/tool-executor'
-import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
+import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import type { ToolScope } from './types'
 import {
   abortPendingToolIfStreamDead,

@@ -2,13 +2,13 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { MothershipStreamV1CompletionStatus } from '@/lib/copilot/generated/mothership-stream-v1'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
 import {
   checkForReplayGap,
   encodeSSEEnvelope,
   readEvents,
   SSE_RESPONSE_HEADERS,
 } from '@/lib/copilot/request/session'
-import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
 
 export const maxDuration = 3600
 

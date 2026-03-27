@@ -1,21 +1,17 @@
 'use client'
 
-import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components'
 import {
-  AgentGroup,
-  ChatContent,
-  CircleStop,
-  Options,
-  PendingTagIndicator,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components'
-import type {
-  ContentBlock,
-  MothershipToolName,
-  OptionItem,
-  SubagentName,
-  ToolCallData,
-} from '@/app/workspace/[workspaceId]/home/types'
-import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '@/app/workspace/[workspaceId]/home/types'
+  FileWrite,
+  Read as ReadTool,
+  ToolSearchToolRegex,
+  WorkspaceFile,
+} from '@/lib/copilot/generated/tool-catalog-v1'
+import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
+import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
+import type { ContentBlock, OptionItem, SubagentName, ToolCallData } from '../../types'
+import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '../../types'
+import type { AgentGroupItem } from './components'
+import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
 
 interface TextSegment {
   type: 'text'
@@ -52,11 +48,19 @@ const SUBAGENT_KEYS = new Set(Object.keys(SUBAGENT_LABELS))
  * group is absorbed so it doesn't render as a separate Mothership entry.
  */
 const SUBAGENT_DISPATCH_TOOLS: Record<string, string> = {
-  file_write: 'workspace_file',
+  [FileWrite.id]: WorkspaceFile.id,
+}
+
+function formatToolName(name: string): string {
+  return name
+    .replace(/_v\d+$/, '')
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
 }
 
 function resolveAgentLabel(key: string): string {
-  return SUBAGENT_LABELS[key as SubagentName] ?? key
+  return SUBAGENT_LABELS[key as SubagentName] ?? formatToolName(key)
 }
 
 function isToolDone(status: ToolCallData['status']): boolean {
@@ -67,12 +71,41 @@ function isDelegatingTool(tc: NonNullable<ContentBlock['toolCall']>): boolean {
   return tc.status === 'executing'
 }
 
+function mapToolStatusToClientState(
+  status: ContentBlock['toolCall'] extends { status: infer T } ? T : string
+) {
+  switch (status) {
+    case 'success':
+      return ClientToolCallState.success
+    case 'error':
+      return ClientToolCallState.error
+    case 'cancelled':
+      return ClientToolCallState.cancelled
+    default:
+      return ClientToolCallState.executing
+  }
+}
+
+function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): string | undefined {
+  if (tc.name === ReadTool.id || tc.name.endsWith('_respond')) {
+    return resolveToolDisplay(tc.name, mapToolStatusToClientState(tc.status), tc.id, tc.params)
+      ?.text
+  }
+  return undefined
+}
+
 function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
+  const overrideDisplayTitle = getOverrideDisplayTitle(tc)
+  const displayTitle =
+    overrideDisplayTitle ||
+    tc.displayTitle ||
+    TOOL_UI_METADATA[tc.name as keyof typeof TOOL_UI_METADATA]?.title ||
+    formatToolName(tc.name)
+
   return {
     id: tc.id,
     toolName: tc.name,
-    displayTitle:
-      tc.displayTitle ?? TOOL_UI_METADATA[tc.name as MothershipToolName]?.title ?? tc.name,
+    displayTitle,
     status: tc.status,
     params: tc.params,
     result: tc.result,
@@ -172,7 +205,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     if (block.type === 'tool_call') {
       if (!block.toolCall) continue
       const tc = block.toolCall
-      if (tc.name === 'tool_search_tool_regex') continue
+      if (tc.name === ToolSearchToolRegex.id) continue
       const isDispatch = SUBAGENT_KEYS.has(tc.name) && !tc.calledBy
 
       if (isDispatch) {
@@ -312,7 +345,7 @@ export function MessageContent({
   if (segments.length === 0) {
     if (isStreaming) {
       return (
-        <div className='space-y-2.5'>
+        <div className='space-y-[10px]'>
           <PendingTagIndicator />
         </div>
       )
@@ -341,7 +374,7 @@ export function MessageContent({
     )?.id
 
   return (
-    <div className='space-y-2.5'>
+    <div className='space-y-[10px]'>
       {segments.map((segment, i) => {
         switch (segment.type) {
           case 'text':
@@ -384,9 +417,11 @@ export function MessageContent({
             )
           case 'stopped':
             return (
-              <div key={`stopped-${i}`} className='flex items-center gap-2'>
+              <div key={`stopped-${i}`} className='flex items-center gap-[8px]'>
                 <CircleStop className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                <span className='font-base text-[var(--text-body)] text-sm'>Stopped by user</span>
+                <span className='font-base text-[14px] text-[var(--text-body)]'>
+                  Stopped by user
+                </span>
               </div>
             )
         }

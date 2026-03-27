@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { deleteSkill, listSkills, upsertSkills } from '@/lib/workflows/skills/operations'
 
@@ -157,9 +156,9 @@ export async function executeManageSkill(
     return { success: false, error: `Unsupported operation for manage_skill: ${operation}` }
   } catch (error) {
     logger.error(
-      appendCopilotLogContext('manage_skill execution failed', {
-        messageId: context.messageId,
-      }),
+      context.messageId
+        ? `manage_skill execution failed [messageId:${context.messageId}]`
+        : 'manage_skill execution failed',
       {
         operation,
         workspaceId,

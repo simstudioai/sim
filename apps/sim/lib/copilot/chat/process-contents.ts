@@ -21,7 +21,7 @@ import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-ch
 import { escapeRegExp } from '@/executor/constants'
 import type { ChatContext } from '@/stores/panel/copilot/types'
 
-export type AgentContextType =
+type AgentContextType =
   | 'past_chat'
   | 'workflow'
   | 'current_workflow'
@@ -35,69 +35,13 @@ export type AgentContextType =
   | 'docs'
   | 'active_resource'
 
-export interface AgentContext {
+interface AgentContext {
   type: AgentContextType
   tag: string
   content: string
 }
 
 const logger = createLogger('ProcessContents')
-
-export async function processContexts(
-  contexts: ChatContext[] | undefined
-): Promise<AgentContext[]> {
-  if (!Array.isArray(contexts) || contexts.length === 0) return []
-  const tasks = contexts.map(async (ctx) => {
-    try {
-      if (ctx.kind === 'past_chat') {
-        return await processPastChatViaApi(ctx.chatId, ctx.label ? `@${ctx.label}` : '@')
-      }
-      if ((ctx.kind === 'workflow' || ctx.kind === 'current_workflow') && ctx.workflowId) {
-        return await processWorkflowFromDb(
-          ctx.workflowId,
-          undefined,
-          ctx.label ? `@${ctx.label}` : '@',
-          ctx.kind
-        )
-      }
-      if (ctx.kind === 'knowledge' && ctx.knowledgeId) {
-        return await processKnowledgeFromDb(
-          ctx.knowledgeId,
-          undefined,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
-      }
-      if (ctx.kind === 'blocks' && ctx.blockIds?.length > 0) {
-        return await processBlockMetadata(ctx.blockIds[0], ctx.label ? `@${ctx.label}` : '@')
-      }
-      if (ctx.kind === 'templates' && ctx.templateId) {
-        return await processTemplateFromDb(
-          ctx.templateId,
-          undefined,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
-      }
-      if (ctx.kind === 'logs' && ctx.executionId) {
-        return await processExecutionLogFromDb(
-          ctx.executionId,
-          undefined,
-          ctx.label ? `@${ctx.label}` : '@'
-        )
-      }
-      if (ctx.kind === 'workflow_block' && ctx.workflowId && ctx.blockId) {
-        return await processWorkflowBlockFromDb(ctx.workflowId, undefined, ctx.blockId, ctx.label)
-      }
-      // Other kinds can be added here: workflow, blocks, logs, knowledge, templates, docs
-      return null
-    } catch (error) {
-      logger.error('Failed processing context', { ctx, error })
-      return null
-    }
-  })
-
-  const results = await Promise.all(tasks)
-  return results.filter((r): r is AgentContext => !!r) as AgentContext[]
-}
 
 // Server-side variant (recommended for use in API routes)
 export async function processContextsServer(
@@ -265,7 +209,7 @@ async function processPastChatFromDb(
   currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
-    const { getAccessibleCopilotChat } = await import('@/lib/copilot/chat-lifecycle')
+    const { getAccessibleCopilotChat } = await import('./lifecycle')
     const chat = await getAccessibleCopilotChat(chatId, userId)
     if (!chat) {
       return null

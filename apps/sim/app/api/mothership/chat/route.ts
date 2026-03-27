@@ -5,14 +5,17 @@ import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
-import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
-import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/chat-streaming'
-import { processContextsServer, resolveActiveResourceContext } from '@/lib/copilot/process-contents'
+import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
+import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
+import {
+  processContextsServer,
+  resolveActiveResourceContext,
+} from '@/lib/copilot/chat/process-contents'
+import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/request/http'
+import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/lifecycle/start'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
-import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/request-helpers'
-import { taskPubSub } from '@/lib/copilot/task-events'
-import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
+import { taskPubSub } from '@/lib/copilot/tasks'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
@@ -33,7 +36,6 @@ const FileAttachmentSchema = z.object({
 const ResourceAttachmentSchema = z.object({
   type: z.enum(['workflow', 'table', 'file', 'knowledgebase']),
   id: z.string().min(1),
-  title: z.string().optional(),
   active: z.boolean().optional(),
 })
 

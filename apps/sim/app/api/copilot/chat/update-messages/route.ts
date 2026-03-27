@@ -4,15 +4,15 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getAccessibleCopilotChat } from '@/lib/copilot/chat-lifecycle'
-import { COPILOT_MODES } from '@/lib/copilot/models'
+import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
+import { COPILOT_MODES } from '@/lib/copilot/constants'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
+} from '@/lib/copilot/request/http'
 
 const logger = createLogger('CopilotChatUpdateAPI')
 

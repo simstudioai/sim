@@ -1,4 +1,4 @@
-export type LegacyStreamEventType =
+type LegacyStreamEventType =
   | 'chat_id'
   | 'request_id'
   | 'title_updated'

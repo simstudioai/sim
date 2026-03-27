@@ -2,11 +2,9 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { createRunSegment } from '@/lib/copilot/async-runs/repository'
-import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
-import { appendCopilotLogContext } from '@/lib/copilot/logging'
+import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
+import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/continue'
-import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
@@ -85,10 +83,15 @@ export async function POST(req: NextRequest) {
     })
 
     if (!result.success) {
-      reqLogger.error('Mothership execute failed', {
-        error: result.error,
-        errors: result.errors,
-      })
+      logger.error(
+        messageId
+          ? `Mothership execute failed [messageId:${messageId}]`
+          : 'Mothership execute failed',
+        {
+          error: result.error,
+          errors: result.errors,
+        }
+      )
       return NextResponse.json(
         {
           error: result.error || 'Mothership execution failed',
@@ -124,9 +127,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    logger.withMetadata({ messageId }).error('Mothership execute error', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+    logger.error(
+      messageId ? `Mothership execute error [messageId:${messageId}]` : 'Mothership execute error',
+      {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    )
 
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },

@@ -23,7 +23,7 @@ import {
   Wrench,
   Zap,
 } from 'lucide-react'
-import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
+import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
 import {
   ClientToolCallState,
   type ClientToolDisplay,
@@ -227,7 +227,7 @@ function serverUIFallback(serverUI: ServerToolUI, state: ClientToolCallState): C
   }
 }
 
-export function humanizedFallback(
+function humanizedFallback(
   toolName: string,
   state: ClientToolCallState
 ): ClientToolDisplay | undefined {
@@ -253,25 +253,4 @@ export function isReviewState(state: string): boolean {
 
 export function isBackgroundState(state: string): boolean {
   return state === 'background'
-}
-
-export function isTerminalState(state: string): boolean {
-  return (
-    state === ClientToolCallState.success ||
-    state === ClientToolCallState.error ||
-    state === ClientToolCallState.rejected ||
-    state === ClientToolCallState.aborted ||
-    isReviewState(state) ||
-    isBackgroundState(state)
-  )
-}
-
-export function stripTodoTags(text: string): string {
-  if (!text) return text
-  return text
-    .replace(/<marktodo>[\s\S]*?<\/marktodo>/g, '')
-    .replace(/<checkofftodo>[\s\S]*?<\/checkofftodo>/g, '')
-    .replace(/<design_workflow>[\s\S]*?<\/design_workflow>/g, '')
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{2,}/g, '\n')
 }

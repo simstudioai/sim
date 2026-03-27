@@ -1,8 +1,18 @@
+import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { env } from '@/lib/core/config/env'
+import { safeCompare } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 
-export type { NotificationStatus } from '@/lib/copilot/types'
+export type NotificationStatus =
+  | 'pending'
+  | 'success'
+  | 'error'
+  | 'accepted'
+  | 'rejected'
+  | 'background'
+  | 'cancelled'
 
 export interface CopilotAuthResult {
   userId: string | null
@@ -60,4 +70,23 @@ export async function authenticateCopilotRequestSessionOnly(): Promise<CopilotAu
     userId,
     isAuthenticated: userId !== null,
   }
+}
+
+export function checkInternalApiKey(req: NextRequest) {
+  const apiKey = req.headers.get('x-api-key')
+  const expectedApiKey = env.INTERNAL_API_SECRET
+
+  if (!expectedApiKey) {
+    return { success: false, error: 'Internal API key not configured' }
+  }
+
+  if (!apiKey) {
+    return { success: false, error: 'API key required' }
+  }
+
+  if (!safeCompare(apiKey, expectedApiKey)) {
+    return { success: false, error: 'Invalid API key' }
+  }
+
+  return { success: true }
 }

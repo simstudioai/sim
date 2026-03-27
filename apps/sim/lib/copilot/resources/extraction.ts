@@ -1,4 +1,4 @@
-import type { MothershipResource, MothershipResourceType } from '@/lib/copilot/resource-types'
+import type { MothershipResource, MothershipResourceType } from './types'
 
 type ChatResource = MothershipResource
 type ResourceType = MothershipResourceType

@@ -47,7 +47,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
     params: KnowledgeBaseArgs,
     context?: ServerToolContext
   ): Promise<KnowledgeBaseResult> {
-    const reqLogger = logger.withMetadata({ messageId: context?.messageId })
+    const withMessageId = (message: string) =>
+      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
 
     if (!context?.userId) {
       reqLogger.error(

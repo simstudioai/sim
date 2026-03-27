@@ -11,7 +11,6 @@ import {
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
-import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -135,9 +134,10 @@ export async function routeExecution(
     throw new Error(`Unknown server tool: ${toolName}`)
   }
 
-  logger.withMetadata({ messageId: context?.messageId }).debug('Routing to tool', {
-    toolName,
-  })
+  logger.debug(
+    context?.messageId ? `Routing to tool [messageId:${context.messageId}]` : 'Routing to tool',
+    { toolName }
+  )
 
   // Action-level permission enforcement for mixed read/write tools
   if (context?.userPermission && WRITE_ACTIONS[toolName]) {

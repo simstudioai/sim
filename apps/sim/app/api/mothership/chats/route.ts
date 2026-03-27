@@ -9,8 +9,8 @@ import {
   createBadRequestResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
-import { taskPubSub } from '@/lib/copilot/task-events'
+} from '@/lib/copilot/request/http'
+import { taskPubSub } from '@/lib/copilot/tasks'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MothershipChatsAPI')

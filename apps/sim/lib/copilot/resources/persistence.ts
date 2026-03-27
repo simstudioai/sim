@@ -2,22 +2,22 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
-import { isEphemeralResource } from '@/lib/copilot/resource-extraction'
-import type { MothershipResource } from '@/lib/copilot/resource-types'
+import type { MothershipResource } from './types'
 
 export {
   extractDeletedResourcesFromToolResult,
   extractResourcesFromToolResult,
   hasDeleteCapability,
-  isEphemeralResource,
   isResourceToolName,
-} from '@/lib/copilot/resource-extraction'
+} from './extraction'
 export type {
   MothershipResource as ChatResource,
   MothershipResourceType as ResourceType,
-} from '@/lib/copilot/resource-types'
+} from './types'
 
 const logger = createLogger('CopilotResources')
+
+type ChatResource = MothershipResource
 
 /**
  * Appends resources to a chat's JSONB resources column, deduplicating by type+id.
@@ -25,9 +25,9 @@ const logger = createLogger('CopilotResources')
  */
 export async function persistChatResources(
   chatId: string,
-  newResources: MothershipResource[]
+  newResources: ChatResource[]
 ): Promise<void> {
-  const toMerge = newResources.filter((r) => !isEphemeralResource(r))
+  const toMerge = newResources.filter((r) => r.id !== 'streaming-file')
   if (toMerge.length === 0) return
 
   try {
@@ -39,8 +39,8 @@ export async function persistChatResources(
 
     if (!chat) return
 
-    const existing = Array.isArray(chat.resources) ? (chat.resources as MothershipResource[]) : []
-    const map = new Map<string, MothershipResource>()
+    const existing = Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
+    const map = new Map<string, ChatResource>()
     const GENERIC = new Set(['Table', 'File', 'Workflow', 'Knowledge Base'])
 
     for (const r of existing) {
@@ -72,10 +72,7 @@ export async function persistChatResources(
 /**
  * Removes resources from a chat's JSONB resources column by type+id.
  */
-export async function removeChatResources(
-  chatId: string,
-  toRemove: MothershipResource[]
-): Promise<void> {
+export async function removeChatResources(chatId: string, toRemove: ChatResource[]): Promise<void> {
   if (toRemove.length === 0) return
 
   try {
@@ -87,7 +84,7 @@ export async function removeChatResources(
 
     if (!chat) return
 
-    const existing = Array.isArray(chat.resources) ? (chat.resources as MothershipResource[]) : []
+    const existing = Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
     const removeKeys = new Set(toRemove.map((r) => `${r.type}:${r.id}`))
     const filtered = existing.filter((r) => !removeKeys.has(`${r.type}:${r.id}`))
 

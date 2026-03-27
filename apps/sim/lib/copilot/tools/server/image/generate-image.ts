@@ -60,7 +60,8 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
     params: GenerateImageArgs,
     context?: ServerToolContext
   ): Promise<GenerateImageResult> {
-    const reqLogger = logger.withMetadata({ messageId: context?.messageId })
+    const withMessageId = (message: string) =>
+      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
 
     if (!context?.userId) {
       throw new Error('Authentication required')

@@ -1,8 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createRunSegment } from '@/lib/copilot/async-runs/repository'
-import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
+import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/continue'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
@@ -83,15 +82,19 @@ export async function POST(req: NextRequest) {
     const chatId = parsed.chatId || crypto.randomUUID()
 
     messageId = crypto.randomUUID()
-    const reqLogger = logger.withMetadata({ messageId })
-    reqLogger.info('Received headless copilot chat start request', {
-      workflowId: resolved.workflowId,
-      workflowName: parsed.workflowName,
-      chatId,
-      mode: transportMode,
-      autoExecuteTools: parsed.autoExecuteTools,
-      timeout: parsed.timeout,
-    })
+    logger.info(
+      messageId
+        ? `Received headless copilot chat start request [messageId:${messageId}]`
+        : 'Received headless copilot chat start request',
+      {
+        workflowId: resolved.workflowId,
+        workflowName: parsed.workflowName,
+        chatId,
+        mode: transportMode,
+        autoExecuteTools: parsed.autoExecuteTools,
+        timeout: parsed.timeout,
+      }
+    )
     const requestPayload = {
       message: parsed.message,
       workflowId: resolved.workflowId,
@@ -129,9 +132,14 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    logger.withMetadata({ messageId }).error('Headless copilot request failed', {
-      error: error instanceof Error ? error.message : String(error),
-    })
+    logger.error(
+      messageId
+        ? `Headless copilot request failed [messageId:${messageId}]`
+        : 'Headless copilot request failed',
+      {
+        error: error instanceof Error ? error.message : String(error),
+      }
+    )
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

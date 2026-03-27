@@ -1,4 +1,4 @@
-export const WORKFLOW_TOOL_NAMES = [
+const WORKFLOW_TOOL_NAMES = [
   'run_workflow',
   'run_workflow_until_block',
   'run_block',

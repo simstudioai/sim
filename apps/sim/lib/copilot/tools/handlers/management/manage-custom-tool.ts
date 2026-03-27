@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import {
   deleteCustomTool,
@@ -190,9 +189,9 @@ export async function executeManageCustomTool(
     }
   } catch (error) {
     logger.error(
-      appendCopilotLogContext('manage_custom_tool execution failed', {
-        messageId: context.messageId,
-      }),
+      context.messageId
+        ? `manage_custom_tool execution failed [messageId:${context.messageId}]`
+        : 'manage_custom_tool execution failed',
       {
         operation,
         workspaceId,

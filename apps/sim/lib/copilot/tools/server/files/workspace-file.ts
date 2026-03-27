@@ -50,7 +50,8 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
     params: WorkspaceFileArgs,
     context?: ServerToolContext
   ): Promise<WorkspaceFileResult> {
-    const reqLogger = logger.withMetadata({ messageId: context?.messageId })
+    const withMessageId = (message: string) =>
+      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
 
     if (!context?.userId) {
       reqLogger.error('Unauthorized attempt to access workspace files')
