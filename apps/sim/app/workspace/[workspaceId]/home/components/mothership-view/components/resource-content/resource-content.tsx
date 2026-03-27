@@ -10,7 +10,7 @@ import {
   cancelRunToolExecution,
   markRunToolManuallyStopped,
   reportManualRunToolStop,
-} from '@/lib/copilot/client-sse/run-tool-execution'
+} from '@/lib/copilot/tools/client/run-tool-execution'
 import {
   downloadWorkspaceFile,
   getFileExtension,

@@ -85,7 +85,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@/lib/copilot/task-events', () => ({
+vi.mock('@/lib/copilot/tasks', () => ({
   taskPubSub: null,
 }))
 

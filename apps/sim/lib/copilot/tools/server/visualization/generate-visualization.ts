@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { GenerateVisualization } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -147,7 +148,7 @@ export const generateVisualizationServerTool: BaseServerTool<
   VisualizationArgs,
   VisualizationResult
 > = {
-  name: 'generate_visualization',
+  name: GenerateVisualization.id,
 
   async execute(
     params: VisualizationArgs,

@@ -4,7 +4,7 @@ import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/to
 
 export type { StreamEvent }
 
-type LocalToolCallStatus = 'pending' | 'executing'
+export type LocalToolCallStatus = 'pending' | 'executing'
 export type ToolCallStatus = LocalToolCallStatus | MothershipStreamV1ToolOutcome
 
 const TERMINAL_TOOL_STATUSES: ReadonlySet<ToolCallStatus> = new Set<MothershipStreamV1ToolOutcome>(
@@ -30,7 +30,14 @@ export interface ToolCallResult<T = unknown> extends ToolExecutionResult {
   output?: T
 }
 
-export type ContentBlockType = 'text' | 'thinking' | 'tool_call' | 'subagent_text' | 'subagent'
+export const ContentBlockType = {
+  text: 'text',
+  thinking: 'thinking',
+  tool_call: 'tool_call',
+  subagent_text: 'subagent_text',
+  subagent: 'subagent',
+} as const
+export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType]
 
 export interface ContentBlock {
   type: ContentBlockType

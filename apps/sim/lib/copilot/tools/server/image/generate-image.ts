@@ -1,5 +1,6 @@
 import { GoogleGenAI, type Part } from '@google/genai'
 import { createLogger } from '@sim/logger'
+import { GenerateImage } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -54,7 +55,7 @@ interface GenerateImageResult {
 }
 
 export const generateImageServerTool: BaseServerTool<GenerateImageArgs, GenerateImageResult> = {
-  name: 'generate_image',
+  name: GenerateImage.id,
 
   async execute(
     params: GenerateImageArgs,

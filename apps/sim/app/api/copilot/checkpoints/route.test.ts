@@ -62,7 +62,7 @@ vi.mock('drizzle-orm', () => ({
   desc: vi.fn((field: unknown) => ({ field, type: 'desc' })),
 }))
 
-vi.mock('@/lib/copilot/chat-lifecycle', () => ({
+vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
 }))
 

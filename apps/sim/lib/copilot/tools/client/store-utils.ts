@@ -23,6 +23,7 @@ import {
   Wrench,
   Zap,
 } from 'lucide-react'
+import { Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
 import {
   ClientToolCallState,
@@ -133,7 +134,7 @@ function specialToolDisplay(
     }
   }
 
-  if (toolName === 'read') {
+  if (toolName === ReadTool.id) {
     const target = describeReadTarget(readStringParam(params, 'path'))
     return {
       text: formatReadingLabel(target, state),
@@ -244,7 +245,7 @@ function humanizedFallback(
 }
 
 export function isRejectedState(state: string): boolean {
-  return state === 'rejected'
+  return state === ClientToolCallState.rejected
 }
 
 export function isReviewState(state: string): boolean {

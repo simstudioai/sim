@@ -1,17 +1,13 @@
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { MothershipResourceType } from '@/lib/copilot/resources/types'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { getTableById } from '@/lib/table/service'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { isUuid } from '@/executor/constants'
-import type { OpenResourceParams, OpenResourceType, ValidOpenResourceParams } from './param-types'
+import type { OpenResourceParams, ValidOpenResourceParams } from './param-types'
 
-const VALID_OPEN_RESOURCE_TYPES = new Set<OpenResourceType>([
-  'workflow',
-  'table',
-  'knowledgebase',
-  'file',
-])
+const VALID_OPEN_RESOURCE_TYPES = new Set(Object.values(MothershipResourceType))
 
 export async function executeOpenResource(
   rawParams: Record<string, unknown>,
@@ -66,7 +62,7 @@ export async function executeOpenResource(
     output: { message: `Opened ${resourceType} ${resourceId} for the user` },
     resources: [
       {
-        type: resourceType as 'workflow' | 'table' | 'knowledgebase' | 'file',
+        type: resourceType,
         id: resourceId,
         title,
       },

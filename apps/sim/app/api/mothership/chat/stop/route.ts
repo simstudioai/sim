@@ -5,6 +5,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { taskPubSub } from '@/lib/copilot/tasks'
 
 const logger = createLogger('MothershipChatStopAPI')
@@ -25,15 +26,25 @@ const StoredToolCallSchema = z
     display: z
       .object({
         text: z.string().optional(),
+        title: z.string().optional(),
+        phaseLabel: z.string().optional(),
       })
       .optional(),
     calledBy: z.string().optional(),
+    durationMs: z.number().optional(),
+    error: z.string().optional(),
   })
   .nullable()
 
 const ContentBlockSchema = z.object({
   type: z.string(),
+  lane: z.enum(['main', 'subagent']).optional(),
   content: z.string().optional(),
+  channel: z.enum(['assistant', 'thinking']).optional(),
+  phase: z.enum(['call', 'args_delta', 'result']).optional(),
+  kind: z.enum(['subagent', 'structured_result', 'subagent_result']).optional(),
+  lifecycle: z.enum(['start', 'end']).optional(),
+  status: z.enum(['complete', 'error', 'cancelled']).optional(),
   toolCall: StoredToolCallSchema.optional(),
 })
 
@@ -69,15 +80,14 @@ export async function POST(req: NextRequest) {
     const hasBlocks = Array.isArray(contentBlocks) && contentBlocks.length > 0
 
     if (hasContent || hasBlocks) {
-      const assistantMessage: Record<string, unknown> = {
+      const normalized = normalizeMessage({
         id: crypto.randomUUID(),
-        role: 'assistant' as const,
+        role: 'assistant',
         content,
         timestamp: new Date().toISOString(),
-      }
-      if (hasBlocks) {
-        assistantMessage.contentBlocks = contentBlocks
-      }
+        ...(hasBlocks ? { contentBlocks } : {}),
+      })
+      const assistantMessage: PersistedMessage = normalized
       setClause.messages = sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`
     }
 

@@ -1,6 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
+import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
+import {
+  RunBlock,
+  RunFromBlock,
+  RunWorkflowUntilBlock,
+} from '@/lib/copilot/generated/tool-catalog-v1'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -76,7 +82,7 @@ export async function reportManualRunToolStop(
 
   await reportCompletion(
     toolCallId,
-    'cancelled',
+    MothershipStreamV1ToolOutcome.cancelled,
     'Workflow execution was stopped manually by the user.',
     {
       reason: 'user_cancelled',
@@ -100,7 +106,11 @@ async function doExecuteRunTool(
   if (!targetWorkflowId) {
     logger.warn('[RunTool] Execution prevented: no active workflow', { toolCallId, toolName })
     setToolState(toolCallId, ClientToolCallState.error)
-    await reportCompletion(toolCallId, 'error', 'No active workflow found')
+    await reportCompletion(
+      toolCallId,
+      MothershipStreamV1ToolOutcome.error,
+      'No active workflow found'
+    )
     return
   }
 
@@ -113,7 +123,11 @@ async function doExecuteRunTool(
   if (isExecuting) {
     logger.warn('[RunTool] Execution prevented: already executing', { toolCallId, toolName })
     setToolState(toolCallId, ClientToolCallState.error)
-    await reportCompletion(toolCallId, 'error', 'Workflow is already executing. Try again later')
+    await reportCompletion(
+      toolCallId,
+      MothershipStreamV1ToolOutcome.error,
+      'Workflow is already executing. Try again later'
+    )
     return
   }
 
@@ -123,20 +137,19 @@ async function doExecuteRunTool(
     | undefined
 
   const stopAfterBlockId = (() => {
-    if (toolName === 'run_workflow_until_block')
-      return params.stopAfterBlockId as string | undefined
-    if (toolName === 'run_block') return params.blockId as string | undefined
+    if (toolName === RunWorkflowUntilBlock.id) return params.stopAfterBlockId as string | undefined
+    if (toolName === RunBlock.id) return params.blockId as string | undefined
     return undefined
   })()
 
   const runFromBlock = (() => {
-    if (toolName === 'run_from_block' && params.startBlockId) {
+    if (toolName === RunFromBlock.id && params.startBlockId) {
       return {
         startBlockId: params.startBlockId as string,
         executionId: (params.executionId as string | undefined) || 'latest',
       }
     }
-    if (toolName === 'run_block' && params.blockId) {
+    if (toolName === RunBlock.id && params.blockId) {
       return {
         startBlockId: params.blockId as string,
         executionId: (params.executionId as string | undefined) || 'latest',
@@ -230,7 +243,7 @@ async function doExecuteRunTool(
       setToolState(toolCallId, ClientToolCallState.success)
       await reportCompletion(
         toolCallId,
-        'success',
+        MothershipStreamV1ToolOutcome.success,
         `Workflow execution completed. Started at: ${executionStartTime}`,
         buildResultData(result)
       )
@@ -238,7 +251,12 @@ async function doExecuteRunTool(
       const msg = errorMessage || 'Workflow execution failed'
       logger.error('[RunTool] Workflow execution failed', { toolCallId, toolName, error: msg })
       setToolState(toolCallId, ClientToolCallState.error)
-      await reportCompletion(toolCallId, 'error', msg, buildResultData(result))
+      await reportCompletion(
+        toolCallId,
+        MothershipStreamV1ToolOutcome.error,
+        msg,
+        buildResultData(result)
+      )
     }
   } catch (err) {
     if (manuallyStoppedToolCallIds.has(toolCallId)) {
@@ -250,7 +268,7 @@ async function doExecuteRunTool(
       const msg = err instanceof Error ? err.message : String(err)
       logger.error('[RunTool] Workflow execution threw', { toolCallId, toolName, error: msg })
       setToolState(toolCallId, ClientToolCallState.error)
-      await reportCompletion(toolCallId, 'error', msg)
+      await reportCompletion(toolCallId, MothershipStreamV1ToolOutcome.error, msg)
     }
   } finally {
     if (typeof window !== 'undefined') {
@@ -315,7 +333,7 @@ function buildResultData(result: unknown): Record<string, unknown> | undefined {
  */
 async function reportCompletion(
   toolCallId: string,
-  status: 'success' | 'error' | 'cancelled',
+  status: MothershipStreamV1ToolOutcome,
   message?: string,
   data?: Record<string, unknown>
 ): Promise<void> {
@@ -326,7 +344,9 @@ async function reportCompletion(
       body: JSON.stringify({
         toolCallId,
         status,
-        message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
+        message:
+          message ||
+          (status === MothershipStreamV1ToolOutcome.success ? 'Tool completed' : 'Tool failed'),
         ...(data ? { data } : {}),
       }),
     })

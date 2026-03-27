@@ -1,96 +1,36 @@
+import {
+  CreateWorkflow,
+  DeleteWorkflow,
+  DownloadToWorkspaceFile,
+  EditWorkflow,
+  FunctionExecute,
+  GenerateImage,
+  GenerateVisualization,
+  Knowledge,
+  KnowledgeBase,
+  UserTable,
+  WorkspaceFile,
+} from '@/lib/copilot/generated/tool-catalog-v1'
 import type { MothershipResource, MothershipResourceType } from './types'
 
 type ChatResource = MothershipResource
 type ResourceType = MothershipResourceType
 
-/**
- * Defines how each tool's result is surfaced in the resource panel:
- * - `dedicated` — opens its own resource tab (table, file, workflow, knowledgebase)
- * - `deferred`  — may open a dedicated tab; falls back to the Results tab if no resource is produced
- * - `excluded`  — hidden from the resource panel (internal tools, management, subagent wrappers)
- *
- * Any tool not listed here appears in the generic Results tab by default.
- */
-const TOOL_PANEL_BEHAVIOR: Record<string, 'dedicated' | 'deferred' | 'excluded'> = {
-  // Dedicated resource tab openers
-  user_table: 'dedicated',
-  workspace_file: 'dedicated',
-  download_to_workspace_file: 'dedicated',
-  create_workflow: 'dedicated',
-  edit_workflow: 'dedicated',
-  knowledge_base: 'dedicated',
-  knowledge: 'dedicated',
-  generate_visualization: 'dedicated',
-  generate_image: 'dedicated',
-  // Deferred: may produce a dedicated resource; falls back to Results tab otherwise
-  function_execute: 'deferred',
-  // Excluded: saves files without opening a resource tab
-  materialize_file: 'excluded',
-  // Excluded: internal / invisible
-  user_memory: 'excluded',
-  context_write: 'excluded',
-  context_compaction: 'excluded',
-  // Excluded: workflow and folder management
-  rename_workflow: 'excluded',
-  move_workflow: 'excluded',
-  delete_workflow: 'excluded',
-  create_folder: 'excluded',
-  delete_folder: 'excluded',
-  move_folder: 'excluded',
-  list_folders: 'excluded',
-  list_user_workspaces: 'excluded',
-  open_resource: 'excluded',
-  // Excluded: settings and credential management
-  set_environment_variables: 'excluded',
-  set_global_workflow_variables: 'excluded',
-  manage_mcp_tool: 'excluded',
-  manage_skill: 'excluded',
-  manage_credential: 'excluded',
-  manage_custom_tool: 'excluded',
-  oauth_get_auth_link: 'excluded',
-  oauth_request_access: 'excluded',
-  update_workspace_mcp_server: 'excluded',
-  delete_workspace_mcp_server: 'excluded',
-  create_workspace_mcp_server: 'excluded',
-  list_workspace_mcp_servers: 'excluded',
-  // Excluded: subagent wrappers — inner tools fire as individual events
-  build: 'excluded',
-  run: 'excluded',
-  deploy: 'excluded',
-  auth: 'excluded',
-  table: 'excluded',
-  job: 'excluded',
-  agent: 'excluded',
-  custom_tool: 'excluded',
-  research: 'excluded',
-  plan: 'excluded',
-  debug: 'excluded',
-  edit: 'excluded',
-  fast_edit: 'excluded',
-}
+const RESOURCE_TOOL_NAMES: Set<string> = new Set([
+  UserTable.id,
+  WorkspaceFile.id,
+  DownloadToWorkspaceFile.id,
+  CreateWorkflow.id,
+  EditWorkflow.id,
+  FunctionExecute.id,
+  KnowledgeBase.id,
+  Knowledge.id,
+  GenerateVisualization.id,
+  GenerateImage.id,
+])
 
-/**
- * Returns true for resources that are client-only and must never be persisted to the server.
- * This covers the generic Results tab and the in-flight streaming-file preview.
- */
-export function isEphemeralResource(resource: { id: string; type: string }): boolean {
-  return resource.type === 'generic' || resource.id === 'streaming-file'
-}
-
-/** Returns true for tools that open a dedicated resource tab or may fall back to the Results tab. */
 export function isResourceToolName(toolName: string): boolean {
-  const b = TOOL_PANEL_BEHAVIOR[toolName]
-  return b === 'dedicated' || b === 'deferred'
-}
-
-/** Returns true if the tool's result should appear in the Results tab at call time. */
-export function shouldOpenGenericResource(toolName: string): boolean {
-  return !(toolName in TOOL_PANEL_BEHAVIOR)
-}
-
-/** Returns true for tools that may fall back to the Results tab at completion time. */
-export function isDeferredResourceTool(toolName: string): boolean {
-  return TOOL_PANEL_BEHAVIOR[toolName] === 'deferred'
+  return RESOURCE_TOOL_NAMES.has(toolName)
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -122,7 +62,7 @@ export function extractResourcesFromToolResult(
   const data = asRecord(result.data)
 
   switch (toolName) {
-    case 'user_table': {
+    case UserTable.id: {
       if (READ_ONLY_TABLE_OPS.has(getOperation(params) ?? '')) return []
 
       if (result.tableId) {
@@ -158,7 +98,7 @@ export function extractResourcesFromToolResult(
       return []
     }
 
-    case 'workspace_file': {
+    case WorkspaceFile.id: {
       const file = asRecord(data.file)
       if (file.id) {
         return [{ type: 'file', id: file.id as string, title: (file.name as string) || 'File' }]
@@ -171,7 +111,7 @@ export function extractResourcesFromToolResult(
       return []
     }
 
-    case 'function_execute': {
+    case FunctionExecute.id: {
       if (result.tableId) {
         return [
           {
@@ -193,9 +133,9 @@ export function extractResourcesFromToolResult(
       return []
     }
 
-    case 'download_to_workspace_file':
-    case 'generate_visualization':
-    case 'generate_image': {
+    case DownloadToWorkspaceFile.id:
+    case GenerateVisualization.id:
+    case GenerateImage.id: {
       if (result.fileId) {
         return [
           {
@@ -208,8 +148,8 @@ export function extractResourcesFromToolResult(
       return []
     }
 
-    case 'create_workflow':
-    case 'edit_workflow': {
+    case CreateWorkflow.id:
+    case EditWorkflow.id: {
       const workflowId =
         (result.workflowId as string) ??
         (data.workflowId as string) ??
@@ -225,7 +165,7 @@ export function extractResourcesFromToolResult(
       return []
     }
 
-    case 'knowledge_base': {
+    case KnowledgeBase.id: {
       if (READ_ONLY_KB_OPS.has(getOperation(params) ?? '')) return []
 
       const args = asRecord(params?.args)
@@ -243,7 +183,7 @@ export function extractResourcesFromToolResult(
       return []
     }
 
-    case 'knowledge': {
+    case Knowledge.id: {
       const action = data.action as string | undefined
       if (READ_ONLY_KNOWLEDGE_ACTIONS.has(action ?? '')) return []
 
@@ -269,10 +209,10 @@ export function extractResourcesFromToolResult(
 }
 
 const DELETE_CAPABLE_TOOL_RESOURCE_TYPE: Record<string, ResourceType> = {
-  delete_workflow: 'workflow',
-  workspace_file: 'file',
-  user_table: 'table',
-  knowledge_base: 'knowledgebase',
+  [DeleteWorkflow.id]: 'workflow',
+  [WorkspaceFile.id]: 'file',
+  [UserTable.id]: 'table',
+  [KnowledgeBase.id]: 'knowledgebase',
 }
 
 export function hasDeleteCapability(toolName: string): boolean {
@@ -298,7 +238,7 @@ export function extractDeletedResourcesFromToolResult(
   const operation = (args.operation ?? params?.operation) as string | undefined
 
   switch (toolName) {
-    case 'delete_workflow': {
+    case DeleteWorkflow.id: {
       const workflowId = (result.workflowId as string) ?? (params?.workflowId as string)
       if (workflowId && result.deleted) {
         return [
@@ -308,7 +248,7 @@ export function extractDeletedResourcesFromToolResult(
       return []
     }
 
-    case 'workspace_file': {
+    case WorkspaceFile.id: {
       if (operation !== 'delete') return []
       const fileId = (data.id as string) ?? (args.fileId as string)
       if (fileId) {
@@ -317,7 +257,7 @@ export function extractDeletedResourcesFromToolResult(
       return []
     }
 
-    case 'user_table': {
+    case UserTable.id: {
       if (operation !== 'delete') return []
       const tableId = (args.tableId as string) ?? (params?.tableId as string)
       if (tableId) {
@@ -326,7 +266,7 @@ export function extractDeletedResourcesFromToolResult(
       return []
     }
 
-    case 'knowledge_base': {
+    case KnowledgeBase.id: {
       if (operation !== 'delete') return []
       const kbId = (data.id as string) ?? (args.knowledgeBaseId as string)
       if (kbId) {

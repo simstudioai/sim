@@ -8,11 +8,14 @@ import { getSession } from '@/lib/auth'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
 import {
+  buildPersistedAssistantMessage,
+  buildPersistedUserMessage,
+} from '@/lib/copilot/chat/persisted-message'
+import {
   processContextsServer,
   resolveActiveResourceContext,
 } from '@/lib/copilot/chat/process-contents'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
-import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   createBadRequestResponse,
   createRequestTracker,
@@ -22,7 +25,7 @@ import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/lif
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import type { ChatContext } from '@/stores/panel/copilot/types'
+import type { ChatContext } from '@/stores/panel'
 
 export const maxDuration = 3600
 
@@ -297,15 +300,12 @@ export async function POST(req: NextRequest) {
 
     // 7. Persist user message
     if (actualChatId) {
-      const userMsg = {
+      const userMsg = buildPersistedUserMessage({
         id: userMessageIdToUse,
-        role: 'user' as const,
         content: message,
-        timestamp: new Date().toISOString(),
-        ...(fileAttachments && fileAttachments.length > 0 && { fileAttachments }),
-        ...(Array.isArray(normalizedContexts) &&
-          normalizedContexts.length > 0 && { contexts: normalizedContexts }),
-      }
+        fileAttachments,
+        contexts: normalizedContexts,
+      })
 
       const [updated] = await db
         .update(copilotChats)
@@ -395,54 +395,7 @@ function buildOnComplete(
   return async (result) => {
     if (!chatId || !result.success) return
 
-    const assistantMessage: Record<string, unknown> = {
-      id: crypto.randomUUID(),
-      role: 'assistant' as const,
-      content: result.content,
-      timestamp: new Date().toISOString(),
-      ...(result.requestId ? { requestId: result.requestId } : {}),
-    }
-
-    if (result.toolCalls.length > 0) {
-      assistantMessage.toolCalls = result.toolCalls
-    }
-
-    if (result.contentBlocks.length > 0) {
-      assistantMessage.contentBlocks = result.contentBlocks.map((block) => {
-        const stored: Record<string, unknown> = { type: block.type }
-        if (block.content) stored.content = block.content
-
-        if (block.type === 'tool_call' && block.toolCall) {
-          const state =
-            block.toolCall.result?.success !== undefined
-              ? block.toolCall.result.success
-                ? MothershipStreamV1ToolOutcome.success
-                : MothershipStreamV1ToolOutcome.error
-              : block.toolCall.status
-
-          const isSubagentTool = !!block.calledBy
-          const isNonTerminal =
-            state === MothershipStreamV1ToolOutcome.cancelled ||
-            state === 'pending' ||
-            state === 'executing'
-
-          stored.toolCall = {
-            id: block.toolCall.id,
-            name: block.toolCall.name,
-            state,
-            ...(isSubagentTool && isNonTerminal ? {} : { result: block.toolCall.result }),
-            ...(isSubagentTool && isNonTerminal
-              ? {}
-              : block.toolCall.params
-                ? { params: block.toolCall.params }
-                : {}),
-            ...(block.calledBy ? { calledBy: block.calledBy } : {}),
-          }
-        }
-
-        return stored
-      })
-    }
+    const assistantMessage = buildPersistedAssistantMessage(result, result.requestId)
 
     try {
       const [row] = await db

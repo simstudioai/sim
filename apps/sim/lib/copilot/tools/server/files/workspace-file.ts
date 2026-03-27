@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -45,7 +46,7 @@ function validateFlatWorkspaceFileName(fileName: string): string | null {
 }
 
 export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, WorkspaceFileResult> = {
-  name: 'workspace_file',
+  name: WorkspaceFile.id,
   async execute(
     params: WorkspaceFileArgs,
     context?: ServerToolContext

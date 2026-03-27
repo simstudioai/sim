@@ -60,77 +60,24 @@ export interface QueuedMessage {
  * ```
  * Stream `type` is `MothershipStreamV1EventType.tool` (`mothership-stream-v1`) with `phase: 'call'`.
  */
-export type MothershipToolName =
-  | 'glob'
-  | 'grep'
-  | 'read'
-  | 'search_online'
-  | 'scrape_page'
-  | 'get_page_contents'
-  | 'search_library_docs'
-  | 'manage_mcp_tool'
-  | 'manage_skill'
-  | 'user_memory'
-  | 'function_execute'
-  | 'superagent'
-  | 'user_table'
-  | 'workspace_file'
-  | 'create_workflow'
-  | 'edit_workflow'
-  | 'build'
-  | 'run'
-  | 'deploy'
-  | 'auth'
-  | 'knowledge'
-  | 'knowledge_base'
-  | 'table'
-  | 'job'
-  | 'agent'
-  | 'custom_tool'
-  | 'research'
-  | 'plan'
-  | 'debug'
-  | 'edit'
-  | 'fast_edit'
-  | 'open_resource'
-  | 'context_compaction'
 
-/**
- * Subagent identifiers dispatched on span lifecycle events (`MothershipStreamV1EventType.span`
- * with kind `subagent`, e.g. lifecycle `start`).
- *
- * @example
- * ```json
- * { "type": "span", "kind": "subagent", "lifecycle": "start", "subagent": "build" }
- * ```
- */
-export type SubagentName =
-  | 'build'
-  | 'deploy'
-  | 'auth'
-  | 'research'
-  | 'knowledge'
-  | 'table'
-  | 'custom_tool'
-  | 'superagent'
-  | 'plan'
-  | 'debug'
-  | 'edit'
-  | 'fast_edit'
-  | 'run'
-  | 'agent'
-  | 'job'
-  | 'file_write'
+export const ToolPhase = {
+  workspace: 'workspace',
+  search: 'search',
+  management: 'management',
+  execution: 'execution',
+  resource: 'resource',
+  subagent: 'subagent',
+} as const
+export type ToolPhase = (typeof ToolPhase)[keyof typeof ToolPhase]
 
-export type ToolPhase =
-  | 'workspace'
-  | 'search'
-  | 'management'
-  | 'execution'
-  | 'resource'
-  | 'subagent'
-
-export type ToolCallStatus = 'executing' | 'success' | 'error' | 'cancelled'
+export const ToolCallStatus = {
+  executing: 'executing',
+  success: 'success',
+  error: 'error',
+  cancelled: 'cancelled',
+} as const
+export type ToolCallStatus = (typeof ToolCallStatus)[keyof typeof ToolCallStatus]
 
 export interface ToolCallResult {
   success: boolean
@@ -156,7 +103,7 @@ export interface ToolCallInfo {
   phaseLabel?: string
   params?: Record<string, unknown>
   calledBy?: string
-  result?: { success: boolean; output?: unknown; error?: string }
+  result?: ToolCallResult
   streamingArgs?: string
 }
 
@@ -165,14 +112,16 @@ export interface OptionItem {
   label: string
 }
 
-export type ContentBlockType =
-  | 'text'
-  | 'tool_call'
-  | 'subagent'
-  | 'subagent_end'
-  | 'subagent_text'
-  | 'options'
-  | 'stopped'
+export const ContentBlockType = {
+  text: 'text',
+  tool_call: 'tool_call',
+  subagent: 'subagent',
+  subagent_end: 'subagent_end',
+  subagent_text: 'subagent_text',
+  options: 'options',
+  stopped: 'stopped',
+} as const
+export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType]
 
 export interface ContentBlock {
   type: ContentBlockType
@@ -209,7 +158,7 @@ export interface ChatMessage {
   requestId?: string
 }
 
-export const SUBAGENT_LABELS: Record<SubagentName, string> = {
+export const SUBAGENT_LABELS: Record<string, string> = {
   build: 'Build agent',
   deploy: 'Deploy agent',
   auth: 'Integration agent',
@@ -239,7 +188,7 @@ export interface ToolUIMetadata {
  * The backend may send `ui` on some `MothershipStreamV1EventType.tool` payloads (`phase: 'call'`);
  * this map provides fallback metadata when `ui` is absent.
  */
-export const TOOL_UI_METADATA: Partial<Record<MothershipToolName, ToolUIMetadata>> = {
+export const TOOL_UI_METADATA: Record<string, ToolUIMetadata> = {
   [Glob.id]: {
     title: 'Searching files',
     phaseLabel: 'Workspace',

@@ -19,7 +19,7 @@ import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { escapeRegExp } from '@/executor/constants'
-import type { ChatContext } from '@/stores/panel/copilot/types'
+import type { ChatContext } from '@/stores/panel'
 
 type AgentContextType =
   | 'past_chat'

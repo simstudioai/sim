@@ -8,7 +8,7 @@ import {
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
-import type { ContentBlock, OptionItem, SubagentName, ToolCallData } from '../../types'
+import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '../../types'
 import type { AgentGroupItem } from './components'
 import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
@@ -60,7 +60,7 @@ function formatToolName(name: string): string {
 }
 
 function resolveAgentLabel(key: string): string {
-  return SUBAGENT_LABELS[key as SubagentName] ?? formatToolName(key)
+  return SUBAGENT_LABELS[key] ?? formatToolName(key)
 }
 
 function isToolDone(status: ToolCallData['status']): boolean {

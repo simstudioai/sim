@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -239,7 +240,7 @@ async function batchInsertAll(
 }
 
 export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult> = {
-  name: 'user_table',
+  name: UserTable.id,
   async execute(params: UserTableArgs, context?: ServerToolContext): Promise<UserTableResult> {
     const withMessageId = (message: string) =>
       context?.messageId ? `${message} [messageId:${context.messageId}]` : message

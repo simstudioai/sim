@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
+import { GetWorkflowLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
@@ -65,7 +66,7 @@ function extractBlockExecutionsFromTraceSpans(traceSpans: any[]): BlockExecution
 }
 
 export const getWorkflowLogsServerTool: BaseServerTool<GetWorkflowLogsArgs, any> = {
-  name: 'get_workflow_logs',
+  name: GetWorkflowLogs.id,
   async execute(rawArgs: GetWorkflowLogsArgs, context?: { userId: string }): Promise<any> {
     const {
       workflowId,

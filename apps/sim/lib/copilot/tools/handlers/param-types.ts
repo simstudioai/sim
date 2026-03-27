@@ -3,6 +3,8 @@
  * Replaces Record<string, any> with specific shapes based on actual property access.
  */
 
+import type { MothershipResourceType } from '@/lib/copilot/resources/types'
+
 // === Workflow Query Params ===
 
 export interface GetWorkflowDataParams {
@@ -203,7 +205,7 @@ export interface DeleteWorkspaceMcpServerParams {
   serverId: string
 }
 
-export type OpenResourceType = 'workflow' | 'table' | 'knowledgebase' | 'file'
+export type OpenResourceType = MothershipResourceType
 
 export interface OpenResourceParams {
   type?: OpenResourceType

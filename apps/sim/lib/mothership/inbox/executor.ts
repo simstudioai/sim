@@ -3,6 +3,10 @@ import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
+import {
+  buildPersistedAssistantMessage,
+  buildPersistedUserMessage,
+} from '@/lib/copilot/chat/persisted-message'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/continue'
 import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
@@ -310,23 +314,13 @@ async function persistChatMessages(
   storedAttachments: StoredAttachment[] = []
 ): Promise<void> {
   try {
-    const now = new Date().toISOString()
-
-    const userMessage = {
+    const userMessage = buildPersistedUserMessage({
       id: userMessageId,
-      role: 'user' as const,
       content: userContent,
-      timestamp: now,
-      ...(storedAttachments.length > 0 ? { fileAttachments: storedAttachments } : {}),
-    }
+      fileAttachments: storedAttachments.length > 0 ? storedAttachments : undefined,
+    })
 
-    const assistantMessage = {
-      id: crypto.randomUUID(),
-      role: 'assistant' as const,
-      content: result.content || '',
-      timestamp: now,
-      ...(result.error ? { errorType: 'internal' } : {}),
-    }
+    const assistantMessage = buildPersistedAssistantMessage(result)
 
     const newMessages = JSON.stringify([userMessage, assistantMessage])
     await db

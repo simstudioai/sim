@@ -17,10 +17,6 @@ vi.mock('@/lib/billing/core/subscription', () => ({
   getUserSubscriptionState: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/chat-context', () => ({
-  processFileAttachments: vi.fn(),
-}))
-
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isHosted: false,
 }))

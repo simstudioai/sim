@@ -1,4 +1,11 @@
-export type MothershipResourceType = 'table' | 'file' | 'workflow' | 'knowledgebase' | 'generic'
+export const MothershipResourceType = {
+  table: 'table',
+  file: 'file',
+  workflow: 'workflow',
+  knowledgebase: 'knowledgebase',
+} as const
+export type MothershipResourceType =
+  (typeof MothershipResourceType)[keyof typeof MothershipResourceType]
 
 export interface MothershipResource {
   type: MothershipResourceType

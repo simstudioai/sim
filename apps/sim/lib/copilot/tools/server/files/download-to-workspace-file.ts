@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { z } from 'zod'
+import { DownloadToWorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -116,7 +117,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
   DownloadToWorkspaceFileArgs,
   DownloadToWorkspaceFileResult
 > = {
-  name: 'download_to_workspace_file',
+  name: DownloadToWorkspaceFile.id,
   inputSchema: DownloadToWorkspaceFileArgsSchema,
   outputSchema: DownloadToWorkspaceFileResultSchema,
 

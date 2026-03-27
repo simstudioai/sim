@@ -1,4 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 
 export interface TaskMetadata {
@@ -12,61 +14,9 @@ export interface TaskMetadata {
 export interface TaskChatHistory {
   id: string
   title: string | null
-  messages: TaskStoredMessage[]
+  messages: PersistedMessage[]
   activeStreamId: string | null
   resources: MothershipResource[]
-}
-
-export interface TaskStoredToolCall {
-  id: string
-  name: string
-  status: string
-  params?: Record<string, unknown>
-  result?: unknown
-  error?: string
-  durationMs?: number
-}
-
-export interface TaskStoredFileAttachment {
-  id: string
-  key: string
-  filename: string
-  media_type: string
-  size: number
-}
-
-export interface TaskStoredMessageContext {
-  kind: string
-  label: string
-  workflowId?: string
-  knowledgeId?: string
-  tableId?: string
-  fileId?: string
-}
-
-export interface TaskStoredMessage {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  requestId?: string
-  toolCalls?: TaskStoredToolCall[]
-  contentBlocks?: TaskStoredContentBlock[]
-  fileAttachments?: TaskStoredFileAttachment[]
-  contexts?: TaskStoredMessageContext[]
-}
-
-export interface TaskStoredContentBlock {
-  type: string
-  content?: string
-  toolCall?: {
-    id?: string
-    name?: string
-    state?: string
-    params?: Record<string, unknown>
-    result?: { success: boolean; output?: unknown; error?: string }
-    display?: { text?: string }
-    calledBy?: string
-  } | null
 }
 
 export const taskKeys = {
@@ -153,7 +103,9 @@ export async function fetchChatHistory(
   return {
     id: chat.id,
     title: chat.title,
-    messages: Array.isArray(chat.messages) ? chat.messages : [],
+    messages: Array.isArray(chat.messages)
+      ? chat.messages.map((m: Record<string, unknown>) => normalizeMessage(m))
+      : [],
     activeStreamId: chat.activeStreamId || null,
     resources: Array.isArray(chat.resources) ? chat.resources : [],
   }

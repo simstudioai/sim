@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { jobExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
+import { GetJobLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -83,7 +84,7 @@ function extractOutputAndError(executionData: any): {
 }
 
 export const getJobLogsServerTool: BaseServerTool<GetJobLogsArgs, JobLogEntry[]> = {
-  name: 'get_job_logs',
+  name: GetJobLogs.id,
   async execute(rawArgs: GetJobLogsArgs, context?: ServerToolContext): Promise<JobLogEntry[]> {
     const withMessageId = (message: string) =>
       context?.messageId ? `${message} [messageId:${context.messageId}]` : message

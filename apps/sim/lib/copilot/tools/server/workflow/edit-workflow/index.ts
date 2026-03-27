@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { EditWorkflow } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -65,7 +66,7 @@ async function getCurrentWorkflowStateFromDb(
 }
 
 export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown> = {
-  name: 'edit_workflow',
+  name: EditWorkflow.id,
   async execute(params: EditWorkflowParams, context?: ServerToolContext): Promise<unknown> {
     const logger = createLogger('EditWorkflowServerTool')
     const { operations, workflowId, currentUserWorkflow } = params

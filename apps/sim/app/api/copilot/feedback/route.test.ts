@@ -57,7 +57,7 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
 }))
 
-vi.mock('@/lib/copilot/request-helpers', () => ({
+vi.mock('@/lib/copilot/request/http', () => ({
   authenticateCopilotRequestSessionOnly: mockAuthenticate,
   createUnauthorizedResponse: mockCreateUnauthorizedResponse,
   createBadRequestResponse: mockCreateBadRequestResponse,

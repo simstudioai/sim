@@ -3,6 +3,7 @@ import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { generateInternalToken } from '@/lib/auth/internal'
+import { KnowledgeBase } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -42,7 +43,7 @@ const logger = createLogger('KnowledgeBaseServerTool')
  * Knowledge base tool for copilot to create, list, and get knowledge bases
  */
 export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, KnowledgeBaseResult> = {
-  name: 'knowledge_base',
+  name: KnowledgeBase.id,
   async execute(
     params: KnowledgeBaseArgs,
     context?: ServerToolContext

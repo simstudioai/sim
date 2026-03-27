@@ -5,14 +5,16 @@ import { env } from '@/lib/core/config/env'
 import { safeCompare } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 
-export type NotificationStatus =
-  | 'pending'
-  | 'success'
-  | 'error'
-  | 'accepted'
-  | 'rejected'
-  | 'background'
-  | 'cancelled'
+export const NotificationStatus = {
+  pending: 'pending',
+  success: 'success',
+  error: 'error',
+  accepted: 'accepted',
+  rejected: 'rejected',
+  background: 'background',
+  cancelled: 'cancelled',
+} as const
+export type NotificationStatus = (typeof NotificationStatus)[keyof typeof NotificationStatus]
 
 export interface CopilotAuthResult {
   userId: string | null

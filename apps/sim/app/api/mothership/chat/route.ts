@@ -8,6 +8,10 @@ import { getSession } from '@/lib/auth'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
 import {
+  buildPersistedAssistantMessage,
+  buildPersistedUserMessage,
+} from '@/lib/copilot/chat/persisted-message'
+import {
   processContextsServer,
   resolveActiveResourceContext,
 } from '@/lib/copilot/chat/process-contents'
@@ -182,33 +186,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (actualChatId) {
-      const userMsg = {
+      const userMsg = buildPersistedUserMessage({
         id: userMessageId,
-        role: 'user' as const,
         content: message,
-        timestamp: new Date().toISOString(),
-        ...(fileAttachments &&
-          fileAttachments.length > 0 && {
-            fileAttachments: fileAttachments.map((f) => ({
-              id: f.id,
-              key: f.key,
-              filename: f.filename,
-              media_type: f.media_type,
-              size: f.size,
-            })),
-          }),
-        ...(contexts &&
-          contexts.length > 0 && {
-            contexts: contexts.map((c) => ({
-              kind: c.kind,
-              label: c.label,
-              ...(c.workflowId && { workflowId: c.workflowId }),
-              ...(c.knowledgeId && { knowledgeId: c.knowledgeId }),
-              ...(c.tableId && { tableId: c.tableId }),
-              ...(c.fileId && { fileId: c.fileId }),
-            })),
-          }),
-      }
+        fileAttachments,
+        contexts,
+      })
 
       const [updated] = await db
         .update(copilotChats)
@@ -278,46 +261,7 @@ export async function POST(req: NextRequest) {
           if (!actualChatId) return
           if (!result.success) return
 
-          const assistantMessage: Record<string, unknown> = {
-            id: crypto.randomUUID(),
-            role: 'assistant' as const,
-            content: result.content,
-            timestamp: new Date().toISOString(),
-            ...(result.requestId ? { requestId: result.requestId } : {}),
-          }
-          if (result.toolCalls.length > 0) {
-            assistantMessage.toolCalls = result.toolCalls
-          }
-          if (result.contentBlocks.length > 0) {
-            assistantMessage.contentBlocks = result.contentBlocks.map((block) => {
-              const stored: Record<string, unknown> = { type: block.type }
-              if (block.content) stored.content = block.content
-              if (block.type === 'tool_call' && block.toolCall) {
-                const state =
-                  block.toolCall.result?.success !== undefined
-                    ? block.toolCall.result.success
-                      ? 'success'
-                      : 'error'
-                    : block.toolCall.status
-                const isSubagentTool = !!block.calledBy
-                const isNonTerminal =
-                  state === 'cancelled' || state === 'pending' || state === 'executing'
-                stored.toolCall = {
-                  id: block.toolCall.id,
-                  name: block.toolCall.name,
-                  state,
-                  ...(isSubagentTool && isNonTerminal ? {} : { result: block.toolCall.result }),
-                  ...(isSubagentTool && isNonTerminal
-                    ? {}
-                    : block.toolCall.params
-                      ? { params: block.toolCall.params }
-                      : {}),
-                  ...(block.calledBy ? { calledBy: block.calledBy } : {}),
-                }
-              }
-              return stored
-            })
-          }
+          const assistantMessage = buildPersistedAssistantMessage(result, result.requestId)
 
           try {
             const [row] = await db
