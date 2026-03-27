@@ -9,8 +9,8 @@ import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import {
   demoRequestSchema,
-  getDemoRequestRegionLabel,
   getDemoRequestCompanySizeLabel,
+  getDemoRequestRegionLabel,
 } from '@/app/(home)/components/demo-request/consts'
 
 const logger = createLogger('DemoRequestAPI')

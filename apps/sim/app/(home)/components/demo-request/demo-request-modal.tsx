@@ -16,8 +16,8 @@ import {
 } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
 import {
-  DEMO_REQUEST_REGION_OPTIONS,
   DEMO_REQUEST_COMPANY_SIZE_OPTIONS,
+  DEMO_REQUEST_REGION_OPTIONS,
   type DemoRequestPayload,
   demoRequestSchema,
 } from '@/app/(home)/components/demo-request/consts'
