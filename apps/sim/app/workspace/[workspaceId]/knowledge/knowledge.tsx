@@ -53,13 +53,19 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
     return { label: '—' }
   }
 
+  const entries = connectorTypes
+    .map((type) => ({ type, def: CONNECTOR_REGISTRY[type] }))
+    .filter((e): e is { type: string; def: NonNullable<(typeof CONNECTOR_REGISTRY)[string]> } =>
+      Boolean(e.def?.icon)
+    )
+
+  if (entries.length === 0) return { label: '—' }
+
   return {
     content: (
       <div className='flex items-center gap-1'>
-        {connectorTypes.map((type) => {
-          const def = CONNECTOR_REGISTRY[type]
-          const Icon = def?.icon
-          if (!Icon) return null
+        {entries.map(({ type, def }) => {
+          const Icon = def.icon
           return (
             <Tooltip.Root key={type}>
               <Tooltip.Trigger asChild>

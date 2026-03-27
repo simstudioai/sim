@@ -82,6 +82,18 @@ export function ConnectorsSection({
   const [syncingIds, setSyncingIds] = useState<Set<string>>(() => new Set())
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(() => new Set())
 
+  const addToSet = useCallback((setter: typeof setSyncingIds, id: string) => {
+    setter((prev) => new Set(prev).add(id))
+  }, [])
+
+  const removeFromSet = useCallback((setter: typeof setSyncingIds, id: string) => {
+    setter((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }, [])
+
   const syncTriggeredAt = useRef<Record<string, number>>({})
   const cooldownTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
   const [, forceUpdate] = useState(0)
@@ -105,18 +117,14 @@ export function ConnectorsSection({
       if (isSyncOnCooldown(connectorId)) return
 
       syncTriggeredAt.current[connectorId] = Date.now()
-      setSyncingIds((prev) => new Set(prev).add(connectorId))
+      addToSet(setSyncingIds, connectorId)
 
       triggerSync(
         { knowledgeBaseId, connectorId },
         {
           onSuccess: () => {
             setError(null)
-            setSyncingIds((prev) => {
-              const next = new Set(prev)
-              next.delete(connectorId)
-              return next
-            })
+            removeFromSet(setSyncingIds, connectorId)
             const timer = setTimeout(() => {
               cooldownTimers.current.delete(timer)
               forceUpdate((n) => n + 1)
@@ -126,18 +134,38 @@ export function ConnectorsSection({
           onError: (err) => {
             logger.error('Sync trigger failed', { error: err.message })
             setError(err.message)
-            setSyncingIds((prev) => {
-              const next = new Set(prev)
-              next.delete(connectorId)
-              return next
-            })
+            removeFromSet(setSyncingIds, connectorId)
             delete syncTriggeredAt.current[connectorId]
             forceUpdate((n) => n + 1)
           },
         }
       )
     },
-    [knowledgeBaseId, triggerSync, isSyncOnCooldown]
+    [knowledgeBaseId, triggerSync, isSyncOnCooldown, addToSet, removeFromSet]
+  )
+
+  const handleTogglePause = useCallback(
+    (connector: ConnectorData) => {
+      addToSet(setUpdatingIds, connector.id)
+      updateConnector(
+        {
+          knowledgeBaseId,
+          connectorId: connector.id,
+          updates: {
+            status: connector.status === 'paused' ? 'active' : 'paused',
+          },
+        },
+        {
+          onSettled: () => removeFromSet(setUpdatingIds, connector.id),
+          onSuccess: () => setError(null),
+          onError: (err) => {
+            logger.error('Toggle pause failed', { error: err.message })
+            setError(err.message)
+          },
+        }
+      )
+    },
+    [knowledgeBaseId, updateConnector, addToSet, removeFromSet]
   )
 
   if (connectors.length === 0 && !canEdit && !isLoading) return null
@@ -180,32 +208,7 @@ export function ConnectorsSection({
               isUpdating={updatingIds.has(connector.id)}
               syncCooldown={isSyncOnCooldown(connector.id)}
               onSync={() => handleSync(connector.id)}
-              onTogglePause={() => {
-                setUpdatingIds((prev) => new Set(prev).add(connector.id))
-                updateConnector(
-                  {
-                    knowledgeBaseId,
-                    connectorId: connector.id,
-                    updates: {
-                      status: connector.status === 'paused' ? 'active' : 'paused',
-                    },
-                  },
-                  {
-                    onSettled: () => {
-                      setUpdatingIds((prev) => {
-                        const next = new Set(prev)
-                        next.delete(connector.id)
-                        return next
-                      })
-                    },
-                    onSuccess: () => setError(null),
-                    onError: (err) => {
-                      logger.error('Toggle pause failed', { error: err.message })
-                      setError(err.message)
-                    },
-                  }
-                )
-              }}
+              onTogglePause={() => handleTogglePause(connector)}
               onEdit={() => setEditingConnector(connector)}
               onDelete={() => setDeleteTarget(connector.id)}
             />
