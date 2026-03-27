@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { Database } from '@/components/emcn/icons'
@@ -62,18 +62,14 @@ export function Knowledge() {
 
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const searchValueRef = useRef('')
 
   const handleSearchChange = useCallback((value: string) => {
+    searchValueRef.current = value
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
     searchTimerRef.current = setTimeout(() => {
       setDebouncedSearchQuery(value)
     }, 300)
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
-    }
   }, [])
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -262,7 +258,9 @@ export function Knowledge() {
 
   const searchConfig: SearchConfig = useMemo(
     () => ({
-      value: '',
+      get value() {
+        return searchValueRef.current
+      },
       onChange: handleSearchChange,
       placeholder: 'Search knowledge bases...',
     }),

@@ -11,6 +11,8 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 
+const HEADER_PLUS_ICON = <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+
 export interface DropdownOption {
   label: string
   icon?: React.ElementType
@@ -122,7 +124,7 @@ export const ResourceHeader = memo(function ResourceHeader({
               variant='subtle'
               className='px-2 py-1 text-caption'
             >
-              <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+              {HEADER_PLUS_ICON}
               {create.label}
             </Button>
           )}
