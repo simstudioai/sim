@@ -160,12 +160,12 @@ export function Files() {
 
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
+  const [inputValue, setInputValue] = useState('')
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
-  const searchValueRef = useRef('')
 
   const handleSearchChange = useCallback((value: string) => {
-    searchValueRef.current = value
+    setInputValue(value)
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
     searchTimerRef.current = setTimeout(() => {
       setDebouncedSearchTerm(value)
@@ -175,7 +175,14 @@ export function Files() {
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [previewMode, setPreviewMode] = useState<PreviewMode>('preview')
+  const [previewMode, setPreviewMode] = useState<PreviewMode>(() => {
+    if (fileIdFromRoute) {
+      const file = files.find((f) => f.id === fileIdFromRoute)
+      if (file && isPreviewable(file)) return 'preview'
+      return 'editor'
+    }
+    return 'preview'
+  })
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [contextMenuFile, setContextMenuFile] = useState<WorkspaceFileRecord | null>(null)
@@ -284,7 +291,15 @@ export function Files() {
         },
       }
     })
-  }, [baseRows, listRename.editingId, listRename.editValue, filteredFiles])
+  }, [
+    baseRows,
+    listRename.editingId,
+    listRename.editValue,
+    listRename.setEditValue,
+    listRename.submitRename,
+    listRename.cancelRename,
+    filteredFiles,
+  ])
 
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -696,15 +711,18 @@ export function Files() {
 
   const canEdit = userPermissions.canEdit === true
 
+  const handleSearchClearAll = useCallback(() => {
+    handleSearchChange('')
+  }, [handleSearchChange])
+
   const searchConfig: SearchConfig = useMemo(
     () => ({
-      get value() {
-        return searchValueRef.current
-      },
+      value: inputValue,
       onChange: handleSearchChange,
+      onClearAll: handleSearchClearAll,
       placeholder: 'Search files...',
     }),
-    [handleSearchChange]
+    [inputValue, handleSearchChange, handleSearchClearAll]
   )
 
   const createConfig = useMemo(
