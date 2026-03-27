@@ -501,12 +501,6 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     caret-color: var(--text-primary);
   }
 
-  .dark body {
-    @apply antialiased;
-  }
-  .light body {
-    @apply antialiased;
-  }
   ::-webkit-scrollbar {
     width: var(--scrollbar-size);
     height: var(--scrollbar-size);
