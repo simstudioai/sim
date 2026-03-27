@@ -56,6 +56,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
             workspaceId,
             folderId,
             sortOrder,
+            deduplicate: true,
           }),
       })
 

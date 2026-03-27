@@ -164,6 +164,7 @@ interface CreateWorkflowVariables {
   folderId?: string | null
   sortOrder?: number
   id?: string
+  deduplicate?: boolean
 }
 
 interface CreateWorkflowResult {
@@ -300,7 +301,8 @@ export function useCreateWorkflow() {
 
   return useMutation({
     mutationFn: async (variables: CreateWorkflowVariables): Promise<CreateWorkflowResult> => {
-      const { workspaceId, name, description, color, folderId, sortOrder, id } = variables
+      const { workspaceId, name, description, color, folderId, sortOrder, id, deduplicate } =
+        variables
 
       logger.info(`Creating new workflow in workspace: ${workspaceId}`)
 
@@ -315,6 +317,7 @@ export function useCreateWorkflow() {
           workspaceId,
           folderId: folderId || null,
           sortOrder,
+          deduplicate,
         }),
       })
 
