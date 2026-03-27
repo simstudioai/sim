@@ -62,6 +62,10 @@ export interface JobMetadata {
 export interface EnqueueOptions {
   maxAttempts?: number
   metadata?: JobMetadata
+  jobId?: string
+  priority?: number
+  name?: string
+  delayMs?: number
 }
 
 /**
@@ -95,4 +99,4 @@ export interface JobQueueBackend {
   markJobFailed(jobId: string, error: string): Promise<void>
 }
 
-export type AsyncBackendType = 'trigger-dev' | 'redis' | 'database'
+export type AsyncBackendType = 'trigger-dev' | 'bullmq' | 'database'

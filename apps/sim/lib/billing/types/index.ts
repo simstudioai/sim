@@ -2,18 +2,47 @@
  * Billing System Types
  * Centralized type definitions for the billing system
  */
+import { z } from 'zod'
 
-export interface EnterpriseSubscriptionMetadata {
-  plan: 'enterprise'
+export const enterpriseSubscriptionMetadataSchema = z.object({
+  plan: z
+    .string()
+    .transform((v) => v.toLowerCase())
+    .pipe(z.literal('enterprise')),
   // The referenceId must be provided in Stripe metadata to link to the organization
   // This gets stored in the subscription.referenceId column
-  referenceId: string
+  referenceId: z.string().min(1),
   // The fixed monthly price for this enterprise customer (as string from Stripe metadata)
   // This will be used to set the organization's usage limit
-  monthlyPrice: string
-  // Number of seats for invitation limits (not for billing) (as string from Stripe metadata)
-  // We set Stripe quantity to 1 and use this for actual seat count
-  seats: string
+  monthlyPrice: z.coerce.number().positive(),
+  // Number of seats for invitation limits (not for billing)
+  seats: z.coerce.number().int().positive(),
+  // Optional custom workspace concurrency limit for enterprise workspaces
+  workspaceConcurrencyLimit: z.coerce.number().int().positive().optional(),
+})
+
+export type EnterpriseSubscriptionMetadata = z.infer<typeof enterpriseSubscriptionMetadataSchema>
+
+const enterpriseWorkspaceConcurrencyMetadataSchema = z.object({
+  workspaceConcurrencyLimit: z.coerce.number().int().positive().optional(),
+})
+
+export type EnterpriseWorkspaceConcurrencyMetadata = z.infer<
+  typeof enterpriseWorkspaceConcurrencyMetadataSchema
+>
+
+export function parseEnterpriseSubscriptionMetadata(
+  value: unknown
+): EnterpriseSubscriptionMetadata | null {
+  const result = enterpriseSubscriptionMetadataSchema.safeParse(value)
+  return result.success ? result.data : null
+}
+
+export function parseEnterpriseWorkspaceConcurrencyMetadata(
+  value: unknown
+): EnterpriseWorkspaceConcurrencyMetadata | null {
+  const result = enterpriseWorkspaceConcurrencyMetadataSchema.safeParse(value)
+  return result.success ? result.data : null
 }
 
 export interface UsageData {

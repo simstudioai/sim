@@ -5,6 +5,7 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { getAccessibleCopilotChat, resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
 import {
@@ -539,10 +540,26 @@ export async function POST(req: NextRequest) {
       return new Response(sseStream, { headers: SSE_RESPONSE_HEADERS })
     }
 
+    const nsExecutionId = crypto.randomUUID()
+    const nsRunId = crypto.randomUUID()
+
+    if (actualChatId) {
+      await createRunSegment({
+        id: nsRunId,
+        executionId: nsExecutionId,
+        chatId: actualChatId,
+        userId: authenticatedUserId,
+        workflowId,
+        streamId: userMessageIdToUse,
+      }).catch(() => {})
+    }
+
     const nonStreamingResult = await orchestrateCopilotStream(requestPayload, {
       userId: authenticatedUserId,
       workflowId,
       chatId: actualChatId,
+      executionId: nsExecutionId,
+      runId: nsRunId,
       goRoute: '/api/copilot',
       autoExecuteTools: true,
       interactive: true,

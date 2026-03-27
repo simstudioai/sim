@@ -1,8 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { getJobQueue, JOB_STATUS } from '@/lib/core/async-jobs'
+import { getJobQueue } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { presentDispatchOrJobStatus } from '@/lib/core/workspace-dispatch/status'
+import { getDispatchJobRecord } from '@/lib/core/workspace-dispatch/store'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('TaskStatusAPI')
@@ -23,68 +25,54 @@ export async function GET(
 
     const authenticatedUserId = authResult.userId
 
+    const dispatchJob = await getDispatchJobRecord(taskId)
     const jobQueue = await getJobQueue()
-    const job = await jobQueue.getJob(taskId)
+    const job = dispatchJob ? null : await jobQueue.getJob(taskId)
 
-    if (!job) {
+    if (!job && !dispatchJob) {
       return createErrorResponse('Task not found', 404)
     }
 
-    if (job.metadata?.workflowId) {
+    const metadataToCheck = dispatchJob?.metadata ?? job?.metadata
+
+    if (metadataToCheck?.workflowId) {
       const { verifyWorkflowAccess } = await import('@/socket/middleware/permissions')
       const accessCheck = await verifyWorkflowAccess(
         authenticatedUserId,
-        job.metadata.workflowId as string
+        metadataToCheck.workflowId as string
       )
       if (!accessCheck.hasAccess) {
-        logger.warn(`[${requestId}] Access denied to workflow ${job.metadata.workflowId}`)
+        logger.warn(`[${requestId}] Access denied to workflow ${metadataToCheck.workflowId}`)
         return createErrorResponse('Access denied', 403)
       }
 
       if (authResult.apiKeyType === 'workspace' && authResult.workspaceId) {
         const { getWorkflowById } = await import('@/lib/workflows/utils')
-        const workflow = await getWorkflowById(job.metadata.workflowId as string)
+        const workflow = await getWorkflowById(metadataToCheck.workflowId as string)
         if (!workflow?.workspaceId || workflow.workspaceId !== authResult.workspaceId) {
           return createErrorResponse('API key is not authorized for this workspace', 403)
         }
       }
-    } else if (job.metadata?.userId && job.metadata.userId !== authenticatedUserId) {
-      logger.warn(`[${requestId}] Access denied to user ${job.metadata.userId}`)
+    } else if (metadataToCheck?.userId && metadataToCheck.userId !== authenticatedUserId) {
+      logger.warn(`[${requestId}] Access denied to user ${metadataToCheck.userId}`)
       return createErrorResponse('Access denied', 403)
-    } else if (!job.metadata?.userId && !job.metadata?.workflowId) {
+    } else if (!metadataToCheck?.userId && !metadataToCheck?.workflowId) {
       logger.warn(`[${requestId}] Access denied to job ${taskId}`)
       return createErrorResponse('Access denied', 403)
     }
 
-    const mappedStatus = job.status === JOB_STATUS.PENDING ? 'queued' : job.status
-
+    const presented = presentDispatchOrJobStatus(dispatchJob, job)
     const response: any = {
       success: true,
       taskId,
-      status: mappedStatus,
-      metadata: {
-        startedAt: job.startedAt,
-      },
+      status: presented.status,
+      metadata: presented.metadata,
     }
 
-    if (job.status === JOB_STATUS.COMPLETED) {
-      response.output = job.output
-      response.metadata.completedAt = job.completedAt
-      if (job.startedAt && job.completedAt) {
-        response.metadata.duration = job.completedAt.getTime() - job.startedAt.getTime()
-      }
-    }
-
-    if (job.status === JOB_STATUS.FAILED) {
-      response.error = job.error
-      response.metadata.completedAt = job.completedAt
-      if (job.startedAt && job.completedAt) {
-        response.metadata.duration = job.completedAt.getTime() - job.startedAt.getTime()
-      }
-    }
-
-    if (job.status === JOB_STATUS.PROCESSING || job.status === JOB_STATUS.PENDING) {
-      response.estimatedDuration = 300000
+    if (presented.output !== undefined) response.output = presented.output
+    if (presented.error !== undefined) response.error = presented.error
+    if (presented.estimatedDuration !== undefined) {
+      response.estimatedDuration = presented.estimatedDuration
     }
 
     return NextResponse.json(response)

@@ -244,13 +244,13 @@ async function hydrateValue(
  * Hydrates UserFile objects within a value to include base64 content.
  * Returns the original structure with UserFile.base64 set where available.
  */
-export async function hydrateUserFilesWithBase64(
-  value: unknown,
+export async function hydrateUserFilesWithBase64<T>(
+  value: T,
   options: Base64HydrationOptions
-): Promise<unknown> {
+): Promise<T> {
   const logger = getHydrationLogger(options)
   const state = createHydrationState(options, logger)
-  return hydrateValue(value, options, state, logger)
+  return (await hydrateValue(value, options, state, logger)) as T
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
