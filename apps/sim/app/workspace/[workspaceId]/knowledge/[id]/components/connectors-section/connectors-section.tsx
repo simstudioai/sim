@@ -79,6 +79,7 @@ export function ConnectorsSection({
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [editingConnector, setEditingConnector] = useState<ConnectorData | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [syncingConnectorId, setSyncingConnectorId] = useState<string | null>(null)
 
   const syncTriggeredAt = useRef<Record<string, number>>({})
   const cooldownTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
@@ -103,12 +104,14 @@ export function ConnectorsSection({
       if (isSyncOnCooldown(connectorId)) return
 
       syncTriggeredAt.current[connectorId] = Date.now()
+      setSyncingConnectorId(connectorId)
 
       triggerSync(
         { knowledgeBaseId, connectorId },
         {
           onSuccess: () => {
             setError(null)
+            setSyncingConnectorId(null)
             const timer = setTimeout(() => {
               cooldownTimers.current.delete(timer)
               forceUpdate((n) => n + 1)
@@ -118,6 +121,7 @@ export function ConnectorsSection({
           onError: (err) => {
             logger.error('Sync trigger failed', { error: err.message })
             setError(err.message)
+            setSyncingConnectorId(null)
             delete syncTriggeredAt.current[connectorId]
             forceUpdate((n) => n + 1)
           },
@@ -164,6 +168,7 @@ export function ConnectorsSection({
               knowledgeBaseId={knowledgeBaseId}
               canEdit={canEdit}
               isSyncing={isSyncing}
+              isSyncPending={syncingConnectorId === connector.id}
               isUpdating={isUpdating}
               syncCooldown={isSyncOnCooldown(connector.id)}
               onSync={() => handleSync(connector.id)}
@@ -251,6 +256,7 @@ interface ConnectorCardProps {
   knowledgeBaseId: string
   canEdit: boolean
   isSyncing: boolean
+  isSyncPending: boolean
   isUpdating: boolean
   syncCooldown: boolean
   onSync: () => void
@@ -265,6 +271,7 @@ function ConnectorCard({
   knowledgeBaseId,
   canEdit,
   isSyncing,
+  isSyncPending,
   isUpdating,
   syncCooldown,
   onSync,
@@ -306,13 +313,13 @@ function ConnectorCard({
           {Icon && <Icon className='h-5 w-5 flex-shrink-0' />}
           <div className='flex flex-col gap-0.5'>
             <div className='flex items-center gap-2'>
-              <span className='font-medium text-[var(--text-primary)] text-small'>
+              <span className='flex items-center gap-1.5 font-medium text-[var(--text-primary)] text-small'>
                 {connectorDef?.name || connector.connectorType}
+                {(isSyncPending || connector.status === 'syncing') && (
+                  <Loader2 className='h-3 w-3 animate-spin text-[var(--text-muted)]' />
+                )}
               </span>
               <Badge variant={statusConfig.variant} className='text-micro'>
-                {connector.status === 'syncing' && (
-                  <Loader2 className='mr-1 h-3 w-3 animate-spin' />
-                )}
                 {statusConfig.label}
               </Badge>
             </div>
