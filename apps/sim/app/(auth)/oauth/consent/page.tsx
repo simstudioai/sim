@@ -234,7 +234,7 @@ export default function OAuthConsentPage() {
 
       {scopes.length > 0 && (
         <div className='mt-5 w-full max-w-[410px]'>
-          <div className='rounded-lg border p-4'>
+          <div className='rounded-lg border border-[var(--landing-bg-elevated)] p-4'>
             <p className='mb-3 font-medium text-sm'>This will allow the application to:</p>
             <ul className='space-y-2'>
               {scopes.map((s) => (
