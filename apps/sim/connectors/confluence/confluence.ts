@@ -31,23 +31,34 @@ async function fetchLabelsForPages(
     const results = await Promise.all(
       batch.map(async (pageId) => {
         try {
-          const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}/labels`
-          const response = await fetchWithRetry(url, {
-            method: 'GET',
-            headers: {
-              Accept: 'application/json',
-              Authorization: `Bearer ${accessToken}`,
-            },
-          })
+          let data: Record<string, unknown> | null = null
+          for (const contentType of ['pages', 'blogposts']) {
+            const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/${contentType}/${pageId}/labels`
+            const response = await fetchWithRetry(url, {
+              method: 'GET',
+              headers: {
+                Accept: 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+              },
+            })
 
-          if (!response.ok) {
-            logger.warn(`Failed to fetch labels for page ${pageId}`, { status: response.status })
+            if (response.ok) {
+              data = await response.json()
+              break
+            }
+            if (response.status !== 404) {
+              logger.warn(`Failed to fetch labels for ${contentType} ${pageId}`, {
+                status: response.status,
+              })
+            }
+          }
+
+          if (!data) {
             return { pageId, labels: [] as string[] }
           }
 
-          const data = await response.json()
-          const labels = (data.results || []).map(
-            (label: Record<string, unknown>) => label.name as string
+          const labels = ((data.results as Record<string, unknown>[]) || []).map(
+            (label) => label.name as string
           )
           return { pageId, labels }
         } catch (error) {

@@ -274,6 +274,7 @@ export const googleDriveConnector: ConnectorConfig = {
     const totalFetched = previouslyFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxFiles > 0 && totalFetched >= maxFiles
+    if (hitLimit && syncContext) syncContext.listingCapped = true
 
     const nextPageToken = data.nextPageToken as string | undefined
 

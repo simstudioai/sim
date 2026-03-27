@@ -454,6 +454,7 @@ export const gmailConnector: ConnectorConfig = {
 
     const nextPageToken = data.nextPageToken as string | undefined
     const hitLimit = newTotal >= maxThreads
+    if (hitLimit && syncContext) syncContext.listingCapped = true
 
     return {
       documents,

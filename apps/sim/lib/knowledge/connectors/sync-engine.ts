@@ -554,9 +554,9 @@ export async function executeSync(
       }
     }
 
-    // Reconcile deletions for non-incremental syncs (which return ALL docs).
-    // Skip for incremental syncs since results only contain changed docs.
-    if (!isIncremental) {
+    // Reconcile deletions for non-incremental syncs that returned ALL docs.
+    // Skip when listing was capped (maxFiles/maxThreads) — unseen docs may still exist in the source.
+    if (!isIncremental && (!syncContext?.listingCapped || options?.fullSync)) {
       const removedIds = existingDocs
         .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
         .map((d) => d.id)
