@@ -113,6 +113,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   isSelected,
   isActive,
   isUnread,
+  isMenuOpen,
   showCollapsedTooltips,
   onMultiSelectClick,
   onContextMenu,
@@ -124,6 +125,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   isSelected: boolean
   isActive: boolean
   isUnread: boolean
+  isMenuOpen: boolean
   showCollapsedTooltips: boolean
   onMultiSelectClick: (taskId: string, shiftKey: boolean, metaKey: boolean) => void
   onContextMenu: (e: React.MouseEvent, taskId: string) => void
@@ -136,8 +138,10 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
         <Link
           href={task.href}
           className={cn(
-            'group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm hover-hover:bg-[var(--surface-active)]',
-            (isCurrentRoute || isSelected) && 'bg-[var(--surface-active)]'
+            'group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm',
+            !(isCurrentRoute || isSelected || isMenuOpen) &&
+              'hover-hover:bg-[var(--surface-hover)]',
+            (isCurrentRoute || isSelected || isMenuOpen) && 'bg-[var(--surface-active)]'
           )}
           onClick={(e) => {
             if (task.id === 'new') return
@@ -177,7 +181,10 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
                   e.stopPropagation()
                   onMoreClick(e, task.id)
                 }}
-                className='flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 hover-hover:bg-[var(--surface-7)] group-hover:opacity-100'
+                className={cn(
+                  'flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 group-hover:opacity-100',
+                  isMenuOpen && 'opacity-100'
+                )}
               >
                 <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
               </button>
@@ -214,8 +221,8 @@ const SidebarNavItem = memo(function SidebarNavItem({
   onContextMenu?: (e: React.MouseEvent, href: string) => void
 }) {
   const Icon = item.icon
-  const baseClasses =
-    'group flex h-[30px] items-center gap-2 rounded-lg mx-0.5 px-2 text-sm hover-hover:bg-[var(--surface-active)]'
+  const baseClasses = 'group flex h-[30px] items-center gap-2 rounded-lg mx-0.5 px-2 text-sm'
+  const hoverClasses = !active ? 'hover-hover:bg-[var(--surface-hover)]' : ''
   const activeClasses = active ? 'bg-[var(--surface-active)]' : ''
 
   const content = (
@@ -230,7 +237,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
       href={item.href}
       data-item-id={item.id}
       data-tour={`nav-${item.id}`}
-      className={`${baseClasses} ${activeClasses}`}
+      className={`${baseClasses} ${hoverClasses} ${activeClasses}`}
       onClick={
         item.onClick
           ? (e) => {
@@ -249,7 +256,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
       type='button'
       data-item-id={item.id}
       data-tour={`nav-${item.id}`}
-      className={`${baseClasses} ${activeClasses}`}
+      className={`${baseClasses} ${hoverClasses} ${activeClasses}`}
       onClick={item.onClick}
     >
       {content}
@@ -309,6 +316,11 @@ export const Sidebar = memo(function Sidebar() {
   const isCollapsed = useSidebarStore((state) => state.isCollapsed)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const isOnWorkflowPage = !!workflowId
+
+  const isCollapsedRef = useRef(isCollapsed)
+  useLayoutEffect(() => {
+    isCollapsedRef.current = isCollapsed
+  }, [isCollapsed])
 
   // Delay collapsed tooltips until the width transition finishes.
   const [showCollapsedTooltips, setShowCollapsedTooltips] = useState(isCollapsed)
@@ -485,6 +497,11 @@ export const Sidebar = memo(function Sidebar() {
     taskIds: [],
     names: [],
   })
+  const [menuOpenTaskId, setMenuOpenTaskId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isTaskContextMenuOpen) setMenuOpenTaskId(null)
+  }, [isTaskContextMenuOpen])
 
   const captureTaskSelection = useCallback((taskId: string) => {
     const { selectedTasks, selectTaskOnly } = useFolderStore.getState()
@@ -502,6 +519,7 @@ export const Sidebar = memo(function Sidebar() {
   const handleTaskContextMenu = useCallback(
     (e: React.MouseEvent, taskId: string) => {
       captureTaskSelection(taskId)
+      setMenuOpenTaskId(taskId)
       tasksHover.setLocked(true)
       preventTaskDismiss()
       handleTaskContextMenuBase(e)
@@ -523,6 +541,7 @@ export const Sidebar = memo(function Sidebar() {
       }
       tasksHover.setLocked(true)
       captureTaskSelection(taskId)
+      setMenuOpenTaskId(taskId)
       const rect = e.currentTarget.getBoundingClientRect()
       handleTaskContextMenuBase({
         preventDefault: () => {},
@@ -537,77 +556,6 @@ export const Sidebar = memo(function Sidebar() {
       captureTaskSelection,
       handleTaskContextMenuBase,
       tasksHover,
-    ]
-  )
-
-  const {
-    isOpen: isCollapsedWorkflowContextMenuOpen,
-    position: collapsedWorkflowContextMenuPosition,
-    menuRef: collapsedWorkflowMenuRef,
-    handleContextMenu: handleCollapsedWorkflowContextMenuBase,
-    closeMenu: closeCollapsedWorkflowContextMenu,
-    preventDismiss: preventCollapsedWorkflowDismiss,
-  } = useContextMenu()
-
-  const collapsedWorkflowContextMenuRef = useRef<{
-    workflowId: string
-    workflowName: string
-  } | null>(null)
-
-  const captureCollapsedWorkflowSelection = useCallback(
-    (workflow: { id: string; name: string }) => {
-      collapsedWorkflowContextMenuRef.current = {
-        workflowId: workflow.id,
-        workflowName: workflow.name,
-      }
-    },
-    []
-  )
-
-  const handleCollapsedWorkflowContextMenu = useCallback(
-    (e: React.MouseEvent, workflow: { id: string; name: string }) => {
-      captureCollapsedWorkflowSelection(workflow)
-      workflowsHover.setLocked(true)
-      preventCollapsedWorkflowDismiss()
-      handleCollapsedWorkflowContextMenuBase(e)
-    },
-    [
-      captureCollapsedWorkflowSelection,
-      handleCollapsedWorkflowContextMenuBase,
-      preventCollapsedWorkflowDismiss,
-      workflowsHover,
-    ]
-  )
-
-  const handleCollapsedWorkflowMorePointerDown = useCallback(() => {
-    if (isCollapsedWorkflowContextMenuOpen) {
-      preventCollapsedWorkflowDismiss()
-    }
-  }, [isCollapsedWorkflowContextMenuOpen, preventCollapsedWorkflowDismiss])
-
-  const handleCollapsedWorkflowMoreClick = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>, workflow: { id: string; name: string }) => {
-      if (isCollapsedWorkflowContextMenuOpen) {
-        closeCollapsedWorkflowContextMenu()
-        return
-      }
-
-      workflowsHover.setLocked(true)
-      captureCollapsedWorkflowSelection(workflow)
-      const rect = e.currentTarget.getBoundingClientRect()
-      handleCollapsedWorkflowContextMenuBase({
-        preventDefault: () => {},
-        stopPropagation: () => {},
-        clientX: rect.right,
-        clientY: rect.top,
-      } as React.MouseEvent)
-    },
-    [
-      isCollapsedWorkflowContextMenuOpen,
-      closeCollapsedWorkflowContextMenu,
-      captureCollapsedWorkflowSelection,
-      handleCollapsedWorkflowContextMenuBase,
-      workflowsHover,
     ]
   )
 
@@ -709,14 +657,14 @@ export const Sidebar = memo(function Sidebar() {
         icon: Settings,
         href: getSettingsHref(),
         onClick: () => {
-          if (!isCollapsed) {
+          if (!isCollapsedRef.current) {
             setSidebarWidth(SIDEBAR_WIDTH.MIN)
           }
           navigateToSettings()
         },
       },
     ],
-    [workspaceId, navigateToSettings, getSettingsHref, isCollapsed, setSidebarWidth]
+    [navigateToSettings, getSettingsHref, setSidebarWidth]
   )
 
   const handleStartTour = useCallback(() => {
@@ -810,12 +758,12 @@ export const Sidebar = memo(function Sidebar() {
 
   const navigateToPage = useCallback(
     (path: string) => {
-      if (!isCollapsed) {
+      if (!isCollapsedRef.current) {
         setSidebarWidth(SIDEBAR_WIDTH.MIN)
       }
       router.push(path)
     },
-    [isCollapsed, setSidebarWidth, router]
+    [setSidebarWidth, router]
   )
 
   const handleConfirmDeleteTasks = useCallback(() => {
@@ -854,10 +802,6 @@ export const Sidebar = memo(function Sidebar() {
     itemType: 'workflow',
     onSave: async (workflowIdToRename, name) => {
       await updateWorkflow(workflowIdToRename, { name })
-      collapsedWorkflowContextMenuRef.current = {
-        workflowId: workflowIdToRename,
-        workflowName: name,
-      }
     },
   })
 
@@ -866,8 +810,8 @@ export const Sidebar = memo(function Sidebar() {
   }, [isTaskContextMenuOpen, taskFlyoutRename.editingId, tasksHover.setLocked])
 
   useEffect(() => {
-    workflowsHover.setLocked(isCollapsedWorkflowContextMenuOpen || !!workflowFlyoutRename.editingId)
-  }, [isCollapsedWorkflowContextMenuOpen, workflowFlyoutRename.editingId, workflowsHover.setLocked])
+    workflowsHover.setLocked(!!workflowFlyoutRename.editingId)
+  }, [workflowFlyoutRename.editingId, workflowsHover.setLocked])
 
   const handleTaskOpenInNewTab = useCallback(() => {
     const { taskIds: ids } = contextMenuSelectionRef.current
@@ -897,22 +841,20 @@ export const Sidebar = memo(function Sidebar() {
     taskFlyoutRename.startRename({ id: taskId, name: task.name })
   }, [taskFlyoutRename, tasks, tasksHover])
 
-  const handleCollapsedWorkflowOpenInNewTab = useCallback(() => {
-    const workflow = collapsedWorkflowContextMenuRef.current
-    if (!workflow) return
-    window.open(
-      `/workspace/${workspaceId}/w/${workflow.workflowId}`,
-      '_blank',
-      'noopener,noreferrer'
-    )
-  }, [workspaceId])
+  const handleCollapsedWorkflowOpenInNewTab = useCallback(
+    (workflow: { id: string }) => {
+      window.open(`/workspace/${workspaceId}/w/${workflow.id}`, '_blank', 'noopener,noreferrer')
+    },
+    [workspaceId]
+  )
 
-  const handleStartCollapsedWorkflowRename = useCallback(() => {
-    const workflow = collapsedWorkflowContextMenuRef.current
-    if (!workflow) return
-    workflowsHover.setLocked(true)
-    workflowFlyoutRename.startRename({ id: workflow.workflowId, name: workflow.workflowName })
-  }, [workflowFlyoutRename, workflowsHover])
+  const handleCollapsedWorkflowRename = useCallback(
+    (workflow: { id: string; name: string }) => {
+      workflowsHover.setLocked(true)
+      workflowFlyoutRename.startRename({ id: workflow.id, name: workflow.name })
+    },
+    [workflowFlyoutRename, workflowsHover]
+  )
 
   const [hasOverflowTop, setHasOverflowTop] = useState(false)
   const [hasOverflowBottom, setHasOverflowBottom] = useState(false)
@@ -1064,6 +1006,88 @@ export const Sidebar = memo(function Sidebar() {
     [importWorkspace]
   )
 
+  // ── Memoised elements & objects for collapsed menus ──
+  // Prevents new JSX/object references on every render, which would defeat
+  // React.memo on CollapsedSidebarMenu and its children.
+
+  const tasksCollapsedIcon = useMemo(
+    () => <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />,
+    []
+  )
+
+  const workflowIconStyle = useMemo<React.CSSProperties>(
+    () => ({
+      backgroundColor: 'var(--text-icon)',
+      borderColor: 'color-mix(in srgb, var(--text-icon) 60%, transparent)',
+      backgroundClip: 'padding-box',
+    }),
+    []
+  )
+
+  const workflowsCollapsedIcon = useMemo(
+    () => (
+      <div
+        className='h-[16px] w-[16px] flex-shrink-0 rounded-[3px] border-[2px]'
+        style={workflowIconStyle}
+      />
+    ),
+    [workflowIconStyle]
+  )
+
+  const tasksPrimaryAction = useMemo(
+    () => ({
+      label: 'New task',
+      onSelect: () => navigateToPage(`/workspace/${workspaceId}/home`),
+    }),
+    [navigateToPage, workspaceId]
+  )
+
+  const workflowsPrimaryAction = useMemo(
+    () => ({
+      label: 'New workflow',
+      onSelect: handleCreateWorkflow,
+    }),
+    [handleCreateWorkflow]
+  )
+
+  // Stable no-op for collapsed workflow context menu delete (never changes)
+  const noop = useCallback(() => {}, [])
+
+  // Stable callback for the "New task" button in expanded mode
+  const handleNewTask = useCallback(
+    () => navigateToPage(`/workspace/${workspaceId}/home`),
+    [navigateToPage, workspaceId]
+  )
+
+  // Stable callback for "See more" tasks
+  const handleSeeMoreTasks = useCallback(() => setVisibleTaskCount((prev) => prev + 5), [])
+
+  // Stable callback for DeleteModal close
+  const handleCloseTaskDeleteModal = useCallback(() => setIsTaskDeleteModalOpen(false), [])
+
+  // Stable handler for help modal open from dropdown
+  const handleOpenHelpFromMenu = useCallback(() => setIsHelpModalOpen(true), [])
+
+  // Stable handler for opening docs
+  const handleOpenDocs = useCallback(
+    () => window.open('https://docs.sim.ai', '_blank', 'noopener,noreferrer'),
+    []
+  )
+
+  // Stable blur handlers for inline rename inputs
+  const handleTaskRenameBlur = useCallback(
+    () => void taskFlyoutRename.saveRename(),
+    [taskFlyoutRename.saveRename]
+  )
+
+  const handleWorkflowRenameBlur = useCallback(
+    () => void workflowFlyoutRename.saveRename(),
+    [workflowFlyoutRename.saveRename]
+  )
+
+  // Stable style for hidden file inputs
+  const hiddenStyle = useMemo(() => ({ display: 'none' }) as const, [])
+
   const resolveWorkspaceIdFromPath = useCallback((): string | undefined => {
     if (workspaceId) return workspaceId
     if (typeof window === 'undefined') return undefined
@@ -1150,7 +1174,7 @@ export const Sidebar = memo(function Sidebar() {
             <div className='relative flex h-[30px] items-center'>
               <Link
                 href={`/workspace/${workspaceId}/home`}
-                className='sidebar-collapse-hide sidebar-collapse-remove flex h-[30px] items-center rounded-[8px] px-1.5 hover:bg-[var(--surface-active)]'
+                className='sidebar-collapse-hide sidebar-collapse-remove flex h-[30px] items-center rounded-[8px] px-1.5 hover-hover:bg-[var(--surface-hover)]'
                 tabIndex={isCollapsed ? -1 : 0}
               >
                 {brand.logoUrl ? (
@@ -1172,7 +1196,7 @@ export const Sidebar = memo(function Sidebar() {
                   <button
                     type='button'
                     onClick={toggleCollapsed}
-                    className='sidebar-collapse-show group absolute left-0 flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover:bg-[var(--surface-active)]'
+                    className='sidebar-collapse-show group absolute left-0 flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover-hover:bg-[var(--surface-hover)]'
                     aria-label='Expand sidebar'
                     tabIndex={isCollapsed ? 0 : -1}
                   >
@@ -1204,7 +1228,7 @@ export const Sidebar = memo(function Sidebar() {
                   type='button'
                   onClick={toggleCollapsed}
                   className={cn(
-                    'sidebar-collapse-btn ml-auto flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 hover-hover:bg-[var(--surface-active)]',
+                    'sidebar-collapse-btn ml-auto flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 hover-hover:bg-[var(--surface-hover)]',
                     isCollapsed ? 'w-0 opacity-0' : 'w-[30px] opacity-100'
                   )}
                   aria-label='Collapse sidebar'
@@ -1256,7 +1280,7 @@ export const Sidebar = memo(function Sidebar() {
               <div className='mt-2.5 flex flex-shrink-0 flex-col gap-0.5 px-2'>
                 {topNavItems.map((item) => (
                   <SidebarNavItem
-                    key={`${item.id}-${isCollapsed}`}
+                    key={item.id}
                     item={item}
                     active={item.href ? !!pathname?.startsWith(item.href) : false}
                     showCollapsedTooltips={showCollapsedTooltips}
@@ -1273,7 +1297,7 @@ export const Sidebar = memo(function Sidebar() {
                 <div className='flex flex-col gap-0.5 px-2'>
                   {workspaceNavItems.map((item) => (
                     <SidebarNavItem
-                      key={`${item.id}-${isCollapsed}`}
+                      key={item.id}
                       item={item}
                       active={item.href ? !!pathname?.startsWith(item.href) : false}
                       showCollapsedTooltips={showCollapsedTooltips}
@@ -1301,8 +1325,8 @@ export const Sidebar = memo(function Sidebar() {
                           <Tooltip.Trigger asChild>
                             <Button
                               variant='ghost'
-                              className='h-[18px] w-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-active)]'
-                              onClick={() => navigateToPage(`/workspace/${workspaceId}/home`)}
+                              className='h-[18px] w-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-hover)]'
+                              onClick={handleNewTask}
                             >
                               <Plus className='h-[16px] w-[16px]' />
                             </Button>
@@ -1316,16 +1340,11 @@ export const Sidebar = memo(function Sidebar() {
                   </div>
                   {isCollapsed ? (
                     <CollapsedSidebarMenu
-                      icon={
-                        <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                      }
+                      icon={tasksCollapsedIcon}
                       hover={tasksHover}
                       ariaLabel='Tasks'
                       className='mt-1.5'
-                      primaryAction={{
-                        label: 'New task',
-                        onSelect: () => navigateToPage(`/workspace/${workspaceId}/home`),
-                      }}
+                      primaryAction={tasksPrimaryAction}
                     >
                       {tasksLoading ? (
                         <DropdownMenuItem disabled>
@@ -1338,13 +1357,14 @@ export const Sidebar = memo(function Sidebar() {
                             key={task.id}
                             task={task}
                             isCurrentRoute={task.id !== 'new' && pathname === task.href}
+                            isMenuOpen={menuOpenTaskId === task.id}
                             isEditing={task.id === taskFlyoutRename.editingId}
                             editValue={taskFlyoutRename.value}
                             inputRef={taskFlyoutRename.inputRef}
                             isRenaming={taskFlyoutRename.isSaving}
                             onEditValueChange={taskFlyoutRename.setValue}
                             onEditKeyDown={taskFlyoutRename.handleKeyDown}
-                            onEditBlur={() => void taskFlyoutRename.saveRename()}
+                            onEditBlur={handleTaskRenameBlur}
                             onContextMenu={handleTaskContextMenu}
                             onMorePointerDown={handleTaskMorePointerDown}
                             onMoreClick={handleTaskMoreClick}
@@ -1375,7 +1395,7 @@ export const Sidebar = memo(function Sidebar() {
                                     value={taskFlyoutRename.value}
                                     onChange={(e) => taskFlyoutRename.setValue(e.target.value)}
                                     onKeyDown={taskFlyoutRename.handleKeyDown}
-                                    onBlur={() => void taskFlyoutRename.saveRename()}
+                                    onBlur={handleTaskRenameBlur}
                                     className='min-w-0 flex-1 border-none bg-transparent font-base text-[14px] text-[var(--text-body)] outline-none'
                                   />
                                 </div>
@@ -1390,6 +1410,7 @@ export const Sidebar = memo(function Sidebar() {
                                 isSelected={isSelected}
                                 isActive={!!task.isActive}
                                 isUnread={!!task.isUnread}
+                                isMenuOpen={menuOpenTaskId === task.id}
                                 showCollapsedTooltips={showCollapsedTooltips}
                                 onMultiSelectClick={handleTaskClick}
                                 onContextMenu={handleTaskContextMenu}
@@ -1401,8 +1422,8 @@ export const Sidebar = memo(function Sidebar() {
                           {tasks.length > visibleTaskCount && (
                             <button
                               type='button'
-                              onClick={() => setVisibleTaskCount((prev) => prev + 5)}
-                              className='mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-[var(--text-icon)] text-sm hover-hover:bg-[var(--surface-active)]'
+                              onClick={handleSeeMoreTasks}
+                              className='mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-[var(--text-icon)] text-sm hover-hover:bg-[var(--surface-hover)]'
                             >
                               <MoreHorizontal className='h-[16px] w-[16px] flex-shrink-0' />
                               <span className='font-base'>See more</span>
@@ -1429,7 +1450,7 @@ export const Sidebar = memo(function Sidebar() {
                               <DropdownMenuTrigger asChild>
                                 <Button
                                   variant='ghost'
-                                  className='h-[18px] w-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-active)]'
+                                  className='h-[18px] w-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-hover)]'
                                   disabled={!canEdit}
                                 >
                                   {isImporting || isCreatingFolder ? (
@@ -1469,7 +1490,7 @@ export const Sidebar = memo(function Sidebar() {
                           <Tooltip.Trigger asChild>
                             <Button
                               variant='ghost'
-                              className='h-[18px] w-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-active)]'
+                              className='h-[18px] w-[18px] rounded-sm p-0 hover-hover:bg-[var(--surface-hover)]'
                               onClick={handleCreateWorkflow}
                               disabled={isCreatingWorkflow || !canEdit}
                             >
@@ -1485,23 +1506,11 @@ export const Sidebar = memo(function Sidebar() {
                   </div>
                   {isCollapsed ? (
                     <CollapsedSidebarMenu
-                      icon={
-                        <div
-                          className='h-[16px] w-[16px] flex-shrink-0 rounded-[3px] border-[2px]'
-                          style={{
-                            backgroundColor: 'var(--text-icon)',
-                            borderColor: 'color-mix(in srgb, var(--text-icon) 60%, transparent)',
-                            backgroundClip: 'padding-box',
-                          }}
-                        />
-                      }
+                      icon={workflowsCollapsedIcon}
                       hover={workflowsHover}
                       ariaLabel='Workflows'
                       className='mt-1.5'
-                      primaryAction={{
-                        label: 'New workflow',
-                        onSelect: handleCreateWorkflow,
-                      }}
+                      primaryAction={workflowsPrimaryAction}
                     >
                       {workflowsLoading && regularWorkflows.length === 0 ? (
                         <DropdownMenuItem disabled>
@@ -1523,10 +1532,10 @@ export const Sidebar = memo(function Sidebar() {
                             isRenamingWorkflow={workflowFlyoutRename.isSaving}
                             onEditValueChange={workflowFlyoutRename.setValue}
                             onEditKeyDown={workflowFlyoutRename.handleKeyDown}
-                            onEditBlur={() => void workflowFlyoutRename.saveRename()}
-                            onWorkflowContextMenu={handleCollapsedWorkflowContextMenu}
-                            onWorkflowMorePointerDown={handleCollapsedWorkflowMorePointerDown}
-                            onWorkflowMoreClick={handleCollapsedWorkflowMoreClick}
+                            onEditBlur={handleWorkflowRenameBlur}
+                            onWorkflowOpenInNewTab={handleCollapsedWorkflowOpenInNewTab}
+                            onWorkflowRename={handleCollapsedWorkflowRename}
+                            canRenameWorkflow={canEdit}
                           />
                           {(workflowsByFolder.root || []).map((workflow) => (
                             <CollapsedWorkflowFlyoutItem
@@ -1540,10 +1549,10 @@ export const Sidebar = memo(function Sidebar() {
                               isRenaming={workflowFlyoutRename.isSaving}
                               onEditValueChange={workflowFlyoutRename.setValue}
                               onEditKeyDown={workflowFlyoutRename.handleKeyDown}
-                              onEditBlur={() => void workflowFlyoutRename.saveRename()}
-                              onContextMenu={handleCollapsedWorkflowContextMenu}
-                              onMorePointerDown={handleCollapsedWorkflowMorePointerDown}
-                              onMoreClick={handleCollapsedWorkflowMoreClick}
+                              onEditBlur={handleWorkflowRenameBlur}
+                              onOpenInNewTab={() => handleCollapsedWorkflowOpenInNewTab(workflow)}
+                              onRename={() => handleCollapsedWorkflowRename(workflow)}
+                              canRename={canEdit}
                             />
                           ))}
                         </>
@@ -1585,7 +1594,7 @@ export const Sidebar = memo(function Sidebar() {
                         <button
                           type='button'
                           data-item-id='help'
-                          className='group mx-0.5 flex h-[30px] items-center gap-2 rounded-[8px] px-2 text-[14px] hover:bg-[var(--surface-active)]'
+                          className='group mx-0.5 flex h-[30px] items-center gap-2 rounded-[8px] px-2 text-[14px] hover-hover:bg-[var(--surface-hover)]'
                         >
                           <HelpCircle className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
                           <span className='sidebar-collapse-hide truncate font-base text-[var(--text-body)]'>
@@ -1601,15 +1610,11 @@ export const Sidebar = memo(function Sidebar() {
                     )}
                   </Tooltip.Root>
                   <DropdownMenuContent align='start' side='top' sideOffset={4}>
-                    <DropdownMenuItem
-                      onSelect={() =>
-                        window.open('https://docs.sim.ai', '_blank', 'noopener,noreferrer')
-                      }
-                    >
+                    <DropdownMenuItem onSelect={handleOpenDocs}>
                       <BookOpen className='h-[14px] w-[14px]' />
                       Docs
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setIsHelpModalOpen(true)}>
+                    <DropdownMenuItem onSelect={handleOpenHelpFromMenu}>
                       <HelpCircle className='h-[14px] w-[14px]' />
                       Report an issue
                     </DropdownMenuItem>
@@ -1622,7 +1627,7 @@ export const Sidebar = memo(function Sidebar() {
 
                 {footerItems.map((item) => (
                   <SidebarNavItem
-                    key={`${item.id}-${isCollapsed}`}
+                    key={item.id}
                     item={item}
                     active={false}
                     showCollapsedTooltips={showCollapsedTooltips}
@@ -1666,26 +1671,10 @@ export const Sidebar = memo(function Sidebar() {
                 disableDelete={!canEdit}
               />
 
-              <ContextMenu
-                isOpen={isCollapsedWorkflowContextMenuOpen}
-                position={collapsedWorkflowContextMenuPosition}
-                menuRef={collapsedWorkflowMenuRef}
-                onClose={closeCollapsedWorkflowContextMenu}
-                onOpenInNewTab={handleCollapsedWorkflowOpenInNewTab}
-                onRename={handleStartCollapsedWorkflowRename}
-                onDelete={() => {}}
-                showOpenInNewTab={true}
-                showRename={true}
-                showDuplicate={false}
-                showColorChange={false}
-                showDelete={false}
-                disableRename={!canEdit}
-              />
-
               {/* Task Delete Confirmation Modal */}
               <DeleteModal
                 isOpen={isTaskDeleteModalOpen}
-                onClose={() => setIsTaskDeleteModalOpen(false)}
+                onClose={handleCloseTaskDeleteModal}
                 onConfirm={handleConfirmDeleteTasks}
                 isDeleting={deleteTaskMutation.isPending || deleteTasksMutation.isPending}
                 itemType='task'
@@ -1732,7 +1721,7 @@ export const Sidebar = memo(function Sidebar() {
         ref={workspaceFileInputRef}
         type='file'
         accept='.zip'
-        style={{ display: 'none' }}
+        style={hiddenStyle}
         onChange={handleWorkspaceFileChange}
       />
     </>

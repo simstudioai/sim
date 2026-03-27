@@ -366,7 +366,9 @@ export function Copilot() {
               <span className='font-medium text-[var(--text-primary)]'>
                 {deleteKey?.name || 'Unnamed Key'}
               </span>{' '}
-              will immediately revoke access for any integrations using it.{' '}
+              <span className='text-[var(--text-error)]'>
+                will immediately revoke access for any integrations using it.
+              </span>{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>

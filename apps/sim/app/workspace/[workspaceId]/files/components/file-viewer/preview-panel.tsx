@@ -42,7 +42,12 @@ interface PreviewPanelProps {
   isStreaming?: boolean
 }
 
-export function PreviewPanel({ content, mimeType, filename, isStreaming }: PreviewPanelProps) {
+export const PreviewPanel = memo(function PreviewPanel({
+  content,
+  mimeType,
+  filename,
+  isStreaming,
+}: PreviewPanelProps) {
   const previewType = resolvePreviewType(mimeType, filename)
 
   if (previewType === 'markdown')
@@ -52,7 +57,7 @@ export function PreviewPanel({ content, mimeType, filename, isStreaming }: Previ
   if (previewType === 'svg') return <SvgPreview content={content} />
 
   return null
-}
+})
 
 const REMARK_PLUGINS = [remarkGfm, remarkBreaks]
 
@@ -197,7 +202,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
   )
 })
 
-function HtmlPreview({ content }: { content: string }) {
+const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) {
   return (
     <div className='h-full overflow-hidden'>
       <iframe
@@ -208,9 +213,9 @@ function HtmlPreview({ content }: { content: string }) {
       />
     </div>
   )
-}
+})
 
-function SvgPreview({ content }: { content: string }) {
+const SvgPreview = memo(function SvgPreview({ content }: { content: string }) {
   const wrappedContent = useMemo(
     () =>
       `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:transparent;}svg{max-width:100%;max-height:100vh;}</style></head><body>${content}</body></html>`,
@@ -227,9 +232,9 @@ function SvgPreview({ content }: { content: string }) {
       />
     </div>
   )
-}
+})
 
-function CsvPreview({ content }: { content: string }) {
+const CsvPreview = memo(function CsvPreview({ content }: { content: string }) {
   const { headers, rows } = useMemo(() => parseCsv(content), [content])
 
   if (headers.length === 0) {
@@ -271,7 +276,7 @@ function CsvPreview({ content }: { content: string }) {
       </div>
     </div>
   )
-}
+})
 
 function parseCsv(text: string): { headers: string[]; rows: string[][] } {
   const lines = text.split('\n').filter((line) => line.trim().length > 0)

@@ -1,4 +1,4 @@
-import type { MouseEvent as ReactMouseEvent } from 'react'
+import { type MouseEvent as ReactMouseEvent, useState } from 'react'
 import { Folder, MoreHorizontal, Plus } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -12,6 +12,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/emcn'
+import { Pencil, SquareArrowUpRight } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -33,6 +34,7 @@ interface CollapsedSidebarMenuProps {
 interface CollapsedTaskFlyoutItemProps {
   task: { id: string; href: string; name: string; isActive?: boolean; isUnread?: boolean }
   isCurrentRoute: boolean
+  isMenuOpen?: boolean
   isEditing?: boolean
   editValue?: string
   inputRef?: React.RefObject<HTMLInputElement | null>
@@ -56,9 +58,9 @@ interface CollapsedWorkflowFlyoutItemProps {
   onEditValueChange?: (value: string) => void
   onEditKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
   onEditBlur?: () => void
-  onContextMenu?: (e: ReactMouseEvent, workflow: WorkflowMetadata) => void
-  onMorePointerDown?: () => void
-  onMoreClick?: (e: ReactMouseEvent<HTMLButtonElement>, workflow: WorkflowMetadata) => void
+  onOpenInNewTab?: () => void
+  onRename?: () => void
+  canRename?: boolean
 }
 
 const EDIT_ROW_CLASS =
@@ -68,10 +70,12 @@ function FlyoutMoreButton({
   ariaLabel,
   onPointerDown,
   onClick,
+  isVisible,
 }: {
   ariaLabel: string
   onPointerDown?: () => void
   onClick: (e: ReactMouseEvent<HTMLButtonElement>) => void
+  isVisible?: boolean
 }) {
   return (
     <button
@@ -79,7 +83,10 @@ function FlyoutMoreButton({
       aria-label={ariaLabel}
       onPointerDown={onPointerDown}
       onClick={onClick}
-      className='-translate-y-1/2 absolute top-1/2 right-[8px] z-10 flex h-[18px] w-[18px] items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)] focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100'
+      className={cn(
+        '-translate-y-1/2 absolute top-1/2 right-[8px] z-10 flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
+        isVisible && 'opacity-100'
+      )}
     >
       <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
     </button>
@@ -154,7 +161,7 @@ export function CollapsedSidebarMenu({
             <button
               type='button'
               aria-label={ariaLabel}
-              className='mx-0.5 flex h-[30px] items-center rounded-[8px] px-2 hover:bg-[var(--surface-active)]'
+              className='mx-0.5 flex h-[30px] items-center rounded-[8px] px-2 hover-hover:bg-[var(--surface-hover)]'
             >
               {icon}
             </button>
@@ -180,6 +187,7 @@ export function CollapsedSidebarMenu({
 export function CollapsedTaskFlyoutItem({
   task,
   isCurrentRoute,
+  isMenuOpen = false,
   isEditing = false,
   editValue,
   inputRef,
@@ -221,12 +229,13 @@ export function CollapsedTaskFlyoutItem({
   }
 
   return (
-    <div className='group relative mx-0.5'>
+    <div className='group relative'>
       <Link
         href={task.href}
         className={cn(
-          'flex min-h-[30px] min-w-0 items-center rounded-[5px] px-2 py-[5px] pr-[30px] font-medium text-[12px] text-[var(--text-body)] hover:bg-[var(--surface-active)] group-focus-within:bg-[var(--surface-active)] group-hover:bg-[var(--surface-active)]',
-          isCurrentRoute && 'bg-[var(--surface-active)]'
+          'flex min-w-0 cursor-default select-none items-center rounded-[5px] px-2 py-2 pr-[30px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors',
+          !(isCurrentRoute || isMenuOpen) && 'group-hover:bg-[var(--surface-hover)]',
+          (isCurrentRoute || isMenuOpen) && 'bg-[var(--surface-active)]'
         )}
         onContextMenu={
           task.id !== 'new' && onContextMenu ? (e) => onContextMenu(e, task.id) : undefined
@@ -236,7 +245,9 @@ export function CollapsedTaskFlyoutItem({
           title={task.name}
           isActive={!!task.isActive}
           isUnread={!!task.isUnread}
-          statusIndicatorClassName={!isCurrentRoute ? 'group-hover:hidden' : undefined}
+          statusIndicatorClassName={
+            !(isCurrentRoute || isMenuOpen) ? 'group-hover:hidden' : undefined
+          }
         />
       </Link>
       {showActions && (
@@ -248,6 +259,7 @@ export function CollapsedTaskFlyoutItem({
             e.stopPropagation()
             onMoreClick?.(e, task.id)
           }}
+          isVisible={isMenuOpen}
         />
       )}
     </div>
@@ -265,62 +277,102 @@ export function CollapsedWorkflowFlyoutItem({
   onEditValueChange,
   onEditKeyDown,
   onEditBlur,
-  onContextMenu,
-  onMorePointerDown,
-  onMoreClick,
+  onOpenInNewTab,
+  onRename,
+  canRename = true,
 }: CollapsedWorkflowFlyoutItemProps) {
-  const showActions = !!onMoreClick
+  const hasActions = !!onOpenInNewTab || !!onRename
+  const [actionsOpen, setActionsOpen] = useState(false)
 
   if (isEditing) {
     return (
-      <div className={EDIT_ROW_CLASS}>
-        <WorkflowColorSwatch color={workflow.color} />
-        <input
-          aria-label={`Rename workflow ${workflow.name}`}
-          ref={inputRef}
-          value={editValue ?? workflow.name}
-          onChange={(e) => onEditValueChange?.(e.target.value)}
-          onKeyDown={onEditKeyDown}
-          onBlur={onEditBlur}
-          className='w-full min-w-0 border-0 bg-transparent p-0 font-medium text-[12px] text-[var(--text-body)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
-          maxLength={100}
-          disabled={isRenaming}
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
-          autoComplete='off'
-          autoCorrect='off'
-          autoCapitalize='off'
-          spellCheck='false'
-        />
+      <div className='group relative'>
+        <div className='flex min-w-0 cursor-default select-none items-center gap-2 rounded-[5px] bg-[var(--surface-active)] px-2 py-2 font-medium text-[var(--text-body)] text-caption outline-none'>
+          <WorkflowColorSwatch color={workflow.color} />
+          <input
+            aria-label={`Rename workflow ${workflow.name}`}
+            ref={inputRef}
+            value={editValue ?? workflow.name}
+            onChange={(e) => onEditValueChange?.(e.target.value)}
+            onKeyDown={onEditKeyDown}
+            onBlur={onEditBlur}
+            className='w-full min-w-0 border-0 bg-transparent p-0 font-medium text-[var(--text-body)] text-caption outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+            maxLength={100}
+            disabled={isRenaming}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+            }}
+            autoComplete='off'
+            autoCorrect='off'
+            autoCapitalize='off'
+            spellCheck='false'
+          />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className='group relative mx-0.5'>
+    <div className='group relative'>
       <Link
         href={href}
         className={cn(
-          'flex min-h-[30px] min-w-0 items-center gap-2 rounded-[5px] px-2 py-[5px] pr-[30px] font-medium text-[12px] text-[var(--text-body)] hover:bg-[var(--surface-active)] group-focus-within:bg-[var(--surface-active)] group-hover:bg-[var(--surface-active)]',
-          isCurrentRoute && 'bg-[var(--surface-active)]'
+          'flex min-w-0 cursor-default select-none items-center gap-2 rounded-[5px] px-2 py-2 pr-[30px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors',
+          !(isCurrentRoute || actionsOpen) && 'group-hover:bg-[var(--surface-hover)]',
+          (isCurrentRoute || actionsOpen) && 'bg-[var(--surface-active)]'
         )}
-        onContextMenu={onContextMenu ? (e) => onContextMenu(e, workflow) : undefined}
+        onContextMenu={
+          hasActions
+            ? (e) => {
+                e.preventDefault()
+                setActionsOpen(true)
+              }
+            : undefined
+        }
       >
         <WorkflowColorSwatch color={workflow.color} />
         <span className='min-w-0 flex-1 truncate'>{workflow.name}</span>
       </Link>
-      {showActions && (
-        <FlyoutMoreButton
-          ariaLabel='Workflow options'
-          onPointerDown={onMorePointerDown}
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            onMoreClick?.(e, workflow)
+      {hasActions && (
+        <DropdownMenuSub
+          open={actionsOpen}
+          onOpenChange={(open) => {
+            if (!open) setActionsOpen(false)
           }}
-        />
+        >
+          <DropdownMenuSubTrigger
+            aria-label='Workflow options'
+            className='-translate-y-1/2 absolute top-1/2 right-[8px] z-10 h-[18px] w-[18px] min-w-0 justify-center gap-0 rounded-sm p-0 opacity-0 transition-opacity focus:bg-transparent group-hover:opacity-100 data-[state=open]:bg-transparent data-[state=open]:opacity-100 [&>svg:last-child]:hidden [&_svg]:pointer-events-auto [&_svg]:size-[16px]'
+            onClick={(e) => {
+              e.stopPropagation()
+              setActionsOpen((prev) => !prev)
+            }}
+          >
+            <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {onOpenInNewTab && (
+              <DropdownMenuItem onSelect={onOpenInNewTab}>
+                <SquareArrowUpRight className='h-[14px] w-[14px]' />
+                Open in new tab
+              </DropdownMenuItem>
+            )}
+            {onRename && (
+              <DropdownMenuItem
+                disabled={!canRename}
+                onSelect={(e) => {
+                  e.preventDefault()
+                  setActionsOpen(false)
+                  onRename()
+                }}
+              >
+                <Pencil className='h-[14px] w-[14px]' />
+                Rename
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
       )}
     </div>
   )
@@ -338,9 +390,9 @@ export function CollapsedFolderItems({
   onEditValueChange,
   onEditKeyDown,
   onEditBlur,
-  onWorkflowContextMenu,
-  onWorkflowMorePointerDown,
-  onWorkflowMoreClick,
+  onWorkflowOpenInNewTab,
+  onWorkflowRename,
+  canRenameWorkflow,
 }: {
   nodes: FolderTreeNode[]
   workflowsByFolder: Record<string, WorkflowMetadata[]>
@@ -353,9 +405,9 @@ export function CollapsedFolderItems({
   onEditValueChange?: (value: string) => void
   onEditKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
   onEditBlur?: () => void
-  onWorkflowContextMenu?: (e: ReactMouseEvent, workflow: WorkflowMetadata) => void
-  onWorkflowMorePointerDown?: () => void
-  onWorkflowMoreClick?: (e: ReactMouseEvent<HTMLButtonElement>, workflow: WorkflowMetadata) => void
+  onWorkflowOpenInNewTab?: (workflow: WorkflowMetadata) => void
+  onWorkflowRename?: (workflow: WorkflowMetadata) => void
+  canRenameWorkflow?: boolean
 }) {
   return (
     <>
@@ -374,7 +426,7 @@ export function CollapsedFolderItems({
 
         return (
           <DropdownMenuSub key={folder.id}>
-            <DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger className='focus:bg-[var(--surface-hover)] data-[state=open]:bg-[var(--surface-hover)]'>
               <Folder className='h-[14px] w-[14px]' />
               <span className='truncate'>{folder.name}</span>
             </DropdownMenuSubTrigger>
@@ -391,9 +443,9 @@ export function CollapsedFolderItems({
                 onEditValueChange={onEditValueChange}
                 onEditKeyDown={onEditKeyDown}
                 onEditBlur={onEditBlur}
-                onWorkflowContextMenu={onWorkflowContextMenu}
-                onWorkflowMorePointerDown={onWorkflowMorePointerDown}
-                onWorkflowMoreClick={onWorkflowMoreClick}
+                onWorkflowOpenInNewTab={onWorkflowOpenInNewTab}
+                onWorkflowRename={onWorkflowRename}
+                canRenameWorkflow={canRenameWorkflow}
               />
               {folderWorkflows.map((workflow) => (
                 <CollapsedWorkflowFlyoutItem
@@ -408,9 +460,11 @@ export function CollapsedFolderItems({
                   onEditValueChange={onEditValueChange}
                   onEditKeyDown={onEditKeyDown}
                   onEditBlur={onEditBlur}
-                  onContextMenu={onWorkflowContextMenu}
-                  onMorePointerDown={onWorkflowMorePointerDown}
-                  onMoreClick={onWorkflowMoreClick}
+                  onOpenInNewTab={
+                    onWorkflowOpenInNewTab ? () => onWorkflowOpenInNewTab(workflow) : undefined
+                  }
+                  onRename={onWorkflowRename ? () => onWorkflowRename(workflow) : undefined}
+                  canRename={canRenameWorkflow}
                 />
               ))}
             </DropdownMenuSubContent>

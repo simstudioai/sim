@@ -1268,7 +1268,9 @@ export const NotificationSettings = memo(function NotificationSettings({
           <ModalHeader>Delete Notification</ModalHeader>
           <ModalBody>
             <p className='text-[var(--text-secondary)] text-caption'>
-              This will permanently remove the notification and stop all deliveries.{' '}
+              <span className='text-[var(--text-error)]'>
+                This will permanently remove the notification and stop all deliveries.
+              </span>{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>

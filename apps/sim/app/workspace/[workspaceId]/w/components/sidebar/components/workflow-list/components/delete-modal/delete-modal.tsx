@@ -75,7 +75,10 @@ export function DeleteModal({
             <span className='font-medium text-[var(--text-primary)]'>
               {displayNames.join(', ')}
             </span>
-            ? All associated blocks, executions, and configuration will be removed.
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              All associated blocks, executions, and configuration will be removed.
+            </span>
           </>
         )
       }
@@ -83,12 +86,21 @@ export function DeleteModal({
         return (
           <>
             Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? All
-            associated blocks, executions, and configuration will be removed.
+            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>?{' '}
+            <span className='text-[var(--text-error)]'>
+              All associated blocks, executions, and configuration will be removed.
+            </span>
           </>
         )
       }
-      return 'Are you sure you want to delete this workflow? All associated blocks, executions, and configuration will be removed.'
+      return (
+        <>
+          Are you sure you want to delete this workflow?{' '}
+          <span className='text-[var(--text-error)]'>
+            All associated blocks, executions, and configuration will be removed.
+          </span>
+        </>
+      )
     }
 
     if (itemType === 'folder') {
@@ -99,8 +111,11 @@ export function DeleteModal({
             <span className='font-medium text-[var(--text-primary)]'>
               {displayNames.join(', ')}
             </span>
-            ? This will permanently remove all workflows, logs, and knowledge bases within these
-            folders.
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will permanently remove all workflows, logs, and knowledge bases within these
+              folders.
+            </span>
           </>
         )
       }
@@ -108,12 +123,21 @@ export function DeleteModal({
         return (
           <>
             Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
-            will permanently remove all associated workflows, logs, and knowledge bases.
+            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will permanently remove all associated workflows, logs, and knowledge bases.
+            </span>
           </>
         )
       }
-      return 'Are you sure you want to delete this folder? This will permanently remove all associated workflows, logs, and knowledge bases.'
+      return (
+        <>
+          Are you sure you want to delete this folder?{' '}
+          <span className='text-[var(--text-error)]'>
+            This will permanently remove all associated workflows, logs, and knowledge bases.
+          </span>
+        </>
+      )
     }
 
     if (itemType === 'task') {
@@ -124,7 +148,10 @@ export function DeleteModal({
             <span className='font-medium text-[var(--text-primary)]'>
               {displayNames.length} tasks
             </span>
-            ? This will permanently remove all conversation history.
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will permanently remove all conversation history.
+            </span>
           </>
         )
       }
@@ -132,12 +159,21 @@ export function DeleteModal({
         return (
           <>
             Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
-            will permanently remove all conversation history.
+            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will permanently remove all conversation history.
+            </span>
           </>
         )
       }
-      return 'Are you sure you want to delete this task? This will permanently remove all conversation history.'
+      return (
+        <>
+          Are you sure you want to delete this task?{' '}
+          <span className='text-[var(--text-error)]'>
+            This will permanently remove all conversation history.
+          </span>
+        </>
+      )
     }
 
     if (itemType === 'mixed') {
@@ -148,12 +184,23 @@ export function DeleteModal({
             <span className='font-medium text-[var(--text-primary)]'>
               {displayNames.join(', ')}
             </span>
-            ? This will permanently remove all selected workflows and folders, including their
-            contents.
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will permanently remove all selected workflows and folders, including their
+              contents.
+            </span>
           </>
         )
       }
-      return 'Are you sure you want to delete the selected items? This will permanently remove all selected workflows and folders, including their contents.'
+      return (
+        <>
+          Are you sure you want to delete the selected items?{' '}
+          <span className='text-[var(--text-error)]'>
+            This will permanently remove all selected workflows and folders, including their
+            contents.
+          </span>
+        </>
+      )
     }
 
     // workspace type
@@ -161,12 +208,22 @@ export function DeleteModal({
       return (
         <>
           Are you sure you want to delete{' '}
-          <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
-          will permanently remove all associated workflows, folders, logs, and knowledge bases.
+          <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>?{' '}
+          <span className='text-[var(--text-error)]'>
+            This will permanently remove all associated workflows, folders, logs, and knowledge
+            bases.
+          </span>
         </>
       )
     }
-    return 'Are you sure you want to delete this workspace? This will permanently remove all associated workflows, folders, logs, and knowledge bases.'
+    return (
+      <>
+        Are you sure you want to delete this workspace?{' '}
+        <span className='text-[var(--text-error)]'>
+          This will permanently remove all associated workflows, folders, logs, and knowledge bases.
+        </span>
+      </>
+    )
   }
 
   return (

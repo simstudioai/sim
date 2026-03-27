@@ -1287,7 +1287,9 @@ export function AccessControl() {
             <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{deletingGroup?.name}</span>?
-              All members will be removed from this group.{' '}
+              <span className='text-[var(--text-error)]'>
+                All members will be removed from this group.
+              </span>{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>

@@ -73,12 +73,26 @@ export function ConnectorsSection({
   isLoading,
   canEdit,
 }: ConnectorsSectionProps) {
-  const { mutate: triggerSync, isPending: isSyncing } = useTriggerSync()
-  const { mutate: updateConnector, isPending: isUpdating } = useUpdateConnector()
+  const { mutate: triggerSync } = useTriggerSync()
+  const { mutate: updateConnector } = useUpdateConnector()
   const { mutate: deleteConnector, isPending: isDeleting } = useDeleteConnector()
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [editingConnector, setEditingConnector] = useState<ConnectorData | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [syncingIds, setSyncingIds] = useState<Set<string>>(() => new Set())
+  const [updatingIds, setUpdatingIds] = useState<Set<string>>(() => new Set())
+
+  const addToSet = useCallback((setter: typeof setSyncingIds, id: string) => {
+    setter((prev) => new Set(prev).add(id))
+  }, [])
+
+  const removeFromSet = useCallback((setter: typeof setSyncingIds, id: string) => {
+    setter((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }, [])
 
   const syncTriggeredAt = useRef<Record<string, number>>({})
   const cooldownTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
@@ -103,6 +117,7 @@ export function ConnectorsSection({
       if (isSyncOnCooldown(connectorId)) return
 
       syncTriggeredAt.current[connectorId] = Date.now()
+      addToSet(setSyncingIds, connectorId)
 
       triggerSync(
         { knowledgeBaseId, connectorId },
@@ -121,10 +136,35 @@ export function ConnectorsSection({
             delete syncTriggeredAt.current[connectorId]
             forceUpdate((n) => n + 1)
           },
+          onSettled: () => removeFromSet(setSyncingIds, connectorId),
         }
       )
     },
-    [knowledgeBaseId, triggerSync, isSyncOnCooldown]
+    [knowledgeBaseId, triggerSync, isSyncOnCooldown, addToSet, removeFromSet]
+  )
+
+  const handleTogglePause = useCallback(
+    (connector: ConnectorData) => {
+      addToSet(setUpdatingIds, connector.id)
+      updateConnector(
+        {
+          knowledgeBaseId,
+          connectorId: connector.id,
+          updates: {
+            status: connector.status === 'paused' ? 'active' : 'paused',
+          },
+        },
+        {
+          onSettled: () => removeFromSet(setUpdatingIds, connector.id),
+          onSuccess: () => setError(null),
+          onError: (err) => {
+            logger.error('Toggle pause failed', { error: err.message })
+            setError(err.message)
+          },
+        }
+      )
+    },
+    [knowledgeBaseId, updateConnector, addToSet, removeFromSet]
   )
 
   if (connectors.length === 0 && !canEdit && !isLoading) return null
@@ -163,28 +203,11 @@ export function ConnectorsSection({
               workspaceId={workspaceId}
               knowledgeBaseId={knowledgeBaseId}
               canEdit={canEdit}
-              isSyncing={isSyncing}
-              isUpdating={isUpdating}
+              isSyncPending={syncingIds.has(connector.id)}
+              isUpdating={updatingIds.has(connector.id)}
               syncCooldown={isSyncOnCooldown(connector.id)}
               onSync={() => handleSync(connector.id)}
-              onTogglePause={() =>
-                updateConnector(
-                  {
-                    knowledgeBaseId,
-                    connectorId: connector.id,
-                    updates: {
-                      status: connector.status === 'paused' ? 'active' : 'paused',
-                    },
-                  },
-                  {
-                    onSuccess: () => setError(null),
-                    onError: (err) => {
-                      logger.error('Toggle pause failed', { error: err.message })
-                      setError(err.message)
-                    },
-                  }
-                )
-              }
+              onTogglePause={() => handleTogglePause(connector)}
               onEdit={() => setEditingConnector(connector)}
               onDelete={() => setDeleteTarget(connector.id)}
             />
@@ -206,8 +229,13 @@ export function ConnectorsSection({
           <ModalHeader>Delete Connector</ModalHeader>
           <ModalBody>
             <p className='text-[var(--text-secondary)] text-sm'>
-              Are you sure you want to remove this connected source? Documents already synced will
-              remain in the knowledge base.
+              Are you sure you want to remove this connected source?{' '}
+              <span className='text-[var(--text-error)]'>
+                This will stop future syncs from this source.
+              </span>{' '}
+              <span className='text-[var(--text-tertiary)]'>
+                Documents already synced will remain in the knowledge base.
+              </span>
             </p>
           </ModalBody>
           <ModalFooter>
@@ -250,7 +278,7 @@ interface ConnectorCardProps {
   workspaceId: string
   knowledgeBaseId: string
   canEdit: boolean
-  isSyncing: boolean
+  isSyncPending: boolean
   isUpdating: boolean
   syncCooldown: boolean
   onSync: () => void
@@ -264,7 +292,7 @@ function ConnectorCard({
   workspaceId,
   knowledgeBaseId,
   canEdit,
-  isSyncing,
+  isSyncPending,
   isUpdating,
   syncCooldown,
   onSync,
@@ -306,13 +334,13 @@ function ConnectorCard({
           {Icon && <Icon className='h-5 w-5 flex-shrink-0' />}
           <div className='flex flex-col gap-0.5'>
             <div className='flex items-center gap-2'>
-              <span className='font-medium text-[var(--text-primary)] text-small'>
+              <span className='flex items-center gap-1.5 font-medium text-[var(--text-primary)] text-small'>
                 {connectorDef?.name || connector.connectorType}
+                {(isSyncPending || connector.status === 'syncing') && (
+                  <Loader2 className='h-3 w-3 animate-spin text-[var(--text-muted)]' />
+                )}
               </span>
               <Badge variant={statusConfig.variant} className='text-micro'>
-                {connector.status === 'syncing' && (
-                  <Loader2 className='mr-1 h-3 w-3 animate-spin' />
-                )}
                 {statusConfig.label}
               </Badge>
             </div>
@@ -356,7 +384,7 @@ function ConnectorCard({
                     variant='ghost'
                     className='h-7 w-7 p-0'
                     onClick={onSync}
-                    disabled={connector.status === 'syncing' || isSyncing || syncCooldown}
+                    disabled={connector.status === 'syncing' || isSyncPending || syncCooldown}
                   >
                     <RefreshCw
                       className={cn(

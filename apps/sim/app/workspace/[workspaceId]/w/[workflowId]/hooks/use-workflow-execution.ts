@@ -1822,7 +1822,7 @@ export function useWorkflowExecution() {
       try {
         const pointer = await loadExecutionPointer(reconnectWorkflowId)
         if (cleanupRan) return
-        if (pointer && pointer.executionId) {
+        if (pointer?.executionId) {
           executionId = pointer.executionId
           fromEventId = pointer.lastEventId
         }

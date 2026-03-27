@@ -188,7 +188,8 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --border-1: #e0e0e0; /* stronger border */
     --surface-6: #e5e5e5; /* popovers, elevated surfaces */
     --surface-7: #d9d9d9;
-    --surface-active: #ececec; /* hover/active state */
+    --surface-hover: #f2f2f2; /* hover state */
+    --surface-active: #ececec; /* active/selected state */
 
     --workflow-edge: #e0e0e0; /* workflow handles/edges - matches border-1 */
 
@@ -342,7 +343,8 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --border-1: #3d3d3d;
     --surface-6: #454545;
     --surface-7: #505050;
-    --surface-active: #2c2c2c; /* hover/active state */
+    --surface-hover: #262626; /* hover state */
+    --surface-active: #2c2c2c; /* active/selected state */
 
     --workflow-edge: #454545; /* workflow handles/edges - same as surface-6 in dark */
 
@@ -501,9 +503,6 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     caret-color: var(--text-primary);
   }
 
-  body {
-    @apply antialiased;
-  }
   ::-webkit-scrollbar {
     width: var(--scrollbar-size);
     height: var(--scrollbar-size);

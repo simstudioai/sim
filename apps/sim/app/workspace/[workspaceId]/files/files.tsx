@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -41,6 +41,7 @@ import type {
   HeaderAction,
   ResourceColumn,
   ResourceRow,
+  SearchConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import {
   InlineRenameInput,
@@ -159,11 +160,29 @@ export function Files() {
 
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
-  const [searchTerm, setSearchTerm] = useState('')
+  const [inputValue, setInputValue] = useState('')
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  const handleSearchChange = useCallback((value: string) => {
+    setInputValue(value)
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(value)
+    }, 200)
+  }, [])
+
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [previewMode, setPreviewMode] = useState<PreviewMode>('preview')
+  const [previewMode, setPreviewMode] = useState<PreviewMode>(() => {
+    if (fileIdFromRoute) {
+      const file = files.find((f) => f.id === fileIdFromRoute)
+      if (file && isPreviewable(file)) return 'preview'
+      return 'editor'
+    }
+    return 'preview'
+  })
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [contextMenuFile, setContextMenuFile] = useState<WorkspaceFileRecord | null>(null)
@@ -183,58 +202,104 @@ export function Files() {
     () => (fileIdFromRoute ? files.find((f) => f.id === fileIdFromRoute) : null),
     [fileIdFromRoute, files]
   )
+  const selectedFileRef = useRef(selectedFile)
+  selectedFileRef.current = selectedFile
 
   const filteredFiles = useMemo(() => {
-    if (!searchTerm) return files
-    const q = searchTerm.toLowerCase()
+    if (!debouncedSearchTerm) return files
+    const q = debouncedSearchTerm.toLowerCase()
     return files.filter((f) => f.name.toLowerCase().includes(q))
-  }, [files, searchTerm])
+  }, [files, debouncedSearchTerm])
 
-  const rows: ResourceRow[] = useMemo(
-    () =>
-      filteredFiles.map((file) => {
-        const Icon = getDocumentIcon(file.type || '', file.name)
-        return {
-          id: file.id,
-          cells: {
-            name: {
-              icon: <Icon className='h-[14px] w-[14px]' />,
-              label: file.name,
-              content:
-                listRename.editingId === file.id ? (
-                  <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
-                    <span className='flex-shrink-0 text-[var(--text-icon)]'>
-                      <Icon className='h-[14px] w-[14px]' />
-                    </span>
-                    <InlineRenameInput
-                      value={listRename.editValue}
-                      onChange={listRename.setEditValue}
-                      onSubmit={listRename.submitRename}
-                      onCancel={listRename.cancelRename}
-                    />
-                  </span>
-                ) : undefined,
-            },
-            size: {
-              label: formatFileSize(file.size, { includeBytes: true }),
-            },
-            type: {
-              icon: <Icon className='h-[14px] w-[14px]' />,
-              label: formatFileType(file.type, file.name),
-            },
-            created: timeCell(file.uploadedAt),
-            owner: ownerCell(file.uploadedBy, members),
-            updated: timeCell(file.uploadedAt),
-          },
-          sortValues: {
-            size: file.size,
-            created: -new Date(file.uploadedAt).getTime(),
-            updated: -new Date(file.uploadedAt).getTime(),
-          },
-        }
-      }),
-    [filteredFiles, members, listRename.editingId, listRename.editValue]
+  const rowCacheRef = useRef(
+    new Map<string, { row: ResourceRow; file: WorkspaceFileRecord; members: typeof members }>()
   )
+
+  const baseRows: ResourceRow[] = useMemo(() => {
+    const prevCache = rowCacheRef.current
+    const nextCache = new Map<
+      string,
+      { row: ResourceRow; file: WorkspaceFileRecord; members: typeof members }
+    >()
+
+    const result = filteredFiles.map((file) => {
+      const cached = prevCache.get(file.id)
+      if (cached && cached.file === file && cached.members === members) {
+        nextCache.set(file.id, cached)
+        return cached.row
+      }
+      const Icon = getDocumentIcon(file.type || '', file.name)
+      const row: ResourceRow = {
+        id: file.id,
+        cells: {
+          name: {
+            icon: <Icon className='h-[14px] w-[14px]' />,
+            label: file.name,
+          },
+          size: {
+            label: formatFileSize(file.size, { includeBytes: true }),
+          },
+          type: {
+            icon: <Icon className='h-[14px] w-[14px]' />,
+            label: formatFileType(file.type, file.name),
+          },
+          created: timeCell(file.uploadedAt),
+          owner: ownerCell(file.uploadedBy, members),
+          updated: timeCell(file.uploadedAt),
+        },
+        sortValues: {
+          size: file.size,
+          created: -new Date(file.uploadedAt).getTime(),
+          updated: -new Date(file.uploadedAt).getTime(),
+        },
+      }
+      nextCache.set(file.id, { row, file, members })
+      return row
+    })
+
+    rowCacheRef.current = nextCache
+    return result
+  }, [filteredFiles, members])
+
+  const rows: ResourceRow[] = useMemo(() => {
+    if (!listRename.editingId) return baseRows
+    return baseRows.map((row) => {
+      if (row.id !== listRename.editingId) return row
+      const file = filteredFiles.find((f) => f.id === row.id)
+      if (!file) return row
+      const Icon = getDocumentIcon(file.type || '', file.name)
+      return {
+        ...row,
+        cells: {
+          ...row.cells,
+          name: {
+            ...row.cells.name,
+            content: (
+              <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
+                <span className='flex-shrink-0 text-[var(--text-icon)]'>
+                  <Icon className='h-[14px] w-[14px]' />
+                </span>
+                <InlineRenameInput
+                  value={listRename.editValue}
+                  onChange={listRename.setEditValue}
+                  onSubmit={listRename.submitRename}
+                  onCancel={listRename.cancelRename}
+                />
+              </span>
+            ),
+          },
+        },
+      }
+    })
+  }, [
+    baseRows,
+    listRename.editingId,
+    listRename.editValue,
+    listRename.setEditValue,
+    listRename.submitRename,
+    listRename.cancelRename,
+    filteredFiles,
+  ])
 
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -288,8 +353,13 @@ export function Files() {
     }
   }, [])
 
+  const deleteTargetFileRef = useRef(deleteTargetFile)
+  deleteTargetFileRef.current = deleteTargetFile
+  const fileIdFromRouteRef = useRef(fileIdFromRoute)
+  fileIdFromRouteRef.current = fileIdFromRoute
+
   const handleDelete = useCallback(async () => {
-    const target = deleteTargetFile
+    const target = deleteTargetFileRef.current
     if (!target) return
 
     try {
@@ -299,7 +369,7 @@ export function Files() {
       })
       setShowDeleteConfirm(false)
       setDeleteTargetFile(null)
-      if (fileIdFromRoute === target.id) {
+      if (fileIdFromRouteRef.current === target.id) {
         setIsDirty(false)
         setSaveStatus('idle')
         router.push(`/workspace/${workspaceId}/files`)
@@ -307,36 +377,44 @@ export function Files() {
     } catch (err) {
       logger.error('Failed to delete file:', err)
     }
-  }, [deleteTargetFile, workspaceId, fileIdFromRoute, router])
+  }, [workspaceId, router])
+
+  const isDirtyRef = useRef(isDirty)
+  isDirtyRef.current = isDirty
+  const saveStatusRef = useRef(saveStatus)
+  saveStatusRef.current = saveStatus
 
   const handleSave = useCallback(async () => {
-    if (!saveRef.current || !isDirty || saveStatus === 'saving') return
+    if (!saveRef.current || !isDirtyRef.current || saveStatusRef.current === 'saving') return
     await saveRef.current()
-  }, [isDirty, saveStatus])
+  }, [])
 
   const handleBackAttempt = useCallback(() => {
-    if (isDirty) {
+    if (isDirtyRef.current) {
       setShowUnsavedChangesAlert(true)
     } else {
       setPreviewMode('editor')
       router.push(`/workspace/${workspaceId}/files`)
     }
-  }, [isDirty, router, workspaceId])
+  }, [router, workspaceId])
 
   const handleStartHeaderRename = useCallback(() => {
-    if (selectedFile) headerRename.startRename(selectedFile.id, selectedFile.name)
-  }, [selectedFile, headerRename.startRename])
+    const file = selectedFileRef.current
+    if (file) headerRename.startRename(file.id, file.name)
+  }, [headerRename.startRename])
 
   const handleDownloadSelected = useCallback(() => {
-    if (selectedFile) handleDownload(selectedFile)
-  }, [selectedFile, handleDownload])
+    const file = selectedFileRef.current
+    if (file) handleDownload(file)
+  }, [handleDownload])
 
   const handleDeleteSelected = useCallback(() => {
-    if (selectedFile) {
-      setDeleteTargetFile(selectedFile)
+    const file = selectedFileRef.current
+    if (file) {
+      setDeleteTargetFile(file)
       setShowDeleteConfirm(true)
     }
-  }, [selectedFile])
+  }, [])
 
   const fileDetailBreadcrumbs = useMemo(
     () =>
@@ -379,9 +457,6 @@ export function Files() {
       handleBackAttempt,
       headerRename.editingId,
       headerRename.editValue,
-      headerRename.setEditValue,
-      headerRename.submitRename,
-      headerRename.cancelRename,
       handleStartHeaderRename,
       handleDownloadSelected,
       handleDeleteSelected,
@@ -396,12 +471,15 @@ export function Files() {
     router.push(`/workspace/${workspaceId}/files`)
   }, [router, workspaceId])
 
+  const creatingFileRef = useRef(creatingFile)
+  creatingFileRef.current = creatingFile
+
   const handleCreateFile = useCallback(async () => {
-    if (creatingFile) return
+    if (creatingFileRef.current) return
     setCreatingFile(true)
 
     try {
-      const existingNames = new Set(files.map((f) => f.name))
+      const existingNames = new Set(filesRef.current.map((f) => f.name))
       let name = 'untitled.md'
       let counter = 1
       while (existingNames.has(name)) {
@@ -423,42 +501,49 @@ export function Files() {
     } finally {
       setCreatingFile(false)
     }
-  }, [creatingFile, files, workspaceId, router])
+  }, [workspaceId, router])
 
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
-      const file = files.find((f) => f.id === rowId)
+      const file = filesRef.current.find((f) => f.id === rowId)
       if (file) {
         setContextMenuFile(file)
         openContextMenu(e)
       }
     },
-    [files, openContextMenu]
+    [openContextMenu]
   )
 
+  const contextMenuFileRef = useRef(contextMenuFile)
+  contextMenuFileRef.current = contextMenuFile
+
   const handleContextMenuOpen = useCallback(() => {
-    if (!contextMenuFile) return
-    router.push(`/workspace/${workspaceId}/files/${contextMenuFile.id}`)
+    const file = contextMenuFileRef.current
+    if (!file) return
+    router.push(`/workspace/${workspaceId}/files/${file.id}`)
     closeContextMenu()
-  }, [contextMenuFile, closeContextMenu, router, workspaceId])
+  }, [closeContextMenu, router, workspaceId])
 
   const handleContextMenuDownload = useCallback(() => {
-    if (!contextMenuFile) return
-    handleDownload(contextMenuFile)
+    const file = contextMenuFileRef.current
+    if (!file) return
+    handleDownload(file)
     closeContextMenu()
-  }, [contextMenuFile, handleDownload, closeContextMenu])
+  }, [handleDownload, closeContextMenu])
 
   const handleContextMenuRename = useCallback(() => {
-    if (contextMenuFile) listRename.startRename(contextMenuFile.id, contextMenuFile.name)
+    const file = contextMenuFileRef.current
+    if (file) listRename.startRename(file.id, file.name)
     closeContextMenu()
-  }, [contextMenuFile, listRename.startRename, closeContextMenu])
+  }, [listRename.startRename, closeContextMenu])
 
   const handleContextMenuDelete = useCallback(() => {
-    if (!contextMenuFile) return
-    setDeleteTargetFile(contextMenuFile)
+    const file = contextMenuFileRef.current
+    if (!file) return
+    setDeleteTargetFile(file)
     setShowDeleteConfirm(true)
     closeContextMenu()
-  }, [contextMenuFile, closeContextMenu])
+  }, [closeContextMenu])
 
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -479,41 +564,46 @@ export function Files() {
     closeListContextMenu()
   }, [closeListContextMenu])
 
-  useEffect(() => {
+  const prevFileIdRef = useRef(fileIdFromRoute)
+  if (fileIdFromRoute !== prevFileIdRef.current) {
+    prevFileIdRef.current = fileIdFromRoute
     const isJustCreated =
       fileIdFromRoute != null && justCreatedFileIdRef.current === fileIdFromRoute
     if (justCreatedFileIdRef.current && !isJustCreated) {
       justCreatedFileIdRef.current = null
     }
-    if (isJustCreated) {
-      setPreviewMode('editor')
-    } else {
-      const file = fileIdFromRoute ? filesRef.current.find((f) => f.id === fileIdFromRoute) : null
-      const canPreview = file ? isPreviewable(file) : false
-      setPreviewMode(canPreview ? 'preview' : 'editor')
+    const nextMode: PreviewMode = isJustCreated
+      ? 'editor'
+      : (() => {
+          const file = fileIdFromRoute
+            ? filesRef.current.find((f) => f.id === fileIdFromRoute)
+            : null
+          return file && isPreviewable(file) ? 'preview' : 'editor'
+        })()
+    if (nextMode !== previewMode) {
+      setPreviewMode(nextMode)
     }
-  }, [fileIdFromRoute])
+  }
 
   useEffect(() => {
-    if (!selectedFile) return
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!fileIdFromRouteRef.current) return
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
         handleSave()
       }
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedFile, handleSave])
-
-  useEffect(() => {
-    if (!isDirty) return
-    const handler = (e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!isDirtyRef.current) return
       e.preventDefault()
     }
-    window.addEventListener('beforeunload', handler)
-    return () => window.removeEventListener('beforeunload', handler)
-  }, [isDirty])
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [handleSave])
 
   const handleCyclePreviewMode = useCallback(() => {
     setPreviewMode((prev) => {
@@ -592,27 +682,92 @@ export function Files() {
     selectedFile,
     saveStatus,
     previewMode,
+    isDirty,
     handleCyclePreviewMode,
     handleTogglePreview,
     handleSave,
-    isDirty,
     handleDownloadSelected,
     handleDeleteSelected,
   ])
 
+  /** Stable refs for values used in callbacks to avoid dependency churn */
+  const listRenameRef = useRef(listRename)
+  listRenameRef.current = listRename
+  const headerRenameRef = useRef(headerRename)
+  headerRenameRef.current = headerRename
+
+  const handleRowClick = useCallback(
+    (id: string) => {
+      if (listRenameRef.current.editingId !== id && !headerRenameRef.current.editingId) {
+        router.push(`/workspace/${workspaceId}/files/${id}`)
+      }
+    },
+    [router, workspaceId]
+  )
+
+  const handleUploadClick = useCallback(() => {
+    fileInputRef.current?.click()
+  }, [])
+
+  const canEdit = userPermissions.canEdit === true
+
+  const handleSearchClearAll = useCallback(() => {
+    handleSearchChange('')
+  }, [handleSearchChange])
+
+  const searchConfig: SearchConfig = useMemo(
+    () => ({
+      value: inputValue,
+      onChange: handleSearchChange,
+      onClearAll: handleSearchClearAll,
+      placeholder: 'Search files...',
+    }),
+    [inputValue, handleSearchChange, handleSearchClearAll]
+  )
+
+  const createConfig = useMemo(
+    () => ({
+      label: 'New file',
+      onClick: handleCreateFile,
+      disabled: uploading || creatingFile || !canEdit,
+    }),
+    [handleCreateFile, uploading, creatingFile, canEdit]
+  )
+
+  const uploadButtonLabel = useMemo(
+    () =>
+      uploading && uploadProgress.total > 0
+        ? `${uploadProgress.completed}/${uploadProgress.total}`
+        : uploading
+          ? 'Uploading...'
+          : 'Upload',
+    [uploading, uploadProgress.completed, uploadProgress.total]
+  )
+
+  const headerActionsConfig = useMemo(
+    () => [
+      {
+        label: uploadButtonLabel,
+        icon: Upload,
+        onClick: handleUploadClick,
+      },
+    ],
+    [uploadButtonLabel, handleUploadClick]
+  )
+
+  const handleNavigateToFiles = useCallback(() => {
+    router.push(`/workspace/${workspaceId}/files`)
+  }, [router, workspaceId])
+
+  const loadingBreadcrumbs = useMemo(
+    () => [{ label: 'Files', onClick: handleNavigateToFiles }, { label: '...' }],
+    [handleNavigateToFiles]
+  )
+
   if (fileIdFromRoute && !selectedFile) {
     return (
       <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-        <ResourceHeader
-          icon={FilesIcon}
-          breadcrumbs={[
-            {
-              label: 'Files',
-              onClick: () => router.push(`/workspace/${workspaceId}/files`),
-            },
-            { label: '...' },
-          ]}
-        />
+        <ResourceHeader icon={FilesIcon} breadcrumbs={loadingBreadcrumbs} />
         <div className='flex flex-1 items-center justify-center'>
           <Skeleton className='h-[16px] w-[200px]' />
         </div>
@@ -633,7 +788,7 @@ export function Files() {
             key={selectedFile.id}
             file={selectedFile}
             workspaceId={workspaceId}
-            canEdit={userPermissions.canEdit === true}
+            canEdit={canEdit}
             previewMode={previewMode}
             autoFocus={justCreatedFileIdRef.current === selectedFile.id}
             onDirtyChange={setIsDirty}
@@ -672,43 +827,18 @@ export function Files() {
     )
   }
 
-  const uploadButtonLabel =
-    uploading && uploadProgress.total > 0
-      ? `${uploadProgress.completed}/${uploadProgress.total}`
-      : uploading
-        ? 'Uploading...'
-        : 'Upload'
-
   return (
     <>
       <Resource
         icon={FilesIcon}
         title='Files'
-        create={{
-          label: 'New file',
-          onClick: handleCreateFile,
-          disabled: uploading || creatingFile || userPermissions.canEdit !== true,
-        }}
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: 'Search files...',
-        }}
+        create={createConfig}
+        search={searchConfig}
         defaultSort='created'
-        headerActions={[
-          {
-            label: uploadButtonLabel,
-            icon: Upload,
-            onClick: () => fileInputRef.current?.click(),
-          },
-        ]}
+        headerActions={headerActionsConfig}
         columns={COLUMNS}
         rows={rows}
-        onRowClick={(id) => {
-          if (listRename.editingId !== id && !headerRename.editingId) {
-            router.push(`/workspace/${workspaceId}/files/${id}`)
-          }
-        }}
+        onRowClick={handleRowClick}
         onRowContextMenu={handleRowContextMenu}
         isLoading={isLoading}
         onContextMenu={handleContentContextMenu}
@@ -720,58 +850,20 @@ export function Files() {
         onClose={closeListContextMenu}
         onCreateFile={handleCreateFile}
         onUploadFile={handleListUploadFile}
-        disableCreate={uploading || creatingFile || userPermissions.canEdit !== true}
-        disableUpload={uploading || userPermissions.canEdit !== true}
+        disableCreate={uploading || creatingFile || !canEdit}
+        disableUpload={uploading || !canEdit}
       />
 
-      <DropdownMenu
-        open={isContextMenuOpen}
-        onOpenChange={(open) => !open && closeContextMenu()}
-        modal={false}
-      >
-        <DropdownMenuTrigger asChild>
-          <div
-            style={{
-              position: 'fixed',
-              left: `${contextMenuPosition.x}px`,
-              top: `${contextMenuPosition.y}px`,
-              width: '1px',
-              height: '1px',
-              pointerEvents: 'none',
-            }}
-            tabIndex={-1}
-            aria-hidden
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align='start'
-          side='bottom'
-          sideOffset={4}
-          onCloseAutoFocus={(e) => e.preventDefault()}
-        >
-          <DropdownMenuItem onSelect={handleContextMenuOpen}>
-            <Eye />
-            Open
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={handleContextMenuDownload}>
-            <Download />
-            Download
-          </DropdownMenuItem>
-          {userPermissions.canEdit === true && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={handleContextMenuRename}>
-                <Pencil />
-                Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleContextMenuDelete}>
-                <Trash />
-                Delete
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <FileRowContextMenu
+        isOpen={isContextMenuOpen}
+        position={contextMenuPosition}
+        onClose={closeContextMenu}
+        onOpen={handleContextMenuOpen}
+        onDownload={handleContextMenuDownload}
+        onRename={handleContextMenuRename}
+        onDelete={handleContextMenuDelete}
+        canEdit={canEdit}
+      />
 
       <DeleteConfirmModal
         open={showDeleteConfirm}
@@ -794,6 +886,75 @@ export function Files() {
   )
 }
 
+interface FileRowContextMenuProps {
+  isOpen: boolean
+  position: { x: number; y: number }
+  onClose: () => void
+  onOpen: () => void
+  onDownload: () => void
+  onRename: () => void
+  onDelete: () => void
+  canEdit: boolean
+}
+
+const FileRowContextMenu = memo(function FileRowContextMenu({
+  isOpen,
+  position,
+  onClose,
+  onOpen,
+  onDownload,
+  onRename,
+  onDelete,
+  canEdit,
+}: FileRowContextMenuProps) {
+  return (
+    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
+      <DropdownMenuTrigger asChild>
+        <div
+          style={{
+            position: 'fixed',
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
+          }}
+          tabIndex={-1}
+          aria-hidden
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align='start'
+        side='bottom'
+        sideOffset={4}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <DropdownMenuItem onSelect={onOpen}>
+          <Eye />
+          Open
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onDownload}>
+          <Download />
+          Download
+        </DropdownMenuItem>
+        {canEdit && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onRename}>
+              <Pencil />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onDelete}>
+              <Trash />
+              Delete
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+})
+
 interface DeleteConfirmModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -802,7 +963,7 @@ interface DeleteConfirmModalProps {
   isPending: boolean
 }
 
-function DeleteConfirmModal({
+const DeleteConfirmModal = memo(function DeleteConfirmModal({
   open,
   onOpenChange,
   fileName,
@@ -833,4 +994,4 @@ function DeleteConfirmModal({
       </ModalContent>
     </Modal>
   )
-}
+})
