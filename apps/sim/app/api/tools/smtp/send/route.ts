@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
@@ -55,6 +56,15 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const validatedData = SmtpSendSchema.parse(body)
+
+    const hostValidation = await validateDatabaseHost(validatedData.smtpHost, 'smtpHost')
+    if (!hostValidation.isValid) {
+      logger.warn(`[${requestId}] SMTP host validation failed`, {
+        host: validatedData.smtpHost,
+        error: hostValidation.error,
+      })
+      return NextResponse.json({ success: false, error: hostValidation.error }, { status: 400 })
+    }
 
     logger.info(`[${requestId}] Sending email via SMTP`, {
       host: validatedData.smtpHost,
@@ -189,32 +199,19 @@ export async function POST(request: NextRequest) {
     if (isNodeError(error)) {
       if (error.code === 'EAUTH') {
         errorMessage = 'SMTP authentication failed - check username and password'
-      } else if (error.code === 'ECONNECTION' || error.code === 'ECONNREFUSED') {
+      } else if (
+        error.code === 'ECONNECTION' ||
+        error.code === 'ECONNREFUSED' ||
+        error.code === 'ECONNRESET' ||
+        error.code === 'ETIMEDOUT'
+      ) {
         errorMessage = 'Could not connect to SMTP server - check host and port'
-      } else if (error.code === 'ECONNRESET') {
-        errorMessage = 'Connection was reset by SMTP server'
-      } else if (error.code === 'ETIMEDOUT') {
-        errorMessage = 'SMTP server connection timeout'
-      }
-    }
-
-    // Check for SMTP response codes
-    const hasResponseCode = (err: unknown): err is { responseCode: number } => {
-      return typeof err === 'object' && err !== null && 'responseCode' in err
-    }
-
-    if (hasResponseCode(error)) {
-      if (error.responseCode >= 500) {
-        errorMessage = 'SMTP server error - please try again later'
-      } else if (error.responseCode >= 400) {
-        errorMessage = 'Email rejected by SMTP server - check recipient addresses'
       }
     }
 
     logger.error(`[${requestId}] Error sending email via SMTP:`, {
       error: error instanceof Error ? error.message : String(error),
       code: isNodeError(error) ? error.code : undefined,
-      responseCode: hasResponseCode(error) ? error.responseCode : undefined,
     })
 
     return NextResponse.json(
