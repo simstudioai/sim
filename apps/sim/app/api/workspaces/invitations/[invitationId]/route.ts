@@ -198,6 +198,13 @@ export async function GET(
       )
     }
 
+    const isInvitee = session.user.email?.toLowerCase() === invitation.email.toLowerCase()
+    const hasAdminAccess = await hasWorkspaceAdminAccess(session.user.id, invitation.workspaceId)
+
+    if (!isInvitee && !hasAdminAccess) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
+
     return NextResponse.json({
       ...invitation,
       workspaceName: workspaceDetails.name,

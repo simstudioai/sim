@@ -61,6 +61,27 @@ export async function GET(
       return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
     }
 
+    // Verify caller is either an org member or the invitee
+    const userData = await db
+      .select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, session.user.id))
+      .then((rows) => rows[0])
+
+    const isInvitee = userData && userData.email.toLowerCase() === orgInvitation.email.toLowerCase()
+
+    if (!isInvitee) {
+      const memberEntry = await db
+        .select()
+        .from(member)
+        .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
+        .limit(1)
+
+      if (memberEntry.length === 0) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+
     const org = await db
       .select()
       .from(organization)
