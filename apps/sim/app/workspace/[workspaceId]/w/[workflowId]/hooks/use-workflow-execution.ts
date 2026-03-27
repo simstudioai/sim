@@ -1978,7 +1978,10 @@ export function useWorkflowExecution() {
         for (const entry of originalEntries) {
           addConsole(entry)
         }
-        consolePersistence.persist()
+      }
+
+      if (!reconnectionComplete) {
+        consolePersistence.executionEnded()
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
