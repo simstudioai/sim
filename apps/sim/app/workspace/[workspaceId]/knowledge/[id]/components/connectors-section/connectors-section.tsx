@@ -306,13 +306,13 @@ function ConnectorCard({
           {Icon && <Icon className='h-5 w-5 flex-shrink-0' />}
           <div className='flex flex-col gap-0.5'>
             <div className='flex items-center gap-2'>
-              <span className='font-medium text-[var(--text-primary)] text-small'>
+              <span className='flex items-center gap-1.5 font-medium text-[var(--text-primary)] text-small'>
                 {connectorDef?.name || connector.connectorType}
+                {(syncCooldown || connector.status === 'syncing') && (
+                  <Loader2 className='h-3 w-3 animate-spin text-[var(--text-muted)]' />
+                )}
               </span>
               <Badge variant={statusConfig.variant} className='text-micro'>
-                {connector.status === 'syncing' && (
-                  <Loader2 className='mr-1 h-3 w-3 animate-spin' />
-                )}
                 {statusConfig.label}
               </Badge>
             </div>
