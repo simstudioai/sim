@@ -60,15 +60,21 @@ export function Knowledge() {
   const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
   const { mutateAsync: deleteKnowledgeBaseMutation } = useDeleteKnowledgeBase(workspaceId)
 
+  const [searchInputValue, setSearchInputValue] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
 
   const handleSearchChange = useCallback((value: string) => {
+    setSearchInputValue(value)
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
     searchTimerRef.current = setTimeout(() => {
       setDebouncedSearchQuery(value)
     }, 300)
   }, [])
+
+  const handleSearchClearAll = useCallback(() => {
+    handleSearchChange('')
+  }, [handleSearchChange])
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
@@ -256,12 +262,12 @@ export function Knowledge() {
 
   const searchConfig: SearchConfig = useMemo(
     () => ({
-      value: debouncedSearchQuery,
+      value: searchInputValue,
       onChange: handleSearchChange,
-      onClearAll: () => handleSearchChange(''),
+      onClearAll: handleSearchClearAll,
       placeholder: 'Search knowledge bases...',
     }),
-    [handleSearchChange, debouncedSearchQuery]
+    [searchInputValue, handleSearchChange, handleSearchClearAll]
   )
 
   return (
