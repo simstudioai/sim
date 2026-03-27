@@ -15,7 +15,7 @@ import type {
   SpeechRecognitionEvent,
   SpeechRecognitionInstance,
   WindowWithSpeech,
-} from '@/app/workspace/[workspaceId]/home/components/user-input/_components'
+} from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import {
   AnimatedPlaceholderEffect,
   AttachedFilesList,
@@ -29,7 +29,7 @@ import {
   SendButton,
   SPEECH_RECOGNITION_LANG,
   TEXTAREA_BASE_CLASSES,
-} from '@/app/workspace/[workspaceId]/home/components/user-input/_components'
+} from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import type {
   FileAttachmentForApi,
   MothershipResource,

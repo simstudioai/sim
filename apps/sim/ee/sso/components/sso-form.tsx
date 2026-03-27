@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button, Input, Label } from '@/components/emcn'
@@ -10,7 +11,6 @@ import { env, isFalsy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
 
 const logger = createLogger('SSOForm')
 
@@ -134,10 +134,18 @@ export default function SSOForm() {
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className={'font-[500] text-[32px] text-[var(--text-primary)] tracking-tight'}>
+        <h1
+          className={
+            'text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'
+          }
+        >
           Sign in with SSO
         </h1>
-        <p className={'font-[380] text-[var(--text-subtle)] text-md'}>
+        <p
+          className={
+            'font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'
+          }
+        >
           Enter your work email to continue
         </p>
       </div>
@@ -175,14 +183,20 @@ export default function SSOForm() {
           </div>
         </div>
 
-        <BrandedButton
+        <button
           type='submit'
           disabled={isLoading}
-          loading={isLoading}
-          loadingText='Redirecting to SSO provider'
+          className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
         >
-          Continue with SSO
-        </BrandedButton>
+          {isLoading ? (
+            <span className='flex items-center gap-2'>
+              <Loader2 className='h-4 w-4 animate-spin' />
+              Redirecting to SSO provider...
+            </span>
+          ) : (
+            'Continue with SSO'
+          )}
+        </button>
       </form>
 
       {/* Only show divider and email signin button if email/password is enabled */}
@@ -217,20 +231,20 @@ export default function SSOForm() {
           <span className='font-normal'>Don't have an account? </span>
           <Link
             href={`/signup${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
-            className='font-medium text-[var(--text-primary)] underline-offset-4 transition hover:text-white hover:underline'
+            className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
           >
             Sign up
           </Link>
         </div>
       )}
 
-      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[var(--text-subtle)] text-sm leading-relaxed sm:px-8 md:px-[44px]'>
+      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[var(--landing-text-muted)] text-sm leading-relaxed sm:px-8 md:px-[44px]'>
         By signing in, you agree to our{' '}
         <Link
           href='/terms'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[var(--text-subtle)] underline-offset-4 transition hover:text-[var(--text-primary)] hover:underline'
+          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
         >
           Terms of Service
         </Link>{' '}
@@ -239,7 +253,7 @@ export default function SSOForm() {
           href='/privacy'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[var(--text-subtle)] underline-offset-4 transition hover:text-[var(--text-primary)] hover:underline'
+          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
         >
           Privacy Policy
         </Link>

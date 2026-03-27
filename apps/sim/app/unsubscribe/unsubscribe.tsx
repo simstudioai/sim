@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { InviteLayout } from '@/app/invite/components'
 
 interface UnsubscribeData {
@@ -122,12 +121,12 @@ function UnsubscribeContent() {
           <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
             Loading
           </h1>
-          <p className={'font-[380] text-[var(--text-subtle)] text-md'}>
+          <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
             Validating your unsubscribe link...
           </p>
         </div>
         <div className={'mt-8 flex w-full items-center justify-center py-8'}>
-          <Loader2 className='h-8 w-8 animate-spin text-[var(--text-subtle)]' />
+          <Loader2 className='h-8 w-8 animate-spin text-[var(--landing-text-muted)]' />
         </div>
       </InviteLayout>
     )
@@ -140,11 +139,16 @@ function UnsubscribeContent() {
           <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
             Invalid Unsubscribe Link
           </h1>
-          <p className={'font-[380] text-[var(--text-subtle)] text-md'}>{error}</p>
+          <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>{error}</p>
         </div>
 
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
-          <BrandedButton onClick={() => window.history.back()}>Go Back</BrandedButton>
+          <button
+            onClick={() => window.history.back()}
+            className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            Go Back
+          </button>
         </div>
       </InviteLayout>
     )
@@ -157,14 +161,19 @@ function UnsubscribeContent() {
           <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
             Important Account Emails
           </h1>
-          <p className={'font-[380] text-[var(--text-subtle)] text-md'}>
+          <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
             Transactional emails like password resets, account confirmations, and security alerts
             cannot be unsubscribed from as they contain essential information for your account.
           </p>
         </div>
 
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
-          <BrandedButton onClick={() => window.close()}>Close</BrandedButton>
+          <button
+            onClick={() => window.close()}
+            className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            Close
+          </button>
         </div>
       </InviteLayout>
     )
@@ -177,14 +186,19 @@ function UnsubscribeContent() {
           <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
             Successfully Unsubscribed
           </h1>
-          <p className={'font-[380] text-[var(--text-subtle)] text-md'}>
+          <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
             You have been unsubscribed from our emails. You will stop receiving emails within 48
             hours.
           </p>
         </div>
 
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
-          <BrandedButton onClick={() => window.close()}>Close</BrandedButton>
+          <button
+            onClick={() => window.close()}
+            className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            Close
+          </button>
         </div>
       </InviteLayout>
     )
@@ -198,72 +212,81 @@ function UnsubscribeContent() {
         <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
           Email Preferences
         </h1>
-        <p className={'font-[380] text-[var(--text-subtle)] text-md'}>
+        <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
           Choose which emails you'd like to stop receiving.
         </p>
-        <p className={'mt-2 font-[380] text-[var(--text-subtle)] text-sm'}>{data?.email}</p>
+        <p className={'mt-2 font-[380] text-[var(--landing-text-muted)] text-sm'}>{data?.email}</p>
       </div>
 
       <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
-        <BrandedButton
+        <button
           onClick={() => handleUnsubscribe('all')}
           disabled={processing || isAlreadyUnsubscribedFromAll}
-          loading={processing}
-          loadingText='Unsubscribing'
+          className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
         >
-          {isAlreadyUnsubscribedFromAll
-            ? 'Unsubscribed from All Emails'
-            : 'Unsubscribe from All Marketing Emails'}
-        </BrandedButton>
+          {processing ? (
+            <span className='flex items-center gap-2'>
+              <Loader2 className='h-4 w-4 animate-spin' />
+              Unsubscribing...
+            </span>
+          ) : isAlreadyUnsubscribedFromAll ? (
+            'Unsubscribed from All Emails'
+          ) : (
+            'Unsubscribe from All Marketing Emails'
+          )}
+        </button>
 
         <div className='py-2 text-center'>
-          <span className={'font-[380] text-[var(--text-subtle)] text-sm'}>
+          <span className={'font-[380] text-[var(--landing-text-muted)] text-sm'}>
             or choose specific types
           </span>
         </div>
 
-        <BrandedButton
+        <button
           onClick={() => handleUnsubscribe('marketing')}
           disabled={
             processing ||
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeMarketing
           }
+          className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
         >
           {data?.currentPreferences.unsubscribeMarketing
             ? 'Unsubscribed from Marketing'
             : 'Unsubscribe from Marketing Emails'}
-        </BrandedButton>
+        </button>
 
-        <BrandedButton
+        <button
           onClick={() => handleUnsubscribe('updates')}
           disabled={
             processing ||
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeUpdates
           }
+          className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
         >
           {data?.currentPreferences.unsubscribeUpdates
             ? 'Unsubscribed from Updates'
             : 'Unsubscribe from Product Updates'}
-        </BrandedButton>
+        </button>
 
-        <BrandedButton
+        <button
           onClick={() => handleUnsubscribe('notifications')}
           disabled={
             processing ||
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeNotifications
           }
+          className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
         >
           {data?.currentPreferences.unsubscribeNotifications
             ? 'Unsubscribed from Notifications'
             : 'Unsubscribe from Notifications'}
-        </BrandedButton>
+        </button>
       </div>
 
       <div className={'mt-6 max-w-[410px] text-center'}>
-        <p className='font-[380] text-[var(--text-subtle)] text-small'>
+        <p className='font-[380] text-[var(--landing-text-muted)] text-small'>
           You'll continue receiving important account emails like password resets and security
           alerts.
         </p>
@@ -281,12 +304,12 @@ export default function Unsubscribe() {
             <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
               Loading
             </h1>
-            <p className={'font-[380] text-[var(--text-subtle)] text-md'}>
+            <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
               Validating your unsubscribe link...
             </p>
           </div>
           <div className={'mt-8 flex w-full items-center justify-center py-8'}>
-            <Loader2 className='h-8 w-8 animate-spin text-[var(--text-subtle)]' />
+            <Loader2 className='h-8 w-8 animate-spin text-[var(--landing-text-muted)]' />
           </div>
         </InviteLayout>
       }

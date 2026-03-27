@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { Button, Tooltip } from '@/components/emcn'
 import { Columns3, Eye, PanelLeft, Pencil } from '@/components/emcn/icons'
+import { isEphemeralResource } from '@/lib/copilot/resource-extraction'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -142,7 +143,9 @@ export function ResourceTabs({
     (e: React.MouseEvent, resource: MothershipResource) => {
       e.stopPropagation()
       if (!chatId) return
-      removeResource.mutate({ chatId, resourceType: resource.type, resourceId: resource.id })
+      if (!isEphemeralResource(resource)) {
+        removeResource.mutate({ chatId, resourceType: resource.type, resourceId: resource.id })
+      }
       onRemoveResource(resource.type, resource.id)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -240,7 +243,10 @@ export function ResourceTabs({
       reordered.splice(insertAt, 0, moved)
       onReorderResources(reordered)
       if (chatId) {
-        reorderResources.mutate({ chatId, resources: reordered })
+        const persistable = reordered.filter((r) => !isEphemeralResource(r))
+        if (persistable.length > 0) {
+          reorderResources.mutate({ chatId, resources: persistable })
+        }
       }
       setDraggedIdx(null)
       setDropGapIdx(null)

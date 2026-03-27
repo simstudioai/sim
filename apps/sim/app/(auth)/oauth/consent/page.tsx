@@ -1,12 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeftRight } from 'lucide-react'
+import { ArrowLeftRight, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { signOut, useSession } from '@/lib/auth/auth-client'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
 
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
   openid: 'Verify your identity',
@@ -150,7 +149,12 @@ export default function OAuthConsentPage() {
           </p>
         </div>
         <div className='mt-8 w-full max-w-[410px] space-y-3'>
-          <BrandedButton onClick={() => router.push('/')}>Return to Home</BrandedButton>
+          <button
+            onClick={() => router.push('/')}
+            className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            Return to Home
+          </button>
         </div>
       </div>
     )
@@ -257,15 +261,20 @@ export default function OAuthConsentPage() {
         >
           Deny
         </Button>
-        <BrandedButton
-          fullWidth
-          showArrow={false}
-          loading={submitting}
-          loadingText='Authorizing'
+        <button
           onClick={() => handleConsent(true)}
+          disabled={submitting}
+          className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
         >
-          Allow
-        </BrandedButton>
+          {submitting ? (
+            <span className='flex items-center gap-2'>
+              <Loader2 className='h-4 w-4 animate-spin' />
+              Authorizing...
+            </span>
+          ) : (
+            'Allow'
+          )}
+        </button>
       </div>
     </div>
   )

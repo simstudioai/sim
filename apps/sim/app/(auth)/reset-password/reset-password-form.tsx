@@ -1,10 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
 
 interface RequestResetFormProps {
   email: string
@@ -64,14 +63,20 @@ export function RequestResetForm({
         )}
       </div>
 
-      <BrandedButton
+      <button
         type='submit'
         disabled={isSubmitting}
-        loading={isSubmitting}
-        loadingText='Sending'
+        className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
       >
-        Send Reset Link
-      </BrandedButton>
+        {isSubmitting ? (
+          <span className='flex items-center gap-2'>
+            <Loader2 className='h-4 w-4 animate-spin' />
+            Sending...
+          </span>
+        ) : (
+          'Send Reset Link'
+        )}
+      </button>
     </form>
   )
 }
@@ -219,14 +224,20 @@ export function SetNewPasswordForm({
         )}
       </div>
 
-      <BrandedButton
+      <button
         type='submit'
         disabled={isSubmitting || !token}
-        loading={isSubmitting}
-        loadingText='Resetting'
+        className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
       >
-        Reset Password
-      </BrandedButton>
+        {isSubmitting ? (
+          <span className='flex items-center gap-2'>
+            <Loader2 className='h-4 w-4 animate-spin' />
+            Resetting...
+          </span>
+        ) : (
+          'Reset Password'
+        )}
+      </button>
     </form>
   )
 }

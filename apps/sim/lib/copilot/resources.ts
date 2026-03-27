@@ -8,6 +8,7 @@ export {
   extractDeletedResourcesFromToolResult,
   extractResourcesFromToolResult,
   hasDeleteCapability,
+  isEphemeralResource,
   isResourceToolName,
 } from '@/lib/copilot/resource-extraction'
 export type {
@@ -25,7 +26,7 @@ export async function persistChatResources(
   chatId: string,
   newResources: MothershipResource[]
 ): Promise<void> {
-  const toMerge = newResources.filter((r) => r.id !== 'streaming-file')
+  const toMerge = newResources.filter((r) => !isEphemeralResource(r))
   if (toMerge.length === 0) return
 
   try {

@@ -2,8 +2,8 @@ import { Skeleton } from '@/components/emcn'
 
 export default function ChatLoading() {
   return (
-    <div className='fixed inset-0 z-[100] flex flex-col bg-white text-foreground'>
-      <div className='border-b px-4 py-3'>
+    <div className='dark fixed inset-0 z-[100] flex flex-col bg-[var(--landing-bg)] text-[var(--landing-text)]'>
+      <div className='border-[var(--border-1)] border-b px-4 py-3'>
         <div className='mx-auto flex max-w-3xl items-center justify-between'>
           <div className='flex items-center gap-[12px]'>
             <Skeleton className='h-[28px] w-[28px] rounded-[6px]' />

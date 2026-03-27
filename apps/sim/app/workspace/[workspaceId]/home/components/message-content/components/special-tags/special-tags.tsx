@@ -1,8 +1,8 @@
 'use client'
 
-import { createElement } from 'react'
+import { createElement, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { ArrowRight } from '@/components/emcn'
+import { ArrowRight, ChevronDown, Expandable, ExpandableContent } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 
@@ -355,39 +355,60 @@ interface OptionsDisplayProps {
 }
 
 function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
+  const disabled = !onSelect
+  const [expanded, setExpanded] = useState(!disabled)
   const entries = Object.entries(data)
   if (entries.length === 0) return null
 
-  const disabled = !onSelect
-
   return (
     <div className='animate-stream-fade-in'>
-      <span className='font-base text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
-      <div className='mt-1.5 flex flex-col'>
-        {entries.map(([key, value], i) => {
-          const title = value.title
+      {disabled ? (
+        <button
+          type='button'
+          onClick={() => setExpanded((prev) => !prev)}
+          aria-expanded={expanded}
+          className='flex items-center gap-2'
+        >
+          <span className='font-base text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
+          <ChevronDown
+            className={cn(
+              'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
+              !expanded && '-rotate-90'
+            )}
+          />
+        </button>
+      ) : (
+        <span className='font-base text-[var(--text-body)] text-sm'>Suggested follow-ups</span>
+      )}
+      <Expandable expanded={expanded}>
+        <ExpandableContent className='mt-1.5'>
+          <div className='flex flex-col'>
+            {entries.map(([key, value], i) => {
+              const title = value.title
 
-          return (
-            <button
-              key={key}
-              type='button'
-              disabled={disabled}
-              onClick={() => onSelect?.(title)}
-              className={cn(
-                'flex items-center gap-2 border-[var(--divider)] px-2 py-2 text-left transition-colors',
-                disabled ? 'cursor-not-allowed' : 'hover-hover:bg-[var(--surface-5)]',
-                i > 0 && 'border-t'
-              )}
-            >
-              <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-                <span className='font-base text-[var(--text-icon)] text-sm'>{i + 1}</span>
-              </div>
-              <span className='flex-1 font-base text-[var(--text-body)] text-sm'>{title}</span>
-              <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
-            </button>
-          )
-        })}
-      </div>
+              return (
+                <button
+                  key={key}
+                  type='button'
+                  disabled={disabled}
+                  onClick={() => onSelect?.(title)}
+                  className={cn(
+                    'flex items-center gap-2 border-[var(--divider)] px-2 py-2 text-left transition-colors',
+                    disabled ? 'cursor-not-allowed' : 'hover-hover:bg-[var(--surface-5)]',
+                    i > 0 && 'border-t'
+                  )}
+                >
+                  <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+                    <span className='font-base text-[var(--text-icon)] text-sm'>{i + 1}</span>
+                  </div>
+                  <span className='flex-1 font-base text-[var(--text-body)] text-sm'>{title}</span>
+                  <ArrowRight className='h-[16px] w-[16px] shrink-0 text-[var(--text-icon)]' />
+                </button>
+              )
+            })}
+          </div>
+        </ExpandableContent>
+      </Expandable>
     </div>
   )
 }

@@ -8,19 +8,13 @@ import { cn } from '@/lib/core/utils/cn'
 interface SSOLoginButtonProps {
   callbackURL?: string
   className?: string
-  // Visual variant for button styling and placement contexts
-  // - 'primary' matches the main auth action button style
-  // - 'outline' matches social provider buttons
   variant?: 'primary' | 'outline'
-  // Optional class used when variant is primary to match brand/gradient
-  primaryClassName?: string
 }
 
 export function SSOLoginButton({
   callbackURL,
   className,
   variant = 'outline',
-  primaryClassName,
 }: SSOLoginButtonProps) {
   const router = useRouter()
 
@@ -34,8 +28,7 @@ export function SSOLoginButton({
   }
 
   const primaryBtnClasses = cn(
-    primaryClassName || 'branded-button-gradient',
-    'flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-base text-white transition-all duration-200'
+    'flex w-full items-center justify-center gap-2 rounded-[10px] border border-[#6f3dfa] bg-gradient-to-b from-[#8357ff] to-[#6f3dfa] font-medium text-base text-white shadow-[inset_0_2px_4px_0_#9b77ff] transition-all duration-200 hover:opacity-90'
   )
 
   const outlineBtnClasses = cn('w-full rounded-[10px]')

@@ -114,7 +114,6 @@ export function Home({ chatId }: HomeProps = {}) {
   const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
-  const [isResourceAnimatingIn, setIsResourceAnimatingIn] = useState(false)
   const [skipResourceTransition, setSkipResourceTransition] = useState(false)
   const isResourceCollapsedRef = useRef(isResourceCollapsed)
   isResourceCollapsedRef.current = isResourceCollapsed
@@ -123,27 +122,16 @@ export function Home({ chatId }: HomeProps = {}) {
     clearWidth()
     setIsResourceCollapsed(true)
   }, [clearWidth])
-  const animatingInTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const startAnimatingIn = useCallback(() => {
-    if (animatingInTimerRef.current) clearTimeout(animatingInTimerRef.current)
-    setIsResourceAnimatingIn(true)
-    animatingInTimerRef.current = setTimeout(() => {
-      setIsResourceAnimatingIn(false)
-      animatingInTimerRef.current = null
-    }, 400)
-  }, [])
 
   const expandResource = useCallback(() => {
     setIsResourceCollapsed(false)
-    startAnimatingIn()
-  }, [startAnimatingIn])
+  }, [])
 
   const handleResourceEvent = useCallback(() => {
     if (isResourceCollapsedRef.current) {
       setIsResourceCollapsed(false)
-      startAnimatingIn()
     }
-  }, [startAnimatingIn])
+  }, [])
 
   const {
     messages,
@@ -163,6 +151,7 @@ export function Home({ chatId }: HomeProps = {}) {
     sendNow,
     editQueuedMessage,
     streamingFile,
+    genericResourceData,
   } = useChat(
     workspaceId,
     chatId,
@@ -379,13 +368,8 @@ export function Home({ chatId }: HomeProps = {}) {
         onCollapse={collapseResource}
         isCollapsed={isResourceCollapsed}
         streamingFile={streamingFile}
-        className={
-          isResourceAnimatingIn
-            ? 'animate-slide-in-right'
-            : skipResourceTransition
-              ? '!transition-none'
-              : undefined
-        }
+        genericResourceData={genericResourceData}
+        className={skipResourceTransition ? '!transition-none' : undefined}
       />
 
       {isResourceCollapsed && (

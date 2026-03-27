@@ -31,7 +31,7 @@ import {
   TriggersGroup,
   WorkflowsGroup,
   WorkspacesGroup,
-} from './_components/search-groups'
+} from './components/search-groups'
 import type { PageItem, SearchModalProps, TaskItem, WorkflowItem, WorkspaceItem } from './utils'
 import { filterAndSort } from './utils'
 

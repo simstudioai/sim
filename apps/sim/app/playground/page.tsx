@@ -246,11 +246,6 @@ export default function PlaygroundPage() {
                 Medium Primary
               </Button>
             </VariantRow>
-            <VariantRow label='size branded'>
-              <Button size='branded' variant='branded' className='branded-button-gradient'>
-                Branded
-              </Button>
-            </VariantRow>
           </Section>
 
           {/* ButtonGroup */}

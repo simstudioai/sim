@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { GithubOutlineIcon } from '@/components/icons'
-import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
+import { getFormattedGitHubStars } from '@/app/(home)/actions/github'
 
 const logger = createLogger('github-stars')
 

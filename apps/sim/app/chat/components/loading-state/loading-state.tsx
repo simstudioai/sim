@@ -2,8 +2,8 @@ import { Skeleton } from '@/components/emcn'
 
 export function ChatLoadingState() {
   return (
-    <div className='bg-white'>
-      <div className='flex min-h-[calc(100vh-120px)] items-center justify-center px-4'>
+    <div className='dark fixed inset-0 z-[100] flex flex-col bg-[var(--landing-bg)]'>
+      <div className='flex flex-1 items-center justify-center px-4'>
         <div className='w-full max-w-[410px]'>
           <div className='flex flex-col items-center justify-center'>
             {/* Title skeleton */}
@@ -12,7 +12,7 @@ export function ChatLoadingState() {
               <Skeleton className='mx-auto h-4 w-48' />
             </div>
 
-            {/* Form skeleton */}
+            {/* Chat skeleton */}
             <div className='mt-8 w-full space-y-8'>
               <div className='space-y-2'>
                 <Skeleton className='h-4 w-16' />
