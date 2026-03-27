@@ -38,6 +38,7 @@ export interface SearchModalProps {
   workspaces?: WorkspaceItem[]
   tasks?: TaskItem[]
   tables?: TaskItem[]
+  files?: TaskItem[]
   knowledgeBases?: TaskItem[]
   isOnWorkflowPage?: boolean
 }

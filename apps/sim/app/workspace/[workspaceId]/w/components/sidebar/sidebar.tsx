@@ -87,6 +87,7 @@ import {
   useRenameTask,
   useTasks,
 } from '@/hooks/queries/tasks'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useTaskEvents } from '@/hooks/use-task-events'
@@ -748,6 +749,7 @@ export const Sidebar = memo(function Sidebar() {
   )
 
   const { data: fetchedTables = [] } = useTablesList(workspaceId)
+  const { data: fetchedFiles = [] } = useWorkspaceFiles(workspaceId)
   const { data: fetchedKnowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
 
   const searchModalTables = useMemo(
@@ -760,6 +762,18 @@ export const Sidebar = memo(function Sidebar() {
             href: `/workspace/${workspaceId}/tables/${t.id}`,
           })),
     [fetchedTables, workspaceId, permissionConfig.hideTablesTab]
+  )
+
+  const searchModalFiles = useMemo(
+    () =>
+      permissionConfig.hideFilesTab
+        ? []
+        : fetchedFiles.map((f) => ({
+            id: f.id,
+            name: f.name,
+            href: `/workspace/${workspaceId}/files/${f.id}`,
+          })),
+    [fetchedFiles, workspaceId, permissionConfig.hideFilesTab]
   )
 
   const searchModalKnowledgeBases = useMemo(
@@ -1701,6 +1715,7 @@ export const Sidebar = memo(function Sidebar() {
         workspaces={searchModalWorkspaces}
         tasks={tasks}
         tables={searchModalTables}
+        files={searchModalFiles}
         knowledgeBases={searchModalKnowledgeBases}
         isOnWorkflowPage={!!workflowId}
       />

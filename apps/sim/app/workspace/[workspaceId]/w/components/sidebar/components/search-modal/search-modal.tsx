@@ -21,6 +21,7 @@ import type {
 import {
   BlocksGroup,
   DocsGroup,
+  FilesGroup,
   KnowledgeBasesGroup,
   PagesGroup,
   TablesGroup,
@@ -43,6 +44,7 @@ export function SearchModal({
   workspaces = [],
   tasks = [],
   tables = [],
+  files = [],
   knowledgeBases = [],
   isOnWorkflowPage = false,
 }: SearchModalProps) {
@@ -292,6 +294,10 @@ export function SearchModal({
     () => filterAndSort(tables, (t) => `${t.name} table-${t.id}`, deferredSearch),
     [tables, deferredSearch]
   )
+  const filteredFiles = useMemo(
+    () => filterAndSort(files, (f) => `${f.name} file-${f.id}`, deferredSearch),
+    [files, deferredSearch]
+  )
   const filteredKnowledgeBases = useMemo(
     () =>
       filterAndSort(knowledgeBases, (kb) => `${kb.name} knowledge-base-${kb.id}`, deferredSearch),
@@ -361,6 +367,7 @@ export function SearchModal({
             <WorkflowsGroup items={filteredWorkflows} onSelect={handleWorkflowSelect} />
             <TasksGroup items={filteredTasks} onSelect={handleTaskSelect} />
             <TablesGroup items={filteredTables} onSelect={handleTaskSelect} />
+            <FilesGroup items={filteredFiles} onSelect={handleTaskSelect} />
             <KnowledgeBasesGroup items={filteredKnowledgeBases} onSelect={handleTaskSelect} />
             <ToolOpsGroup items={filteredToolOps} onSelect={handleToolOperationSelect} />
             <WorkspacesGroup items={filteredWorkspaces} onSelect={handleWorkspaceSelect} />
