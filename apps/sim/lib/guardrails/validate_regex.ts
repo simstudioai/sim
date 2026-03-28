@@ -1,7 +1,5 @@
 import safe from 'safe-regex2'
 
-const MAX_INPUT_LENGTH = 10_000
-
 /**
  * Validate if input matches regex pattern
  */
@@ -22,13 +20,6 @@ export function validateRegex(inputStr: string, pattern: string): ValidationResu
     return {
       passed: false,
       error: 'Regex pattern rejected: potentially unsafe (catastrophic backtracking)',
-    }
-  }
-
-  if (inputStr.length > MAX_INPUT_LENGTH) {
-    return {
-      passed: false,
-      error: `Input exceeds maximum length of ${MAX_INPUT_LENGTH} characters`,
     }
   }
 
