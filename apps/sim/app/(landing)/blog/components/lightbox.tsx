@@ -13,6 +13,8 @@ export function Lightbox({ isOpen, onClose, src, alt }: LightboxProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (!isOpen) return
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose()
@@ -25,11 +27,9 @@ export function Lightbox({ isOpen, onClose, src, alt }: LightboxProps) {
       }
     }
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown)
-      document.addEventListener('click', handleClickOutside)
-      document.body.style.overflow = 'hidden'
-    }
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('click', handleClickOutside)
+    document.body.style.overflow = 'hidden'
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
