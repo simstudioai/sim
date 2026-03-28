@@ -278,18 +278,24 @@ export function SandboxCanvasProvider({
 
   const handleMockRun = useCallback(async () => {
     if (isMockRunningRef.current) return
-
-    const { blocks, edges } = readCurrentCanvasState(workflowId)
-    const result = validateExercise(blocks, edges, exerciseConfig.validationRules)
-    setValidationResult(result)
-    if (!result.passed) return
-
-    const plan = buildMockExecutionPlan(blocks, edges, exerciseConfig.mockOutputs ?? {})
-    if (plan.length === 0) return
-
     isMockRunningRef.current = true
 
     const { setActiveBlocks, setIsExecuting } = useExecutionStore.getState()
+    const { blocks, edges } = readCurrentCanvasState(workflowId)
+    const result = validateExercise(blocks, edges, exerciseConfig.validationRules)
+    setValidationResult(result)
+    if (!result.passed) {
+      isMockRunningRef.current = false
+      setIsExecuting(workflowId, false)
+      return
+    }
+
+    const plan = buildMockExecutionPlan(blocks, edges, exerciseConfig.mockOutputs ?? {})
+    if (plan.length === 0) {
+      isMockRunningRef.current = false
+      setIsExecuting(workflowId, false)
+      return
+    }
     const { addConsole, clearWorkflowConsole } = useTerminalConsoleStore.getState()
     const workflowBlocks = useWorkflowStore.getState().blocks
 

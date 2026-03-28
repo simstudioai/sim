@@ -87,8 +87,14 @@ export async function POST(req: NextRequest) {
         .then((rows) => rows[0] ?? null),
     ])
 
-    if (existing?.status === 'active') {
-      return NextResponse.json({ certificate: existing })
+    if (existing) {
+      if (existing.status === 'active') {
+        return NextResponse.json({ certificate: existing })
+      }
+      return NextResponse.json(
+        { error: 'A certificate for this course already exists but is not active.' },
+        { status: 409 }
+      )
     }
 
     const certificateNumber = generateCertificateNumber()
