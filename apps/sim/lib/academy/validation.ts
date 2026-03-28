@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import type {
   ExerciseBlockState,
   ExerciseEdgeState,
@@ -5,6 +6,8 @@ import type {
   ValidationRule,
   ValidationRuleResult,
 } from '@/lib/academy/types'
+
+const logger = createLogger('AcademyValidation')
 
 /**
  * Validates a learner's exercise canvas state against a set of rules.
@@ -47,8 +50,18 @@ function checkRule(
         const value = b.subBlocks?.[rule.subBlockId]
         if (rule.valueNotEmpty && (value === undefined || value === null || value === ''))
           return false
-        if (rule.valuePattern && !new RegExp(rule.valuePattern).test(String(value ?? '')))
-          return false
+        if (rule.valuePattern) {
+          let regex: RegExp
+          try {
+            regex = new RegExp(rule.valuePattern)
+          } catch {
+            logger.warn('Invalid valuePattern in block_configured rule', {
+              pattern: rule.valuePattern,
+            })
+            return false
+          }
+          if (!regex.test(String(value ?? ''))) return false
+        }
         return true
       })
     }
@@ -73,7 +86,11 @@ function checkRule(
     }
 
     case 'custom': {
-      // Custom validators run client-side via a registry; server always passes them
+      // Custom validators run client-side via a registry; server always passes them.
+      // Log a warning so content authors know if a custom validatorId is unrecognised.
+      logger.warn('Custom validation rule encountered — no client registry implementation', {
+        validatorId: rule.validatorId,
+      })
       return true
     }
   }

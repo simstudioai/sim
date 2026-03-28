@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { getCompletedLessons } from '@/lib/academy/local-progress'
 import type { Course } from '@/lib/academy/types'
 import { useSession } from '@/lib/auth/auth-client'
-import { useIssueCertificate } from '@/hooks/queries/academy'
+import { useCourseCertificate, useIssueCertificate } from '@/hooks/queries/academy'
 
 interface CourseProgressProps {
   course: Course
@@ -20,7 +20,10 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
     setCompletedIds(getCompletedLessons())
   }, [])
   const { data: session } = useSession()
-  const { mutate: issueCertificate, isPending, data: certificate, error } = useIssueCertificate()
+  const { data: fetchedCert } = useCourseCertificate(session ? course.id : undefined)
+  const { mutate: issueCertificate, isPending, data: issuedCert, error } = useIssueCertificate()
+  // Prefer the server-fetched cert (survives page refresh) over the in-session mutation result.
+  const certificate = fetchedCert ?? issuedCert
 
   const allLessons = course.modules.flatMap((m) => m.lessons)
   const totalLessons = allLessons.length

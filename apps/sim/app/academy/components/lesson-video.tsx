@@ -37,6 +37,9 @@ function resolveEmbedUrl(url: string): string | null {
       return `https://www.youtube.com/embed${parsed.pathname}`
     }
     if (parsed.hostname.includes('youtube.com')) {
+      // Shorts: youtube.com/shorts/VIDEO_ID
+      const shortsMatch = parsed.pathname.match(/^\/shorts\/([^/?]+)/)
+      if (shortsMatch) return `https://www.youtube.com/embed/${shortsMatch[1]}`
       const v = parsed.searchParams.get('v')
       if (v) return `https://www.youtube.com/embed/${v}`
     }

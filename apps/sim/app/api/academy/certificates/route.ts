@@ -135,27 +135,53 @@ export async function POST(req: NextRequest) {
 /**
  * GET /api/academy/certificates?certificateNumber=SIM-2026-00042
  * Public endpoint for verifying a certificate by its number.
+ *
+ * GET /api/academy/certificates?courseId=...
+ * Authenticated endpoint for looking up the current user's certificate for a course.
  */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const certificateNumber = searchParams.get('certificateNumber')
+    const courseId = searchParams.get('courseId')
 
-    if (!certificateNumber) {
-      return NextResponse.json({ error: 'certificateNumber is required' }, { status: 400 })
+    if (certificateNumber) {
+      const [certificate] = await db
+        .select()
+        .from(academyCertificate)
+        .where(eq(academyCertificate.certificateNumber, certificateNumber))
+        .limit(1)
+
+      if (!certificate) {
+        return NextResponse.json({ error: 'Certificate not found' }, { status: 404 })
+      }
+      return NextResponse.json({ certificate })
     }
 
-    const [certificate] = await db
-      .select()
-      .from(academyCertificate)
-      .where(eq(academyCertificate.certificateNumber, certificateNumber))
-      .limit(1)
+    if (courseId) {
+      const session = await getSession()
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
 
-    if (!certificate) {
-      return NextResponse.json({ error: 'Certificate not found' }, { status: 404 })
+      const [certificate] = await db
+        .select()
+        .from(academyCertificate)
+        .where(
+          and(
+            eq(academyCertificate.userId, session.user.id),
+            eq(academyCertificate.courseId, courseId)
+          )
+        )
+        .limit(1)
+
+      return NextResponse.json({ certificate: certificate ?? null })
     }
 
-    return NextResponse.json({ certificate })
+    return NextResponse.json(
+      { error: 'certificateNumber or courseId query parameter is required' },
+      { status: 400 }
+    )
   } catch (error) {
     logger.error('Failed to verify certificate', { error })
     return NextResponse.json({ error: 'Failed to verify certificate' }, { status: 500 })

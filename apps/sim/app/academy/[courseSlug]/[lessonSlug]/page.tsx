@@ -165,7 +165,8 @@ export default function LessonPage({ params }: LessonPageProps) {
             )}
             {!hasExercise && hasQuiz && (
               <div className='flex-1 overflow-y-auto p-8'>
-                <div className='mx-auto w-full max-w-xl'>
+                <div className='mx-auto w-full max-w-xl space-y-8'>
+                  {hasVideo && <LessonVideo url={lesson.videoUrl!} title={lesson.title} />}
                   <LessonQuiz
                     lessonId={lesson.id}
                     quizConfig={lesson.quizConfig!}

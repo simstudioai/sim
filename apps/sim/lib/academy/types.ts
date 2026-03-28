@@ -2,6 +2,7 @@
  * Sim Academy — shared type definitions.
  * Course content is file-based (lib/academy/content/); only certificates are DB-backed.
  */
+import type { academyCertificate } from '@sim/db/schema'
 
 export type LessonType = 'video' | 'exercise' | 'quiz' | 'mixed'
 
@@ -38,23 +39,16 @@ export interface Lesson {
 
 export type AcademyCertStatus = 'active' | 'revoked' | 'expired'
 
-export interface AcademyCertificate {
-  id: string
-  userId: string
-  courseId: string
-  status: AcademyCertStatus
-  issuedAt: string
-  expiresAt: string | null
-  certificateNumber: string
-  metadata: CertificateMetadata | null
-  createdAt: string
-}
-
 export interface CertificateMetadata {
   /** Recipient name at time of issuance */
   recipientName: string
   /** Course title at time of issuance */
   courseTitle: string
+}
+
+/** Certificate record derived from the DB schema — metadata narrowed to its known shape. */
+export type AcademyCertificate = Omit<typeof academyCertificate.$inferSelect, 'metadata'> & {
+  metadata: CertificateMetadata | null
 }
 
 /**
