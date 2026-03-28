@@ -83,7 +83,7 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
         const isCorrect = feedback?.correct
 
         return (
-          <div key={qi} className='rounded-[8px] border border-[#2A2A2A] bg-[#222] p-5'>
+          <div key={qi} className='rounded-[8px] bg-[#222] p-5'>
             <p className='mb-4 font-[430] text-[#ECECEC] text-[15px]'>{q.question}</p>
 
             {q.type === 'multiple_choice' && (
