@@ -192,7 +192,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         )
 
         clearInterval(abortPoller)
-        publisher.close()
+        await publisher.close()
         unregisterActiveStream(streamId)
         await cleanupAbortMarker(streamId)
 

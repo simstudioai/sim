@@ -22,7 +22,7 @@ const createRedisStub = () => {
   const values = new Map<string, string>()
   const sortedSets = new Map<string, StoredEnvelope[]>()
 
-  return {
+  const api = {
     incr: vi.fn().mockImplementation((key: string) => {
       const next = (counters.get(key) ?? 0) + 1
       counters.set(key, next)
@@ -66,7 +66,38 @@ const createRedisStub = () => {
       return Promise.resolve('OK')
     }),
     get: vi.fn().mockImplementation((key: string) => Promise.resolve(values.get(key) ?? null)),
+    pipeline: vi.fn().mockImplementation(() => {
+      const operations: Array<() => Promise<unknown>> = []
+      const pipeline = {
+        zadd: (...args: [string, number, string]) => {
+          operations.push(() => api.zadd(...args))
+          return pipeline
+        },
+        expire: (...args: [string, number]) => {
+          operations.push(() => api.expire(...args))
+          return pipeline
+        },
+        set: (...args: [string, string, 'EX', number]) => {
+          operations.push(() => api.set(args[0], args[1]))
+          return pipeline
+        },
+        zremrangebyrank: (...args: [string, number, number]) => {
+          operations.push(() => api.zremrangebyrank(...args))
+          return pipeline
+        },
+        exec: vi.fn().mockImplementation(async () => {
+          const results: Array<[null, unknown]> = []
+          for (const operation of operations) {
+            results.push([null, await operation()])
+          }
+          return results
+        }),
+      }
+      return pipeline
+    }),
   }
+
+  return api
 }
 
 let mockRedis: ReturnType<typeof createRedisStub>

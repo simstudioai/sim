@@ -27,7 +27,12 @@ function getAbortKey(streamId: string) {
   return `${STREAM_OUTBOX_PREFIX}${streamId}:abort`
 }
 
-function getStreamConfig() {
+export type StreamConfig = {
+  ttlSeconds: number
+  eventLimit: number
+}
+
+export function getStreamConfig(): StreamConfig {
   return {
     ttlSeconds: parsePositiveNumber(env.COPILOT_STREAM_TTL_SECONDS, DEFAULT_TTL_SECONDS),
     eventLimit: parsePositiveNumber(env.COPILOT_STREAM_EVENT_LIMIT, DEFAULT_EVENT_LIMIT),
@@ -97,21 +102,40 @@ export async function resetBuffer(streamId: string): Promise<void> {
   })
 }
 
-export async function appendEvent(
-  envelope: MothershipStreamV1EventEnvelope
-): Promise<MothershipStreamV1EventEnvelope> {
-  const streamId = envelope.stream.streamId
+export async function appendEvents(
+  envelopes: MothershipStreamV1EventEnvelope[]
+): Promise<MothershipStreamV1EventEnvelope[]> {
+  if (envelopes.length === 0) {
+    return envelopes
+  }
+
+  const streamId = envelopes[0].stream.streamId
   const config = getStreamConfig()
 
   await withRedisRetry({ operation: 'append_event', streamId }, async (redis) => {
     const key = getEventsKey(streamId)
-    await redis.zadd(key, envelope.seq, JSON.stringify(envelope))
-    await redis.expire(key, config.ttlSeconds)
-    if (config.eventLimit > 0) {
-      await redis.zremrangebyrank(key, 0, -config.eventLimit - 1)
+    const seqKey = getSeqKey(streamId)
+    const pipeline = redis.pipeline()
+    const zaddArgs: Array<number | string> = []
+    for (const envelope of envelopes) {
+      zaddArgs.push(envelope.seq, JSON.stringify(envelope))
     }
+    pipeline.zadd(key, ...(zaddArgs as [number, string, ...Array<number | string>]))
+    pipeline.expire(key, config.ttlSeconds)
+    pipeline.set(seqKey, String(envelopes[envelopes.length - 1].seq), 'EX', config.ttlSeconds)
+    if (config.eventLimit > 0) {
+      pipeline.zremrangebyrank(key, 0, -config.eventLimit - 1)
+    }
+    await pipeline.exec()
   })
 
+  return envelopes
+}
+
+export async function appendEvent(
+  envelope: MothershipStreamV1EventEnvelope
+): Promise<MothershipStreamV1EventEnvelope> {
+  await appendEvents([envelope])
   return envelope
 }
 

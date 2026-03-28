@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/copilot/generated/mothership-stream-v1'
 import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
-import { allocateCursor, appendEvent } from './buffer'
+import { appendEvents } from './buffer'
 import { createEvent } from './event'
 import { encodeSSEComment, encodeSSEEnvelope } from './sse'
 import type { StreamEvent } from './types'
@@ -9,6 +9,8 @@ import type { StreamEvent } from './types'
 const logger = createLogger('StreamWriter')
 
 const DEFAULT_KEEPALIVE_MS = 15_000
+const DEFAULT_PERSIST_FLUSH_INTERVAL_MS = 15
+const DEFAULT_PERSIST_FLUSH_MAX_BATCH = 200
 
 export interface StreamWriterOptions {
   streamId: string
@@ -22,17 +24,25 @@ export class StreamWriter {
   private readonly chatId: string | undefined
   private readonly requestId: string
   private readonly keepaliveMs: number
+  private readonly flushIntervalMs: number
+  private readonly flushMaxBatch: number
   private readonly encoder: TextEncoder
   private controller: ReadableStreamDefaultController | null = null
   private keepaliveInterval: ReturnType<typeof setInterval> | null = null
+  private flushTimer: ReturnType<typeof setTimeout> | null = null
   private _clientDisconnected = false
   private _sawComplete = false
+  private nextSeq = 0
+  private pendingEnvelopes: MothershipStreamV1EventEnvelope[] = []
+  private persistenceTail: Promise<void> = Promise.resolve()
 
   constructor(options: StreamWriterOptions) {
     this.streamId = options.streamId
     this.chatId = options.chatId
     this.requestId = options.requestId
     this.keepaliveMs = options.keepaliveMs ?? DEFAULT_KEEPALIVE_MS
+    this.flushIntervalMs = DEFAULT_PERSIST_FLUSH_INTERVAL_MS
+    this.flushMaxBatch = DEFAULT_PERSIST_FLUSH_MAX_BATCH
     this.encoder = new TextEncoder()
   }
 
@@ -72,19 +82,9 @@ export class StreamWriter {
   }
 
   async publish(event: StreamEvent): Promise<void> {
-    const { seq, cursor } = await allocateCursor(this.streamId)
-    const envelope = createEvent({
-      streamId: this.streamId,
-      chatId: this.chatId,
-      cursor,
-      seq,
-      requestId: this.requestId,
-      type: event.type,
-      payload: event.payload,
-      scope: event.scope,
-    })
-    await appendEvent(envelope)
+    const envelope = this.createEnvelope(event)
     this.enqueue(envelope)
+    this.queuePersistence(envelope)
     if (event.type === MothershipStreamV1EventType.complete) {
       this._sawComplete = true
     }
@@ -94,8 +94,11 @@ export class StreamWriter {
     this._clientDisconnected = true
   }
 
-  close(): void {
+  async close(): Promise<void> {
     this.stopKeepalive()
+    this.clearFlushTimer()
+    this.flushPendingPersistence()
+    await this.persistenceTail
     if (!this.controller) return
     try {
       this.controller.close()
@@ -117,6 +120,65 @@ export class StreamWriter {
         seq: envelope.seq,
         error: error instanceof Error ? error.message : String(error),
       })
+    }
+  }
+
+  private createEnvelope(event: StreamEvent): MothershipStreamV1EventEnvelope {
+    const seq = ++this.nextSeq
+    return createEvent({
+      streamId: this.streamId,
+      chatId: this.chatId,
+      cursor: String(seq),
+      seq,
+      requestId: this.requestId,
+      type: event.type,
+      payload: event.payload,
+      scope: event.scope,
+    })
+  }
+
+  private queuePersistence(envelope: MothershipStreamV1EventEnvelope): void {
+    this.pendingEnvelopes.push(envelope)
+    if (this.pendingEnvelopes.length >= this.flushMaxBatch) {
+      this.flushPendingPersistence()
+      return
+    }
+    if (this.flushTimer || this.pendingEnvelopes.length === 0) {
+      return
+    }
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null
+      this.flushPendingPersistence()
+    }, this.flushIntervalMs)
+  }
+
+  private flushPendingPersistence(): void {
+    this.clearFlushTimer()
+    if (this.pendingEnvelopes.length === 0) {
+      return
+    }
+    const batch = this.pendingEnvelopes
+    this.pendingEnvelopes = []
+    this.persistenceTail = this.persistenceTail
+      .catch(() => undefined)
+      .then(() => appendEvents(batch))
+      .then(() => undefined)
+      .catch((error) => {
+        logger.warn('Failed to persist stream envelope batch', {
+          streamId: this.streamId,
+          requestId: this.requestId,
+          batchSize: batch.length,
+          firstSeq: batch[0]?.seq,
+          lastSeq: batch[batch.length - 1]?.seq,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      })
+  }
+
+  private clearFlushTimer(): void {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer)
+      this.flushTimer = null
     }
   }
 }
