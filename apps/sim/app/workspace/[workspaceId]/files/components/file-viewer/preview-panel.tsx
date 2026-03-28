@@ -96,11 +96,6 @@ const STATIC_MARKDOWN_COMPONENTS = {
       {children}
     </h4>
   ),
-  ol: ({ children }: any) => (
-    <ol className='mt-1 mb-3 list-decimal space-y-1 break-words pl-6 text-[14px] text-[var(--text-primary)]'>
-      {children}
-    </ol>
-  ),
   code: ({ inline, className, children, ...props }: any) => {
     const isInline = inline || !className?.includes('language-')
 
@@ -187,6 +182,19 @@ function buildMarkdownComponents(
         >
           {children}
         </ul>
+      )
+    },
+    ol: ({ className, children }: any) => {
+      const isTaskList = typeof className === 'string' && className.includes('contains-task-list')
+      return (
+        <ol
+          className={cn(
+            'mt-1 mb-3 space-y-1 break-words text-[14px] text-[var(--text-primary)]',
+            isTaskList ? 'list-none pl-0' : 'list-decimal pl-6'
+          )}
+        >
+          {children}
+        </ol>
       )
     },
     li: ({ className, children }: any) => {
