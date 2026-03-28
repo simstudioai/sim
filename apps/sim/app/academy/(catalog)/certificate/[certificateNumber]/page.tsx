@@ -16,8 +16,8 @@ export async function generateMetadata({ params }: CertificatePageProps): Promis
   const certificate = await fetchCertificate(certificateNumber)
   if (!certificate) return { title: 'Certificate Not Found' }
   return {
-    title: `${certificate.metadata?.courseTitle} — Certificate`,
-    description: `Verified certificate of completion awarded to ${certificate.metadata?.recipientName}.`,
+    title: `${certificate.metadata?.courseTitle ?? 'Certificate'} — Certificate`,
+    description: `Verified certificate of completion awarded to ${certificate.metadata?.recipientName ?? 'a recipient'}.`,
   }
 }
 

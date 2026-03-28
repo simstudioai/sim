@@ -115,6 +115,10 @@ export async function POST(req: NextRequest) {
       })
       .returning()
 
+    if (!certificate) {
+      return NextResponse.json({ error: 'Failed to issue certificate' }, { status: 500 })
+    }
+
     logger.info('Certificate issued', {
       userId: session.user.id,
       courseId,

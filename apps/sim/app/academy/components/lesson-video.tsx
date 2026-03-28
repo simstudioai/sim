@@ -47,7 +47,7 @@ function resolveEmbedUrl(url: string): string | null {
     }
 
     return null
-  } catch {
+  } catch (_e: unknown) {
     return null
   }
 }

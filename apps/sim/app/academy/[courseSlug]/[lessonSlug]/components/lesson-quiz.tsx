@@ -31,6 +31,9 @@ function scoreQuiz(questions: QuizQuestion[], answers: Answers, passingScore: nu
       correct =
         selected.length === q.correctIndices.length &&
         selected.every((v) => q.correctIndices.includes(v))
+    } else {
+      const _exhaustive: never = q
+      void _exhaustive
     }
     return { correct, explanation: 'explanation' in q ? q.explanation : undefined }
   })
