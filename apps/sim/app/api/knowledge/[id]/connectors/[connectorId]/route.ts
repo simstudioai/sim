@@ -314,17 +314,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
           await tx.delete(embedding).where(inArray(embedding.documentId, documentIds))
           await tx.delete(document).where(inArray(document.id, documentIds))
         }
-      } else if (docs.length > 0) {
-        await tx
-          .update(document)
-          .set({ connectorId: null })
-          .where(
-            and(
-              eq(document.connectorId, connectorId),
-              isNull(document.archivedAt),
-              isNull(document.deletedAt)
-            )
-          )
       }
 
       const deletedConnectors = await tx
