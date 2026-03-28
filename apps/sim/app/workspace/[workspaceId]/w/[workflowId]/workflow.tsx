@@ -2470,7 +2470,16 @@ const WorkflowContent = React.memo(
       })
 
       return nodeArray
-    }, [blocksStructureHash, blocks, activeBlockIds, pendingBlocks, isDebugging, getBlockConfig])
+    }, [
+      blocksStructureHash,
+      blocks,
+      activeBlockIds,
+      pendingBlocks,
+      isDebugging,
+      getBlockConfig,
+      sandbox,
+      embedded,
+    ])
 
     // Local state for nodes - allows smooth drag without store updates on every frame
     const [displayNodes, setDisplayNodes] = useState<Node[]>([])
