@@ -73,7 +73,7 @@ export function CreateWorkflowMcpServerModal({
     }
   }, [formData, selectedWorkflowIds, workspaceId, onOpenChange])
 
-  const showWorkflows = workflowOptions && workflowOptions.length > 0
+  const showWorkflows = workflowOptions !== undefined
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
@@ -102,7 +102,7 @@ export function CreateWorkflowMcpServerModal({
             {showWorkflows && (
               <FormField label='Workflows'>
                 <Combobox
-                  options={workflowOptions}
+                  options={workflowOptions ?? []}
                   multiSelect
                   multiSelectValues={selectedWorkflowIds}
                   onMultiSelectChange={setSelectedWorkflowIds}
