@@ -402,7 +402,7 @@ function TextEditor({
             className={cn('min-w-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}
           >
             <PreviewPanel
-              content={revealedContent}
+              content={isStreaming ? revealedContent : content}
               mimeType={file.type}
               filename={file.name}
               isStreaming={isStreaming}
