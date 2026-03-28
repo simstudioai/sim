@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Circle, GraduationCap } from 'lucide-react'
+import { CheckCircle2, Circle, ExternalLink, GraduationCap, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { getCompletedLessons } from '@/lib/academy/local-progress'
 import type { Course } from '@/lib/academy/types'
+import { useSession } from '@/lib/auth/auth-client'
+import { useIssueCertificate } from '@/hooks/queries/academy'
 
 interface CourseProgressProps {
   course: Course
@@ -13,6 +15,8 @@ interface CourseProgressProps {
 
 export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
   const [completedIds, setCompletedIds] = useState<Set<string> | null>(null)
+  const { data: session } = useSession()
+  const { mutate: issueCertificate, isPending, data: certificate, error } = useIssueCertificate()
 
   useEffect(() => {
     setCompletedIds(getCompletedLessons())
@@ -83,21 +87,65 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
       {completedIds && totalLessons > 0 && completedCount === totalLessons && (
         <section className='px-4 pb-16 sm:px-8 md:px-[80px]'>
           <div className='mx-auto max-w-3xl rounded-[8px] border border-[#3A4A3A] bg-[#1F2A1F] p-6'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-3'>
-                <GraduationCap className='h-6 w-6 text-[#4CAF50]' />
-                <div>
-                  <p className='font-[430] text-[#ECECEC] text-[15px]'>Course Complete!</p>
-                  <p className='text-[#666] text-[13px]'>Sign in to claim your certificate.</p>
+            {certificate ? (
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-3'>
+                  <GraduationCap className='h-6 w-6 text-[#4CAF50]' />
+                  <div>
+                    <p className='font-[430] text-[#ECECEC] text-[15px]'>Certificate issued!</p>
+                    <p className='font-mono text-[#666] text-[13px]'>
+                      {certificate.certificateNumber}
+                    </p>
+                  </div>
                 </div>
+                <Link
+                  href={`/academy/certificate/${certificate.certificateNumber}`}
+                  className='flex items-center gap-1.5 rounded-[5px] bg-[#4CAF50] px-4 py-2 font-[430] text-[#1C1C1C] text-[13px] transition-colors hover:bg-[#5DBF61]'
+                >
+                  View certificate
+                  <ExternalLink className='h-3.5 w-3.5' />
+                </Link>
               </div>
-              <Link
-                href='/sign-in'
-                className='rounded-[5px] bg-[#ECECEC] px-4 py-2 font-[430] text-[#1C1C1C] text-[13px] transition-colors hover:bg-white'
-              >
-                Get certificate
-              </Link>
-            </div>
+            ) : (
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-3'>
+                  <GraduationCap className='h-6 w-6 text-[#4CAF50]' />
+                  <div>
+                    <p className='font-[430] text-[#ECECEC] text-[15px]'>Course Complete!</p>
+                    <p className='text-[#666] text-[13px]'>
+                      {session
+                        ? error
+                          ? 'Something went wrong. Try again.'
+                          : 'Claim your certificate of completion.'
+                        : 'Sign in to claim your certificate.'}
+                    </p>
+                  </div>
+                </div>
+                {session ? (
+                  <button
+                    type='button'
+                    disabled={isPending}
+                    onClick={() =>
+                      issueCertificate({
+                        courseId: course.id,
+                        completedLessonIds: [...completedIds],
+                      })
+                    }
+                    className='flex items-center gap-2 rounded-[5px] bg-[#ECECEC] px-4 py-2 font-[430] text-[#1C1C1C] text-[13px] transition-colors hover:bg-white disabled:opacity-50'
+                  >
+                    {isPending && <Loader2 className='h-3.5 w-3.5 animate-spin' />}
+                    {isPending ? 'Issuing…' : 'Get certificate'}
+                  </button>
+                ) : (
+                  <Link
+                    href='/sign-in'
+                    className='rounded-[5px] bg-[#ECECEC] px-4 py-2 font-[430] text-[#1C1C1C] text-[13px] transition-colors hover:bg-white'
+                  >
+                    Sign in
+                  </Link>
+                )}
+              </div>
+            )}
           </div>
         </section>
       )}

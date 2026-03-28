@@ -8,17 +8,28 @@ import { z } from 'zod'
 import { getCourseById } from '@/lib/academy/content'
 import type { CertificateMetadata } from '@/lib/academy/types'
 import { getSession } from '@/lib/auth'
+import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
+import { RateLimiter } from '@/lib/core/rate-limiter'
 
 const logger = createLogger('AcademyCertificatesAPI')
 
+const rateLimiter = new RateLimiter()
+const CERT_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 5,
+  refillRate: 1,
+  refillIntervalMs: 60 * 60_000, // 1 per hour refill
+}
+
 const IssueCertificateSchema = z.object({
   courseId: z.string(),
+  completedLessonIds: z.array(z.string()),
 })
 
 /**
  * POST /api/academy/certificates
- * Issues a certificate for the given course.
- * The client is responsible for verifying completion locally before calling this.
+ * Issues a certificate for the given course after verifying all lessons are completed.
+ * Completion is client-attested: the client sends completed lesson IDs and the server
+ * validates them against the full lesson list for the course.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -27,15 +38,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { allowed } = await rateLimiter.checkRateLimitDirect(
+      `academy:cert:${session.user.id}`,
+      CERT_RATE_LIMIT
+    )
+    if (!allowed) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    }
+
     const body = await req.json()
     const parsed = IssueCertificateSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
     }
 
-    const { courseId } = parsed.data
+    const { courseId, completedLessonIds } = parsed.data
 
     const course = getCourseById(courseId)
+    if (!course) {
+      return NextResponse.json({ error: 'Course not found' }, { status: 404 })
+    }
+
+    // Verify all lessons in the course are reported as completed
+    const allLessonIds = course.modules.flatMap((m) => m.lessons.map((l) => l.id))
+    const completedSet = new Set(completedLessonIds)
+    const incomplete = allLessonIds.filter((id) => !completedSet.has(id))
+    if (incomplete.length > 0) {
+      return NextResponse.json({ error: 'Course not fully completed', incomplete }, { status: 422 })
+    }
 
     const [existing, learner] = await Promise.all([
       db
@@ -56,10 +86,6 @@ export async function POST(req: NextRequest) {
         .limit(1)
         .then((rows) => rows[0] ?? null),
     ])
-
-    if (!course) {
-      return NextResponse.json({ error: 'Course not found' }, { status: 404 })
-    }
 
     if (existing?.status === 'active') {
       return NextResponse.json({ certificate: existing })
@@ -82,6 +108,12 @@ export async function POST(req: NextRequest) {
         metadata,
       })
       .returning()
+
+    logger.info('Certificate issued', {
+      userId: session.user.id,
+      courseId,
+      certificateNumber,
+    })
 
     return NextResponse.json({ certificate }, { status: 201 })
   } catch (error) {
@@ -120,11 +152,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** Generates a human-readable certificate number, e.g. SIM-2026-00042 */
+/** Generates a human-readable certificate number, e.g. SIM-2026-A3K9XZ2P */
 function generateCertificateNumber(): string {
   const year = new Date().getFullYear()
-  const suffix = Math.floor(Math.random() * 99999)
-    .toString()
-    .padStart(5, '0')
-  return `SIM-${year}-${suffix}`
+  return `SIM-${year}-${nanoid(8).toUpperCase()}`
 }

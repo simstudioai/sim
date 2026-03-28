@@ -1,8 +1,23 @@
 'use client'
 
+import type React from 'react'
 import { use } from 'react'
 import { CheckCircle2, GraduationCap } from 'lucide-react'
 import { useAcademyCertificate } from '@/hooks/queries/academy'
+
+const DATE_FORMAT: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' }
+function formatDate(date: string | Date) {
+  return new Date(date).toLocaleDateString('en-US', DATE_FORMAT)
+}
+
+function MetaRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className='flex items-center justify-between px-5 py-3.5'>
+      <span className='text-[#666] text-[13px]'>{label}</span>
+      {children}
+    </div>
+  )
+}
 
 interface CertificatePageProps {
   params: Promise<{ certificateNumber: string }>
@@ -56,24 +71,15 @@ export default function CertificatePage({ params }: CertificatePageProps) {
           </div>
 
           <div className='mt-6 divide-y divide-[#2A2A2A] rounded-[8px] border border-[#2A2A2A] bg-[#222]'>
-            <div className='flex items-center justify-between px-5 py-3.5'>
-              <span className='text-[#666] text-[13px]'>Certificate number</span>
+            <MetaRow label='Certificate number'>
               <span className='font-mono text-[#ECECEC] text-[13px]'>
                 {certificate.certificateNumber}
               </span>
-            </div>
-            <div className='flex items-center justify-between px-5 py-3.5'>
-              <span className='text-[#666] text-[13px]'>Issued</span>
-              <span className='text-[#ECECEC] text-[13px]'>
-                {new Date(certificate.issuedAt).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </span>
-            </div>
-            <div className='flex items-center justify-between px-5 py-3.5'>
-              <span className='text-[#666] text-[13px]'>Status</span>
+            </MetaRow>
+            <MetaRow label='Issued'>
+              <span className='text-[#ECECEC] text-[13px]'>{formatDate(certificate.issuedAt)}</span>
+            </MetaRow>
+            <MetaRow label='Status'>
               <span
                 className={`text-[13px] capitalize ${
                   certificate.status === 'active' ? 'text-[#4CAF50]' : 'text-[#f44336]'
@@ -81,18 +87,13 @@ export default function CertificatePage({ params }: CertificatePageProps) {
               >
                 {certificate.status}
               </span>
-            </div>
+            </MetaRow>
             {certificate.expiresAt && (
-              <div className='flex items-center justify-between px-5 py-3.5'>
-                <span className='text-[#666] text-[13px]'>Expires</span>
+              <MetaRow label='Expires'>
                 <span className='text-[#ECECEC] text-[13px]'>
-                  {new Date(certificate.expiresAt).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
+                  {formatDate(certificate.expiresAt)}
                 </span>
-              </div>
+              </MetaRow>
             )}
           </div>
 

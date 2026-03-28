@@ -15,10 +15,8 @@ export function validateExercise(
   edges: ExerciseEdgeState[],
   rules: ValidationRule[]
 ): ValidationResult {
-  const blockMap = new Map(blocks.map((b) => [b.id, b]))
-
   const results = rules.map((rule) => {
-    const passed = checkRule(rule, blocks, edges, blockMap)
+    const passed = checkRule(rule, blocks, edges)
     return {
       rule,
       passed,
@@ -35,8 +33,7 @@ export function validateExercise(
 function checkRule(
   rule: ValidationRule,
   blocks: ExerciseBlockState[],
-  edges: ExerciseEdgeState[],
-  blockMap: Map<string, ExerciseBlockState>
+  edges: ExerciseEdgeState[]
 ): boolean {
   switch (rule.type) {
     case 'block_exists': {
@@ -57,6 +54,7 @@ function checkRule(
     }
 
     case 'edge_exists': {
+      const blockMap = new Map(blocks.map((b) => [b.id, b]))
       return edges.some((e) => {
         const source = blockMap.get(e.source)
         const target = blockMap.get(e.target)

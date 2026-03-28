@@ -4,10 +4,13 @@ import { simFoundations } from './courses/sim-foundations'
 /** All published courses in display order. */
 export const COURSES: Course[] = [simFoundations]
 
+const bySlug = new Map(COURSES.map((c) => [c.slug, c]))
+const byId = new Map(COURSES.map((c) => [c.id, c]))
+
 export function getCourse(slug: string): Course | undefined {
-  return COURSES.find((c) => c.slug === slug)
+  return bySlug.get(slug)
 }
 
 export function getCourseById(id: string): Course | undefined {
-  return COURSES.find((c) => c.id === id)
+  return byId.get(id)
 }

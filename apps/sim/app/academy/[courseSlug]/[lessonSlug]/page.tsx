@@ -10,6 +10,9 @@ import { LessonVideo } from '@/app/academy/components/lesson-video'
 import { ExerciseView } from './components/exercise-view'
 import { LessonQuiz } from './components/lesson-quiz'
 
+const navBtnClass =
+  'flex items-center gap-1 rounded-[5px] border border-[#2A2A2A] px-3 py-1.5 text-[#999] text-[12px] transition-colors hover:border-[#3A3A3A] hover:text-[#ECECEC]'
+
 interface LessonPageProps {
   params: Promise<{ courseSlug: string; lessonSlug: string }>
 }
@@ -74,18 +77,12 @@ export default function LessonPage({ params }: LessonPageProps) {
 
         <div className='flex items-center gap-2'>
           {prevLesson ? (
-            <Link
-              href={`/academy/${courseSlug}/${prevLesson.slug}`}
-              className='flex items-center gap-1 rounded-[5px] border border-[#2A2A2A] px-3 py-1.5 text-[#999] text-[12px] transition-colors hover:border-[#3A3A3A] hover:text-[#ECECEC]'
-            >
+            <Link href={`/academy/${courseSlug}/${prevLesson.slug}`} className={navBtnClass}>
               <ChevronLeft className='h-3.5 w-3.5' />
               Previous
             </Link>
           ) : (
-            <Link
-              href={`/academy/${courseSlug}`}
-              className='flex items-center gap-1 rounded-[5px] border border-[#2A2A2A] px-3 py-1.5 text-[#999] text-[12px] transition-colors hover:border-[#3A3A3A] hover:text-[#ECECEC]'
-            >
+            <Link href={`/academy/${courseSlug}`} className={navBtnClass}>
               <ChevronLeft className='h-3.5 w-3.5' />
               Course
             </Link>
