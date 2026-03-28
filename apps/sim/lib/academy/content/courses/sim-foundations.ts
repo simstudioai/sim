@@ -12,33 +12,43 @@ export const simFoundations: Course = {
   slug: 'sim-foundations',
   title: 'Sim Foundations',
   description:
-    'Learn the core building blocks of Sim — blocks, connections, agents, and automation — through hands-on interactive exercises.',
-  estimatedMinutes: 45,
+    'Master the core building blocks of Sim — the canvas, agents, data flow, control logic, and deployment — through hands-on interactive exercises on the real canvas.',
+  estimatedMinutes: 75,
   modules: [
     {
       id: 'sim-foundations-m1',
       title: 'The Canvas',
-      description: 'Get oriented with the Sim canvas and build your first workflow.',
+      description: 'Get oriented with the Sim canvas and understand how workflows are structured.',
       lessons: [
         {
           id: 'sim-foundations-m1-l1',
-          slug: 'intro',
+          slug: 'what-is-sim',
           title: 'What is Sim?',
           lessonType: 'video',
           description:
-            'A quick tour of the Sim canvas: blocks, connections, and how workflows run.',
+            'A high-level look at what Sim is, the problems it solves, and what a real workflow looks like running end-to-end.',
           videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
           videoDurationSeconds: 180,
         },
         {
           id: 'sim-foundations-m1-l2',
+          slug: 'canvas-tour',
+          title: 'The Canvas Tour',
+          lessonType: 'video',
+          description:
+            'A guided tour of the canvas: placing blocks, connecting them, using the panel, running workflows, and essential keyboard shortcuts.',
+          videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          videoDurationSeconds: 240,
+        },
+        {
+          id: 'sim-foundations-m1-l3',
           slug: 'your-first-workflow',
           title: 'Your First Workflow',
           lessonType: 'exercise',
-          description: 'Place an Agent block and wire it to the Starter.',
+          description: 'Place an Agent block on the canvas and wire it to the Starter.',
           exerciseConfig: {
             instructions:
-              "Every workflow starts with a Starter block. Drag an Agent block onto the canvas and connect the Starter's output to the Agent's input. Once connected, click Run to see it execute.",
+              "Every workflow starts with a Starter block. Drag an Agent block from the toolbar onto the canvas, then connect the Starter's output handle to the Agent's input handle. Once connected, click Run to see it execute.",
             availableBlocks: ['agent'],
             initialBlocks: [
               {
@@ -49,70 +59,98 @@ export const simFoundations: Course = {
               },
             ],
             validationRules: [
-              { type: 'block_exists', blockType: 'agent' },
-              { type: 'edge_exists', sourceType: 'starter', targetType: 'agent' },
+              {
+                type: 'block_exists',
+                blockType: 'agent',
+                label: 'Add an Agent block to the canvas',
+              },
+              {
+                type: 'edge_exists',
+                sourceType: 'starter',
+                targetType: 'agent',
+                label: 'Connect the Starter to the Agent',
+              },
             ],
             hints: [
-              'Drag the Agent block from the toolbar on the right onto the canvas.',
+              'Find the Agent block in the toolbar on the right side of the canvas.',
               "Hover over the Starter block's right edge to reveal its output handle, then drag to the Agent block.",
             ],
             mockOutputs: {
               agent: {
-                response: { result: "Hello! I'm your first Sim agent. How can I help?" },
+                response: { content: "Hello! I'm your first Sim agent. How can I help?" },
                 delay: 1200,
               },
             },
           },
         },
         {
-          id: 'sim-foundations-m1-l3',
+          id: 'sim-foundations-m1-l4',
           slug: 'canvas-concepts',
-          title: 'Blocks, Handles & Connections',
+          title: 'Canvas Concepts',
           lessonType: 'quiz',
-          description: 'Check your understanding of how the canvas works.',
+          description: 'Check your understanding of the canvas before moving on.',
           quizConfig: {
             passingScore: 75,
             questions: [
               {
                 type: 'multiple_choice',
-                question: 'What does the Starter block do?',
+                question: 'What is the role of the Starter block in a workflow?',
                 options: [
-                  'Stores data between workflow runs',
-                  'Defines the trigger and initial input for a workflow',
-                  'Connects to external APIs',
-                  'Runs JavaScript code',
+                  'It stores data between workflow runs',
+                  'It defines the trigger and initial input for a workflow',
+                  'It connects to external APIs',
+                  'It runs JavaScript code',
                 ],
                 correctIndex: 1,
                 explanation:
-                  'The Starter block is always the entry point of a workflow. It defines how the workflow is triggered and what data is passed in.',
+                  'The Starter block is always the entry point. It defines how the workflow is triggered — manually, via API, via chat, or on a schedule — and what data is passed in as input.',
               },
               {
                 type: 'true_false',
-                question: 'A block can have multiple outgoing connections.',
+                question:
+                  'A single block can have multiple outgoing connections to different blocks.',
                 correctAnswer: true,
                 explanation:
-                  'Yes — blocks can fan out to multiple downstream blocks, which run in parallel.',
+                  'Yes — blocks can fan out to multiple downstream blocks, which then run in parallel. This is how you split execution into multiple concurrent branches.',
               },
               {
                 type: 'multiple_choice',
-                question: 'What happens when you connect two blocks?',
+                question: 'What does connecting two blocks with an edge do?',
                 options: [
-                  'The second block runs immediately',
+                  'The second block runs immediately, regardless of the first',
                   "Data flows from the source block's output to the target block's input",
                   'Both blocks are merged into one',
                   'The first block is disabled',
                 ],
                 correctIndex: 1,
                 explanation:
-                  'Connections define data flow. When the source block completes, its output is passed to the connected block as input.',
+                  "Edges define data flow. When a block completes, its output is passed downstream to every connected block. The target block won't start until its source has finished.",
               },
               {
-                type: 'multi_select',
-                question: 'Which of these are valid block types in Sim? (select all that apply)',
-                options: ['Agent', 'Function', 'Condition', 'Database', 'Router'],
-                correctIndices: [0, 1, 2, 4],
+                type: 'multiple_choice',
+                question: 'Which keyboard shortcut copies a selected block on the canvas?',
+                options: [
+                  'Ctrl/Cmd + D',
+                  'Ctrl/Cmd + C, then Ctrl/Cmd + V',
+                  'Ctrl/Cmd + X',
+                  'Alt + drag',
+                ],
+                correctIndex: 1,
                 explanation:
-                  '"Database" is not a block type — Sim connects to databases via API or Function blocks.',
+                  'Ctrl/Cmd + C copies the selected block and Ctrl/Cmd + V pastes it. You can also duplicate quickly with Ctrl/Cmd + D. Alt-dragging an existing block is another fast way to clone it.',
+              },
+              {
+                type: 'multiple_choice',
+                question: 'What does the terminal console at the bottom of the canvas show?',
+                options: [
+                  'The source code of each block',
+                  'Block-by-block execution output, including results and errors',
+                  'A list of available integrations',
+                  'The workflow deployment settings',
+                ],
+                correctIndex: 1,
+                explanation:
+                  "The terminal console shows you what happened at each block after a run: outputs, tool calls, token counts, and errors. It's your primary debugging tool.",
               },
             ],
           },
@@ -122,29 +160,50 @@ export const simFoundations: Course = {
 
     {
       id: 'sim-foundations-m2',
-      title: 'Working with Agents',
-      description: 'Configure agents with system prompts, tools, and structured output.',
+      title: 'The Agent Block',
+      description:
+        'Deeply understand the core block in Sim — how agents work, how to attach tools, and how to enforce structured output.',
       lessons: [
         {
           id: 'sim-foundations-m2-l1',
-          slug: 'agent-overview',
+          slug: 'how-agents-work',
           title: 'How Agents Work',
           lessonType: 'video',
-          description: 'System prompts, model selection, tools, and the response cycle.',
+          description:
+            'The Agent block as an LLM with a job: system prompts, model selection, the tool call loop, and what the output contains.',
+          videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          videoDurationSeconds: 300,
+        },
+        {
+          id: 'sim-foundations-m2-l2',
+          slug: 'tools-and-integrations',
+          title: 'Tools & Integrations',
+          lessonType: 'video',
+          description:
+            'How to attach tools to an Agent, how the model decides when to call them, and how to connect credentials.',
           videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
           videoDurationSeconds: 240,
         },
         {
-          id: 'sim-foundations-m2-l2',
+          id: 'sim-foundations-m2-l3',
+          slug: 'structured-output',
+          title: 'Structured Output',
+          lessonType: 'video',
+          description:
+            'How to use Response Format to enforce a JSON schema on agent output, and how to reference individual fields downstream.',
+          videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          videoDurationSeconds: 240,
+        },
+        {
+          id: 'sim-foundations-m2-l4',
           slug: 'configure-agent',
           title: 'Configure an Agent',
-          lessonType: 'mixed',
-          description: 'Watch how to configure a system prompt, then do it yourself on the canvas.',
-          videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-          videoDurationSeconds: 150,
+          lessonType: 'exercise',
+          description:
+            'The Agent block is already wired up. Open its panel and add a system prompt in the Messages field.',
           exerciseConfig: {
             instructions:
-              'The Agent block is already connected. Click it to open the panel on the right, then add a system prompt in the Messages field — try "You are a helpful assistant." Once set, click Run.',
+              'The Agent block is already connected to the Starter. Click it to open the panel on the right, then add a system message in the Messages field — try something like "You are a helpful assistant that answers concisely." Once set, click Run.',
             availableBlocks: [],
             initialBlocks: [
               {
@@ -156,7 +215,7 @@ export const simFoundations: Course = {
               {
                 id: 'agent-1',
                 type: 'agent',
-                position: { x: 360, y: 220 },
+                position: { x: 380, y: 220 },
                 locked: false,
                 subBlocks: { model: 'claude-sonnet-4-5' },
               },
@@ -180,13 +239,13 @@ export const simFoundations: Course = {
               },
             ],
             hints: [
-              'Click the Agent block to select it — the panel will open on the right.',
-              'In the Messages field, add a system message. Try: "You are a helpful assistant."',
+              'Click the Agent block to select it — the configuration panel opens on the right.',
+              'In the Messages section, add a system message. Try: "You are a helpful assistant that answers concisely."',
             ],
             mockOutputs: {
               'agent-1': {
                 response: {
-                  result: "Hello! I'm your configured Sim agent. How can I help you today?",
+                  content: "Hello! I'm your configured Sim agent. How can I help you today?",
                 },
                 delay: 1800,
               },
@@ -194,61 +253,75 @@ export const simFoundations: Course = {
           },
         },
         {
-          id: 'sim-foundations-m2-l3',
-          slug: 'agent-quiz',
-          title: 'Agent Concepts Check',
+          id: 'sim-foundations-m2-l5',
+          slug: 'agent-mastery-check',
+          title: 'Agent Mastery Check',
           lessonType: 'quiz',
           quizConfig: {
             passingScore: 80,
             questions: [
               {
                 type: 'multiple_choice',
-                question: 'What is the purpose of a system prompt?',
+                question: 'What is the primary purpose of a system prompt on an Agent block?',
                 options: [
-                  "It sets the model's temperature",
+                  "It sets the model's temperature and token limit",
                   "It defines the agent's persona, instructions, and constraints",
-                  'It controls how many tokens the model can use',
-                  'It specifies which tools the agent can call',
+                  'It controls which tools the agent is allowed to call',
+                  'It specifies the JSON schema for the response',
                 ],
                 correctIndex: 1,
                 explanation:
-                  "The system prompt gives the model its instructions — its role, tone, what it should and shouldn't do.",
+                  "The system prompt gives the model its identity and instructions — its role, tone, what it should and shouldn't do. Temperature, tools, and response format are configured separately.",
               },
               {
                 type: 'true_false',
                 question:
-                  'An agent can call tools (like search or code execution) during a single workflow run.',
+                  'An Agent can call multiple tools in sequence during a single workflow run before producing its final answer.',
                 correctAnswer: true,
                 explanation:
-                  'Agents in Sim support tool calling. The model can invoke any tool attached to it and loop until it has a final answer.',
+                  'Agents run a tool call loop: the model calls a tool, receives the result, decides if it needs more information, and can call another tool before producing its final answer.',
               },
               {
                 type: 'multiple_choice',
-                question: 'What does "Response Format" control on an Agent block?',
+                question:
+                  'You define a Response Format with a field called "sentiment". How do you reference it in a downstream block?',
                 options: [
-                  'The markdown styling of the output',
-                  'The JSON schema the model must conform to',
-                  'Which downstream block receives the output',
-                  'The language the model responds in',
+                  '<response.sentiment>',
+                  '<agent.output.sentiment>',
+                  '<agent.sentiment>',
+                  '{{agent.sentiment}}',
+                ],
+                correctIndex: 2,
+                explanation:
+                  'Fields from a structured Response Format become top-level outputs on the Agent block. You reference them with <blockId.fieldName> — so if your block is named "agent", it\'s <agent.sentiment>.',
+              },
+              {
+                type: 'multiple_choice',
+                question: 'What does setting a tool\'s usage mode to "forced" do?',
+                options: [
+                  'The tool runs before the agent sees the input',
+                  'The model must call that tool at least once during the run',
+                  'The tool is required to return a valid response or the workflow fails',
+                  'The tool is hidden from the model but runs automatically',
                 ],
                 correctIndex: 1,
                 explanation:
-                  "Response Format enforces structured output — the model's response will always match the schema you define.",
+                  'Forced mode guarantees the model will call that specific tool — useful when you always need a web search or database lookup regardless of what the user asked. "Auto" lets the model decide.',
               },
               {
                 type: 'multi_select',
                 question:
-                  'Which of these can you attach to an Agent block? (select all that apply)',
+                  'Which of these can you attach directly to an Agent block? (select all that apply)',
                 options: [
-                  'Knowledge bases',
-                  'Custom tools',
-                  'Sub-agents',
                   'A system prompt',
-                  'A database schema',
+                  'External tools (search, Slack, GitHub, etc.)',
+                  'Custom skills defined in workspace settings',
+                  'A response format / JSON schema',
+                  'A deployment schedule',
                 ],
                 correctIndices: [0, 1, 2, 3],
                 explanation:
-                  'Agents can use knowledge bases, tools, sub-agents, and system prompts. "Database schema" is not a direct attachment.',
+                  'System prompts, tools, skills, and response format are all configured directly on the Agent block. Deployment schedules are set on the Starter block, not the Agent.',
               },
             ],
           },
@@ -258,19 +331,31 @@ export const simFoundations: Course = {
 
     {
       id: 'sim-foundations-m3',
-      title: 'Logic & Flow Control',
-      description: 'Use Condition and Router blocks to build dynamic, branching workflows.',
+      title: 'Data Flow & Variables',
+      description:
+        'Understand how data moves between blocks and how to reference outputs across your workflow.',
       lessons: [
         {
           id: 'sim-foundations-m3-l1',
-          slug: 'conditions',
-          title: 'Branching with Conditions',
+          slug: 'variables-and-references',
+          title: 'Variables & References',
+          lessonType: 'video',
+          description:
+            'The <block.field> reference syntax, the Variables block, environment variables, and live value preview.',
+          videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          videoDurationSeconds: 240,
+        },
+        {
+          id: 'sim-foundations-m3-l2',
+          slug: 'multi-step-pipeline',
+          title: 'Build a Multi-Step Pipeline',
           lessonType: 'exercise',
-          description: 'Add a Condition block to route different inputs down different paths.',
+          description:
+            'Chain two Agent blocks together so the output of the first flows into the second.',
           exerciseConfig: {
             instructions:
-              'Build a branching workflow: connect the Starter to a Condition block, then connect the true path to one Agent and the false path to another. The Condition block evaluates an expression and routes execution to the matching branch.',
-            availableBlocks: ['condition', 'agent'],
+              "Add two Agent blocks to the canvas. Connect the Starter to the first Agent, then connect the first Agent to the second Agent. This creates a pipeline where the first agent's output flows into the second. In the second agent's system prompt, reference the first agent's output using <agent-1.content>.",
+            availableBlocks: ['agent'],
             initialBlocks: [
               {
                 id: 'starter-1',
@@ -280,14 +365,115 @@ export const simFoundations: Course = {
               },
             ],
             validationRules: [
-              { type: 'block_exists', blockType: 'condition' },
-              { type: 'block_exists', blockType: 'agent', count: 2 },
-              { type: 'edge_exists', sourceType: 'starter', targetType: 'condition' },
-              { type: 'edge_exists', sourceType: 'condition', targetType: 'agent' },
+              {
+                type: 'block_exists',
+                blockType: 'agent',
+                count: 2,
+                label: 'Add two Agent blocks to the canvas',
+              },
+              {
+                type: 'edge_exists',
+                sourceType: 'starter',
+                targetType: 'agent',
+                label: 'Connect the Starter to the first Agent',
+              },
+              {
+                type: 'edge_exists',
+                sourceType: 'agent',
+                targetType: 'agent',
+                label: 'Connect the first Agent to the second Agent',
+              },
             ],
             hints: [
-              'Add a Condition block first — it has two output handles: true and false.',
-              'Connect Starter → Condition, then add two Agent blocks and connect one to each output handle.',
+              'Drag two Agent blocks onto the canvas and position them left to right.',
+              'Connect Starter → Agent 1 first, then Agent 1 → Agent 2.',
+              "In the second agent's system prompt, you can reference the first agent's output using <agent-1.content>.",
+            ],
+            mockOutputs: {
+              agent: {
+                response: { content: 'Step one complete. Passing result to the next agent.' },
+                delay: 1000,
+              },
+            },
+          },
+        },
+      ],
+    },
+
+    {
+      id: 'sim-foundations-m4',
+      title: 'Control Flow',
+      description:
+        "Build workflows that branch, route, run in parallel, and loop using Sim's control flow blocks.",
+      lessons: [
+        {
+          id: 'sim-foundations-m4-l1',
+          slug: 'conditions-and-routing',
+          title: 'Conditions & Routing',
+          lessonType: 'video',
+          description:
+            'The Condition block for deterministic branching, the Router block for LLM-powered routing, and when to use each.',
+          videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          videoDurationSeconds: 300,
+        },
+        {
+          id: 'sim-foundations-m4-l2',
+          slug: 'parallel-and-loops',
+          title: 'Parallel Execution & Loops',
+          lessonType: 'video',
+          description:
+            'How to run multiple branches simultaneously with fan-out, and how to build iterative workflows using the Workflow block.',
+          videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          videoDurationSeconds: 180,
+        },
+        {
+          id: 'sim-foundations-m4-l3',
+          slug: 'branching-workflow',
+          title: 'Branching Workflow',
+          lessonType: 'exercise',
+          description:
+            'Build a workflow that routes to different Agent blocks depending on whether a condition is true or false.',
+          exerciseConfig: {
+            instructions:
+              "Build a branching workflow: connect the Starter to a Condition block, then connect the Condition's true path to one Agent and its false path to another Agent. The Condition block evaluates a JavaScript expression and sends execution down the matching branch.",
+            availableBlocks: ['condition', 'agent'],
+            initialBlocks: [
+              {
+                id: 'starter-1',
+                type: 'starter',
+                position: { x: 80, y: 260 },
+                locked: true,
+              },
+            ],
+            validationRules: [
+              {
+                type: 'block_exists',
+                blockType: 'condition',
+                label: 'Add a Condition block',
+              },
+              {
+                type: 'block_exists',
+                blockType: 'agent',
+                count: 2,
+                label: 'Add two Agent blocks (one for each branch)',
+              },
+              {
+                type: 'edge_exists',
+                sourceType: 'starter',
+                targetType: 'condition',
+                label: 'Connect the Starter to the Condition',
+              },
+              {
+                type: 'edge_exists',
+                sourceType: 'condition',
+                targetType: 'agent',
+                label: 'Connect the Condition to at least one Agent',
+              },
+            ],
+            hints: [
+              'Add a Condition block first — it has two output handles: one for true, one for false.',
+              'Connect Starter → Condition, then add two Agent blocks and wire one to each output handle.',
+              'Click the Condition block to write your expression — try: true (always routes to the true branch while testing).',
             ],
             mockOutputs: {
               condition: {
@@ -295,54 +481,225 @@ export const simFoundations: Course = {
                 delay: 400,
               },
               agent: {
-                response: { result: 'Taking the true path — input was positive.' },
+                response: { content: 'Taking the true path — condition was met.' },
                 delay: 1200,
               },
             },
           },
         },
         {
-          id: 'sim-foundations-m3-l2',
-          slug: 'flow-quiz',
-          title: 'Flow Control Quiz',
+          id: 'sim-foundations-m4-l4',
+          slug: 'control-flow-check',
+          title: 'Control Flow Check',
           lessonType: 'quiz',
           quizConfig: {
             passingScore: 75,
             questions: [
               {
                 type: 'multiple_choice',
-                question: 'What does a Condition block output?',
+                question: 'What does the Condition block evaluate?',
                 options: [
-                  'A number representing the condition score',
-                  'A boolean (true/false) that routes execution to the matching branch',
-                  'The result of an LLM call',
-                  'A list of matching records',
+                  'A natural language description of a rule',
+                  'A JavaScript expression that resolves to true or false',
+                  'A SQL query against the workflow state',
+                  'An LLM call that decides which path to take',
                 ],
                 correctIndex: 1,
                 explanation:
-                  "The Condition block evaluates an expression and routes downstream based on whether it's true or false.",
-              },
-              {
-                type: 'true_false',
-                question: 'A Router block can route to more than two branches.',
-                correctAnswer: true,
-                explanation:
-                  'Unlike Condition (which is binary), the Router block supports any number of named output paths.',
+                  'The Condition block evaluates a JavaScript expression — you can reference block outputs like <agent.sentiment> === "negative" or <start.input>.length > 100. It routes to the true or false branch based on the result.',
               },
               {
                 type: 'multiple_choice',
-                question: "What happens to blocks on a branch that wasn't taken?",
+                question: 'When would you choose a Router block over a Condition block?',
                 options: [
-                  'They run with an empty input',
-                  'They are skipped — only the matching branch executes',
-                  'They run after a delay',
-                  'They throw an error',
+                  'When you need an exact boolean true/false decision',
+                  'When you have 3 or more named paths and natural language input determines the route',
+                  'When you want to run two branches simultaneously',
+                  'When you need to loop over a list of items',
                 ],
                 correctIndex: 1,
                 explanation:
-                  'When a branch is not taken, all blocks on that branch are skipped. The workflow only executes the matching path.',
+                  'The Router uses an LLM to intelligently select from multiple named paths — ideal for open-ended inputs like support tickets that could be billing, technical, or general. Condition is better for deterministic boolean logic.',
+              },
+              {
+                type: 'true_false',
+                question: "Blocks on a branch that wasn't taken still execute with an empty input.",
+                correctAnswer: false,
+                explanation:
+                  "Blocks on a branch not taken are completely skipped — they don't run at all. Only the matching branch executes.",
+              },
+              {
+                type: 'multiple_choice',
+                question: 'How do you run two independent blocks at the same time in Sim?',
+                options: [
+                  'Use a dedicated Parallel block between them',
+                  'Connect the same source block to both target blocks (fan-out)',
+                  'Set both blocks to "async" mode in their settings',
+                  'You cannot — Sim only supports sequential execution',
+                ],
+                correctIndex: 1,
+                explanation:
+                  "Fan-out: connect one block's output to multiple downstream blocks. All connected blocks start simultaneously once the source completes.",
+              },
+              {
+                type: 'multiple_choice',
+                question: 'How are loops typically implemented in Sim?',
+                options: [
+                  'Using a dedicated Loop block with a counter sub-block',
+                  'By drawing an edge from a block back to an earlier block on the canvas',
+                  'Using the Workflow block to call a child workflow that repeats until a condition exits',
+                  'Loops are not supported in Sim',
+                ],
+                correctIndex: 2,
+                explanation:
+                  'Loops in Sim are built using a Workflow block that calls a child workflow, which can call itself again — creating recursion. A Condition block inside the child workflow acts as the exit condition.',
               },
             ],
+          },
+        },
+      ],
+    },
+
+    {
+      id: 'sim-foundations-m5',
+      title: 'Memory & Knowledge',
+      description:
+        'Give agents access to documents and conversation history to build truly contextual workflows.',
+      lessons: [
+        {
+          id: 'sim-foundations-m5-l1',
+          slug: 'knowledge-bases',
+          title: 'Knowledge Bases',
+          lessonType: 'video',
+          description:
+            'What knowledge bases are, how documents are chunked and embedded, and how to wire a Knowledge block into an Agent.',
+          videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          videoDurationSeconds: 240,
+        },
+        {
+          id: 'sim-foundations-m5-l2',
+          slug: 'agent-memory',
+          title: 'Agent Memory',
+          lessonType: 'video',
+          description:
+            'Stateless vs stateful agents, the conversationId, and the three memory modes: full conversation, sliding window, and token window.',
+          videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          videoDurationSeconds: 180,
+        },
+      ],
+    },
+
+    {
+      id: 'sim-foundations-m6',
+      title: 'Deploying Your Workflow',
+      description:
+        'Turn a workflow into a real, production-ready product — as an API, a chat interface, or a scheduled job.',
+      lessons: [
+        {
+          id: 'sim-foundations-m6-l1',
+          slug: 'deploy-as-api',
+          title: 'Deploying as an API',
+          lessonType: 'video',
+          description:
+            'How to expose a workflow as an HTTPS REST endpoint, authenticate with API keys, and version your deployment.',
+          videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          videoDurationSeconds: 240,
+        },
+        {
+          id: 'sim-foundations-m6-l2',
+          slug: 'chat-deployments',
+          title: 'Chat Deployments',
+          lessonType: 'video',
+          description:
+            'Deploy a workflow as a managed chat UI — streaming responses, file uploads, conversation history, and access control.',
+          videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          videoDurationSeconds: 180,
+        },
+        {
+          id: 'sim-foundations-m6-l3',
+          slug: 'schedules-and-webhooks',
+          title: 'Schedules & Webhooks',
+          lessonType: 'video',
+          description:
+            'Trigger workflows automatically on a schedule with cron expressions, or on-demand via incoming webhooks.',
+          videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+          videoDurationSeconds: 180,
+        },
+        {
+          id: 'sim-foundations-m6-l4',
+          slug: 'final-project',
+          title: 'Final Project',
+          lessonType: 'exercise',
+          description:
+            'Build a complete workflow from scratch: an Agent with a configured system prompt, routing logic via a Condition block, and separate handlers for each branch.',
+          exerciseConfig: {
+            instructions:
+              'Build a complete workflow. Start by connecting an Agent to the Starter and giving it a system prompt. Then add a Condition block connected to the Agent. Finally, add two more Agent blocks — one for the true branch and one for the false branch. This is the pattern behind most real Sim deployments.',
+            availableBlocks: ['agent', 'condition'],
+            initialBlocks: [
+              {
+                id: 'starter-1',
+                type: 'starter',
+                position: { x: 60, y: 280 },
+                locked: true,
+              },
+            ],
+            validationRules: [
+              {
+                type: 'edge_exists',
+                sourceType: 'starter',
+                targetType: 'agent',
+                label: 'Connect the Starter to an Agent',
+              },
+              {
+                type: 'block_configured',
+                blockType: 'agent',
+                subBlockId: 'messages',
+                valueNotEmpty: true,
+                label: 'Configure a system prompt on your main Agent',
+              },
+              {
+                type: 'block_exists',
+                blockType: 'condition',
+                label: 'Add a Condition block',
+              },
+              {
+                type: 'edge_exists',
+                sourceType: 'agent',
+                targetType: 'condition',
+                label: 'Connect the Agent to the Condition',
+              },
+              {
+                type: 'block_exists',
+                blockType: 'agent',
+                count: 3,
+                label: 'Add two more Agent blocks for the true and false branches',
+              },
+              {
+                type: 'edge_exists',
+                sourceType: 'condition',
+                targetType: 'agent',
+                label: 'Connect the Condition to at least one branch Agent',
+              },
+            ],
+            hints: [
+              'Start by placing an Agent block and connecting it to the Starter. Click it to add a system prompt.',
+              'Add a Condition block and connect your first Agent to it.',
+              'Add two more Agent blocks — one for the true branch and one for the false branch.',
+              'You can copy a block with Ctrl/Cmd+C and paste with Ctrl/Cmd+V to save time.',
+            ],
+            mockOutputs: {
+              agent: {
+                response: {
+                  content: 'Analysis complete. Routing to the appropriate handler.',
+                },
+                delay: 1500,
+              },
+              condition: {
+                response: { result: true },
+                delay: 400,
+              },
+            },
           },
         },
       ],
