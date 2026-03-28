@@ -247,6 +247,16 @@ const MarkdownPreview = memo(function MarkdownPreview({
 
   checkboxCounterRef.current = 0
 
+  if (onCheckboxToggle) {
+    return (
+      <div ref={scrollRef} className='h-full overflow-auto p-6'>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
+          {content}
+        </ReactMarkdown>
+      </div>
+    )
+  }
+
   const committedMarkdown = useMemo(
     () =>
       committed ? (
