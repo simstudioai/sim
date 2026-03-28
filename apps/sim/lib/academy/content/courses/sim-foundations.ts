@@ -76,6 +76,7 @@ export const simFoundations: Course = {
               "Hover over the Starter block's right edge to reveal its output handle, then drag to the Agent block.",
             ],
             mockOutputs: {
+              starter: { response: { result: 'Workflow started' }, delay: 200 },
               agent: {
                 response: { content: "Hello! I'm your first Sim agent. How can I help?" },
                 delay: 1200,
@@ -137,7 +138,7 @@ export const simFoundations: Course = {
                 ],
                 correctIndex: 1,
                 explanation:
-                  'Ctrl/Cmd + C copies the selected block and Ctrl/Cmd + V pastes it. You can also duplicate quickly with Ctrl/Cmd + D. Alt-dragging an existing block is another fast way to clone it.',
+                  'Ctrl/Cmd + C copies the selected block and Ctrl/Cmd + V pastes it. These are the standard copy-paste shortcuts — use them to quickly duplicate blocks on the canvas.',
               },
               {
                 type: 'multiple_choice',
@@ -225,8 +226,8 @@ export const simFoundations: Course = {
                 id: 'e-starter-agent',
                 source: 'starter-1',
                 target: 'agent-1',
-                sourceHandle: 'starter-1-source',
-                targetHandle: 'agent-1-target',
+                sourceHandle: 'source',
+                targetHandle: 'target',
               },
             ],
             validationRules: [
@@ -243,6 +244,7 @@ export const simFoundations: Course = {
               'In the Messages section, add a system message. Try: "You are a helpful assistant that answers concisely."',
             ],
             mockOutputs: {
+              starter: { response: { result: 'Workflow started' }, delay: 200 },
               'agent-1': {
                 response: {
                   content: "Hello! I'm your configured Sim agent. How can I help you today?",
@@ -390,6 +392,7 @@ export const simFoundations: Course = {
               "In the second agent's system prompt, you can reference the first agent's output using <agent-1.content>.",
             ],
             mockOutputs: {
+              starter: { response: { result: 'Workflow started' }, delay: 200 },
               agent: {
                 response: { content: 'Step one complete. Passing result to the next agent.' },
                 delay: 1000,
@@ -476,6 +479,7 @@ export const simFoundations: Course = {
               'Click the Condition block to write your expression — try: true (always routes to the true branch while testing).',
             ],
             mockOutputs: {
+              starter: { response: { result: 'Workflow started' }, delay: 200 },
               condition: {
                 response: { result: true },
                 delay: 400,
@@ -689,6 +693,7 @@ export const simFoundations: Course = {
               'You can copy a block with Ctrl/Cmd+C and paste with Ctrl/Cmd+V to save time.',
             ],
             mockOutputs: {
+              starter: { response: { result: 'Workflow started' }, delay: 200 },
               agent: {
                 response: {
                   content: 'Analysis complete. Routing to the appropriate handler.',
