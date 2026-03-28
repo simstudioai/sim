@@ -182,11 +182,7 @@ export async function pollImapWebhooks() {
           return
         }
 
-        const fetchResult = await fetchNewEmails(
-          config,
-          requestId,
-          hostValidation.resolvedIP!
-        )
+        const fetchResult = await fetchNewEmails(config, requestId, hostValidation.resolvedIP!)
         const { emails, latestUidByMailbox } = fetchResult
         const pollTimestamp = new Date().toISOString()
 
@@ -272,11 +268,7 @@ export async function pollImapWebhooks() {
   }
 }
 
-async function fetchNewEmails(
-  config: ImapWebhookConfig,
-  requestId: string,
-  resolvedIP: string
-) {
+async function fetchNewEmails(config: ImapWebhookConfig, requestId: string, resolvedIP: string) {
   const client = new ImapFlow({
     host: resolvedIP,
     servername: config.host,
