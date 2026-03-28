@@ -232,10 +232,8 @@ async function deleteConnector({
   connectorId,
   deleteDocuments,
 }: DeleteConnectorParams): Promise<void> {
-  const url = deleteDocuments
-    ? `/api/knowledge/${knowledgeBaseId}/connectors/${connectorId}?deleteDocuments=true`
-    : `/api/knowledge/${knowledgeBaseId}/connectors/${connectorId}`
-  const response = await fetch(url, {
+  const base = `/api/knowledge/${knowledgeBaseId}/connectors/${connectorId}`
+  const response = await fetch(deleteDocuments ? `${base}?deleteDocuments=true` : base, {
     method: 'DELETE',
   })
 

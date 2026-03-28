@@ -318,7 +318,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         await tx
           .update(document)
           .set({ connectorId: null })
-          .where(eq(document.connectorId, connectorId))
+          .where(
+            and(
+              eq(document.connectorId, connectorId),
+              isNull(document.archivedAt),
+              isNull(document.deletedAt)
+            )
+          )
       }
 
       const deletedConnectors = await tx
@@ -340,14 +346,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return { deletedDocs: deleteDocuments ? docs : [], docCount: docs.length }
     })
 
-    if (deletedDocs.length > 0) {
-      await deleteDocumentStorageFiles(deletedDocs, requestId)
-    }
-
     if (deleteDocuments) {
-      await cleanupUnusedTagDefinitions(knowledgeBaseId, requestId).catch((error) => {
-        logger.warn(`[${requestId}] Failed to cleanup tag definitions`, error)
-      })
+      await Promise.all([
+        deletedDocs.length > 0
+          ? deleteDocumentStorageFiles(deletedDocs, requestId)
+          : Promise.resolve(),
+        cleanupUnusedTagDefinitions(knowledgeBaseId, requestId).catch((error) => {
+          logger.warn(`[${requestId}] Failed to cleanup tag definitions`, error)
+        }),
+      ])
     }
 
     logger.info(

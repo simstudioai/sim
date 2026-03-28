@@ -79,6 +79,11 @@ export function ConnectorsSection({
   const { mutate: deleteConnector, isPending: isDeleting } = useDeleteConnector()
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [deleteDocuments, setDeleteDocuments] = useState(false)
+
+  const closeDeleteModal = useCallback(() => {
+    setDeleteTarget(null)
+    setDeleteDocuments(false)
+  }, [])
   const [editingConnector, setEditingConnector] = useState<ConnectorData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [syncingIds, setSyncingIds] = useState<Set<string>>(() => new Set())
@@ -226,13 +231,7 @@ export function ConnectorsSection({
         />
       )}
 
-      <Modal
-        open={deleteTarget !== null}
-        onOpenChange={() => {
-          setDeleteTarget(null)
-          setDeleteDocuments(false)
-        }}
-      >
+      <Modal open={deleteTarget !== null} onOpenChange={closeDeleteModal}>
         <ModalContent size='sm'>
           <ModalHeader>Remove Connector</ModalHeader>
           <ModalBody>
@@ -255,14 +254,7 @@ export function ConnectorsSection({
             </div>
           </ModalBody>
           <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => {
-                setDeleteTarget(null)
-                setDeleteDocuments(false)
-              }}
-              disabled={isDeleting}
-            >
+            <Button variant='default' onClick={closeDeleteModal} disabled={isDeleting}>
               Cancel
             </Button>
             <Button
@@ -275,14 +267,12 @@ export function ConnectorsSection({
                     {
                       onSuccess: () => {
                         setError(null)
-                        setDeleteTarget(null)
-                        setDeleteDocuments(false)
+                        closeDeleteModal()
                       },
                       onError: (err) => {
                         logger.error('Delete connector failed', { error: err.message })
                         setError(err.message)
-                        setDeleteTarget(null)
-                        setDeleteDocuments(false)
+                        closeDeleteModal()
                       },
                     }
                   )

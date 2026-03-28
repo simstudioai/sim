@@ -1,4 +1,5 @@
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
+import { isAlphanumericExtension } from '@/lib/uploads/utils/validation'
 
 const SUPPORTED_FILE_TYPES = [
   'pdf',
@@ -30,7 +31,7 @@ export function resolveParserExtension(
   fallback?: string
 ): string {
   const raw = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : undefined
-  const filenameExtension = raw && /^[a-z0-9]+$/.test(raw) ? raw : undefined
+  const filenameExtension = raw && isAlphanumericExtension(raw) ? raw : undefined
 
   if (filenameExtension && isSupportedParserExtension(filenameExtension)) {
     return filenameExtension
