@@ -37,6 +37,7 @@ import {
 } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
+import { isMacPlatform } from '@/lib/core/utils/platform'
 import {
   START_NAV_TOUR_EVENT,
   START_WORKFLOW_TOUR_EVENT,
@@ -321,6 +322,8 @@ export const Sidebar = memo(function Sidebar() {
   useLayoutEffect(() => {
     isCollapsedRef.current = isCollapsed
   }, [isCollapsed])
+
+  const isMac = useMemo(() => isMacPlatform(), [])
 
   // Delay collapsed tooltips until the width transition finishes.
   const [showCollapsedTooltips, setShowCollapsedTooltips] = useState(isCollapsed)
@@ -1065,6 +1068,16 @@ export const Sidebar = memo(function Sidebar() {
   // Stable callback for DeleteModal close
   const handleCloseTaskDeleteModal = useCallback(() => setIsTaskDeleteModalOpen(false), [])
 
+  const handleEdgeKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (isCollapsed && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault()
+        toggleCollapsed()
+      }
+    },
+    [isCollapsed, toggleCollapsed]
+  )
+
   // Stable handler for help modal open from dropdown
   const handleOpenHelpFromMenu = useCallback(() => setIsHelpModalOpen(true), [])
 
@@ -1151,6 +1164,18 @@ export const Sidebar = memo(function Sidebar() {
         id: 'open-search',
         handler: () => {
           openSearchModal()
+        },
+      },
+      {
+        id: 'add-workflow',
+        handler: () => {
+          handleCreateWorkflow()
+        },
+      },
+      {
+        id: 'add-task',
+        handler: () => {
+          handleNewTask()
         },
       },
     ])
@@ -1334,6 +1359,9 @@ export const Sidebar = memo(function Sidebar() {
                             </Tooltip.Trigger>
                             <Tooltip.Content>
                               <p>New task</p>
+                              <p className='text-[var(--text-muted)]'>
+                                {isMac ? '⌘⇧K' : 'Ctrl+Shift+K'}
+                              </p>
                             </Tooltip.Content>
                           </Tooltip.Root>
                         </div>
@@ -1500,6 +1528,11 @@ export const Sidebar = memo(function Sidebar() {
                             </Tooltip.Trigger>
                             <Tooltip.Content>
                               <p>{isCreatingWorkflow ? 'Creating workflow...' : 'New workflow'}</p>
+                              {!isCreatingWorkflow && (
+                                <p className='text-[var(--text-muted)]'>
+                                  {isMac ? '⌘⇧W' : 'Ctrl+Shift+W'}
+                                </p>
+                              )}
                             </Tooltip.Content>
                           </Tooltip.Root>
                         </div>
@@ -1696,9 +1729,11 @@ export const Sidebar = memo(function Sidebar() {
             )}
             onMouseDown={isCollapsed ? undefined : handleMouseDown}
             onClick={isCollapsed ? toggleCollapsed : undefined}
-            role='separator'
-            aria-orientation='vertical'
-            aria-label='Sidebar edge'
+            onKeyDown={isCollapsed ? handleEdgeKeyDown : undefined}
+            role={isCollapsed ? 'button' : 'separator'}
+            tabIndex={isCollapsed ? 0 : undefined}
+            aria-orientation={isCollapsed ? undefined : 'vertical'}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Resize sidebar'}
           />
         )}
       </div>
