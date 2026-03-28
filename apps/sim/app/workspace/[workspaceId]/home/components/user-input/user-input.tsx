@@ -522,6 +522,28 @@ export function UserInput({
     [isInitialView]
   )
 
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    const imageFiles: File[] = []
+    for (const item of Array.from(items)) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) imageFiles.push(file)
+      }
+    }
+
+    if (imageFiles.length === 0) return
+
+    e.preventDefault()
+    const dt = new DataTransfer()
+    for (const file of imageFiles) {
+      dt.items.add(file)
+    }
+    filesRef.current.processFiles(dt.files)
+  }, [])
+
   const handleScroll = useCallback((e: React.UIEvent<HTMLTextAreaElement>) => {
     if (overlayRef.current) {
       overlayRef.current.scrollTop = e.currentTarget.scrollTop
@@ -661,6 +683,7 @@ export function UserInput({
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onInput={handleInput}
+          onPaste={handlePaste}
           onCut={mentionTokensWithContext.handleCut}
           onSelect={handleSelectAdjust}
           onMouseUp={handleSelectAdjust}
