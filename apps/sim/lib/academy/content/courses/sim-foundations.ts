@@ -470,7 +470,15 @@ export const simFoundations: Course = {
                 type: 'edge_exists',
                 sourceType: 'condition',
                 targetType: 'agent',
-                label: 'Connect the Condition to at least one Agent',
+                sourceHandle: 'condition-if',
+                label: 'Connect the Condition true branch (top handle) to an Agent',
+              },
+              {
+                type: 'edge_exists',
+                sourceType: 'condition',
+                targetType: 'agent',
+                sourceHandle: 'condition-else',
+                label: 'Connect the Condition false branch (bottom handle) to an Agent',
               },
             ],
             hints: [
@@ -683,7 +691,15 @@ export const simFoundations: Course = {
                 type: 'edge_exists',
                 sourceType: 'condition',
                 targetType: 'agent',
-                label: 'Connect the Condition to at least one branch Agent',
+                sourceHandle: 'condition-if',
+                label: 'Connect the Condition true branch to an Agent',
+              },
+              {
+                type: 'edge_exists',
+                sourceType: 'condition',
+                targetType: 'agent',
+                sourceHandle: 'condition-else',
+                label: 'Connect the Condition false branch to an Agent',
               },
             ],
             hints: [

@@ -114,7 +114,7 @@ export type ValidationRule = { label?: string } & (
       valueNotEmpty?: boolean
       valuePattern?: string
     }
-  | { type: 'edge_exists'; sourceType: string; targetType: string }
+  | { type: 'edge_exists'; sourceType: string; targetType: string; sourceHandle?: string }
   | { type: 'block_count_min'; count: number }
   | { type: 'block_count_max'; count: number }
   | { type: 'custom'; validatorId: string; params?: Record<string, unknown> }

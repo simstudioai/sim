@@ -58,7 +58,9 @@ function checkRule(
       return edges.some((e) => {
         const source = blockMap.get(e.source)
         const target = blockMap.get(e.target)
-        return source?.type === rule.sourceType && target?.type === rule.targetType
+        if (source?.type !== rule.sourceType || target?.type !== rule.targetType) return false
+        if (rule.sourceHandle && e.sourceHandle !== rule.sourceHandle) return false
+        return true
       })
     }
 
