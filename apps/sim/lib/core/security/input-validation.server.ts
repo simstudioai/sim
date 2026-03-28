@@ -4,6 +4,7 @@ import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import * as ipaddr from 'ipaddr.js'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
 
 const logger = createLogger('InputValidation')
@@ -89,10 +90,7 @@ export async function validateUrlWithDNS(
         return ip === '127.0.0.1' || ip === '::1'
       })()
 
-    if (
-      isPrivateOrReservedIP(address) &&
-      !(isLocalhost && resolvedIsLoopback && !options.allowHttp)
-    ) {
+    if (isPrivateOrReservedIP(address) && !(isLocalhost && resolvedIsLoopback && !isHosted)) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,

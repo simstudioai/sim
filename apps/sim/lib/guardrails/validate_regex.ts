@@ -13,11 +13,17 @@ export interface ValidationResult {
 export function validateRegex(inputStr: string, pattern: string): ValidationResult {
   try {
     if (!safe(pattern)) {
-      return { passed: false, error: 'Regex pattern rejected: potentially unsafe (catastrophic backtracking)' }
+      return {
+        passed: false,
+        error: 'Regex pattern rejected: potentially unsafe (catastrophic backtracking)',
+      }
     }
 
     if (inputStr.length > MAX_INPUT_LENGTH) {
-      return { passed: false, error: `Input exceeds maximum length of ${MAX_INPUT_LENGTH} characters` }
+      return {
+        passed: false,
+        error: `Input exceeds maximum length of ${MAX_INPUT_LENGTH} characters`,
+      }
     }
 
     const regex = new RegExp(pattern)
