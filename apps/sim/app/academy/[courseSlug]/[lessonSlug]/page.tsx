@@ -45,7 +45,7 @@ export default function LessonPage({ params }: LessonPageProps) {
   const hasQuiz = Boolean(lesson.quizConfig)
 
   return (
-    <div className='flex h-screen flex-col overflow-hidden bg-[#1C1C1C]'>
+    <div className='fixed inset-0 flex flex-col overflow-hidden bg-[#1C1C1C]'>
       <header className='flex h-[52px] flex-shrink-0 items-center justify-between border-[#2A2A2A] border-b bg-[#1C1C1C] px-5'>
         <div className='flex items-center gap-3 text-[13px]'>
           <Link href='/' aria-label='Sim home'>
