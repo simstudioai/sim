@@ -114,9 +114,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-v
 # Copy the bundled PPTX worker artifact
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/dist/pptx-worker.cjs ./apps/sim/dist/pptx-worker.cjs
 
-# Copy the bundled BullMQ worker artifact and workspace packages it depends on
+# Copy the bundled BullMQ worker artifact and workspace packages it needs at runtime.
+# The bundle uses --packages=external so all node_modules are resolved at runtime.
+# npm packages come from the standalone node_modules; workspace packages need explicit copies.
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/dist/worker.cjs ./apps/sim/dist/worker.cjs
-COPY --from=builder --chown=nextjs:nodejs /app/packages ./packages
+COPY --from=builder --chown=nextjs:nodejs /app/packages/logger ./node_modules/@sim/logger
+COPY --from=builder --chown=nextjs:nodejs /app/packages/db ./node_modules/@sim/db
 
 # Guardrails setup with pip caching
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/requirements.txt ./apps/sim/lib/guardrails/requirements.txt
