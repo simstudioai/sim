@@ -48,7 +48,13 @@ function checkRule(
       return blocks.some((b) => {
         if (b.type !== rule.blockType) return false
         const value = b.subBlocks?.[rule.subBlockId]
-        if (rule.valueNotEmpty && (value === undefined || value === null || value === ''))
+        if (
+          rule.valueNotEmpty &&
+          (value === undefined ||
+            value === null ||
+            value === '' ||
+            (Array.isArray(value) && value.length === 0))
+        )
           return false
         if (rule.valuePattern) {
           let regex: RegExp

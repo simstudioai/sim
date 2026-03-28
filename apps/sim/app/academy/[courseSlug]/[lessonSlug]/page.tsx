@@ -41,12 +41,15 @@ export default function LessonPage({ params }: LessonPageProps) {
   const prevLesson = currentIndex > 0 ? allLessons[currentIndex - 1] : null
   const nextLesson = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null
 
-  const handleComplete = useCallback(() => setExerciseComplete(true), [])
+  const handleExerciseComplete = useCallback(() => setExerciseComplete(true), [])
+  const handleQuizPass = useCallback(() => setQuizComplete(true), [])
   const canAdvance =
     (!lesson?.exerciseConfig && !lesson?.quizConfig) ||
     (Boolean(lesson?.exerciseConfig) && Boolean(lesson?.quizConfig)
       ? exerciseComplete && quizComplete
-      : exerciseComplete)
+      : lesson?.exerciseConfig
+        ? exerciseComplete
+        : quizComplete)
 
   // Video lessons are considered complete once visited — no interactive gate required.
   useEffect(() => {
@@ -142,7 +145,7 @@ export default function LessonPage({ params }: LessonPageProps) {
           <ExerciseView
             lessonId={lesson.id}
             exerciseConfig={lesson.exerciseConfig!}
-            onComplete={handleComplete}
+            onComplete={handleExerciseComplete}
           />
         )}
 
@@ -152,7 +155,7 @@ export default function LessonPage({ params }: LessonPageProps) {
               <LessonQuiz
                 lessonId={lesson.id}
                 quizConfig={lesson.quizConfig!}
-                onPass={handleComplete}
+                onPass={handleQuizPass}
               />
             </div>
           </div>
@@ -160,11 +163,11 @@ export default function LessonPage({ params }: LessonPageProps) {
 
         {lesson.lessonType === 'mixed' && (
           <>
-            {hasExercise && !exerciseComplete && (
+            {hasExercise && (!exerciseComplete || !hasQuiz) && (
               <ExerciseView
                 lessonId={lesson.id}
                 exerciseConfig={lesson.exerciseConfig!}
-                onComplete={handleComplete}
+                onComplete={handleExerciseComplete}
                 videoUrl={!hasQuiz ? lesson.videoUrl : undefined}
                 description={!hasQuiz ? lesson.description : undefined}
               />
@@ -176,7 +179,7 @@ export default function LessonPage({ params }: LessonPageProps) {
                   <LessonQuiz
                     lessonId={lesson.id}
                     quizConfig={lesson.quizConfig!}
-                    onPass={() => setQuizComplete(true)}
+                    onPass={handleQuizPass}
                   />
                 </div>
               </div>
@@ -188,7 +191,7 @@ export default function LessonPage({ params }: LessonPageProps) {
                   <LessonQuiz
                     lessonId={lesson.id}
                     quizConfig={lesson.quizConfig!}
-                    onPass={handleComplete}
+                    onPass={handleQuizPass}
                   />
                 </div>
               </div>
