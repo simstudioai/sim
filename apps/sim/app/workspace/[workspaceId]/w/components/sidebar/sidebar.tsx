@@ -102,8 +102,9 @@ const logger = createLogger('Sidebar')
 
 function SidebarItemSkeleton() {
   return (
-    <div className='sidebar-collapse-hide mx-0.5 flex h-[30px] items-center px-2'>
-      <Skeleton className='h-[24px] w-full rounded-sm' />
+    <div className='sidebar-collapse-hide mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2'>
+      <Skeleton className='h-[16px] w-[16px] flex-shrink-0 rounded-sm' />
+      <Skeleton className='h-[14px] w-full rounded-sm' />
     </div>
   )
 }
@@ -1030,7 +1031,7 @@ export const Sidebar = memo(function Sidebar() {
   const workflowsCollapsedIcon = useMemo(
     () => (
       <div
-        className='h-[16px] w-[16px] flex-shrink-0 rounded-[3px] border-[2px]'
+        className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
         style={workflowIconStyle}
       />
     ),
@@ -1055,6 +1056,14 @@ export const Sidebar = memo(function Sidebar() {
 
   // Stable no-op for collapsed workflow context menu delete (never changes)
   const noop = useCallback(() => {}, [])
+
+  const handleExpandSidebar = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      toggleCollapsed()
+    },
+    [toggleCollapsed]
+  )
 
   // Stable callback for the "New task" button in expanded mode
   const handleNewTask = useCallback(
@@ -1198,34 +1207,14 @@ export const Sidebar = memo(function Sidebar() {
           <div className='flex h-full flex-col pt-3'>
             {/* Top bar: Logo + Collapse toggle */}
             <div className='flex flex-shrink-0 items-center pr-2 pb-2 pl-2.5'>
-              <div className='relative flex h-[30px] items-center'>
-                <Link
-                  href={`/workspace/${workspaceId}/home`}
-                  className='sidebar-collapse-hide sidebar-collapse-remove flex h-[30px] items-center rounded-[8px] px-1.5 hover-hover:bg-[var(--surface-hover)]'
-                  tabIndex={isCollapsed ? -1 : 0}
-                >
-                  {brand.logoUrl ? (
-                    <Image
-                      src={brand.logoUrl}
-                      alt={brand.name}
-                      width={16}
-                      height={16}
-                      className='h-[16px] w-[16px] object-contain'
-                      unoptimized
-                    />
-                  ) : (
-                    <Wordmark className='h-[16px] w-auto text-[var(--text-body)]' />
-                  )}
-                </Link>
-
+              <div className='flex h-[30px] items-center'>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <button
-                      type='button'
-                      onClick={toggleCollapsed}
-                      className='sidebar-collapse-show group absolute left-0 flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover-hover:bg-[var(--surface-hover)]'
-                      aria-label='Expand sidebar'
-                      tabIndex={isCollapsed ? 0 : -1}
+                    <Link
+                      href={`/workspace/${workspaceId}/home`}
+                      onClick={isCollapsed ? handleExpandSidebar : undefined}
+                      className='group flex h-[30px] items-center rounded-[8px] px-1.5 hover-hover:bg-[var(--surface-hover)]'
+                      aria-label={isCollapsed ? 'Expand sidebar' : brand.name}
                     >
                       {brand.logoUrl ? (
                         <Image
@@ -1233,16 +1222,23 @@ export const Sidebar = memo(function Sidebar() {
                           alt={brand.name}
                           width={16}
                           height={16}
-                          className='h-[16px] w-[16px] object-contain group-hover:hidden'
+                          className={cn(
+                            'h-[16px] w-[16px] flex-shrink-0 object-contain',
+                            isCollapsed && 'group-hover:hidden'
+                          )}
                           unoptimized
                         />
+                      ) : isCollapsed ? (
+                        <Sim className='h-[16px] w-[16px] flex-shrink-0 group-hover:hidden' />
                       ) : (
-                        <Sim className='h-[16px] w-[16px] text-[var(--text-icon)] group-hover:hidden' />
+                        <Wordmark className='h-[16px] w-auto text-[var(--text-body)]' />
                       )}
-                      <PanelLeft className='hidden h-[16px] w-[16px] rotate-180 text-[var(--text-icon)] group-hover:block' />
-                    </button>
+                      {isCollapsed && (
+                        <PanelLeft className='hidden h-[16px] w-[16px] flex-shrink-0 rotate-180 text-[var(--text-icon)] group-hover:block' />
+                      )}
+                    </Link>
                   </Tooltip.Trigger>
-                  {isCollapsed && (
+                  {showCollapsedTooltips && (
                     <Tooltip.Content side='right'>
                       <p>Expand sidebar</p>
                     </Tooltip.Content>
@@ -1272,7 +1268,7 @@ export const Sidebar = memo(function Sidebar() {
             </div>
 
             {/* Workspace Header */}
-            <div className='flex-shrink-0 px-2.5'>
+            <div className='flex-shrink-0 pr-2.5 pl-[9px]'>
               <WorkspaceHeader
                 activeWorkspace={activeWorkspace}
                 workspaceId={workspaceId}

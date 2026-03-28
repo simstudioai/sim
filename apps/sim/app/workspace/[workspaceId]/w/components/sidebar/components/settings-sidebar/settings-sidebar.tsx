@@ -210,7 +210,7 @@ export function SettingsSidebar({
       {/* Settings sections */}
       <div
         className={cn(
-          'mt-3.5 flex flex-1 flex-col gap-3.5',
+          'mt-3.5 flex flex-1 flex-col gap-3.5 pb-2',
           !isCollapsed && 'overflow-y-auto overflow-x-hidden'
         )}
       >
