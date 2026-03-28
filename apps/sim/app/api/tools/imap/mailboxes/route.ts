@@ -37,7 +37,8 @@ export async function POST(request: NextRequest) {
     }
 
     const client = new ImapFlow({
-      host,
+      host: hostValidation.resolvedIP!,
+      servername: host,
       port: port || 993,
       secure: secure ?? true,
       auth: {
