@@ -25,7 +25,7 @@ const BEARER_PREFIX = 'Bearer '
 export function hasExternalApiCredentials(headers: Headers): boolean {
   if (headers.has(API_KEY_HEADER)) return true
   const auth = headers.get('authorization')
-  return auth !== null && auth.startsWith(BEARER_PREFIX)
+  return auth?.startsWith(BEARER_PREFIX) ?? false
 }
 
 export interface AuthResult {
