@@ -467,7 +467,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         })
 
         if (abortController.signal.aborted) {
-          logger.error(
+          logger.info(
             appendCopilotLogContext('Stream aborted by explicit stop', { requestId, messageId })
           )
           await eventWriter.close().catch(() => {})
@@ -483,7 +483,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             'An unexpected error occurred while processing the response.'
 
           if (clientDisconnected) {
-            logger.error(
+            logger.info(
               appendCopilotLogContext('Stream failed after client disconnect', {
                 requestId,
                 messageId,
@@ -539,7 +539,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         }
       } catch (error) {
         if (abortController.signal.aborted) {
-          logger.error(
+          logger.info(
             appendCopilotLogContext('Stream aborted by explicit stop', { requestId, messageId })
           )
           await eventWriter.close().catch(() => {})
@@ -548,7 +548,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           return
         }
         if (clientDisconnected) {
-          logger.error(
+          logger.info(
             appendCopilotLogContext('Stream errored after client disconnect', {
               requestId,
               messageId,
