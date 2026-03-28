@@ -38,6 +38,9 @@ function scoreQuiz(questions: QuizQuestion[], answers: Answers, passingScore: nu
   return { score, passed: score >= passingScore, feedback }
 }
 
+const optionBase =
+  'w-full text-left rounded-[6px] border px-4 py-3 text-[14px] transition-colors disabled:cursor-default'
+
 /**
  * Interactive quiz component with per-question feedback and retry support.
  * Scoring is performed entirely client-side.
@@ -46,11 +49,12 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
   const [answers, setAnswers] = useState<Answers>({})
   const [result, setResult] = useState<QuizResult | null>(null)
 
-  const handleAnswer = (qi: number, value: number | number[] | boolean) => {
-    setAnswers((prev) => ({ ...prev, [qi]: value }))
+  const handleAnswer = (qi: number, value: number | boolean) => {
+    if (!result) setAnswers((prev) => ({ ...prev, [qi]: value }))
   }
 
   const handleMultiSelect = (qi: number, oi: number) => {
+    if (result) return
     setAnswers((prev) => {
       const current = (prev[qi] as number[] | undefined) ?? []
       const next = current.includes(oi) ? current.filter((i) => i !== oi) : [...current, oi]
@@ -61,9 +65,9 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
   const allAnswered = quizConfig.questions.every((_, i) => answers[i] !== undefined)
 
   const handleSubmit = () => {
-    const result = scoreQuiz(quizConfig.questions, answers, quizConfig.passingScore)
-    setResult(result)
-    if (result.passed) {
+    const scored = scoreQuiz(quizConfig.questions, answers, quizConfig.passingScore)
+    setResult(scored)
+    if (scored.passed) {
       markLessonComplete(lessonId)
       onPass?.()
     }
@@ -89,10 +93,13 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
             {q.type === 'multiple_choice' && (
               <div className='space-y-2'>
                 {q.options.map((opt, oi) => (
-                  <label
+                  <button
                     key={oi}
+                    type='button'
+                    onClick={() => handleAnswer(qi, oi)}
+                    disabled={Boolean(result)}
                     className={cn(
-                      'flex cursor-pointer items-center gap-3 rounded-[6px] border px-4 py-3 text-[14px] transition-colors',
+                      optionBase,
                       answers[qi] === oi
                         ? 'border-[#ECECEC]/40 bg-[#ECECEC]/5 text-[#ECECEC]'
                         : 'border-[#2A2A2A] text-[#999] hover:border-[#3A3A3A] hover:bg-[#272727]',
@@ -105,16 +112,8 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
                         'border-[#f44336]/40 bg-[#f44336]/5 text-[#f44336]'
                     )}
                   >
-                    <input
-                      type='radio'
-                      name={`q-${qi}`}
-                      checked={answers[qi] === oi}
-                      onChange={() => handleAnswer(qi, oi)}
-                      disabled={Boolean(result)}
-                      className='sr-only'
-                    />
                     {opt}
-                  </label>
+                  </button>
                 ))}
               </div>
             )}
@@ -124,10 +123,13 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
                 {(['True', 'False'] as const).map((label) => {
                   const val = label === 'True'
                   return (
-                    <label
+                    <button
                       key={label}
+                      type='button'
+                      onClick={() => handleAnswer(qi, val)}
+                      disabled={Boolean(result)}
                       className={cn(
-                        'flex flex-1 cursor-pointer items-center justify-center rounded-[6px] border px-4 py-3 text-[14px] transition-colors',
+                        'flex-1 rounded-[6px] border px-4 py-3 text-[14px] transition-colors disabled:cursor-default',
                         answers[qi] === val
                           ? 'border-[#ECECEC]/40 bg-[#ECECEC]/5 text-[#ECECEC]'
                           : 'border-[#2A2A2A] text-[#999] hover:border-[#3A3A3A] hover:bg-[#272727]',
@@ -140,16 +142,8 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
                           'border-[#f44336]/40 bg-[#f44336]/5 text-[#f44336]'
                       )}
                     >
-                      <input
-                        type='radio'
-                        name={`q-${qi}`}
-                        checked={answers[qi] === val}
-                        onChange={() => handleAnswer(qi, val)}
-                        disabled={Boolean(result)}
-                        className='sr-only'
-                      />
                       {label}
-                    </label>
+                    </button>
                   )
                 })}
               </div>
@@ -160,10 +154,13 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
                 {q.options.map((opt, oi) => {
                   const selected = ((answers[qi] as number[]) ?? []).includes(oi)
                   return (
-                    <label
+                    <button
                       key={oi}
+                      type='button'
+                      onClick={() => handleMultiSelect(qi, oi)}
+                      disabled={Boolean(result)}
                       className={cn(
-                        'flex cursor-pointer items-center gap-3 rounded-[6px] border px-4 py-3 text-[14px] transition-colors',
+                        optionBase,
                         selected
                           ? 'border-[#ECECEC]/40 bg-[#ECECEC]/5 text-[#ECECEC]'
                           : 'border-[#2A2A2A] text-[#999] hover:border-[#3A3A3A] hover:bg-[#272727]',
@@ -176,15 +173,8 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
                           'border-[#f44336]/40 bg-[#f44336]/5 text-[#f44336]'
                       )}
                     >
-                      <input
-                        type='checkbox'
-                        checked={selected}
-                        onChange={() => handleMultiSelect(qi, oi)}
-                        disabled={Boolean(result)}
-                        className='h-3.5 w-3.5 accent-[#ECECEC]'
-                      />
                       {opt}
-                    </label>
+                    </button>
                   )
                 })}
               </div>

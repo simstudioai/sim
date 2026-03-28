@@ -17,5 +17,9 @@ export const metadata: Metadata = {
 }
 
 export default function AcademyLayout({ children }: { children: React.ReactNode }) {
-  return <div className='bg-[#1C1C1C] font-[430] font-season text-[#ECECEC]'>{children}</div>
+  return (
+    <div className='min-h-screen bg-[#1C1C1C] font-[430] font-season text-[#ECECEC]'>
+      {children}
+    </div>
+  )
 }
