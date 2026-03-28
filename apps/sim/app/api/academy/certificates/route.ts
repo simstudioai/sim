@@ -5,7 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getCourse } from '@/lib/academy/content'
+import { getCourseById } from '@/lib/academy/content'
 import type { CertificateMetadata } from '@/lib/academy/types'
 import { getSession } from '@/lib/auth'
 
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     const { courseId } = parsed.data
 
-    const course = getCourse(courseId)
+    const course = getCourseById(courseId)
 
     const [existing, learner] = await Promise.all([
       db

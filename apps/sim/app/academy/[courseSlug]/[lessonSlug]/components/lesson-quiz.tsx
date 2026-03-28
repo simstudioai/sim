@@ -61,11 +61,9 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
   const allAnswered = quizConfig.questions.every((_, i) => answers[i] !== undefined)
 
   const handleSubmit = () => {
-    const scored = scoreQuiz(quizConfig.questions, answers, quizConfig.passingScore)
-    const passed = scored.score >= quizConfig.passingScore
-    const finalResult = { ...scored, passed }
-    setResult(finalResult)
-    if (passed) {
+    const result = scoreQuiz(quizConfig.questions, answers, quizConfig.passingScore)
+    setResult(result)
+    if (result.passed) {
       markLessonComplete(lessonId)
       onPass?.()
     }

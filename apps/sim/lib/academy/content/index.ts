@@ -7,3 +7,7 @@ export const COURSES: Course[] = [simFoundations]
 export function getCourse(slug: string): Course | undefined {
   return COURSES.find((c) => c.slug === slug)
 }
+
+export function getCourseById(id: string): Course | undefined {
+  return COURSES.find((c) => c.id === id)
+}

@@ -5,7 +5,6 @@ import { COURSES } from '@/lib/academy/content'
 export default function AcademyCatalogPage() {
   return (
     <main>
-      {/* Hero */}
       <section className='border-[#2A2A2A] border-b px-4 py-20 sm:px-8 md:px-[80px]'>
         <div className='mx-auto max-w-3xl'>
           <div className='mb-3 text-[#999] text-[13px] uppercase tracking-[0.12em]'>
@@ -23,7 +22,6 @@ export default function AcademyCatalogPage() {
         </div>
       </section>
 
-      {/* Course catalog */}
       <section className='px-4 py-16 sm:px-8 md:px-[80px]'>
         <div className='mx-auto max-w-6xl'>
           <h2 className='mb-8 text-[#999] text-[13px] uppercase tracking-[0.12em]'>Courses</h2>
