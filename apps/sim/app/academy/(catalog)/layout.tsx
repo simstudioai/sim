@@ -7,10 +7,10 @@ export default async function AcademyCatalogLayout({ children }: { children: Rea
   const blogPosts = await getNavBlogPosts()
 
   return (
-    <>
+    <div className='min-h-screen'>
       <Navbar blogPosts={blogPosts} />
       {children}
       <Footer hideCTA />
-    </>
+    </div>
   )
 }
