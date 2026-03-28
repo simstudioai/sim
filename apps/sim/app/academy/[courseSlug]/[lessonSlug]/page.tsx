@@ -1,10 +1,11 @@
 'use client'
 
-import { use, useCallback, useMemo, useState } from 'react'
+import { use, useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { getCourse } from '@/lib/academy/content'
+import { markLessonComplete } from '@/lib/academy/local-progress'
 import type { Lesson } from '@/lib/academy/types'
 import { LessonVideo } from '@/app/academy/components/lesson-video'
 import { ExerciseView } from './components/exercise-view'
@@ -34,6 +35,13 @@ export default function LessonPage({ params }: LessonPageProps) {
 
   const handleComplete = useCallback(() => setExerciseComplete(true), [])
   const canAdvance = (!lesson?.exerciseConfig && !lesson?.quizConfig) || exerciseComplete
+
+  // Video lessons are considered complete once visited — no interactive gate required.
+  useEffect(() => {
+    if (lesson?.lessonType === 'video') {
+      markLessonComplete(lesson.id)
+    }
+  }, [lesson?.id, lesson?.lessonType])
 
   if (!course || !lesson) {
     return (

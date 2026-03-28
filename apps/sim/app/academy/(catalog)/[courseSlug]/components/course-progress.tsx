@@ -138,7 +138,7 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                   </button>
                 ) : (
                   <Link
-                    href='/sign-in'
+                    href='/login'
                     className='rounded-[5px] bg-[#ECECEC] px-4 py-2 font-[430] text-[#1C1C1C] text-[13px] transition-colors hover:bg-white'
                   >
                     Sign in
