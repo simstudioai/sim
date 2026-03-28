@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useCallback, useEffect, useMemo, useState } from 'react'
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -22,6 +22,12 @@ export default function LessonPage({ params }: LessonPageProps) {
   const { courseSlug, lessonSlug } = use(params)
   const course = getCourse(courseSlug)
   const [exerciseComplete, setExerciseComplete] = useState(false)
+  // Reset completion state when the lesson changes (Next.js reuses the component across navigations).
+  const prevLessonSlugRef = useRef(lessonSlug)
+  if (prevLessonSlugRef.current !== lessonSlug) {
+    prevLessonSlugRef.current = lessonSlug
+    setExerciseComplete(false)
+  }
 
   const allLessons = useMemo<Lesson[]>(
     () => course?.modules.flatMap((m) => m.lessons) ?? [],
