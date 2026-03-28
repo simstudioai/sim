@@ -237,7 +237,7 @@ describe('Knowledge Connector By ID API Route', () => {
         .mockReturnValueOnce(mockDbChain)
         .mockResolvedValueOnce([{ id: 'doc-1', fileUrl: '/api/uploads/test.txt' }])
         .mockReturnValueOnce(mockDbChain)
-      mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456' }])
+      mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456', connectorType: 'jira' }])
       mockDbChain.returning.mockResolvedValueOnce([{ id: 'conn-456' }])
 
       const req = createMockRequest('DELETE')

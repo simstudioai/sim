@@ -1,5 +1,14 @@
 import path from 'path'
 
+/**
+ * Checks whether a string is a valid file extension (lowercase alphanumeric only).
+ * Rejects extensions containing spaces, punctuation, or other non-alphanumeric characters
+ * that arise from non-filename document names (e.g. "Sim.ai <> RVTech").
+ */
+export function isAlphanumericExtension(ext: string): boolean {
+  return /^[a-z0-9]+$/.test(ext)
+}
+
 export const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
 export const SUPPORTED_DOCUMENT_EXTENSIONS = [
@@ -138,7 +147,7 @@ export interface FileValidationError {
  */
 export function validateFileType(fileName: string, mimeType: string): FileValidationError | null {
   const raw = path.extname(fileName).toLowerCase().substring(1)
-  const extension = (/^[a-z0-9]+$/.test(raw) ? raw : '') as SupportedDocumentExtension
+  const extension = (isAlphanumericExtension(raw) ? raw : '') as SupportedDocumentExtension
 
   if (!SUPPORTED_DOCUMENT_EXTENSIONS.includes(extension)) {
     return {
@@ -223,7 +232,7 @@ export function validateMediaFileType(
   mimeType: string
 ): FileValidationError | null {
   const raw = path.extname(fileName).toLowerCase().substring(1)
-  const extension = /^[a-z0-9]+$/.test(raw) ? raw : ''
+  const extension = isAlphanumericExtension(raw) ? raw : ''
 
   const isAudio = SUPPORTED_AUDIO_EXTENSIONS.includes(extension as SupportedAudioExtension)
   const isVideo = SUPPORTED_VIDEO_EXTENSIONS.includes(extension as SupportedVideoExtension)
