@@ -237,11 +237,6 @@ const MarkdownPreview = memo(function MarkdownPreview({
     [onCheckboxToggle]
   )
 
-  const committedCheckboxCount = useMemo(
-    () => (committed ? (committed.match(/^[ \t]*(?:[-*+]|\d+[.)]) +\[[ xX]\]/gm) ?? []).length : 0),
-    [committed]
-  )
-
   checkboxCounterRef.current = 0
 
   const committedMarkdown = useMemo(
@@ -253,8 +248,6 @@ const MarkdownPreview = memo(function MarkdownPreview({
       ) : null,
     [committed, components]
   )
-
-  checkboxCounterRef.current = committedCheckboxCount
 
   return (
     <div ref={scrollRef} className='h-full overflow-auto p-6'>
