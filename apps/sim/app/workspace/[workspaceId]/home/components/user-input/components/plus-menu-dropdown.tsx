@@ -46,7 +46,8 @@ export const PlusMenuDropdown = React.memo(
         setAnchorPos(anchor)
       } else {
         const rect = buttonRef.current?.getBoundingClientRect()
-        if (rect) setAnchorPos({ left: rect.left, top: rect.bottom })
+        if (!rect) return
+        setAnchorPos({ left: rect.left, top: rect.top })
       }
       setOpen(true)
       setSearch('')

@@ -59,6 +59,8 @@ function getCaretAnchor(
 
   const mirror = document.createElement('div')
   mirror.style.position = 'absolute'
+  mirror.style.top = '0'
+  mirror.style.left = '0'
   mirror.style.visibility = 'hidden'
   mirror.style.whiteSpace = 'pre-wrap'
   mirror.style.overflowWrap = 'break-word'
