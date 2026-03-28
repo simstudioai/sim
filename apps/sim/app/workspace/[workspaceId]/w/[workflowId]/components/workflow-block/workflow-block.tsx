@@ -855,13 +855,14 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   data,
   selected,
 }: NodeProps<WorkflowBlockProps>) {
-  const { type, config, name, isPending } = data
+  const { type, config, name, isPending, isSandbox } = data
 
   const contentRef = useRef<HTMLDivElement>(null)
 
   const params = useParams()
-  const currentWorkflowId = params.workflowId as string
-  const workspaceId = params.workspaceId as string
+  // In sandbox mode pass empty strings so all workspace-scoped queries are disabled
+  const currentWorkflowId = isSandbox ? '' : (params.workflowId as string)
+  const workspaceId = isSandbox ? '' : (params.workspaceId as string)
 
   const {
     currentWorkflow,

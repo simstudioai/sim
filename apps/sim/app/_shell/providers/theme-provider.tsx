@@ -25,6 +25,10 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
     pathname.startsWith('/form') ||
     pathname.startsWith('/oauth')
 
+  const isDarkModePage = pathname.startsWith('/academy')
+
+  const forcedTheme = isLightModePage ? 'light' : isDarkModePage ? 'dark' : undefined
+
   return (
     <NextThemesProvider
       attribute='class'
@@ -32,7 +36,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
       enableSystem
       disableTransitionOnChange
       storageKey='sim-theme'
-      forcedTheme={isLightModePage ? 'light' : undefined}
+      forcedTheme={forcedTheme}
       {...props}
     >
       {children}
