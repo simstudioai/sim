@@ -286,16 +286,16 @@ export const simFoundations: Course = {
               {
                 type: 'multiple_choice',
                 question:
-                  'You define a Response Format with a field called "sentiment". How do you reference it in a downstream block?',
+                  'You define a Response Format with a field called "sentiment" on an Agent block. What happens to that field?',
                 options: [
-                  '<response.sentiment>',
-                  '<agent.output.sentiment>',
-                  '<agent.sentiment>',
-                  '{{agent.sentiment}}',
+                  "It's only available inside the Agent block and can't be used downstream",
+                  'It becomes a named output on the Agent block, selectable via the reference picker in any downstream block',
+                  'It must be extracted manually using a Function block',
+                  "It's merged into the agent's plain-text content output",
                 ],
-                correctIndex: 2,
+                correctIndex: 1,
                 explanation:
-                  'Fields from a structured Response Format become top-level outputs on the Agent block. You reference them with <blockId.fieldName> — so if your block is named "agent", it\'s <agent.sentiment>.',
+                  "Fields defined in a Response Format become individual outputs on the Agent block — instead of just a single 'content' string, you get 'sentiment', 'score', etc. as separate values. In any downstream block, type < to open the reference picker and select exactly the field you need.",
               },
               {
                 type: 'multiple_choice',
@@ -356,7 +356,7 @@ export const simFoundations: Course = {
             'Chain two Agent blocks together so the output of the first flows into the second.',
           exerciseConfig: {
             instructions:
-              "Add two Agent blocks to the canvas. Connect the Starter to the first Agent, then connect the first Agent to the second Agent. This creates a pipeline where the first agent's output flows into the second. In the second agent's system prompt, reference the first agent's output using <agent-1.content>.",
+              "Add two Agent blocks to the canvas. Connect the Starter to the first Agent, then the first Agent to the second Agent. This creates a pipeline where data flows through both agents in sequence. In the second agent's Messages field, type < to open the reference picker and select the first agent's output — this is how any block feeds its result into the next one.",
             availableBlocks: ['agent'],
             initialBlocks: [
               {
@@ -389,7 +389,7 @@ export const simFoundations: Course = {
             hints: [
               'Drag two Agent blocks onto the canvas and position them left to right.',
               'Connect Starter → Agent 1 first, then Agent 1 → Agent 2.',
-              "In the second agent's system prompt, you can reference the first agent's output using <agent-1.content>.",
+              "In the second agent's Messages field, type < to open the reference picker and select the first agent's output.",
             ],
             mockOutputs: {
               starter: { response: { result: 'Workflow started' }, delay: 200 },
@@ -425,7 +425,7 @@ export const simFoundations: Course = {
           title: 'Parallel Execution & Loops',
           lessonType: 'video',
           description:
-            'How to run multiple branches simultaneously with fan-out, and how to build iterative workflows using the Workflow block.',
+            'How to run branches simultaneously with fan-out, how the Loop block iterates over a list one item at a time, and how the Parallel block processes all items in a list concurrently.',
           videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
           videoDurationSeconds: 180,
         },
@@ -438,7 +438,7 @@ export const simFoundations: Course = {
             'Build a workflow that routes to different Agent blocks depending on whether a condition is true or false.',
           exerciseConfig: {
             instructions:
-              "Build a branching workflow: connect the Starter to a Condition block, then connect the Condition's true path to one Agent and its false path to another Agent. The Condition block evaluates a JavaScript expression and sends execution down the matching branch.",
+              "Build a branching workflow. First, add a Condition block and connect the Starter to it. Then add two Agent blocks and connect one to each of the Condition's output handles — the top handle is the true branch, the bottom handle is the false branch. The Condition evaluates a JavaScript expression and routes execution to whichever branch matches.",
             availableBlocks: ['condition', 'agent'],
             initialBlocks: [
               {
@@ -474,9 +474,9 @@ export const simFoundations: Course = {
               },
             ],
             hints: [
-              'Add a Condition block first — it has two output handles: one for true, one for false.',
-              'Connect Starter → Condition, then add two Agent blocks and wire one to each output handle.',
-              'Click the Condition block to write your expression — try: true (always routes to the true branch while testing).',
+              'Add a Condition block — it shows two output handles on the right: the top one is the true branch, the bottom one is the false branch.',
+              'Connect Starter → Condition first, then add two Agent blocks and drag one connection from each output handle to an Agent.',
+              "Click the Condition block to set your expression. Try `true` to always take the true branch while you're testing the wiring.",
             ],
             mockOutputs: {
               starter: { response: { result: 'Workflow started' }, delay: 200 },
@@ -543,20 +543,20 @@ export const simFoundations: Course = {
                 ],
                 correctIndex: 1,
                 explanation:
-                  "Fan-out: connect one block's output to multiple downstream blocks. All connected blocks start simultaneously once the source completes.",
+                  "Fan-out: connect one block's output to multiple downstream blocks and all of them start at the same time once the source finishes. The dedicated Parallel block is different — it's a subflow container that iterates over a list and runs its inner blocks once per item, concurrently.",
               },
               {
                 type: 'multiple_choice',
-                question: 'How are loops typically implemented in Sim?',
+                question: 'How do you iterate over a list of items in Sim?',
                 options: [
-                  'Using a dedicated Loop block with a counter sub-block',
+                  'Use the Loop block — a subflow container that runs its inner blocks once for each item in a list',
                   'By drawing an edge from a block back to an earlier block on the canvas',
-                  'Using the Workflow block to call a child workflow that repeats until a condition exits',
+                  'Use the Condition block with a counter variable that increments each pass',
                   'Loops are not supported in Sim',
                 ],
-                correctIndex: 2,
+                correctIndex: 0,
                 explanation:
-                  'Loops in Sim are built using a Workflow block that calls a child workflow, which can call itself again — creating recursion. A Condition block inside the child workflow acts as the exit condition.',
+                  'Sim has a dedicated Loop block — a subflow container. You place the blocks you want to repeat inside it, point it at a list, and it runs those inner blocks once per item. Inside the loop, <loop.currentItem> gives you the current item and <loop.index> gives you the position.',
               },
             ],
           },
@@ -638,7 +638,7 @@ export const simFoundations: Course = {
             'Build a complete workflow from scratch: an Agent with a configured system prompt, routing logic via a Condition block, and separate handlers for each branch.',
           exerciseConfig: {
             instructions:
-              'Build a complete workflow. Start by connecting an Agent to the Starter and giving it a system prompt. Then add a Condition block connected to the Agent. Finally, add two more Agent blocks — one for the true branch and one for the false branch. This is the pattern behind most real Sim deployments.',
+              "Build a complete multi-step workflow from scratch. Step 1: drag an Agent block onto the canvas and connect the Starter to it — this is your main processing agent. Step 2: click the Agent and add a system prompt in the Messages field. Step 3: add a Condition block and connect your Agent to it. Step 4: add two more Agent blocks and connect one to the Condition's true output and one to its false output. This pattern — intake → process → branch → handle — is the foundation of most real Sim deployments.",
             availableBlocks: ['agent', 'condition'],
             initialBlocks: [
               {
