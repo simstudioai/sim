@@ -161,7 +161,7 @@ export function CollapsedSidebarMenu({
             <button
               type='button'
               aria-label={ariaLabel}
-              className='mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 hover-hover:bg-[var(--surface-hover)]'
+              className='mx-0.5 flex h-[30px] items-center rounded-lg px-2 hover-hover:bg-[var(--surface-hover)]'
             >
               {icon}
             </button>
