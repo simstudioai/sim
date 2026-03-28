@@ -62,7 +62,11 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
     })
   }
 
-  const allAnswered = quizConfig.questions.every((_, i) => answers[i] !== undefined)
+  const allAnswered = quizConfig.questions.every((q, i) => {
+    if (q.type === 'multi_select')
+      return Array.isArray(answers[i]) && (answers[i] as number[]).length > 0
+    return answers[i] !== undefined
+  })
 
   const handleSubmit = () => {
     const scored = scoreQuiz(quizConfig.questions, answers, quizConfig.passingScore)

@@ -196,6 +196,8 @@ export function SandboxCanvasProvider({
   }, [workflowId, exerciseConfig.validationRules])
 
   useEffect(() => {
+    completedRef.current = false
+
     const workflowState = buildWorkflowState(
       exerciseConfig.initialBlocks ?? [],
       exerciseConfig.initialEdges ?? []

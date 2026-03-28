@@ -2,7 +2,7 @@ import { cache } from 'react'
 import { db } from '@sim/db'
 import { academyCertificate } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
-import { CheckCircle2, GraduationCap } from 'lucide-react'
+import { CheckCircle2, GraduationCap, XCircle } from 'lucide-react'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import type { AcademyCertificate } from '@/lib/academy/types'
@@ -77,10 +77,17 @@ export default async function CertificatePage({ params }: CertificatePageProps) 
             </p>
           )}
 
-          <div className='flex items-center justify-center gap-2 text-[#4CAF50]'>
-            <CheckCircle2 className='h-4 w-4' />
-            <span className='font-[430] text-[14px]'>Verified</span>
-          </div>
+          {certificate.status === 'active' ? (
+            <div className='flex items-center justify-center gap-2 text-[#4CAF50]'>
+              <CheckCircle2 className='h-4 w-4' />
+              <span className='font-[430] text-[14px]'>Verified</span>
+            </div>
+          ) : (
+            <div className='flex items-center justify-center gap-2 text-[#f44336]'>
+              <XCircle className='h-4 w-4' />
+              <span className='font-[430] text-[14px] capitalize'>{certificate.status}</span>
+            </div>
+          )}
         </div>
 
         <div className='mt-6 divide-y divide-[#2A2A2A] rounded-[8px] border border-[#2A2A2A] bg-[#222]'>
