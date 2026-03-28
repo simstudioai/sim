@@ -113,9 +113,29 @@ export async function POST(req: NextRequest) {
         certificateNumber,
         metadata,
       })
+      .onConflictDoNothing()
       .returning()
 
     if (!certificate) {
+      const [race] = await db
+        .select()
+        .from(academyCertificate)
+        .where(
+          and(
+            eq(academyCertificate.userId, session.user.id),
+            eq(academyCertificate.courseId, courseId)
+          )
+        )
+        .limit(1)
+      if (race?.status === 'active') {
+        return NextResponse.json({ certificate: race })
+      }
+      if (race) {
+        return NextResponse.json(
+          { error: 'A certificate for this course already exists but is not active.' },
+          { status: 409 }
+        )
+      }
       return NextResponse.json({ error: 'Failed to issue certificate' }, { status: 500 })
     }
 

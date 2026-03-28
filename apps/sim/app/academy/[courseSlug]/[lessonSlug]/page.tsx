@@ -51,12 +51,15 @@ export default function LessonPage({ params }: LessonPageProps) {
         ? exerciseComplete
         : quizComplete)
 
-  // Video lessons are considered complete once visited — no interactive gate required.
+  const isUngatedLesson =
+    lesson?.lessonType === 'video' ||
+    (lesson?.lessonType === 'mixed' && !lesson.exerciseConfig && !lesson.quizConfig)
+
   useEffect(() => {
-    if (lesson?.lessonType === 'video') {
+    if (isUngatedLesson && lesson) {
       markLessonComplete(lesson.id)
     }
-  }, [lesson?.id, lesson?.lessonType])
+  }, [lesson?.id, isUngatedLesson])
 
   if (!course || !lesson) {
     return (
