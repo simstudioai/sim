@@ -716,10 +716,13 @@ function PptxPreview({
 
 function toggleMarkdownCheckbox(markdown: string, targetIndex: number, checked: boolean): string {
   let currentIndex = 0
-  return markdown.replace(/^(\s*[-*+]\s+)\[([ xX])\]/gm, (match, prefix: string) => {
-    if (currentIndex++ !== targetIndex) return match
-    return `${prefix}[${checked ? 'x' : ' '}]`
-  })
+  return markdown.replace(
+    /^(\s*(?:[-*+]|\d+[.)]) +)\[([ xX])\]/gm,
+    (match, prefix: string) => {
+      if (currentIndex++ !== targetIndex) return match
+      return `${prefix}[${checked ? 'x' : ' '}]`
+    }
+  )
 }
 
 const UnsupportedPreview = memo(function UnsupportedPreview({
