@@ -34,7 +34,7 @@ export type WindowWithSpeech = Window & {
 }
 
 export interface PlusMenuHandle {
-  open: () => void
+  open: (anchor?: { left: number; top: number }) => void
 }
 
 export const TEXTAREA_BASE_CLASSES = cn(
