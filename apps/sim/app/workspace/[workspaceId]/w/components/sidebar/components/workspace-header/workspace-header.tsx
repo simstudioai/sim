@@ -343,7 +343,7 @@ export function WorkspaceHeader({
                 type='button'
                 aria-label='Switch workspace'
                 className={cn(
-                  'group flex h-[32px] min-w-0 items-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] pl-1.5 transition-colors hover-hover:bg-[var(--surface-5)]',
+                  'group flex h-[32px] min-w-0 items-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] pl-[5px] transition-colors hover-hover:bg-[var(--surface-5)]',
                   isCollapsed ? 'w-[32px]' : 'w-full cursor-pointer gap-2 pr-2'
                 )}
                 title={activeWorkspace?.name || 'Loading...'}
