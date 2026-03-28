@@ -104,6 +104,8 @@ export async function createSftpConnection(config: SftpConnectionConfig): Promis
     throw new Error(hostValidation.error)
   }
 
+  const resolvedHost = hostValidation.resolvedIP ?? host.trim()
+
   return new Promise((resolve, reject) => {
     const client = new Client()
     const port = config.port || 22
@@ -117,7 +119,7 @@ export async function createSftpConnection(config: SftpConnectionConfig): Promis
     }
 
     const connectConfig: ConnectConfig = {
-      host: host.trim(),
+      host: resolvedHost,
       port,
       username: config.username,
     }
