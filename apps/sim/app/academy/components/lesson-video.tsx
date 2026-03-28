@@ -10,7 +10,7 @@ export function LessonVideo({ url, title }: LessonVideoProps) {
 
   if (!embedUrl) {
     return (
-      <div className='flex aspect-video items-center justify-center rounded-lg bg-muted text-muted-foreground text-sm'>
+      <div className='flex aspect-video items-center justify-center rounded-lg bg-[#1A1A1A] text-[#666] text-sm'>
         Video unavailable
       </div>
     )
