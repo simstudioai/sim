@@ -1275,7 +1275,7 @@ export const document = pgTable(
 
     // Connector-sourced document fields
     connectorId: text('connector_id').references(() => knowledgeConnector.id, {
-      onDelete: 'cascade',
+      onDelete: 'set null',
     }),
     externalId: text('external_id'),
     contentHash: text('content_hash'),
