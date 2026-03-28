@@ -62,8 +62,10 @@ spec:
               value: "service.name=sim-worker,service.version={{ .Chart.AppVersion }},deployment.environment={{ .Values.worker.env.NODE_ENV }}"
             {{- end }}
             {{- range $key, $value := .Values.worker.env }}
+            {{- if ne $key "WORKER_PORT" }}
             - name: {{ $key }}
               value: {{ $value | quote }}
+            {{- end }}
             {{- end }}
             {{- with .Values.extraEnvVars }}
             {{- toYaml . | nindent 12 }}
