@@ -292,7 +292,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Connector not found' }, { status: 404 })
     }
 
-    const deleteDocuments = request.nextUrl.searchParams.get('deleteDocuments') === 'true'
+    const { searchParams } = new URL(request.url)
+    const deleteDocuments = searchParams.get('deleteDocuments') === 'true'
 
     const { deletedDocs, docCount } = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT 1 FROM knowledge_connector WHERE id = ${connectorId} FOR UPDATE`)
