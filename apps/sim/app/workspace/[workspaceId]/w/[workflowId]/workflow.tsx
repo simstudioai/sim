@@ -330,7 +330,7 @@ const WorkflowContent = React.memo(
     const snapToGridSize = useSnapToGridSize()
     const snapToGrid = snapToGridSize > 0
 
-    const isAutoConnectEnabled = useAutoConnect()
+    const isAutoConnectEnabled = useAutoConnect() && !sandbox
     const autoConnectRef = useRef(isAutoConnectEnabled)
     autoConnectRef.current = isAutoConnectEnabled
 
