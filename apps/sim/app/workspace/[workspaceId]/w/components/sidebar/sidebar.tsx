@@ -1529,7 +1529,7 @@ export const Sidebar = memo(function Sidebar() {
                               {isCreatingWorkflow ? (
                                 <p>Creating workflow...</p>
                               ) : (
-                                <Tooltip.Shortcut keys={isMac ? '⌘⇧W' : 'Ctrl+Shift+W'}>
+                                <Tooltip.Shortcut keys={isMac ? '⌘⇧P' : 'Ctrl+Shift+P'}>
                                   New workflow
                                 </Tooltip.Shortcut>
                               )}

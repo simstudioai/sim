@@ -56,7 +56,7 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
   },
   'add-workflow': {
     id: 'add-workflow',
-    shortcut: 'Mod+Shift+W',
+    shortcut: 'Mod+Shift+P',
     allowInEditable: false,
   },
   'add-task': {
