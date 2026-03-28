@@ -42,7 +42,7 @@ services:
 
   sim-worker:
     image: ghcr.io/simstudioai/simstudio:latest
-    command: ['bun', 'run', 'worker']
+    command: ['bun', 'apps/sim/dist/worker.cjs']
     restart: unless-stopped
     deploy:
       resources:
@@ -71,7 +71,7 @@ services:
       migrations:
         condition: service_completed_successfully
     healthcheck:
-      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:${WORKER_PORT:-3001}/health']
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:${WORKER_PORT:-3001}/health/live']
       interval: 90s
       timeout: 5s
       retries: 3

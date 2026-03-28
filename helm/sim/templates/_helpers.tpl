@@ -118,6 +118,22 @@ app.kubernetes.io/component: ollama
 {{- end }}
 
 {{/*
+Worker specific labels
+*/}}
+{{- define "sim.worker.labels" -}}
+{{ include "sim.labels" . }}
+app.kubernetes.io/component: worker
+{{- end }}
+
+{{/*
+Worker selector labels
+*/}}
+{{- define "sim.worker.selectorLabels" -}}
+{{ include "sim.selectorLabels" . }}
+app.kubernetes.io/component: worker
+{{- end }}
+
+{{/*
 Migrations specific labels
 */}}
 {{- define "sim.migrations.labels" -}}
@@ -205,6 +221,10 @@ Skip validation when using existing secrets or External Secrets Operator
 {{- if and .Values.realtime.enabled (eq .Values.realtime.env.BETTER_AUTH_SECRET "CHANGE-ME-32-CHAR-SECRET-FOR-PRODUCTION-USE") }}
 {{- fail "realtime.env.BETTER_AUTH_SECRET must not use the default placeholder value. Generate a secure secret with: openssl rand -hex 32" }}
 {{- end }}
+{{- end }}
+{{- /* Worker validation - REDIS_URL is required when worker is enabled */ -}}
+{{- if and .Values.worker.enabled (not .Values.app.env.REDIS_URL) }}
+{{- fail "app.env.REDIS_URL is required when worker.enabled=true" }}
 {{- end }}
 {{- /* PostgreSQL password validation - skip if using existing secret or ESO */ -}}
 {{- if not (or $useExistingPostgresSecret $useExternalSecrets) }}

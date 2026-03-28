@@ -358,6 +358,56 @@ realtime:
   extraVolumes: []
   extraVolumeMounts: []
 
+# BullMQ worker configuration (processes background jobs when Redis is available)
+# Uses the same image as the main app with a different command
+worker:
+  # Enable/disable the worker deployment (requires REDIS_URL to be set in app.env)
+  enabled: false
+
+  # Image configuration (defaults to same image as app)
+  image:
+    repository: simstudioai/simstudio
+    tag: latest
+    pullPolicy: Always
+
+  # Number of replicas
+  replicaCount: 1
+
+  # Health check port (worker exposes a lightweight HTTP health server)
+  healthPort: 3001
+
+  # Resource limits and requests
+  resources:
+    limits:
+      memory: "4Gi"
+      cpu: "1000m"
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+
+  # Node selector for pod scheduling
+  nodeSelector: {}
+
+  # Pod security context
+  podSecurityContext:
+    fsGroup: 1001
+
+  # Container security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+
+  # Environment variables (worker-specific tuning)
+  env:
+    NODE_ENV: "production"
+    WORKER_CONCURRENCY_WORKFLOW: "50"
+    WORKER_CONCURRENCY_WEBHOOK: "30"
+    WORKER_CONCURRENCY_SCHEDULE: "20"
+    WORKER_CONCURRENCY_MOTHERSHIP_JOB: "10"
+    WORKER_CONCURRENCY_CONNECTOR_SYNC: "5"
+    WORKER_CONCURRENCY_DOCUMENT_PROCESSING: "20"
+    WORKER_CONCURRENCY_NOTIFICATION_DELIVERY: "10"
+
 # Database migrations job configuration
 migrations:
   # Enable/disable migrations job
