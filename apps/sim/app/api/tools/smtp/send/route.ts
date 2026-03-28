@@ -74,23 +74,23 @@ export async function POST(request: NextRequest) {
       secure: validatedData.smtpSecure,
     })
 
-    // Use the pre-resolved IP to prevent DNS rebinding attacks (TOCTOU).
-    // Set servername to the original hostname for correct TLS SNI/certificate validation.
-    const resolvedHost = hostValidation.resolvedIP ?? validatedData.smtpHost
-    const tlsOptions =
-      validatedData.smtpSecure === 'None'
-        ? { rejectUnauthorized: false, servername: validatedData.smtpHost }
-        : { rejectUnauthorized: true, servername: validatedData.smtpHost }
+    // Pin the pre-resolved IP to prevent DNS rebinding (TOCTOU) attacks.
+    // Pass resolvedIP as the host so nodemailer connects to the validated address,
+    // and set servername for correct TLS SNI/certificate validation.
+    const pinnedHost = hostValidation.resolvedIP ?? validatedData.smtpHost
 
     const transporter = nodemailer.createTransport({
-      host: resolvedHost,
+      host: pinnedHost,
       port: validatedData.smtpPort,
       secure: validatedData.smtpSecure === 'SSL',
       auth: {
         user: validatedData.smtpUsername,
         pass: validatedData.smtpPassword,
       },
-      tls: tlsOptions,
+      tls:
+        validatedData.smtpSecure === 'None'
+          ? { rejectUnauthorized: false, servername: validatedData.smtpHost }
+          : { rejectUnauthorized: true, servername: validatedData.smtpHost },
     })
 
     const contentType = validatedData.contentType || 'text'
