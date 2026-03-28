@@ -711,6 +711,13 @@ export function validateExternalUrl(
     }
   }
 
+  if (isLocalhost && isHosted) {
+    return {
+      isValid: false,
+      error: `${paramName} cannot point to localhost`,
+    }
+  }
+
   if (options.allowHttp) {
     if (protocol !== 'https:' && protocol !== 'http:') {
       return {
@@ -718,23 +725,10 @@ export function validateExternalUrl(
         error: `${paramName} must use http:// or https:// protocol`,
       }
     }
-    if (isLocalhost && isHosted) {
-      return {
-        isValid: false,
-        error: `${paramName} cannot point to localhost`,
-      }
-    }
   } else if (protocol !== 'https:' && !(protocol === 'http:' && isLocalhost && !isHosted)) {
     return {
       isValid: false,
       error: `${paramName} must use https:// protocol`,
-    }
-  }
-
-  if (isLocalhost && isHosted) {
-    return {
-      isValid: false,
-      error: `${paramName} cannot point to localhost`,
     }
   }
 
