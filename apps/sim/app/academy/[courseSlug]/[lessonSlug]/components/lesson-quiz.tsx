@@ -51,6 +51,13 @@ const optionBase =
 export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
   const [answers, setAnswers] = useState<Answers>({})
   const [result, setResult] = useState<QuizResult | null>(null)
+  // Reset quiz state when the lesson changes (component is reused across quiz-lesson navigations).
+  const [prevLessonId, setPrevLessonId] = useState(lessonId)
+  if (prevLessonId !== lessonId) {
+    setPrevLessonId(lessonId)
+    setAnswers({})
+    setResult(null)
+  }
 
   const handleAnswer = (qi: number, value: number | boolean) => {
     if (!result) setAnswers((prev) => ({ ...prev, [qi]: value }))
