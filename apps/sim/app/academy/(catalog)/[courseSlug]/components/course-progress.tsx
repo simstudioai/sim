@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { CheckCircle2, Circle, ExternalLink, GraduationCap, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { getCompletedLessons } from '@/lib/academy/local-progress'
@@ -14,17 +14,13 @@ interface CourseProgressProps {
 }
 
 export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
-  const [completedIds, setCompletedIds] = useState<Set<string> | null>(null)
+  const [completedIds] = useState<Set<string>>(getCompletedLessons)
   const { data: session } = useSession()
   const { mutate: issueCertificate, isPending, data: certificate, error } = useIssueCertificate()
 
-  useEffect(() => {
-    setCompletedIds(getCompletedLessons())
-  }, [])
-
   const allLessons = course.modules.flatMap((m) => m.lessons)
   const totalLessons = allLessons.length
-  const completedCount = completedIds ? allLessons.filter((l) => completedIds.has(l.id)).length : 0
+  const completedCount = allLessons.filter((l) => completedIds.has(l.id)).length
   const percentComplete = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0
 
   return (
@@ -64,7 +60,7 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                     href={`/academy/${courseSlug}/${lesson.slug}`}
                     className='flex items-center gap-3 rounded-[8px] border border-[#2A2A2A] bg-[#222] px-4 py-3 text-[14px] transition-colors hover:border-[#3A3A3A] hover:bg-[#272727]'
                   >
-                    {completedIds?.has(lesson.id) ? (
+                    {completedIds.has(lesson.id) ? (
                       <CheckCircle2 className='h-4 w-4 flex-shrink-0 text-[#4CAF50]' />
                     ) : (
                       <Circle className='h-4 w-4 flex-shrink-0 text-[#444]' />
@@ -84,7 +80,7 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
         </div>
       </section>
 
-      {completedIds && totalLessons > 0 && completedCount === totalLessons && (
+      {totalLessons > 0 && completedCount === totalLessons && (
         <section className='px-4 pb-16 sm:px-8 md:px-[80px]'>
           <div className='mx-auto max-w-3xl rounded-[8px] border border-[#3A4A3A] bg-[#1F2A1F] p-6'>
             {certificate ? (
