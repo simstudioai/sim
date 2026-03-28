@@ -1358,10 +1358,9 @@ export const Sidebar = memo(function Sidebar() {
                               </Button>
                             </Tooltip.Trigger>
                             <Tooltip.Content>
-                              <p>New task</p>
-                              <p className='text-[var(--text-muted)]'>
-                                {isMac ? '⌘⇧K' : 'Ctrl+Shift+K'}
-                              </p>
+                              <Tooltip.Shortcut keys={isMac ? '⌘⇧K' : 'Ctrl+Shift+K'}>
+                                New task
+                              </Tooltip.Shortcut>
                             </Tooltip.Content>
                           </Tooltip.Root>
                         </div>
@@ -1527,11 +1526,12 @@ export const Sidebar = memo(function Sidebar() {
                               </Button>
                             </Tooltip.Trigger>
                             <Tooltip.Content>
-                              <p>{isCreatingWorkflow ? 'Creating workflow...' : 'New workflow'}</p>
-                              {!isCreatingWorkflow && (
-                                <p className='text-[var(--text-muted)]'>
-                                  {isMac ? '⌘⇧W' : 'Ctrl+Shift+W'}
-                                </p>
+                              {isCreatingWorkflow ? (
+                                <p>Creating workflow...</p>
+                              ) : (
+                                <Tooltip.Shortcut keys={isMac ? '⌘⇧W' : 'Ctrl+Shift+W'}>
+                                  New workflow
+                                </Tooltip.Shortcut>
                               )}
                             </Tooltip.Content>
                           </Tooltip.Root>
