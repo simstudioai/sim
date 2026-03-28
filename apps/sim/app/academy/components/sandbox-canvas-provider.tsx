@@ -306,25 +306,27 @@ export function SandboxCanvasProvider({
     clearWorkflowConsole(workflowId)
     useTerminalConsoleStore.setState({ isOpen: true })
 
-    for (let i = 0; i < plan.length; i++) {
-      const step = plan[i]
-      setActiveBlocks(workflowId, new Set([step.blockId]))
-      await new Promise((resolve) => setTimeout(resolve, step.delay))
-      addConsole({
-        workflowId,
-        blockId: step.blockId,
-        blockName: workflowBlocks[step.blockId]?.name ?? step.blockType,
-        blockType: step.blockType,
-        executionOrder: i,
-        output: step.output,
-        success: true,
-        durationMs: step.delay,
-      })
-      setActiveBlocks(workflowId, new Set())
+    try {
+      for (let i = 0; i < plan.length; i++) {
+        const step = plan[i]
+        setActiveBlocks(workflowId, new Set([step.blockId]))
+        await new Promise((resolve) => setTimeout(resolve, step.delay))
+        addConsole({
+          workflowId,
+          blockId: step.blockId,
+          blockName: workflowBlocks[step.blockId]?.name ?? step.blockType,
+          blockType: step.blockType,
+          executionOrder: i,
+          output: step.output,
+          success: true,
+          durationMs: step.delay,
+        })
+        setActiveBlocks(workflowId, new Set())
+      }
+    } finally {
+      setIsExecuting(workflowId, false)
+      isMockRunningRef.current = false
     }
-
-    setIsExecuting(workflowId, false)
-    isMockRunningRef.current = false
   }, [workflowId, exerciseConfig.validationRules, exerciseConfig.mockOutputs])
   handleMockRunRef.current = handleMockRun
 

@@ -16,7 +16,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: CourseDetailPageProps): Promise<Metadata> {
   const { courseSlug } = await params
   const course = getCourse(courseSlug)
-  if (!course) return {}
+  if (!course) return { title: 'Course Not Found' }
   return {
     title: course.title,
     description: course.description,
