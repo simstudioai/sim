@@ -1,4 +1,4 @@
-import { createLogger } from '@sim/logger'
+import { createLogger, type Logger } from '@sim/logger'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -56,11 +56,22 @@ export class BlockExecutor {
     private state: BlockStateWriter
   ) {}
 
+  private loggerFor(ctx: ExecutionContext): Logger {
+    return logger.withMetadata({
+      workflowId: ctx.workflowId,
+      workspaceId: ctx.workspaceId,
+      executionId: ctx.executionId,
+      userId: ctx.userId,
+      requestId: ctx.metadata.requestId,
+    })
+  }
+
   async execute(
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock
   ): Promise<NormalizedBlockOutput> {
+    const execLogger = this.loggerFor(ctx)
     const handler = this.findHandler(block)
     if (!handler) {
       throw buildBlockExecutionError({
@@ -75,9 +86,9 @@ export class BlockExecutor {
 
     let blockLog: BlockLog | undefined
     if (!isSentinel) {
-      blockLog = this.createBlockLog(ctx, node.id, block, node)
+      blockLog = this.createBlockLog(execLogger, ctx, node.id, block, node)
       ctx.blockLogs.push(blockLog)
-      await this.callOnBlockStart(ctx, node, block, blockLog.executionOrder)
+      await this.callOnBlockStart(execLogger, ctx, node, block, blockLog.executionOrder)
     }
 
     const startTime = performance.now()
@@ -106,6 +117,7 @@ export class BlockExecutor {
     } catch (error) {
       cleanupSelfReference?.()
       return await this.handleBlockError(
+        execLogger,
         error,
         ctx,
         node,
@@ -133,6 +145,7 @@ export class BlockExecutor {
 
         if (ctx.onStream) {
           await this.handleStreamingExecution(
+            execLogger,
             ctx,
             node,
             block,
@@ -180,6 +193,7 @@ export class BlockExecutor {
           block,
         })
         await this.callOnBlockComplete(
+          execLogger,
           ctx,
           node,
           block,
@@ -196,6 +210,7 @@ export class BlockExecutor {
       return normalizedOutput
     } catch (error) {
       return await this.handleBlockError(
+        execLogger,
         error,
         ctx,
         node,
@@ -227,6 +242,7 @@ export class BlockExecutor {
   }
 
   private async handleBlockError(
+    execLogger: Logger,
     error: unknown,
     ctx: ExecutionContext,
     node: DAGNode,
@@ -273,7 +289,7 @@ export class BlockExecutor {
       }
     }
 
-    logger.error(
+    execLogger.error(
       phase === 'input_resolution' ? 'Failed to resolve block inputs' : 'Block execution failed',
       {
         blockId: node.id,
@@ -288,6 +304,7 @@ export class BlockExecutor {
         : undefined
       const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
       await this.callOnBlockComplete(
+        execLogger,
         ctx,
         node,
         block,
@@ -306,7 +323,7 @@ export class BlockExecutor {
       if (blockLog) {
         blockLog.errorHandled = true
       }
-      logger.info('Block has error port - returning error output instead of throwing', {
+      execLogger.info('Block has error port - returning error output instead of throwing', {
         blockId: node.id,
         error: errorMessage,
       })
@@ -336,6 +353,7 @@ export class BlockExecutor {
   }
 
   private createBlockLog(
+    execLogger: Logger,
     ctx: ExecutionContext,
     blockId: string,
     block: SerializedBlock,
@@ -358,7 +376,7 @@ export class BlockExecutor {
           blockName = `${blockName} (iteration ${loopScope.iteration})`
           iterationIndex = loopScope.iteration
         } else {
-          logger.warn('Loop scope not found for block', { blockId, loopId })
+          execLogger.warn('Loop scope not found for block', { blockId, loopId })
         }
       }
     }
@@ -440,6 +458,7 @@ export class BlockExecutor {
   }
 
   private async callOnBlockStart(
+    execLogger: Logger,
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
@@ -462,7 +481,7 @@ export class BlockExecutor {
           ctx.childWorkflowContext
         )
       } catch (error) {
-        logger.warn('Block start callback failed', {
+        execLogger.warn('Block start callback failed', {
           blockId,
           blockType,
           error: error instanceof Error ? error.message : String(error),
@@ -472,6 +491,7 @@ export class BlockExecutor {
   }
 
   private async callOnBlockComplete(
+    execLogger: Logger,
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
@@ -508,7 +528,7 @@ export class BlockExecutor {
           ctx.childWorkflowContext
         )
       } catch (error) {
-        logger.warn('Block completion callback failed', {
+        execLogger.warn('Block completion callback failed', {
           blockId,
           blockType,
           error: error instanceof Error ? error.message : String(error),
@@ -588,6 +608,7 @@ export class BlockExecutor {
   }
 
   private async handleStreamingExecution(
+    execLogger: Logger,
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
@@ -604,7 +625,15 @@ export class BlockExecutor {
 
     const stream = streamingExec.stream
     if (typeof stream.tee !== 'function') {
-      await this.forwardStream(ctx, blockId, streamingExec, stream, responseFormat, selectedOutputs)
+      await this.forwardStream(
+        execLogger,
+        ctx,
+        blockId,
+        streamingExec,
+        stream,
+        responseFormat,
+        selectedOutputs
+      )
       return
     }
 
@@ -623,6 +652,7 @@ export class BlockExecutor {
     }
 
     const executorConsumption = this.consumeExecutorStream(
+      execLogger,
       executorStream,
       streamingExec,
       blockId,
@@ -633,7 +663,7 @@ export class BlockExecutor {
       try {
         await ctx.onStream?.(clientStreamingExec)
       } catch (error) {
-        logger.error('Error in onStream callback', { blockId, error })
+        execLogger.error('Error in onStream callback', { blockId, error })
         // Cancel the client stream to release the tee'd buffer
         await processedClientStream.cancel().catch(() => {})
       }
@@ -643,6 +673,7 @@ export class BlockExecutor {
   }
 
   private async forwardStream(
+    execLogger: Logger,
     ctx: ExecutionContext,
     blockId: string,
     streamingExec: { stream: ReadableStream; execution: any },
@@ -663,12 +694,13 @@ export class BlockExecutor {
         stream: processedStream,
       })
     } catch (error) {
-      logger.error('Error in onStream callback', { blockId, error })
+      execLogger.error('Error in onStream callback', { blockId, error })
       await processedStream.cancel().catch(() => {})
     }
   }
 
   private async consumeExecutorStream(
+    execLogger: Logger,
     stream: ReadableStream,
     streamingExec: { execution: any },
     blockId: string,
@@ -687,7 +719,7 @@ export class BlockExecutor {
       const tail = decoder.decode()
       if (tail) chunks.push(tail)
     } catch (error) {
-      logger.error('Error reading executor stream for block', { blockId, error })
+      execLogger.error('Error reading executor stream for block', { blockId, error })
     } finally {
       try {
         await reader.cancel().catch(() => {})
@@ -718,7 +750,7 @@ export class BlockExecutor {
         }
         return
       } catch (error) {
-        logger.warn('Failed to parse streamed content for response format', { blockId, error })
+        execLogger.warn('Failed to parse streamed content for response format', { blockId, error })
       }
     }
 
