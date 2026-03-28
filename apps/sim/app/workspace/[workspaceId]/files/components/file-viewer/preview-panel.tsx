@@ -1,9 +1,10 @@
 'use client'
 
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
+import { Checkbox } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
@@ -40,6 +41,7 @@ interface PreviewPanelProps {
   mimeType: string | null
   filename: string
   isStreaming?: boolean
+  onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
 }
 
 export const PreviewPanel = memo(function PreviewPanel({
@@ -47,11 +49,18 @@ export const PreviewPanel = memo(function PreviewPanel({
   mimeType,
   filename,
   isStreaming,
+  onCheckboxToggle,
 }: PreviewPanelProps) {
   const previewType = resolvePreviewType(mimeType, filename)
 
   if (previewType === 'markdown')
-    return <MarkdownPreview content={content} isStreaming={isStreaming} />
+    return (
+      <MarkdownPreview
+        content={content}
+        isStreaming={isStreaming}
+        onCheckboxToggle={onCheckboxToggle}
+      />
+    )
   if (previewType === 'html') return <HtmlPreview content={content} />
   if (previewType === 'csv') return <CsvPreview content={content} />
   if (previewType === 'svg') return <SvgPreview content={content} />
@@ -61,7 +70,7 @@ export const PreviewPanel = memo(function PreviewPanel({
 
 const REMARK_PLUGINS = [remarkGfm, remarkBreaks]
 
-const PREVIEW_MARKDOWN_COMPONENTS = {
+const STATIC_MARKDOWN_COMPONENTS = {
   p: ({ children }: any) => (
     <p className='mb-3 break-words text-[14px] text-[var(--text-primary)] leading-[1.6] last:mb-0'>
       {children}
@@ -87,17 +96,6 @@ const PREVIEW_MARKDOWN_COMPONENTS = {
       {children}
     </h4>
   ),
-  ul: ({ children }: any) => (
-    <ul className='mt-1 mb-3 list-disc space-y-1 break-words pl-6 text-[14px] text-[var(--text-primary)]'>
-      {children}
-    </ul>
-  ),
-  ol: ({ children }: any) => (
-    <ol className='mt-1 mb-3 list-decimal space-y-1 break-words pl-6 text-[14px] text-[var(--text-primary)]'>
-      {children}
-    </ol>
-  ),
-  li: ({ children }: any) => <li className='break-words leading-[1.6]'>{children}</li>,
   code: ({ inline, className, children, ...props }: any) => {
     const isInline = inline || !className?.includes('language-')
 
@@ -165,25 +163,109 @@ const PREVIEW_MARKDOWN_COMPONENTS = {
   td: ({ children }: any) => <td className='px-3 py-2 text-[var(--text-secondary)]'>{children}</td>,
 }
 
+function buildMarkdownComponents(
+  checkboxCounterRef: React.MutableRefObject<number>,
+  onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
+) {
+  const isInteractive = Boolean(onCheckboxToggle)
+
+  return {
+    ...STATIC_MARKDOWN_COMPONENTS,
+    ul: ({ className, children }: any) => {
+      const isTaskList = typeof className === 'string' && className.includes('contains-task-list')
+      return (
+        <ul
+          className={cn(
+            'mt-1 mb-3 space-y-1 break-words text-[14px] text-[var(--text-primary)]',
+            isTaskList ? 'list-none pl-0' : 'list-disc pl-6'
+          )}
+        >
+          {children}
+        </ul>
+      )
+    },
+    ol: ({ className, children }: any) => {
+      const isTaskList = typeof className === 'string' && className.includes('contains-task-list')
+      return (
+        <ol
+          className={cn(
+            'mt-1 mb-3 space-y-1 break-words text-[14px] text-[var(--text-primary)]',
+            isTaskList ? 'list-none pl-0' : 'list-decimal pl-6'
+          )}
+        >
+          {children}
+        </ol>
+      )
+    },
+    li: ({ className, children }: any) => {
+      const isTaskItem = typeof className === 'string' && className.includes('task-list-item')
+      if (isTaskItem) {
+        return <li className='flex items-start gap-2 break-words leading-[1.6]'>{children}</li>
+      }
+      return <li className='break-words leading-[1.6]'>{children}</li>
+    },
+    input: ({ type, checked, ...props }: any) => {
+      if (type !== 'checkbox') return <input type={type} checked={checked} {...props} />
+
+      const index = checkboxCounterRef.current++
+
+      return (
+        <Checkbox
+          checked={checked ?? false}
+          onCheckedChange={
+            isInteractive
+              ? (newChecked) => onCheckboxToggle!(index, Boolean(newChecked))
+              : undefined
+          }
+          disabled={!isInteractive}
+          size='sm'
+          className='mt-1 shrink-0'
+        />
+      )
+    },
+  }
+}
+
 const MarkdownPreview = memo(function MarkdownPreview({
   content,
   isStreaming = false,
+  onCheckboxToggle,
 }: {
   content: string
   isStreaming?: boolean
+  onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
 }) {
   const { ref: scrollRef } = useAutoScroll(isStreaming)
   const { committed, incoming, generation } = useStreamingReveal(content, isStreaming)
 
+  const checkboxCounterRef = useRef(0)
+
+  const components = useMemo(
+    () => buildMarkdownComponents(checkboxCounterRef, onCheckboxToggle),
+    [onCheckboxToggle]
+  )
+
+  checkboxCounterRef.current = 0
+
   const committedMarkdown = useMemo(
     () =>
       committed ? (
-        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={PREVIEW_MARKDOWN_COMPONENTS}>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
           {committed}
         </ReactMarkdown>
       ) : null,
-    [committed]
+    [committed, components]
   )
+
+  if (onCheckboxToggle) {
+    return (
+      <div ref={scrollRef} className='h-full overflow-auto p-6'>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
+          {content}
+        </ReactMarkdown>
+      </div>
+    )
+  }
 
   return (
     <div ref={scrollRef} className='h-full overflow-auto p-6'>
@@ -193,7 +275,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
           key={generation}
           className={cn(isStreaming && 'animate-stream-fade-in', '[&>:first-child]:mt-0')}
         >
-          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={PREVIEW_MARKDOWN_COMPONENTS}>
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
             {incoming}
           </ReactMarkdown>
         </div>
