@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CheckCircle2, Circle, ExternalLink, GraduationCap, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { getCompletedLessons } from '@/lib/academy/local-progress'
@@ -14,7 +14,11 @@ interface CourseProgressProps {
 }
 
 export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
-  const [completedIds] = useState<Set<string>>(getCompletedLessons)
+  // Start with an empty set so SSR and initial client render match, then hydrate from localStorage.
+  const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set())
+  useEffect(() => {
+    setCompletedIds(getCompletedLessons())
+  }, [])
   const { data: session } = useSession()
   const { mutate: issueCertificate, isPending, data: certificate, error } = useIssueCertificate()
 

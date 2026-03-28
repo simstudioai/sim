@@ -26,6 +26,12 @@ export function ExerciseView({
   description,
 }: ExerciseViewProps) {
   const [completed, setCompleted] = useState(false)
+  // Reset completion banner when the lesson changes (component is reused across exercise navigations).
+  const [prevLessonId, setPrevLessonId] = useState(lessonId)
+  if (prevLessonId !== lessonId) {
+    setPrevLessonId(lessonId)
+    setCompleted(false)
+  }
 
   const handleComplete = useCallback(
     (_blocks: ExerciseBlockState[], _edges: ExerciseEdgeState[]) => {
