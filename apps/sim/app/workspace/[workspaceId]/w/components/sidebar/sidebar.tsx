@@ -1245,6 +1245,26 @@ export const Sidebar = memo(function Sidebar() {
                   )}
                 </Tooltip.Root>
               </div>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button
+                    type='button'
+                    onClick={toggleCollapsed}
+                    className={cn(
+                      'sidebar-collapse-btn ml-auto flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 hover-hover:bg-[var(--surface-hover)]',
+                      isCollapsed ? 'w-0 opacity-0' : 'w-[30px] opacity-100'
+                    )}
+                    aria-label='Collapse sidebar'
+                  >
+                    <PanelLeft className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                  </button>
+                </Tooltip.Trigger>
+                {!isCollapsed && (
+                  <Tooltip.Content side='bottom'>
+                    <p>Collapse sidebar</p>
+                  </Tooltip.Content>
+                )}
+              </Tooltip.Root>
             </div>
 
             {/* Workspace Header */}
