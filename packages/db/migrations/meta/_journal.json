@@ -1268,13 +1268,6 @@
       "when": 1774411211528,
       "tag": "0181_dazzling_the_leader",
       "breakpoints": true
-    },
-    {
-      "idx": 182,
-      "version": "7",
-      "when": 1774657282685,
-      "tag": "0182_military_korath",
-      "breakpoints": true
     }
   ]
 }
