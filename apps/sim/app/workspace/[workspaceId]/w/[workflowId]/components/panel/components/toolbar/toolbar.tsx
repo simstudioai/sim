@@ -360,7 +360,6 @@ export const Toolbar = memo(
       return permitted.filter((b) => sandboxAllowedBlocks.includes(b.type))
     }, [filterBlocks, allBlocks, sandboxAllowedBlocks])
     const triggers = useMemo(() => {
-      // Triggers are always hidden in sandbox mode regardless of availableBlocks.
       if (sandboxAllowedBlocks !== null) return []
       return filterBlocks(allTriggers)
     }, [filterBlocks, allTriggers, sandboxAllowedBlocks])

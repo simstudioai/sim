@@ -86,8 +86,6 @@ function checkRule(
     }
 
     case 'custom': {
-      // Custom validators run client-side via a registry; server always passes them.
-      // Log a warning so content authors know if a custom validatorId is unrecognised.
       logger.warn('Custom validation rule encountered — no client registry implementation', {
         validatorId: rule.validatorId,
       })

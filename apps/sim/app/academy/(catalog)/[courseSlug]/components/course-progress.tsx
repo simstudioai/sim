@@ -22,7 +22,6 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
   const { data: session } = useSession()
   const { data: fetchedCert } = useCourseCertificate(session ? course.id : undefined)
   const { mutate: issueCertificate, isPending, data: issuedCert, error } = useIssueCertificate()
-  // Prefer the server-fetched cert (survives page refresh) over the in-session mutation result.
   const certificate = fetchedCert ?? issuedCert
 
   const allLessons = course.modules.flatMap((m) => m.lessons)

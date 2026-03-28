@@ -42,7 +42,6 @@ export default function LessonPage({ params }: LessonPageProps) {
   const nextLesson = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null
 
   const handleComplete = useCallback(() => setExerciseComplete(true), [])
-  // For mixed lessons that have both an exercise and a quiz, the learner must complete both.
   const canAdvance =
     (!lesson?.exerciseConfig && !lesson?.quizConfig) ||
     (Boolean(lesson?.exerciseConfig) && Boolean(lesson?.quizConfig)
