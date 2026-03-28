@@ -7,7 +7,7 @@ FROM oven/bun:1.3.11-alpine AS base
 # Dependencies Stage: Install Dependencies
 # ========================================
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat curl
 WORKDIR /app
 
 COPY package.json bun.lock turbo.json ./

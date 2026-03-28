@@ -37,7 +37,7 @@ spec:
         - name: worker
           image: {{ include "sim.image" (dict "context" . "image" .Values.worker.image) }}
           imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
-          command: ["bun", "apps/sim/dist/worker.cjs"]
+          command: ["bun", "apps/sim/dist/worker/index.js"]
           ports:
             - name: health
               containerPort: {{ .Values.worker.healthPort }}

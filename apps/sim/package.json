@@ -18,7 +18,7 @@
     "load:workflow:isolation": "BASE_URL=${BASE_URL:-http://localhost:3000} ISOLATION_DURATION=${ISOLATION_DURATION:-30} TOTAL_RATE=${TOTAL_RATE:-9} WORKSPACE_A_WEIGHT=${WORKSPACE_A_WEIGHT:-8} WORKSPACE_B_WEIGHT=${WORKSPACE_B_WEIGHT:-1} bunx artillery run scripts/load/workflow-isolation.yml",
     "build": "bun run build:pptx-worker && bun run build:worker && next build",
     "build:pptx-worker": "bun build ./lib/execution/pptx-worker.cjs --target=node --format=cjs --outfile ./dist/pptx-worker.cjs",
-    "build:worker": "bun build ./worker/index.ts --target=node --format=cjs --packages=external --outfile ./dist/worker.cjs",
+    "build:worker": "bun build ./worker/index.ts --target=node --format=esm --splitting --outdir ./dist/worker --external isolated-vm",
     "start": "next start",
     "worker": "NODE_ENV=production bun run worker/index.ts",
     "prepare": "cd ../.. && bun husky",
