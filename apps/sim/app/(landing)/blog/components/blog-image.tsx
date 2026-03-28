@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import NextImage from 'next/image'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import { Lightbox } from '@/app/(landing)/blog/components/lightbox'
 
 interface BlogImageProps {
