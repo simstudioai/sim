@@ -185,11 +185,10 @@ export class Logger {
    * New metadata keys override existing ones with the same name.
    */
   withMetadata(metadata: LoggerMetadata): Logger {
-    const child = new Logger(this.module, {
-      logLevel: this.config.minLevel,
-      colorize: this.config.colorize,
-      enabled: this.config.enabled,
-    })
+    const child = Object.create(Logger.prototype) as Logger
+    child.module = this.module
+    child.config = this.config
+    child.isDev = this.isDev
     child.metadata = { ...this.metadata, ...metadata }
     return child
   }

@@ -297,7 +297,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       status: statusOverride,
     } = params
 
-    const execLog = logger.withMetadata({ executionId })
+    let execLog = logger.withMetadata({ executionId })
     execLog.debug('Completing workflow execution', { isResume })
 
     const [existingLog] = await db
@@ -305,6 +305,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
       .from(workflowExecutionLogs)
       .where(eq(workflowExecutionLogs.executionId, executionId))
       .limit(1)
+    if (existingLog) {
+      execLog = execLog.withMetadata({
+        workflowId: existingLog.workflowId ?? undefined,
+        workspaceId: existingLog.workspaceId ?? undefined,
+      })
+    }
     const billingUserId = this.extractBillingUserId(existingLog?.executionData)
     const existingExecutionData = existingLog?.executionData as
       | WorkflowExecutionLog['executionData']

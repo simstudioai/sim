@@ -1,4 +1,4 @@
-import { createLogger, type Logger } from '@sim/logger'
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
@@ -187,7 +187,13 @@ type AsyncExecutionParams = {
 async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextResponse> {
   const { requestId, workflowId, userId, workspaceId, input, triggerType, executionId, callChain } =
     params
-  const asyncLogger = logger.withMetadata({ requestId, workflowId, workspaceId, userId, executionId })
+  const asyncLogger = logger.withMetadata({
+    requestId,
+    workflowId,
+    workspaceId,
+    userId,
+    executionId,
+  })
 
   const correlation = {
     executionId,
