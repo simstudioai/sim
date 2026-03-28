@@ -1169,6 +1169,7 @@ export const Sidebar = memo(function Sidebar() {
       {
         id: 'add-workflow',
         handler: () => {
+          if (!canEdit || isCreatingWorkflow) return
           handleCreateWorkflow()
         },
       },
