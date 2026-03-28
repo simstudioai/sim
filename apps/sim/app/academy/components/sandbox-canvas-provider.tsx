@@ -197,6 +197,7 @@ export function SandboxCanvasProvider({
 
   useEffect(() => {
     completedRef.current = false
+    setHintIndex(-1)
 
     const workflowState = buildWorkflowState(
       exerciseConfig.initialBlocks ?? [],
