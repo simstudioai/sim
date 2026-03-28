@@ -26,18 +26,20 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
   return (
     <>
       {completedCount > 0 && (
-        <div className='mt-6 rounded-[8px] border border-[#2A2A2A] bg-[#222] p-4'>
-          <div className='mb-2 flex items-center justify-between text-[13px]'>
-            <span className='text-[#999]'>Your progress</span>
-            <span className='text-[#ECECEC]'>
-              {completedCount}/{totalLessons} lessons
-            </span>
-          </div>
-          <div className='h-1.5 w-full overflow-hidden rounded-full bg-[#2A2A2A]'>
-            <div
-              className='h-full rounded-full bg-[#ECECEC] transition-all'
-              style={{ width: `${percentComplete}%` }}
-            />
+        <div className='px-4 pt-8 sm:px-8 md:px-[80px]'>
+          <div className='mx-auto max-w-3xl rounded-[8px] border border-[#2A2A2A] bg-[#222] p-4'>
+            <div className='mb-2 flex items-center justify-between text-[13px]'>
+              <span className='text-[#999]'>Your progress</span>
+              <span className='text-[#ECECEC]'>
+                {completedCount}/{totalLessons} lessons
+              </span>
+            </div>
+            <div className='h-1.5 w-full overflow-hidden rounded-full bg-[#2A2A2A]'>
+              <div
+                className='h-full rounded-full bg-[#ECECEC] transition-all'
+                style={{ width: `${percentComplete}%` }}
+              />
+            </div>
           </div>
         </div>
       )}
