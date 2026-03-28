@@ -169,6 +169,7 @@ export function SandboxCanvasProvider({
   const onCompleteRef = useRef(onComplete)
   onCompleteRef.current = onComplete
   const isMockRunningRef = useRef(false)
+  const handleMockRunRef = useRef<() => Promise<void>>(async () => {})
 
   // Stable exercise ID — used as the workflow ID in the stores
   const workflowId = `sandbox-${exerciseId}`
@@ -246,7 +247,7 @@ export function SandboxCanvasProvider({
     const unsubExecution = useExecutionStore.subscribe((state) => {
       const isExec = state.workflowExecutions.get(workflowId)?.isExecuting
       if (isExec && !isMockRunningRef.current) {
-        void handleMockRun()
+        void handleMockRunRef.current()
       }
     })
 
@@ -323,6 +324,7 @@ export function SandboxCanvasProvider({
     setIsExecuting(workflowId, false)
     isMockRunningRef.current = false
   }, [workflowId, exerciseConfig.validationRules, exerciseConfig.mockOutputs])
+  handleMockRunRef.current = handleMockRun
 
   const handleShowHint = useCallback(() => {
     const hints = exerciseConfig.hints ?? []

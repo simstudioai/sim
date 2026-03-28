@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { db } from '@sim/db'
 import { academyCertificate } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
@@ -20,14 +21,16 @@ export async function generateMetadata({ params }: CertificatePageProps): Promis
   }
 }
 
-async function fetchCertificate(certificateNumber: string): Promise<AcademyCertificate | null> {
-  const [row] = await db
-    .select()
-    .from(academyCertificate)
-    .where(eq(academyCertificate.certificateNumber, certificateNumber))
-    .limit(1)
-  return (row as unknown as AcademyCertificate) ?? null
-}
+const fetchCertificate = cache(
+  async (certificateNumber: string): Promise<AcademyCertificate | null> => {
+    const [row] = await db
+      .select()
+      .from(academyCertificate)
+      .where(eq(academyCertificate.certificateNumber, certificateNumber))
+      .limit(1)
+    return (row as unknown as AcademyCertificate) ?? null
+  }
+)
 
 const DATE_FORMAT: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' }
 function formatDate(date: string | Date) {
