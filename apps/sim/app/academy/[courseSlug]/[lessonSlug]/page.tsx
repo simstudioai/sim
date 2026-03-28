@@ -22,11 +22,13 @@ export default function LessonPage({ params }: LessonPageProps) {
   const { courseSlug, lessonSlug } = use(params)
   const course = getCourse(courseSlug)
   const [exerciseComplete, setExerciseComplete] = useState(false)
+  const [quizComplete, setQuizComplete] = useState(false)
   // Reset completion state when the lesson changes (Next.js reuses the component across navigations).
   const [prevLessonSlug, setPrevLessonSlug] = useState(lessonSlug)
   if (prevLessonSlug !== lessonSlug) {
     setPrevLessonSlug(lessonSlug)
     setExerciseComplete(false)
+    setQuizComplete(false)
   }
 
   const allLessons = useMemo<Lesson[]>(
@@ -40,7 +42,12 @@ export default function LessonPage({ params }: LessonPageProps) {
   const nextLesson = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null
 
   const handleComplete = useCallback(() => setExerciseComplete(true), [])
-  const canAdvance = (!lesson?.exerciseConfig && !lesson?.quizConfig) || exerciseComplete
+  // For mixed lessons that have both an exercise and a quiz, the learner must complete both.
+  const canAdvance =
+    (!lesson?.exerciseConfig && !lesson?.quizConfig) ||
+    (Boolean(lesson?.exerciseConfig) && Boolean(lesson?.quizConfig)
+      ? exerciseComplete && quizComplete
+      : exerciseComplete)
 
   // Video lessons are considered complete once visited — no interactive gate required.
   useEffect(() => {
@@ -154,14 +161,26 @@ export default function LessonPage({ params }: LessonPageProps) {
 
         {lesson.lessonType === 'mixed' && (
           <>
-            {hasExercise && (
+            {hasExercise && !exerciseComplete && (
               <ExerciseView
                 lessonId={lesson.id}
                 exerciseConfig={lesson.exerciseConfig!}
                 onComplete={handleComplete}
-                videoUrl={lesson.videoUrl}
-                description={lesson.description}
+                videoUrl={!hasQuiz ? lesson.videoUrl : undefined}
+                description={!hasQuiz ? lesson.description : undefined}
               />
+            )}
+            {hasExercise && exerciseComplete && hasQuiz && (
+              <div className='flex-1 overflow-y-auto p-8'>
+                <div className='mx-auto w-full max-w-xl space-y-8'>
+                  {hasVideo && <LessonVideo url={lesson.videoUrl!} title={lesson.title} />}
+                  <LessonQuiz
+                    lessonId={lesson.id}
+                    quizConfig={lesson.quizConfig!}
+                    onPass={() => setQuizComplete(true)}
+                  />
+                </div>
+              </div>
             )}
             {!hasExercise && hasQuiz && (
               <div className='flex-1 overflow-y-auto p-8'>

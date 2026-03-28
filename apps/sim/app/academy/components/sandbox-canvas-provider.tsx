@@ -17,6 +17,7 @@ import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/
 import { SandboxWorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import Workflow from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow'
 import { getBlock } from '@/blocks/registry'
+import { SandboxBlockConstraintsContext } from '@/hooks/use-sandbox-block-constraints'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useTerminalConsoleStore } from '@/stores/terminal/console/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -353,77 +354,79 @@ export function SandboxCanvasProvider({
   const currentHint = hintIndex >= 0 ? hints[hintIndex] : null
 
   return (
-    <GlobalCommandsProvider>
-      <SandboxWorkspacePermissionsProvider>
-        <div className={cn('flex h-full w-full overflow-hidden', className)}>
-          <div className='flex w-56 flex-shrink-0 flex-col gap-3 overflow-y-auto border-[#1F1F1F] border-r bg-[#141414] p-3'>
-            {(videoUrl || description) && (
-              <div className='flex flex-col gap-2'>
-                {videoUrl && <LessonVideo url={videoUrl} title='Lesson video' />}
-                {description && (
-                  <p className='text-[#666] text-[11px] leading-relaxed'>{description}</p>
-                )}
-                <div className='border-[#1F1F1F] border-t' />
-              </div>
-            )}
-            {exerciseConfig.instructions && (
-              <p className='text-[#999] text-[11px] leading-relaxed'>
-                {exerciseConfig.instructions}
-              </p>
-            )}
-            <ValidationChecklist
-              results={validationResult.results}
-              allPassed={validationResult.passed}
-            />
-
-            <div className='mt-auto flex flex-col gap-2'>
-              {currentHint && (
-                <div className='rounded-[6px] border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-[11px]'>
-                  <div className='mb-1 flex items-center justify-between'>
-                    <span className='font-[430] text-[#666]'>
-                      Hint {hintIndex + 1}/{hints.length}
-                    </span>
-                    <div className='flex gap-1'>
-                      <button
-                        type='button'
-                        onClick={handlePrevHint}
-                        disabled={hintIndex === 0}
-                        className='rounded px-1 text-[#666] transition-colors hover:text-[#ECECEC] disabled:opacity-30'
-                        aria-label='Previous hint'
-                      >
-                        ‹
-                      </button>
-                      <button
-                        type='button'
-                        onClick={handleShowHint}
-                        disabled={hintIndex === hints.length - 1}
-                        className='rounded px-1 text-[#666] transition-colors hover:text-[#ECECEC] disabled:opacity-30'
-                        aria-label='Next hint'
-                      >
-                        ›
-                      </button>
-                    </div>
-                  </div>
-                  <span className='text-[#ECECEC]'>{currentHint}</span>
+    <SandboxBlockConstraintsContext.Provider value={exerciseConfig.availableBlocks}>
+      <GlobalCommandsProvider>
+        <SandboxWorkspacePermissionsProvider>
+          <div className={cn('flex h-full w-full overflow-hidden', className)}>
+            <div className='flex w-56 flex-shrink-0 flex-col gap-3 overflow-y-auto border-[#1F1F1F] border-r bg-[#141414] p-3'>
+              {(videoUrl || description) && (
+                <div className='flex flex-col gap-2'>
+                  {videoUrl && <LessonVideo url={videoUrl} title='Lesson video' />}
+                  {description && (
+                    <p className='text-[#666] text-[11px] leading-relaxed'>{description}</p>
+                  )}
+                  <div className='border-[#1F1F1F] border-t' />
                 </div>
               )}
-              {hints.length > 0 && hintIndex < 0 && (
-                <button
-                  type='button'
-                  onClick={handleShowHint}
-                  className='w-full rounded-[5px] border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-1.5 text-[#999] text-[12px] transition-colors hover:border-[#3A3A3A] hover:text-[#ECECEC]'
-                >
-                  Show hint
-                </button>
+              {exerciseConfig.instructions && (
+                <p className='text-[#999] text-[11px] leading-relaxed'>
+                  {exerciseConfig.instructions}
+                </p>
               )}
+              <ValidationChecklist
+                results={validationResult.results}
+                allPassed={validationResult.passed}
+              />
+
+              <div className='mt-auto flex flex-col gap-2'>
+                {currentHint && (
+                  <div className='rounded-[6px] border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-2 text-[11px]'>
+                    <div className='mb-1 flex items-center justify-between'>
+                      <span className='font-[430] text-[#666]'>
+                        Hint {hintIndex + 1}/{hints.length}
+                      </span>
+                      <div className='flex gap-1'>
+                        <button
+                          type='button'
+                          onClick={handlePrevHint}
+                          disabled={hintIndex === 0}
+                          className='rounded px-1 text-[#666] transition-colors hover:text-[#ECECEC] disabled:opacity-30'
+                          aria-label='Previous hint'
+                        >
+                          ‹
+                        </button>
+                        <button
+                          type='button'
+                          onClick={handleShowHint}
+                          disabled={hintIndex === hints.length - 1}
+                          className='rounded px-1 text-[#666] transition-colors hover:text-[#ECECEC] disabled:opacity-30'
+                          aria-label='Next hint'
+                        >
+                          ›
+                        </button>
+                      </div>
+                    </div>
+                    <span className='text-[#ECECEC]'>{currentHint}</span>
+                  </div>
+                )}
+                {hints.length > 0 && hintIndex < 0 && (
+                  <button
+                    type='button'
+                    onClick={handleShowHint}
+                    className='w-full rounded-[5px] border border-[#2A2A2A] bg-[#1A1A1A] px-3 py-1.5 text-[#999] text-[12px] transition-colors hover:border-[#3A3A3A] hover:text-[#ECECEC]'
+                  >
+                    Show hint
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className='relative flex-1 overflow-hidden'>
+              <Workflow workspaceId={SANDBOX_WORKSPACE_ID} workflowId={workflowId} sandbox />
             </div>
           </div>
-
-          <div className='relative flex-1 overflow-hidden'>
-            <Workflow workspaceId={SANDBOX_WORKSPACE_ID} workflowId={workflowId} sandbox />
-          </div>
-        </div>
-      </SandboxWorkspacePermissionsProvider>
-    </GlobalCommandsProvider>
+        </SandboxWorkspacePermissionsProvider>
+      </GlobalCommandsProvider>
+    </SandboxBlockConstraintsContext.Provider>
   )
 }
