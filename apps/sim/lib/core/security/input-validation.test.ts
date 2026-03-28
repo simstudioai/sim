@@ -23,6 +23,9 @@ import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
 
 vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isHosted: false,
+}))
 
 describe('validatePathSegment', () => {
   describe('valid inputs', () => {
@@ -569,25 +572,25 @@ describe('validateUrlWithDNS', () => {
       expect(result.error).toContain('https://')
     })
 
-    it('should accept https localhost URLs', async () => {
+    it('should accept https localhost URLs (self-hosted)', async () => {
       const result = await validateUrlWithDNS('https://localhost/api')
       expect(result.isValid).toBe(true)
       expect(result.resolvedIP).toBeDefined()
     })
 
-    it('should accept http localhost URLs', async () => {
+    it('should accept http localhost URLs (self-hosted)', async () => {
       const result = await validateUrlWithDNS('http://localhost/api')
       expect(result.isValid).toBe(true)
       expect(result.resolvedIP).toBeDefined()
     })
 
-    it('should accept IPv4 loopback URLs', async () => {
+    it('should accept IPv4 loopback URLs (self-hosted)', async () => {
       const result = await validateUrlWithDNS('http://127.0.0.1/api')
       expect(result.isValid).toBe(true)
       expect(result.resolvedIP).toBeDefined()
     })
 
-    it('should accept IPv6 loopback URLs', async () => {
+    it('should accept IPv6 loopback URLs (self-hosted)', async () => {
       const result = await validateUrlWithDNS('http://[::1]/api')
       expect(result.isValid).toBe(true)
       expect(result.resolvedIP).toBeDefined()
@@ -918,7 +921,7 @@ describe('validateExternalUrl', () => {
     })
   })
 
-  describe('localhost and loopback addresses', () => {
+  describe('localhost and loopback addresses (self-hosted)', () => {
     it.concurrent('should accept https localhost', () => {
       const result = validateExternalUrl('https://localhost/api')
       expect(result.isValid).toBe(true)
@@ -1027,7 +1030,7 @@ describe('validateImageUrl', () => {
     expect(result.isValid).toBe(true)
   })
 
-  it.concurrent('should accept localhost URLs', () => {
+  it.concurrent('should accept localhost URLs (self-hosted)', () => {
     const result = validateImageUrl('https://localhost/image.png')
     expect(result.isValid).toBe(true)
   })
