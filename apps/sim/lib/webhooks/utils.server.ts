@@ -2822,7 +2822,6 @@ export async function configureImapPolling(webhookData: any, requestId: string):
           ...providerConfig,
           port: providerConfig.port || '993',
           secure: providerConfig.secure !== false,
-          rejectUnauthorized: providerConfig.rejectUnauthorized !== false,
           mailbox: providerConfig.mailbox || 'INBOX',
           searchCriteria: providerConfig.searchCriteria || 'UNSEEN',
           markAsRead: providerConfig.markAsRead || false,

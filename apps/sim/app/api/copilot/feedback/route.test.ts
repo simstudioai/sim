@@ -12,6 +12,7 @@ const {
   mockReturning,
   mockSelect,
   mockFrom,
+  mockWhere,
   mockAuthenticate,
   mockCreateUnauthorizedResponse,
   mockCreateBadRequestResponse,
@@ -23,6 +24,7 @@ const {
   mockReturning: vi.fn(),
   mockSelect: vi.fn(),
   mockFrom: vi.fn(),
+  mockWhere: vi.fn(),
   mockAuthenticate: vi.fn(),
   mockCreateUnauthorizedResponse: vi.fn(),
   mockCreateBadRequestResponse: vi.fn(),
@@ -81,7 +83,8 @@ describe('Copilot Feedback API Route', () => {
     mockValues.mockReturnValue({ returning: mockReturning })
     mockReturning.mockResolvedValue([])
     mockSelect.mockReturnValue({ from: mockFrom })
-    mockFrom.mockResolvedValue([])
+    mockFrom.mockReturnValue({ where: mockWhere })
+    mockWhere.mockResolvedValue([])
 
     mockCreateRequestTracker.mockReturnValue({
       requestId: 'test-request-id',
@@ -386,7 +389,7 @@ edges:
         isAuthenticated: true,
       })
 
-      mockFrom.mockResolvedValueOnce([])
+      mockWhere.mockResolvedValueOnce([])
 
       const request = new Request('http://localhost:3000/api/copilot/feedback')
       const response = await GET(request as any)
@@ -397,7 +400,7 @@ edges:
       expect(responseData.feedback).toEqual([])
     })
 
-    it('should return all feedback records', async () => {
+    it('should only return feedback records for the authenticated user', async () => {
       mockAuthenticate.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
@@ -415,19 +418,8 @@ edges:
           workflowYaml: null,
           createdAt: new Date('2024-01-01'),
         },
-        {
-          feedbackId: 'feedback-2',
-          userId: 'user-456',
-          chatId: 'chat-2',
-          userQuery: 'Query 2',
-          agentResponse: 'Response 2',
-          isPositive: false,
-          feedback: 'Not helpful',
-          workflowYaml: 'yaml: content',
-          createdAt: new Date('2024-01-02'),
-        },
       ]
-      mockFrom.mockResolvedValueOnce(mockFeedback)
+      mockWhere.mockResolvedValueOnce(mockFeedback)
 
       const request = new Request('http://localhost:3000/api/copilot/feedback')
       const response = await GET(request as any)
@@ -435,9 +427,14 @@ edges:
       expect(response.status).toBe(200)
       const responseData = await response.json()
       expect(responseData.success).toBe(true)
-      expect(responseData.feedback).toHaveLength(2)
+      expect(responseData.feedback).toHaveLength(1)
       expect(responseData.feedback[0].feedbackId).toBe('feedback-1')
-      expect(responseData.feedback[1].feedbackId).toBe('feedback-2')
+      expect(responseData.feedback[0].userId).toBe('user-123')
+
+      // Verify the where clause was called with the authenticated user's ID
+      const { eq } = await import('drizzle-orm')
+      expect(mockWhere).toHaveBeenCalled()
+      expect(eq).toHaveBeenCalledWith('userId', 'user-123')
     })
 
     it('should handle database errors gracefully', async () => {
@@ -446,7 +443,7 @@ edges:
         isAuthenticated: true,
       })
 
-      mockFrom.mockRejectedValueOnce(new Error('Database connection failed'))
+      mockWhere.mockRejectedValueOnce(new Error('Database connection failed'))
 
       const request = new Request('http://localhost:3000/api/copilot/feedback')
       const response = await GET(request as any)
@@ -462,7 +459,7 @@ edges:
         isAuthenticated: true,
       })
 
-      mockFrom.mockResolvedValueOnce([])
+      mockWhere.mockResolvedValueOnce([])
 
       const request = new Request('http://localhost:3000/api/copilot/feedback')
       const response = await GET(request as any)
