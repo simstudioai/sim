@@ -320,5 +320,6 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
     handleDragOver,
     handleDrop,
     clearAttachedFiles,
+    processFiles,
   }
 }
