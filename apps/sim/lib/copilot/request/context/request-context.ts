@@ -1,3 +1,4 @@
+import { TraceCollector } from '@/lib/copilot/request/trace'
 import type { StreamingContext } from '@/lib/copilot/request/types'
 
 /**
@@ -23,6 +24,7 @@ export function createStreamingContext(overrides?: Partial<StreamingContext>): S
     streamComplete: false,
     wasAborted: false,
     errors: [],
+    trace: new TraceCollector(),
     ...overrides,
   }
 }

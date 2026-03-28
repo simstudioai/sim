@@ -4,6 +4,7 @@
 
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TraceCollector } from '@/lib/copilot/request/trace'
 
 vi.mock('@sim/logger', () => loggerMock)
 
@@ -61,6 +62,7 @@ describe('sse-handlers tool lifecycle', () => {
       chatId: undefined,
       messageId: 'msg-1',
       accumulatedContent: '',
+      trace: new TraceCollector(),
       contentBlocks: [],
       toolCalls: new Map(),
       pendingToolPromises: new Map(),

@@ -8,6 +8,7 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1SessionKind,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
 import { finalizeStream } from '@/lib/copilot/request/lifecycle/finalize'
 import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/run'
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
@@ -20,6 +21,7 @@ import {
   unregisterActiveStream,
 } from '@/lib/copilot/request/session'
 import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
+import { reportTrace, TraceCollector } from '@/lib/copilot/request/trace'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
 
@@ -67,9 +69,24 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 
   const publisher = new StreamWriter({ streamId, chatId, requestId })
 
+  const collector = new TraceCollector()
+
   return new ReadableStream({
     async start(controller) {
       publisher.attach(controller)
+
+      const requestSpan = collector.startSpan('Mothership Request', 'request', {
+        streamId,
+        chatId,
+        runId,
+      })
+      let outcome: 'success' | 'error' | 'cancelled' = 'error'
+      let lifecycleResult:
+        | {
+            usage?: { prompt: number; completion: number }
+            cost?: { input: number; output: number; total: number }
+          }
+        | undefined
 
       await resetBuffer(streamId)
 
@@ -124,14 +141,25 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           ...orchestrateOptions,
           executionId,
           runId,
+          trace: collector,
+          simRequestId: requestId,
           abortSignal: abortController.signal,
           onEvent: async (event) => {
             await publisher.publish(event)
           },
         })
 
+        lifecycleResult = result
+        outcome = abortController.signal.aborted
+          ? RequestTraceV1Outcome.cancelled
+          : result.success
+            ? RequestTraceV1Outcome.success
+            : RequestTraceV1Outcome.error
         await finalizeStream(result, publisher, runId, abortController.signal.aborted, requestId)
       } catch (error) {
+        outcome = abortController.signal.aborted
+          ? RequestTraceV1Outcome.cancelled
+          : RequestTraceV1Outcome.error
         if (publisher.clientDisconnected) {
           logger.info(`[${requestId}] Stream errored after client disconnect`, {
             error: error instanceof Error ? error.message : 'Stream error',
@@ -154,10 +182,31 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           requestId
         )
       } finally {
+        collector.endSpan(
+          requestSpan,
+          outcome === RequestTraceV1Outcome.success
+            ? 'ok'
+            : outcome === RequestTraceV1Outcome.cancelled
+              ? 'cancelled'
+              : 'error'
+        )
+
         clearInterval(abortPoller)
         publisher.close()
         unregisterActiveStream(streamId)
         await cleanupAbortMarker(streamId)
+
+        const trace = collector.build({
+          outcome: outcome as 'success' | 'error' | 'cancelled',
+          simRequestId: requestId,
+          streamId,
+          chatId,
+          runId,
+          executionId,
+          usage: lifecycleResult?.usage,
+          cost: lifecycleResult?.cost,
+        })
+        reportTrace(trace).catch(() => {})
       }
     },
     cancel() {

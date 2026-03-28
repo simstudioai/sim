@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { FunctionExecute } from '@/lib/copilot/generated/tool-catalog-v1'
 import { buildToolCallSummaries } from '@/lib/copilot/request/context/result'
+import { TraceCollector } from '@/lib/copilot/request/trace'
 import type { StreamingContext } from '@/lib/copilot/request/types'
 
 function makeContext(): StreamingContext {
@@ -28,6 +29,7 @@ function makeContext(): StreamingContext {
     streamComplete: false,
     wasAborted: false,
     errors: [],
+    trace: new TraceCollector(),
   }
 }
 

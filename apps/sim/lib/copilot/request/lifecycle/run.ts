@@ -14,6 +14,8 @@ import {
   runStreamLoop,
 } from '@/lib/copilot/request/go/stream'
 import { handleBillingLimitResponse } from '@/lib/copilot/request/tools/billing'
+import type { TraceCollector } from '@/lib/copilot/request/trace'
+import { RequestTraceV1SpanStatus } from '@/lib/copilot/request/trace'
 import type {
   ExecutionContext,
   OrchestratorOptions,
@@ -38,6 +40,8 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
   executionId?: string
   runId?: string
   goRoute?: string
+  trace?: TraceCollector
+  simRequestId?: string
 }
 
 export async function runCopilotLifecycle(
@@ -70,6 +74,7 @@ export async function runCopilotLifecycle(
     executionId,
     runId,
     messageId: typeof payloadMsgId === 'string' ? payloadMsgId : crypto.randomUUID(),
+    ...(options.trace ? { trace: options.trace } : {}),
   })
 
   try {
@@ -150,6 +155,17 @@ async function runCheckpointLoop(
       },
     }
 
+    const streamSpan = context.trace.startSpan(
+      isResume ? 'Sim → Go (Resume)' : 'Sim → Go Stream',
+      isResume ? 'lifecycle.resume' : 'sim.stream',
+      {
+        route,
+        isResume,
+        ...(isResume ? { attempt: resumeAttempt } : {}),
+      }
+    )
+    context.trace.setActiveSpan(streamSpan)
+
     try {
       await runStreamLoop(
         `${SIM_AGENT_API_URL}${route}`,
@@ -159,6 +175,7 @@ async function runCheckpointLoop(
             'Content-Type': 'application/json',
             ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
             'X-Client-Version': SIM_AGENT_VERSION,
+            ...(options.simRequestId ? { 'X-Sim-Request-ID': options.simRequestId } : {}),
           },
           body: JSON.stringify(payload),
         },
@@ -166,8 +183,10 @@ async function runCheckpointLoop(
         execContext,
         loopOptions
       )
+      context.trace.endSpan(streamSpan)
       resumeAttempt = 0
     } catch (streamError) {
+      context.trace.endSpan(streamSpan, RequestTraceV1SpanStatus.error)
       if (streamError instanceof BillingLimitError) {
         await handleBillingLimitResponse(streamError.userId, context, execContext, options)
         break
@@ -201,11 +220,16 @@ async function runCheckpointLoop(
     if (!continuation) break
 
     if (context.pendingToolPromises.size > 0) {
+      const waitSpan = context.trace.startSpan('Wait for Tools', 'lifecycle.wait_tools', {
+        checkpointId: continuation.checkpointId,
+        pendingCount: context.pendingToolPromises.size,
+      })
       logger.info('Waiting for in-flight tool executions before resume', {
         checkpointId: continuation.checkpointId,
         pendingCount: context.pendingToolPromises.size,
       })
       await Promise.allSettled(context.pendingToolPromises.values())
+      context.trace.endSpan(waitSpan)
     }
 
     if (isAborted(options, context)) {

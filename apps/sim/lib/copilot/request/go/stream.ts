@@ -67,12 +67,18 @@ export async function runStreamLoop(
 ): Promise<void> {
   const { timeout = ORCHESTRATION_TIMEOUT_MS, abortSignal } = options
 
+  const fetchSpan = context.trace.startSpan(
+    `HTTP Request → ${new URL(fetchUrl).pathname}`,
+    'sim.http.fetch',
+    { url: fetchUrl }
+  )
   const response = await fetch(fetchUrl, {
     ...fetchOptions,
     signal: abortSignal,
   })
 
   if (!response.ok) {
+    context.trace.endSpan(fetchSpan, 'error')
     const errorText = await response.text().catch(() => '')
 
     if (response.status === 402) {
@@ -86,9 +92,11 @@ export async function runStreamLoop(
   }
 
   if (!response.body) {
+    context.trace.endSpan(fetchSpan, 'error')
     throw new CopilotBackendError('Copilot backend response missing body')
   }
 
+  context.trace.endSpan(fetchSpan)
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
 
@@ -113,6 +121,7 @@ export async function runStreamLoop(
       const streamEvent = eventToStreamEvent(event)
       if (event.trace?.requestId) {
         context.requestId = event.trace.requestId
+        context.trace.setGoTraceId(event.trace.requestId)
       }
 
       const shouldSkipToolCall = shouldSkipToolCallEvent(streamEvent)

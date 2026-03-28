@@ -1,5 +1,6 @@
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { StreamEvent } from '@/lib/copilot/request/session'
+import type { TraceCollector } from '@/lib/copilot/request/trace'
 import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 
 export type { StreamEvent }
@@ -78,6 +79,7 @@ export interface StreamingContext {
   errors: string[]
   usage?: { prompt: number; completion: number }
   cost?: { input: number; output: number; total: number }
+  trace: TraceCollector
 }
 
 export interface FileAttachment {

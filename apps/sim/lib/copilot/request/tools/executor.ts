@@ -163,6 +163,13 @@ export async function executeToolAndReport(
     return terminalCompletionFromToolCall(toolCall)
   }
 
+  const argsPreview = toolCall.params ? JSON.stringify(toolCall.params).slice(0, 200) : undefined
+  const toolSpan = context.trace.startSpan(toolCall.name, 'tool.execute', {
+    toolCallId: toolCall.id,
+    toolName: toolCall.name,
+    argsPreview,
+  })
+
   logger.info('Tool execution started', {
     toolCallId: toolCall.id,
     toolName: toolCall.name,
@@ -343,6 +350,7 @@ export async function executeToolAndReport(
         () => abortRequested(context, execContext, options)
       )
     }
+    context.trace.endSpan(toolSpan, result.success ? 'ok' : 'error')
     return {
       status: result.success
         ? MothershipStreamV1ToolOutcome.success
@@ -351,6 +359,7 @@ export async function executeToolAndReport(
       data: asRecord(result.output),
     }
   } catch (error) {
+    context.trace.endSpan(toolSpan, 'error')
     if (abortRequested(context, execContext, options)) {
       toolCall.status = MothershipStreamV1ToolOutcome.cancelled
       toolCall.endTime = Date.now()
