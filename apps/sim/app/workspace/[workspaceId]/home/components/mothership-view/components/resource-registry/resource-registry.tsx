@@ -52,7 +52,7 @@ function WorkflowDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
       <div
-        className='mr-[0px] h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+        className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
           borderColor: `${color}60`,
@@ -72,7 +72,16 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
   const DocIcon = getDocumentIcon('', item.name)
   return (
     <>
-      <DocIcon className='mr-2 h-[14px] w-[14px] text-[var(--text-icon)]' />
+      <DocIcon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <span className='truncate'>{item.name}</span>
+    </>
+  )
+}
+
+function IconDropdownItem({ item, icon: Icon }: DropdownItemRenderProps & { icon: ElementType }) {
+  return (
+    <>
+      <Icon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
       <span className='truncate'>{item.name}</span>
     </>
   )
@@ -104,7 +113,7 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     renderTabIcon: (_resource, className) => (
       <TableIcon className={cn(className, 'text-[var(--text-icon)]')} />
     ),
-    renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TableIcon} />,
   },
   file: {
     type: 'file',
@@ -123,7 +132,7 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     renderTabIcon: (_resource, className) => (
       <Database className={cn(className, 'text-[var(--text-icon)]')} />
     ),
-    renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Database} />,
   },
 } as const
 

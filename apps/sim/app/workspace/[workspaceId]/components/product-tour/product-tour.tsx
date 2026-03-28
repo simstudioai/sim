@@ -16,7 +16,6 @@ const Joyride = dynamic(() => import('react-joyride'), {
   ssr: false,
 })
 
-const NAV_TOUR_STORAGE_KEY = 'sim-nav-tour-completed-v1'
 export const START_NAV_TOUR_EVENT = 'start-nav-tour'
 
 export function NavTour() {
@@ -25,9 +24,6 @@ export function NavTour() {
 
   const { run, stepIndex, tourKey, isTooltipVisible, isEntrance, handleCallback } = useTour({
     steps: navTourSteps,
-    storageKey: NAV_TOUR_STORAGE_KEY,
-    autoStartDelay: 1200,
-    resettable: true,
     triggerEvent: START_NAV_TOUR_EVENT,
     tourName: 'Navigation tour',
     disabled: isWorkflowPage,

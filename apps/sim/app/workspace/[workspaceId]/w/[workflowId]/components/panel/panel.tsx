@@ -89,10 +89,15 @@ const logger = createLogger('Panel')
  *
  * @returns Panel on the right side of the workflow
  */
-export const Panel = memo(function Panel() {
+interface PanelProps {
+  /** Override workspaceId when rendered outside a workspace route (e.g. sandbox mode) */
+  workspaceId?: string
+}
+
+export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: PanelProps = {}) {
   const router = useRouter()
   const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = propWorkspaceId ?? (params.workspaceId as string)
 
   const panelRef = useRef<HTMLElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)

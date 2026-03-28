@@ -343,7 +343,7 @@ export function SearchModal({
           '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] rounded-xl border-[4px] border-black/[0.06] bg-[var(--bg)] shadow-[0_24px_80px_-16px_rgba(0,0,0,0.15)] dark:border-white/[0.06] dark:shadow-[0_24px_80px_-16px_rgba(0,0,0,0.4)]',
           open ? 'visible opacity-100' : 'invisible opacity-0'
         )}
-        style={{ left: '50%' }}
+        style={{ left: 'calc(var(--sidebar-width) / 2 + 50%)' }}
       >
         <Command label='Search' shouldFilter={false}>
           <div className='mx-2 mt-2 mb-1 flex items-center gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>

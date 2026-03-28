@@ -290,6 +290,16 @@ function TextEditor({
     }
   }, [isResizing])
 
+  const handleCheckboxToggle = useCallback(
+    (checkboxIndex: number, checked: boolean) => {
+      const toggled = toggleMarkdownCheckbox(contentRef.current, checkboxIndex, checked)
+      if (toggled !== contentRef.current) {
+        handleContentChange(toggled)
+      }
+    },
+    [handleContentChange]
+  )
+
   const isStreaming = streamingContent !== undefined
   const revealedContent = useStreamingText(content, isStreaming)
 
@@ -392,10 +402,11 @@ function TextEditor({
             className={cn('min-w-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}
           >
             <PreviewPanel
-              content={revealedContent}
+              content={isStreaming ? revealedContent : content}
               mimeType={file.type}
               filename={file.name}
               isStreaming={isStreaming}
+              onCheckboxToggle={canEdit && !isStreaming ? handleCheckboxToggle : undefined}
             />
           </div>
         </>
@@ -701,6 +712,14 @@ function PptxPreview({
       </div>
     </div>
   )
+}
+
+function toggleMarkdownCheckbox(markdown: string, targetIndex: number, checked: boolean): string {
+  let currentIndex = 0
+  return markdown.replace(/^(\s*(?:[-*+]|\d+[.)]) +)\[([ xX])\]/gm, (match, prefix: string) => {
+    if (currentIndex++ !== targetIndex) return match
+    return `${prefix}[${checked ? 'x' : ' '}]`
+  })
 }
 
 const UnsupportedPreview = memo(function UnsupportedPreview({

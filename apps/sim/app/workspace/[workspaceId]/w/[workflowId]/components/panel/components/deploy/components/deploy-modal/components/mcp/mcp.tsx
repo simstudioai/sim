@@ -17,8 +17,7 @@ import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-to
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
-import { McpServerFormModal } from '@/app/workspace/[workspaceId]/settings/components/mcp/components/mcp-server-form-modal/mcp-server-form-modal'
-import { useAllowedMcpDomains, useCreateMcpServer } from '@/hooks/queries/mcp'
+import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/create-workflow-mcp-server-modal'
 import {
   useAddWorkflowMcpTool,
   useDeleteWorkflowMcpTool,
@@ -28,7 +27,6 @@ import {
   type WorkflowMcpServer,
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
-import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -102,11 +100,7 @@ export function McpDeploy({
 }: McpDeployProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const [showMcpModal, setShowMcpModal] = useState(false)
-
-  const createMcpServer = useCreateMcpServer()
-  const { data: allowedMcpDomains = null } = useAllowedMcpDomains()
-  const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   const { data: servers = [], isLoading: isLoadingServers } = useWorkflowMcpServers(workspaceId)
   const addToolMutation = useAddWorkflowMcpTool()
@@ -473,22 +467,16 @@ export function McpDeploy({
       <>
         <div className='flex h-full flex-col items-center justify-center gap-3'>
           <p className='text-[13px] text-[var(--text-muted)]'>
-            Create an MCP Server in Settings → MCP Servers first.
+            Create an MCP Server to expose your workflows as tools.
           </p>
-          <Button variant='tertiary' onClick={() => setShowMcpModal(true)}>
+          <Button variant='tertiary' onClick={() => setShowCreateModal(true)}>
             Create MCP Server
           </Button>
         </div>
-        <McpServerFormModal
-          open={showMcpModal}
-          onOpenChange={setShowMcpModal}
-          mode='add'
-          onSubmit={async (config) => {
-            await createMcpServer.mutateAsync({ workspaceId, config: { ...config, enabled: true } })
-          }}
+        <CreateWorkflowMcpServerModal
+          open={showCreateModal}
+          onOpenChange={setShowCreateModal}
           workspaceId={workspaceId}
-          availableEnvVars={availableEnvVars}
-          allowedMcpDomains={allowedMcpDomains}
         />
       </>
     )

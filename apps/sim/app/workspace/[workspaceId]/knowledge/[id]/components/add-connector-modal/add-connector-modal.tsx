@@ -373,7 +373,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
               <div className='flex flex-col gap-3'>
                 {/* Auth: API key input or OAuth credential selection */}
                 {isApiKeyMode ? (
-                  <div className='flex flex-col gap-1'>
+                  <div className='flex flex-col gap-2'>
                     <Label>
                       {connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.label
                         ? connectorConfig.auth.label
@@ -394,7 +394,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                     />
                   </div>
                 ) : (
-                  <div className='flex flex-col gap-1'>
+                  <div className='flex flex-col gap-2'>
                     <Label>Account</Label>
                     {credentialsLoading ? (
                       <div className='flex items-center gap-2 text-[var(--text-muted)] text-small'>
@@ -442,7 +442,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                     canonicalId && (canonicalGroups.get(canonicalId)?.length ?? 0) === 2
 
                   return (
-                    <div key={field.id} className='flex flex-col gap-1'>
+                    <div key={field.id} className='flex flex-col gap-2'>
                       <div className='flex items-center justify-between'>
                         <Label>
                           {field.title}
@@ -507,7 +507,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
 
                 {/* Tag definitions (opt-out) */}
                 {connectorConfig.tagDefinitions && connectorConfig.tagDefinitions.length > 0 && (
-                  <div className='flex flex-col gap-1'>
+                  <div className='flex flex-col gap-2'>
                     <Label>Metadata Tags</Label>
                     {connectorConfig.tagDefinitions.map((tagDef) => (
                       <div
@@ -550,7 +550,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                 )}
 
                 {/* Sync interval */}
-                <div className='flex flex-col gap-1'>
+                <div className='flex flex-col gap-2'>
                   <Label>Sync Frequency</Label>
                   <ButtonGroup
                     value={String(syncInterval)}

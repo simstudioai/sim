@@ -1,19 +1,16 @@
 import clsx from 'clsx'
-import Image from 'next/image'
 import type { MDXRemoteProps } from 'next-mdx-remote/rsc'
 import { CodeBlock } from '@/lib/blog/code'
+import { BlogImage } from '@/app/(landing)/blog/components/blog-image'
 
 export const mdxComponents: MDXRemoteProps['components'] = {
   img: (props: any) => (
-    <Image
+    <BlogImage
       src={props.src}
       alt={props.alt || ''}
       width={props.width ? Number(props.width) : 800}
       height={props.height ? Number(props.height) : 450}
-      className={clsx('h-auto w-full rounded-lg', props.className)}
-      sizes='(max-width: 768px) 100vw, 800px'
-      loading='lazy'
-      unoptimized
+      className={props.className}
     />
   ),
   h2: ({ children, className, ...props }: any) => (

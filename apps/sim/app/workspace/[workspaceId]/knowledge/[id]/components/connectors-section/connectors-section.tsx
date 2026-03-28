@@ -18,6 +18,7 @@ import {
 import {
   Badge,
   Button,
+  Checkbox,
   Modal,
   ModalBody,
   ModalContent,
@@ -77,6 +78,12 @@ export function ConnectorsSection({
   const { mutate: updateConnector } = useUpdateConnector()
   const { mutate: deleteConnector, isPending: isDeleting } = useDeleteConnector()
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [deleteDocuments, setDeleteDocuments] = useState(false)
+
+  const closeDeleteModal = useCallback(() => {
+    setDeleteTarget(null)
+    setDeleteDocuments(false)
+  }, [])
   const [editingConnector, setEditingConnector] = useState<ConnectorData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [syncingIds, setSyncingIds] = useState<Set<string>>(() => new Set())
@@ -224,22 +231,30 @@ export function ConnectorsSection({
         />
       )}
 
-      <Modal open={deleteTarget !== null} onOpenChange={() => setDeleteTarget(null)}>
+      <Modal open={deleteTarget !== null} onOpenChange={closeDeleteModal}>
         <ModalContent size='sm'>
-          <ModalHeader>Delete Connector</ModalHeader>
+          <ModalHeader>Remove Connector</ModalHeader>
           <ModalBody>
             <p className='text-[var(--text-secondary)] text-sm'>
-              Are you sure you want to remove this connected source?{' '}
-              <span className='text-[var(--text-error)]'>
-                This will stop future syncs from this source.
-              </span>{' '}
-              <span className='text-[var(--text-tertiary)]'>
-                Documents already synced will remain in the knowledge base.
-              </span>
+              This will disconnect the source and stop future syncs. Documents already synced will
+              remain in the knowledge base unless you choose to delete them.
             </p>
+            <div className='mt-3 flex items-center gap-2'>
+              <Checkbox
+                id='delete-docs'
+                checked={deleteDocuments}
+                onCheckedChange={(checked) => setDeleteDocuments(checked === true)}
+              />
+              <label
+                htmlFor='delete-docs'
+                className='cursor-pointer text-[var(--text-secondary)] text-sm'
+              >
+                Also delete all synced documents
+              </label>
+            </div>
           </ModalBody>
           <ModalFooter>
-            <Button variant='default' onClick={() => setDeleteTarget(null)} disabled={isDeleting}>
+            <Button variant='default' onClick={closeDeleteModal} disabled={isDeleting}>
               Cancel
             </Button>
             <Button
@@ -248,23 +263,23 @@ export function ConnectorsSection({
               onClick={() => {
                 if (deleteTarget) {
                   deleteConnector(
-                    { knowledgeBaseId, connectorId: deleteTarget },
+                    { knowledgeBaseId, connectorId: deleteTarget, deleteDocuments },
                     {
                       onSuccess: () => {
                         setError(null)
-                        setDeleteTarget(null)
+                        closeDeleteModal()
                       },
                       onError: (err) => {
                         logger.error('Delete connector failed', { error: err.message })
                         setError(err.message)
-                        setDeleteTarget(null)
+                        closeDeleteModal()
                       },
                     }
                   )
                 }
               }}
             >
-              {isDeleting ? 'Deleting...' : 'Delete'}
+              {isDeleting ? 'Removing...' : 'Remove'}
             </Button>
           </ModalFooter>
         </ModalContent>
