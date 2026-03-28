@@ -292,7 +292,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Connector not found' }, { status: 404 })
     }
 
-    const connectorDocuments = await db.transaction(async (tx) => {
+    const deleteDocuments = request.nextUrl.searchParams.get('deleteDocuments') === 'true'
+
+    const { deletedDocs, docCount } = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT 1 FROM knowledge_connector WHERE id = ${connectorId} FOR UPDATE`)
 
       const docs = await tx
@@ -306,10 +308,17 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
           )
         )
 
-      const documentIds = docs.map((doc) => doc.id)
-      if (documentIds.length > 0) {
-        await tx.delete(embedding).where(inArray(embedding.documentId, documentIds))
-        await tx.delete(document).where(inArray(document.id, documentIds))
+      if (deleteDocuments) {
+        const documentIds = docs.map((doc) => doc.id)
+        if (documentIds.length > 0) {
+          await tx.delete(embedding).where(inArray(embedding.documentId, documentIds))
+          await tx.delete(document).where(inArray(document.id, documentIds))
+        }
+      } else if (docs.length > 0) {
+        await tx
+          .update(document)
+          .set({ connectorId: null })
+          .where(eq(document.connectorId, connectorId))
       }
 
       const deletedConnectors = await tx
@@ -328,16 +337,22 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         throw new Error('Connector not found')
       }
 
-      return docs
+      return { deletedDocs: deleteDocuments ? docs : [], docCount: docs.length }
     })
 
-    await deleteDocumentStorageFiles(connectorDocuments, requestId)
+    if (deletedDocs.length > 0) {
+      await deleteDocumentStorageFiles(deletedDocs, requestId)
+    }
 
-    await cleanupUnusedTagDefinitions(knowledgeBaseId, requestId).catch((error) => {
-      logger.warn(`[${requestId}] Failed to cleanup tag definitions`, error)
-    })
+    if (deleteDocuments) {
+      await cleanupUnusedTagDefinitions(knowledgeBaseId, requestId).catch((error) => {
+        logger.warn(`[${requestId}] Failed to cleanup tag definitions`, error)
+      })
+    }
 
-    logger.info(`[${requestId}] Hard-deleted connector ${connectorId} and its documents`)
+    logger.info(
+      `[${requestId}] Deleted connector ${connectorId}${deleteDocuments ? ` and ${docCount} documents` : `, kept ${docCount} documents`}`
+    )
 
     recordAudit({
       workspaceId: writeCheck.knowledgeBase.workspaceId,
@@ -349,7 +364,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       resourceId: connectorId,
       resourceName: existingConnector[0].connectorType,
       description: `Deleted connector from knowledge base "${writeCheck.knowledgeBase.name}"`,
-      metadata: { knowledgeBaseId, documentsDeleted: connectorDocuments.length },
+      metadata: {
+        knowledgeBaseId,
+        documentsDeleted: deleteDocuments ? docCount : 0,
+        documentsKept: deleteDocuments ? 0 : docCount,
+      },
       request,
     })
 
