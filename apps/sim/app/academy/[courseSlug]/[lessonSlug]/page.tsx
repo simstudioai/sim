@@ -196,6 +196,18 @@ export default function LessonPage({ params }: LessonPageProps) {
                 </div>
               </div>
             )}
+            {!hasExercise && !hasQuiz && hasVideo && (
+              <div className='flex-1 overflow-y-auto p-10'>
+                <div className='mx-auto w-full max-w-3xl'>
+                  <LessonVideo url={lesson.videoUrl!} title={lesson.title} />
+                  {lesson.description && (
+                    <p className='mt-5 text-[#999] text-[15px] leading-[160%]'>
+                      {lesson.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
