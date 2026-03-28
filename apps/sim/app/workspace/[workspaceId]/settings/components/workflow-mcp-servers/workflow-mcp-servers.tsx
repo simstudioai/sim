@@ -35,7 +35,6 @@ import { useApiKeys } from '@/hooks/queries/api-keys'
 import { useCreateMcpServer } from '@/hooks/queries/mcp'
 import {
   useAddWorkflowMcpTool,
-  useCreateWorkflowMcpServer,
   useDeleteWorkflowMcpServer,
   useDeleteWorkflowMcpTool,
   useDeployedWorkflows,
@@ -49,6 +48,7 @@ import {
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { CreateApiKeyModal } from '../api-keys/components'
 import { FormField, McpServerSkeleton } from '../mcp/components'
+import { CreateWorkflowMcpServerModal } from './create-workflow-mcp-server-modal'
 
 const logger = createLogger('WorkflowMcpServers')
 
@@ -955,13 +955,10 @@ export function WorkflowMcpServers() {
   const { data: servers = [], isLoading, error } = useWorkflowMcpServers(workspaceId)
   const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
     useDeployedWorkflows(workspaceId)
-  const createServerMutation = useCreateWorkflowMcpServer()
   const deleteServerMutation = useDeleteWorkflowMcpServer()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
-  const [formData, setFormData] = useState({ name: '', description: '', isPublic: false })
-  const [selectedWorkflowIds, setSelectedWorkflowIds] = useState<string[]>([])
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null)
   const [serverToDelete, setServerToDelete] = useState<WorkflowMcpServer | null>(null)
   const [deletingServers, setDeletingServers] = useState<Set<string>>(() => new Set())
@@ -978,29 +975,6 @@ export function WorkflowMcpServers() {
       value: w.id,
     }))
   }, [deployedWorkflows])
-
-  const resetForm = useCallback(() => {
-    setFormData({ name: '', description: '', isPublic: false })
-    setSelectedWorkflowIds([])
-    setShowAddModal(false)
-  }, [])
-
-  const handleCreateServer = async () => {
-    if (!formData.name.trim()) return
-
-    try {
-      await createServerMutation.mutateAsync({
-        workspaceId,
-        name: formData.name.trim(),
-        description: formData.description.trim() || undefined,
-        isPublic: formData.isPublic,
-        workflowIds: selectedWorkflowIds.length > 0 ? selectedWorkflowIds : undefined,
-      })
-      resetForm()
-    } catch (err) {
-      logger.error('Failed to create server:', err)
-    }
-  }
 
   const handleDeleteServer = async () => {
     if (!serverToDelete) return
@@ -1026,7 +1000,6 @@ export function WorkflowMcpServers() {
 
   const hasServers = servers.length > 0
   const showNoResults = searchTerm.trim() && filteredServers.length === 0 && hasServers
-  const isFormValid = formData.name.trim().length > 0
 
   if (selectedServerId) {
     return (
@@ -1123,86 +1096,13 @@ export function WorkflowMcpServers() {
         </div>
       </div>
 
-      <Modal open={showAddModal} onOpenChange={(open) => !open && resetForm()}>
-        <ModalContent>
-          <ModalHeader>Add New MCP Server</ModalHeader>
-          <ModalBody>
-            <div className='flex flex-col gap-3'>
-              <FormField label='Server Name'>
-                <EmcnInput
-                  placeholder='e.g., My MCP Server'
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className='h-9'
-                />
-              </FormField>
-
-              <FormField label='Description'>
-                <Textarea
-                  placeholder='Describe what this MCP server does (optional)'
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className='min-h-[60px] resize-none'
-                />
-              </FormField>
-
-              <FormField label='Workflows'>
-                <Combobox
-                  options={workflowOptions}
-                  multiSelect
-                  multiSelectValues={selectedWorkflowIds}
-                  onMultiSelectChange={setSelectedWorkflowIds}
-                  placeholder='Select workflows...'
-                  searchable
-                  searchPlaceholder='Search workflows...'
-                  isLoading={isLoadingWorkflows}
-                  disabled={createServerMutation.isPending}
-                  emptyMessage='No deployed workflows available'
-                  overlayContent={
-                    selectedWorkflowIds.length > 0 ? (
-                      <span className='text-[var(--text-primary)]'>
-                        {selectedWorkflowIds.length} workflow
-                        {selectedWorkflowIds.length !== 1 ? 's' : ''} selected
-                      </span>
-                    ) : undefined
-                  }
-                />
-              </FormField>
-
-              <FormField label='Access'>
-                <div className='flex items-center gap-3'>
-                  <ButtonGroup
-                    value={formData.isPublic ? 'public' : 'private'}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, isPublic: value === 'public' })
-                    }
-                  >
-                    <ButtonGroupItem value='private'>API Key</ButtonGroupItem>
-                    <ButtonGroupItem value='public'>Public</ButtonGroupItem>
-                  </ButtonGroup>
-                  {formData.isPublic && (
-                    <span className='text-[var(--text-muted)] text-xs'>
-                      No authentication required
-                    </span>
-                  )}
-                </div>
-              </FormField>
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={resetForm}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateServer}
-              disabled={!isFormValid || createServerMutation.isPending}
-              variant='primary'
-            >
-              {createServerMutation.isPending ? 'Adding...' : 'Add Server'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <CreateWorkflowMcpServerModal
+        open={showAddModal}
+        onOpenChange={setShowAddModal}
+        workspaceId={workspaceId}
+        workflowOptions={workflowOptions}
+        isLoadingWorkflows={isLoadingWorkflows}
+      />
 
       <Modal open={!!serverToDelete} onOpenChange={(open) => !open && setServerToDelete(null)}>
         <ModalContent size='sm'>
