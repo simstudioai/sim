@@ -696,6 +696,8 @@ function spawnWorker(): Promise<WorkerInfo> {
     const currentDir = path.dirname(fileURLToPath(import.meta.url))
     const candidatePaths = [
       path.join(currentDir, 'isolated-vm-worker.cjs'),
+      path.join(currentDir, '..', '..', 'lib', 'execution', 'isolated-vm-worker.cjs'),
+      path.join(process.cwd(), 'apps', 'sim', 'lib', 'execution', 'isolated-vm-worker.cjs'),
       path.join(process.cwd(), 'lib', 'execution', 'isolated-vm-worker.cjs'),
     ]
     const workerPath = candidatePaths.find((p) => fs.existsSync(p))

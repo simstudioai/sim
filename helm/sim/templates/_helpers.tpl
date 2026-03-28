@@ -222,10 +222,6 @@ Skip validation when using existing secrets or External Secrets Operator
 {{- fail "realtime.env.BETTER_AUTH_SECRET must not use the default placeholder value. Generate a secure secret with: openssl rand -hex 32" }}
 {{- end }}
 {{- end }}
-{{- /* Worker validation - REDIS_URL is required when worker is enabled */ -}}
-{{- if and .Values.worker.enabled (not .Values.app.env.REDIS_URL) }}
-{{- fail "app.env.REDIS_URL is required when worker.enabled=true" }}
-{{- end }}
 {{- /* PostgreSQL password validation - skip if using existing secret or ESO */ -}}
 {{- if not (or $useExistingPostgresSecret $useExternalSecrets) }}
 {{- if and .Values.postgresql.enabled (not .Values.postgresql.auth.password) }}
