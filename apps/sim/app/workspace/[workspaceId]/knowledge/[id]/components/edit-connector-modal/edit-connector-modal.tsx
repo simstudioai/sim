@@ -198,7 +198,7 @@ function SettingsTab({
   return (
     <div className='flex flex-col gap-3'>
       {connectorConfig?.configFields.map((field) => (
-        <div key={field.id} className='flex flex-col gap-1'>
+        <div key={field.id} className='flex flex-col gap-2'>
           <Label>
             {field.title}
             {field.required && <span className='ml-0.5 text-[var(--text-error)]'>*</span>}
@@ -227,7 +227,7 @@ function SettingsTab({
         </div>
       ))}
 
-      <div className='flex flex-col gap-1'>
+      <div className='flex flex-col gap-2'>
         <Label>Sync Frequency</Label>
         <ButtonGroup
           value={String(syncInterval)}
