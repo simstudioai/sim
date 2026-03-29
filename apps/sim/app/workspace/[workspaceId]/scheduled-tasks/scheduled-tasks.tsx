@@ -85,6 +85,8 @@ export function ScheduledTasks() {
     direction: 'asc' | 'desc'
   } | null>(null)
   const [scheduleTypeFilter, setScheduleTypeFilter] = useState<'all' | 'recurring' | 'once'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused'>('all')
+  const [healthFilter, setHealthFilter] = useState<'all' | 'has-failures'>('all')
 
   const visibleItems = useMemo(
     () => allItems.filter((item) => item.sourceType === 'job' && item.status !== 'completed'),
@@ -108,6 +110,16 @@ export function ScheduledTasks() {
       )
     }
 
+    if (statusFilter !== 'all') {
+      result = result.filter((item) =>
+        statusFilter === 'active' ? item.status === 'active' : item.status === 'disabled'
+      )
+    }
+
+    if (healthFilter === 'has-failures') {
+      result = result.filter((item) => (item.failedCount ?? 0) > 0)
+    }
+
     const col = activeSort?.column ?? 'nextRun'
     const dir = activeSort?.direction ?? 'desc'
     return [...result].sort((a, b) => {
@@ -129,7 +141,14 @@ export function ScheduledTasks() {
       }
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [visibleItems, debouncedSearchQuery, scheduleTypeFilter, activeSort])
+  }, [
+    visibleItems,
+    debouncedSearchQuery,
+    scheduleTypeFilter,
+    statusFilter,
+    healthFilter,
+    activeSort,
+  ])
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -246,21 +265,78 @@ export function ScheduledTasks() {
           </button>
         ))}
       </div>
+      <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
+      </div>
+      <div className='flex flex-col gap-0.5 px-3 py-2'>
+        {(
+          [
+            { value: 'all', label: 'All' },
+            { value: 'active', label: 'Active' },
+            { value: 'paused', label: 'Paused' },
+          ] as const
+        ).map(({ value, label }) => (
+          <button
+            key={value}
+            type='button'
+            className={cn(
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+              statusFilter === value && 'bg-[var(--surface-active)]'
+            )}
+            onClick={() => setStatusFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Health</span>
+      </div>
+      <div className='flex flex-col gap-0.5 px-3 py-2'>
+        {(
+          [
+            { value: 'all', label: 'All' },
+            { value: 'has-failures', label: 'Has failures' },
+          ] as const
+        ).map(({ value, label }) => (
+          <button
+            key={value}
+            type='button'
+            className={cn(
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+              healthFilter === value && 'bg-[var(--surface-active)]'
+            )}
+            onClick={() => setHealthFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 
-  const filterTags: FilterTag[] = useMemo(
-    () =>
-      scheduleTypeFilter === 'all'
-        ? []
-        : [
-            {
-              label: scheduleTypeFilter === 'recurring' ? 'Type: Recurring' : 'Type: One-time',
-              onRemove: () => setScheduleTypeFilter('all'),
-            },
-          ],
-    [scheduleTypeFilter]
-  )
+  const filterTags: FilterTag[] = useMemo(() => {
+    const tags: FilterTag[] = []
+    if (scheduleTypeFilter !== 'all') {
+      tags.push({
+        label: scheduleTypeFilter === 'recurring' ? 'Type: Recurring' : 'Type: One-time',
+        onRemove: () => setScheduleTypeFilter('all'),
+      })
+    }
+    if (statusFilter !== 'all') {
+      tags.push({
+        label: statusFilter === 'active' ? 'Status: Active' : 'Status: Paused',
+        onRemove: () => setStatusFilter('all'),
+      })
+    }
+    if (healthFilter === 'has-failures') {
+      tags.push({
+        label: 'Health: Has failures',
+        onRemove: () => setHealthFilter('all'),
+      })
+    }
+    return tags
+  }, [scheduleTypeFilter, statusFilter, healthFilter])
 
   return (
     <>
