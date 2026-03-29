@@ -33,7 +33,7 @@ let flushTimer: NodeJS.Timeout | null = null
  * Returns true if Profound analytics is configured.
  */
 export function isProfoundEnabled(): boolean {
-  return isHosted && Boolean(env.PROFOUND_API_KEY)
+  return isHosted && Boolean(env.PROFOUND_API_KEY) && Boolean(env.PROFOUND_ENDPOINT)
 }
 
 /**
@@ -69,6 +69,8 @@ async function flush(): Promise<void> {
       logger.error(`Profound API returned ${response.status}`)
     }
   } catch (error) {
+    // Entries are intentionally not re-queued on failure to prevent unbounded memory growth.
+    // Under a Profound outage, analytics data is lost — acceptable for non-critical telemetry.
     logger.error('Failed to flush logs to Profound', error)
   }
 }
