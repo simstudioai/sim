@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
   Columns2,
+  type ComboboxOption,
   Download,
   DropdownMenu,
   DropdownMenuContent,
@@ -25,7 +26,6 @@ import {
 } from '@/components/emcn'
 import { File as FilesIcon } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
   downloadWorkspaceFile,
@@ -173,8 +173,8 @@ export function Files() {
     column: string
     direction: 'asc' | 'desc'
   } | null>(null)
-  const [typeFilter, setTypeFilter] = useState<'all' | 'document' | 'audio' | 'video'>('all')
-  const [sizeFilter, setSizeFilter] = useState<'all' | 'small' | 'medium' | 'large'>('all')
+  const [typeFilter, setTypeFilter] = useState<string[]>([])
+  const [sizeFilter, setSizeFilter] = useState<string[]>([])
   const [uploadedByFilter, setUploadedByFilter] = useState<string[]>([])
 
   const [creatingFile, setCreatingFile] = useState(false)
@@ -215,21 +215,23 @@ export function Files() {
       ? files.filter((f) => f.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
       : files
 
-    if (typeFilter !== 'all') {
+    if (typeFilter.length > 0) {
       result = result.filter((f) => {
         const ext = getFileExtension(f.name)
-        if (typeFilter === 'document') return isSupportedExtension(ext)
-        if (typeFilter === 'audio') return isSupportedAudioExtension(ext)
-        if (typeFilter === 'video') return isSupportedVideoExtension(ext)
-        return true
+        if (typeFilter.includes('document') && isSupportedExtension(ext)) return true
+        if (typeFilter.includes('audio') && isSupportedAudioExtension(ext)) return true
+        if (typeFilter.includes('video') && isSupportedVideoExtension(ext)) return true
+        return false
       })
     }
 
-    if (sizeFilter !== 'all') {
+    if (sizeFilter.length > 0) {
       result = result.filter((f) => {
-        if (sizeFilter === 'small') return f.size < 1_048_576
-        if (sizeFilter === 'medium') return f.size >= 1_048_576 && f.size <= 10_485_760
-        return f.size > 10_485_760 // large
+        if (sizeFilter.includes('small') && f.size < 1_048_576) return true
+        if (sizeFilter.includes('medium') && f.size >= 1_048_576 && f.size <= 10_485_760)
+          return true
+        if (sizeFilter.includes('large') && f.size > 10_485_760) return true
+        return false
       })
     }
 
@@ -803,6 +805,56 @@ export function Files() {
     [handleNavigateToFiles]
   )
 
+  const typeDisplayLabel = useMemo(() => {
+    if (typeFilter.length === 0) return 'All'
+    if (typeFilter.length === 1) {
+      const labels: Record<string, string> = {
+        document: 'Documents',
+        audio: 'Audio',
+        video: 'Video',
+      }
+      return labels[typeFilter[0]] ?? typeFilter[0]
+    }
+    return `${typeFilter.length} selected`
+  }, [typeFilter])
+
+  const sizeDisplayLabel = useMemo(() => {
+    if (sizeFilter.length === 0) return 'All'
+    if (sizeFilter.length === 1) {
+      const labels: Record<string, string> = { small: 'Small', medium: 'Medium', large: 'Large' }
+      return labels[sizeFilter[0]] ?? sizeFilter[0]
+    }
+    return `${sizeFilter.length} selected`
+  }, [sizeFilter])
+
+  const uploadedByDisplayLabel = useMemo(() => {
+    if (uploadedByFilter.length === 0) return 'All'
+    if (uploadedByFilter.length === 1)
+      return members?.find((m) => m.userId === uploadedByFilter[0])?.name ?? '1 member'
+    return `${uploadedByFilter.length} members`
+  }, [uploadedByFilter, members])
+
+  const memberOptions: ComboboxOption[] = useMemo(
+    () =>
+      (members ?? []).map((m) => ({
+        value: m.userId,
+        label: m.name,
+        iconElement: m.image ? (
+          <img
+            src={m.image}
+            alt={m.name}
+            referrerPolicy='no-referrer'
+            className='h-[14px] w-[14px] rounded-full border border-[var(--border)] object-cover'
+          />
+        ) : (
+          <span className='flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+            {m.name.charAt(0).toUpperCase()}
+          </span>
+        ),
+      })),
+    [members]
+  )
+
   const sortConfig: SortConfig = useMemo(
     () => ({
       options: [
@@ -818,122 +870,112 @@ export function Files() {
     [activeSort]
   )
 
+  const hasActiveFilters =
+    typeFilter.length > 0 || sizeFilter.length > 0 || uploadedByFilter.length > 0
+
   const filterContent = (
-    <div className='w-[200px]'>
-      <div className='border-[var(--border-1)] border-b px-3 py-2'>
+    <div className='flex w-[240px] flex-col gap-3 p-3'>
+      <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>File Type</span>
-      </div>
-      <div className='flex flex-col gap-0.5 px-3 py-2'>
-        {(
-          [
-            { value: 'all', label: 'All' },
+        <Combobox
+          options={[
             { value: 'document', label: 'Documents' },
             { value: 'audio', label: 'Audio' },
             { value: 'video', label: 'Video' },
-          ] as const
-        ).map(({ value, label }) => (
-          <button
-            key={value}
-            type='button'
-            className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-              typeFilter === value && 'bg-[var(--surface-active)]'
-            )}
-            onClick={() => setTypeFilter(value)}
-          >
-            {label}
-          </button>
-        ))}
+          ]}
+          multiSelect
+          multiSelectValues={typeFilter}
+          onMultiSelectChange={setTypeFilter}
+          overlayContent={
+            <span className='truncate text-[var(--text-primary)]'>{typeDisplayLabel}</span>
+          }
+          showAllOption
+          allOptionLabel='All'
+          size='sm'
+          className='h-[32px] w-full rounded-md'
+        />
       </div>
-      <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
+      <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Size</span>
-      </div>
-      <div className='flex flex-col gap-0.5 px-3 py-2'>
-        {(
-          [
-            { value: 'all', label: 'All' },
+        <Combobox
+          options={[
             { value: 'small', label: 'Small (< 1 MB)' },
             { value: 'medium', label: 'Medium (1–10 MB)' },
             { value: 'large', label: 'Large (> 10 MB)' },
-          ] as const
-        ).map(({ value, label }) => (
-          <button
-            key={value}
-            type='button'
-            className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-              sizeFilter === value && 'bg-[var(--surface-active)]'
-            )}
-            onClick={() => setSizeFilter(value)}
-          >
-            {label}
-          </button>
-        ))}
+          ]}
+          multiSelect
+          multiSelectValues={sizeFilter}
+          onMultiSelectChange={setSizeFilter}
+          overlayContent={
+            <span className='truncate text-[var(--text-primary)]'>{sizeDisplayLabel}</span>
+          }
+          showAllOption
+          allOptionLabel='All'
+          size='sm'
+          className='h-[32px] w-full rounded-md'
+        />
       </div>
-      {members && members.length > 0 && (
-        <>
-          <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>
-              Uploaded By
-            </span>
-          </div>
-          <div className='flex flex-col gap-0.5 px-3 py-2'>
-            <button
-              type='button'
-              className={cn(
-                'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-                uploadedByFilter.length === 0 && 'bg-[var(--surface-active)]'
-              )}
-              onClick={() => setUploadedByFilter([])}
-            >
-              All
-            </button>
-            {members.map((member) => (
-              <button
-                key={member.userId}
-                type='button'
-                className={cn(
-                  'flex w-full cursor-pointer select-none items-center gap-1.5 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-                  uploadedByFilter.includes(member.userId) && 'bg-[var(--surface-active)]'
-                )}
-                onClick={() =>
-                  setUploadedByFilter((prev) =>
-                    prev.includes(member.userId)
-                      ? prev.filter((id) => id !== member.userId)
-                      : [...prev, member.userId]
-                  )
-                }
-              >
-                {member.image ? (
-                  <img
-                    src={member.image}
-                    alt={member.name}
-                    referrerPolicy='no-referrer'
-                    className='h-[14px] w-[14px] shrink-0 rounded-full border border-[var(--border)] object-cover'
-                  />
-                ) : (
-                  <span className='flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
-                    {member.name.charAt(0).toUpperCase()}
-                  </span>
-                )}
-                <span className='truncate'>{member.name}</span>
-              </button>
-            ))}
-          </div>
-        </>
+      {memberOptions.length > 0 && (
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Uploaded By</span>
+          <Combobox
+            options={memberOptions}
+            multiSelect
+            multiSelectValues={uploadedByFilter}
+            onMultiSelectChange={setUploadedByFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{uploadedByDisplayLabel}</span>
+            }
+            searchable
+            searchPlaceholder='Search members...'
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+      )}
+      {hasActiveFilters && (
+        <button
+          type='button'
+          onClick={() => {
+            setTypeFilter([])
+            setSizeFilter([])
+            setUploadedByFilter([])
+          }}
+          className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+        >
+          Clear all filters
+        </button>
       )}
     </div>
   )
 
   const filterTags: FilterTag[] = useMemo(() => {
     const tags: FilterTag[] = []
-    if (typeFilter !== 'all') {
-      const labels = { document: 'Type: Documents', audio: 'Type: Audio', video: 'Type: Video' }
-      tags.push({ label: labels[typeFilter], onRemove: () => setTypeFilter('all') })
+    if (typeFilter.length > 0) {
+      const typeLabels: Record<string, string> = {
+        document: 'Documents',
+        audio: 'Audio',
+        video: 'Video',
+      }
+      const label =
+        typeFilter.length === 1
+          ? `Type: ${typeLabels[typeFilter[0]]}`
+          : `Type: ${typeFilter.length} selected`
+      tags.push({ label, onRemove: () => setTypeFilter([]) })
     }
-    if (sizeFilter !== 'all') {
-      const labels = { small: 'Size: Small', medium: 'Size: Medium', large: 'Size: Large' }
-      tags.push({ label: labels[sizeFilter], onRemove: () => setSizeFilter('all') })
+    if (sizeFilter.length > 0) {
+      const sizeLabels: Record<string, string> = {
+        small: 'Small',
+        medium: 'Medium',
+        large: 'Large',
+      }
+      const label =
+        sizeFilter.length === 1
+          ? `Size: ${sizeLabels[sizeFilter[0]]}`
+          : `Size: ${sizeFilter.length} selected`
+      tags.push({ label, onRemove: () => setSizeFilter([]) })
     }
     if (uploadedByFilter.length > 0) {
       const label =
