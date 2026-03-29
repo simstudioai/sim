@@ -461,7 +461,7 @@ const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileR
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       if (e.ctrlKey || e.metaKey) {
-        setZoom((z) => clampZoom(z * (1 - e.deltaY * ZOOM_WHEEL_SENSITIVITY)))
+        setZoom((z) => clampZoom(z * Math.exp(-e.deltaY * ZOOM_WHEEL_SENSITIVITY)))
       } else {
         setOffset((o) => ({ x: o.x - e.deltaX, y: o.y - e.deltaY }))
       }
