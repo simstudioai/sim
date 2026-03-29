@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 
 interface RequestResetFormProps {
   email: string
@@ -64,14 +64,16 @@ export function RequestResetForm({
         )}
       </div>
 
-      <BrandedButton
-        type='submit'
-        disabled={isSubmitting}
-        loading={isSubmitting}
-        loadingText='Sending'
-      >
-        Send Reset Link
-      </BrandedButton>
+      <button type='submit' disabled={isSubmitting} className={AUTH_SUBMIT_BTN}>
+        {isSubmitting ? (
+          <span className='flex items-center gap-2'>
+            <Loader2 className='h-4 w-4 animate-spin' />
+            Sending...
+          </span>
+        ) : (
+          'Send Reset Link'
+        )}
+      </button>
     </form>
   )
 }
@@ -219,14 +221,16 @@ export function SetNewPasswordForm({
         )}
       </div>
 
-      <BrandedButton
-        type='submit'
-        disabled={isSubmitting || !token}
-        loading={isSubmitting}
-        loadingText='Resetting'
-      >
-        Reset Password
-      </BrandedButton>
+      <button type='submit' disabled={isSubmitting || !token} className={AUTH_SUBMIT_BTN}>
+        {isSubmitting ? (
+          <span className='flex items-center gap-2'>
+            <Loader2 className='h-4 w-4 animate-spin' />
+            Resetting...
+          </span>
+        ) : (
+          'Reset Password'
+        )}
+      </button>
     </form>
   )
 }

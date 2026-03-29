@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -183,6 +183,8 @@ function TextEditor({
   } = useWorkspaceFileContent(workspaceId, file.id, file.key, file.type === 'text/x-pptxgenjs')
 
   const updateContent = useUpdateWorkspaceFileContent()
+  const updateContentRef = useRef(updateContent)
+  updateContentRef.current = updateContent
 
   const [content, setContent] = useState('')
   const [savedContent, setSavedContent] = useState('')
@@ -230,14 +232,14 @@ function TextEditor({
     const currentContent = contentRef.current
     if (currentContent === savedContentRef.current) return
 
-    await updateContent.mutateAsync({
+    await updateContentRef.current.mutateAsync({
       workspaceId,
       fileId: file.id,
       content: currentContent,
     })
     setSavedContent(currentContent)
     savedContentRef.current = currentContent
-  }, [workspaceId, file.id, updateContent])
+  }, [workspaceId, file.id])
 
   const { saveStatus, saveImmediately, isDirty } = useAutosave({
     content,
@@ -287,6 +289,16 @@ function TextEditor({
       document.body.style.userSelect = ''
     }
   }, [isResizing])
+
+  const handleCheckboxToggle = useCallback(
+    (checkboxIndex: number, checked: boolean) => {
+      const toggled = toggleMarkdownCheckbox(contentRef.current, checkboxIndex, checked)
+      if (toggled !== contentRef.current) {
+        handleContentChange(toggled)
+      }
+    },
+    [handleContentChange]
+  )
 
   const isStreaming = streamingContent !== undefined
   const revealedContent = useStreamingText(content, isStreaming)
@@ -390,10 +402,11 @@ function TextEditor({
             className={cn('min-w-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}
           >
             <PreviewPanel
-              content={revealedContent}
+              content={isStreaming ? revealedContent : content}
               mimeType={file.type}
               filename={file.name}
               isStreaming={isStreaming}
+              onCheckboxToggle={canEdit && !isStreaming ? handleCheckboxToggle : undefined}
             />
           </div>
         </>
@@ -402,7 +415,7 @@ function TextEditor({
   )
 }
 
-function IframePreview({ file }: { file: WorkspaceFileRecord }) {
+const IframePreview = memo(function IframePreview({ file }: { file: WorkspaceFileRecord }) {
   const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
 
   return (
@@ -417,9 +430,9 @@ function IframePreview({ file }: { file: WorkspaceFileRecord }) {
       />
     </div>
   )
-}
+})
 
-function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
+const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
   const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
 
   return (
@@ -432,7 +445,7 @@ function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
       />
     </div>
   )
-}
+})
 
 const pptxSlideCache = new Map<string, string[]>()
 
@@ -701,7 +714,19 @@ function PptxPreview({
   )
 }
 
-function UnsupportedPreview({ file }: { file: WorkspaceFileRecord }) {
+function toggleMarkdownCheckbox(markdown: string, targetIndex: number, checked: boolean): string {
+  let currentIndex = 0
+  return markdown.replace(/^(\s*(?:[-*+]|\d+[.)]) +)\[([ xX])\]/gm, (match, prefix: string) => {
+    if (currentIndex++ !== targetIndex) return match
+    return `${prefix}[${checked ? 'x' : ' '}]`
+  })
+}
+
+const UnsupportedPreview = memo(function UnsupportedPreview({
+  file,
+}: {
+  file: WorkspaceFileRecord
+}) {
   const ext = getFileExtension(file.name)
 
   return (
@@ -714,4 +739,4 @@ function UnsupportedPreview({ file }: { file: WorkspaceFileRecord }) {
       </p>
     </div>
   )
-}
+})

@@ -2,12 +2,14 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
+import { isEphemeralResource } from '@/lib/copilot/resource-extraction'
 import type { MothershipResource } from '@/lib/copilot/resource-types'
 
 export {
   extractDeletedResourcesFromToolResult,
   extractResourcesFromToolResult,
   hasDeleteCapability,
+  isEphemeralResource,
   isResourceToolName,
 } from '@/lib/copilot/resource-extraction'
 export type {
@@ -25,7 +27,7 @@ export async function persistChatResources(
   chatId: string,
   newResources: MothershipResource[]
 ): Promise<void> {
-  const toMerge = newResources.filter((r) => r.id !== 'streaming-file')
+  const toMerge = newResources.filter((r) => !isEphemeralResource(r))
   if (toMerge.length === 0) return
 
   try {

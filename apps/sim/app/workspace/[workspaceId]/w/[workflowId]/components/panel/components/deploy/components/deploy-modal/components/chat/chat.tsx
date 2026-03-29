@@ -34,6 +34,12 @@ import {
   useUpdateChat,
 } from '@/hooks/queries/chats'
 import { useIdentifierValidation } from './hooks'
+import {
+  getPasswordHelperText,
+  getPasswordPlaceholder,
+  hasExistingPassword,
+  isPasswordRequired,
+} from './utils'
 
 const logger = createLogger('ChatDeploy')
 
@@ -69,6 +75,7 @@ export interface ExistingChat {
     welcomeMessage?: string
     imageUrl?: string
   }
+  hasPassword: boolean
   isActive: boolean
 }
 
@@ -128,6 +135,7 @@ export function ChatDeploy({
   const deleteChatMutation = useDeleteChat()
   const [isIdentifierValid, setIsIdentifierValid] = useState(false)
   const [hasInitializedForm, setHasInitializedForm] = useState(false)
+  const existingPassword = hasExistingPassword(existingChat)
 
   const updateField = <K extends keyof ChatFormData>(field: K, value: ChatFormData[K]) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -140,7 +148,7 @@ export function ChatDeploy({
     setErrors((prev) => ({ ...prev, [field]: message }))
   }
 
-  const validateForm = (isExistingChat: boolean): boolean => {
+  const validateForm = (): boolean => {
     const newErrors: FormErrors = {}
 
     if (!formData.identifier.trim()) {
@@ -153,7 +161,7 @@ export function ChatDeploy({
       newErrors.title = 'Title is required'
     }
 
-    if (formData.authType === 'password' && !isExistingChat && !formData.password.trim()) {
+    if (isPasswordRequired(formData.authType, formData.password, existingPassword)) {
       newErrors.password = 'Password is required when using password protection'
     }
 
@@ -176,9 +184,7 @@ export function ChatDeploy({
     isIdentifierValid &&
     Boolean(formData.title.trim()) &&
     formData.selectedOutputBlocks.length > 0 &&
-    (formData.authType !== 'password' ||
-      Boolean(formData.password.trim()) ||
-      Boolean(existingChat)) &&
+    !isPasswordRequired(formData.authType, formData.password, existingPassword) &&
     ((formData.authType !== 'email' && formData.authType !== 'sso') || formData.emails.length > 0)
 
   useEffect(() => {
@@ -228,7 +234,7 @@ export function ChatDeploy({
     const newTab = isNewChat ? window.open('', '_blank') : null
 
     try {
-      if (!validateForm(!!existingChat)) {
+      if (!validateForm()) {
         newTab?.close()
         setChatSubmitting(false)
         return
@@ -381,7 +387,7 @@ export function ChatDeploy({
             onPasswordChange={(password) => updateField('password', password)}
             onEmailsChange={(emails) => updateField('emails', emails)}
             disabled={chatSubmitting}
-            isExistingChat={!!existingChat}
+            hasExistingPassword={existingPassword}
             error={errors.password || errors.emails}
           />
           <div>
@@ -605,7 +611,7 @@ interface AuthSelectorProps {
   onPasswordChange: (password: string) => void
   onEmailsChange: (emails: string[]) => void
   disabled?: boolean
-  isExistingChat?: boolean
+  hasExistingPassword?: boolean
   error?: string
 }
 
@@ -624,7 +630,7 @@ function AuthSelector({
   onPasswordChange,
   onEmailsChange,
   disabled = false,
-  isExistingChat = false,
+  hasExistingPassword = false,
   error,
 }: AuthSelectorProps) {
   const [showPassword, setShowPassword] = useState(false)
@@ -712,12 +718,12 @@ function AuthSelector({
           <div className='relative'>
             <Input
               type={showPassword ? 'text' : 'password'}
-              placeholder={isExistingChat ? 'Enter new password to change' : 'Enter password'}
+              placeholder={getPasswordPlaceholder(hasExistingPassword)}
               value={password}
               onChange={(e) => onPasswordChange(e.target.value)}
               disabled={disabled}
               className='pr-[88px]'
-              required={!isExistingChat}
+              required={!hasExistingPassword}
               autoComplete='new-password'
             />
             <div className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center'>
@@ -779,9 +785,7 @@ function AuthSelector({
             </div>
           </div>
           <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-            {isExistingChat
-              ? 'Leave empty to keep the current password'
-              : 'This password will be required to access your chat'}
+            {getPasswordHelperText(hasExistingPassword)}
           </p>
         </div>
       )}

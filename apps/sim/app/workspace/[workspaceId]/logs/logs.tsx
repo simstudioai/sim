@@ -39,6 +39,7 @@ import type {
   ResourceColumn,
   ResourceRow,
   SearchConfig,
+  SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import {
   ResourceHeader,
@@ -288,6 +289,10 @@ export default function Logs() {
   const activeLogRefetchRef = useRef<() => void>(() => {})
   const logsQueryRef = useRef({ isFetching: false, hasNextPage: false, fetchNextPage: () => {} })
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
+  const [activeSort, setActiveSort] = useState<{
+    column: string
+    direction: 'asc' | 'desc'
+  } | null>(null)
   const userPermissions = useUserPermissionsContext()
 
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
@@ -358,11 +363,43 @@ export default function Logs() {
     return logsQuery.data.pages.flatMap((page) => page.logs)
   }, [logsQuery.data?.pages])
 
+  const sortedLogs = useMemo(() => {
+    if (!activeSort) return logs
+
+    const { column, direction } = activeSort
+    return [...logs].sort((a, b) => {
+      let cmp = 0
+      switch (column) {
+        case 'date':
+          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          break
+        case 'duration': {
+          const aDuration = parseDuration({ duration: a.duration ?? undefined }) ?? -1
+          const bDuration = parseDuration({ duration: b.duration ?? undefined }) ?? -1
+          cmp = aDuration - bDuration
+          break
+        }
+        case 'cost': {
+          const aCost = typeof a.cost?.total === 'number' ? a.cost.total : -1
+          const bCost = typeof b.cost?.total === 'number' ? b.cost.total : -1
+          cmp = aCost - bCost
+          break
+        }
+        case 'status':
+          cmp = (a.status ?? '').localeCompare(b.status ?? '')
+          break
+        default:
+          break
+      }
+      return direction === 'asc' ? cmp : -cmp
+    })
+  }, [logs, activeSort])
+
   const selectedLogIndex = useMemo(
-    () => (selectedLogId ? logs.findIndex((l) => l.id === selectedLogId) : -1),
-    [logs, selectedLogId]
+    () => (selectedLogId ? sortedLogs.findIndex((l) => l.id === selectedLogId) : -1),
+    [sortedLogs, selectedLogId]
   )
-  const selectedLogFromList = selectedLogIndex >= 0 ? logs[selectedLogIndex] : null
+  const selectedLogFromList = selectedLogIndex >= 0 ? sortedLogs[selectedLogIndex] : null
 
   const selectedLog = useMemo(() => {
     if (!selectedLogFromList) return null
@@ -381,8 +418,8 @@ export default function Logs() {
   useFolders(workspaceId)
 
   useEffect(() => {
-    logsRef.current = logs
-  }, [logs])
+    logsRef.current = sortedLogs
+  }, [sortedLogs])
   useEffect(() => {
     selectedLogIndexRef.current = selectedLogIndex
   }, [selectedLogIndex])
@@ -443,12 +480,12 @@ export default function Logs() {
   const handleLogContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
       e.preventDefault()
-      const log = logs.find((l) => l.id === rowId) ?? null
+      const log = sortedLogs.find((l) => l.id === rowId) ?? null
       setContextMenuPosition({ x: e.clientX, y: e.clientY })
       setContextMenuLog(log)
       setContextMenuOpen(true)
     },
-    [logs]
+    [sortedLogs]
   )
 
   const handleCopyExecutionId = useCallback(() => {
@@ -659,7 +696,7 @@ export default function Logs() {
 
   const rows: ResourceRow[] = useMemo(
     () =>
-      logs.map((log) => {
+      sortedLogs.map((log) => {
         const formattedDate = formatDate(log.createdAt)
         const displayStatus = getDisplayStatus(log.status)
         const isMothershipJob = log.trigger === 'mothership'
@@ -710,7 +747,7 @@ export default function Logs() {
           },
         }
       }),
-    [logs]
+    [sortedLogs]
   )
 
   const sidebarOverlay = useMemo(
@@ -721,7 +758,7 @@ export default function Logs() {
         onClose={handleCloseSidebar}
         onNavigateNext={handleNavigateNext}
         onNavigatePrev={handleNavigatePrev}
-        hasNext={selectedLogIndex < logs.length - 1}
+        hasNext={selectedLogIndex < sortedLogs.length - 1}
         hasPrev={selectedLogIndex > 0}
       />
     ),
@@ -732,7 +769,7 @@ export default function Logs() {
       handleNavigateNext,
       handleNavigatePrev,
       selectedLogIndex,
-      logs.length,
+      sortedLogs.length,
     ]
   )
 
@@ -978,6 +1015,21 @@ export default function Logs() {
     [appliedFilters, textSearch, removeBadge, handleFiltersChange]
   )
 
+  const sortConfig = useMemo<SortConfig>(
+    () => ({
+      options: [
+        { id: 'date', label: 'Date' },
+        { id: 'duration', label: 'Duration' },
+        { id: 'cost', label: 'Cost' },
+        { id: 'status', label: 'Status' },
+      ],
+      active: activeSort,
+      onSort: (column, direction) => setActiveSort({ column, direction }),
+      onClear: () => setActiveSort(null),
+    }),
+    [activeSort]
+  )
+
   const searchConfig = useMemo<SearchConfig>(
     () => ({
       value: currentInput,
@@ -1021,7 +1073,7 @@ export default function Logs() {
         label: 'Export',
         icon: Download,
         onClick: handleExport,
-        disabled: !userPermissions.canEdit || isExporting || logs.length === 0,
+        disabled: !userPermissions.canEdit || isExporting || sortedLogs.length === 0,
       },
       {
         label: 'Notifications',
@@ -1054,7 +1106,7 @@ export default function Logs() {
       handleExport,
       userPermissions.canEdit,
       isExporting,
-      logs.length,
+      sortedLogs.length,
       handleOpenNotificationSettings,
     ]
   )
@@ -1065,6 +1117,7 @@ export default function Logs() {
         <ResourceHeader icon={Library} title='Logs' actions={headerActions} />
         <ResourceOptionsBar
           search={searchConfig}
+          sort={sortConfig}
           filter={
             <LogsFilterPanel searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />
           }
@@ -1335,7 +1388,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   }, [resetFilters, onSearchQueryChange])
 
   return (
-    <div className='flex flex-col gap-3 p-3'>
+    <div className='flex w-[240px] flex-col gap-3 p-3'>
       <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
         <Combobox

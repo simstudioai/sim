@@ -4,6 +4,7 @@ import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import * as ipaddr from 'ipaddr.js'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
 
 const logger = createLogger('InputValidation')
@@ -89,10 +90,7 @@ export async function validateUrlWithDNS(
         return ip === '127.0.0.1' || ip === '::1'
       })()
 
-    if (
-      isPrivateOrReservedIP(address) &&
-      !(isLocalhost && resolvedIsLoopback && !options.allowHttp)
-    ) {
+    if (isPrivateOrReservedIP(address) && !(isLocalhost && resolvedIsLoopback && !isHosted)) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
@@ -244,6 +242,24 @@ function resolveRedirectUrl(baseUrl: string, location: string): string {
 }
 
 /**
+ * Creates a DNS lookup function that always returns a pre-resolved IP address.
+ * Use this to prevent DNS rebinding (TOCTOU) attacks when connecting to
+ * user-controlled hostnames via non-HTTP protocols (SMTP, SSH, IMAP, etc.).
+ */
+export function createPinnedLookup(resolvedIP: string): LookupFunction {
+  const isIPv6 = resolvedIP.includes(':')
+  const family = isIPv6 ? 6 : 4
+
+  return (_hostname, options, callback) => {
+    if (options.all) {
+      callback(null, [{ address: resolvedIP, family }])
+    } else {
+      callback(null, resolvedIP, family)
+    }
+  }
+}
+
+/**
  * Performs a fetch with IP pinning to prevent DNS rebinding attacks.
  * Uses the pre-resolved IP address while preserving the original hostname for TLS SNI.
  * Follows redirects securely by validating each redirect target.
@@ -263,16 +279,7 @@ export async function secureFetchWithPinnedIP(
     const defaultPort = isHttps ? 443 : 80
     const port = parsed.port ? Number.parseInt(parsed.port, 10) : defaultPort
 
-    const isIPv6 = resolvedIP.includes(':')
-    const family = isIPv6 ? 6 : 4
-
-    const lookup: LookupFunction = (_hostname, options, callback) => {
-      if (options.all) {
-        callback(null, [{ address: resolvedIP, family }])
-      } else {
-        callback(null, resolvedIP, family)
-      }
-    }
+    const lookup = createPinnedLookup(resolvedIP)
 
     const agentOptions: http.AgentOptions = { lookup }
 

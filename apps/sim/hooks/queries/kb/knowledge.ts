@@ -181,6 +181,8 @@ export interface KnowledgeChunksParams {
   enabledFilter?: 'all' | 'enabled' | 'disabled'
   limit?: number
   offset?: number
+  sortBy?: 'chunkIndex' | 'tokenCount' | 'enabled'
+  sortOrder?: 'asc' | 'desc'
 }
 
 export interface KnowledgeChunksResponse {
@@ -196,6 +198,8 @@ export async function fetchKnowledgeChunks(
     enabledFilter,
     limit = 50,
     offset = 0,
+    sortBy,
+    sortOrder,
   }: KnowledgeChunksParams,
   signal?: AbortSignal
 ): Promise<KnowledgeChunksResponse> {
@@ -206,6 +210,8 @@ export async function fetchKnowledgeChunks(
   }
   if (limit) params.set('limit', limit.toString())
   if (offset) params.set('offset', offset.toString())
+  if (sortBy && sortBy !== 'chunkIndex') params.set('sortBy', sortBy)
+  if (sortOrder && sortOrder !== 'asc') params.set('sortOrder', sortOrder)
 
   const response = await fetch(
     `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks${params.toString() ? `?${params.toString()}` : ''}`,
@@ -306,6 +312,8 @@ export const serializeChunkParams = (params: KnowledgeChunksParams) =>
     enabledFilter: params.enabledFilter ?? 'all',
     limit: params.limit ?? 50,
     offset: params.offset ?? 0,
+    sortBy: params.sortBy ?? 'chunkIndex',
+    sortOrder: params.sortOrder ?? 'asc',
   })
 
 export function useKnowledgeChunksQuery(

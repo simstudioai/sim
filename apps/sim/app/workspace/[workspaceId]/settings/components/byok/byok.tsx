@@ -404,7 +404,10 @@ export function BYOK() {
               <span className='font-medium text-[var(--text-primary)]'>
                 {PROVIDERS.find((p) => p.id === deleteConfirmProvider)?.name}
               </span>{' '}
-              API key? This workspace will revert to using platform hosted keys.
+              API key?{' '}
+              <span className='text-[var(--text-error)]'>
+                This workspace will revert to using platform hosted keys.
+              </span>
             </p>
           </ModalBody>
           <ModalFooter>

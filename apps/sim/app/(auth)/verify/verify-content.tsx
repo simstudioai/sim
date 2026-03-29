@@ -1,10 +1,11 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { useVerification } from '@/app/(auth)/verify/use-verification'
 
 interface VerifyContentProps {
@@ -110,15 +111,20 @@ function VerificationForm({
             )}
           </div>
 
-          <BrandedButton
+          <button
             onClick={verifyCode}
             disabled={!isOtpComplete || isLoading}
-            loading={isLoading}
-            loadingText='Verifying'
-            showArrow={false}
+            className={AUTH_SUBMIT_BTN}
           >
-            Verify Email
-          </BrandedButton>
+            {isLoading ? (
+              <span className='flex items-center gap-2'>
+                <Loader2 className='h-4 w-4 animate-spin' />
+                Verifying...
+              </span>
+            ) : (
+              'Verify Email'
+            )}
+          </button>
 
           {hasEmailService && (
             <div className='text-center'>

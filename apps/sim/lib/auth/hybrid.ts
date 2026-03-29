@@ -14,6 +14,20 @@ export const AuthType = {
 
 export type AuthTypeValue = (typeof AuthType)[keyof typeof AuthType]
 
+const API_KEY_HEADER = 'x-api-key'
+const BEARER_PREFIX = 'Bearer '
+
+/**
+ * Lightweight header-only check for whether a request carries external API credentials.
+ * Does NOT validate the credentials — only inspects headers to classify the request
+ * as programmatic API traffic vs interactive session traffic.
+ */
+export function hasExternalApiCredentials(headers: Headers): boolean {
+  if (headers.has(API_KEY_HEADER)) return true
+  const auth = headers.get('authorization')
+  return auth?.startsWith(BEARER_PREFIX) ?? false
+}
+
 export interface AuthResult {
   success: boolean
   userId?: string

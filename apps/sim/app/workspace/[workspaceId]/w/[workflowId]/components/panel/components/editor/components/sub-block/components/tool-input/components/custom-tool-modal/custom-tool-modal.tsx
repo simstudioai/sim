@@ -1061,6 +1061,7 @@ try {
                           setShowSchemaParams(false)
                         }
                       }}
+                      colorScheme='inverted'
                     >
                       <PopoverAnchor asChild>
                         <div
@@ -1178,8 +1179,11 @@ try {
           <ModalHeader>Delete Custom Tool</ModalHeader>
           <ModalBody>
             <p className='text-[var(--text-secondary)]'>
-              This will permanently delete the tool and remove it from any workflows that are using
-              it. <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              <span className='text-[var(--text-error)]'>
+                This will permanently delete the tool and remove it from any workflows that are
+                using it.
+              </span>{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>

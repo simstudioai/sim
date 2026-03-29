@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
 import { Loader2, RotateCcw, X } from 'lucide-react'
@@ -96,7 +96,10 @@ interface SubmitStatus {
   message: string
 }
 
-export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
+export const CreateBaseModal = memo(function CreateBaseModal({
+  open,
+  onOpenChange,
+}: CreateBaseModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -685,4 +688,4 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
       </ModalContent>
     </Modal>
   )
-}
+})

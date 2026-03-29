@@ -69,7 +69,7 @@ export const linearListUsersTool: ToolConfig<LinearListUsersParams, LinearListUs
       variables: {
         includeDisabled: params.includeDisabled || false,
         first: params.first ? Number(params.first) : 50,
-        after: params.after,
+        after: params.after?.trim() || undefined,
       },
     }),
   },

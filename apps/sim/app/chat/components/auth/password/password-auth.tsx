@@ -2,11 +2,11 @@
 
 import { type KeyboardEvent, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(home)/components/navbar/navbar'
 
@@ -80,7 +80,7 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
 
   return (
     <AuthBackground className='dark font-[430] font-season'>
-      <main className='relative flex min-h-screen flex-col text-[var(--landing-text)]'>
+      <main className='relative flex min-h-full flex-col text-[var(--landing-text)]'>
         <header className='shrink-0 bg-[var(--landing-bg)]'>
           <Navbar logoOnly />
         </header>
@@ -88,10 +88,10 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
+                <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
                   Password Required
                 </h1>
-                <p className='font-[380] text-[var(--text-subtle)] text-md'>
+                <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
                   This chat is password-protected
                 </p>
               </div>
@@ -132,7 +132,7 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
                       <button
                         type='button'
                         onClick={() => setShowPassword(!showPassword)}
-                        className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--text-subtle)] hover:text-[var(--landing-text)]'
+                        className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] hover:text-[var(--landing-text)]'
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -158,14 +158,20 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
                   </div>
                 </div>
 
-                <BrandedButton
+                <button
                   type='submit'
-                  disabled={!password.trim()}
-                  loading={isAuthenticating}
-                  loadingText='Authenticating'
+                  disabled={!password.trim() || isAuthenticating}
+                  className={AUTH_SUBMIT_BTN}
                 >
-                  Continue
-                </BrandedButton>
+                  {isAuthenticating ? (
+                    <span className='flex items-center gap-2'>
+                      <Loader2 className='h-4 w-4 animate-spin' />
+                      Authenticating...
+                    </span>
+                  ) : (
+                    'Continue'
+                  )}
+                </button>
               </form>
             </div>
           </div>

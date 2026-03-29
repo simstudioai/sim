@@ -9,12 +9,14 @@ const {
   mockUuidV4,
   mockPreprocessExecution,
   mockEnqueue,
+  mockEnqueueWorkspaceDispatch,
   mockGetJobQueue,
   mockShouldExecuteInline,
 } = vi.hoisted(() => ({
   mockUuidV4: vi.fn(),
   mockPreprocessExecution: vi.fn(),
   mockEnqueue: vi.fn(),
+  mockEnqueueWorkspaceDispatch: vi.fn(),
   mockGetJobQueue: vi.fn(),
   mockShouldExecuteInline: vi.fn(),
 }))
@@ -60,6 +62,15 @@ vi.mock('@/lib/core/async-jobs', () => ({
   getInlineJobQueue: vi.fn(),
   getJobQueue: mockGetJobQueue,
   shouldExecuteInline: mockShouldExecuteInline,
+}))
+
+vi.mock('@/lib/core/bullmq', () => ({
+  isBullMQEnabled: vi.fn().mockReturnValue(true),
+  createBullMQJobData: vi.fn((payload: unknown, metadata?: unknown) => ({ payload, metadata })),
+}))
+
+vi.mock('@/lib/core/workspace-dispatch', () => ({
+  enqueueWorkspaceDispatch: mockEnqueueWorkspaceDispatch,
 }))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
@@ -142,6 +153,7 @@ describe('webhook processor execution identity', () => {
       actorUserId: 'actor-user-1',
     })
     mockEnqueue.mockResolvedValue('job-1')
+    mockEnqueueWorkspaceDispatch.mockResolvedValue('job-1')
     mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
     mockShouldExecuteInline.mockReturnValue(false)
     mockUuidV4.mockReturnValue('generated-execution-id')
@@ -202,15 +214,15 @@ describe('webhook processor execution identity', () => {
     )
 
     expect(mockUuidV4).toHaveBeenCalledTimes(1)
-    expect(mockEnqueue).toHaveBeenCalledWith(
-      'webhook-execution',
+    expect(mockEnqueueWorkspaceDispatch).toHaveBeenCalledWith(
       expect.objectContaining({
-        executionId: 'generated-execution-id',
-        requestId: 'request-1',
-        correlation: preprocessingResult.correlation,
-      }),
-      expect.objectContaining({
+        id: 'generated-execution-id',
+        workspaceId: 'workspace-1',
+        lane: 'runtime',
+        queueName: 'webhook-execution',
         metadata: expect.objectContaining({
+          workflowId: 'workflow-1',
+          userId: 'actor-user-1',
           correlation: preprocessingResult.correlation,
         }),
       })

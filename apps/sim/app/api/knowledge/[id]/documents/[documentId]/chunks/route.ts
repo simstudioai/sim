@@ -15,6 +15,8 @@ const GetChunksQuerySchema = z.object({
   enabled: z.enum(['true', 'false', 'all']).optional().default('all'),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
   offset: z.coerce.number().min(0).optional().default(0),
+  sortBy: z.enum(['chunkIndex', 'tokenCount', 'enabled']).optional().default('chunkIndex'),
+  sortOrder: z.enum(['asc', 'desc']).optional().default('asc'),
 })
 
 const CreateChunkSchema = z.object({
@@ -88,6 +90,8 @@ export async function GET(
       enabled: searchParams.get('enabled') || undefined,
       limit: searchParams.get('limit') || undefined,
       offset: searchParams.get('offset') || undefined,
+      sortBy: searchParams.get('sortBy') || undefined,
+      sortOrder: searchParams.get('sortOrder') || undefined,
     })
 
     const result = await queryChunks(documentId, queryParams, requestId)

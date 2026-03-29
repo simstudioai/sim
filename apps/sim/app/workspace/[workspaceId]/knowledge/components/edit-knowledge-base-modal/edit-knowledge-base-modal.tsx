@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
 import { useForm } from 'react-hook-form'
@@ -43,7 +43,7 @@ type FormValues = z.infer<typeof FormSchema>
 /**
  * Modal for editing knowledge base name and description
  */
-export function EditKnowledgeBaseModal({
+export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
   open,
   onOpenChange,
   knowledgeBaseId,
@@ -172,4 +172,4 @@ export function EditKnowledgeBaseModal({
       </ModalContent>
     </Modal>
   )
-}
+})

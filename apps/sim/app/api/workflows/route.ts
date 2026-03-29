@@ -8,7 +8,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
-import { listWorkflows, type WorkflowScope } from '@/lib/workflows/utils'
+import { deduplicateWorkflowName, listWorkflows, type WorkflowScope } from '@/lib/workflows/utils'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -25,6 +25,7 @@ const CreateWorkflowSchema = z.object({
   workspaceId: z.string().optional(),
   folderId: z.string().nullable().optional(),
   sortOrder: z.number().int().optional(),
+  deduplicate: z.boolean().optional(),
 })
 
 // GET /api/workflows - Get workflows for user (optionally filtered by workspaceId)
@@ -126,12 +127,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const {
       id: clientId,
-      name,
+      name: requestedName,
       description,
       color,
       workspaceId,
       folderId,
       sortOrder: providedSortOrder,
+      deduplicate,
     } = CreateWorkflowSchema.parse(body)
 
     if (!workspaceId) {
@@ -161,19 +163,6 @@ export async function POST(req: NextRequest) {
     const now = new Date()
 
     logger.info(`[${requestId}] Creating workflow ${workflowId} for user ${userId}`)
-
-    import('@/lib/core/telemetry')
-      .then(({ PlatformEvents }) => {
-        PlatformEvents.workflowCreated({
-          workflowId,
-          name,
-          workspaceId: workspaceId || undefined,
-          folderId: folderId || undefined,
-        })
-      })
-      .catch(() => {
-        // Silently fail
-      })
 
     let sortOrder: number
     if (providedSortOrder !== undefined) {
@@ -214,30 +203,49 @@ export async function POST(req: NextRequest) {
       sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
     }
 
-    const duplicateConditions = [
-      eq(workflow.workspaceId, workspaceId),
-      isNull(workflow.archivedAt),
-      eq(workflow.name, name),
-    ]
+    let name = requestedName
 
-    if (folderId) {
-      duplicateConditions.push(eq(workflow.folderId, folderId))
+    if (deduplicate) {
+      name = await deduplicateWorkflowName(requestedName, workspaceId, folderId)
     } else {
-      duplicateConditions.push(isNull(workflow.folderId))
+      const duplicateConditions = [
+        eq(workflow.workspaceId, workspaceId),
+        isNull(workflow.archivedAt),
+        eq(workflow.name, requestedName),
+      ]
+
+      if (folderId) {
+        duplicateConditions.push(eq(workflow.folderId, folderId))
+      } else {
+        duplicateConditions.push(isNull(workflow.folderId))
+      }
+
+      const [duplicateWorkflow] = await db
+        .select({ id: workflow.id })
+        .from(workflow)
+        .where(and(...duplicateConditions))
+        .limit(1)
+
+      if (duplicateWorkflow) {
+        return NextResponse.json(
+          { error: `A workflow named "${requestedName}" already exists in this folder` },
+          { status: 409 }
+        )
+      }
     }
 
-    const [duplicateWorkflow] = await db
-      .select({ id: workflow.id })
-      .from(workflow)
-      .where(and(...duplicateConditions))
-      .limit(1)
-
-    if (duplicateWorkflow) {
-      return NextResponse.json(
-        { error: `A workflow named "${name}" already exists in this folder` },
-        { status: 409 }
-      )
-    }
+    import('@/lib/core/telemetry')
+      .then(({ PlatformEvents }) => {
+        PlatformEvents.workflowCreated({
+          workflowId,
+          name,
+          workspaceId: workspaceId || undefined,
+          folderId: folderId || undefined,
+        })
+      })
+      .catch(() => {
+        // Silently fail
+      })
 
     await db.insert(workflow).values({
       id: workflowId,

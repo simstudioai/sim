@@ -380,6 +380,13 @@ export function useWorkflowExecution() {
     async (workflowInput?: any, enableDebug = false) => {
       if (!activeWorkflowId) return
 
+      // Sandbox exercises have no real workflow — signal the SandboxCanvasProvider
+      // to run mock execution by setting isExecuting, then bail out immediately.
+      if (workflows[activeWorkflowId]?.isSandbox) {
+        setIsExecuting(activeWorkflowId, true)
+        return
+      }
+
       // Get workspaceId from workflow metadata
       const workspaceId = workflows[activeWorkflowId]?.workspaceId
 
@@ -1822,7 +1829,7 @@ export function useWorkflowExecution() {
       try {
         const pointer = await loadExecutionPointer(reconnectWorkflowId)
         if (cleanupRan) return
-        if (pointer && pointer.executionId) {
+        if (pointer?.executionId) {
           executionId = pointer.executionId
           fromEventId = pointer.lastEventId
         }

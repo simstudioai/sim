@@ -70,7 +70,7 @@ export const linearListCustomerStatusesTool: ToolConfig<
       `,
       variables: {
         first: params.first ? Number(params.first) : 50,
-        after: params.after,
+        after: params.after?.trim() || undefined,
       },
     }),
   },

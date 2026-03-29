@@ -553,7 +553,7 @@ export function FileUpload({
     return (
       <div
         key={fileKey}
-        className='relative rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 hover-hover:border-[var(--surface-7)] hover-hover:bg-[var(--surface-5)] dark:bg-[var(--surface-5)] dark:hover-hover:bg-[var(--border-1)]'
+        className='relative rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 hover-hover:bg-[var(--surface-active)] dark:bg-[var(--surface-5)]'
       >
         <div className='truncate pr-6 text-sm' title={file.name}>
           <span className='text-[var(--text-primary)]'>{truncateMiddle(file.name)}</span>

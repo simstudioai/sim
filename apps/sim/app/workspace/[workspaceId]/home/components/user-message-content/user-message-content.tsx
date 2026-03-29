@@ -6,7 +6,7 @@ import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/type
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const USER_MESSAGE_CLASSES =
-  'whitespace-pre-wrap break-all font-[430] font-[family-name:var(--font-inter)] text-base text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
+  'whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-[430] font-[family-name:var(--font-inter)] text-base text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
 
 interface UserMessageContentProps {
   content: string
@@ -20,7 +20,6 @@ function escapeRegex(str: string): string {
 interface MentionRange {
   start: number
   end: number
-  token: string
   context: ChatMessageContext
 }
 
@@ -36,7 +35,7 @@ function computeMentionRanges(text: string, contexts: ChatMessageContext[]): Men
       const leadingSpace = match[1]
       const tokenStart = match.index + leadingSpace.length
       const tokenEnd = tokenStart + token.length
-      ranges.push({ start: tokenStart, end: tokenEnd, token, context: ctx })
+      ranges.push({ start: tokenStart, end: tokenEnd, context: ctx })
     }
   }
 

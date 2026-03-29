@@ -116,8 +116,8 @@ const STYLES = {
   /** Interactive state styles: default, secondary (brand), inverted (dark bg in light mode) */
   states: {
     default: {
-      active: 'bg-[var(--border-1)]',
-      hover: 'hover-hover:bg-[var(--border-1)]',
+      active: 'bg-[var(--surface-active)]',
+      hover: 'hover-hover:bg-[var(--surface-active)]',
     },
     secondary: {
       active: 'bg-[var(--brand-secondary)] text-white [&_svg]:text-white',

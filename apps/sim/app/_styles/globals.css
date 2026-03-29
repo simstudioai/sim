@@ -15,6 +15,12 @@
   --toolbar-triggers-height: 300px; /* TOOLBAR_TRIGGERS_HEIGHT.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
+  --auth-primary-btn-bg: #ffffff;
+  --auth-primary-btn-border: #ffffff;
+  --auth-primary-btn-text: #000000;
+  --auth-primary-btn-hover-bg: #e0e0e0;
+  --auth-primary-btn-hover-border: #e0e0e0;
+  --auth-primary-btn-hover-text: #000000;
 
   /* z-index scale for layered UI
      Popover must be above modal so dropdowns inside modals render correctly */
@@ -188,7 +194,8 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --border-1: #e0e0e0; /* stronger border */
     --surface-6: #e5e5e5; /* popovers, elevated surfaces */
     --surface-7: #d9d9d9;
-    --surface-active: #ececec; /* hover/active state */
+    --surface-hover: #f2f2f2; /* hover state */
+    --surface-active: #ececec; /* active/selected state */
 
     --workflow-edge: #e0e0e0; /* workflow handles/edges - matches border-1 */
 
@@ -342,7 +349,8 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     --border-1: #3d3d3d;
     --surface-6: #454545;
     --surface-7: #505050;
-    --surface-active: #2c2c2c; /* hover/active state */
+    --surface-hover: #262626; /* hover state */
+    --surface-active: #2c2c2c; /* active/selected state */
 
     --workflow-edge: #454545; /* workflow handles/edges - same as surface-6 in dark */
 
@@ -501,9 +509,6 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     caret-color: var(--text-primary);
   }
 
-  body {
-    @apply antialiased;
-  }
   ::-webkit-scrollbar {
     width: var(--scrollbar-size);
     height: var(--scrollbar-size);
@@ -666,27 +671,6 @@ input[type="search"]::-ms-clear {
 
   .loading-placeholder::placeholder {
     animation: placeholder-pulse 1.5s ease-in-out infinite;
-  }
-
-  .branded-button-gradient {
-    background: linear-gradient(to bottom, #8357ff, #6f3dfa) !important;
-    border-color: #6f3dfa !important;
-    box-shadow: inset 0 2px 4px 0 #9b77ff !important;
-  }
-
-  .branded-button-gradient:hover {
-    background: linear-gradient(to bottom, #8357ff, #6f3dfa) !important;
-    opacity: 0.9;
-  }
-
-  .branded-button-custom {
-    background: var(--brand) !important;
-    border-color: var(--brand) !important;
-  }
-
-  .branded-button-custom:hover {
-    background: var(--brand-hover) !important;
-    border-color: var(--brand-hover) !important;
   }
 
   /**

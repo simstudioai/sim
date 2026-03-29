@@ -236,7 +236,13 @@ export class VariableResolver {
         }
 
         if (typeof resolved === 'string') {
-          const escaped = resolved.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+          const escaped = resolved
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/\n/g, '\\n')
+            .replace(/\r/g, '\\r')
+            .replace(/\u2028/g, '\\u2028')
+            .replace(/\u2029/g, '\\u2029')
           return `'${escaped}'`
         }
         if (typeof resolved === 'object' && resolved !== null) {

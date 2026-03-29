@@ -98,6 +98,7 @@ export type MothershipToolName =
   | 'create_job'
   | 'complete_job'
   | 'update_job_history'
+  | 'job_respond'
   | 'download_to_workspace_file'
   | 'materialize_file'
   | 'context_write'
@@ -188,6 +189,22 @@ export interface ToolCallResult {
   success: boolean
   output?: unknown
   error?: string
+}
+
+/** A single tool call result entry in the generic Results resource tab. */
+export interface GenericResourceEntry {
+  toolCallId: string
+  toolName: string
+  displayTitle: string
+  status: ToolCallStatus
+  params?: Record<string, unknown>
+  streamingArgs?: string
+  result?: ToolCallResult
+}
+
+/** Accumulated feed of tool call results shown in the generic Results tab. */
+export interface GenericResourceData {
+  entries: GenericResourceEntry[]
 }
 
 export interface ToolCallData {
@@ -377,6 +394,7 @@ export const TOOL_UI_METADATA: Record<MothershipToolName, ToolUIMetadata> = {
   create_job: { title: 'Creating job', phaseLabel: 'Resource', phase: 'resource' },
   manage_job: { title: 'Updating job', phaseLabel: 'Management', phase: 'management' },
   update_job_history: { title: 'Updating job', phaseLabel: 'Management', phase: 'management' },
+  job_respond: { title: 'Explaining job scheduled', phaseLabel: 'Execution', phase: 'execution' },
   // Management
   manage_mcp_tool: { title: 'Updating integration', phaseLabel: 'Management', phase: 'management' },
   manage_skill: { title: 'Updating skill', phaseLabel: 'Management', phase: 'management' },

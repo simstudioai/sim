@@ -12,6 +12,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import {
+  enqueueNotificationDeliveryDispatch,
   executeNotificationDelivery,
   workspaceNotificationDeliveryTask,
 } from '@/background/workspace-notification-delivery'
@@ -181,6 +182,7 @@ async function checkWorkflowInactivity(
   const payload = {
     deliveryId,
     subscriptionId: subscription.id,
+    workspaceId: workflowData.workspaceId,
     notificationType: subscription.notificationType,
     log: mockLog,
     alertConfig,
@@ -188,6 +190,7 @@ async function checkWorkflowInactivity(
 
   if (isTriggerDevEnabled) {
     await workspaceNotificationDeliveryTask.trigger(payload)
+  } else if (await enqueueNotificationDeliveryDispatch(payload)) {
   } else {
     void executeNotificationDelivery(payload).catch((error) => {
       logger.error(`Direct notification delivery failed for ${deliveryId}`, { error })

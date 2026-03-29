@@ -11,6 +11,8 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 
+const HEADER_PLUS_ICON = <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+
 export interface DropdownOption {
   label: string
   icon?: React.ElementType
@@ -122,7 +124,7 @@ export const ResourceHeader = memo(function ResourceHeader({
               variant='subtle'
               className='px-2 py-1 text-caption'
             >
-              <Plus className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
+              {HEADER_PLUS_ICON}
               {create.label}
             </Button>
           )}
@@ -132,19 +134,21 @@ export const ResourceHeader = memo(function ResourceHeader({
   )
 })
 
-function BreadcrumbSegment({
-  icon: Icon,
-  label,
-  onClick,
-  dropdownItems,
-  editing,
-}: {
+interface BreadcrumbSegmentProps {
   icon?: React.ElementType
   label: string
   onClick?: () => void
   dropdownItems?: DropdownOption[]
   editing?: BreadcrumbEditing
-}) {
+}
+
+const BreadcrumbSegment = memo(function BreadcrumbSegment({
+  icon: Icon,
+  label,
+  onClick,
+  dropdownItems,
+  editing,
+}: BreadcrumbSegmentProps) {
   if (editing?.isEditing) {
     return (
       <span className='inline-flex items-center px-2 py-1'>
@@ -203,4 +207,4 @@ function BreadcrumbSegment({
       {content}
     </span>
   )
-}
+})

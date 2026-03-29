@@ -3,7 +3,7 @@
 import { Suspense, useMemo, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Input, Label } from '@/components/emcn'
@@ -11,10 +11,9 @@ import { client, useSession } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
-import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 
 const logger = createLogger('SignupForm')
 
@@ -96,8 +95,6 @@ function SignupFormContent({
   const captchaResolveRef = useRef<((token: string) => void) | null>(null)
   const captchaRejectRef = useRef<((reason: Error) => void) | null>(null)
   const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
-  const buttonClass = useBrandedButtonClass()
-
   const redirectUrl = useMemo(
     () => searchParams.get('redirect') || searchParams.get('callbackUrl') || '',
     [searchParams]
@@ -380,11 +377,7 @@ function SignupFormContent({
         return hasOnlySSO
       })() && (
         <div className='mt-8'>
-          <SSOLoginButton
-            callbackURL={redirectUrl || '/workspace'}
-            variant='primary'
-            primaryClassName={buttonClass}
-          />
+          <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='primary' />
         </div>
       )}
 
@@ -548,15 +541,16 @@ function SignupFormContent({
             </div>
           )}
 
-          <BrandedButton
-            type='submit'
-            disabled={isLoading}
-            loading={isLoading}
-            loadingText='Creating account'
-            className='!mt-6'
-          >
-            Create account
-          </BrandedButton>
+          <button type='submit' disabled={isLoading} className={cn('!mt-6', AUTH_SUBMIT_BTN)}>
+            {isLoading ? (
+              <span className='flex items-center gap-2'>
+                <Loader2 className='h-4 w-4 animate-spin' />
+                Creating account...
+              </span>
+            ) : (
+              'Create account'
+            )}
+          </button>
         </form>
       )}
 
@@ -602,11 +596,7 @@ function SignupFormContent({
             isProduction={isProduction}
           >
             {isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')) && (
-              <SSOLoginButton
-                callbackURL={redirectUrl || '/workspace'}
-                variant='outline'
-                primaryClassName={buttonClass}
-              />
+              <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='outline' />
             )}
           </SocialLoginButtons>
         </div>

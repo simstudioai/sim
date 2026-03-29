@@ -493,7 +493,12 @@ export function VoiceInterface({
   }
 
   return (
-    <div className={cn('fixed inset-0 z-[100] flex flex-col bg-white text-gray-900', className)}>
+    <div
+      className={cn(
+        'dark fixed inset-0 z-[100] flex flex-col bg-[var(--landing-bg)] text-[var(--landing-text)]',
+        className
+      )}
+    >
       <div className='flex flex-1 flex-col items-center justify-center px-8'>
         <div className='relative mb-16'>
           <ParticlesVisualization
@@ -509,16 +514,18 @@ export function VoiceInterface({
         <div className='mb-16 flex h-24 items-center justify-center'>
           {currentTranscript && (
             <div className='max-w-2xl px-8'>
-              <p className='overflow-hidden text-center text-gray-700 text-xl leading-relaxed'>
+              <p className='overflow-hidden text-center text-[var(--landing-text)] text-xl leading-relaxed'>
                 {currentTranscript}
               </p>
             </div>
           )}
         </div>
 
-        <p className='mb-8 text-center text-gray-600 text-lg'>
+        <p className='mb-8 text-center text-[var(--landing-text-muted)] text-lg'>
           {getStatusText()}
-          {isMuted && <span className='ml-2 text-gray-400 text-sm'>(Muted)</span>}
+          {isMuted && (
+            <span className='ml-2 text-[var(--landing-text-muted)] text-sm'>(Muted)</span>
+          )}
         </p>
       </div>
 
@@ -528,7 +535,7 @@ export function VoiceInterface({
             onClick={handleCallEnd}
             variant='outline'
             size='icon'
-            className='h-14 w-14 rounded-full border-gray-300 hover:bg-gray-50'
+            className='h-14 w-14 rounded-full border-[var(--border-1)] hover:bg-[var(--landing-bg-elevated)]'
           >
             <Phone className='h-6 w-6 rotate-[135deg]' />
           </Button>
@@ -539,8 +546,8 @@ export function VoiceInterface({
             size='icon'
             disabled={!isInitialized}
             className={cn(
-              'h-14 w-14 rounded-full border-gray-300 bg-transparent hover:bg-gray-50',
-              isMuted ? 'text-gray-400' : 'text-gray-600'
+              'h-14 w-14 rounded-full border-[var(--border-1)] bg-transparent hover:bg-[var(--landing-bg-elevated)]',
+              isMuted ? 'text-[var(--landing-text-muted)]' : 'text-[var(--landing-text)]'
             )}
           >
             {getButtonContent()}

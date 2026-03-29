@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
 import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
@@ -71,10 +72,24 @@ export async function POST(req: NextRequest) {
       ...(userPermission ? { userPermission } : {}),
     }
 
+    const executionId = crypto.randomUUID()
+    const runId = crypto.randomUUID()
+
+    await createRunSegment({
+      id: runId,
+      executionId,
+      chatId: effectiveChatId,
+      userId,
+      workspaceId,
+      streamId: messageId,
+    }).catch(() => {})
+
     const result = await orchestrateCopilotStream(requestPayload, {
       userId,
       workspaceId,
       chatId: effectiveChatId,
+      executionId,
+      runId,
       goRoute: '/api/mothership/execute',
       autoExecuteTools: true,
       interactive: false,

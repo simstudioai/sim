@@ -309,6 +309,46 @@ describe('Chat Edit API Route', () => {
       expect(data.error).toBe('Password is required when using password protection')
     })
 
+    it('should keep the existing password when updating a password-protected chat', async () => {
+      mockGetSession.mockResolvedValue({
+        user: { id: 'user-id' },
+      })
+
+      const mockChat = {
+        id: 'chat-123',
+        identifier: 'test-chat',
+        title: 'Test Chat',
+        authType: 'password',
+        password: 'encrypted-password',
+        workflowId: 'workflow-123',
+      }
+
+      mockCheckChatAccess.mockResolvedValue({
+        hasAccess: true,
+        chat: mockChat,
+        workspaceId: 'workspace-123',
+      })
+
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
+        method: 'PATCH',
+        body: JSON.stringify({ authType: 'password', title: 'Updated Chat' }),
+      })
+      const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
+
+      expect(response.status).toBe(200)
+      expect(mockEncryptSecret).not.toHaveBeenCalled()
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          authType: 'password',
+          allowedEmails: [],
+          updatedAt: expect.any(Date),
+        })
+      )
+
+      const updatePayload = mockSet.mock.calls[0]?.[0]
+      expect(updatePayload.password).toBeUndefined()
+    })
+
     it('should allow access when user has workspace admin permission', async () => {
       mockGetSession.mockResolvedValue({
         user: { id: 'admin-user-id' },

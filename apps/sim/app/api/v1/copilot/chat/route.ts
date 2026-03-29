@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
@@ -104,10 +105,24 @@ export async function POST(req: NextRequest) {
       chatId,
     }
 
+    const executionId = crypto.randomUUID()
+    const runId = crypto.randomUUID()
+
+    await createRunSegment({
+      id: runId,
+      executionId,
+      chatId,
+      userId: auth.userId,
+      workflowId: resolved.workflowId,
+      streamId: messageId,
+    }).catch(() => {})
+
     const result = await orchestrateCopilotStream(requestPayload, {
       userId: auth.userId,
       workflowId: resolved.workflowId,
       chatId,
+      executionId,
+      runId,
       goRoute: '/api/mcp',
       autoExecuteTools: parsed.autoExecuteTools,
       timeout: parsed.timeout,

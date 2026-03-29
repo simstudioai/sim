@@ -60,7 +60,6 @@ export function useAvailableResources(
           id: w.id,
           name: w.name,
           color: w.color,
-          folderId: w.folderId,
           isOpen: existingKeys.has(`workflow:${w.id}`),
         })),
       },
@@ -176,6 +175,7 @@ export function AddResourceDropdown({
         align='start'
         sideOffset={8}
         className='flex w-[240px] flex-col overflow-hidden'
+        onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <DropdownMenuSearchInput
           placeholder='Search resources...'

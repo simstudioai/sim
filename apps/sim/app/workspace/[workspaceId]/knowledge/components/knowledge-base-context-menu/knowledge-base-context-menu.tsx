@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,7 +31,7 @@ interface KnowledgeBaseContextMenuProps {
  * Context menu component for knowledge base cards.
  * Displays open in new tab, view tags, edit, and delete options.
  */
-export function KnowledgeBaseContextMenu({
+export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
   isOpen,
   position,
   onClose,
@@ -114,4 +115,4 @@ export function KnowledgeBaseContextMenu({
       </DropdownMenuContent>
     </DropdownMenu>
   )
-}
+})

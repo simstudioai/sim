@@ -224,13 +224,16 @@ export function useUpdateConnector() {
 export interface DeleteConnectorParams {
   knowledgeBaseId: string
   connectorId: string
+  deleteDocuments?: boolean
 }
 
 async function deleteConnector({
   knowledgeBaseId,
   connectorId,
+  deleteDocuments,
 }: DeleteConnectorParams): Promise<void> {
-  const response = await fetch(`/api/knowledge/${knowledgeBaseId}/connectors/${connectorId}`, {
+  const base = `/api/knowledge/${knowledgeBaseId}/connectors/${connectorId}`
+  const response = await fetch(deleteDocuments ? `${base}?deleteDocuments=true` : base, {
     method: 'DELETE',
   })
 
