@@ -459,8 +459,8 @@ const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileR
     const el = containerRef.current
     if (!el) return
     const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
       if (e.ctrlKey || e.metaKey) {
-        e.preventDefault()
         setZoom((z) => clampZoom(z * (1 - e.deltaY * ZOOM_WHEEL_SENSITIVITY)))
       } else {
         setOffset((o) => ({ x: o.x - e.deltaX, y: o.y - e.deltaY }))
@@ -521,7 +521,10 @@ const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileR
           loading='eager'
         />
       </div>
-      <div className='absolute right-4 bottom-4 flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 shadow-sm'>
+      <div
+        className='absolute right-4 bottom-4 flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 shadow-sm'
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <button
           type='button'
           onClick={zoomOut}
