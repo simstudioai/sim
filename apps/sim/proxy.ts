@@ -199,9 +199,6 @@ export async function proxy(request: NextRequest) {
 
 /**
  * Sends request data to Profound analytics (fire-and-forget) and returns the response.
- * Note: `NextResponse.next()` always carries status 200 — it signals "continue to route handler",
- * not the final HTTP status. Only redirects (307/308) and explicit blocks (403) have accurate codes.
- * This matches the Vercel log drain behavior where proxy-level status reflects middleware outcome.
  */
 function track(request: NextRequest, response: NextResponse): NextResponse {
   if (isProfoundEnabled()) {

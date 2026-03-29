@@ -69,8 +69,6 @@ async function flush(): Promise<void> {
       logger.error(`Profound API returned ${response.status}`)
     }
   } catch (error) {
-    // Entries are intentionally not re-queued on failure to prevent unbounded memory growth.
-    // Under a Profound outage, analytics data is lost — acceptable for non-critical telemetry.
     logger.error('Failed to flush logs to Profound', error)
   }
 }
