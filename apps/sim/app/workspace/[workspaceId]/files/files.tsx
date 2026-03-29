@@ -256,10 +256,15 @@ export function Files() {
         case 'created':
           cmp = new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime()
           break
+        case 'owner':
+          cmp = (members?.find((m) => m.userId === a.uploadedBy)?.name ?? '').localeCompare(
+            members?.find((m) => m.userId === b.uploadedBy)?.name ?? ''
+          )
+          break
       }
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [files, debouncedSearchTerm, typeFilter, sizeFilter, uploadedByFilter, activeSort])
+  }, [files, debouncedSearchTerm, typeFilter, sizeFilter, uploadedByFilter, activeSort, members])
 
   const rowCacheRef = useRef(
     new Map<string, { row: ResourceRow; file: WorkspaceFileRecord; members: typeof members }>()
@@ -860,6 +865,7 @@ export function Files() {
         { id: 'size', label: 'Size' },
         { id: 'type', label: 'Type' },
         { id: 'created', label: 'Created' },
+        { id: 'owner', label: 'Owner' },
       ],
       active: activeSort,
       onSort: (column, direction) => setActiveSort({ column, direction }),

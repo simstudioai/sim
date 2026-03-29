@@ -149,6 +149,9 @@ export function ScheduledTasks() {
             (a.lastRanAt ? new Date(a.lastRanAt).getTime() : 0) -
             (b.lastRanAt ? new Date(b.lastRanAt).getTime() : 0)
           break
+        case 'schedule':
+          cmp = getScheduleDescription(a).localeCompare(getScheduleDescription(b))
+          break
       }
       return dir === 'asc' ? cmp : -cmp
     })
@@ -240,6 +243,7 @@ export function ScheduledTasks() {
     () => ({
       options: [
         { id: 'task', label: 'Task' },
+        { id: 'schedule', label: 'Schedule' },
         { id: 'nextRun', label: 'Next Run' },
         { id: 'lastRun', label: 'Last Run' },
       ],

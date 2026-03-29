@@ -230,6 +230,14 @@ export function Knowledge() {
         case 'updated':
           cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
           break
+        case 'connectors':
+          cmp = (a.connectorTypes?.length ?? 0) - (b.connectorTypes?.length ?? 0)
+          break
+        case 'owner':
+          cmp = (members?.find((m) => m.userId === a.userId)?.name ?? '').localeCompare(
+            members?.find((m) => m.userId === b.userId)?.name ?? ''
+          )
+          break
       }
       return dir === 'asc' ? cmp : -cmp
     })
@@ -240,6 +248,7 @@ export function Knowledge() {
     contentFilter,
     ownerFilter,
     activeSort,
+    members,
   ])
 
   const rows: ResourceRow[] = useMemo(
@@ -362,8 +371,10 @@ export function Knowledge() {
         { id: 'name', label: 'Name' },
         { id: 'documents', label: 'Documents' },
         { id: 'tokens', label: 'Tokens' },
+        { id: 'connectors', label: 'Connectors' },
         { id: 'created', label: 'Created' },
         { id: 'updated', label: 'Last Updated' },
+        { id: 'owner', label: 'Owner' },
       ],
       active: activeSort,
       onSort: (column, direction) => setActiveSort({ column, direction }),
