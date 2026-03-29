@@ -34,6 +34,9 @@ import {
   getMimeTypeFromExtension,
 } from '@/lib/uploads/utils/file-utils'
 import {
+  isSupportedAudioExtension,
+  isSupportedExtension,
+  isSupportedVideoExtension,
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
@@ -69,6 +72,7 @@ import {
   useUploadWorkspaceFile,
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -164,21 +168,12 @@ export function Files() {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const [inputValue, setInputValue] = useState('')
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+  const debouncedSearchTerm = useDebounce(inputValue, 200)
   const [activeSort, setActiveSort] = useState<{
     column: string
     direction: 'asc' | 'desc'
   } | null>(null)
   const [typeFilter, setTypeFilter] = useState<'all' | 'document' | 'audio' | 'video'>('all')
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
-
-  const handleSearchChange = useCallback((value: string) => {
-    setInputValue(value)
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
-    searchTimerRef.current = setTimeout(() => {
-      setDebouncedSearchTerm(value)
-    }, 200)
-  }, [])
 
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
@@ -221,18 +216,9 @@ export function Files() {
     if (typeFilter !== 'all') {
       result = result.filter((f) => {
         const ext = getFileExtension(f.name)
-        if (typeFilter === 'document')
-          return SUPPORTED_DOCUMENT_EXTENSIONS.includes(
-            ext as (typeof SUPPORTED_DOCUMENT_EXTENSIONS)[number]
-          )
-        if (typeFilter === 'audio')
-          return SUPPORTED_AUDIO_EXTENSIONS.includes(
-            ext as (typeof SUPPORTED_AUDIO_EXTENSIONS)[number]
-          )
-        if (typeFilter === 'video')
-          return SUPPORTED_VIDEO_EXTENSIONS.includes(
-            ext as (typeof SUPPORTED_VIDEO_EXTENSIONS)[number]
-          )
+        if (typeFilter === 'document') return isSupportedExtension(ext)
+        if (typeFilter === 'audio') return isSupportedAudioExtension(ext)
+        if (typeFilter === 'video') return isSupportedVideoExtension(ext)
         return true
       })
     }
@@ -754,18 +740,14 @@ export function Files() {
 
   const canEdit = userPermissions.canEdit === true
 
-  const handleSearchClearAll = useCallback(() => {
-    handleSearchChange('')
-  }, [handleSearchChange])
-
   const searchConfig: SearchConfig = useMemo(
     () => ({
       value: inputValue,
-      onChange: handleSearchChange,
-      onClearAll: handleSearchClearAll,
+      onChange: setInputValue,
+      onClearAll: () => setInputValue(''),
       placeholder: 'Search files...',
     }),
-    [inputValue, handleSearchChange, handleSearchClearAll]
+    [inputValue]
   )
 
   const createConfig = useMemo(

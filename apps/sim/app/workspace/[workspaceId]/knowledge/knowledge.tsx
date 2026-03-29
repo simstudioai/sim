@@ -32,6 +32,7 @@ import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
+import { useDebounce } from '@/hooks/use-debounce'
 
 const logger = createLogger('Knowledge')
 
@@ -108,20 +109,7 @@ export function Knowledge() {
   const [connectorFilter, setConnectorFilter] = useState<'all' | 'connected' | 'unconnected'>('all')
 
   const [searchInputValue, setSearchInputValue] = useState('')
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
-
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchInputValue(value)
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
-    searchTimerRef.current = setTimeout(() => {
-      setDebouncedSearchQuery(value)
-    }, 300)
-  }, [])
-
-  const handleSearchClearAll = useCallback(() => {
-    handleSearchChange('')
-  }, [handleSearchChange])
+  const debouncedSearchQuery = useDebounce(searchInputValue, 300)
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
@@ -338,11 +326,11 @@ export function Knowledge() {
   const searchConfig: SearchConfig = useMemo(
     () => ({
       value: searchInputValue,
-      onChange: handleSearchChange,
-      onClearAll: handleSearchClearAll,
+      onChange: setSearchInputValue,
+      onClearAll: () => setSearchInputValue(''),
       placeholder: 'Search knowledge bases...',
     }),
-    [searchInputValue, handleSearchChange, handleSearchClearAll]
+    [searchInputValue]
   )
 
   const sortConfig: SortConfig = useMemo(
