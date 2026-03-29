@@ -76,7 +76,6 @@ export function Tables() {
   } | null>(null)
   const [rowCountFilter, setRowCountFilter] = useState<string[]>([])
   const [ownerFilter, setOwnerFilter] = useState<string[]>([])
-  const [columnTypeFilter, setColumnTypeFilter] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const csvInputRef = useRef<HTMLInputElement>(null)
@@ -111,12 +110,6 @@ export function Tables() {
     if (ownerFilter.length > 0) {
       result = result.filter((t) => ownerFilter.includes(t.createdBy))
     }
-    if (columnTypeFilter.length > 0) {
-      result = result.filter((t) =>
-        t.schema.columns.some((col) => columnTypeFilter.includes(col.type))
-      )
-    }
-
     const col = activeSort?.column ?? 'created'
     const dir = activeSort?.direction ?? 'desc'
     return [...result].sort((a, b) => {
@@ -146,15 +139,7 @@ export function Tables() {
       }
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [
-    tables,
-    debouncedSearchTerm,
-    rowCountFilter,
-    ownerFilter,
-    columnTypeFilter,
-    activeSort,
-    members,
-  ])
+  }, [tables, debouncedSearchTerm, rowCountFilter, ownerFilter, activeSort, members])
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -221,21 +206,6 @@ export function Tables() {
     return `${rowCountFilter.length} selected`
   }, [rowCountFilter])
 
-  const columnTypeDisplayLabel = useMemo(() => {
-    if (columnTypeFilter.length === 0) return 'All'
-    if (columnTypeFilter.length === 1) {
-      const labels: Record<string, string> = {
-        string: 'Text',
-        number: 'Number',
-        boolean: 'Boolean',
-        date: 'Date',
-        json: 'JSON',
-      }
-      return labels[columnTypeFilter[0]] ?? columnTypeFilter[0]
-    }
-    return `${columnTypeFilter.length} selected`
-  }, [columnTypeFilter])
-
   const ownerDisplayLabel = useMemo(() => {
     if (ownerFilter.length === 0) return 'All'
     if (ownerFilter.length === 1)
@@ -264,8 +234,7 @@ export function Tables() {
     [members]
   )
 
-  const hasActiveFilters =
-    rowCountFilter.length > 0 || columnTypeFilter.length > 0 || ownerFilter.length > 0
+  const hasActiveFilters = rowCountFilter.length > 0 || ownerFilter.length > 0
 
   const filterContent = (
     <div className='flex w-[240px] flex-col gap-3 p-3'>
@@ -282,28 +251,6 @@ export function Tables() {
           onMultiSelectChange={setRowCountFilter}
           overlayContent={
             <span className='truncate text-[var(--text-primary)]'>{rowCountDisplayLabel}</span>
-          }
-          showAllOption
-          allOptionLabel='All'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
-        />
-      </div>
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Column Types</span>
-        <Combobox
-          options={[
-            { value: 'string', label: 'Text' },
-            { value: 'number', label: 'Number' },
-            { value: 'boolean', label: 'Boolean' },
-            { value: 'date', label: 'Date' },
-            { value: 'json', label: 'JSON' },
-          ]}
-          multiSelect
-          multiSelectValues={columnTypeFilter}
-          onMultiSelectChange={setColumnTypeFilter}
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{columnTypeDisplayLabel}</span>
           }
           showAllOption
           allOptionLabel='All'
@@ -336,7 +283,6 @@ export function Tables() {
           type='button'
           onClick={() => {
             setRowCountFilter([])
-            setColumnTypeFilter([])
             setOwnerFilter([])
           }}
           className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
@@ -357,20 +303,6 @@ export function Tables() {
           : `Rows: ${rowCountFilter.length} selected`
       tags.push({ label, onRemove: () => setRowCountFilter([]) })
     }
-    if (columnTypeFilter.length > 0) {
-      const typeLabels: Record<string, string> = {
-        string: 'Text',
-        number: 'Number',
-        boolean: 'Boolean',
-        date: 'Date',
-        json: 'JSON',
-      }
-      const label =
-        columnTypeFilter.length === 1
-          ? `Type: ${typeLabels[columnTypeFilter[0]]}`
-          : `Types: ${columnTypeFilter.length} selected`
-      tags.push({ label, onRemove: () => setColumnTypeFilter([]) })
-    }
     if (ownerFilter.length > 0) {
       const label =
         ownerFilter.length === 1
@@ -379,7 +311,7 @@ export function Tables() {
       tags.push({ label, onRemove: () => setOwnerFilter([]) })
     }
     return tags
-  }, [rowCountFilter, columnTypeFilter, ownerFilter, members])
+  }, [rowCountFilter, ownerFilter, members])
 
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
