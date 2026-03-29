@@ -19,8 +19,6 @@ import { cn } from '@/lib/core/utils/cn'
 const SEARCH_ICON = (
   <Search className='pointer-events-none h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
 )
-const FILTER_ICON = <ListFilter className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
-const SORT_ICON = <ArrowUpDown className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
 
 type SortDirection = 'asc' | 'desc'
 
@@ -67,7 +65,12 @@ export interface SearchConfig {
 interface ResourceOptionsBarProps {
   search?: SearchConfig
   sort?: SortConfig
+  /** Popover content — renders inside a Popover (used by logs, etc.) */
   filter?: ReactNode
+  /** When provided, Filter button acts as a toggle instead of opening a Popover */
+  onFilterToggle?: () => void
+  /** Whether the filter is currently active (highlights the toggle button) */
+  filterActive?: boolean
   filterTags?: FilterTag[]
   extras?: ReactNode
 }
@@ -76,10 +79,13 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
   search,
   sort,
   filter,
+  onFilterToggle,
+  filterActive,
   filterTags,
   extras,
 }: ResourceOptionsBarProps) {
-  const hasContent = search || sort || filter || extras || (filterTags && filterTags.length > 0)
+  const hasContent =
+    search || sort || filter || onFilterToggle || extras || (filterTags && filterTags.length > 0)
   if (!hasContent) return null
 
   return (
@@ -88,22 +94,39 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
         {search && <SearchSection search={search} />}
         <div className='flex items-center gap-1.5'>
           {extras}
-          {filterTags?.map((tag) => (
+          {filterTags?.map((tag, i) => (
             <Button
-              key={tag.label}
+              key={`${tag.label}-${i}`}
               variant='subtle'
-              className='px-2 py-1 text-caption'
+              className='max-w-[200px] px-2 py-1 text-caption'
               onClick={tag.onRemove}
             >
-              {tag.label}
-              <span className='ml-1 text-[var(--text-icon)] text-micro'>✕</span>
+              <span className='truncate'>{tag.label}</span>
+              <span className='ml-1 shrink-0 text-[var(--text-icon)] text-micro'>✕</span>
             </Button>
           ))}
-          {filter && (
+          {onFilterToggle ? (
+            <Button
+              variant='subtle'
+              className={cn(
+                'px-2 py-1 text-caption',
+                filterActive && 'bg-[var(--surface-3)] text-[var(--text-primary)]'
+              )}
+              onClick={onFilterToggle}
+            >
+              <ListFilter
+                className={cn(
+                  'mr-1.5 h-[14px] w-[14px]',
+                  filterActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-icon)]'
+                )}
+              />
+              Filter
+            </Button>
+          ) : filter ? (
             <PopoverPrimitive.Root>
               <PopoverPrimitive.Trigger asChild>
                 <Button variant='subtle' className='px-2 py-1 text-caption'>
-                  {FILTER_ICON}
+                  <ListFilter className='mr-1.5 h-[14px] w-[14px] text-[var(--text-icon)]' />
                   Filter
                 </Button>
               </PopoverPrimitive.Trigger>
@@ -111,15 +134,13 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
                 <PopoverPrimitive.Content
                   align='start'
                   sideOffset={6}
-                  className={cn(
-                    'z-50 rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
-                  )}
+                  className='z-50 rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
                 >
                   {filter}
                 </PopoverPrimitive.Content>
               </PopoverPrimitive.Portal>
             </PopoverPrimitive.Root>
-          )}
+          ) : null}
           {sort && <SortDropdown config={sort} />}
         </div>
       </div>
@@ -213,8 +234,19 @@ const SortDropdown = memo(function SortDropdown({ config }: { config: SortConfig
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant='subtle' className='px-2 py-1 text-caption'>
-          {SORT_ICON}
+        <Button
+          variant='subtle'
+          className={cn(
+            'px-2 py-1 text-caption',
+            active && 'bg-[var(--surface-3)] text-[var(--text-primary)]'
+          )}
+        >
+          <ArrowUpDown
+            className={cn(
+              'mr-1.5 h-[14px] w-[14px]',
+              active ? 'text-[var(--text-primary)]' : 'text-[var(--text-icon)]'
+            )}
+          />
           Sort
         </Button>
       </DropdownMenuTrigger>
