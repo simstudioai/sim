@@ -3,8 +3,10 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
+import type { ComboboxOption } from '@/components/emcn'
 import {
   Button,
+  Combobox,
   Modal,
   ModalBody,
   ModalContent,
@@ -16,7 +18,6 @@ import {
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName } from '@/lib/table/constants'
-import { cn } from '@/lib/utils'
 import type {
   FilterTag,
   ResourceColumn,
@@ -49,14 +50,6 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'updated', header: 'Last Updated' },
 ]
 
-const COLUMN_TYPE_LABELS: Record<string, string> = {
-  string: 'Text',
-  number: 'Number',
-  boolean: 'Boolean',
-  date: 'Date',
-  json: 'JSON',
-}
-
 export function Tables() {
   const params = useParams()
   const router = useRouter()
@@ -81,7 +74,7 @@ export function Tables() {
     column: string
     direction: 'asc' | 'desc'
   } | null>(null)
-  const [rowCountFilter, setRowCountFilter] = useState<'all' | 'empty' | 'small' | 'large'>('all')
+  const [rowCountFilter, setRowCountFilter] = useState<string[]>([])
   const [ownerFilter, setOwnerFilter] = useState<string[]>([])
   const [columnTypeFilter, setColumnTypeFilter] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
@@ -107,11 +100,12 @@ export function Tables() {
       ? tables.filter((t) => t.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
       : tables
 
-    if (rowCountFilter !== 'all') {
+    if (rowCountFilter.length > 0) {
       result = result.filter((t) => {
-        if (rowCountFilter === 'empty') return t.rowCount === 0
-        if (rowCountFilter === 'small') return t.rowCount >= 1 && t.rowCount <= 100
-        return t.rowCount > 100 // large
+        if (rowCountFilter.includes('empty') && t.rowCount === 0) return true
+        if (rowCountFilter.includes('small') && t.rowCount >= 1 && t.rowCount <= 100) return true
+        if (rowCountFilter.includes('large') && t.rowCount > 100) return true
+        return false
       })
     }
     if (ownerFilter.length > 0) {
@@ -146,7 +140,7 @@ export function Tables() {
       }
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [tables, debouncedSearchTerm, activeSort, rowCountFilter, ownerFilter, columnTypeFilter])
+  }, [tables, debouncedSearchTerm, rowCountFilter, ownerFilter, columnTypeFilter, activeSort])
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -199,128 +193,166 @@ export function Tables() {
     [activeSort]
   )
 
+  const rowCountDisplayLabel = useMemo(() => {
+    if (rowCountFilter.length === 0) return 'All'
+    if (rowCountFilter.length === 1) {
+      const labels: Record<string, string> = {
+        empty: 'Empty',
+        small: 'Small (1–100)',
+        large: 'Large (100+)',
+      }
+      return labels[rowCountFilter[0]] ?? rowCountFilter[0]
+    }
+    return `${rowCountFilter.length} selected`
+  }, [rowCountFilter])
+
+  const columnTypeDisplayLabel = useMemo(() => {
+    if (columnTypeFilter.length === 0) return 'All'
+    if (columnTypeFilter.length === 1) {
+      const labels: Record<string, string> = {
+        string: 'Text',
+        number: 'Number',
+        boolean: 'Boolean',
+        date: 'Date',
+        json: 'JSON',
+      }
+      return labels[columnTypeFilter[0]] ?? columnTypeFilter[0]
+    }
+    return `${columnTypeFilter.length} selected`
+  }, [columnTypeFilter])
+
+  const ownerDisplayLabel = useMemo(() => {
+    if (ownerFilter.length === 0) return 'All'
+    if (ownerFilter.length === 1)
+      return members?.find((m) => m.userId === ownerFilter[0])?.name ?? '1 member'
+    return `${ownerFilter.length} members`
+  }, [ownerFilter, members])
+
+  const memberOptions: ComboboxOption[] = useMemo(
+    () =>
+      (members ?? []).map((m) => ({
+        value: m.userId,
+        label: m.name,
+        iconElement: m.image ? (
+          <img
+            src={m.image}
+            alt={m.name}
+            referrerPolicy='no-referrer'
+            className='h-[14px] w-[14px] rounded-full border border-[var(--border)] object-cover'
+          />
+        ) : (
+          <span className='flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+            {m.name.charAt(0).toUpperCase()}
+          </span>
+        ),
+      })),
+    [members]
+  )
+
+  const hasActiveFilters =
+    rowCountFilter.length > 0 || columnTypeFilter.length > 0 || ownerFilter.length > 0
+
   const filterContent = (
-    <div className='w-[200px]'>
-      <div className='border-[var(--border-1)] border-b px-3 py-2'>
+    <div className='flex w-[240px] flex-col gap-3 p-3'>
+      <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Row Count</span>
-      </div>
-      <div className='flex flex-col gap-0.5 px-3 py-2'>
-        {(
-          [
-            { value: 'all', label: 'All' },
+        <Combobox
+          options={[
             { value: 'empty', label: 'Empty' },
             { value: 'small', label: 'Small (1–100 rows)' },
             { value: 'large', label: 'Large (100+ rows)' },
-          ] as const
-        ).map(({ value, label }) => (
-          <button
-            key={value}
-            type='button'
-            className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-              rowCountFilter === value && 'bg-[var(--surface-active)]'
-            )}
-            onClick={() => setRowCountFilter(value)}
-          >
-            {label}
-          </button>
-        ))}
+          ]}
+          multiSelect
+          multiSelectValues={rowCountFilter}
+          onMultiSelectChange={setRowCountFilter}
+          overlayContent={
+            <span className='truncate text-[var(--text-primary)]'>{rowCountDisplayLabel}</span>
+          }
+          showAllOption
+          allOptionLabel='All'
+          size='sm'
+          className='h-[32px] w-full rounded-md'
+        />
       </div>
-      <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
+      <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Column Types</span>
+        <Combobox
+          options={[
+            { value: 'string', label: 'Text' },
+            { value: 'number', label: 'Number' },
+            { value: 'boolean', label: 'Boolean' },
+            { value: 'date', label: 'Date' },
+            { value: 'json', label: 'JSON' },
+          ]}
+          multiSelect
+          multiSelectValues={columnTypeFilter}
+          onMultiSelectChange={setColumnTypeFilter}
+          overlayContent={
+            <span className='truncate text-[var(--text-primary)]'>{columnTypeDisplayLabel}</span>
+          }
+          showAllOption
+          allOptionLabel='All'
+          size='sm'
+          className='h-[32px] w-full rounded-md'
+        />
       </div>
-      <div className='flex flex-col gap-0.5 px-3 py-2'>
+      {memberOptions.length > 0 && (
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
+          <Combobox
+            options={memberOptions}
+            multiSelect
+            multiSelectValues={ownerFilter}
+            onMultiSelectChange={setOwnerFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
+            }
+            searchable
+            searchPlaceholder='Search members...'
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+      )}
+      {hasActiveFilters && (
         <button
           type='button'
-          className={cn(
-            'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-            columnTypeFilter.length === 0 && 'bg-[var(--surface-active)]'
-          )}
-          onClick={() => setColumnTypeFilter([])}
+          onClick={() => {
+            setRowCountFilter([])
+            setColumnTypeFilter([])
+            setOwnerFilter([])
+          }}
+          className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
         >
-          All
+          Clear all filters
         </button>
-        {(['string', 'number', 'boolean', 'date', 'json'] as const).map((type) => (
-          <button
-            key={type}
-            type='button'
-            className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-              columnTypeFilter.includes(type) && 'bg-[var(--surface-active)]'
-            )}
-            onClick={() =>
-              setColumnTypeFilter((prev) =>
-                prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
-              )
-            }
-          >
-            {COLUMN_TYPE_LABELS[type]}
-          </button>
-        ))}
-      </div>
-      {members && members.length > 0 && (
-        <>
-          <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
-          </div>
-          <div className='flex flex-col gap-0.5 px-3 py-2'>
-            <button
-              type='button'
-              className={cn(
-                'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-                ownerFilter.length === 0 && 'bg-[var(--surface-active)]'
-              )}
-              onClick={() => setOwnerFilter([])}
-            >
-              All
-            </button>
-            {members.map((member) => (
-              <button
-                key={member.userId}
-                type='button'
-                className={cn(
-                  'flex w-full cursor-pointer select-none items-center gap-1.5 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-                  ownerFilter.includes(member.userId) && 'bg-[var(--surface-active)]'
-                )}
-                onClick={() =>
-                  setOwnerFilter((prev) =>
-                    prev.includes(member.userId)
-                      ? prev.filter((id) => id !== member.userId)
-                      : [...prev, member.userId]
-                  )
-                }
-              >
-                {member.image ? (
-                  <img
-                    src={member.image}
-                    alt={member.name}
-                    referrerPolicy='no-referrer'
-                    className='h-[14px] w-[14px] shrink-0 rounded-full border border-[var(--border)] object-cover'
-                  />
-                ) : (
-                  <span className='flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
-                    {member.name.charAt(0).toUpperCase()}
-                  </span>
-                )}
-                <span className='truncate'>{member.name}</span>
-              </button>
-            ))}
-          </div>
-        </>
       )}
     </div>
   )
 
   const filterTags: FilterTag[] = useMemo(() => {
     const tags: FilterTag[] = []
-    if (rowCountFilter !== 'all') {
-      const labels = { empty: 'Rows: Empty', small: 'Rows: Small', large: 'Rows: Large' }
-      tags.push({ label: labels[rowCountFilter], onRemove: () => setRowCountFilter('all') })
+    if (rowCountFilter.length > 0) {
+      const rowLabels: Record<string, string> = { empty: 'Empty', small: 'Small', large: 'Large' }
+      const label =
+        rowCountFilter.length === 1
+          ? `Rows: ${rowLabels[rowCountFilter[0]]}`
+          : `Rows: ${rowCountFilter.length} selected`
+      tags.push({ label, onRemove: () => setRowCountFilter([]) })
     }
     if (columnTypeFilter.length > 0) {
+      const typeLabels: Record<string, string> = {
+        string: 'Text',
+        number: 'Number',
+        boolean: 'Boolean',
+        date: 'Date',
+        json: 'JSON',
+      }
       const label =
         columnTypeFilter.length === 1
-          ? `Type: ${COLUMN_TYPE_LABELS[columnTypeFilter[0]]}`
+          ? `Type: ${typeLabels[columnTypeFilter[0]]}`
           : `Types: ${columnTypeFilter.length} selected`
       tags.push({ label, onRemove: () => setColumnTypeFilter([]) })
     }
