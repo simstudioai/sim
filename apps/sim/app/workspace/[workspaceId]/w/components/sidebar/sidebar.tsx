@@ -100,6 +100,28 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Sidebar')
 
+export function SidebarTooltip({
+  children,
+  label,
+  enabled,
+  side = 'right',
+}: {
+  children: React.ReactElement
+  label: string
+  enabled: boolean
+  side?: 'right' | 'bottom'
+}) {
+  if (!enabled) return children
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
+      <Tooltip.Content side={side}>
+        <p>{label}</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
 function SidebarItemSkeleton() {
   return (
     <div className='sidebar-collapse-hide mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2'>
@@ -135,71 +157,61 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, taskId: string) => void
 }) {
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <Link
-          href={task.href}
-          className={cn(
-            'group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm',
-            !(isCurrentRoute || isSelected || isMenuOpen) &&
-              'hover-hover:bg-[var(--surface-hover)]',
-            (isCurrentRoute || isSelected || isMenuOpen) && 'bg-[var(--surface-active)]'
-          )}
-          onClick={(e) => {
-            if (task.id === 'new') return
-            if (e.shiftKey || e.metaKey || e.ctrlKey) {
-              e.preventDefault()
-              onMultiSelectClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
-            } else {
-              useFolderStore.setState({
-                selectedTasks: new Set<string>(),
-                lastSelectedTaskId: task.id,
-              })
-            }
-          }}
-          onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
-        >
-          <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-          <div className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>
-            {task.name}
+    <SidebarTooltip label={task.name} enabled={showCollapsedTooltips}>
+      <Link
+        href={task.href}
+        className={cn(
+          'group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm',
+          !(isCurrentRoute || isSelected || isMenuOpen) && 'hover-hover:bg-[var(--surface-hover)]',
+          (isCurrentRoute || isSelected || isMenuOpen) && 'bg-[var(--surface-active)]'
+        )}
+        onClick={(e) => {
+          if (task.id === 'new') return
+          if (e.shiftKey || e.metaKey || e.ctrlKey) {
+            e.preventDefault()
+            onMultiSelectClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
+          } else {
+            useFolderStore.setState({
+              selectedTasks: new Set<string>(),
+              lastSelectedTaskId: task.id,
+            })
+          }
+        }}
+        onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
+      >
+        <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+        <div className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>{task.name}</div>
+        {task.id !== 'new' && (
+          <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
+            {isActive && !isCurrentRoute && (
+              <span className='absolute h-[7px] w-[7px] animate-ping rounded-full bg-amber-400 opacity-30 group-hover:hidden' />
+            )}
+            {isActive && !isCurrentRoute && (
+              <span className='absolute h-[7px] w-[7px] rounded-full bg-amber-400 group-hover:hidden' />
+            )}
+            {!isActive && isUnread && !isCurrentRoute && (
+              <span className='absolute h-[7px] w-[7px] rounded-full bg-[var(--brand-accent)] group-hover:hidden' />
+            )}
+            <button
+              type='button'
+              aria-label='Task options'
+              onPointerDown={onMorePointerDown}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onMoreClick(e, task.id)
+              }}
+              className={cn(
+                'flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 group-hover:opacity-100',
+                isMenuOpen && 'opacity-100'
+              )}
+            >
+              <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+            </button>
           </div>
-          {task.id !== 'new' && (
-            <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
-              {isActive && !isCurrentRoute && (
-                <span className='absolute h-[7px] w-[7px] animate-ping rounded-full bg-amber-400 opacity-30 group-hover:hidden' />
-              )}
-              {isActive && !isCurrentRoute && (
-                <span className='absolute h-[7px] w-[7px] rounded-full bg-amber-400 group-hover:hidden' />
-              )}
-              {!isActive && isUnread && !isCurrentRoute && (
-                <span className='absolute h-[7px] w-[7px] rounded-full bg-[var(--brand-accent)] group-hover:hidden' />
-              )}
-              <button
-                type='button'
-                aria-label='Task options'
-                onPointerDown={onMorePointerDown}
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  onMoreClick(e, task.id)
-                }}
-                className={cn(
-                  'flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 group-hover:opacity-100',
-                  isMenuOpen && 'opacity-100'
-                )}
-              >
-                <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
-              </button>
-            </div>
-          )}
-        </Link>
-      </Tooltip.Trigger>
-      {showCollapsedTooltips && (
-        <Tooltip.Content side='right'>
-          <p>{task.name}</p>
-        </Tooltip.Content>
-      )}
-    </Tooltip.Root>
+        )}
+      </Link>
+    </SidebarTooltip>
   )
 })
 
@@ -265,15 +277,12 @@ const SidebarNavItem = memo(function SidebarNavItem({
     </button>
   ) : null
 
+  if (!element) return null
+
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>{element}</Tooltip.Trigger>
-      {showCollapsedTooltips && (
-        <Tooltip.Content side='right'>
-          <p>{item.label}</p>
-        </Tooltip.Content>
-      )}
-    </Tooltip.Root>
+    <SidebarTooltip label={item.label} enabled={showCollapsedTooltips}>
+      {element}
+    </SidebarTooltip>
   )
 })
 
@@ -317,6 +326,7 @@ export const Sidebar = memo(function Sidebar() {
   const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
   const isCollapsed = useSidebarStore((state) => state.isCollapsed)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
+  const _hasHydrated = useSidebarStore((state) => state._hasHydrated)
   const isOnWorkflowPage = !!workflowId
 
   const isCollapsedRef = useRef(isCollapsed)
@@ -330,10 +340,13 @@ export const Sidebar = memo(function Sidebar() {
   const [showCollapsedTooltips, setShowCollapsedTooltips] = useState(isCollapsed)
 
   useLayoutEffect(() => {
-    if (!isCollapsed) {
+    if (!_hasHydrated) return
+    if (isCollapsed) {
+      document.documentElement.setAttribute('data-sidebar-collapsed', '')
+    } else {
       document.documentElement.removeAttribute('data-sidebar-collapsed')
     }
-  }, [isCollapsed])
+  }, [isCollapsed, _hasHydrated])
 
   useEffect(() => {
     if (isCollapsed) {
@@ -1208,63 +1221,45 @@ export const Sidebar = memo(function Sidebar() {
             {/* Top bar: Logo + Collapse toggle */}
             <div className='flex flex-shrink-0 items-center pr-2 pb-2 pl-2.5'>
               <div className='flex h-[30px] items-center'>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Link
-                      href={`/workspace/${workspaceId}/home`}
-                      onClick={isCollapsed ? handleExpandSidebar : undefined}
-                      className='group flex h-[30px] items-center rounded-[8px] px-1.5 hover-hover:bg-[var(--surface-hover)]'
-                      aria-label={isCollapsed ? 'Expand sidebar' : brand.name}
-                    >
-                      {brand.logoUrl ? (
-                        <Image
-                          src={brand.logoUrl}
-                          alt={brand.name}
-                          width={16}
-                          height={16}
-                          className={cn(
-                            'h-[16px] w-[16px] flex-shrink-0 object-contain',
-                            isCollapsed && 'group-hover:hidden'
-                          )}
-                          unoptimized
-                        />
-                      ) : isCollapsed ? (
-                        <Sim className='h-[16px] w-[16px] flex-shrink-0 group-hover:hidden' />
-                      ) : (
-                        <Wordmark className='h-[16px] w-auto text-[var(--text-body)]' />
-                      )}
-                      {isCollapsed && (
-                        <PanelLeft className='hidden h-[16px] w-[16px] flex-shrink-0 rotate-180 text-[var(--text-icon)] group-hover:block' />
-                      )}
-                    </Link>
-                  </Tooltip.Trigger>
-                  {showCollapsedTooltips && (
-                    <Tooltip.Content side='right'>
-                      <p>Expand sidebar</p>
-                    </Tooltip.Content>
-                  )}
-                </Tooltip.Root>
-              </div>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <button
-                    type='button'
-                    onClick={toggleCollapsed}
-                    className={cn(
-                      'sidebar-collapse-btn ml-auto flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 hover-hover:bg-[var(--surface-hover)]',
-                      isCollapsed ? 'w-0 opacity-0' : 'w-[30px] opacity-100'
-                    )}
-                    aria-label='Collapse sidebar'
+                <SidebarTooltip label='Expand sidebar' enabled={showCollapsedTooltips}>
+                  <Link
+                    href={`/workspace/${workspaceId}/home`}
+                    onClick={isCollapsed ? handleExpandSidebar : undefined}
+                    className='group flex h-[30px] items-center rounded-[8px] px-1.5 hover-hover:bg-[var(--surface-hover)]'
+                    aria-label={isCollapsed ? 'Expand sidebar' : brand.name}
                   >
-                    <PanelLeft className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                  </button>
-                </Tooltip.Trigger>
-                {!isCollapsed && (
-                  <Tooltip.Content side='bottom'>
-                    <p>Collapse sidebar</p>
-                  </Tooltip.Content>
-                )}
-              </Tooltip.Root>
+                    {brand.logoUrl ? (
+                      <Image
+                        src={brand.logoUrl}
+                        alt={brand.name}
+                        width={16}
+                        height={16}
+                        className='h-[16px] w-[16px] flex-shrink-0 object-contain group-hover:hidden'
+                        unoptimized
+                      />
+                    ) : (
+                      <>
+                        <Wordmark className='sidebar-collapse-hide h-[16px] w-auto text-[var(--text-body)]' />
+                        <Sim className='sidebar-collapse-show h-[16px] w-[16px] flex-shrink-0 group-hover:hidden' />
+                      </>
+                    )}
+                    <PanelLeft className='sidebar-collapse-show hidden h-[16px] w-[16px] flex-shrink-0 rotate-180 text-[var(--text-icon)] group-hover:block' />
+                  </Link>
+                </SidebarTooltip>
+              </div>
+              <SidebarTooltip label='Collapse sidebar' enabled={!isCollapsed} side='bottom'>
+                <button
+                  type='button'
+                  onClick={toggleCollapsed}
+                  className={cn(
+                    'sidebar-collapse-btn ml-auto flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 hover-hover:bg-[var(--surface-hover)]',
+                    isCollapsed ? 'w-0 opacity-0' : 'w-[30px] opacity-100'
+                  )}
+                  aria-label='Collapse sidebar'
+                >
+                  <PanelLeft className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                </button>
+              </SidebarTooltip>
             </div>
 
             {/* Workspace Header */}
@@ -1621,27 +1616,20 @@ export const Sidebar = memo(function Sidebar() {
                 >
                   {/* Help dropdown */}
                   <DropdownMenu>
-                    <Tooltip.Root>
+                    <SidebarTooltip label='Help' enabled={showCollapsedTooltips}>
                       <DropdownMenuTrigger asChild>
-                        <Tooltip.Trigger asChild>
-                          <button
-                            type='button'
-                            data-item-id='help'
-                            className='group mx-0.5 flex h-[30px] items-center gap-2 rounded-[8px] px-2 text-[14px] hover-hover:bg-[var(--surface-hover)]'
-                          >
-                            <HelpCircle className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                            <span className='sidebar-collapse-hide truncate font-base text-[var(--text-body)]'>
-                              Help
-                            </span>
-                          </button>
-                        </Tooltip.Trigger>
+                        <button
+                          type='button'
+                          data-item-id='help'
+                          className='group mx-0.5 flex h-[30px] items-center gap-2 rounded-[8px] px-2 text-[14px] hover-hover:bg-[var(--surface-hover)]'
+                        >
+                          <HelpCircle className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                          <span className='sidebar-collapse-hide truncate font-base text-[var(--text-body)]'>
+                            Help
+                          </span>
+                        </button>
                       </DropdownMenuTrigger>
-                      {showCollapsedTooltips && (
-                        <Tooltip.Content side='right'>
-                          <p>Help</p>
-                        </Tooltip.Content>
-                      )}
-                    </Tooltip.Root>
+                    </SidebarTooltip>
                     <DropdownMenuContent align='start' side='top' sideOffset={4}>
                       <DropdownMenuItem onSelect={handleOpenDocs}>
                         <BookOpen className='h-[14px] w-[14px]' />

@@ -245,9 +245,6 @@ export function CollapsedTaskFlyoutItem({
           title={task.name}
           isActive={!!task.isActive}
           isUnread={!!task.isUnread}
-          statusIndicatorClassName={
-            !(isCurrentRoute || isMenuOpen) ? 'group-hover:hidden' : undefined
-          }
         />
       </Link>
       {showActions && (

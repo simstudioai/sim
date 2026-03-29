@@ -3,6 +3,8 @@ export interface ChunkFilters {
   enabled?: 'true' | 'false' | 'all'
   limit?: number
   offset?: number
+  sortBy?: 'chunkIndex' | 'tokenCount' | 'enabled'
+  sortOrder?: 'asc' | 'desc'
 }
 
 export interface ChunkData {

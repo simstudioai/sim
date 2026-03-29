@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm'
 import type {
   BatchOperationResult,
   ChunkData,
@@ -23,7 +23,14 @@ export async function queryChunks(
   filters: ChunkFilters,
   requestId: string
 ): Promise<ChunkQueryResult> {
-  const { search, enabled = 'all', limit = 50, offset = 0 } = filters
+  const {
+    search,
+    enabled = 'all',
+    limit = 50,
+    offset = 0,
+    sortBy = 'chunkIndex',
+    sortOrder = 'asc',
+  } = filters
 
   // Build query conditions
   const conditions = [eq(embedding.documentId, documentId)]
@@ -63,7 +70,17 @@ export async function queryChunks(
     })
     .from(embedding)
     .where(and(...conditions))
-    .orderBy(asc(embedding.chunkIndex))
+    .orderBy(
+      (() => {
+        const col =
+          sortBy === 'tokenCount'
+            ? embedding.tokenCount
+            : sortBy === 'enabled'
+              ? embedding.enabled
+              : embedding.chunkIndex
+        return sortOrder === 'desc' ? desc(col) : asc(col)
+      })()
+    )
     .limit(limit)
     .offset(offset)
 

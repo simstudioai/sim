@@ -175,7 +175,21 @@ export function Document({
     refreshChunks: initialRefreshChunks,
     updateChunk: initialUpdateChunk,
     isFetching: isFetchingChunks,
-  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL, '', enabledFilterParam)
+  } = useDocumentChunks(
+    knowledgeBaseId,
+    documentId,
+    currentPageFromURL,
+    '',
+    enabledFilterParam,
+    activeSort?.column === 'tokens'
+      ? 'tokenCount'
+      : activeSort?.column === 'status'
+        ? 'enabled'
+        : activeSort
+          ? 'chunkIndex'
+          : undefined,
+    activeSort?.direction
+  )
 
   const { data: searchResults = [], error: searchQueryError } = useDocumentChunkSearchQuery(
     {
@@ -241,25 +255,7 @@ export function Document({
 
   const rawDisplayChunks = showingSearch ? paginatedSearchResults : initialChunks
 
-  const displayChunks = useMemo(() => {
-    if (!activeSort || !rawDisplayChunks) return rawDisplayChunks ?? []
-    const { column, direction } = activeSort
-    return [...rawDisplayChunks].sort((a, b) => {
-      let cmp = 0
-      switch (column) {
-        case 'index':
-          cmp = a.chunkIndex - b.chunkIndex
-          break
-        case 'tokens':
-          cmp = (a.tokenCount ?? 0) - (b.tokenCount ?? 0)
-          break
-        case 'status':
-          cmp = (a.enabled ? 1 : 0) - (b.enabled ? 1 : 0)
-          break
-      }
-      return direction === 'asc' ? cmp : -cmp
-    })
-  }, [rawDisplayChunks, activeSort])
+  const displayChunks = rawDisplayChunks ?? []
 
   const currentPage = showingSearch ? searchCurrentPage : initialPage
   const totalPages = showingSearch ? searchTotalPages : initialTotalPages
@@ -871,10 +867,16 @@ export function Document({
         { id: 'status', label: 'Status' },
       ],
       active: activeSort,
-      onSort: (column, direction) => setActiveSort({ column, direction }),
-      onClear: () => setActiveSort(null),
+      onSort: (column, direction) => {
+        setActiveSort({ column, direction })
+        void goToPage(1)
+      },
+      onClear: () => {
+        setActiveSort(null)
+        void goToPage(1)
+      },
     }),
-    [activeSort]
+    [activeSort, goToPage]
   )
 
   const chunkRows: ResourceRow[] = useMemo(() => {

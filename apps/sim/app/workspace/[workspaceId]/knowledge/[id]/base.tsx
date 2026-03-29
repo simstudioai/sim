@@ -957,7 +957,7 @@ export function KnowledgeBase({
                 content: (
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
-                      <div style={{ cursor: 'help' }}>{getStatusBadge(doc)}</div>
+                      <div className='cursor-help'>{getStatusBadge(doc)}</div>
                     </Tooltip.Trigger>
                     <Tooltip.Content side='top' className='max-w-xs'>
                       {doc.processingError}

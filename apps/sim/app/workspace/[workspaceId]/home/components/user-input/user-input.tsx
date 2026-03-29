@@ -571,19 +571,19 @@ export function UserInput({
     const items = e.clipboardData?.items
     if (!items) return
 
-    const imageFiles: File[] = []
+    const pastedFiles: File[] = []
     for (const item of Array.from(items)) {
-      if (item.kind === 'file' && item.type.startsWith('image/')) {
+      if (item.kind === 'file') {
         const file = item.getAsFile()
-        if (file) imageFiles.push(file)
+        if (file) pastedFiles.push(file)
       }
     }
 
-    if (imageFiles.length === 0) return
+    if (pastedFiles.length === 0) return
 
     e.preventDefault()
     const dt = new DataTransfer()
-    for (const file of imageFiles) {
+    for (const file of pastedFiles) {
       dt.items.add(file)
     }
     filesRef.current.processFiles(dt.files)
