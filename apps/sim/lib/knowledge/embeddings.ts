@@ -452,7 +452,20 @@ export async function generateSearchEmbedding(
     const modelName = embeddingModel.slice(7)
     const baseUrl = getOllamaBaseUrl(ollamaBaseUrl)
     logger.info(`Using Ollama (${baseUrl}) for search embedding with model ${modelName}`)
-    const embeddings = await callOllamaEmbeddingAPI([query], modelName, baseUrl)
+    const embeddings = await retryWithExponentialBackoff(
+      () => callOllamaEmbeddingAPI([query], modelName, baseUrl),
+      {
+        maxRetries: 3,
+        initialDelayMs: 1000,
+        maxDelayMs: 10000,
+        retryCondition: (error: unknown) => {
+          if (error instanceof EmbeddingAPIError) {
+            return error.status === 429 || error.status >= 500
+          }
+          return isRetryableError(error)
+        },
+      }
+    )
     return embeddings[0]
   }
 
