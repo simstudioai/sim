@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import {
@@ -32,6 +32,11 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
     return fromFilter.length > 0 ? fromFilter : [createRule(columns)]
   })
 
+  // Ref kept in sync each render so callbacks can read current rules
+  // without capturing them in their dependency arrays (keeps memo stable)
+  const rulesRef = useRef(rules)
+  rulesRef.current = rules
+
   const columnOptions = useMemo(
     () => columns.map((col) => ({ value: col.name, label: col.name })),
     [columns]
@@ -43,7 +48,7 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
 
   const handleRemove = useCallback(
     (id: string) => {
-      const next = rules.filter((r) => r.id !== id)
+      const next = rulesRef.current.filter((r) => r.id !== id)
       if (next.length === 0) {
         onApply(null)
         onClose()
@@ -52,7 +57,7 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
         setRules(next)
       }
     },
-    [columns, onApply, onClose, rules]
+    [columns, onApply, onClose]
   )
 
   const handleUpdate = useCallback((id: string, field: keyof FilterRule, value: string) => {
@@ -68,9 +73,9 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
   }, [])
 
   const handleApply = useCallback(() => {
-    const validRules = rules.filter((r) => r.column && r.value)
+    const validRules = rulesRef.current.filter((r) => r.column && r.value)
     onApply(filterRulesToFilter(validRules))
-  }, [rules, onApply])
+  }, [onApply])
 
   const handleClear = useCallback(() => {
     setRules([createRule(columns)])
