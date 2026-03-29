@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { GripVertical } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
@@ -305,6 +306,17 @@ export function Table({
     return 0
   }, [resizingColumn, displayColumns, columnWidths])
 
+  const dropIndicatorLeft = useMemo(() => {
+    if (!dropTargetColumnName) return null
+    let left = CHECKBOX_COL_WIDTH
+    for (const col of displayColumns) {
+      if (dropSide === 'left' && col.name === dropTargetColumnName) return left
+      left += columnWidths[col.name] ?? COL_WIDTH
+      if (dropSide === 'right' && col.name === dropTargetColumnName) return left
+    }
+    return null
+  }, [dropTargetColumnName, dropSide, displayColumns, columnWidths])
+
   const isAllRowsSelected = useMemo(() => {
     if (checkedRows.size > 0 && rows.length > 0 && checkedRows.size >= rows.length) {
       for (const row of rows) {
@@ -367,13 +379,11 @@ export function Table({
         setColumnWidths(updatedWidths)
       }
       const updatedOrder = columnOrderRef.current?.map((n) => (n === columnName ? newName : n))
-      if (updatedOrder) {
-        setColumnOrder(updatedOrder)
-        updateMetadataRef.current({
-          columnWidths: updatedWidths,
-          columnOrder: updatedOrder,
-        })
-      }
+      if (updatedOrder) setColumnOrder(updatedOrder)
+      updateMetadataRef.current({
+        columnWidths: updatedWidths,
+        columnOrder: updatedOrder,
+      })
       updateColumnMutation.mutate({ columnName, updates: { name: newName } })
     },
   })
@@ -682,6 +692,7 @@ export function Table({
     }
     setDragColumnName(null)
     setDropTargetColumnName(null)
+    setDropSide('left')
   }, [])
 
   const handleColumnDragLeave = useCallback(() => {
@@ -1340,8 +1351,7 @@ export function Table({
 
   const insertColumnInOrder = useCallback(
     (anchorColumn: string, newColumn: string, side: 'left' | 'right') => {
-      const order = columnOrderRef.current
-      if (!order) return
+      const order = columnOrderRef.current ?? schemaColumnsRef.current.map((c) => c.name)
       const newOrder = [...order]
       let anchorIdx = newOrder.indexOf(anchorColumn)
       if (anchorIdx === -1) {
@@ -1422,12 +1432,12 @@ export function Table({
   const handleDeleteColumnConfirm = useCallback(() => {
     if (!deletingColumn) return
     const columnToDelete = deletingColumn
+    const orderAtDelete = columnOrderRef.current
     setDeletingColumn(null)
     deleteColumnMutation.mutate(columnToDelete, {
       onSuccess: () => {
-        const order = columnOrderRef.current
-        if (!order) return
-        const newOrder = order.filter((n) => n !== columnToDelete)
+        if (!orderAtDelete) return
+        const newOrder = orderAtDelete.filter((n) => n !== columnToDelete)
         setColumnOrder(newOrder)
         updateMetadataRef.current({
           columnWidths: columnWidthsRef.current,
@@ -1448,6 +1458,17 @@ export function Table({
   const handleFilterApply = useCallback((filter: Filter | null) => {
     setQueryOptions((prev) => ({ ...prev, filter }))
   }, [])
+
+  const [filterOpen, setFilterOpen] = useState(false)
+
+  const handleFilterToggle = useCallback(() => {
+    setFilterOpen((prev) => !prev)
+  }, [])
+
+  const handleFilterClose = useCallback(() => {
+    setFilterOpen(false)
+  }, [])
+
   const columnOptions = useMemo<ColumnOption[]>(
     () =>
       displayColumns.map((col) => ({
@@ -1526,11 +1547,6 @@ export function Table({
     [handleAddColumn, addColumnMutation.isPending]
   )
 
-  const filterElement = useMemo(
-    () => <TableFilter columns={displayColumns} onApply={handleFilterApply} />,
-    [displayColumns, handleFilterApply]
-  )
-
   const activeSortState = useMemo(() => {
     if (!queryOptions.sort) return null
     const entries = Object.entries(queryOptions.sort)
@@ -1597,7 +1613,19 @@ export function Table({
         <>
           <ResourceHeader icon={TableIcon} breadcrumbs={breadcrumbs} create={createAction} />
 
-          <ResourceOptionsBar sort={sortConfig} filter={filterElement} />
+          <ResourceOptionsBar
+            sort={sortConfig}
+            onFilterToggle={handleFilterToggle}
+            filterActive={filterOpen || !!queryOptions.filter}
+          />
+          {filterOpen && (
+            <TableFilter
+              columns={displayColumns}
+              filter={queryOptions.filter}
+              onApply={handleFilterApply}
+              onClose={handleFilterClose}
+            />
+          )}
         </>
       )}
 
@@ -1677,8 +1705,6 @@ export function Table({
                       onResize={handleColumnResize}
                       onResizeEnd={handleColumnResizeEnd}
                       isDragging={dragColumnName === column.name}
-                      isDropTarget={dropTargetColumnName === column.name}
-                      dropSide={dropTargetColumnName === column.name ? dropSide : undefined}
                       onDragStart={handleColumnDragStart}
                       onDragOver={handleColumnDragOver}
                       onDragEnd={handleColumnDragEnd}
@@ -1701,7 +1727,7 @@ export function Table({
                 <>
                   {rows.map((row, index) => {
                     const prevPosition = index > 0 ? rows[index - 1].position : -1
-                    const gapCount = row.position - prevPosition - 1
+                    const gapCount = queryOptions.filter ? 0 : row.position - prevPosition - 1
                     return (
                       <React.Fragment key={row.id}>
                         {gapCount > 0 && (
@@ -1753,6 +1779,12 @@ export function Table({
             <div
               className='-translate-x-[1.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
               style={{ left: resizeIndicatorLeft }}
+            />
+          )}
+          {dropIndicatorLeft !== null && (
+            <div
+              className='-translate-x-[1px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
+              style={{ left: dropIndicatorLeft }}
             />
           )}
         </div>
@@ -2581,8 +2613,6 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResize,
   onResizeEnd,
   isDragging,
-  isDropTarget,
-  dropSide,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -2605,8 +2635,6 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResize: (columnName: string, width: number) => void
   onResizeEnd: () => void
   isDragging?: boolean
-  isDropTarget?: boolean
-  dropSide?: 'left' | 'right'
   onDragStart?: (columnName: string) => void
   onDragOver?: (columnName: string, side: 'left' | 'right') => void
   onDragEnd?: () => void
@@ -2698,22 +2726,13 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   return (
     <th
       className={cn(
-        'relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle',
+        'group relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle',
         isDragging && 'opacity-40'
       )}
-      draggable={!readOnly && !isRenaming}
-      onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      onDragEnd={handleDragEnd}
       onDragLeave={handleDragLeave}
     >
-      {isDropTarget && dropSide === 'left' && (
-        <div className='pointer-events-none absolute top-0 bottom-0 left-[-1px] z-10 w-[2px] bg-[var(--selection)]' />
-      )}
-      {isDropTarget && dropSide === 'right' && (
-        <div className='pointer-events-none absolute top-0 right-[-1px] bottom-0 z-10 w-[2px] bg-[var(--selection)]' />
-      )}
       {isRenaming ? (
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon type={column.type} />
@@ -2738,63 +2757,73 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           </span>
         </div>
       ) : (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type='button'
-              className='flex h-full w-full min-w-0 cursor-pointer items-center px-2 py-[7px] outline-none active:cursor-grabbing'
-            >
-              <ColumnTypeIcon type={column.type} />
-              <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
-                {column.name}
-              </span>
-              <ChevronDown className='ml-2 h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='start'>
-            <DropdownMenuItem onSelect={() => onRenameColumn(column.name)}>
-              <Pencil />
-              Rename column
-            </DropdownMenuItem>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                {React.createElement(COLUMN_TYPE_ICONS[column.type] ?? TypeText)}
-                Change type
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {COLUMN_TYPE_OPTIONS.map((option) => (
-                  <DropdownMenuItem
-                    key={option.type}
-                    disabled={column.type === option.type}
-                    onSelect={() => onChangeType(column.name, option.type)}
-                  >
-                    <option.icon />
-                    {option.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => onInsertLeft(column.name)}>
-              <ArrowLeft />
-              Insert column left
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onInsertRight(column.name)}>
-              <ArrowRight />
-              Insert column right
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => onToggleUnique(column.name)}>
-              <Fingerprint />
-              {column.unique ? 'Remove unique' : 'Set unique'}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => onDeleteColumn(column.name)}>
-              <Trash />
-              Delete column
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className='flex h-full w-full min-w-0 items-center'>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type='button'
+                className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-none'
+              >
+                <ColumnTypeIcon type={column.type} />
+                <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
+                  {column.name}
+                </span>
+                <ChevronDown className='ml-1.5 h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='start'>
+              <DropdownMenuItem onSelect={() => onRenameColumn(column.name)}>
+                <Pencil />
+                Rename column
+              </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  {React.createElement(COLUMN_TYPE_ICONS[column.type] ?? TypeText)}
+                  Change type
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {COLUMN_TYPE_OPTIONS.map((option) => (
+                    <DropdownMenuItem
+                      key={option.type}
+                      disabled={column.type === option.type}
+                      onSelect={() => onChangeType(column.name, option.type)}
+                    >
+                      <option.icon />
+                      {option.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => onInsertLeft(column.name)}>
+                <ArrowLeft />
+                Insert column left
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onInsertRight(column.name)}>
+                <ArrowRight />
+                Insert column right
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => onToggleUnique(column.name)}>
+                <Fingerprint />
+                {column.unique ? 'Remove unique' : 'Set unique'}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => onDeleteColumn(column.name)}>
+                <Trash />
+                Delete column
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <div
+            draggable
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            className='flex h-full cursor-grab items-center pr-1.5 pl-0.5 opacity-0 transition-opacity active:cursor-grabbing group-hover:opacity-100'
+          >
+            <GripVertical className='h-3 w-3 shrink-0 text-[var(--text-muted)]' />
+          </div>
+        </div>
       )}
       <div
         className='-right-[3px] absolute top-0 z-[1] h-full w-[6px] cursor-col-resize'

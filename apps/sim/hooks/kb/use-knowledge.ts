@@ -233,7 +233,9 @@ export function useDocumentChunks(
   documentId: string,
   page = 1,
   search = '',
-  enabledFilter: 'all' | 'enabled' | 'disabled' = 'all'
+  enabledFilter: 'all' | 'enabled' | 'disabled' = 'all',
+  sortBy?: 'chunkIndex' | 'tokenCount' | 'enabled',
+  sortOrder?: 'asc' | 'desc'
 ) {
   const queryClient = useQueryClient()
 
@@ -248,6 +250,8 @@ export function useDocumentChunks(
       offset,
       search: search || undefined,
       enabledFilter,
+      sortBy,
+      sortOrder,
     },
     {
       enabled: Boolean(knowledgeBaseId && documentId),
@@ -280,11 +284,13 @@ export function useDocumentChunks(
       offset,
       search: search || undefined,
       enabledFilter,
+      sortBy,
+      sortOrder,
     })
     await queryClient.invalidateQueries({
       queryKey: knowledgeKeys.chunks(knowledgeBaseId, documentId, paramsKey),
     })
-  }, [knowledgeBaseId, documentId, offset, search, enabledFilter, queryClient])
+  }, [knowledgeBaseId, documentId, offset, search, enabledFilter, sortBy, sortOrder, queryClient])
 
   const updateChunk = useCallback(
     (chunkId: string, updates: Partial<ChunkData>) => {
@@ -295,6 +301,8 @@ export function useDocumentChunks(
         offset,
         search: search || undefined,
         enabledFilter,
+        sortBy,
+        sortOrder,
       })
       queryClient.setQueryData<KnowledgeChunksResponse>(
         knowledgeKeys.chunks(knowledgeBaseId, documentId, paramsKey),
@@ -309,7 +317,7 @@ export function useDocumentChunks(
         }
       )
     },
-    [knowledgeBaseId, documentId, offset, search, enabledFilter, queryClient]
+    [knowledgeBaseId, documentId, offset, search, enabledFilter, sortBy, sortOrder, queryClient]
   )
 
   return {

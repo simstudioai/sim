@@ -5,6 +5,10 @@ const STICK_THRESHOLD = 30
 /** User must scroll back to within this distance to re-engage auto-scroll. */
 const REATTACH_THRESHOLD = 5
 
+interface UseAutoScrollOptions {
+  scrollOnMount?: boolean
+}
+
 /**
  * Manages sticky auto-scroll for a streaming chat container.
  *
@@ -16,7 +20,10 @@ const REATTACH_THRESHOLD = 5
  * Returns `ref` (callback ref for the scroll container) and `scrollToBottom`
  * for imperative use after layout-changing events like panel expansion.
  */
-export function useAutoScroll(isStreaming: boolean) {
+export function useAutoScroll(
+  isStreaming: boolean,
+  { scrollOnMount = false }: UseAutoScrollOptions = {}
+) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(true)
   const userDetachedRef = useRef(false)
@@ -24,6 +31,7 @@ export function useAutoScroll(isStreaming: boolean) {
   const prevScrollHeightRef = useRef(0)
   const touchStartYRef = useRef(0)
   const rafIdRef = useRef(0)
+  const scrollOnMountRef = useRef(scrollOnMount)
 
   const scrollToBottom = useCallback(() => {
     const el = containerRef.current
@@ -33,7 +41,7 @@ export function useAutoScroll(isStreaming: boolean) {
 
   const callbackRef = useCallback((el: HTMLDivElement | null) => {
     containerRef.current = el
-    if (el) el.scrollTop = el.scrollHeight
+    if (el && scrollOnMountRef.current) el.scrollTop = el.scrollHeight
   }, [])
 
   useEffect(() => {

@@ -91,7 +91,9 @@ export function MothershipChat({
 }: MothershipChatProps) {
   const styles = LAYOUT_STYLES[layout]
   const isStreamActive = isSending || isReconnecting
-  const { ref: scrollContainerRef, scrollToBottom } = useAutoScroll(isStreamActive)
+  const { ref: scrollContainerRef, scrollToBottom } = useAutoScroll(isStreamActive, {
+    scrollOnMount: true,
+  })
   const hasMessages = messages.length > 0
   const initialScrollDoneRef = useRef(false)
 

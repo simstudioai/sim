@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { Loader2 } from 'lucide-react'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import AuthBackground from '@/app/(auth)/components/auth-background'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(home)/components/navbar/navbar'
 import {
@@ -322,11 +323,7 @@ export default function Form({ identifier }: { identifier: string }) {
               )}
 
               {fields.length > 0 && (
-                <button
-                  type='submit'
-                  disabled={isSubmitting}
-                  className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
-                >
+                <button type='submit' disabled={isSubmitting} className={AUTH_SUBMIT_BTN}>
                   {isSubmitting ? (
                     <span className='flex items-center gap-2'>
                       <Loader2 className='h-4 w-4 animate-spin' />

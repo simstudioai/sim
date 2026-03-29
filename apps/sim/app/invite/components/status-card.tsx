@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
+import { AUTH_PRIMARY_CTA_BASE } from '@/app/(auth)/components/auth-button-classes'
 
 interface InviteStatusCardProps {
   type: 'login' | 'loading' | 'error' | 'success' | 'invitation' | 'warning'
@@ -55,10 +56,7 @@ export function InviteStatusCard({
 
       <div className='mt-8 w-full max-w-[410px] space-y-3'>
         {isExpiredError && (
-          <button
-            onClick={() => router.push('/')}
-            className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
-          >
+          <button onClick={() => router.push('/')} className={`${AUTH_PRIMARY_CTA_BASE} w-full`}>
             Request New Invitation
           </button>
         )}
@@ -69,9 +67,9 @@ export function InviteStatusCard({
             onClick={action.onClick}
             disabled={action.disabled || action.loading}
             className={cn(
-              'inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50',
+              `${AUTH_PRIMARY_CTA_BASE} w-full`,
               index !== 0 &&
-                'border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-elevated)]'
+                'border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-elevated)] hover:text-[var(--landing-text)]'
             )}
           >
             {action.loading ? (

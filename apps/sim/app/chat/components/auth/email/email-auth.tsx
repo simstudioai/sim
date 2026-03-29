@@ -293,7 +293,7 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
                     <button
                       onClick={() => handleVerifyOtp()}
                       disabled={otpValue.length !== 6 || isVerifyingOtp}
-                      className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
+                      className={AUTH_SUBMIT_BTN}
                     >
                       {isVerifyingOtp ? (
                         <span className='flex items-center gap-2'>
