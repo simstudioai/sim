@@ -174,6 +174,8 @@ export function Files() {
     direction: 'asc' | 'desc'
   } | null>(null)
   const [typeFilter, setTypeFilter] = useState<'all' | 'document' | 'audio' | 'video'>('all')
+  const [sizeFilter, setSizeFilter] = useState<'all' | 'small' | 'medium' | 'large'>('all')
+  const [uploadedByFilter, setUploadedByFilter] = useState<string[]>([])
 
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
@@ -223,6 +225,18 @@ export function Files() {
       })
     }
 
+    if (sizeFilter !== 'all') {
+      result = result.filter((f) => {
+        if (sizeFilter === 'small') return f.size < 1_048_576
+        if (sizeFilter === 'medium') return f.size >= 1_048_576 && f.size <= 10_485_760
+        return f.size > 10_485_760 // large
+      })
+    }
+
+    if (uploadedByFilter.length > 0) {
+      result = result.filter((f) => uploadedByFilter.includes(f.uploadedBy))
+    }
+
     const col = activeSort?.column ?? 'created'
     const dir = activeSort?.direction ?? 'desc'
     return [...result].sort((a, b) => {
@@ -244,7 +258,7 @@ export function Files() {
       }
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [files, debouncedSearchTerm, typeFilter, activeSort])
+  }, [files, debouncedSearchTerm, typeFilter, sizeFilter, uploadedByFilter, activeSort])
 
   const rowCacheRef = useRef(
     new Map<string, { row: ResourceRow; file: WorkspaceFileRecord; members: typeof members }>()
@@ -831,26 +845,105 @@ export function Files() {
           </button>
         ))}
       </div>
+      <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Size</span>
+      </div>
+      <div className='flex flex-col gap-0.5 px-3 py-2'>
+        {(
+          [
+            { value: 'all', label: 'All' },
+            { value: 'small', label: 'Small (< 1 MB)' },
+            { value: 'medium', label: 'Medium (1–10 MB)' },
+            { value: 'large', label: 'Large (> 10 MB)' },
+          ] as const
+        ).map(({ value, label }) => (
+          <button
+            key={value}
+            type='button'
+            className={cn(
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+              sizeFilter === value && 'bg-[var(--surface-active)]'
+            )}
+            onClick={() => setSizeFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {members && members.length > 0 && (
+        <>
+          <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
+            <span className='font-medium text-[var(--text-secondary)] text-caption'>
+              Uploaded By
+            </span>
+          </div>
+          <div className='flex flex-col gap-0.5 px-3 py-2'>
+            <button
+              type='button'
+              className={cn(
+                'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+                uploadedByFilter.length === 0 && 'bg-[var(--surface-active)]'
+              )}
+              onClick={() => setUploadedByFilter([])}
+            >
+              All
+            </button>
+            {members.map((member) => (
+              <button
+                key={member.userId}
+                type='button'
+                className={cn(
+                  'flex w-full cursor-pointer select-none items-center gap-1.5 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+                  uploadedByFilter.includes(member.userId) && 'bg-[var(--surface-active)]'
+                )}
+                onClick={() =>
+                  setUploadedByFilter((prev) =>
+                    prev.includes(member.userId)
+                      ? prev.filter((id) => id !== member.userId)
+                      : [...prev, member.userId]
+                  )
+                }
+              >
+                {member.image ? (
+                  <img
+                    src={member.image}
+                    alt={member.name}
+                    referrerPolicy='no-referrer'
+                    className='h-[14px] w-[14px] shrink-0 rounded-full border border-[var(--border)] object-cover'
+                  />
+                ) : (
+                  <span className='flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+                    {member.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <span className='truncate'>{member.name}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 
-  const filterTags: FilterTag[] = useMemo(
-    () =>
-      typeFilter === 'all'
-        ? []
-        : [
-            {
-              label:
-                typeFilter === 'document'
-                  ? 'Type: Documents'
-                  : typeFilter === 'audio'
-                    ? 'Type: Audio'
-                    : 'Type: Video',
-              onRemove: () => setTypeFilter('all'),
-            },
-          ],
-    [typeFilter]
-  )
+  const filterTags: FilterTag[] = useMemo(() => {
+    const tags: FilterTag[] = []
+    if (typeFilter !== 'all') {
+      const labels = { document: 'Type: Documents', audio: 'Type: Audio', video: 'Type: Video' }
+      tags.push({ label: labels[typeFilter], onRemove: () => setTypeFilter('all') })
+    }
+    if (sizeFilter !== 'all') {
+      const labels = { small: 'Size: Small', medium: 'Size: Medium', large: 'Size: Large' }
+      tags.push({ label: labels[sizeFilter], onRemove: () => setSizeFilter('all') })
+    }
+    if (uploadedByFilter.length > 0) {
+      const label =
+        uploadedByFilter.length === 1
+          ? `Uploaded by: ${members?.find((m) => m.userId === uploadedByFilter[0])?.name ?? '1 member'}`
+          : `Uploaded by: ${uploadedByFilter.length} members`
+      tags.push({ label, onRemove: () => setUploadedByFilter([]) })
+    }
+    return tags
+  }, [typeFilter, sizeFilter, uploadedByFilter, members])
 
   if (fileIdFromRoute && !selectedFile) {
     return (
