@@ -3,9 +3,9 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
-import { Tooltip } from '@/components/emcn'
+import type { ComboboxOption } from '@/components/emcn'
+import { Combobox, Tooltip } from '@/components/emcn'
 import { Database } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import type {
   CreateAction,
@@ -106,8 +106,8 @@ export function Knowledge() {
     column: string
     direction: 'asc' | 'desc'
   } | null>(null)
-  const [connectorFilter, setConnectorFilter] = useState<'all' | 'connected' | 'unconnected'>('all')
-  const [contentFilter, setContentFilter] = useState<'all' | 'has-docs' | 'empty'>('all')
+  const [connectorFilter, setConnectorFilter] = useState<string[]>([])
+  const [contentFilter, setContentFilter] = useState<string[]>([])
   const [ownerFilter, setOwnerFilter] = useState<string[]>([])
 
   const [searchInputValue, setSearchInputValue] = useState('')
@@ -186,20 +186,22 @@ export function Knowledge() {
   const processedKBs = useMemo(() => {
     let result = filterKnowledgeBases(knowledgeBases, debouncedSearchQuery)
 
-    if (connectorFilter !== 'all') {
-      result = result.filter((kb) =>
-        connectorFilter === 'connected'
-          ? (kb.connectorTypes?.length ?? 0) > 0
-          : (kb.connectorTypes?.length ?? 0) === 0
-      )
+    if (connectorFilter.length > 0) {
+      result = result.filter((kb) => {
+        const hasConnectors = (kb.connectorTypes?.length ?? 0) > 0
+        if (connectorFilter.includes('connected') && hasConnectors) return true
+        if (connectorFilter.includes('unconnected') && !hasConnectors) return true
+        return false
+      })
     }
 
-    if (contentFilter !== 'all') {
-      result = result.filter((kb) =>
-        contentFilter === 'has-docs'
-          ? ((kb as KnowledgeBaseWithDocCount).docCount ?? 0) > 0
-          : ((kb as KnowledgeBaseWithDocCount).docCount ?? 0) === 0
-      )
+    if (contentFilter.length > 0) {
+      const docCount = (kb: KnowledgeBaseData) => (kb as KnowledgeBaseWithDocCount).docCount ?? 0
+      result = result.filter((kb) => {
+        if (contentFilter.includes('has-docs') && docCount(kb) > 0) return true
+        if (contentFilter.includes('empty') && docCount(kb) === 0) return true
+        return false
+      })
     }
 
     if (ownerFilter.length > 0) {
@@ -370,122 +372,142 @@ export function Knowledge() {
     [activeSort]
   )
 
+  const connectorDisplayLabel = useMemo(() => {
+    if (connectorFilter.length === 0) return 'All'
+    if (connectorFilter.length === 1)
+      return connectorFilter[0] === 'connected' ? 'With connectors' : 'Without connectors'
+    return `${connectorFilter.length} selected`
+  }, [connectorFilter])
+
+  const contentDisplayLabel = useMemo(() => {
+    if (contentFilter.length === 0) return 'All'
+    if (contentFilter.length === 1)
+      return contentFilter[0] === 'has-docs' ? 'Has documents' : 'Empty'
+    return `${contentFilter.length} selected`
+  }, [contentFilter])
+
+  const ownerDisplayLabel = useMemo(() => {
+    if (ownerFilter.length === 0) return 'All'
+    if (ownerFilter.length === 1)
+      return members?.find((m) => m.userId === ownerFilter[0])?.name ?? '1 member'
+    return `${ownerFilter.length} members`
+  }, [ownerFilter, members])
+
+  const memberOptions: ComboboxOption[] = useMemo(
+    () =>
+      (members ?? []).map((m) => ({
+        value: m.userId,
+        label: m.name,
+        iconElement: m.image ? (
+          <img
+            src={m.image}
+            alt={m.name}
+            referrerPolicy='no-referrer'
+            className='h-[14px] w-[14px] rounded-full border border-[var(--border)] object-cover'
+          />
+        ) : (
+          <span className='flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+            {m.name.charAt(0).toUpperCase()}
+          </span>
+        ),
+      })),
+    [members]
+  )
+
+  const hasActiveFilters =
+    connectorFilter.length > 0 || contentFilter.length > 0 || ownerFilter.length > 0
+
   const filterContent = (
-    <div className='w-[200px]'>
-      <div className='border-[var(--border-1)] border-b px-3 py-2'>
+    <div className='flex w-[240px] flex-col gap-3 p-3'>
+      <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Connectors</span>
-      </div>
-      <div className='flex flex-col gap-0.5 px-3 py-2'>
-        {(
-          [
-            { value: 'all', label: 'All' },
+        <Combobox
+          options={[
             { value: 'connected', label: 'With connectors' },
             { value: 'unconnected', label: 'Without connectors' },
-          ] as const
-        ).map(({ value, label }) => (
-          <button
-            key={value}
-            type='button'
-            className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-              connectorFilter === value && 'bg-[var(--surface-active)]'
-            )}
-            onClick={() => setConnectorFilter(value)}
-          >
-            {label}
-          </button>
-        ))}
+          ]}
+          multiSelect
+          multiSelectValues={connectorFilter}
+          onMultiSelectChange={setConnectorFilter}
+          overlayContent={
+            <span className='truncate text-[var(--text-primary)]'>{connectorDisplayLabel}</span>
+          }
+          showAllOption
+          allOptionLabel='All'
+          size='sm'
+          className='h-[32px] w-full rounded-md'
+        />
       </div>
-      <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
+      <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Content</span>
-      </div>
-      <div className='flex flex-col gap-0.5 px-3 py-2'>
-        {(
-          [
-            { value: 'all', label: 'All' },
+        <Combobox
+          options={[
             { value: 'has-docs', label: 'Has documents' },
             { value: 'empty', label: 'Empty' },
-          ] as const
-        ).map(({ value, label }) => (
-          <button
-            key={value}
-            type='button'
-            className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-              contentFilter === value && 'bg-[var(--surface-active)]'
-            )}
-            onClick={() => setContentFilter(value)}
-          >
-            {label}
-          </button>
-        ))}
+          ]}
+          multiSelect
+          multiSelectValues={contentFilter}
+          onMultiSelectChange={setContentFilter}
+          overlayContent={
+            <span className='truncate text-[var(--text-primary)]'>{contentDisplayLabel}</span>
+          }
+          showAllOption
+          allOptionLabel='All'
+          size='sm'
+          className='h-[32px] w-full rounded-md'
+        />
       </div>
-      {members && members.length > 0 && (
-        <>
-          <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
-          </div>
-          <div className='flex flex-col gap-0.5 px-3 py-2'>
-            <button
-              type='button'
-              className={cn(
-                'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-                ownerFilter.length === 0 && 'bg-[var(--surface-active)]'
-              )}
-              onClick={() => setOwnerFilter([])}
-            >
-              All
-            </button>
-            {members.map((member) => (
-              <button
-                key={member.userId}
-                type='button'
-                className={cn(
-                  'flex w-full cursor-pointer select-none items-center gap-1.5 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-                  ownerFilter.includes(member.userId) && 'bg-[var(--surface-active)]'
-                )}
-                onClick={() =>
-                  setOwnerFilter((prev) =>
-                    prev.includes(member.userId)
-                      ? prev.filter((id) => id !== member.userId)
-                      : [...prev, member.userId]
-                  )
-                }
-              >
-                {member.image ? (
-                  <img
-                    src={member.image}
-                    alt={member.name}
-                    referrerPolicy='no-referrer'
-                    className='h-[14px] w-[14px] shrink-0 rounded-full border border-[var(--border)] object-cover'
-                  />
-                ) : (
-                  <span className='flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
-                    {member.name.charAt(0).toUpperCase()}
-                  </span>
-                )}
-                <span className='truncate'>{member.name}</span>
-              </button>
-            ))}
-          </div>
-        </>
+      {memberOptions.length > 0 && (
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
+          <Combobox
+            options={memberOptions}
+            multiSelect
+            multiSelectValues={ownerFilter}
+            onMultiSelectChange={setOwnerFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
+            }
+            searchable
+            searchPlaceholder='Search members...'
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+      )}
+      {hasActiveFilters && (
+        <button
+          type='button'
+          onClick={() => {
+            setConnectorFilter([])
+            setContentFilter([])
+            setOwnerFilter([])
+          }}
+          className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+        >
+          Clear all filters
+        </button>
       )}
     </div>
   )
 
   const filterTags: FilterTag[] = useMemo(() => {
     const tags: FilterTag[] = []
-    if (connectorFilter !== 'all') {
-      tags.push({
-        label: connectorFilter === 'connected' ? 'Connectors: Active' : 'Connectors: None',
-        onRemove: () => setConnectorFilter('all'),
-      })
+    if (connectorFilter.length > 0) {
+      const label =
+        connectorFilter.length === 1
+          ? `Connectors: ${connectorFilter[0] === 'connected' ? 'With connectors' : 'Without connectors'}`
+          : `Connectors: ${connectorFilter.length} types`
+      tags.push({ label, onRemove: () => setConnectorFilter([]) })
     }
-    if (contentFilter !== 'all') {
-      tags.push({
-        label: contentFilter === 'has-docs' ? 'Content: Has documents' : 'Content: Empty',
-        onRemove: () => setContentFilter('all'),
-      })
+    if (contentFilter.length > 0) {
+      const label =
+        contentFilter.length === 1
+          ? `Content: ${contentFilter[0] === 'has-docs' ? 'Has documents' : 'Empty'}`
+          : `Content: ${contentFilter.length} types`
+      tags.push({ label, onRemove: () => setContentFilter([]) })
     }
     if (ownerFilter.length > 0) {
       const label =
