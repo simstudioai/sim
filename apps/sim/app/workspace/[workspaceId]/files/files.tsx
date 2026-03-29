@@ -25,6 +25,7 @@ import {
 } from '@/components/emcn'
 import { File as FilesIcon } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
   downloadWorkspaceFile,
@@ -38,10 +39,12 @@ import {
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
 import type {
+  FilterTag,
   HeaderAction,
   ResourceColumn,
   ResourceRow,
   SearchConfig,
+  SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import {
   InlineRenameInput,
@@ -162,6 +165,11 @@ export function Files() {
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const [inputValue, setInputValue] = useState('')
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+  const [activeSort, setActiveSort] = useState<{
+    column: string
+    direction: 'asc' | 'desc'
+  } | null>(null)
+  const [typeFilter, setTypeFilter] = useState<'all' | 'document' | 'audio' | 'video'>('all')
   const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
 
   const handleSearchChange = useCallback((value: string) => {
@@ -206,10 +214,51 @@ export function Files() {
   selectedFileRef.current = selectedFile
 
   const filteredFiles = useMemo(() => {
-    if (!debouncedSearchTerm) return files
-    const q = debouncedSearchTerm.toLowerCase()
-    return files.filter((f) => f.name.toLowerCase().includes(q))
-  }, [files, debouncedSearchTerm])
+    let result = debouncedSearchTerm
+      ? files.filter((f) => f.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
+      : files
+
+    if (typeFilter !== 'all') {
+      result = result.filter((f) => {
+        const ext = getFileExtension(f.name)
+        if (typeFilter === 'document')
+          return SUPPORTED_DOCUMENT_EXTENSIONS.includes(
+            ext as (typeof SUPPORTED_DOCUMENT_EXTENSIONS)[number]
+          )
+        if (typeFilter === 'audio')
+          return SUPPORTED_AUDIO_EXTENSIONS.includes(
+            ext as (typeof SUPPORTED_AUDIO_EXTENSIONS)[number]
+          )
+        if (typeFilter === 'video')
+          return SUPPORTED_VIDEO_EXTENSIONS.includes(
+            ext as (typeof SUPPORTED_VIDEO_EXTENSIONS)[number]
+          )
+        return true
+      })
+    }
+
+    const col = activeSort?.column ?? 'created'
+    const dir = activeSort?.direction ?? 'desc'
+    return [...result].sort((a, b) => {
+      let cmp = 0
+      switch (col) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name)
+          break
+        case 'size':
+          cmp = a.size - b.size
+          break
+        case 'type':
+          cmp = formatFileType(a.type, a.name).localeCompare(formatFileType(b.type, b.name))
+          break
+        case 'created':
+        case 'updated':
+          cmp = new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime()
+          break
+      }
+      return dir === 'asc' ? cmp : -cmp
+    })
+  }, [files, debouncedSearchTerm, typeFilter, activeSort])
 
   const rowCacheRef = useRef(
     new Map<string, { row: ResourceRow; file: WorkspaceFileRecord; members: typeof members }>()
@@ -246,11 +295,6 @@ export function Files() {
           created: timeCell(file.uploadedAt),
           owner: ownerCell(file.uploadedBy, members),
           updated: timeCell(file.uploadedAt),
-        },
-        sortValues: {
-          size: file.size,
-          created: -new Date(file.uploadedAt).getTime(),
-          updated: -new Date(file.uploadedAt).getTime(),
         },
       }
       nextCache.set(file.id, { row, file, members })
@@ -690,7 +734,6 @@ export function Files() {
     handleDeleteSelected,
   ])
 
-  /** Stable refs for values used in callbacks to avoid dependency churn */
   const listRenameRef = useRef(listRename)
   listRenameRef.current = listRename
   const headerRenameRef = useRef(headerRename)
@@ -764,6 +807,69 @@ export function Files() {
     [handleNavigateToFiles]
   )
 
+  const sortConfig: SortConfig = useMemo(
+    () => ({
+      options: [
+        { id: 'name', label: 'Name' },
+        { id: 'size', label: 'Size' },
+        { id: 'type', label: 'Type' },
+        { id: 'created', label: 'Created' },
+      ],
+      active: activeSort,
+      onSort: (column, direction) => setActiveSort({ column, direction }),
+      onClear: () => setActiveSort(null),
+    }),
+    [activeSort]
+  )
+
+  const filterContent = (
+    <div className='w-[200px]'>
+      <div className='border-[var(--border-1)] border-b px-3 py-2'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>File Type</span>
+      </div>
+      <div className='flex flex-col gap-0.5 px-3 py-2'>
+        {(
+          [
+            { value: 'all', label: 'All' },
+            { value: 'document', label: 'Documents' },
+            { value: 'audio', label: 'Audio' },
+            { value: 'video', label: 'Video' },
+          ] as const
+        ).map(({ value, label }) => (
+          <button
+            key={value}
+            type='button'
+            className={cn(
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+              typeFilter === value && 'bg-[var(--surface-active)]'
+            )}
+            onClick={() => setTypeFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const filterTags: FilterTag[] = useMemo(
+    () =>
+      typeFilter === 'all'
+        ? []
+        : [
+            {
+              label:
+                typeFilter === 'document'
+                  ? 'Type: Documents'
+                  : typeFilter === 'audio'
+                    ? 'Type: Audio'
+                    : 'Type: Video',
+              onRemove: () => setTypeFilter('all'),
+            },
+          ],
+    [typeFilter]
+  )
+
   if (fileIdFromRoute && !selectedFile) {
     return (
       <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
@@ -834,7 +940,9 @@ export function Files() {
         title='Files'
         create={createConfig}
         search={searchConfig}
-        defaultSort='created'
+        sort={sortConfig}
+        filter={filterContent}
+        filterTags={filterTags}
         headerActions={headerActionsConfig}
         columns={COLUMNS}
         rows={rows}

@@ -74,6 +74,11 @@ export function ScheduledTasks() {
   const [activeTask, setActiveTask] = useState<WorkspaceScheduleData | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
+  const [activeSort, setActiveSort] = useState<{
+    column: string
+    direction: 'asc' | 'desc'
+  } | null>(null)
+  const [scheduleTypeFilter, setScheduleTypeFilter] = useState<'all' | 'recurring' | 'once'>('all')
 
   const visibleItems = useMemo(
     () => allItems.filter((item) => item.sourceType === 'job' && item.status !== 'completed'),
