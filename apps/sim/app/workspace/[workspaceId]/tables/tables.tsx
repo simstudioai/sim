@@ -16,7 +16,9 @@ import {
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName } from '@/lib/table/constants'
+import { cn } from '@/lib/utils'
 import type {
+  FilterTag,
   ResourceColumn,
   ResourceRow,
   SearchConfig,
@@ -47,6 +49,14 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'updated', header: 'Last Updated' },
 ]
 
+const COLUMN_TYPE_LABELS: Record<string, string> = {
+  string: 'Text',
+  number: 'Number',
+  boolean: 'Boolean',
+  date: 'Date',
+  json: 'JSON',
+}
+
 export function Tables() {
   const params = useParams()
   const router = useRouter()
@@ -71,6 +81,9 @@ export function Tables() {
     column: string
     direction: 'asc' | 'desc'
   } | null>(null)
+  const [rowCountFilter, setRowCountFilter] = useState<'all' | 'empty' | 'small' | 'large'>('all')
+  const [ownerFilter, setOwnerFilter] = useState<string[]>([])
+  const [columnTypeFilter, setColumnTypeFilter] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const csvInputRef = useRef<HTMLInputElement>(null)
@@ -90,9 +103,25 @@ export function Tables() {
   } = useContextMenu()
 
   const processedTables = useMemo(() => {
-    const result = debouncedSearchTerm
+    let result = debouncedSearchTerm
       ? tables.filter((t) => t.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
       : tables
+
+    if (rowCountFilter !== 'all') {
+      result = result.filter((t) => {
+        if (rowCountFilter === 'empty') return t.rowCount === 0
+        if (rowCountFilter === 'small') return t.rowCount >= 1 && t.rowCount <= 100
+        return t.rowCount > 100 // large
+      })
+    }
+    if (ownerFilter.length > 0) {
+      result = result.filter((t) => ownerFilter.includes(t.createdBy))
+    }
+    if (columnTypeFilter.length > 0) {
+      result = result.filter((t) =>
+        t.schema.columns.some((col) => columnTypeFilter.includes(col.type))
+      )
+    }
 
     const col = activeSort?.column ?? 'created'
     const dir = activeSort?.direction ?? 'desc'
@@ -117,7 +146,7 @@ export function Tables() {
       }
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [tables, debouncedSearchTerm, activeSort])
+  }, [tables, debouncedSearchTerm, activeSort, rowCountFilter, ownerFilter, columnTypeFilter])
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -169,6 +198,141 @@ export function Tables() {
     }),
     [activeSort]
   )
+
+  const filterContent = (
+    <div className='w-[200px]'>
+      <div className='border-[var(--border-1)] border-b px-3 py-2'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Row Count</span>
+      </div>
+      <div className='flex flex-col gap-0.5 px-3 py-2'>
+        {(
+          [
+            { value: 'all', label: 'All' },
+            { value: 'empty', label: 'Empty' },
+            { value: 'small', label: 'Small (1–100 rows)' },
+            { value: 'large', label: 'Large (100+ rows)' },
+          ] as const
+        ).map(({ value, label }) => (
+          <button
+            key={value}
+            type='button'
+            className={cn(
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+              rowCountFilter === value && 'bg-[var(--surface-active)]'
+            )}
+            onClick={() => setRowCountFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Column Types</span>
+      </div>
+      <div className='flex flex-col gap-0.5 px-3 py-2'>
+        <button
+          type='button'
+          className={cn(
+            'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+            columnTypeFilter.length === 0 && 'bg-[var(--surface-active)]'
+          )}
+          onClick={() => setColumnTypeFilter([])}
+        >
+          All
+        </button>
+        {(['string', 'number', 'boolean', 'date', 'json'] as const).map((type) => (
+          <button
+            key={type}
+            type='button'
+            className={cn(
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+              columnTypeFilter.includes(type) && 'bg-[var(--surface-active)]'
+            )}
+            onClick={() =>
+              setColumnTypeFilter((prev) =>
+                prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+              )
+            }
+          >
+            {COLUMN_TYPE_LABELS[type]}
+          </button>
+        ))}
+      </div>
+      {members && members.length > 0 && (
+        <>
+          <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
+            <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
+          </div>
+          <div className='flex flex-col gap-0.5 px-3 py-2'>
+            <button
+              type='button'
+              className={cn(
+                'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+                ownerFilter.length === 0 && 'bg-[var(--surface-active)]'
+              )}
+              onClick={() => setOwnerFilter([])}
+            >
+              All
+            </button>
+            {members.map((member) => (
+              <button
+                key={member.userId}
+                type='button'
+                className={cn(
+                  'flex w-full cursor-pointer select-none items-center gap-1.5 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+                  ownerFilter.includes(member.userId) && 'bg-[var(--surface-active)]'
+                )}
+                onClick={() =>
+                  setOwnerFilter((prev) =>
+                    prev.includes(member.userId)
+                      ? prev.filter((id) => id !== member.userId)
+                      : [...prev, member.userId]
+                  )
+                }
+              >
+                {member.image ? (
+                  <img
+                    src={member.image}
+                    alt={member.name}
+                    referrerPolicy='no-referrer'
+                    className='h-[14px] w-[14px] shrink-0 rounded-full border border-[var(--border)] object-cover'
+                  />
+                ) : (
+                  <span className='flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+                    {member.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <span className='truncate'>{member.name}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+
+  const filterTags: FilterTag[] = useMemo(() => {
+    const tags: FilterTag[] = []
+    if (rowCountFilter !== 'all') {
+      const labels = { empty: 'Rows: Empty', small: 'Rows: Small', large: 'Rows: Large' }
+      tags.push({ label: labels[rowCountFilter], onRemove: () => setRowCountFilter('all') })
+    }
+    if (columnTypeFilter.length > 0) {
+      const label =
+        columnTypeFilter.length === 1
+          ? `Type: ${COLUMN_TYPE_LABELS[columnTypeFilter[0]]}`
+          : `Types: ${columnTypeFilter.length} selected`
+      tags.push({ label, onRemove: () => setColumnTypeFilter([]) })
+    }
+    if (ownerFilter.length > 0) {
+      const label =
+        ownerFilter.length === 1
+          ? `Owner: ${members?.find((m) => m.userId === ownerFilter[0])?.name ?? '1 member'}`
+          : `Owner: ${ownerFilter.length} members`
+      tags.push({ label, onRemove: () => setOwnerFilter([]) })
+    }
+    return tags
+  }, [rowCountFilter, columnTypeFilter, ownerFilter, members])
 
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -317,6 +481,8 @@ export function Tables() {
         }}
         search={searchConfig}
         sort={sortConfig}
+        filter={filterContent}
+        filterTags={filterTags}
         headerActions={[
           {
             label: uploadButtonLabel,
