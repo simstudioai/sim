@@ -5,9 +5,15 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 import { Calendar } from '@/components/emcn/icons'
+import { cn } from '@/lib/core/utils/cn'
 import { formatAbsoluteDate } from '@/lib/core/utils/formatting'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
-import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
+import type {
+  FilterTag,
+  ResourceColumn,
+  ResourceRow,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components'
 import { Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { ScheduleModal } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/create-schedule-modal'
 import { ScheduleContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-context-menu'
@@ -86,15 +92,44 @@ export function ScheduledTasks() {
   )
 
   const filteredItems = useMemo(() => {
-    if (!debouncedSearchQuery) return visibleItems
-    const q = debouncedSearchQuery.toLowerCase()
-    return visibleItems.filter((item) => {
-      const task = item.prompt || ''
-      return (
-        task.toLowerCase().includes(q) || getScheduleDescription(item).toLowerCase().includes(q)
+    let result = debouncedSearchQuery
+      ? visibleItems.filter((item) => {
+          const task = item.prompt || ''
+          return (
+            task.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+            getScheduleDescription(item).toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+          )
+        })
+      : visibleItems
+
+    if (scheduleTypeFilter !== 'all') {
+      result = result.filter((item) =>
+        scheduleTypeFilter === 'recurring' ? Boolean(item.cronExpression) : !item.cronExpression
       )
+    }
+
+    const col = activeSort?.column ?? 'nextRun'
+    const dir = activeSort?.direction ?? 'desc'
+    return [...result].sort((a, b) => {
+      let cmp = 0
+      switch (col) {
+        case 'task':
+          cmp = (a.prompt || '').localeCompare(b.prompt || '')
+          break
+        case 'nextRun':
+          cmp =
+            (a.nextRunAt ? new Date(a.nextRunAt).getTime() : 0) -
+            (b.nextRunAt ? new Date(b.nextRunAt).getTime() : 0)
+          break
+        case 'lastRun':
+          cmp =
+            (a.lastRanAt ? new Date(a.lastRanAt).getTime() : 0) -
+            (b.lastRanAt ? new Date(b.lastRanAt).getTime() : 0)
+          break
+      }
+      return dir === 'asc' ? cmp : -cmp
     })
-  }, [visibleItems, debouncedSearchQuery])
+  }, [visibleItems, debouncedSearchQuery, scheduleTypeFilter, activeSort])
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -108,10 +143,6 @@ export function ScheduledTasks() {
           schedule: { label: getScheduleDescription(item) },
           nextRun: timeCell(item.nextRunAt),
           lastRun: timeCell(item.lastRanAt),
-        },
-        sortValues: {
-          nextRun: item.nextRunAt ? -new Date(item.nextRunAt).getTime() : 0,
-          lastRun: item.lastRanAt ? -new Date(item.lastRanAt).getTime() : 0,
         },
       })),
     [filteredItems]
@@ -175,6 +206,62 @@ export function ScheduledTasks() {
     }
   }
 
+  const sortConfig: SortConfig = useMemo(
+    () => ({
+      options: [
+        { id: 'task', label: 'Task' },
+        { id: 'nextRun', label: 'Next Run' },
+        { id: 'lastRun', label: 'Last Run' },
+      ],
+      active: activeSort,
+      onSort: (column, direction) => setActiveSort({ column, direction }),
+      onClear: () => setActiveSort(null),
+    }),
+    [activeSort]
+  )
+
+  const filterContent = (
+    <div className='w-[200px]'>
+      <div className='border-[var(--border-1)] border-b px-3 py-2'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Schedule Type</span>
+      </div>
+      <div className='flex flex-col gap-0.5 px-3 py-2'>
+        {(
+          [
+            { value: 'all', label: 'All' },
+            { value: 'recurring', label: 'Recurring' },
+            { value: 'once', label: 'One-time' },
+          ] as const
+        ).map(({ value, label }) => (
+          <button
+            key={value}
+            type='button'
+            className={cn(
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+              scheduleTypeFilter === value && 'bg-[var(--surface-active)]'
+            )}
+            onClick={() => setScheduleTypeFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const filterTags: FilterTag[] = useMemo(
+    () =>
+      scheduleTypeFilter === 'all'
+        ? []
+        : [
+            {
+              label: scheduleTypeFilter === 'recurring' ? 'Type: Recurring' : 'Type: One-time',
+              onRemove: () => setScheduleTypeFilter('all'),
+            },
+          ],
+    [scheduleTypeFilter]
+  )
+
   return (
     <>
       <Resource
@@ -189,7 +276,9 @@ export function ScheduledTasks() {
           onChange: setSearchQuery,
           placeholder: 'Search scheduled tasks...',
         }}
-        defaultSort='nextRun'
+        sort={sortConfig}
+        filter={filterContent}
+        filterTags={filterTags}
         columns={COLUMNS}
         rows={rows}
         onRowContextMenu={handleRowContextMenu}
