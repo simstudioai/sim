@@ -1,6 +1,6 @@
 import type { ToolConfig, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
 
-interface FileWriteParams {
+interface FileAppendParams {
   fileName: string
   content: string
   contentType?: string
@@ -8,11 +8,11 @@ interface FileWriteParams {
   _context?: WorkflowToolExecutionContext
 }
 
-export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
-  id: 'file_write',
-  name: 'File Write',
+export const fileAppendTool: ToolConfig<FileAppendParams, ToolResponse> = {
+  id: 'file_append',
+  name: 'File Append',
   description:
-    'Create a new workspace file. Fails if a file with the same name already exists.',
+    'Append content to an existing workspace file. The file must already exist. Content is added to the end of the file.',
   version: '1.0.0',
 
   params: {
@@ -20,21 +20,19 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'File name (e.g., "data.csv"). Fails if a file with this name already exists.',
+      description: 'Name of an existing workspace file to append to.',
     },
     content: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The text content to write to the file.',
+      description: 'The text content to append to the file.',
     },
     contentType: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description:
-        'MIME type for new files (e.g., "text/plain"). Auto-detected from file extension if omitted.',
+      description: 'MIME type (e.g., "text/plain"). Auto-detected from file extension if omitted.',
     },
   },
 
@@ -43,7 +41,7 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({
-      operation: 'write',
+      operation: 'append',
       fileName: params.fileName,
       content: params.content,
       contentType: params.contentType,
@@ -54,7 +52,7 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
   transformResponse: async (response) => {
     const data = await response.json()
     if (!response.ok || !data.success) {
-      return { success: false, output: {}, error: data.error || 'Failed to write file' }
+      return { success: false, output: {}, error: data.error || 'Failed to append to file' }
     }
     return { success: true, output: data.data }
   },

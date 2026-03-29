@@ -4,7 +4,6 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import {
   downloadWorkspaceFile,
-  getWorkspaceFile,
   getWorkspaceFileByName,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
@@ -46,10 +45,15 @@ export async function POST(request: NextRequest) {
     switch (operation) {
       case 'write': {
         const fileName = body.fileName as string | undefined
-        const fileId = body.fileId as string | undefined
         const content = body.content as string | undefined
         const contentType = body.contentType as string | undefined
-        const append = Boolean(body.append)
+
+        if (!fileName) {
+          return NextResponse.json(
+            { success: false, error: 'fileName is required for write operation' },
+            { status: 400 }
+          )
+        }
 
         if (!content && content !== '') {
           return NextResponse.json(
@@ -58,117 +62,92 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        if (fileName && !fileId) {
-          const existing = await getWorkspaceFileByName(workspaceId, fileName)
-
-          if (existing) {
-            let finalContent: string
-            if (append) {
-              const existingBuffer = await downloadWorkspaceFile(existing)
-              finalContent = existingBuffer.toString('utf-8') + content
-            } else {
-              finalContent = content ?? ''
-            }
-
-            const fileBuffer = Buffer.from(finalContent, 'utf-8')
-            await updateWorkspaceFileContent(workspaceId, existing.id, userId, fileBuffer)
-
-            logger.info('File overwritten by name', {
-              fileId: existing.id,
-              name: existing.name,
-              size: fileBuffer.length,
-              append,
-            })
-
-            return NextResponse.json({
-              success: true,
-              data: {
-                id: existing.id,
-                name: existing.name,
-                size: fileBuffer.length,
-                url: ensureAbsoluteUrl(existing.path),
-              },
-            })
-          }
-
-          const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(fileName))
-          const fileBuffer = Buffer.from(content ?? '', 'utf-8')
-          const result = await uploadWorkspaceFile(
-            workspaceId,
-            userId,
-            fileBuffer,
-            fileName,
-            mimeType
+        const existing = await getWorkspaceFileByName(workspaceId, fileName)
+        if (existing) {
+          return NextResponse.json(
+            { success: false, error: `File already exists: "${fileName}"` },
+            { status: 409 }
           )
-
-          logger.info('File created', {
-            fileId: result.id,
-            name: fileName,
-            size: fileBuffer.length,
-          })
-
-          return NextResponse.json({
-            success: true,
-            data: {
-              id: result.id,
-              name: result.name,
-              size: fileBuffer.length,
-              url: ensureAbsoluteUrl(result.url),
-            },
-          })
         }
 
-        if (fileId) {
-          const fileRecord = await getWorkspaceFile(workspaceId, fileId)
-          if (!fileRecord) {
-            return NextResponse.json(
-              { success: false, error: `File with ID "${fileId}" not found` },
-              { status: 404 }
-            )
-          }
-
-          let finalContent: string
-          if (append) {
-            const existingBuffer = await downloadWorkspaceFile(fileRecord)
-            const existingContent = existingBuffer.toString('utf-8')
-            finalContent = existingContent + content
-          } else {
-            finalContent = content ?? ''
-          }
-
-          const fileBuffer = Buffer.from(finalContent, 'utf-8')
-          await updateWorkspaceFileContent(workspaceId, fileId, userId, fileBuffer)
-
-          logger.info('File written', {
-            fileId,
-            name: fileRecord.name,
-            size: fileBuffer.length,
-            append,
-          })
-
-          return NextResponse.json({
-            success: true,
-            data: {
-              id: fileId,
-              name: fileRecord.name,
-              size: fileBuffer.length,
-              url: ensureAbsoluteUrl(fileRecord.path),
-            },
-          })
-        }
-
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Either fileName (to create) or fileId (to update) is required',
-          },
-          { status: 400 }
+        const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(fileName))
+        const fileBuffer = Buffer.from(content ?? '', 'utf-8')
+        const result = await uploadWorkspaceFile(
+          workspaceId,
+          userId,
+          fileBuffer,
+          fileName,
+          mimeType
         )
+
+        logger.info('File created', {
+          fileId: result.id,
+          name: fileName,
+          size: fileBuffer.length,
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            id: result.id,
+            name: result.name,
+            size: fileBuffer.length,
+            url: ensureAbsoluteUrl(result.url),
+          },
+        })
+      }
+
+      case 'append': {
+        const fileName = body.fileName as string | undefined
+        const content = body.content as string | undefined
+
+        if (!fileName) {
+          return NextResponse.json(
+            { success: false, error: 'fileName is required for append operation' },
+            { status: 400 }
+          )
+        }
+
+        if (!content && content !== '') {
+          return NextResponse.json(
+            { success: false, error: 'content is required for append operation' },
+            { status: 400 }
+          )
+        }
+
+        const existing = await getWorkspaceFileByName(workspaceId, fileName)
+        if (!existing) {
+          return NextResponse.json(
+            { success: false, error: `File not found: "${fileName}"` },
+            { status: 404 }
+          )
+        }
+
+        const existingBuffer = await downloadWorkspaceFile(existing)
+        const finalContent = existingBuffer.toString('utf-8') + content
+        const fileBuffer = Buffer.from(finalContent, 'utf-8')
+        await updateWorkspaceFileContent(workspaceId, existing.id, userId, fileBuffer)
+
+        logger.info('File appended', {
+          fileId: existing.id,
+          name: existing.name,
+          size: fileBuffer.length,
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            id: existing.id,
+            name: existing.name,
+            size: fileBuffer.length,
+            url: ensureAbsoluteUrl(existing.path),
+          },
+        })
       }
 
       default:
         return NextResponse.json(
-          { success: false, error: `Unknown operation: ${operation}. Supported: write` },
+          { success: false, error: `Unknown operation: ${operation}. Supported: write, append` },
           { status: 400 }
         )
     }
