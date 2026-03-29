@@ -94,7 +94,6 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'type', header: 'Type' },
   { id: 'created', header: 'Created' },
   { id: 'owner', header: 'Owner' },
-  { id: 'updated', header: 'Last Updated' },
 ]
 
 const MIME_TYPE_LABELS: Record<string, string> = {
@@ -255,7 +254,6 @@ export function Files() {
           cmp = formatFileType(a.type, a.name).localeCompare(formatFileType(b.type, b.name))
           break
         case 'created':
-        case 'updated':
           cmp = new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime()
           break
       }
@@ -297,7 +295,6 @@ export function Files() {
           },
           created: timeCell(file.uploadedAt),
           owner: ownerCell(file.uploadedBy, members),
-          updated: timeCell(file.uploadedAt),
         },
       }
       nextCache.set(file.id, { row, file, members })

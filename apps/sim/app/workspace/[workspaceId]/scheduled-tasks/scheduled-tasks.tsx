@@ -127,7 +127,7 @@ export function ScheduledTasks() {
       })
     }
 
-    if (healthFilter.length > 0 && healthFilter.includes('has-failures')) {
+    if (healthFilter.includes('has-failures')) {
       result = result.filter((item) => (item.failedCount ?? 0) > 0)
     }
 

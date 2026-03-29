@@ -199,7 +199,7 @@ export function Tables() {
       const labels: Record<string, string> = {
         empty: 'Empty',
         small: 'Small (1–100)',
-        large: 'Large (100+)',
+        large: 'Large (101+)',
       }
       return labels[rowCountFilter[0]] ?? rowCountFilter[0]
     }
@@ -244,7 +244,7 @@ export function Tables() {
           options={[
             { value: 'empty', label: 'Empty' },
             { value: 'small', label: 'Small (1–100 rows)' },
-            { value: 'large', label: 'Large (100+ rows)' },
+            { value: 'large', label: 'Large (101+ rows)' },
           ]}
           multiSelect
           multiSelectValues={rowCountFilter}

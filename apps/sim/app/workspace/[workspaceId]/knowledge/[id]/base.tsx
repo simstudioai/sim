@@ -923,7 +923,7 @@ export function KnowledgeBase({
         .map((f) => ({
           label: `${f.tagName}: ${f.value}`,
           onRemove: () => {
-            const updated = tagFilterEntries.filter((_, idx) => idx !== tagFilterEntries.indexOf(f))
+            const updated = tagFilterEntries.filter((e) => e.id !== f.id)
             setTagFilterEntries(updated)
             setCurrentPage(1)
             setSelectedDocuments(new Set())
