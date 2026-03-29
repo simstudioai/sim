@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
   Columns2,
+  Combobox,
   type ComboboxOption,
   Download,
   DropdownMenu,
@@ -388,7 +389,7 @@ export function Files() {
         }
       }
     },
-    [workspaceId]
+    [workspaceId, uploadFile]
   )
 
   const handleDownload = useCallback(async (file: WorkspaceFileRecord) => {

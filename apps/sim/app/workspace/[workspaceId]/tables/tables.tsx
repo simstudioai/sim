@@ -137,10 +137,24 @@ export function Tables() {
         case 'updated':
           cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
           break
+        case 'owner': {
+          const aName = members?.find((m) => m.userId === a.createdBy)?.name ?? ''
+          const bName = members?.find((m) => m.userId === b.createdBy)?.name ?? ''
+          cmp = aName.localeCompare(bName)
+          break
+        }
       }
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [tables, debouncedSearchTerm, rowCountFilter, ownerFilter, columnTypeFilter, activeSort])
+  }, [
+    tables,
+    debouncedSearchTerm,
+    rowCountFilter,
+    ownerFilter,
+    columnTypeFilter,
+    activeSort,
+    members,
+  ])
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -184,6 +198,7 @@ export function Tables() {
         { id: 'columns', label: 'Columns' },
         { id: 'rows', label: 'Rows' },
         { id: 'created', label: 'Created' },
+        { id: 'owner', label: 'Owner' },
         { id: 'updated', label: 'Last Updated' },
       ],
       active: activeSort,
@@ -466,7 +481,7 @@ export function Tables() {
         }
       }
     },
-    [workspaceId, router]
+    [workspaceId, router, uploadCsv]
   )
 
   const handleListUploadCsv = useCallback(() => {

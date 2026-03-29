@@ -3,17 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import {
-  ArrowUpDown,
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  SModalTabs,
-  SModalTabsList,
-  SModalTabsTrigger,
-} from '@/components/emcn'
+import { Button, Combobox, SModalTabs, SModalTabsList, SModalTabsTrigger } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { formatDate } from '@/lib/core/utils/formatting'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
@@ -50,6 +40,8 @@ interface SortConfig {
   column: SortColumn
   direction: 'asc' | 'desc'
 }
+
+const DEFAULT_SORT: SortConfig = { column: 'deleted', direction: 'desc' }
 
 const SORT_OPTIONS: { column: SortColumn; direction: 'asc' | 'desc'; label: string }[] = [
   { column: 'deleted', direction: 'desc', label: 'Deleted (newest first)' },
@@ -214,8 +206,8 @@ export function RecentlyDeleted() {
       const normalized = searchTerm.toLowerCase()
       items = items.filter((r) => r.name.toLowerCase().includes(normalized))
     }
-    const col = activeSort?.column ?? 'deleted'
-    const dir = activeSort?.direction ?? 'desc'
+    const col = (activeSort ?? DEFAULT_SORT).column
+    const dir = (activeSort ?? DEFAULT_SORT).direction
     return [...items].sort((a, b) => {
       let cmp = 0
       switch (col) {
@@ -234,6 +226,7 @@ export function RecentlyDeleted() {
   }, [resources, activeTab, searchTerm, activeSort])
 
   const showNoResults = searchTerm.trim() && filtered.length === 0 && resources.length > 0
+  const selectedSort = activeSort ?? DEFAULT_SORT
 
   function handleRestore(resource: DeletedResource) {
     setRestoringIds((prev) => new Set(prev).add(resource.id))
@@ -285,43 +278,27 @@ export function RecentlyDeleted() {
             className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
           />
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant='outline'
-              size='sm'
-              className='h-[30px] shrink-0 gap-1.5 px-2.5'
-              disabled={isLoading}
-            >
-              <ArrowUpDown className='h-[12px] w-[12px]' />
-              <span className='text-xs'>
-                {SORT_OPTIONS.find(
-                  (o) =>
-                    o.column === (activeSort?.column ?? 'deleted') &&
-                    o.direction === (activeSort?.direction ?? 'desc')
-                )?.label ?? 'Sort'}
-              </span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end' className='w-48'>
-            {SORT_OPTIONS.map((option) => {
-              const isActive =
-                (activeSort?.column ?? 'deleted') === option.column &&
-                (activeSort?.direction ?? 'desc') === option.direction
-              return (
-                <DropdownMenuItem
-                  key={`${option.column}-${option.direction}`}
-                  onClick={() =>
-                    setActiveSort({ column: option.column, direction: option.direction })
-                  }
-                  className={isActive ? 'bg-[var(--bg-selected)]' : ''}
-                >
-                  {option.label}
-                </DropdownMenuItem>
+        <div className='w-[190px] shrink-0'>
+          <Combobox
+            size='sm'
+            align='end'
+            disabled={isLoading}
+            value={`${selectedSort.column}:${selectedSort.direction}`}
+            onChange={(value) => {
+              const option = SORT_OPTIONS.find(
+                (sortOption) => `${sortOption.column}:${sortOption.direction}` === value
               )
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              if (option) {
+                setActiveSort({ column: option.column, direction: option.direction })
+              }
+            }}
+            options={SORT_OPTIONS.map((option) => ({
+              label: option.label,
+              value: `${option.column}:${option.direction}`,
+            }))}
+            className='h-[30px] rounded-lg border-[var(--border)] bg-transparent px-2.5 text-small dark:bg-[var(--surface-4)]'
+          />
+        </div>
       </div>
 
       <SModalTabs value={activeTab} onValueChange={(v) => setActiveTab(v as ResourceType)}>

@@ -39,6 +39,7 @@ import type {
   ResourceColumn,
   ResourceRow,
   SearchConfig,
+  SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import {
   ResourceHeader,
@@ -479,12 +480,12 @@ export default function Logs() {
   const handleLogContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
       e.preventDefault()
-      const log = logs.find((l) => l.id === rowId) ?? null
+      const log = sortedLogs.find((l) => l.id === rowId) ?? null
       setContextMenuPosition({ x: e.clientX, y: e.clientY })
       setContextMenuLog(log)
       setContextMenuOpen(true)
     },
-    [logs]
+    [sortedLogs]
   )
 
   const handleCopyExecutionId = useCallback(() => {
@@ -1072,7 +1073,7 @@ export default function Logs() {
         label: 'Export',
         icon: Download,
         onClick: handleExport,
-        disabled: !userPermissions.canEdit || isExporting || logs.length === 0,
+        disabled: !userPermissions.canEdit || isExporting || sortedLogs.length === 0,
       },
       {
         label: 'Notifications',
@@ -1105,7 +1106,7 @@ export default function Logs() {
       handleExport,
       userPermissions.canEdit,
       isExporting,
-      logs.length,
+      sortedLogs.length,
       handleOpenNotificationSettings,
     ]
   )
@@ -1387,7 +1388,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   }, [resetFilters, onSearchQueryChange])
 
   return (
-    <div className='flex flex-col gap-3 p-3'>
+    <div className='flex w-[240px] flex-col gap-3 p-3'>
       <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
         <Combobox

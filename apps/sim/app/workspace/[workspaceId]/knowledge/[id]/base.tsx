@@ -806,22 +806,25 @@ export function KnowledgeBase({
       : []),
   ]
 
-  const sortConfig: SortConfig = {
-    options: [
-      { id: 'filename', label: 'Name' },
-      { id: 'fileSize', label: 'Size' },
-      { id: 'tokenCount', label: 'Tokens' },
-      { id: 'chunkCount', label: 'Chunks' },
-      { id: 'uploadedAt', label: 'Uploaded' },
-      { id: 'enabled', label: 'Status' },
-    ],
-    active: { column: sortBy, direction: sortOrder },
-    onSort: (column, direction) => {
-      setSortBy(column as DocumentSortField)
-      setSortOrder(direction)
-      setCurrentPage(1)
-    },
-  }
+  const sortConfig: SortConfig = useMemo(
+    () => ({
+      options: [
+        { id: 'filename', label: 'Name' },
+        { id: 'fileSize', label: 'Size' },
+        { id: 'tokenCount', label: 'Tokens' },
+        { id: 'chunkCount', label: 'Chunks' },
+        { id: 'uploadedAt', label: 'Uploaded' },
+        { id: 'enabled', label: 'Status' },
+      ],
+      active: { column: sortBy, direction: sortOrder },
+      onSort: (column, direction) => {
+        setSortBy(column as DocumentSortField)
+        setSortOrder(direction)
+        setCurrentPage(1)
+      },
+    }),
+    [sortBy, sortOrder]
+  )
 
   const filterContent = (
     <div className='flex w-[240px] flex-col gap-3 p-3'>
@@ -897,36 +900,39 @@ export function KnowledgeBase({
       </>
     ) : null
 
-  const filterTags: FilterTag[] = [
-    ...(enabledFilter.length > 0
-      ? [
-          {
-            label:
-              enabledFilter.length === 1
-                ? `Status: ${enabledFilter[0] === 'enabled' ? 'Enabled' : 'Disabled'}`
-                : 'Status: 2 selected',
-            onRemove: () => {
-              setEnabledFilter([])
-              setCurrentPage(1)
-              setSelectedDocuments(new Set())
-              setIsSelectAllMode(false)
+  const filterTags: FilterTag[] = useMemo(
+    () => [
+      ...(enabledFilter.length > 0
+        ? [
+            {
+              label:
+                enabledFilter.length === 1
+                  ? `Status: ${enabledFilter[0] === 'enabled' ? 'Enabled' : 'Disabled'}`
+                  : 'Status: 2 selected',
+              onRemove: () => {
+                setEnabledFilter([])
+                setCurrentPage(1)
+                setSelectedDocuments(new Set())
+                setIsSelectAllMode(false)
+              },
             },
+          ]
+        : []),
+      ...tagFilterEntries
+        .filter((f) => f.tagSlot && f.value.trim())
+        .map((f) => ({
+          label: `${f.tagName}: ${f.value}`,
+          onRemove: () => {
+            const updated = tagFilterEntries.filter((_, idx) => idx !== tagFilterEntries.indexOf(f))
+            setTagFilterEntries(updated)
+            setCurrentPage(1)
+            setSelectedDocuments(new Set())
+            setIsSelectAllMode(false)
           },
-        ]
-      : []),
-    ...tagFilterEntries
-      .filter((f) => f.tagSlot && f.value.trim())
-      .map((f) => ({
-        label: `${f.tagName}: ${f.value}`,
-        onRemove: () => {
-          const updated = tagFilterEntries.filter((_, idx) => idx !== tagFilterEntries.indexOf(f))
-          setTagFilterEntries(updated)
-          setCurrentPage(1)
-          setSelectedDocuments(new Set())
-          setIsSelectAllMode(false)
-        },
-      })),
-  ]
+        })),
+    ],
+    [enabledFilter, tagFilterEntries]
+  )
 
   const selectableConfig: SelectableConfig = {
     selectedIds: selectedDocuments,

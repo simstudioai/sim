@@ -7,6 +7,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Badge,
   Button,
+  Combobox,
   Modal,
   ModalBody,
   ModalContent,
@@ -26,6 +27,7 @@ import type {
   ResourceRow,
   SearchConfig,
   SelectableConfig,
+  SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import { Resource, ResourceHeader } from '@/app/workspace/[workspaceId]/components'
 import {
@@ -157,8 +159,10 @@ export function Document({
     direction: 'asc' | 'desc'
   } | null>(null)
 
-  const enabledFilterParam =
-    enabledFilter.length === 1 ? (enabledFilter[0] as 'enabled' | 'disabled') : 'all'
+  const enabledFilterParam = useMemo(
+    () => (enabledFilter.length === 1 ? (enabledFilter[0] as 'enabled' | 'disabled') : 'all'),
+    [enabledFilter]
+  )
 
   const {
     chunks: initialChunks,
@@ -636,16 +640,18 @@ export function Document({
     </div>
   )
 
-  const filterTags: FilterTag[] = [
-    ...enabledFilter.map((value) => ({
-      label: `Status: ${value === 'enabled' ? 'Enabled' : 'Disabled'}`,
-      onRemove: () => {
-        setEnabledFilter(enabledFilter.filter((v) => v !== value))
-        setSelectedChunks(new Set())
-        void goToPage(1)
-      },
-    })),
-  ]
+  const filterTags: FilterTag[] = useMemo(
+    () =>
+      enabledFilter.map((value) => ({
+        label: `Status: ${value === 'enabled' ? 'Enabled' : 'Disabled'}`,
+        onRemove: () => {
+          setEnabledFilter((prev) => prev.filter((v) => v !== value))
+          setSelectedChunks(new Set())
+          void goToPage(1)
+        },
+      })),
+    [enabledFilter, goToPage]
+  )
 
   const handleChunkClick = useCallback((rowId: string) => {
     setSelectedChunkId(rowId)
