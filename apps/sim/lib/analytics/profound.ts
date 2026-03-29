@@ -85,32 +85,36 @@ function ensureFlushTimer(): void {
  * Queues a request log entry for the next batch flush to Profound.
  */
 export function sendToProfound(request: Request, statusCode: number): void {
-  if (!isHosted || !env.PROFOUND_API_KEY) return
+  if (!isProfoundEnabled()) return
 
-  const url = new URL(request.url)
-  const queryParams: Record<string, string> = {}
-  url.searchParams.forEach((value, key) => {
-    queryParams[key] = value
-  })
+  try {
+    const url = new URL(request.url)
+    const queryParams: Record<string, string> = {}
+    url.searchParams.forEach((value, key) => {
+      queryParams[key] = value
+    })
 
-  buffer.push({
-    timestamp: new Date().toISOString(),
-    method: request.method,
-    host: url.hostname,
-    path: url.pathname,
-    status_code: statusCode,
-    ip:
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      request.headers.get('x-real-ip') ||
-      '0.0.0.0',
-    user_agent: request.headers.get('user-agent') || '',
-    ...(Object.keys(queryParams).length > 0 && { query_params: queryParams }),
-    ...(request.headers.get('referer') && { referer: request.headers.get('referer')! }),
-  })
+    buffer.push({
+      timestamp: new Date().toISOString(),
+      method: request.method,
+      host: url.hostname,
+      path: url.pathname,
+      status_code: statusCode,
+      ip:
+        request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+        request.headers.get('x-real-ip') ||
+        '0.0.0.0',
+      user_agent: request.headers.get('user-agent') || '',
+      ...(Object.keys(queryParams).length > 0 && { query_params: queryParams }),
+      ...(request.headers.get('referer') && { referer: request.headers.get('referer')! }),
+    })
 
-  ensureFlushTimer()
+    ensureFlushTimer()
 
-  if (buffer.length >= MAX_BATCH_SIZE) {
-    flush().catch(() => {})
+    if (buffer.length >= MAX_BATCH_SIZE) {
+      flush().catch(() => {})
+    }
+  } catch (error) {
+    logger.error('Failed to enqueue log entry', error)
   }
 }
