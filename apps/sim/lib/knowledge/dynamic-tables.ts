@@ -38,8 +38,14 @@ export function parseEmbeddingModel(embeddingModel: string | null | undefined): 
 
 /** Create a dedicated embedding table for a knowledge base with the exact vector dimension */
 export async function createKBEmbeddingTable(kbId: string, dimension: number): Promise<void> {
+  const safeDimension = Math.trunc(dimension)
+  if (!Number.isFinite(safeDimension) || safeDimension < 64 || safeDimension > 8192) {
+    throw new Error(
+      `Invalid embedding dimension: ${dimension}. Must be an integer between 64 and 8192.`
+    )
+  }
   const table = kbTableName(kbId)
-  logger.info(`Creating per-KB embedding table: ${table} (${dimension}d)`)
+  logger.info(`Creating per-KB embedding table: ${table} (${safeDimension}d)`)
 
   await db.execute(
     sql.raw(`
@@ -52,7 +58,7 @@ export async function createKBEmbeddingTable(kbId: string, dimension: number): P
         content TEXT NOT NULL,
         content_length INTEGER NOT NULL,
         token_count INTEGER NOT NULL,
-        embedding vector(${dimension}) NOT NULL,
+        embedding vector(${safeDimension}) NOT NULL,
         embedding_model TEXT NOT NULL,
         start_offset INTEGER,
         end_offset INTEGER,
@@ -282,7 +288,7 @@ export async function searchKBTable(
     LIMIT ${topK}
   `)
 
-  return result as any as SearchResult[]
+  return result as unknown as SearchResult[]
 }
 
 /** Tag-only search against a per-KB table (no vector similarity) */
@@ -323,7 +329,7 @@ export async function searchKBTableTagOnly(
     LIMIT ${topK}
   `)
 
-  return result as any as SearchResult[]
+  return result as unknown as SearchResult[]
 }
 
 /** Build SQL conditions from structured filters for raw-SQL per-KB table queries */
