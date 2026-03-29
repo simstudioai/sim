@@ -13,7 +13,6 @@ const logger = createLogger('ProfoundAnalytics')
 
 const FLUSH_INTERVAL_MS = 10_000
 const MAX_BATCH_SIZE = 500
-const SENSITIVE_PARAMS = new Set(['token', 'callbackUrl', 'code', 'state', 'secret'])
 
 interface ProfoundLogEntry {
   timestamp: string
@@ -92,9 +91,7 @@ export function sendToProfound(request: Request, statusCode: number): void {
     const url = new URL(request.url)
     const queryParams: Record<string, string> = {}
     url.searchParams.forEach((value, key) => {
-      if (!SENSITIVE_PARAMS.has(key)) {
-        queryParams[key] = value
-      }
+      queryParams[key] = value
     })
 
     buffer.push({
