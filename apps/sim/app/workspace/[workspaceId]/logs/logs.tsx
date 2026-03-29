@@ -640,11 +640,12 @@ export default function Logs() {
   }, [initializeFromURL])
 
   const loadMoreLogs = useCallback(() => {
+    if (activeSort) return
     const { isFetching, hasNextPage, fetchNextPage } = logsQueryRef.current
     if (!isFetching && hasNextPage) {
       fetchNextPage()
     }
-  }, [])
+  }, [activeSort])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1144,7 +1145,7 @@ export default function Logs() {
             onRowContextMenu={handleLogContextMenu}
             isLoading={!logsQuery.data}
             onLoadMore={loadMoreLogs}
-            hasMore={logsQuery.hasNextPage ?? false}
+            hasMore={!activeSort && (logsQuery.hasNextPage ?? false)}
             isLoadingMore={logsQuery.isFetchingNextPage}
             emptyMessage='No logs found'
             overlay={sidebarOverlay}

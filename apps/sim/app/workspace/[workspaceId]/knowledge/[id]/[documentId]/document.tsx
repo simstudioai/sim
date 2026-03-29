@@ -185,7 +185,7 @@ export function Document({
       ? 'tokenCount'
       : activeSort?.column === 'status'
         ? 'enabled'
-        : activeSort
+        : activeSort?.column === 'index'
           ? 'chunkIndex'
           : undefined,
     activeSort?.direction
