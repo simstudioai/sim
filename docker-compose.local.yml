@@ -71,7 +71,7 @@ services:
     build:
       context: .
       dockerfile: docker/app.Dockerfile
-    command: ['bun', 'apps/sim/dist/worker/index.js']
+    command: ['bun', 'apps/sim/worker/index.ts']
     restart: unless-stopped
     deploy:
       resources:
