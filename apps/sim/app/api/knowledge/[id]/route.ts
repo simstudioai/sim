@@ -203,6 +203,11 @@ export async function DELETE(
     }
 
     await deleteKnowledgeBase(id, requestId)
+    // Note: per-KB embedding tables (kb_embeddings_{id}) are intentionally NOT dropped here.
+    // deleteKnowledgeBase performs a soft delete — the KB can be restored via the restore endpoint,
+    // which requires the per-KB table to still exist. This is consistent with how OpenAI embeddings
+    // remain in the shared table after a KB soft delete. Per-KB table cleanup should occur
+    // as part of a permanent purge/hard-delete operation.
 
     try {
       PlatformEvents.knowledgeBaseDeleted({
