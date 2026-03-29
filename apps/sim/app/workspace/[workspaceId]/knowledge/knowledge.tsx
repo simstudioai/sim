@@ -107,6 +107,8 @@ export function Knowledge() {
     direction: 'asc' | 'desc'
   } | null>(null)
   const [connectorFilter, setConnectorFilter] = useState<'all' | 'connected' | 'unconnected'>('all')
+  const [contentFilter, setContentFilter] = useState<'all' | 'has-docs' | 'empty'>('all')
+  const [ownerFilter, setOwnerFilter] = useState<string[]>([])
 
   const [searchInputValue, setSearchInputValue] = useState('')
   const debouncedSearchQuery = useDebounce(searchInputValue, 300)
@@ -192,6 +194,18 @@ export function Knowledge() {
       )
     }
 
+    if (contentFilter !== 'all') {
+      result = result.filter((kb) =>
+        contentFilter === 'has-docs'
+          ? ((kb as KnowledgeBaseWithDocCount).docCount ?? 0) > 0
+          : ((kb as KnowledgeBaseWithDocCount).docCount ?? 0) === 0
+      )
+    }
+
+    if (ownerFilter.length > 0) {
+      result = result.filter((kb) => ownerFilter.includes(kb.userId))
+    }
+
     const col = activeSort?.column ?? 'created'
     const dir = activeSort?.direction ?? 'desc'
     return [...result].sort((a, b) => {
@@ -217,7 +231,14 @@ export function Knowledge() {
       }
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [knowledgeBases, debouncedSearchQuery, connectorFilter, activeSort])
+  }, [
+    knowledgeBases,
+    debouncedSearchQuery,
+    connectorFilter,
+    contentFilter,
+    ownerFilter,
+    activeSort,
+  ])
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -375,21 +396,106 @@ export function Knowledge() {
           </button>
         ))}
       </div>
+      <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Content</span>
+      </div>
+      <div className='flex flex-col gap-0.5 px-3 py-2'>
+        {(
+          [
+            { value: 'all', label: 'All' },
+            { value: 'has-docs', label: 'Has documents' },
+            { value: 'empty', label: 'Empty' },
+          ] as const
+        ).map(({ value, label }) => (
+          <button
+            key={value}
+            type='button'
+            className={cn(
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+              contentFilter === value && 'bg-[var(--surface-active)]'
+            )}
+            onClick={() => setContentFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {members && members.length > 0 && (
+        <>
+          <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
+            <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
+          </div>
+          <div className='flex flex-col gap-0.5 px-3 py-2'>
+            <button
+              type='button'
+              className={cn(
+                'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+                ownerFilter.length === 0 && 'bg-[var(--surface-active)]'
+              )}
+              onClick={() => setOwnerFilter([])}
+            >
+              All
+            </button>
+            {members.map((member) => (
+              <button
+                key={member.userId}
+                type='button'
+                className={cn(
+                  'flex w-full cursor-pointer select-none items-center gap-1.5 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+                  ownerFilter.includes(member.userId) && 'bg-[var(--surface-active)]'
+                )}
+                onClick={() =>
+                  setOwnerFilter((prev) =>
+                    prev.includes(member.userId)
+                      ? prev.filter((id) => id !== member.userId)
+                      : [...prev, member.userId]
+                  )
+                }
+              >
+                {member.image ? (
+                  <img
+                    src={member.image}
+                    alt={member.name}
+                    referrerPolicy='no-referrer'
+                    className='h-[14px] w-[14px] shrink-0 rounded-full border border-[var(--border)] object-cover'
+                  />
+                ) : (
+                  <span className='flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+                    {member.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <span className='truncate'>{member.name}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 
-  const filterTags: FilterTag[] = useMemo(
-    () =>
-      connectorFilter === 'all'
-        ? []
-        : [
-            {
-              label: connectorFilter === 'connected' ? 'Connectors: Active' : 'Connectors: None',
-              onRemove: () => setConnectorFilter('all'),
-            },
-          ],
-    [connectorFilter]
-  )
+  const filterTags: FilterTag[] = useMemo(() => {
+    const tags: FilterTag[] = []
+    if (connectorFilter !== 'all') {
+      tags.push({
+        label: connectorFilter === 'connected' ? 'Connectors: Active' : 'Connectors: None',
+        onRemove: () => setConnectorFilter('all'),
+      })
+    }
+    if (contentFilter !== 'all') {
+      tags.push({
+        label: contentFilter === 'has-docs' ? 'Content: Has documents' : 'Content: Empty',
+        onRemove: () => setContentFilter('all'),
+      })
+    }
+    if (ownerFilter.length > 0) {
+      const label =
+        ownerFilter.length === 1
+          ? `Owner: ${members?.find((m) => m.userId === ownerFilter[0])?.name ?? '1 member'}`
+          : `Owner: ${ownerFilter.length} members`
+      tags.push({ label, onRemove: () => setOwnerFilter([]) })
+    }
+    return tags
+  }, [connectorFilter, contentFilter, ownerFilter, members])
 
   return (
     <>
