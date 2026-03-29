@@ -138,6 +138,28 @@ export function useWorkspaceCredential(credentialId?: string, enabled = true) {
   })
 }
 
+export function useCreateCredentialDraft() {
+  return useMutation({
+    mutationFn: async (payload: {
+      workspaceId: string
+      providerId: string
+      displayName: string
+      description?: string
+      credentialId?: string
+    }) => {
+      const response = await fetch('/api/credentials/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to create credential draft')
+      }
+    },
+  })
+}
+
 export function useCreateWorkspaceCredential() {
   const queryClient = useQueryClient()
 
@@ -165,7 +187,7 @@ export function useCreateWorkspaceCredential() {
 
       return response.json()
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.lists(),
       })
@@ -198,7 +220,7 @@ export function useUpdateWorkspaceCredential() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.detail(variables.credentialId),
       })
@@ -223,7 +245,7 @@ export function useDeleteWorkspaceCredential() {
       }
       return response.json()
     },
-    onSuccess: (_data, credentialId) => {
+    onSettled: (_data, _error, credentialId) => {
       queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.detail(credentialId) })
       queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
       queryClient.invalidateQueries({ queryKey: environmentKeys.all })
@@ -269,7 +291,7 @@ export function useUpsertWorkspaceCredentialMember() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.members(variables.credentialId),
       })
@@ -295,7 +317,7 @@ export function useRemoveWorkspaceCredentialMember() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.members(variables.credentialId),
       })

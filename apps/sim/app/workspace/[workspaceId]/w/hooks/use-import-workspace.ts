@@ -176,6 +176,7 @@ export function useImportWorkspace({ onSuccess }: UseImportWorkspaceProps = {}) 
                 color: workflowColor,
                 workspaceId: newWorkspace.id,
                 folderId: targetFolderId,
+                deduplicate: true,
               }),
             })
 

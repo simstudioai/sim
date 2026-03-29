@@ -19,7 +19,7 @@ const logger = createLogger('workflow-execution-utils')
 
 import { useExecutionStore } from '@/stores/execution'
 import type { ConsoleEntry, ConsoleUpdate } from '@/stores/terminal'
-import { useTerminalConsoleStore } from '@/stores/terminal'
+import { saveExecutionPointer, useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -118,7 +118,7 @@ export interface BlockEventHandlerConfig {
 }
 
 export interface BlockEventHandlerDeps {
-  addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry
+  addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry | undefined
   updateConsole: (blockId: string, update: string | ConsoleUpdate, executionId?: string) => void
   setActiveBlocks: (workflowId: string, blocks: Set<string>) => void
   setBlockRunStatus: (workflowId: string, blockId: string, status: 'success' | 'error') => void
@@ -407,7 +407,7 @@ export function createBlockEventHandlers(
   return { onBlockStarted, onBlockCompleted, onBlockError, onBlockChildWorkflowStarted }
 }
 
-type AddConsoleFn = (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry
+type AddConsoleFn = (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry | undefined
 type CancelRunningEntriesFn = (workflowId: string) => void
 
 export interface ExecutionTimingFields {
@@ -570,6 +570,7 @@ export interface WorkflowExecutionOptions {
   onBlockComplete?: (blockId: string, output: any) => Promise<void>
   overrideTriggerType?: 'chat' | 'manual' | 'api' | 'copilot'
   stopAfterBlockId?: string
+  abortSignal?: AbortSignal
   /** For run_from_block / run_block: start from a specific block using cached state */
   runFromBlock?: {
     startBlockId: string
@@ -643,6 +644,7 @@ export async function executeWorkflowWithFullLogging(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
+    signal: options.abortSignal,
   })
 
   if (!response.ok) {
@@ -665,6 +667,7 @@ export async function executeWorkflowWithFullLogging(
   if (serverExecutionId) {
     executionIdRef.current = serverExecutionId
     setCurrentExecutionId(wfId, serverExecutionId)
+    saveExecutionPointer({ workflowId: wfId, executionId: serverExecutionId, lastEventId: 0 })
   }
 
   let executionResult: ExecutionResult = {
@@ -677,6 +680,16 @@ export async function executeWorkflowWithFullLogging(
     await processSSEStream(
       response.body.getReader(),
       {
+        onEventId: (eventId) => {
+          if (wfId && executionIdRef.current && eventId % 5 === 0) {
+            saveExecutionPointer({
+              workflowId: wfId,
+              executionId: executionIdRef.current,
+              lastEventId: eventId,
+            })
+          }
+        },
+
         onExecutionStarted: (data) => {
           logger.info('Execution started', { startTime: data.startTime })
         },

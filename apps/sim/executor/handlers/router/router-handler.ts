@@ -107,7 +107,7 @@ export class RouterBlockHandler implements BlockHandler {
 
       const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: await buildAuthHeaders(),
+        headers: await buildAuthHeaders(ctx.userId),
         body: JSON.stringify(providerRequest),
       })
 
@@ -256,7 +256,7 @@ export class RouterBlockHandler implements BlockHandler {
 
       const response = await fetch(url.toString(), {
         method: 'POST',
-        headers: await buildAuthHeaders(),
+        headers: await buildAuthHeaders(ctx.userId),
         body: JSON.stringify(providerRequest),
       })
 

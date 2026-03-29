@@ -1,13 +1,12 @@
 'use client'
 
-import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
+import { createElement, useCallback, useMemo, useState } from 'react'
 import { ExternalLink, Users } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
-import { getSubscriptionStatus } from '@/lib/billing/client'
+import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { getPollingProviderFromOAuth } from '@/lib/credential-sets/providers'
-import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -16,17 +15,18 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
+import { ConnectCredentialModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/connect-credential-modal'
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
 import { CREDENTIAL_SET } from '@/executor/constants'
 import { useCredentialSets } from '@/hooks/queries/credential-sets'
+import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
-import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
@@ -50,6 +50,7 @@ export function CredentialSelector({
 }: CredentialSelectorProps) {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
+  const [showConnectModal, setShowConnectModal] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [editingValue, setEditingValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
@@ -64,8 +65,8 @@ export function CredentialSelector({
   const { data: organizationsData } = useOrganizations()
   const { data: subscriptionData } = useSubscriptionData({ enabled: isBillingEnabled })
   const activeOrganization = organizationsData?.activeOrganization
-  const subscriptionStatus = getSubscriptionStatus(subscriptionData?.data)
-  const hasTeamPlan = subscriptionStatus.isTeam || subscriptionStatus.isEnterprise
+  const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
+  const hasTeamPlan = subscriptionAccess.hasUsableTeamAccess
   const canUseCredentialSets = supportsCredentialSets && hasTeamPlan && !!activeOrganization?.id
 
   const { data: credentialSets = [] } = useCredentialSets(
@@ -116,36 +117,11 @@ export function CredentialSelector({
     [credentialSets, selectedCredentialSetId]
   )
 
-  const [inaccessibleCredentialName, setInaccessibleCredentialName] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!selectedId || selectedCredential || credentialsLoading || !workspaceId) {
-      setInaccessibleCredentialName(null)
-      return
-    }
-
-    setInaccessibleCredentialName(null)
-
-    let cancelled = false
-    ;(async () => {
-      try {
-        const response = await fetch(
-          `/api/credentials?workspaceId=${encodeURIComponent(workspaceId)}&credentialId=${encodeURIComponent(selectedId)}`
-        )
-        if (!response.ok || cancelled) return
-        const data = await response.json()
-        if (!cancelled && data.credential?.displayName) {
-          setInaccessibleCredentialName(data.credential.displayName)
-        }
-      } catch {
-        // Ignore fetch errors
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [selectedId, selectedCredential, credentialsLoading, workspaceId])
+  const { data: inaccessibleCredential } = useWorkspaceCredential(
+    selectedId || undefined,
+    Boolean(selectedId) && !selectedCredential && !credentialsLoading && Boolean(workspaceId)
+  )
+  const inaccessibleCredentialName = inaccessibleCredential?.displayName ?? null
 
   const resolvedLabel = useMemo(() => {
     if (selectedCredentialSet) return selectedCredentialSet.name
@@ -157,7 +133,6 @@ export function CredentialSelector({
   const displayValue = isEditing ? editingValue : resolvedLabel
 
   useCredentialRefreshTriggers(refetchCredentials, effectiveProviderId, workspaceId)
-  const { navigateToSettings } = useSettingsNavigation()
 
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
@@ -199,21 +174,8 @@ export function CredentialSelector({
   )
 
   const handleAddCredential = useCallback(() => {
-    writePendingCredentialCreateRequest({
-      workspaceId,
-      type: 'oauth',
-      providerId: effectiveProviderId,
-      displayName: '',
-      serviceId,
-      requiredScopes: getCanonicalScopesForProvider(effectiveProviderId),
-      requestedAt: Date.now(),
-      returnOrigin: activeWorkflowId
-        ? { type: 'workflow', workflowId: activeWorkflowId }
-        : undefined,
-    })
-
-    navigateToSettings({ section: 'integrations' })
-  }, [workspaceId, effectiveProviderId, serviceId, activeWorkflowId])
+    setShowConnectModal(true)
+  }, [])
 
   const getProviderIcon = useCallback((providerName: OAuthProvider) => {
     const { baseProvider } = parseProvider(providerName)
@@ -384,23 +346,35 @@ export function CredentialSelector({
         filterOptions={true}
         isLoading={credentialsLoading}
         overlayContent={overlayContent}
-        className={overlayContent ? 'pl-[28px]' : ''}
+        className={overlayContent ? 'pl-7' : ''}
       />
 
       {needsUpdate && (
-        <div className='mt-[8px] flex flex-col gap-[4px] rounded-[4px] border bg-[var(--surface-2)] px-[8px] py-[6px]'>
-          <div className='flex items-center font-medium text-[12px]'>
-            <span className='mr-[6px] inline-block h-[6px] w-[6px] rounded-[2px] bg-amber-500' />
+        <div className='mt-2 flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
+          <div className='flex items-center font-medium text-caption'>
+            <span className='mr-1.5 inline-block h-[6px] w-[6px] rounded-xs bg-amber-500' />
             Additional permissions required
           </div>
           <Button
             variant='active'
             onClick={() => setShowOAuthModal(true)}
-            className='w-full px-[8px] py-[4px] font-medium text-[12px]'
+            className='w-full px-2 py-1 font-medium text-caption'
           >
             Update access
           </Button>
         </div>
+      )}
+
+      {showConnectModal && (
+        <ConnectCredentialModal
+          isOpen={showConnectModal}
+          onClose={() => setShowConnectModal(false)}
+          provider={provider}
+          serviceId={serviceId}
+          workspaceId={workspaceId}
+          workflowId={activeWorkflowId || ''}
+          credentialCount={credentials.length}
+        />
       )}
 
       {showOAuthModal && (

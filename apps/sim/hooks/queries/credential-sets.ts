@@ -1,6 +1,6 @@
 'use client'
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchJson } from '@/hooks/selectors/helpers'
 
 export interface CredentialSet {
@@ -88,6 +88,7 @@ export function useCredentialSets(organizationId?: string, enabled = true) {
     queryFn: ({ signal }) => fetchCredentialSets(organizationId ?? '', signal),
     enabled: Boolean(organizationId) && enabled,
     staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -112,6 +113,7 @@ export function useCredentialSetDetail(id?: string, enabled = true) {
     queryFn: ({ signal }) => fetchCredentialSetById(id ?? '', signal),
     enabled: Boolean(id) && enabled,
     staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -316,6 +318,9 @@ export function useDeleteCredentialSet() {
         queryKey: credentialSetKeys.list(variables.organizationId),
       })
       queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() })
+      queryClient.invalidateQueries({
+        queryKey: credentialSetKeys.detail(variables.credentialSetId),
+      })
     },
   })
 }

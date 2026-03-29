@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -122,7 +123,9 @@ export async function routeExecution(
     throw new Error(`Unknown server tool: ${toolName}`)
   }
 
-  logger.debug('Routing to tool', { toolName })
+  logger.debug(appendCopilotLogContext('Routing to tool', { messageId: context?.messageId }), {
+    toolName,
+  })
 
   // Action-level permission enforcement for mixed read/write tools
   if (context?.userPermission && WRITE_ACTIONS[toolName]) {

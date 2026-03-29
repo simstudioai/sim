@@ -117,7 +117,7 @@ export function InputMapping({
 
   if (!selectedWorkflowId) {
     return (
-      <div className='flex h-32 items-center justify-center rounded-[4px] border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] dark:bg-[#1F1F1F]'>
+      <div className='flex h-32 items-center justify-center rounded-sm border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] dark:bg-[var(--code-bg)]'>
         <div className='text-center'>
           <p className='font-medium text-[var(--text-secondary)] text-sm'>No workflow selected</p>
           <p className='mt-1 text-[var(--text-muted)] text-xs'>
@@ -130,7 +130,7 @@ export function InputMapping({
 
   if (isLoading) {
     return (
-      <div className='space-y-[8px]'>
+      <div className='space-y-2'>
         <InputMappingField
           key='loading'
           fieldName='loading...'
@@ -154,7 +154,7 @@ export function InputMapping({
   }
 
   return (
-    <div className='space-y-[8px]'>
+    <div className='space-y-2'>
       {childInputFields.map((field) => (
         <InputMappingField
           key={field.name}
@@ -218,16 +218,16 @@ function InputMappingField({
   return (
     <div
       className={cn(
-        'rounded-[4px] border border-[var(--border-1)]',
+        'rounded-sm border border-[var(--border-1)]',
         collapsed ? 'overflow-hidden' : 'overflow-visible'
       )}
     >
       <div
-        className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-[10px] py-[5px]'
+        className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
         onClick={onToggleCollapse}
       >
-        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-          <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
+          <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
             {fieldName}
           </span>
           {fieldType && (
@@ -239,9 +239,9 @@ function InputMappingField({
       </div>
 
       {!collapsed && (
-        <div className='flex flex-col gap-[8px] rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[10px] pt-[6px] pb-[10px]'>
-          <div className='flex flex-col gap-[6px]'>
-            <Label className='text-[13px]'>Value</Label>
+        <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+          <div className='flex flex-col gap-1.5'>
+            <Label className='text-small'>Value</Label>
             <div className='relative'>
               <Input
                 ref={(el) => {
@@ -274,7 +274,7 @@ function InputMappingField({
                   if (el) overlayRefs.current.set(fieldId, el)
                 }}
                 className={cn(
-                  'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-[8px] py-[6px] font-medium font-sans text-sm',
+                  'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
                   !disabled && 'pointer-events-none'
                 )}
                 style={{ overflowX: 'auto' }}

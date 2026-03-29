@@ -366,6 +366,29 @@ export function normalizeFileInput(
 }
 
 /**
+ * Block types that are built-in to the platform (as opposed to third-party integrations).
+ * Used to categorize tools in the tool selection dropdown.
+ */
+export const BUILT_IN_TOOL_TYPES = new Set([
+  'api',
+  'file',
+  'function',
+  'knowledge',
+  'search',
+  'thinking',
+  'image_generator',
+  'video_generator',
+  'vision',
+  'translate',
+  'tts',
+  'stt',
+  'memory',
+  'table',
+  'webhook_request',
+  'workflow',
+])
+
+/**
  * Shared wand configuration for the Response Format code subblock.
  * Used by Agent and Mothership blocks.
  */

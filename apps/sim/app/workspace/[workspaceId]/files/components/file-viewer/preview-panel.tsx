@@ -1,13 +1,14 @@
 'use client'
 
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
+import { Checkbox } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import { useAutoScroll } from '@/app/workspace/[workspaceId]/home/hooks/use-auto-scroll'
-import { useStreamingReveal } from '@/app/workspace/[workspaceId]/home/hooks/use-streaming-reveal'
+import { useAutoScroll } from '@/hooks/use-auto-scroll'
+import { useStreamingReveal } from '@/hooks/use-streaming-reveal'
 
 type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | null
 
@@ -40,35 +41,48 @@ interface PreviewPanelProps {
   mimeType: string | null
   filename: string
   isStreaming?: boolean
+  onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
 }
 
-export function PreviewPanel({ content, mimeType, filename, isStreaming }: PreviewPanelProps) {
+export const PreviewPanel = memo(function PreviewPanel({
+  content,
+  mimeType,
+  filename,
+  isStreaming,
+  onCheckboxToggle,
+}: PreviewPanelProps) {
   const previewType = resolvePreviewType(mimeType, filename)
 
   if (previewType === 'markdown')
-    return <MarkdownPreview content={content} isStreaming={isStreaming} />
+    return (
+      <MarkdownPreview
+        content={content}
+        isStreaming={isStreaming}
+        onCheckboxToggle={onCheckboxToggle}
+      />
+    )
   if (previewType === 'html') return <HtmlPreview content={content} />
   if (previewType === 'csv') return <CsvPreview content={content} />
   if (previewType === 'svg') return <SvgPreview content={content} />
 
   return null
-}
+})
 
 const REMARK_PLUGINS = [remarkGfm, remarkBreaks]
 
-const PREVIEW_MARKDOWN_COMPONENTS = {
+const STATIC_MARKDOWN_COMPONENTS = {
   p: ({ children }: any) => (
     <p className='mb-3 break-words text-[14px] text-[var(--text-primary)] leading-[1.6] last:mb-0'>
       {children}
     </p>
   ),
   h1: ({ children }: any) => (
-    <h1 className='mt-6 mb-4 break-words border-[var(--border)] border-b pb-2 font-semibold text-[24px] text-[var(--text-primary)] first:mt-0'>
+    <h1 className='mt-6 mb-4 break-words font-semibold text-[24px] text-[var(--text-primary)] first:mt-0'>
       {children}
     </h1>
   ),
   h2: ({ children }: any) => (
-    <h2 className='mt-5 mb-3 break-words border-[var(--border)] border-b pb-1.5 font-semibold text-[20px] text-[var(--text-primary)] first:mt-0'>
+    <h2 className='mt-5 mb-3 break-words font-semibold text-[20px] text-[var(--text-primary)] first:mt-0'>
       {children}
     </h2>
   ),
@@ -82,17 +96,6 @@ const PREVIEW_MARKDOWN_COMPONENTS = {
       {children}
     </h4>
   ),
-  ul: ({ children }: any) => (
-    <ul className='mt-1 mb-3 list-disc space-y-1 break-words pl-6 text-[14px] text-[var(--text-primary)]'>
-      {children}
-    </ul>
-  ),
-  ol: ({ children }: any) => (
-    <ol className='mt-1 mb-3 list-decimal space-y-1 break-words pl-6 text-[14px] text-[var(--text-primary)]'>
-      {children}
-    </ol>
-  ),
-  li: ({ children }: any) => <li className='break-words leading-[1.6]'>{children}</li>,
   code: ({ inline, className, children, ...props }: any) => {
     const isInline = inline || !className?.includes('language-')
 
@@ -100,7 +103,7 @@ const PREVIEW_MARKDOWN_COMPONENTS = {
       return (
         <code
           {...props}
-          className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[#F59E0B] text-[13px]'
+          className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[13px] text-[var(--caution)]'
         >
           {children}
         </code>
@@ -143,7 +146,7 @@ const PREVIEW_MARKDOWN_COMPONENTS = {
     <img src={src} alt={alt ?? ''} className='my-3 max-w-full rounded-md' loading='lazy' />
   ),
   table: ({ children }: any) => (
-    <div className='my-4 max-w-full overflow-x-auto rounded-md border border-[var(--border)]'>
+    <div className='my-4 max-w-full overflow-x-auto'>
       <table className='w-full border-collapse text-[13px]'>{children}</table>
     </div>
   ),
@@ -160,35 +163,119 @@ const PREVIEW_MARKDOWN_COMPONENTS = {
   td: ({ children }: any) => <td className='px-3 py-2 text-[var(--text-secondary)]'>{children}</td>,
 }
 
+function buildMarkdownComponents(
+  checkboxCounterRef: React.MutableRefObject<number>,
+  onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
+) {
+  const isInteractive = Boolean(onCheckboxToggle)
+
+  return {
+    ...STATIC_MARKDOWN_COMPONENTS,
+    ul: ({ className, children }: any) => {
+      const isTaskList = typeof className === 'string' && className.includes('contains-task-list')
+      return (
+        <ul
+          className={cn(
+            'mt-1 mb-3 space-y-1 break-words text-[14px] text-[var(--text-primary)]',
+            isTaskList ? 'list-none pl-0' : 'list-disc pl-6'
+          )}
+        >
+          {children}
+        </ul>
+      )
+    },
+    ol: ({ className, children }: any) => {
+      const isTaskList = typeof className === 'string' && className.includes('contains-task-list')
+      return (
+        <ol
+          className={cn(
+            'mt-1 mb-3 space-y-1 break-words text-[14px] text-[var(--text-primary)]',
+            isTaskList ? 'list-none pl-0' : 'list-decimal pl-6'
+          )}
+        >
+          {children}
+        </ol>
+      )
+    },
+    li: ({ className, children }: any) => {
+      const isTaskItem = typeof className === 'string' && className.includes('task-list-item')
+      if (isTaskItem) {
+        return <li className='flex items-start gap-2 break-words leading-[1.6]'>{children}</li>
+      }
+      return <li className='break-words leading-[1.6]'>{children}</li>
+    },
+    input: ({ type, checked, ...props }: any) => {
+      if (type !== 'checkbox') return <input type={type} checked={checked} {...props} />
+
+      const index = checkboxCounterRef.current++
+
+      return (
+        <Checkbox
+          checked={checked ?? false}
+          onCheckedChange={
+            isInteractive
+              ? (newChecked) => onCheckboxToggle!(index, Boolean(newChecked))
+              : undefined
+          }
+          disabled={!isInteractive}
+          size='sm'
+          className='mt-1 shrink-0'
+        />
+      )
+    },
+  }
+}
+
 const MarkdownPreview = memo(function MarkdownPreview({
   content,
   isStreaming = false,
+  onCheckboxToggle,
 }: {
   content: string
   isStreaming?: boolean
+  onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
 }) {
   const { ref: scrollRef } = useAutoScroll(isStreaming)
   const { committed, incoming, generation } = useStreamingReveal(content, isStreaming)
 
+  const checkboxCounterRef = useRef(0)
+
+  const components = useMemo(
+    () => buildMarkdownComponents(checkboxCounterRef, onCheckboxToggle),
+    [onCheckboxToggle]
+  )
+
+  checkboxCounterRef.current = 0
+
   const committedMarkdown = useMemo(
     () =>
       committed ? (
-        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={PREVIEW_MARKDOWN_COMPONENTS}>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
           {committed}
         </ReactMarkdown>
       ) : null,
-    [committed]
+    [committed, components]
   )
 
+  if (onCheckboxToggle) {
+    return (
+      <div ref={scrollRef} className='h-full overflow-auto p-6'>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
+          {content}
+        </ReactMarkdown>
+      </div>
+    )
+  }
+
   return (
-    <div ref={scrollRef} className='h-full overflow-auto p-[24px]'>
+    <div ref={scrollRef} className='h-full overflow-auto p-6'>
       {committedMarkdown}
       {incoming && (
         <div
           key={generation}
           className={cn(isStreaming && 'animate-stream-fade-in', '[&>:first-child]:mt-0')}
         >
-          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={PREVIEW_MARKDOWN_COMPONENTS}>
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
             {incoming}
           </ReactMarkdown>
         </div>
@@ -197,7 +284,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
   )
 })
 
-function HtmlPreview({ content }: { content: string }) {
+const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) {
   return (
     <div className='h-full overflow-hidden'>
       <iframe
@@ -208,9 +295,9 @@ function HtmlPreview({ content }: { content: string }) {
       />
     </div>
   )
-}
+})
 
-function SvgPreview({ content }: { content: string }) {
+const SvgPreview = memo(function SvgPreview({ content }: { content: string }) {
   const wrappedContent = useMemo(
     () =>
       `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:transparent;}svg{max-width:100%;max-height:100vh;}</style></head><body>${content}</body></html>`,
@@ -227,21 +314,21 @@ function SvgPreview({ content }: { content: string }) {
       />
     </div>
   )
-}
+})
 
-function CsvPreview({ content }: { content: string }) {
+const CsvPreview = memo(function CsvPreview({ content }: { content: string }) {
   const { headers, rows } = useMemo(() => parseCsv(content), [content])
 
   if (headers.length === 0) {
     return (
-      <div className='flex h-full items-center justify-center p-[24px]'>
+      <div className='flex h-full items-center justify-center p-6'>
         <p className='text-[13px] text-[var(--text-muted)]'>No data to display</p>
       </div>
     )
   }
 
   return (
-    <div className='h-full overflow-auto p-[24px]'>
+    <div className='h-full overflow-auto p-6'>
       <div className='overflow-x-auto rounded-md border border-[var(--border)]'>
         <table className='w-full border-collapse text-[13px]'>
           <thead className='bg-[var(--surface-2)]'>
@@ -271,7 +358,7 @@ function CsvPreview({ content }: { content: string }) {
       </div>
     </div>
   )
-}
+})
 
 function parseCsv(text: string): { headers: string[]; rows: string[][] } {
   const lines = text.split('\n').filter((line) => line.trim().length > 0)

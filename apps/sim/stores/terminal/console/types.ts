@@ -58,10 +58,17 @@ export interface ConsoleUpdate {
   childWorkflowInstanceId?: string
 }
 
+export interface ConsoleEntryLocation {
+  workflowId: string
+  index: number
+}
+
 export interface ConsoleStore {
-  entries: ConsoleEntry[]
+  workflowEntries: Record<string, ConsoleEntry[]>
+  entryIdsByBlockExecution: Record<string, string[]>
+  entryLocationById: Record<string, ConsoleEntryLocation>
   isOpen: boolean
-  addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry
+  addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry | undefined
   clearWorkflowConsole: (workflowId: string) => void
   clearExecutionEntries: (executionId: string) => void
   exportConsoleCSV: (workflowId: string) => void
@@ -70,5 +77,4 @@ export interface ConsoleStore {
   updateConsole: (blockId: string, update: string | ConsoleUpdate, executionId?: string) => void
   cancelRunningEntries: (workflowId: string) => void
   _hasHydrated: boolean
-  setHasHydrated: (hasHydrated: boolean) => void
 }

@@ -8,10 +8,11 @@ import { getSession } from '@/lib/auth'
 import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
 import {
+  acquirePendingChatStream,
   createSSEStream,
   SSE_RESPONSE_HEADERS,
-  waitForPendingChatStream,
 } from '@/lib/copilot/chat-streaming'
+import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
 import { processContextsServer, resolveActiveResourceContext } from '@/lib/copilot/process-contents'
 import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/request-helpers'
@@ -87,6 +88,7 @@ const MothershipMessageSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
+  let userMessageIdForLogs: string | undefined
 
   try {
     const session = await getSession()
@@ -109,6 +111,28 @@ export async function POST(req: NextRequest) {
     } = MothershipMessageSchema.parse(body)
 
     const userMessageId = providedMessageId || crypto.randomUUID()
+    userMessageIdForLogs = userMessageId
+
+    logger.error(
+      appendCopilotLogContext('Received mothership chat start request', {
+        requestId: tracker.requestId,
+        messageId: userMessageId,
+      }),
+      {
+        workspaceId,
+        chatId,
+        createNewChat,
+        hasContexts: Array.isArray(contexts) && contexts.length > 0,
+        contextsCount: Array.isArray(contexts) ? contexts.length : 0,
+        hasResourceAttachments:
+          Array.isArray(resourceAttachments) && resourceAttachments.length > 0,
+        resourceAttachmentCount: Array.isArray(resourceAttachments)
+          ? resourceAttachments.length
+          : 0,
+        hasFileAttachments: Array.isArray(fileAttachments) && fileAttachments.length > 0,
+        fileAttachmentCount: Array.isArray(fileAttachments) ? fileAttachments.length : 0,
+      }
+    )
 
     try {
       await assertActiveWorkspaceAccess(workspaceId, authenticatedUserId)
@@ -150,7 +174,13 @@ export async function POST(req: NextRequest) {
           actualChatId
         )
       } catch (e) {
-        logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
+        logger.error(
+          appendCopilotLogContext('Failed to process contexts', {
+            requestId: tracker.requestId,
+            messageId: userMessageId,
+          }),
+          e
+        )
       }
     }
 
@@ -176,7 +206,10 @@ export async function POST(req: NextRequest) {
           agentContexts.push(result.value)
         } else if (result.status === 'rejected') {
           logger.error(
-            `[${tracker.requestId}] Failed to resolve resource attachment`,
+            appendCopilotLogContext('Failed to resolve resource attachment', {
+              requestId: tracker.requestId,
+              messageId: userMessageId,
+            }),
             result.reason
           )
         }
@@ -253,7 +286,16 @@ export async function POST(req: NextRequest) {
     )
 
     if (actualChatId) {
-      await waitForPendingChatStream(actualChatId)
+      const acquired = await acquirePendingChatStream(actualChatId, userMessageId)
+      if (!acquired) {
+        return NextResponse.json(
+          {
+            error:
+              'A response is already in progress for this chat. Wait for it to finish or use Stop.',
+          },
+          { status: 409 }
+        )
+      }
     }
 
     const executionId = crypto.randomUUID()
@@ -271,6 +313,7 @@ export async function POST(req: NextRequest) {
       titleModel: 'claude-opus-4-6',
       requestId: tracker.requestId,
       workspaceId,
+      pendingChatStreamAlreadyRegistered: Boolean(actualChatId),
       orchestrateOptions: {
         userId: authenticatedUserId,
         workspaceId,
@@ -280,9 +323,9 @@ export async function POST(req: NextRequest) {
         goRoute: '/api/mothership',
         autoExecuteTools: true,
         interactive: true,
-        promptForToolApproval: false,
         onComplete: async (result: OrchestratorResult) => {
           if (!actualChatId) return
+          if (!result.success) return
 
           const assistantMessage: Record<string, unknown> = {
             id: crypto.randomUUID(),
@@ -299,16 +342,25 @@ export async function POST(req: NextRequest) {
               const stored: Record<string, unknown> = { type: block.type }
               if (block.content) stored.content = block.content
               if (block.type === 'tool_call' && block.toolCall) {
+                const state =
+                  block.toolCall.result?.success !== undefined
+                    ? block.toolCall.result.success
+                      ? 'success'
+                      : 'error'
+                    : block.toolCall.status
+                const isSubagentTool = !!block.calledBy
+                const isNonTerminal =
+                  state === 'cancelled' || state === 'pending' || state === 'executing'
                 stored.toolCall = {
                   id: block.toolCall.id,
                   name: block.toolCall.name,
-                  state:
-                    block.toolCall.result?.success !== undefined
-                      ? block.toolCall.result.success
-                        ? 'success'
-                        : 'error'
-                      : block.toolCall.status,
-                  result: block.toolCall.result,
+                  state,
+                  ...(isSubagentTool && isNonTerminal ? {} : { result: block.toolCall.result }),
+                  ...(isSubagentTool && isNonTerminal
+                    ? {}
+                    : block.toolCall.params
+                      ? { params: block.toolCall.params }
+                      : {}),
                   ...(block.calledBy ? { calledBy: block.calledBy } : {}),
                 }
               }
@@ -347,10 +399,16 @@ export async function POST(req: NextRequest) {
               })
             }
           } catch (error) {
-            logger.error(`[${tracker.requestId}] Failed to persist chat messages`, {
-              chatId: actualChatId,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            })
+            logger.error(
+              appendCopilotLogContext('Failed to persist chat messages', {
+                requestId: tracker.requestId,
+                messageId: userMessageId,
+              }),
+              {
+                chatId: actualChatId,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              }
+            )
           }
         },
       },
@@ -365,9 +423,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    logger.error(`[${tracker.requestId}] Error handling mothership chat:`, {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+    logger.error(
+      appendCopilotLogContext('Error handling mothership chat', {
+        requestId: tracker.requestId,
+        messageId: userMessageIdForLogs,
+      }),
+      {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    )
 
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },

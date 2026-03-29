@@ -16,6 +16,7 @@ export function Fingerprint(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path d='M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4' />

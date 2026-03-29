@@ -13,7 +13,7 @@ export function IntegrationFAQ({ faqs }: IntegrationFAQProps) {
   const [openIndex, setOpenIndex] = useState<number | null>(0)
 
   return (
-    <div className='divide-y divide-[#2A2A2A]'>
+    <div className='divide-y divide-[var(--landing-border)]'>
       {faqs.map(({ question, answer }, index) => {
         const isOpen = openIndex === index
         return (
@@ -27,7 +27,9 @@ export function IntegrationFAQ({ faqs }: IntegrationFAQProps) {
               <span
                 className={cn(
                   'font-[500] text-[15px] leading-snug transition-colors',
-                  isOpen ? 'text-[#ECECEC]' : 'text-[#999] hover:text-[#ECECEC]'
+                  isOpen
+                    ? 'text-[var(--landing-text)]'
+                    : 'text-[var(--landing-text-muted)] hover:text-[var(--landing-text)]'
                 )}
               >
                 {question}
@@ -43,7 +45,9 @@ export function IntegrationFAQ({ faqs }: IntegrationFAQProps) {
 
             {isOpen && (
               <div className='pb-5'>
-                <p className='text-[#999] text-[14px] leading-[1.75]'>{answer}</p>
+                <p className='text-[14px] text-[var(--landing-text-muted)] leading-[1.75]'>
+                  {answer}
+                </p>
               </div>
             )}
           </div>

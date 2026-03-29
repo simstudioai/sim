@@ -6,6 +6,7 @@ import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { RICH_PREVIEWABLE_EXTENSIONS } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import type {
+  GenericResourceData,
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
@@ -65,6 +66,7 @@ interface MothershipViewProps {
   isCollapsed: boolean
   className?: string
   streamingFile?: { fileName: string; content: string } | null
+  genericResourceData?: GenericResourceData
 }
 
 export const MothershipView = memo(
@@ -82,6 +84,7 @@ export const MothershipView = memo(
       isCollapsed,
       className,
       streamingFile,
+      genericResourceData,
     }: MothershipViewProps,
     ref
   ) {
@@ -112,8 +115,8 @@ export const MothershipView = memo(
       <div
         ref={ref}
         className={cn(
-          'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-300 ease-out',
-          isCollapsed ? 'w-0 min-w-0 border-l-0' : 'w-[60%] border-l',
+          'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]',
+          isCollapsed ? 'w-0 min-w-0 border-l-0' : 'w-1/2 border-l',
           className
         )}
       >
@@ -141,9 +144,10 @@ export const MothershipView = memo(
                 resource={active}
                 previewMode={isActivePreviewable ? previewMode : undefined}
                 streamingFile={streamingForActive}
+                genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
               />
             ) : (
-              <div className='flex h-full items-center justify-center text-[14px] text-[var(--text-muted)]'>
+              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
                 Click "+" above to add a resource
               </div>
             )}

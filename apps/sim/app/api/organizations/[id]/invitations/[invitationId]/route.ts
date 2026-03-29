@@ -15,7 +15,7 @@ import {
   workspaceInvitation,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getEmailSubject, renderInvitationEmail } from '@/components/emails'
@@ -23,8 +23,9 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { isOrgPlan } from '@/lib/billing/plan-helpers'
+import { isOrgPlan, sqlIsPro } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -58,6 +59,21 @@ export async function GET(
 
     if (!orgInvitation) {
       return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
+    }
+
+    // Verify caller is either an org member or the invitee
+    const isInvitee = session.user.email?.toLowerCase() === orgInvitation.email.toLowerCase()
+
+    if (!isInvitee) {
+      const memberEntry = await db
+        .select()
+        .from(member)
+        .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
+        .limit(1)
+
+      if (memberEntry.length === 0) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     const org = await db
@@ -320,7 +336,7 @@ export async function PUT(
             .where(
               and(
                 eq(subscriptionTable.referenceId, organizationId),
-                eq(subscriptionTable.status, 'active')
+                inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
               )
             )
             .limit(1)
@@ -338,8 +354,8 @@ export async function PUT(
               .where(
                 and(
                   eq(subscriptionTable.referenceId, userId),
-                  eq(subscriptionTable.status, 'active'),
-                  eq(subscriptionTable.plan, 'pro')
+                  inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+                  sqlIsPro(subscriptionTable.plan)
                 )
               )
               .limit(1)

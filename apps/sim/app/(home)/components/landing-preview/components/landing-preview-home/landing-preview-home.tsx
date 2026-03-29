@@ -3,7 +3,7 @@
 import { memo, useCallback, useRef, useState } from 'react'
 import { ArrowUp } from 'lucide-react'
 import { useLandingSubmit } from '@/app/(home)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
-import { useAnimatedPlaceholder } from '@/app/workspace/[workspaceId]/home/hooks/use-animated-placeholder'
+import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 
 const C = {
   SURFACE: '#292929',
@@ -48,17 +48,18 @@ export const LandingPreviewHome = memo(function LandingPreviewHome() {
   }, [])
 
   return (
-    <div className='flex min-w-0 flex-1 flex-col items-center justify-center px-[24px] pb-[2vh]'>
-      <h1
-        className='mb-[24px] max-w-[42rem] font-[430] font-season text-[32px] tracking-[-0.02em]'
+    <div className='flex min-w-0 flex-1 flex-col items-center justify-center px-6 pb-[2vh]'>
+      <p
+        role='presentation'
+        className='mb-6 max-w-[42rem] font-[430] font-season text-[32px] tracking-[-0.02em]'
         style={{ color: C.TEXT_PRIMARY }}
       >
         What should we get done?
-      </h1>
+      </p>
 
       <div className='w-full max-w-[32rem]'>
         <div
-          className='cursor-text rounded-[20px] border px-[10px] py-[8px]'
+          className='cursor-text rounded-[20px] border px-2.5 py-2'
           style={{ borderColor: C.BORDER, backgroundColor: C.SURFACE }}
           onClick={() => textareaRef.current?.focus()}
         >
@@ -70,7 +71,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome() {
             onInput={handleInput}
             placeholder={animatedPlaceholder}
             rows={1}
-            className='m-0 box-border min-h-[24px] w-full resize-none overflow-y-auto border-0 bg-transparent px-[4px] py-[4px] font-body text-[15px] leading-[24px] tracking-[-0.015em] outline-none placeholder:font-[380] placeholder:text-[#787878] focus-visible:ring-0'
+            className='m-0 box-border min-h-[24px] w-full resize-none overflow-y-auto border-0 bg-transparent px-1 py-1 font-body text-[15px] leading-[24px] tracking-[-0.015em] outline-none placeholder:font-[380] placeholder:text-[#787878] focus-visible:ring-0'
             style={{
               color: C.TEXT_PRIMARY,
               caretColor: C.TEXT_PRIMARY,

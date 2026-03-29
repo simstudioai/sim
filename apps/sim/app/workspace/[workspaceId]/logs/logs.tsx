@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Bell,
   Button,
@@ -230,7 +231,30 @@ export default function Logs() {
     setTimeRange,
     setDateRange,
     clearDateRange,
-  } = useFilterStore()
+  } = useFilterStore(
+    useShallow((s) => ({
+      setWorkspaceId: s.setWorkspaceId,
+      initializeFromURL: s.initializeFromURL,
+      timeRange: s.timeRange,
+      startDate: s.startDate,
+      endDate: s.endDate,
+      level: s.level,
+      workflowIds: s.workflowIds,
+      folderIds: s.folderIds,
+      setWorkflowIds: s.setWorkflowIds,
+      setSearchQuery: s.setSearchQuery,
+      triggers: s.triggers,
+      viewMode: s.viewMode,
+      setViewMode: s.setViewMode,
+      resetFilters: s.resetFilters,
+      setLevel: s.setLevel,
+      setFolderIds: s.setFolderIds,
+      setTriggers: s.setTriggers,
+      setTimeRange: s.setTimeRange,
+      setDateRange: s.setDateRange,
+      clearDateRange: s.clearDateRange,
+    }))
+  )
 
   useEffect(() => {
     setWorkspaceId(workspaceId)
@@ -883,7 +907,7 @@ export default function Logs() {
             )}
             {sections.map((section) => (
               <div key={section.title}>
-                <div className='px-3 py-1.5 font-medium text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide'>
+                <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
                   {section.title}
                 </div>
                 {section.suggestions.map((suggestion) => {
@@ -907,7 +931,7 @@ export default function Logs() {
         ) : (
           <div className='py-1'>
             {suggestionType === 'filters' && (
-              <div className='px-3 py-1.5 font-medium text-[12px] text-[var(--text-tertiary)] uppercase tracking-wide'>
+              <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
                 SUGGESTED FILTERS
               </div>
             )}
@@ -1048,7 +1072,7 @@ export default function Logs() {
         />
         {isDashboardView ? (
           <div className='relative flex min-h-0 flex-1 flex-col overflow-auto'>
-            <div className='flex min-h-0 flex-1 flex-col px-[24px]'>
+            <div className='flex min-h-0 flex-1 flex-col px-6'>
               <Dashboard
                 stats={dashboardStatsQuery.data}
                 isLoading={dashboardStatsQuery.isLoading}
@@ -1133,7 +1157,25 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
     setDateRange,
     clearDateRange,
     resetFilters,
-  } = useFilterStore()
+  } = useFilterStore(
+    useShallow((s) => ({
+      level: s.level,
+      setLevel: s.setLevel,
+      workflowIds: s.workflowIds,
+      setWorkflowIds: s.setWorkflowIds,
+      folderIds: s.folderIds,
+      setFolderIds: s.setFolderIds,
+      triggers: s.triggers,
+      setTriggers: s.setTriggers,
+      timeRange: s.timeRange,
+      setTimeRange: s.setTimeRange,
+      startDate: s.startDate,
+      endDate: s.endDate,
+      setDateRange: s.setDateRange,
+      clearDateRange: s.clearDateRange,
+      resetFilters: s.resetFilters,
+    }))
+  )
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [previousTimeRange, setPreviousTimeRange] = useState(timeRange)
@@ -1293,9 +1335,9 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   }, [resetFilters, onSearchQueryChange])
 
   return (
-    <div className='flex flex-col gap-[12px] p-[12px]'>
-      <div className='flex flex-col gap-[6px]'>
-        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>Status</span>
+    <div className='flex flex-col gap-3 p-3'>
+      <div className='flex flex-col gap-1.5'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
         <Combobox
           options={statusOptions}
           multiSelect
@@ -1303,7 +1345,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           onMultiSelectChange={handleStatusChange}
           placeholder='All statuses'
           overlayContent={
-            <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
+            <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
               {selectedStatusColor && (
                 <div
                   className='flex-shrink-0 rounded-[3px]'
@@ -1316,12 +1358,12 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           showAllOption
           allOptionLabel='All statuses'
           size='sm'
-          className='h-[32px] w-full rounded-[6px]'
+          className='h-[32px] w-full rounded-md'
         />
       </div>
 
-      <div className='flex flex-col gap-[6px]'>
-        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>Workflow</span>
+      <div className='flex flex-col gap-1.5'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Workflow</span>
         <Combobox
           options={workflowOptions}
           multiSelect
@@ -1329,10 +1371,10 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           onMultiSelectChange={setWorkflowIds}
           placeholder='All workflows'
           overlayContent={
-            <span className='flex items-center gap-[6px] truncate text-[var(--text-primary)]'>
+            <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
               {selectedWorkflow && (
                 <div
-                  className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px] border-[1.5px]'
+                  className='h-[8px] w-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
                   style={{
                     backgroundColor: selectedWorkflow.color,
                     borderColor: `${selectedWorkflow.color}60`,
@@ -1348,12 +1390,12 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           showAllOption
           allOptionLabel='All workflows'
           size='sm'
-          className='h-[32px] w-full rounded-[6px]'
+          className='h-[32px] w-full rounded-md'
         />
       </div>
 
-      <div className='flex flex-col gap-[6px]'>
-        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>Folder</span>
+      <div className='flex flex-col gap-1.5'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Folder</span>
         <Combobox
           options={folderOptions}
           multiSelect
@@ -1368,12 +1410,12 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           showAllOption
           allOptionLabel='All folders'
           size='sm'
-          className='h-[32px] w-full rounded-[6px]'
+          className='h-[32px] w-full rounded-md'
         />
       </div>
 
-      <div className='flex flex-col gap-[6px]'>
-        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>Trigger</span>
+      <div className='flex flex-col gap-1.5'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Trigger</span>
         <Combobox
           options={triggerOptions}
           multiSelect
@@ -1388,12 +1430,12 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           showAllOption
           allOptionLabel='All triggers'
           size='sm'
-          className='h-[32px] w-full rounded-[6px]'
+          className='h-[32px] w-full rounded-md'
         />
       </div>
 
-      <div className='flex flex-col gap-[6px]'>
-        <span className='font-medium text-[12px] text-[var(--text-secondary)]'>Time Range</span>
+      <div className='flex flex-col gap-1.5'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Time Range</span>
         <DropdownMenu open={datePickerOpen} onOpenChange={setDatePickerOpen}>
           <DropdownMenuTrigger asChild>
             <div>
@@ -1406,7 +1448,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
                   <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
                 }
                 size='sm'
-                className='h-[32px] w-full rounded-[6px]'
+                className='h-[32px] w-full rounded-md'
               />
             </div>
           </DropdownMenuTrigger>
@@ -1433,7 +1475,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
         <Button
           variant='active'
           onClick={handleClearFilters}
-          className='h-[32px] w-full rounded-[6px]'
+          className='h-[32px] w-full rounded-md'
         >
           Clear All Filters
         </Button>
@@ -1461,7 +1503,7 @@ function SuggestionButton({
     <button
       data-index={index}
       className={cn(
-        'w-full rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-5)]',
+        'w-full rounded-md px-3 py-2 text-left transition-colors hover-hover:bg-[var(--surface-5)]',
         highlighted && 'bg-[var(--surface-5)]'
       )}
       onMouseEnter={() => onHover(index)}
@@ -1471,16 +1513,16 @@ function SuggestionButton({
       }}
     >
       <div className='flex items-center justify-between gap-3'>
-        <div className='min-w-0 flex-1 truncate text-[13px]'>{suggestion.label}</div>
+        <div className='min-w-0 flex-1 truncate text-small'>{suggestion.label}</div>
         {showCategory && suggestion.value !== suggestion.label && (
-          <div className='shrink-0 font-mono text-[11px] text-[var(--text-muted)]'>
+          <div className='shrink-0 font-mono text-[var(--text-muted)] text-xs'>
             {suggestion.category === 'workflow' || suggestion.category === 'folder'
               ? `${suggestion.category}:`
               : ''}
           </div>
         )}
         {!showCategory && suggestion.description && (
-          <div className='shrink-0 text-[11px] text-[var(--text-muted)]'>{suggestion.value}</div>
+          <div className='shrink-0 text-[var(--text-muted)] text-xs'>{suggestion.value}</div>
         )}
       </div>
     </button>

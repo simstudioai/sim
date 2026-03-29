@@ -4,7 +4,7 @@ import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { noop } from '@/lib/core/utils/request'
-import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
+import { getFormattedGitHubStars } from '@/app/(home)/actions/github'
 import {
   ChatErrorState,
   ChatHeader,
@@ -466,7 +466,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   if (authRequired) {
     // const title = new URLSearchParams(window.location.search).get('title') || 'chat'
     // const primaryColor =
-    //   new URLSearchParams(window.location.search).get('color') || 'var(--brand-primary-hover-hex)'
+    //   new URLSearchParams(window.location.search).get('color') || 'var(--brand-hover)'
 
     if (authRequired === 'password') {
       return <PasswordAuth identifier={identifier} onAuthSuccess={handleAuthSuccess} />
@@ -503,7 +503,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   }
 
   return (
-    <div className='fixed inset-0 z-[100] flex flex-col bg-white text-foreground'>
+    <div className='dark fixed inset-0 z-[100] flex flex-col bg-[var(--landing-bg)] text-[var(--landing-text)]'>
       {/* Header component */}
       <ChatHeader chatConfig={chatConfig} starCount={starCount} />
 

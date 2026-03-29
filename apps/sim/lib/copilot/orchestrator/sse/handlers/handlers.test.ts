@@ -13,11 +13,25 @@ const { executeToolServerSide, markToolComplete, isToolAvailableOnSimSide } = vi
   isToolAvailableOnSimSide: vi.fn().mockReturnValue(true),
 }))
 
+const { upsertAsyncToolCall } = vi.hoisted(() => ({
+  upsertAsyncToolCall: vi.fn(),
+}))
+
 vi.mock('@/lib/copilot/orchestrator/tool-executor', () => ({
   executeToolServerSide,
   markToolComplete,
   isToolAvailableOnSimSide,
 }))
+
+vi.mock('@/lib/copilot/async-runs/repository', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/copilot/async-runs/repository')>(
+    '@/lib/copilot/async-runs/repository'
+  )
+  return {
+    ...actual,
+    upsertAsyncToolCall,
+  }
+})
 
 import { sseHandlers } from '@/lib/copilot/orchestrator/sse/handlers'
 import type { ExecutionContext, StreamingContext } from '@/lib/copilot/orchestrator/types'
@@ -28,6 +42,7 @@ describe('sse-handlers tool lifecycle', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    upsertAsyncToolCall.mockResolvedValue(null)
     context = {
       chatId: undefined,
       messageId: 'msg-1',
@@ -105,7 +120,9 @@ describe('sse-handlers tool lifecycle', () => {
 
   it('marks an in-flight tool as cancelled when aborted mid-execution', async () => {
     const abortController = new AbortController()
+    const userStopController = new AbortController()
     execContext.abortSignal = abortController.signal
+    execContext.userStopSignal = userStopController.signal
 
     executeToolServerSide.mockImplementationOnce(
       () =>
@@ -122,9 +139,15 @@ describe('sse-handlers tool lifecycle', () => {
       } as any,
       context,
       execContext,
-      { interactive: false, timeout: 1000, abortSignal: abortController.signal }
+      {
+        interactive: false,
+        timeout: 1000,
+        abortSignal: abortController.signal,
+        userStopSignal: userStopController.signal,
+      }
     )
 
+    userStopController.abort()
     abortController.abort()
     await new Promise((resolve) => setTimeout(resolve, 10))
 
@@ -133,10 +156,138 @@ describe('sse-handlers tool lifecycle', () => {
       'read',
       499,
       'Request aborted during tool execution',
-      { cancelled: true }
+      { cancelled: true },
+      'msg-1'
     )
 
     const updated = context.toolCalls.get('tool-cancel')
     expect(updated?.status).toBe('cancelled')
+  })
+
+  it('does not replace an in-flight pending promise on duplicate tool_call', async () => {
+    let resolveTool: ((value: { success: boolean; output: { ok: boolean } }) => void) | undefined
+    executeToolServerSide.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveTool = resolve
+        })
+    )
+    markToolComplete.mockResolvedValueOnce(true)
+
+    const event = {
+      type: 'tool_call',
+      data: { id: 'tool-inflight', name: 'read', arguments: { workflowId: 'workflow-1' } },
+    }
+
+    await sseHandlers.tool_call(event as any, context, execContext, { interactive: false })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const firstPromise = context.pendingToolPromises.get('tool-inflight')
+    expect(firstPromise).toBeDefined()
+
+    await sseHandlers.tool_call(event as any, context, execContext, { interactive: false })
+
+    expect(executeToolServerSide).toHaveBeenCalledTimes(1)
+    expect(context.pendingToolPromises.get('tool-inflight')).toBe(firstPromise)
+
+    resolveTool?.({ success: true, output: { ok: true } })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(context.pendingToolPromises.has('tool-inflight')).toBe(false)
+    expect(markToolComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it('still executes the tool when async row upsert fails', async () => {
+    upsertAsyncToolCall.mockRejectedValueOnce(new Error('db down'))
+    executeToolServerSide.mockResolvedValueOnce({ success: true, output: { ok: true } })
+    markToolComplete.mockResolvedValueOnce(true)
+
+    await sseHandlers.tool_call(
+      {
+        type: 'tool_call',
+        data: { id: 'tool-upsert-fail', name: 'read', arguments: { workflowId: 'workflow-1' } },
+      } as any,
+      context,
+      execContext,
+      { onEvent: vi.fn(), interactive: false, timeout: 1000 }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(executeToolServerSide).toHaveBeenCalledTimes(1)
+    expect(markToolComplete).toHaveBeenCalledTimes(1)
+    expect(context.toolCalls.get('tool-upsert-fail')?.status).toBe('success')
+  })
+
+  it('does not execute a tool if a terminal tool_result arrives before local execution starts', async () => {
+    let resolveUpsert: ((value: null) => void) | undefined
+    upsertAsyncToolCall.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveUpsert = resolve
+        })
+    )
+    const onEvent = vi.fn()
+
+    await sseHandlers.tool_call(
+      {
+        type: 'tool_call',
+        data: { id: 'tool-race', name: 'read', arguments: { workflowId: 'workflow-1' } },
+      } as any,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    await sseHandlers.tool_result(
+      {
+        type: 'tool_result',
+        toolCallId: 'tool-race',
+        data: { id: 'tool-race', success: true, result: { ok: true } },
+      } as any,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    resolveUpsert?.(null)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(executeToolServerSide).not.toHaveBeenCalled()
+    expect(markToolComplete).not.toHaveBeenCalled()
+    expect(context.toolCalls.get('tool-race')?.status).toBe('success')
+    expect(context.toolCalls.get('tool-race')?.result?.output).toEqual({ ok: true })
+  })
+
+  it('does not execute a tool if a tool_result arrives before the tool_call event', async () => {
+    const onEvent = vi.fn()
+
+    await sseHandlers.tool_result(
+      {
+        type: 'tool_result',
+        toolCallId: 'tool-early-result',
+        toolName: 'read',
+        data: { id: 'tool-early-result', name: 'read', success: true, result: { ok: true } },
+      } as any,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    await sseHandlers.tool_call(
+      {
+        type: 'tool_call',
+        data: { id: 'tool-early-result', name: 'read', arguments: { workflowId: 'workflow-1' } },
+      } as any,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(executeToolServerSide).not.toHaveBeenCalled()
+    expect(markToolComplete).not.toHaveBeenCalled()
+    expect(context.toolCalls.get('tool-early-result')?.status).toBe('success')
   })
 })

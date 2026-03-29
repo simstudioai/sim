@@ -93,15 +93,15 @@ const SKELETON_COL_COUNT = 4
 const SKELETON_ROW_COUNT = 10
 const ROW_HEIGHT_ESTIMATE = 35
 
-const CELL = 'border-[var(--border)] border-r border-b px-[8px] py-[7px] align-middle select-none'
+const CELL = 'border-[var(--border)] border-r border-b px-2 py-[7px] align-middle select-none'
 const CELL_CHECKBOX =
-  'border-[var(--border)] border-r border-b px-[4px] py-[7px] align-middle select-none'
+  'border-[var(--border)] border-r border-b px-1 py-[7px] align-middle select-none'
 const CELL_HEADER =
-  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-[8px] py-[7px] text-left align-middle'
+  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
 const CELL_HEADER_CHECKBOX =
-  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-[4px] py-[7px] text-center align-middle'
+  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-1 py-[7px] text-center align-middle'
 const CELL_CONTENT =
-  'relative min-h-[20px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-[13px]'
+  'relative min-h-[20px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap text-small'
 const SELECTION_OVERLAY =
   'pointer-events-none absolute -top-px -right-px -bottom-px -left-px z-[5] border-[2px] border-[var(--selection)]'
 
@@ -196,6 +196,18 @@ export function Table({
   const columnWidthsRef = useRef(columnWidths)
   columnWidthsRef.current = columnWidths
   const [resizingColumn, setResizingColumn] = useState<string | null>(null)
+  const [columnOrder, setColumnOrder] = useState<string[] | null>(null)
+  const columnOrderRef = useRef(columnOrder)
+  columnOrderRef.current = columnOrder
+  const [dragColumnName, setDragColumnName] = useState<string | null>(null)
+  const dragColumnNameRef = useRef(dragColumnName)
+  dragColumnNameRef.current = dragColumnName
+  const [dropTargetColumnName, setDropTargetColumnName] = useState<string | null>(null)
+  const dropTargetColumnNameRef = useRef(dropTargetColumnName)
+  dropTargetColumnNameRef.current = dropTargetColumnName
+  const [dropSide, setDropSide] = useState<'left' | 'right'>('left')
+  const dropSideRef = useRef(dropSide)
+  dropSideRef.current = dropSide
   const metadataSeededRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -239,6 +251,23 @@ export function Table({
     [tableData?.schema?.columns]
   )
 
+  const displayColumns = useMemo(() => {
+    if (!columnOrder || columnOrder.length === 0) return columns
+    const colMap = new Map(columns.map((c) => [c.name, c]))
+    const ordered: ColumnDefinition[] = []
+    for (const name of columnOrder) {
+      const col = colMap.get(name)
+      if (col) {
+        ordered.push(col)
+        colMap.delete(name)
+      }
+    }
+    for (const col of colMap.values()) {
+      ordered.push(col)
+    }
+    return ordered
+  }, [columns, columnOrder])
+
   const maxPosition = useMemo(() => (rows.length > 0 ? rows[rows.length - 1].position : -1), [rows])
   const maxPositionRef = useRef(maxPosition)
   maxPositionRef.current = maxPosition
@@ -258,23 +287,23 @@ export function Table({
     [selectionAnchor, selectionFocus]
   )
 
-  const displayColCount = isLoadingTable ? SKELETON_COL_COUNT : columns.length
+  const displayColCount = isLoadingTable ? SKELETON_COL_COUNT : displayColumns.length
   const tableWidth = useMemo(() => {
     const colsWidth = isLoadingTable
       ? displayColCount * COL_WIDTH
-      : columns.reduce((sum, col) => sum + (columnWidths[col.name] ?? COL_WIDTH), 0)
+      : displayColumns.reduce((sum, col) => sum + (columnWidths[col.name] ?? COL_WIDTH), 0)
     return CHECKBOX_COL_WIDTH + colsWidth + ADD_COL_WIDTH
-  }, [isLoadingTable, displayColCount, columns, columnWidths])
+  }, [isLoadingTable, displayColCount, displayColumns, columnWidths])
 
   const resizeIndicatorLeft = useMemo(() => {
     if (!resizingColumn) return 0
     let left = CHECKBOX_COL_WIDTH
-    for (const col of columns) {
+    for (const col of displayColumns) {
       left += columnWidths[col.name] ?? COL_WIDTH
       if (col.name === resizingColumn) return left
     }
     return 0
-  }, [resizingColumn, columns, columnWidths])
+  }, [resizingColumn, displayColumns, columnWidths])
 
   const isAllRowsSelected = useMemo(() => {
     if (checkedRows.size > 0 && rows.length > 0 && checkedRows.size >= rows.length) {
@@ -289,14 +318,15 @@ export function Table({
       normalizedSelection.startRow === 0 &&
       normalizedSelection.endRow === maxPosition &&
       normalizedSelection.startCol === 0 &&
-      normalizedSelection.endCol === columns.length - 1
+      normalizedSelection.endCol === displayColumns.length - 1
     )
-  }, [checkedRows, normalizedSelection, maxPosition, columns.length, rows])
+  }, [checkedRows, normalizedSelection, maxPosition, displayColumns.length, rows])
 
   const isAllRowsSelectedRef = useRef(isAllRowsSelected)
   isAllRowsSelectedRef.current = isAllRowsSelected
 
-  const columnsRef = useRef(columns)
+  const columnsRef = useRef(displayColumns)
+  const schemaColumnsRef = useRef(columns)
   const rowsRef = useRef(rows)
   const selectionAnchorRef = useRef(selectionAnchor)
   const selectionFocusRef = useRef(selectionFocus)
@@ -304,7 +334,8 @@ export function Table({
   const checkedRowsRef = useRef(checkedRows)
   checkedRowsRef.current = checkedRows
 
-  columnsRef.current = columns
+  columnsRef.current = displayColumns
+  schemaColumnsRef.current = columns
   rowsRef.current = rows
   selectionAnchorRef.current = selectionAnchor
   selectionFocusRef.current = selectionFocus
@@ -329,10 +360,20 @@ export function Table({
   const columnRename = useInlineRename({
     onSave: (columnName, newName) => {
       pushUndoRef.current({ type: 'rename-column', oldName: columnName, newName })
-      setColumnWidths((prev) => {
-        if (!(columnName in prev)) return prev
-        return { ...prev, [newName]: prev[columnName] }
-      })
+      let updatedWidths = columnWidthsRef.current
+      if (columnName in updatedWidths) {
+        const { [columnName]: width, ...rest } = updatedWidths
+        updatedWidths = { ...rest, [newName]: width }
+        setColumnWidths(updatedWidths)
+      }
+      const updatedOrder = columnOrderRef.current?.map((n) => (n === columnName ? newName : n))
+      if (updatedOrder) {
+        setColumnOrder(updatedOrder)
+        updateMetadataRef.current({
+          columnWidths: updatedWidths,
+          columnOrder: updatedOrder,
+        })
+      }
       updateColumnMutation.mutate({ columnName, updates: { name: newName } })
     },
   })
@@ -607,11 +648,58 @@ export function Table({
     updateMetadataRef.current({ columnWidths: columnWidthsRef.current })
   }, [])
 
+  const handleColumnDragStart = useCallback((columnName: string) => {
+    setDragColumnName(columnName)
+  }, [])
+
+  const handleColumnDragOver = useCallback((columnName: string, side: 'left' | 'right') => {
+    if (columnName === dropTargetColumnNameRef.current && side === dropSideRef.current) return
+    setDropTargetColumnName(columnName)
+    setDropSide(side)
+  }, [])
+
+  const handleColumnDragEnd = useCallback(() => {
+    const dragged = dragColumnNameRef.current
+    if (!dragged) return
+    const target = dropTargetColumnNameRef.current
+    const side = dropSideRef.current
+    if (target && dragged !== target) {
+      const cols = columnsRef.current
+      const currentOrder = columnOrderRef.current ?? cols.map((c) => c.name)
+      const fromIndex = currentOrder.indexOf(dragged)
+      const toIndex = currentOrder.indexOf(target)
+      if (fromIndex !== -1 && toIndex !== -1) {
+        const newOrder = currentOrder.filter((n) => n !== dragged)
+        let insertIndex = newOrder.indexOf(target)
+        if (side === 'right') insertIndex += 1
+        newOrder.splice(insertIndex, 0, dragged)
+        setColumnOrder(newOrder)
+        updateMetadataRef.current({
+          columnWidths: columnWidthsRef.current,
+          columnOrder: newOrder,
+        })
+      }
+    }
+    setDragColumnName(null)
+    setDropTargetColumnName(null)
+  }, [])
+
+  const handleColumnDragLeave = useCallback(() => {
+    dropTargetColumnNameRef.current = null
+    setDropTargetColumnName(null)
+  }, [])
+
   useEffect(() => {
-    if (!tableData?.metadata?.columnWidths || metadataSeededRef.current) return
+    if (!tableData?.metadata || metadataSeededRef.current) return
+    if (!tableData.metadata.columnWidths && !tableData.metadata.columnOrder) return
     metadataSeededRef.current = true
-    setColumnWidths(tableData.metadata.columnWidths)
-  }, [tableData?.metadata?.columnWidths])
+    if (tableData.metadata.columnWidths) {
+      setColumnWidths(tableData.metadata.columnWidths)
+    }
+    if (tableData.metadata.columnOrder) {
+      setColumnOrder(tableData.metadata.columnOrder)
+    }
+  }, [tableData?.metadata])
 
   useEffect(() => {
     const handleMouseUp = () => {
@@ -1214,7 +1302,7 @@ export function Table({
   }, [])
 
   const generateColumnName = useCallback(() => {
-    const existing = columnsRef.current.map((c) => c.name.toLowerCase())
+    const existing = schemaColumnsRef.current.map((c) => c.name.toLowerCase())
     let name = 'untitled'
     let i = 2
     while (existing.includes(name.toLowerCase())) {
@@ -1226,7 +1314,7 @@ export function Table({
 
   const handleAddColumn = useCallback(() => {
     const name = generateColumnName()
-    const position = columnsRef.current.length
+    const position = schemaColumnsRef.current.length
     addColumnMutation.mutate(
       { name, type: 'string' },
       {
@@ -1250,9 +1338,30 @@ export function Table({
     updateColumnMutation.mutate({ columnName, updates: { type: newType } })
   }, [])
 
+  const insertColumnInOrder = useCallback(
+    (anchorColumn: string, newColumn: string, side: 'left' | 'right') => {
+      const order = columnOrderRef.current
+      if (!order) return
+      const newOrder = [...order]
+      let anchorIdx = newOrder.indexOf(anchorColumn)
+      if (anchorIdx === -1) {
+        newOrder.push(anchorColumn)
+        anchorIdx = newOrder.length - 1
+      }
+      const insertIdx = anchorIdx + (side === 'right' ? 1 : 0)
+      newOrder.splice(insertIdx, 0, newColumn)
+      setColumnOrder(newOrder)
+      updateMetadataRef.current({
+        columnWidths: columnWidthsRef.current,
+        columnOrder: newOrder,
+      })
+    },
+    []
+  )
+
   const handleInsertColumnLeft = useCallback(
     (columnName: string) => {
-      const index = columnsRef.current.findIndex((c) => c.name === columnName)
+      const index = schemaColumnsRef.current.findIndex((c) => c.name === columnName)
       if (index === -1) return
       const name = generateColumnName()
       addColumnMutation.mutate(
@@ -1260,16 +1369,17 @@ export function Table({
         {
           onSuccess: () => {
             pushUndoRef.current({ type: 'create-column', columnName: name, position: index })
+            insertColumnInOrder(columnName, name, 'left')
           },
         }
       )
     },
-    [generateColumnName]
+    [generateColumnName, insertColumnInOrder]
   )
 
   const handleInsertColumnRight = useCallback(
     (columnName: string) => {
-      const index = columnsRef.current.findIndex((c) => c.name === columnName)
+      const index = schemaColumnsRef.current.findIndex((c) => c.name === columnName)
       if (index === -1) return
       const name = generateColumnName()
       const position = index + 1
@@ -1278,11 +1388,12 @@ export function Table({
         {
           onSuccess: () => {
             pushUndoRef.current({ type: 'create-column', columnName: name, position })
+            insertColumnInOrder(columnName, name, 'right')
           },
         }
       )
     },
-    [generateColumnName]
+    [generateColumnName, insertColumnInOrder]
   )
 
   const handleToggleUnique = useCallback((columnName: string) => {
@@ -1310,8 +1421,20 @@ export function Table({
 
   const handleDeleteColumnConfirm = useCallback(() => {
     if (!deletingColumn) return
-    deleteColumnMutation.mutate(deletingColumn)
+    const columnToDelete = deletingColumn
     setDeletingColumn(null)
+    deleteColumnMutation.mutate(columnToDelete, {
+      onSuccess: () => {
+        const order = columnOrderRef.current
+        if (!order) return
+        const newOrder = order.filter((n) => n !== columnToDelete)
+        setColumnOrder(newOrder)
+        updateMetadataRef.current({
+          columnWidths: columnWidthsRef.current,
+          columnOrder: newOrder,
+        })
+      },
+    })
   }, [deletingColumn])
 
   const handleSortChange = useCallback((column: string, direction: SortDirection) => {
@@ -1327,13 +1450,13 @@ export function Table({
   }, [])
   const columnOptions = useMemo<ColumnOption[]>(
     () =>
-      columns.map((col) => ({
+      displayColumns.map((col) => ({
         id: col.name,
         label: col.name,
         type: col.type,
         icon: COLUMN_TYPE_ICONS[col.type],
       })),
-    [columns]
+    [displayColumns]
   )
 
   const tableDataRef = useRef(tableData)
@@ -1404,8 +1527,8 @@ export function Table({
   )
 
   const filterElement = useMemo(
-    () => <TableFilter columns={columns} onApply={handleFilterApply} />,
-    [columns, handleFilterApply]
+    () => <TableFilter columns={displayColumns} onApply={handleFilterApply} />,
+    [displayColumns, handleFilterApply]
   )
 
   const activeSortState = useMemo(() => {
@@ -1456,11 +1579,11 @@ export function Table({
 
   if (!isLoadingTable && !tableData) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
         <TableX className='h-[32px] w-[32px] text-[var(--text-muted)]' />
-        <div className='flex flex-col items-center gap-[4px]'>
+        <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>Table not found</h2>
-          <p className='text-[13px] text-[var(--text-muted)]'>
+          <p className='text-[var(--text-muted)] text-small'>
             This table may have been deleted or moved
           </p>
         </div>
@@ -1489,7 +1612,7 @@ export function Table({
       >
         <div className='relative h-fit' style={{ width: `${tableWidth}px` }}>
           <table
-            className='table-fixed border-separate border-spacing-0 text-[13px]'
+            className='table-fixed border-separate border-spacing-0 text-small'
             style={{ width: `${tableWidth}px` }}
           >
             {isLoadingTable ? (
@@ -1501,27 +1624,27 @@ export function Table({
                 <col style={{ width: ADD_COL_WIDTH }} />
               </colgroup>
             ) : (
-              <TableColGroup columns={columns} columnWidths={columnWidths} />
+              <TableColGroup columns={displayColumns} columnWidths={columnWidths} />
             )}
             <thead className='sticky top-0 z-10'>
               {isLoadingTable ? (
                 <tr>
                   <th className={CELL_HEADER_CHECKBOX}>
                     <div className='flex items-center justify-center'>
-                      <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
+                      <Skeleton className='h-[14px] w-[14px] rounded-xs' />
                     </div>
                   </th>
                   {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
                     <th key={i} className={CELL_HEADER}>
-                      <div className='flex h-[20px] min-w-0 items-center gap-[6px]'>
-                        <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-[2px]' />
+                      <div className='flex h-[20px] min-w-0 items-center gap-1.5'>
+                        <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
                         <Skeleton className='h-[14px]' style={{ width: `${56 + i * 16}px` }} />
                       </div>
                     </th>
                   ))}
                   <th className={CELL_HEADER}>
-                    <div className='flex h-[20px] items-center gap-[8px]'>
-                      <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-[2px]' />
+                    <div className='flex h-[20px] items-center gap-2'>
+                      <Skeleton className='h-[14px] w-[14px] shrink-0 rounded-xs' />
                       <Skeleton className='h-[14px] w-[72px]' />
                     </div>
                   </th>
@@ -1532,7 +1655,7 @@ export function Table({
                     checked={isAllRowsSelected}
                     onCheckedChange={handleSelectAllToggle}
                   />
-                  {columns.map((column) => (
+                  {displayColumns.map((column) => (
                     <ColumnHeaderMenu
                       key={column.name}
                       column={column}
@@ -1553,6 +1676,13 @@ export function Table({
                       onResizeStart={handleColumnResizeStart}
                       onResize={handleColumnResize}
                       onResizeEnd={handleColumnResizeEnd}
+                      isDragging={dragColumnName === column.name}
+                      isDropTarget={dropTargetColumnName === column.name}
+                      dropSide={dropTargetColumnName === column.name ? dropSide : undefined}
+                      onDragStart={handleColumnDragStart}
+                      onDragOver={handleColumnDragOver}
+                      onDragEnd={handleColumnDragEnd}
+                      onDragLeave={handleColumnDragLeave}
                     />
                   ))}
                   {userPermissions.canEdit && (
@@ -1578,7 +1708,7 @@ export function Table({
                           <PositionGapRows
                             count={gapCount}
                             startPosition={prevPosition + 1}
-                            columns={columns}
+                            columns={displayColumns}
                             normalizedSelection={normalizedSelection}
                             checkedRows={checkedRows}
                             firstRowUnderHeader={prevPosition === -1}
@@ -1589,7 +1719,7 @@ export function Table({
                         )}
                         <DataRow
                           row={row}
-                          columns={columns}
+                          columns={displayColumns}
                           rowIndex={row.position}
                           isFirstRow={row.position === 0}
                           editingColumnName={
@@ -1679,6 +1809,9 @@ export function Table({
               <p className='text-[var(--text-secondary)]'>
                 Are you sure you want to delete{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
+                <span className='text-[var(--text-error)]'>
+                  All {tableData?.rowCount ?? 0} rows will be removed.
+                </span>{' '}
                 <span className='text-[var(--text-tertiary)]'>
                   You can restore it from Recently Deleted in Settings.
                 </span>
@@ -1715,8 +1848,10 @@ export function Table({
           <ModalBody>
             <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{deletingColumn}</span>? This
-              will remove all data in this column.{' '}
+              <span className='font-medium text-[var(--text-primary)]'>{deletingColumn}</span>?{' '}
+              <span className='text-[var(--text-error)]'>
+                This will remove all data in this column.
+              </span>{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
@@ -1781,7 +1916,7 @@ const PositionGapRows = React.memo(
               >
                 <span
                   className={cn(
-                    'text-[11px] text-[var(--text-tertiary)] tabular-nums',
+                    'text-[var(--text-tertiary)] text-xs tabular-nums',
                     isGapChecked ? 'hidden' : 'block group-hover/checkbox:hidden'
                   )}
                 >
@@ -2024,7 +2159,7 @@ const DataRow = React.memo(function DataRow({
       >
         <span
           className={cn(
-            'text-[11px] text-[var(--text-tertiary)] tabular-nums',
+            'text-[var(--text-tertiary)] text-xs tabular-nums',
             isRowSelected ? 'hidden' : 'block group-hover/checkbox:hidden'
           )}
         >
@@ -2275,7 +2410,7 @@ function InlineDateEditor({
         onBlur={handleBlur}
         placeholder='mm/dd/yyyy'
         className={cn(
-          'w-full min-w-0 select-text border-none bg-transparent p-0 text-[13px] text-[var(--text-primary)] outline-none'
+          'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
         )}
       />
       <div className='absolute top-full left-0 h-0 w-0'>
@@ -2369,7 +2504,7 @@ function InlineTextEditor({
       onKeyDown={handleKeyDown}
       onBlur={() => doSave('blur')}
       className={cn(
-        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[13px] text-[var(--text-primary)] outline-none'
+        'w-full min-w-0 select-text border-none bg-transparent p-0 text-[var(--text-primary)] text-small outline-none'
       )}
     />
   )
@@ -2399,7 +2534,7 @@ const TableBodySkeleton = React.memo(function TableBodySkeleton({
         <tr key={rowIndex}>
           <td className={cn(CELL_CHECKBOX, 'text-center')}>
             <div className='flex min-h-[20px] items-center justify-center'>
-              <span className='text-[11px] text-[var(--text-tertiary)] tabular-nums'>
+              <span className='text-[var(--text-tertiary)] text-xs tabular-nums'>
                 {rowIndex + 1}
               </span>
             </div>
@@ -2445,6 +2580,13 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResizeStart,
   onResize,
   onResizeEnd,
+  isDragging,
+  isDropTarget,
+  dropSide,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  onDragLeave,
 }: {
   column: ColumnDefinition
   readOnly?: boolean
@@ -2462,6 +2604,13 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResizeStart: (columnName: string) => void
   onResize: (columnName: string, width: number) => void
   onResizeEnd: () => void
+  isDragging?: boolean
+  isDropTarget?: boolean
+  dropSide?: 'left' | 'right'
+  onDragStart?: (columnName: string) => void
+  onDragOver?: (columnName: string, side: 'left' | 'right') => void
+  onDragEnd?: () => void
+  onDragLeave?: () => void
 }) {
   const renameInputRef = useRef<HTMLInputElement>(null)
 
@@ -2503,10 +2652,70 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     [column.name, onResizeStart, onResize, onResizeEnd]
   )
 
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      if (readOnly || isRenaming) {
+        e.preventDefault()
+        return
+      }
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.setData('text/plain', column.name)
+      onDragStart?.(column.name)
+    },
+    [column.name, readOnly, isRenaming, onDragStart]
+  )
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const midX = rect.left + rect.width / 2
+      const side = e.clientX < midX ? 'left' : 'right'
+      onDragOver?.(column.name, side)
+    },
+    [column.name, onDragOver]
+  )
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+  }, [])
+
+  const handleDragEnd = useCallback(() => {
+    onDragEnd?.()
+  }, [onDragEnd])
+
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      const th = e.currentTarget as HTMLElement
+      const related = e.relatedTarget as Node | null
+      if (related && th.contains(related)) return
+      onDragLeave?.()
+    },
+    [onDragLeave]
+  )
+
   return (
-    <th className='relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle'>
+    <th
+      className={cn(
+        'relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle',
+        isDragging && 'opacity-40'
+      )}
+      draggable={!readOnly && !isRenaming}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onDragEnd={handleDragEnd}
+      onDragLeave={handleDragLeave}
+    >
+      {isDropTarget && dropSide === 'left' && (
+        <div className='pointer-events-none absolute top-0 bottom-0 left-[-1px] z-10 w-[2px] bg-[var(--selection)]' />
+      )}
+      {isDropTarget && dropSide === 'right' && (
+        <div className='pointer-events-none absolute top-0 right-[-1px] bottom-0 z-10 w-[2px] bg-[var(--selection)]' />
+      )}
       {isRenaming ? (
-        <div className='flex h-full w-full min-w-0 items-center px-[8px] py-[7px]'>
+        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon type={column.type} />
           <input
             ref={renameInputRef}
@@ -2518,13 +2727,13 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               if (e.key === 'Escape') onRenameCancel()
             }}
             onBlur={onRenameSubmit}
-            className='ml-[6px] min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-[13px] text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0'
+            className='ml-1.5 min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-small outline-none focus:outline-none focus:ring-0'
           />
         </div>
       ) : readOnly ? (
-        <div className='flex h-full w-full min-w-0 items-center px-[8px] py-[7px]'>
+        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon type={column.type} />
-          <span className='ml-[6px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
+          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
             {column.name}
           </span>
         </div>
@@ -2533,13 +2742,13 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           <DropdownMenuTrigger asChild>
             <button
               type='button'
-              className='flex h-full w-full min-w-0 cursor-pointer items-center px-[8px] py-[7px] outline-none'
+              className='flex h-full w-full min-w-0 cursor-pointer items-center px-2 py-[7px] outline-none active:cursor-grabbing'
             >
               <ColumnTypeIcon type={column.type} />
-              <span className='ml-[6px] min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
+              <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
                 {column.name}
               </span>
-              <ChevronDown className='ml-[8px] h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
+              <ChevronDown className='ml-2 h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='start'>
@@ -2589,6 +2798,8 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       )}
       <div
         className='-right-[3px] absolute top-0 z-[1] h-full w-[6px] cursor-col-resize'
+        draggable={false}
+        onDragStart={(e) => e.stopPropagation()}
         onPointerDown={handleResizePointerDown}
       />
     </th>
@@ -2622,12 +2833,12 @@ const AddColumnButton = React.memo(function AddColumnButton({
     <th className={CELL_HEADER}>
       <button
         type='button'
-        className='flex h-[20px] cursor-pointer items-center gap-[8px]'
+        className='flex h-[20px] cursor-pointer items-center gap-2'
         onClick={onClick}
         disabled={disabled}
       >
         <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='font-medium text-[13px] text-[var(--text-body)]'>New column</span>
+        <span className='font-medium text-[var(--text-body)] text-small'>New column</span>
       </button>
     </th>
   )
@@ -2635,14 +2846,14 @@ const AddColumnButton = React.memo(function AddColumnButton({
 
 const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: () => void }) {
   return (
-    <div className='px-[8px] py-[7px]'>
+    <div className='px-2 py-[7px]'>
       <button
         type='button'
-        className='flex h-[20px] cursor-pointer items-center gap-[8px]'
+        className='flex h-[20px] cursor-pointer items-center gap-2'
         onClick={onClick}
       >
         <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-        <span className='font-medium text-[13px] text-[var(--text-body)]'>New row</span>
+        <span className='font-medium text-[var(--text-body)] text-small'>New row</span>
       </button>
     </div>
   )

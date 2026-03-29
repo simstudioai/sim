@@ -9,6 +9,16 @@ function vfsFromEntries(entries: [string, string][]): Map<string, string> {
 }
 
 describe('glob', () => {
+  it('matches canonical file metadata paths by id', () => {
+    const files = vfsFromEntries([
+      ['files/by-id/wf_123/meta.json', '{}'],
+      ['files/data.csv/meta.json', '{}'],
+    ])
+    const hits = glob(files, 'files/by-id/*/meta.json')
+    expect(hits).toContain('files/by-id/wf_123/meta.json')
+    expect(hits).not.toContain('files/data.csv/meta.json')
+  })
+
   it('matches one path segment for single star (files listing pattern)', () => {
     const files = vfsFromEntries([
       ['files/a/meta.json', '{}'],

@@ -4,12 +4,12 @@ import { useCallback, useRef, useState } from 'react'
 import { ArrowUp } from 'lucide-react'
 import Link from 'next/link'
 import { useLandingSubmit } from '@/app/(home)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
-import { useAnimatedPlaceholder } from '@/app/workspace/[workspaceId]/home/hooks/use-animated-placeholder'
+import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 
 const MAX_HEIGHT = 120
 
 const CTA_BUTTON =
-  'inline-flex items-center h-[32px] rounded-[5px] border px-[10px] font-[430] font-season text-[14px]'
+  'inline-flex items-center h-[32px] rounded-[5px] border px-2.5 font-[430] font-season text-sm'
 
 export function FooterCTA() {
   const landingSubmit = useLandingSubmit()
@@ -41,14 +41,14 @@ export function FooterCTA() {
   }, [])
 
   return (
-    <div className='flex flex-col items-center px-4 pt-[120px] pb-[100px] sm:px-8 md:px-[80px]'>
-      <h2 className='text-center font-[430] font-season text-[#1C1C1C] text-[28px] leading-[100%] tracking-[-0.02em] sm:text-[32px] md:text-[36px]'>
+    <div className='flex flex-col items-center px-4 pt-[120px] pb-[100px] sm:px-8 md:px-20'>
+      <h2 className='text-balance text-center font-[430] font-season text-[28px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em] sm:text-[32px] md:text-[36px]'>
         What should we get done?
       </h2>
 
       <div className='mt-8 w-full max-w-[42rem]'>
         <div
-          className='cursor-text rounded-[20px] border border-[#E5E5E5] bg-white px-[10px] py-[8px] shadow-sm'
+          className='cursor-text rounded-[20px] border border-[var(--landing-bg-skeleton)] bg-white px-2.5 py-2 shadow-sm'
           onClick={() => textareaRef.current?.focus()}
         >
           <textarea
@@ -59,7 +59,7 @@ export function FooterCTA() {
             onInput={handleInput}
             placeholder={animatedPlaceholder}
             rows={2}
-            className='m-0 box-border min-h-[48px] w-full resize-none border-0 bg-transparent px-[4px] py-[4px] font-body text-[#1C1C1C] text-[15px] leading-[24px] tracking-[-0.015em] outline-none placeholder:font-[380] placeholder:text-[#999] focus-visible:ring-0'
+            className='m-0 box-border min-h-[48px] w-full resize-none border-0 bg-transparent px-1 py-1 font-body text-[var(--landing-text-dark)] text-base leading-[24px] tracking-[-0.015em] outline-none placeholder:font-[380] placeholder:text-[var(--landing-text-muted)] focus-visible:ring-0'
             style={{ caretColor: '#1C1C1C', maxHeight: `${MAX_HEIGHT}px` }}
           />
           <div className='flex items-center justify-end'>
@@ -79,18 +79,18 @@ export function FooterCTA() {
         </div>
       </div>
 
-      <div className='mt-8 flex gap-[8px]'>
+      <div className='mt-8 flex gap-2'>
         <a
           href='https://docs.sim.ai'
           target='_blank'
           rel='noopener noreferrer'
-          className={`${CTA_BUTTON} border-[#D4D4D4] text-[#1C1C1C] transition-colors hover:bg-[#E8E8E8]`}
+          className={`${CTA_BUTTON} border-[var(--landing-border-subtle)] text-[var(--landing-text-dark)] transition-colors hover:bg-[var(--landing-bg-skeleton)]`}
         >
           Docs
         </a>
         <Link
           href='/signup'
-          className={`${CTA_BUTTON} gap-[8px] border-[#1C1C1C] bg-[#1C1C1C] text-white transition-colors hover:border-[#333] hover:bg-[#333]`}
+          className={`${CTA_BUTTON} gap-2 border-[var(--landing-bg)] bg-[var(--landing-bg)] text-white transition-colors hover:border-[var(--landing-bg-elevated)] hover:bg-[var(--landing-bg-elevated)]`}
         >
           Get started
         </Link>

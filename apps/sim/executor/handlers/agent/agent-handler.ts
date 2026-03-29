@@ -289,7 +289,7 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     try {
-      const headers = await buildAuthHeaders()
+      const headers = await buildAuthHeaders(ctx.userId)
       const params: Record<string, string> = {}
 
       if (ctx.workspaceId) {
@@ -467,7 +467,7 @@ export class AgentBlockHandler implements BlockHandler {
       throw new Error('workflowId is required for internal JWT authentication')
     }
 
-    const headers = await buildAuthHeaders()
+    const headers = await buildAuthHeaders(ctx.userId)
     const url = buildAPIUrl('/api/mcp/tools/discover', {
       serverId,
       workspaceId: ctx.workspaceId,

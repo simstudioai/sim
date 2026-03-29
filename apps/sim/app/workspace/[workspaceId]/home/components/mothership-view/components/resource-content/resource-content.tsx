@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
 import { Download, FileX, SquareArrowUpRight, WorkflowX } from '@/components/emcn/icons'
 import {
+  cancelRunToolExecution,
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/client-sse/run-tool-execution'
@@ -19,11 +20,15 @@ import {
   FileViewer,
   type PreviewMode,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/generic-resource-content'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type {
+  GenericResourceData,
+  MothershipResource,
+} from '@/app/workspace/[workspaceId]/home/types'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import {
   useUserPermissionsContext,
@@ -40,7 +45,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
 
 const LOADING_SKELETON = (
-  <div className='flex h-full flex-col gap-[8px] p-[24px]'>
+  <div className='flex h-full flex-col gap-2 p-6'>
     <Skeleton className='h-[16px] w-[60%]' />
     <Skeleton className='h-[16px] w-[80%]' />
     <Skeleton className='h-[16px] w-[40%]' />
@@ -52,6 +57,7 @@ interface ResourceContentProps {
   resource: MothershipResource
   previewMode?: PreviewMode
   streamingFile?: { fileName: string; content: string } | null
+  genericResourceData?: GenericResourceData
 }
 
 /**
@@ -66,6 +72,7 @@ export const ResourceContent = memo(function ResourceContent({
   resource,
   previewMode,
   streamingFile,
+  genericResourceData,
 }: ResourceContentProps) {
   const streamFileName = streamingFile?.fileName || 'file.md'
   const streamingExtractedContent = useMemo(() => {
@@ -139,6 +146,11 @@ export const ResourceContent = memo(function ResourceContent({
         />
       )
 
+    case 'generic':
+      return (
+        <GenericResourceContent key={resource.id} data={genericResourceData ?? { entries: [] }} />
+      )
+
     default:
       return null
   }
@@ -159,6 +171,8 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
       return (
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
       )
+    case 'generic':
+      return null
     default:
       return null
   }
@@ -191,9 +205,10 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
     setActiveWorkflow(workflowId)
 
     if (isExecuting) {
-      markRunToolManuallyStopped(workflowId)
+      const toolCallId = markRunToolManuallyStopped(workflowId)
+      cancelRunToolExecution(workflowId)
       await handleCancelExecution()
-      await reportManualRunToolStop(workflowId)
+      await reportManualRunToolStop(workflowId, toolCallId)
       return
     }
 
@@ -372,11 +387,11 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
 
   if (!workflowExists || hasLoadError) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
         <WorkflowX className='h-[32px] w-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-[4px]'>
+        <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
-          <p className='text-[13px] text-[var(--text-body)]'>
+          <p className='text-[var(--text-body)] text-small'>
             This workflow may have been deleted or moved
           </p>
         </div>
@@ -407,11 +422,11 @@ function EmbeddedFile({ workspaceId, fileId, previewMode, streamingContent }: Em
 
   if (!file) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-[12px]'>
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
         <FileX className='h-[32px] w-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-[4px]'>
+        <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>File not found</h2>
-          <p className='text-[13px] text-[var(--text-body)]'>
+          <p className='text-[var(--text-body)] text-small'>
             This file may have been deleted or moved
           </p>
         </div>

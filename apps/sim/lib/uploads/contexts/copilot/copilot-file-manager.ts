@@ -5,8 +5,8 @@ import {
   generatePresignedDownloadUrl,
   generatePresignedUploadUrl,
 } from '@/lib/uploads/core/storage-service'
-import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import type { PresignedUrlResponse } from '@/lib/uploads/shared/types'
+import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('CopilotFileManager')
 

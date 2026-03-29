@@ -26,6 +26,14 @@ vi.mock('@/lib/execution/e2b', () => ({
   executeInE2B: mockExecuteInE2B,
 }))
 
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  isHosted: false,
+  isE2bEnabled: false,
+  isProd: false,
+  isDev: false,
+  isTest: true,
+}))
+
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
 import { POST } from '@/app/api/function/execute/route'
 

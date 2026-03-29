@@ -228,7 +228,8 @@ export const githubConnector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    _syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const { owner, repo } = parseRepo(sourceConfig.repository as string)
     const branch = ((sourceConfig.branch as string) || 'main').trim()
@@ -264,6 +265,7 @@ export const githubConnector: ConnectorConfig = {
         externalId,
         title: path.split('/').pop() || path,
         content,
+        contentDeferred: false,
         mimeType: 'text/plain',
         sourceUrl: `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(branch)}/${path.split('/').map(encodeURIComponent).join('/')}`,
         contentHash: `${GIT_SHA_PREFIX}${data.sha as string}`,

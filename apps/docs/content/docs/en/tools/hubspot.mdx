@@ -41,6 +41,7 @@ Retrieve all users from HubSpot account
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `limit` | string | No | Number of results to return \(default: 100, max: 100\) |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
 
 #### Output
 
@@ -53,6 +54,9 @@ Retrieve all users from HubSpot account
 |   ↳ `primaryTeamId` | string | Primary team ID |
 |   ↳ `secondaryTeamIds` | array | Secondary team IDs |
 |   ↳ `superAdmin` | boolean | Whether user is a super admin |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
 | `totalItems` | number | Total number of users returned |
 | `success` | boolean | Operation success status |
 
@@ -230,7 +234,7 @@ Search for contacts in HubSpot using filters, sorting, and queries
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "CONTAINS"\), and "value" |
+| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "CONTAINS_TOKEN", "GT"\), and "value" |
 | `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
 | `query` | string | No | Search query string to match against contact name, email, and other text fields |
 | `properties` | array | No | Array of HubSpot property names to return \(e.g., \["email", "firstname", "lastname", "phone"\]\) |
@@ -449,7 +453,7 @@ Search for companies in HubSpot using filters, sorting, and queries
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "CONTAINS"\), and "value" |
+| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "CONTAINS_TOKEN", "GT"\), and "value" |
 | `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
 | `query` | string | No | Search query string to match against company name, domain, and other text fields |
 | `properties` | array | No | Array of HubSpot property names to return \(e.g., \["name", "domain", "industry"\]\) |
@@ -499,7 +503,7 @@ Retrieve all deals from HubSpot account with pagination support
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `limit` | string | No | Maximum number of results per page \(max 100, default 100\) |
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
 | `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
 | `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "dealname,amount,dealstage"\) |
 | `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
@@ -527,6 +531,889 @@ Retrieve all deals from HubSpot account with pagination support
 | `metadata` | object | Response metadata |
 |   ↳ `totalReturned` | number | Number of records returned in this response |
 |   ↳ `hasMore` | boolean | Whether more records are available |
+| `success` | boolean | Operation success status |
+
+### `hubspot_get_deal`
+
+Retrieve a single deal by ID from HubSpot
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dealId` | string | Yes | The HubSpot deal ID to retrieve |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "dealname,amount,dealstage"\) |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deal` | object | HubSpot deal record |
+|   ↳ `dealname` | string | Deal name |
+|   ↳ `amount` | string | Deal amount |
+|   ↳ `dealstage` | string | Current deal stage |
+|   ↳ `pipeline` | string | Pipeline the deal is in |
+|   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+|   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+|   ↳ `description` | string | Deal description |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `num_associated_contacts` | string | Number of associated contacts |
+| `dealId` | string | The retrieved deal ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_create_deal`
+
+Create a new deal in HubSpot. Requires at least a dealname property
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `properties` | object | Yes | Deal properties as JSON object. Must include dealname \(e.g., \{"dealname": "New Deal", "amount": "5000", "dealstage": "appointmentscheduled"\}\) |
+| `associations` | array | No | Array of associations to create with the deal as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deal` | object | HubSpot deal record |
+|   ↳ `dealname` | string | Deal name |
+|   ↳ `amount` | string | Deal amount |
+|   ↳ `dealstage` | string | Current deal stage |
+|   ↳ `pipeline` | string | Pipeline the deal is in |
+|   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+|   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+|   ↳ `description` | string | Deal description |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `num_associated_contacts` | string | Number of associated contacts |
+| `dealId` | string | The created deal ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_update_deal`
+
+Update an existing deal in HubSpot by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `dealId` | string | Yes | The HubSpot deal ID to update |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+| `properties` | object | Yes | Deal properties to update as JSON object \(e.g., \{"amount": "10000", "dealstage": "closedwon"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deal` | object | HubSpot deal record |
+|   ↳ `dealname` | string | Deal name |
+|   ↳ `amount` | string | Deal amount |
+|   ↳ `dealstage` | string | Current deal stage |
+|   ↳ `pipeline` | string | Pipeline the deal is in |
+|   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+|   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+|   ↳ `description` | string | Deal description |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `num_associated_contacts` | string | Number of associated contacts |
+| `dealId` | string | The updated deal ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_search_deals`
+
+Search for deals in HubSpot using filters, sorting, and queries
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "NEQ", "CONTAINS_TOKEN", "NOT_CONTAINS_TOKEN"\), and "value" |
+| `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
+| `query` | string | No | Search query string to match against deal name and other text fields |
+| `properties` | array | No | Array of HubSpot property names to return \(e.g., \["dealname", "amount", "dealstage"\]\) |
+| `limit` | number | No | Maximum number of results to return \(max 200\) |
+| `after` | string | No | Pagination cursor for next page \(from previous response\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deals` | array | Array of HubSpot deal records |
+|   ↳ `dealname` | string | Deal name |
+|   ↳ `amount` | string | Deal amount |
+|   ↳ `dealstage` | string | Current deal stage |
+|   ↳ `pipeline` | string | Pipeline the deal is in |
+|   ↳ `closedate` | string | Expected close date \(ISO 8601\) |
+|   ↳ `dealtype` | string | Deal type \(New Business, Existing Business, etc.\) |
+|   ↳ `description` | string | Deal description |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Deal creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+|   ↳ `num_associated_contacts` | string | Number of associated contacts |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
+| `total` | number | Total number of matching deals |
+| `success` | boolean | Operation success status |
+
+### `hubspot_list_tickets`
+
+Retrieve all tickets from HubSpot account with pagination support
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "subject,content,hs_ticket_priority"\) |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tickets` | array | Array of HubSpot ticket records |
+|   ↳ `subject` | string | Ticket subject/name |
+|   ↳ `content` | string | Ticket content/description |
+|   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+|   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+|   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+|   ↳ `hs_ticket_category` | string | Ticket category |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
+| `success` | boolean | Operation success status |
+
+### `hubspot_get_ticket`
+
+Retrieve a single ticket by ID from HubSpot
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ticketId` | string | Yes | The HubSpot ticket ID to retrieve |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "subject,content,hs_ticket_priority"\) |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ticket` | object | HubSpot ticket record |
+|   ↳ `subject` | string | Ticket subject/name |
+|   ↳ `content` | string | Ticket content/description |
+|   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+|   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+|   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+|   ↳ `hs_ticket_category` | string | Ticket category |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `ticketId` | string | The retrieved ticket ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_create_ticket`
+
+Create a new ticket in HubSpot. Requires subject and hs_pipeline_stage properties
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `properties` | object | Yes | Ticket properties as JSON object. Must include subject and hs_pipeline_stage \(e.g., \{"subject": "Support request", "hs_pipeline_stage": "1", "hs_ticket_priority": "HIGH"\}\) |
+| `associations` | array | No | Array of associations to create with the ticket as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ticket` | object | HubSpot ticket record |
+|   ↳ `subject` | string | Ticket subject/name |
+|   ↳ `content` | string | Ticket content/description |
+|   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+|   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+|   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+|   ↳ `hs_ticket_category` | string | Ticket category |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `ticketId` | string | The created ticket ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_update_ticket`
+
+Update an existing ticket in HubSpot by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ticketId` | string | Yes | The HubSpot ticket ID to update |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+| `properties` | object | Yes | Ticket properties to update as JSON object \(e.g., \{"subject": "Updated subject", "hs_ticket_priority": "HIGH"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ticket` | object | HubSpot ticket record |
+|   ↳ `subject` | string | Ticket subject/name |
+|   ↳ `content` | string | Ticket content/description |
+|   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+|   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+|   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+|   ↳ `hs_ticket_category` | string | Ticket category |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `ticketId` | string | The updated ticket ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_search_tickets`
+
+Search for tickets in HubSpot using filters, sorting, and queries
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filterGroups` | array | No | Array of filter groups as JSON. Each group contains "filters" array with objects having "propertyName", "operator" \(e.g., "EQ", "NEQ", "CONTAINS_TOKEN", "NOT_CONTAINS_TOKEN"\), and "value" |
+| `sorts` | array | No | Array of sort objects as JSON with "propertyName" and "direction" \("ASCENDING" or "DESCENDING"\) |
+| `query` | string | No | Search query string to match against ticket subject and other text fields |
+| `properties` | array | No | Array of HubSpot property names to return \(e.g., \["subject", "content", "hs_ticket_priority"\]\) |
+| `limit` | number | No | Maximum number of results to return \(max 200\) |
+| `after` | string | No | Pagination cursor for next page \(from previous response\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tickets` | array | Array of HubSpot ticket records |
+|   ↳ `subject` | string | Ticket subject/name |
+|   ↳ `content` | string | Ticket content/description |
+|   ↳ `hs_pipeline` | string | Pipeline the ticket is in |
+|   ↳ `hs_pipeline_stage` | string | Current pipeline stage |
+|   ↳ `hs_ticket_priority` | string | Ticket priority \(LOW, MEDIUM, HIGH\) |
+|   ↳ `hs_ticket_category` | string | Ticket category |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Ticket creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
+| `total` | number | Total number of matching tickets |
+| `success` | boolean | Operation success status |
+
+### `hubspot_list_line_items`
+
+Retrieve all line items from HubSpot account with pagination support
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "name,quantity,price,amount"\) |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "deals,quotes"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lineItems` | array | Array of HubSpot line item records |
+|   ↳ `name` | string | Line item name |
+|   ↳ `description` | string | Full description of the product |
+|   ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
+|   ↳ `quantity` | string | Number of units included |
+|   ↳ `price` | string | Unit price |
+|   ↳ `amount` | string | Total cost \(quantity * unit price\) |
+|   ↳ `hs_line_item_currency_code` | string | Currency code |
+|   ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
+|   ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
+|   ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
+| `success` | boolean | Operation success status |
+
+### `hubspot_get_line_item`
+
+Retrieve a single line item by ID from HubSpot
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `lineItemId` | string | Yes | The HubSpot line item ID to retrieve |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "name,quantity,price,amount"\) |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "deals,quotes"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lineItem` | object | HubSpot line item record |
+|   ↳ `name` | string | Line item name |
+|   ↳ `description` | string | Full description of the product |
+|   ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
+|   ↳ `quantity` | string | Number of units included |
+|   ↳ `price` | string | Unit price |
+|   ↳ `amount` | string | Total cost \(quantity * unit price\) |
+|   ↳ `hs_line_item_currency_code` | string | Currency code |
+|   ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
+|   ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
+|   ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `lineItemId` | string | The retrieved line item ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_create_line_item`
+
+Create a new line item in HubSpot. Requires at least a name property
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `properties` | object | Yes | Line item properties as JSON object \(e.g., \{"name": "Product A", "quantity": "2", "price": "50.00", "hs_sku": "SKU-001"\}\) |
+| `associations` | array | No | Array of associations to create with the line item as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lineItem` | object | HubSpot line item record |
+|   ↳ `name` | string | Line item name |
+|   ↳ `description` | string | Full description of the product |
+|   ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
+|   ↳ `quantity` | string | Number of units included |
+|   ↳ `price` | string | Unit price |
+|   ↳ `amount` | string | Total cost \(quantity * unit price\) |
+|   ↳ `hs_line_item_currency_code` | string | Currency code |
+|   ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
+|   ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
+|   ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `lineItemId` | string | The created line item ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_update_line_item`
+
+Update an existing line item in HubSpot by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `lineItemId` | string | Yes | The HubSpot line item ID to update |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+| `properties` | object | Yes | Line item properties to update as JSON object \(e.g., \{"quantity": "5", "price": "25.00"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lineItem` | object | HubSpot line item record |
+|   ↳ `name` | string | Line item name |
+|   ↳ `description` | string | Full description of the product |
+|   ↳ `hs_sku` | string | Unique product identifier \(SKU\) |
+|   ↳ `quantity` | string | Number of units included |
+|   ↳ `price` | string | Unit price |
+|   ↳ `amount` | string | Total cost \(quantity * unit price\) |
+|   ↳ `hs_line_item_currency_code` | string | Currency code |
+|   ↳ `recurringbillingfrequency` | string | Recurring billing frequency |
+|   ↳ `hs_recurring_billing_start_date` | string | Recurring billing start date |
+|   ↳ `hs_recurring_billing_end_date` | string | Recurring billing end date |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `lineItemId` | string | The updated line item ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_list_quotes`
+
+Retrieve all quotes from HubSpot account with pagination support
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "hs_title,hs_expiration_date,hs_status"\) |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "deals,line_items"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `quotes` | array | Array of HubSpot quote records |
+|   ↳ `hs_title` | string | Quote name/title |
+|   ↳ `hs_expiration_date` | string | Expiration date |
+|   ↳ `hs_status` | string | Quote status |
+|   ↳ `hs_esign_enabled` | string | Whether e-signatures are enabled |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
+| `success` | boolean | Operation success status |
+
+### `hubspot_get_quote`
+
+Retrieve a single quote by ID from HubSpot
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `quoteId` | string | Yes | The HubSpot quote ID to retrieve |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "hs_title,hs_expiration_date,hs_status"\) |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "deals,line_items"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `quote` | object | HubSpot quote record |
+|   ↳ `hs_title` | string | Quote name/title |
+|   ↳ `hs_expiration_date` | string | Expiration date |
+|   ↳ `hs_status` | string | Quote status |
+|   ↳ `hs_esign_enabled` | string | Whether e-signatures are enabled |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `createdate` | string | Creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `quoteId` | string | The retrieved quote ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_list_appointments`
+
+Retrieve all appointments from HubSpot account with pagination support
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "hs_meeting_title,hs_meeting_start_time"\) |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `appointments` | array | Array of HubSpot appointment records |
+|   ↳ `hs_appointment_type` | string | Appointment type |
+|   ↳ `hs_meeting_title` | string | Meeting title |
+|   ↳ `hs_meeting_start_time` | string | Start time \(ISO 8601\) |
+|   ↳ `hs_meeting_end_time` | string | End time \(ISO 8601\) |
+|   ↳ `hs_meeting_location` | string | Meeting location |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
+| `success` | boolean | Operation success status |
+
+### `hubspot_get_appointment`
+
+Retrieve a single appointment by ID from HubSpot
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `appointmentId` | string | Yes | The HubSpot appointment ID to retrieve |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return \(e.g., "hs_meeting_title,hs_meeting_start_time"\) |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for \(e.g., "contacts,companies"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `appointment` | object | HubSpot appointment record |
+|   ↳ `hs_appointment_type` | string | Appointment type |
+|   ↳ `hs_meeting_title` | string | Meeting title |
+|   ↳ `hs_meeting_start_time` | string | Start time \(ISO 8601\) |
+|   ↳ `hs_meeting_end_time` | string | End time \(ISO 8601\) |
+|   ↳ `hs_meeting_location` | string | Meeting location |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `appointmentId` | string | The retrieved appointment ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_create_appointment`
+
+Create a new appointment in HubSpot
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `properties` | object | Yes | Appointment properties as JSON object \(e.g., \{"hs_meeting_title": "Discovery Call", "hs_meeting_start_time": "2024-01-15T10:00:00Z", "hs_meeting_end_time": "2024-01-15T11:00:00Z"\}\) |
+| `associations` | array | No | Array of associations to create with the appointment as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `appointment` | object | HubSpot appointment record |
+|   ↳ `hs_appointment_type` | string | Appointment type |
+|   ↳ `hs_meeting_title` | string | Meeting title |
+|   ↳ `hs_meeting_start_time` | string | Start time \(ISO 8601\) |
+|   ↳ `hs_meeting_end_time` | string | End time \(ISO 8601\) |
+|   ↳ `hs_meeting_location` | string | Meeting location |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `appointmentId` | string | The created appointment ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_update_appointment`
+
+Update an existing appointment in HubSpot by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `appointmentId` | string | Yes | The HubSpot appointment ID to update |
+| `idProperty` | string | No | Property to use as unique identifier. If not specified, uses record ID |
+| `properties` | object | Yes | Appointment properties to update as JSON object \(e.g., \{"hs_meeting_title": "Updated Call", "hs_meeting_location": "Zoom"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `appointment` | object | HubSpot appointment record |
+|   ↳ `hs_appointment_type` | string | Appointment type |
+|   ↳ `hs_meeting_title` | string | Meeting title |
+|   ↳ `hs_meeting_start_time` | string | Start time \(ISO 8601\) |
+|   ↳ `hs_meeting_end_time` | string | End time \(ISO 8601\) |
+|   ↳ `hs_meeting_location` | string | Meeting location |
+|   ↳ `hubspot_owner_id` | string | HubSpot owner ID |
+|   ↳ `hs_object_id` | string | HubSpot object ID \(same as record ID\) |
+|   ↳ `hs_createdate` | string | Creation date \(ISO 8601\) |
+|   ↳ `hs_lastmodifieddate` | string | Last modified date \(ISO 8601\) |
+| `appointmentId` | string | The updated appointment ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_list_carts`
+
+Retrieve all carts from HubSpot account with pagination support
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `carts` | array | Array of HubSpot CRM records |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Record properties |
+|   ↳ `associations` | object | Associated records |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
+| `success` | boolean | Operation success status |
+
+### `hubspot_get_cart`
+
+Retrieve a single cart by ID from HubSpot
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cartId` | string | Yes | The HubSpot cart ID to retrieve |
+| `properties` | string | No | Comma-separated list of HubSpot property names to return |
+| `associations` | string | No | Comma-separated list of object types to retrieve associated IDs for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cart` | object | HubSpot CRM record |
+|   ↳ `id` | string | Unique record ID \(hs_object_id\) |
+|   ↳ `createdAt` | string | Record creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Record last updated timestamp \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the record is archived |
+|   ↳ `properties` | object | Record properties |
+|   ↳ `associations` | object | Associated records |
+| `cartId` | string | The retrieved cart ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_list_owners`
+
+Retrieve all owners from HubSpot account with pagination support
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | No | Maximum number of results per page \(max 100, default 100\) |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+| `email` | string | No | Filter owners by email address |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `owners` | array | Array of HubSpot owner objects |
+|   ↳ `id` | string | Owner ID |
+|   ↳ `email` | string | Owner email address |
+|   ↳ `firstName` | string | Owner first name |
+|   ↳ `lastName` | string | Owner last name |
+|   ↳ `userId` | number | Associated user ID |
+|   ↳ `teams` | array | Teams the owner belongs to |
+|     ↳ `id` | string | Team ID |
+|     ↳ `name` | string | Team name |
+|   ↳ `createdAt` | string | Creation date \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
+|   ↳ `archived` | boolean | Whether the owner is archived |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
+| `success` | boolean | Operation success status |
+
+### `hubspot_list_marketing_events`
+
+Retrieve all marketing events from HubSpot account with pagination support
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | string | No | Maximum number of results per page \(max 100, default 10\) |
+| `after` | string | No | Pagination cursor for next page of results \(from previous response\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | Array of HubSpot marketing event objects |
+|   ↳ `objectId` | string | Unique event ID \(HubSpot internal\) |
+|   ↳ `eventName` | string | Event name |
+|   ↳ `eventType` | string | Event type |
+|   ↳ `eventStatus` | string | Event status |
+|   ↳ `eventDescription` | string | Event description |
+|   ↳ `eventUrl` | string | Event URL |
+|   ↳ `eventOrganizer` | string | Event organizer |
+|   ↳ `startDateTime` | string | Start date/time \(ISO 8601\) |
+|   ↳ `endDateTime` | string | End date/time \(ISO 8601\) |
+|   ↳ `eventCancelled` | boolean | Whether event is cancelled |
+|   ↳ `eventCompleted` | boolean | Whether event is completed |
+|   ↳ `registrants` | number | Number of registrants |
+|   ↳ `attendees` | number | Number of attendees |
+|   ↳ `cancellations` | number | Number of cancellations |
+|   ↳ `noShows` | number | Number of no-shows |
+|   ↳ `externalEventId` | string | External event ID |
+|   ↳ `createdAt` | string | Creation date \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
+| `success` | boolean | Operation success status |
+
+### `hubspot_get_marketing_event`
+
+Retrieve a single marketing event by ID from HubSpot
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventId` | string | Yes | The HubSpot marketing event objectId to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | HubSpot marketing event |
+|   ↳ `objectId` | string | Unique event ID \(HubSpot internal\) |
+|   ↳ `eventName` | string | Event name |
+|   ↳ `eventType` | string | Event type |
+|   ↳ `eventStatus` | string | Event status |
+|   ↳ `eventDescription` | string | Event description |
+|   ↳ `eventUrl` | string | Event URL |
+|   ↳ `eventOrganizer` | string | Event organizer |
+|   ↳ `startDateTime` | string | Start date/time \(ISO 8601\) |
+|   ↳ `endDateTime` | string | End date/time \(ISO 8601\) |
+|   ↳ `eventCancelled` | boolean | Whether event is cancelled |
+|   ↳ `eventCompleted` | boolean | Whether event is completed |
+|   ↳ `registrants` | number | Number of registrants |
+|   ↳ `attendees` | number | Number of attendees |
+|   ↳ `cancellations` | number | Number of cancellations |
+|   ↳ `noShows` | number | Number of no-shows |
+|   ↳ `externalEventId` | string | External event ID |
+|   ↳ `createdAt` | string | Creation date \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
+| `eventId` | string | The retrieved marketing event ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_list_lists`
+
+Search and retrieve lists from HubSpot account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | No | Search query to filter lists by name. Leave empty to return all lists. |
+| `count` | string | No | Maximum number of results to return \(default 20, max 500\) |
+| `offset` | string | No | Pagination offset for next page of results \(use the offset value from previous response\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `lists` | array | Array of HubSpot list objects |
+|   ↳ `listId` | string | List ID |
+|   ↳ `name` | string | List name |
+|   ↳ `objectTypeId` | string | Object type ID \(e.g., 0-1 for contacts\) |
+|   ↳ `processingType` | string | Processing type \(MANUAL, DYNAMIC, SNAPSHOT\) |
+|   ↳ `processingStatus` | string | Processing status \(COMPLETE, PROCESSING\) |
+|   ↳ `listVersion` | number | List version number |
+|   ↳ `createdAt` | string | Creation date \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
+| `paging` | object | Pagination information for fetching more results |
+|   ↳ `after` | string | Cursor for next page of results |
+|   ↳ `link` | string | Link to next page |
+| `metadata` | object | Response metadata |
+|   ↳ `totalReturned` | number | Number of records returned in this response |
+|   ↳ `hasMore` | boolean | Whether more records are available |
+|   ↳ `total` | number | Total number of lists matching the query |
+| `success` | boolean | Operation success status |
+
+### `hubspot_get_list`
+
+Retrieve a single list by ID from HubSpot
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | The HubSpot list ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `list` | object | HubSpot list |
+|   ↳ `listId` | string | List ID |
+|   ↳ `name` | string | List name |
+|   ↳ `objectTypeId` | string | Object type ID \(e.g., 0-1 for contacts\) |
+|   ↳ `processingType` | string | Processing type \(MANUAL, DYNAMIC, SNAPSHOT\) |
+|   ↳ `processingStatus` | string | Processing status \(COMPLETE, PROCESSING\) |
+|   ↳ `listVersion` | number | List version number |
+|   ↳ `createdAt` | string | Creation date \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
+| `listId` | string | The retrieved list ID |
+| `success` | boolean | Operation success status |
+
+### `hubspot_create_list`
+
+Create a new list in HubSpot. Specify the object type and processing type (MANUAL or DYNAMIC)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name of the list |
+| `objectTypeId` | string | Yes | Object type ID \(e.g., "0-1" for contacts, "0-2" for companies\) |
+| `processingType` | string | Yes | Processing type: "MANUAL" for static lists or "DYNAMIC" for active lists |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `list` | object | HubSpot list |
+|   ↳ `listId` | string | List ID |
+|   ↳ `name` | string | List name |
+|   ↳ `objectTypeId` | string | Object type ID \(e.g., 0-1 for contacts\) |
+|   ↳ `processingType` | string | Processing type \(MANUAL, DYNAMIC, SNAPSHOT\) |
+|   ↳ `processingStatus` | string | Processing status \(COMPLETE, PROCESSING\) |
+|   ↳ `listVersion` | number | List version number |
+|   ↳ `createdAt` | string | Creation date \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last updated date \(ISO 8601\) |
+| `listId` | string | The created list ID |
 | `success` | boolean | Operation success status |
 
 

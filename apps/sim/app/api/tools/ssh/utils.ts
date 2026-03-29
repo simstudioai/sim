@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type Attributes, Client, type ConnectConfig } from 'ssh2'
+import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 
 const logger = createLogger('SSHUtils')
 
@@ -108,16 +109,23 @@ function formatSSHError(err: Error, config: { host: string; port: number }): Err
  * - keepaliveInterval: 0 (disabled, same as OpenSSH ServerAliveInterval)
  * - keepaliveCountMax: 3 (same as OpenSSH ServerAliveCountMax)
  */
-export function createSSHConnection(config: SSHConnectionConfig): Promise<Client> {
+export async function createSSHConnection(config: SSHConnectionConfig): Promise<Client> {
+  const host = config.host
+
+  if (!host || host.trim() === '') {
+    throw new Error('Host is required. Please provide a valid hostname or IP address.')
+  }
+
+  const hostValidation = await validateDatabaseHost(host, 'host')
+  if (!hostValidation.isValid) {
+    throw new Error(hostValidation.error)
+  }
+
+  const resolvedHost = hostValidation.resolvedIP ?? host.trim()
+
   return new Promise((resolve, reject) => {
     const client = new Client()
     const port = config.port || 22
-    const host = config.host
-
-    if (!host || host.trim() === '') {
-      reject(new Error('Host is required. Please provide a valid hostname or IP address.'))
-      return
-    }
 
     const hasPassword = config.password && config.password.trim() !== ''
     const hasPrivateKey = config.privateKey && config.privateKey.trim() !== ''
@@ -128,7 +136,7 @@ export function createSSHConnection(config: SSHConnectionConfig): Promise<Client
     }
 
     const connectConfig: ConnectConfig = {
-      host: host.trim(),
+      host: resolvedHost,
       port,
       username: config.username,
     }

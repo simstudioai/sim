@@ -236,12 +236,12 @@ export function AddDocumentsModal({
 
         <ModalBody>
           <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='space-y-[12px]'>
+            <div className='space-y-3'>
               {fileError && (
-                <p className='text-[12px] text-[var(--text-error)] leading-tight'>{fileError}</p>
+                <p className='text-[var(--text-error)] text-caption leading-tight'>{fileError}</p>
               )}
 
-              <div className='flex flex-col gap-[8px]'>
+              <div className='flex flex-col gap-2'>
                 <Label>Upload Documents</Label>
                 <Button
                   type='button'
@@ -252,7 +252,7 @@ export function AddDocumentsModal({
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   className={cn(
-                    '!bg-[var(--surface-1)] hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-[10px]',
+                    '!bg-[var(--surface-1)] hover-hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-2.5',
                     isDragging && 'border-[var(--surface-7)]'
                   )}
                 >
@@ -264,11 +264,11 @@ export function AddDocumentsModal({
                     className='hidden'
                     multiple
                   />
-                  <div className='flex flex-col gap-[2px] text-center'>
+                  <div className='flex flex-col gap-0.5 text-center'>
                     <span className='text-[var(--text-primary)]'>
                       {isDragging ? 'Drop files here' : 'Drop files here or click to browse'}
                     </span>
-                    <span className='text-[11px] text-[var(--text-tertiary)]'>
+                    <span className='text-[var(--text-tertiary)] text-xs'>
                       PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max 100MB each)
                     </span>
                   </div>
@@ -289,20 +289,20 @@ export function AddDocumentsModal({
                         <div
                           key={index}
                           className={cn(
-                            'flex items-center gap-2 rounded-[4px] border p-[8px]',
+                            'flex items-center gap-2 rounded-sm border p-2',
                             isFailed && !isRetrying && 'border-[var(--text-error)]'
                           )}
                         >
                           <span
                             className={cn(
-                              'min-w-0 flex-1 truncate text-[12px]',
+                              'min-w-0 flex-1 truncate text-caption',
                               isFailed && !isRetrying && 'text-[var(--text-error)]'
                             )}
                             title={file.name}
                           >
                             {file.name}
                           </span>
-                          <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>
+                          <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
                             {formatFileSize(file.size)}
                           </span>
                           <div className='flex flex-shrink-0 items-center gap-1'>
@@ -344,15 +344,15 @@ export function AddDocumentsModal({
         </ModalBody>
 
         <ModalFooter>
-          <div className='flex w-full items-center justify-between gap-[12px]'>
+          <div className='flex w-full items-center justify-between gap-3'>
             {uploadError ? (
-              <p className='min-w-0 flex-1 truncate text-[12px] text-[var(--text-error)] leading-tight'>
+              <p className='min-w-0 flex-1 truncate text-[var(--text-error)] text-caption leading-tight'>
                 {uploadError.message}
               </p>
             ) : (
               <div />
             )}
-            <div className='flex flex-shrink-0 gap-[8px]'>
+            <div className='flex flex-shrink-0 gap-2'>
               <Button variant='default' onClick={handleClose} type='button' disabled={isUploading}>
                 Cancel
               </Button>

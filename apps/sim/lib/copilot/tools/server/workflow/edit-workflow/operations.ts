@@ -121,10 +121,7 @@ function processNestedNodesForParent(
       })
     }
 
-    if (
-      childBlock.nestedNodes &&
-      (childBlock.type === 'loop' || childBlock.type === 'parallel')
-    ) {
+    if (childBlock.nestedNodes && (childBlock.type === 'loop' || childBlock.type === 'parallel')) {
       processNestedNodesForParent(childId, childBlock.nestedNodes, ctx)
     }
   })
@@ -146,7 +143,10 @@ function updateLoopOrParallelContainerData(block: any, params: Record<string, an
     if (params.inputs?.collection && effectiveLoopType === 'forEach') {
       block.data.collection = params.inputs.collection
     }
-    if (params.inputs?.condition && (effectiveLoopType === 'while' || effectiveLoopType === 'doWhile')) {
+    if (
+      params.inputs?.condition &&
+      (effectiveLoopType === 'while' || effectiveLoopType === 'doWhile')
+    ) {
       if (effectiveLoopType === 'doWhile') {
         block.data.doWhileCondition = params.inputs.condition
       } else {
@@ -200,7 +200,11 @@ function mergeNestedNodesForParent(
 
       if (childBlock.inputs) {
         if (!existingBlock.subBlocks) existingBlock.subBlocks = {}
-        const childValidation = validateInputsForBlock(existingBlock.type, childBlock.inputs, existingId)
+        const childValidation = validateInputsForBlock(
+          existingBlock.type,
+          childBlock.inputs,
+          existingId
+        )
         validationErrors.push(...childValidation.errors)
 
         Object.entries(childValidation.validInputs).forEach(([key, value]) => {
@@ -222,7 +226,9 @@ function mergeNestedNodesForParent(
             sanitizedValue = normalizeResponseFormat(value)
           }
 
-          const subBlockDef = getBlock(existingBlock.type)?.subBlocks.find((sb: any) => sb.id === key)
+          const subBlockDef = getBlock(existingBlock.type)?.subBlocks.find(
+            (sb: any) => sb.id === key
+          )
           if (!existingBlock.subBlocks[key]) {
             existingBlock.subBlocks[key] = {
               id: key,
@@ -286,19 +292,32 @@ function mergeNestedNodesForParent(
       })
     }
 
-    if (
-      childBlock.nestedNodes &&
-      (childBlock.type === 'loop' || childBlock.type === 'parallel')
-    ) {
+    if (childBlock.nestedNodes && (childBlock.type === 'loop' || childBlock.type === 'parallel')) {
       processNestedNodesForParent(childId, childBlock.nestedNodes, ctx)
     }
   })
 
+  const collectBlockAndDescendants = (
+    rootId: string,
+    collected = new Set<string>()
+  ): Set<string> => {
+    collected.add(rootId)
+    Object.entries(modifiedState.blocks).forEach(([childId, block]: [string, any]) => {
+      if (block.data?.parentId === rootId && !collected.has(childId)) {
+        collectBlockAndDescendants(childId, collected)
+      }
+    })
+    return collected
+  }
+
   const removedIds = new Set<string>()
   for (const [existingId] of existingChildren) {
     if (!matchedExistingIds.has(existingId)) {
-      delete modifiedState.blocks[existingId]
-      removedIds.add(existingId)
+      const subtreeIds = collectBlockAndDescendants(existingId)
+      subtreeIds.forEach((id) => {
+        delete modifiedState.blocks[id]
+        removedIds.add(id)
+      })
     }
   }
 
@@ -983,10 +1002,7 @@ export function handleInsertIntoSubflowOperation(
     if (params.type === 'loop' || params.type === 'parallel') {
       applyLoopOrParallelContainerData(newBlock, params)
     }
-    if (
-      params.nestedNodes &&
-      (params.type === 'loop' || params.type === 'parallel')
-    ) {
+    if (params.nestedNodes && (params.type === 'loop' || params.type === 'parallel')) {
       processNestedNodesForParent(block_id, params.nestedNodes, ctx)
     }
   }

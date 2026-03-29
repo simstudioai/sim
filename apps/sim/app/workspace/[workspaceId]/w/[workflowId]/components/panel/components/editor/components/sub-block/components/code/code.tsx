@@ -733,8 +733,8 @@ export const Code = memo(function Code({
           className={cn(
             'text-right text-xs tabular-nums leading-[21px]',
             isActive
-              ? 'text-[var(--text-primary)] dark:text-[#eeeeee]'
-              : 'text-[var(--text-muted)] dark:text-[#a8a8a8]'
+              ? 'text-[var(--text-primary)] dark:text-[var(--code-foreground)]'
+              : 'text-[var(--text-muted)] dark:text-[var(--code-line-number)]'
           )}
         >
           {lineNumber}
@@ -759,7 +759,7 @@ export const Code = memo(function Code({
           key={'1-0'}
           className={cn(
             'text-right text-xs tabular-nums leading-[21px]',
-            'text-[var(--text-muted)] dark:text-[#a8a8a8]'
+            'text-[var(--text-muted)] dark:text-[var(--code-line-number)]'
           )}
         >
           1
@@ -782,7 +782,7 @@ export const Code = memo(function Code({
           className={cn(
             'h-8 w-8 p-0',
             'text-muted-foreground/60 transition-all duration-200',
-            'hover:scale-105 hover:bg-muted/50 hover:text-foreground',
+            'hover-hover:scale-105 hover-hover:bg-muted/50 hover-hover:text-foreground',
             'active:scale-95'
           )}
           aria-label='Copy code'
@@ -816,7 +816,7 @@ export const Code = memo(function Code({
                 onClick={isPromptVisible ? hidePromptInline : showPromptInline}
                 disabled={isAiLoading || isAiStreaming}
                 aria-label='Generate code with AI'
-                className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-foreground hover:shadow'
+                className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
               >
                 <Wand2 className='h-4 w-4' />
               </Button>

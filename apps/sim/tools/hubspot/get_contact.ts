@@ -55,7 +55,7 @@ export const hubspotGetContactTool: ToolConfig<HubSpotGetContactParams, HubSpotG
 
     request: {
       url: (params) => {
-        const baseUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${params.contactId}`
+        const baseUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${params.contactId.trim()}`
         const queryParams = new URLSearchParams()
 
         if (params.idProperty) {

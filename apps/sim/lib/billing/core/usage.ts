@@ -7,6 +7,7 @@ import {
   renderFreeTierUpgradeEmail,
   renderUsageThresholdEmail,
 } from '@/components/emails'
+import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import {
   getHighestPrioritySubscription,
   type HighestPrioritySubscription,
@@ -25,6 +26,8 @@ import {
   getFreeTierLimit,
   getPerUserMinimumLimit,
   getPlanPricing,
+  hasPaidSubscriptionStatus,
+  hasUsableSubscriptionAccess,
 } from '@/lib/billing/subscriptions/utils'
 import type { BillingData, UsageData, UsageLimitInfo } from '@/lib/billing/types'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
@@ -338,6 +341,11 @@ export async function updateUserUsageLimit(
       return { success: false, error: 'Free plan users cannot edit usage limits' }
     }
 
+    const billingStatus = await getEffectiveBillingStatus(userId)
+    if (!hasUsableSubscriptionAccess(subscription.status, billingStatus.billingBlocked)) {
+      return { success: false, error: 'An active subscription is required to edit usage limits' }
+    }
+
     const minimumLimit = getPerUserMinimumLimit(subscription)
 
     logger.info('Applying plan-based validation', {
@@ -501,7 +509,7 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
     ? toNumber(toDecimal(currentStats.currentUsageLimit))
     : 0
 
-  if (!subscription || subscription.status !== 'active') {
+  if (!subscription || !hasPaidSubscriptionStatus(subscription.status)) {
     // Downgraded to free
     await db
       .update(userStats)

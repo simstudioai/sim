@@ -15,7 +15,7 @@ import {
   parseSpecialTags,
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { useStreamingReveal } from '@/app/workspace/[workspaceId]/home/hooks/use-streaming-reveal'
+import { useStreamingReveal } from '@/hooks/use-streaming-reveal'
 import { useStreamingText } from '@/hooks/use-streaming-text'
 
 const REMARK_PLUGINS = [remarkGfm]
@@ -48,14 +48,13 @@ const PROSE_CLASSES = cn(
   'font-[family-name:var(--font-inter)] antialiased break-words font-[430] tracking-[0]',
   'prose-headings:font-[600] prose-headings:tracking-[0] prose-headings:text-[var(--text-primary)]',
   'prose-headings:mb-3 prose-headings:mt-6 first:prose-headings:mt-0',
-  'prose-p:text-[15px] prose-p:leading-[25px] prose-p:text-[var(--text-primary)]',
-  'first:prose-p:mt-0 last:prose-p:mb-0',
-  'prose-li:text-[15px] prose-li:leading-[25px] prose-li:text-[var(--text-primary)]',
+  'prose-p:text-base prose-p:leading-[25px] prose-p:text-[var(--text-primary)]',
+  'prose-li:text-base prose-li:leading-[25px] prose-li:text-[var(--text-primary)]',
   'prose-li:my-1',
   'prose-ul:my-4 prose-ol:my-4',
   'prose-strong:font-[600] prose-strong:text-[var(--text-primary)]',
-  'prose-a:text-[var(--text-primary)] prose-a:underline prose-a:decoration-dashed prose-a:underline-offset-2',
-  'prose-code:rounded prose-code:bg-[var(--surface-5)] prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[13px] prose-code:font-mono prose-code:font-[400] prose-code:text-[var(--text-primary)]',
+  'prose-a:text-[var(--text-primary)] prose-a:underline prose-a:decoration-dashed prose-a:underline-offset-4',
+  'prose-code:rounded prose-code:bg-[var(--surface-5)] prose-code:px-1.5 prose-code:py-0.5 prose-code:text-small prose-code:font-mono prose-code:font-[400] prose-code:text-[var(--text-primary)]',
   'prose-code:before:content-none prose-code:after:content-none',
   'prose-hr:border-[var(--divider)] prose-hr:my-6',
   'prose-table:my-0'
@@ -68,7 +67,9 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
   table({ children }) {
     return (
       <div className='not-prose my-4 w-full overflow-x-auto [&_strong]:font-[600]'>
-        <table className='min-w-full border-collapse'>{children}</table>
+        <table className='min-w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0'>
+          {children}
+        </table>
       </div>
     )
   },
@@ -79,7 +80,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
     return (
       <th
         style={style}
-        className='whitespace-nowrap border-[var(--divider)] border-b px-3 py-2 text-left font-[600] text-[14px] text-[var(--text-primary)] leading-6'
+        className='whitespace-nowrap border-[var(--divider)] border-b px-3 py-2 text-left font-[600] text-[var(--text-primary)] text-sm leading-6'
       >
         {children}
       </th>
@@ -89,7 +90,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
     return (
       <td
         style={style}
-        className='whitespace-nowrap border-[var(--divider)] border-b px-3 py-2 text-[14px] text-[var(--text-primary)] leading-6'
+        className='whitespace-nowrap border-[var(--divider)] border-b px-3 py-2 text-[var(--text-primary)] text-sm leading-6'
       >
         {children}
       </td>
@@ -112,7 +113,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
 
     if (!codeString) {
       return (
-        <pre className='not-prose my-6 overflow-x-auto rounded-lg bg-[var(--surface-5)] p-4 font-[430] font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:bg-[#1F1F1F]'>
+        <pre className='not-prose my-6 overflow-x-auto rounded-lg bg-[var(--surface-5)] p-4 font-[430] font-mono text-[var(--text-primary)] text-small leading-[21px] dark:bg-[var(--code-bg)]'>
           {children}
         </pre>
       )
@@ -125,13 +126,13 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
     return (
       <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--divider)]'>
         {language && (
-          <div className='border-[var(--divider)] border-b bg-[var(--surface-4)] px-4 py-2 text-[var(--text-tertiary)] text-xs dark:bg-[#2a2a2a]'>
+          <div className='border-[var(--divider)] border-b bg-[var(--surface-4)] px-4 py-2 text-[var(--text-tertiary)] text-xs dark:bg-[var(--surface-4)]'>
             {language}
           </div>
         )}
-        <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[#1F1F1F]'>
+        <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
           <pre
-            className='m-0 overflow-x-auto whitespace-pre p-4 font-[430] font-mono text-[13px] text-[var(--text-primary)] leading-[21px]'
+            className='m-0 overflow-x-auto whitespace-pre p-4 font-[430] font-mono text-[var(--text-primary)] text-small leading-[21px]'
             dangerouslySetInnerHTML={{ __html: html }}
           />
         </div>
@@ -142,7 +143,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
     return (
       <a
         href={href}
-        className='text-[var(--text-primary)] underline decoration-dashed underline-offset-2'
+        className='text-[var(--text-primary)] underline decoration-dashed underline-offset-4'
         target='_blank'
         rel='noopener noreferrer'
       >
@@ -162,13 +163,13 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
   li({ children, className }) {
     if (className?.includes('task-list-item')) {
       return (
-        <li className='flex list-none items-start gap-2 text-[15px] text-[var(--text-primary)] leading-[25px]'>
+        <li className='flex list-none items-start gap-2 text-[var(--text-primary)] text-base leading-[25px] [&>p:only-child]:inline [&>p]:my-0'>
           {children}
         </li>
       )
     }
     return (
-      <li className='my-1 text-[15px] text-[var(--text-primary)] leading-[25px] marker:text-[var(--text-primary)]'>
+      <li className='my-1 text-[var(--text-primary)] text-base leading-[25px] marker:text-[var(--text-primary)] [&>p:only-child]:inline [&>p]:my-0'>
         {children}
       </li>
     )
@@ -187,6 +188,33 @@ interface ChatContentProps {
   onOptionSelect?: (id: string) => void
 }
 
+function MarkdownChunk({
+  content,
+  animate = false,
+  trimTop = true,
+  trimBottom = true,
+}: {
+  content: string
+  animate?: boolean
+  trimTop?: boolean
+  trimBottom?: boolean
+}) {
+  return (
+    <div
+      className={cn(
+        PROSE_CLASSES,
+        trimTop && '[&>:first-child]:mt-0',
+        trimBottom && '[&>:last-child]:mb-0',
+        animate && 'animate-stream-fade-in'
+      )}
+    >
+      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
+        {content}
+      </ReactMarkdown>
+    </div>
+  )
+}
+
 export function ChatContent({ content, isStreaming = false, onOptionSelect }: ChatContentProps) {
   const rendered = useStreamingText(content, isStreaming)
 
@@ -200,13 +228,8 @@ export function ChatContent({ content, isStreaming = false, onOptionSelect }: Ch
   )
 
   const committedMarkdown = useMemo(
-    () =>
-      committed ? (
-        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
-          {committed}
-        </ReactMarkdown>
-      ) : null,
-    [committed]
+    () => (committed ? <MarkdownChunk content={committed} trimTop trimBottom={!incoming} /> : null),
+    [committed, incoming]
   )
 
   if (hasSpecialContent) {
@@ -214,13 +237,7 @@ export function ChatContent({ content, isStreaming = false, onOptionSelect }: Ch
       <div className='space-y-3'>
         {parsed.segments.map((segment, i) => {
           if (segment.type === 'text' || segment.type === 'thinking') {
-            return (
-              <div key={`${segment.type}-${i}`} className={PROSE_CLASSES}>
-                <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
-                  {segment.content}
-                </ReactMarkdown>
-              </div>
-            )
+            return <MarkdownChunk key={`${segment.type}-${i}`} content={segment.content} />
           }
           return (
             <SpecialTags key={`special-${i}`} segment={segment} onOptionSelect={onOptionSelect} />
@@ -232,17 +249,16 @@ export function ChatContent({ content, isStreaming = false, onOptionSelect }: Ch
   }
 
   return (
-    <div className={PROSE_CLASSES}>
+    <div>
       {committedMarkdown}
       {incoming && (
-        <div
+        <MarkdownChunk
           key={generation}
-          className={cn(isStreaming && 'animate-stream-fade-in', '[&>:first-child]:mt-0')}
-        >
-          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
-            {incoming}
-          </ReactMarkdown>
-        </div>
+          content={incoming}
+          trimTop
+          trimBottom
+          animate={isStreaming}
+        />
       )}
     </div>
   )

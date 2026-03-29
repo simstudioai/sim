@@ -20,6 +20,7 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export interface TargetedLayoutOptions extends LayoutOptions {
   changedBlockIds: string[]
+  shiftSourceBlockIds?: string[]
   verticalSpacing?: number
   horizontalSpacing?: number
 }
@@ -35,16 +36,18 @@ export function applyTargetedLayout(
 ): Record<string, BlockState> {
   const {
     changedBlockIds,
+    shiftSourceBlockIds = [],
     verticalSpacing = DEFAULT_VERTICAL_SPACING,
     horizontalSpacing = DEFAULT_HORIZONTAL_SPACING,
     gridSize,
   } = options
 
-  if (!changedBlockIds || changedBlockIds.length === 0) {
+  if ((!changedBlockIds || changedBlockIds.length === 0) && shiftSourceBlockIds.length === 0) {
     return blocks
   }
 
   const changedSet = new Set(changedBlockIds)
+  const shiftSourceSet = new Set(shiftSourceBlockIds)
   const blocksCopy: Record<string, BlockState> = JSON.parse(JSON.stringify(blocks))
 
   prepareContainerDimensions(
@@ -66,6 +69,7 @@ export function applyTargetedLayout(
     blocksCopy,
     edges,
     changedSet,
+    shiftSourceSet,
     verticalSpacing,
     horizontalSpacing,
     subflowDepths,
@@ -79,6 +83,7 @@ export function applyTargetedLayout(
       blocksCopy,
       edges,
       changedSet,
+      shiftSourceSet,
       verticalSpacing,
       horizontalSpacing,
       subflowDepths,
@@ -134,6 +139,7 @@ function layoutGroup(
   blocks: Record<string, BlockState>,
   edges: Edge[],
   changedSet: Set<string>,
+  shiftSourceSet: Set<string>,
   verticalSpacing: number,
   horizontalSpacing: number,
   subflowDepths: Map<string, number>,
@@ -164,61 +170,74 @@ function layoutGroup(
   })
   const needsLayoutSet = new Set([...requestedLayout, ...invalidPositions])
   const needsLayout = Array.from(needsLayoutSet)
+  const groupShiftSourceIds = layoutEligibleChildIds.filter((id) => shiftSourceSet.has(id))
+  const activeShiftSourceSet = new Set([...needsLayoutSet, ...groupShiftSourceIds])
 
-  if (needsLayout.length === 0) {
+  if (needsLayout.length === 0 && activeShiftSourceSet.size === 0) {
     if (parentBlock) {
       updateContainerDimensions(parentBlock, childIds, blocks)
     }
     return
   }
 
-  const oldPositions = new Map<string, { x: number; y: number }>()
-  for (const id of layoutEligibleChildIds) {
-    const block = blocks[id]
-    if (!block) continue
-    oldPositions.set(id, { ...block.position })
-  }
-
-  const layoutPositions = computeLayoutPositions(
-    layoutEligibleChildIds,
-    blocks,
-    edges,
-    parentBlock,
-    horizontalSpacing,
-    verticalSpacing,
-    parentId === null ? subflowDepths : undefined,
-    gridSize
-  )
-
-  if (layoutPositions.size === 0) {
-    if (parentBlock) {
-      updateContainerDimensions(parentBlock, childIds, blocks)
+  if (needsLayout.length > 0) {
+    const oldPositions = new Map<string, { x: number; y: number }>()
+    for (const id of layoutEligibleChildIds) {
+      const block = blocks[id]
+      if (!block) continue
+      oldPositions.set(id, { ...block.position })
     }
-    return
-  }
 
-  let offsetX = 0
-  let offsetY = 0
+    const layoutPositions = computeLayoutPositions(
+      layoutEligibleChildIds,
+      blocks,
+      edges,
+      parentBlock,
+      horizontalSpacing,
+      verticalSpacing,
+      parentId === null ? subflowDepths : undefined,
+      gridSize
+    )
 
-  const anchorId = selectBestAnchor(layoutEligibleChildIds, needsLayoutSet, edges, layoutPositions)
-
-  if (anchorId) {
-    const oldPos = oldPositions.get(anchorId)
-    const newPos = layoutPositions.get(anchorId)
-    if (oldPos && newPos) {
-      offsetX = oldPos.x - newPos.x
-      offsetY = oldPos.y - newPos.y
+    if (layoutPositions.size === 0) {
+      if (parentBlock) {
+        updateContainerDimensions(parentBlock, childIds, blocks)
+      }
+      return
     }
-  }
 
-  for (const id of needsLayout) {
-    const block = blocks[id]
-    const newPos = layoutPositions.get(id)
-    if (!block || !newPos) continue
-    block.position = snapPositionToGrid({ x: newPos.x + offsetX, y: newPos.y + offsetY }, gridSize)
+    let offsetX = 0
+    let offsetY = 0
+
+    const anchorId = selectBestAnchor(
+      layoutEligibleChildIds,
+      needsLayoutSet,
+      edges,
+      layoutPositions
+    )
+
+    if (anchorId) {
+      const oldPos = oldPositions.get(anchorId)
+      const newPos = layoutPositions.get(anchorId)
+      if (oldPos && newPos) {
+        offsetX = oldPos.x - newPos.x
+        offsetY = oldPos.y - newPos.y
+      }
+    }
+
+    for (const id of needsLayout) {
+      const block = blocks[id]
+      const newPos = layoutPositions.get(id)
+      if (!block || !newPos) continue
+      block.position = snapPositionToGrid(
+        { x: newPos.x + offsetX, y: newPos.y + offsetY },
+        gridSize
+      )
+    }
   }
 
   shiftDownstreamFrozenBlocks(
+    activeShiftSourceSet,
     needsLayoutSet,
     layoutEligibleChildIds,
     blocks,
@@ -227,13 +246,15 @@ function layoutGroup(
     gridSize
   )
 
-  resolveVerticalOverlapsWithFrozen(
-    needsLayoutSet,
-    layoutEligibleChildIds,
-    blocks,
-    verticalSpacing,
-    gridSize
-  )
+  if (needsLayout.length > 0) {
+    resolveVerticalOverlapsWithFrozen(
+      needsLayoutSet,
+      layoutEligibleChildIds,
+      blocks,
+      verticalSpacing,
+      gridSize
+    )
+  }
 
   if (parentBlock) {
     updateContainerDimensions(parentBlock, childIds, blocks)
@@ -249,6 +270,7 @@ function layoutGroup(
  * Only considers edges within the current layout group (scoped to subflow).
  */
 function shiftDownstreamFrozenBlocks(
+  shiftSourceSet: Set<string>,
   needsLayoutSet: Set<string>,
   eligibleIds: string[],
   blocks: Record<string, BlockState>,
@@ -266,7 +288,7 @@ function shiftDownstreamFrozenBlocks(
   }
 
   const shifted = new Set<string>()
-  const queue: string[] = Array.from(needsLayoutSet)
+  const queue: string[] = Array.from(shiftSourceSet)
 
   while (queue.length > 0) {
     const sourceId = queue.shift()!

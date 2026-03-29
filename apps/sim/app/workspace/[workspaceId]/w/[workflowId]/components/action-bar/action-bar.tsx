@@ -15,11 +15,11 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 const DEFAULT_DUPLICATE_OFFSET = { x: 50, y: 50 }
 
 const ACTION_BUTTON_STYLES = [
-  'h-[23px] w-[23px] rounded-[8px] p-0',
+  'h-[23px] w-[23px] rounded-lg p-0',
   'border border-[var(--border)] bg-[var(--surface-5)]',
   'text-[var(--text-secondary)]',
-  'hover:border-transparent hover:bg-[var(--brand-secondary)] hover:!text-[var(--text-inverse)]',
-  'dark:border-transparent dark:bg-[var(--surface-7)] dark:hover:bg-[var(--brand-secondary)]',
+  'hover-hover:border-transparent hover-hover:bg-[var(--brand-secondary)] hover-hover:!text-[var(--text-inverse)]',
+  'dark:border-transparent dark:bg-[var(--surface-7)] dark:hover-hover:bg-[var(--brand-secondary)]',
 ].join(' ')
 
 const ICON_SIZE = 'h-[11px] w-[11px]'

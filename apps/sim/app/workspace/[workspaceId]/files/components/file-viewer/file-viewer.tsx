@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -183,6 +183,8 @@ function TextEditor({
   } = useWorkspaceFileContent(workspaceId, file.id, file.key, file.type === 'text/x-pptxgenjs')
 
   const updateContent = useUpdateWorkspaceFileContent()
+  const updateContentRef = useRef(updateContent)
+  updateContentRef.current = updateContent
 
   const [content, setContent] = useState('')
   const [savedContent, setSavedContent] = useState('')
@@ -230,14 +232,14 @@ function TextEditor({
     const currentContent = contentRef.current
     if (currentContent === savedContentRef.current) return
 
-    await updateContent.mutateAsync({
+    await updateContentRef.current.mutateAsync({
       workspaceId,
       fileId: file.id,
       content: currentContent,
     })
     setSavedContent(currentContent)
     savedContentRef.current = currentContent
-  }, [workspaceId, file.id, updateContent])
+  }, [workspaceId, file.id])
 
   const { saveStatus, saveImmediately, isDirty } = useAutosave({
     content,
@@ -287,6 +289,16 @@ function TextEditor({
       document.body.style.userSelect = ''
     }
   }, [isResizing])
+
+  const handleCheckboxToggle = useCallback(
+    (checkboxIndex: number, checked: boolean) => {
+      const toggled = toggleMarkdownCheckbox(contentRef.current, checkboxIndex, checked)
+      if (toggled !== contentRef.current) {
+        handleContentChange(toggled)
+      }
+    },
+    [handleContentChange]
+  )
 
   const isStreaming = streamingContent !== undefined
   const revealedContent = useStreamingText(content, isStreaming)
@@ -390,10 +402,11 @@ function TextEditor({
             className={cn('min-w-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}
           >
             <PreviewPanel
-              content={revealedContent}
+              content={isStreaming ? revealedContent : content}
               mimeType={file.type}
               filename={file.name}
               isStreaming={isStreaming}
+              onCheckboxToggle={canEdit && !isStreaming ? handleCheckboxToggle : undefined}
             />
           </div>
         </>
@@ -402,7 +415,7 @@ function TextEditor({
   )
 }
 
-function IframePreview({ file }: { file: WorkspaceFileRecord }) {
+const IframePreview = memo(function IframePreview({ file }: { file: WorkspaceFileRecord }) {
   const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
 
   return (
@@ -417,9 +430,9 @@ function IframePreview({ file }: { file: WorkspaceFileRecord }) {
       />
     </div>
   )
-}
+})
 
-function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
+const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
   const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
 
   return (
@@ -432,12 +445,12 @@ function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
       />
     </div>
   )
-}
+})
 
 const pptxSlideCache = new Map<string, string[]>()
 
-function pptxCacheKey(fileId: string, byteLength: number): string {
-  return `${fileId}:${byteLength}`
+function pptxCacheKey(fileId: string, dataUpdatedAt: number, byteLength: number): string {
+  return `${fileId}:${dataUpdatedAt}:${byteLength}`
 }
 
 function pptxCacheSet(key: string, slides: string[]): void {
@@ -539,57 +552,87 @@ function PptxPreview({
     dataUpdatedAt,
   } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
 
-  const cacheKey = pptxCacheKey(file.id, fileData?.byteLength ?? 0)
+  const cacheKey = pptxCacheKey(file.id, dataUpdatedAt, fileData?.byteLength ?? 0)
   const cached = pptxSlideCache.get(cacheKey)
 
   const [slides, setSlides] = useState<string[]>(cached ?? [])
   const [rendering, setRendering] = useState(false)
   const [renderError, setRenderError] = useState<string | null>(null)
 
+  // Streaming preview: only re-triggers when the streaming source code or
+  // workspace changes. Isolated from fileData/dataUpdatedAt so that file-list
+  // refreshes don't abort the in-flight compilation request.
   useEffect(() => {
+    if (streamingContent === undefined) return
+
     let cancelled = false
     const controller = new AbortController()
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
-    async function render() {
+    const debounceTimer = setTimeout(async () => {
       if (cancelled) return
       try {
         setRendering(true)
         setRenderError(null)
 
-        if (streamingContent !== undefined) {
-          const response = await fetch(`/api/workspaces/${workspaceId}/pptx/preview`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: streamingContent }),
-            signal: controller.signal,
-          })
-          if (!response.ok) {
-            const err = await response.json().catch(() => ({ error: 'Preview failed' }))
-            throw new Error(err.error || 'Preview failed')
-          }
-          if (cancelled) return
-          const arrayBuffer = await response.arrayBuffer()
-          if (cancelled) return
-          const data = new Uint8Array(arrayBuffer)
-          const images: string[] = []
-          await renderPptxSlides(
-            data,
-            (src) => {
-              images.push(src)
-              if (!cancelled) setSlides([...images])
-            },
-            () => cancelled
-          )
-          return
+        const response = await fetch(`/api/workspaces/${workspaceId}/pptx/preview`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: streamingContent }),
+          signal: controller.signal,
+        })
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ error: 'Preview failed' }))
+          throw new Error(err.error || 'Preview failed')
         }
+        if (cancelled) return
+        const arrayBuffer = await response.arrayBuffer()
+        if (cancelled) return
+        const data = new Uint8Array(arrayBuffer)
+        const images: string[] = []
+        await renderPptxSlides(
+          data,
+          (src) => {
+            images.push(src)
+            if (!cancelled) setSlides([...images])
+          },
+          () => cancelled
+        )
+      } catch (err) {
+        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
+          const msg = err instanceof Error ? err.message : 'Failed to render presentation'
+          logger.error('PPTX render failed', { error: msg })
+          setRenderError(msg)
+        }
+      } finally {
+        if (!cancelled) setRendering(false)
+      }
+    }, 500)
 
+    return () => {
+      cancelled = true
+      clearTimeout(debounceTimer)
+      controller.abort()
+    }
+  }, [streamingContent, workspaceId])
+
+  // Non-streaming render: uses the fetched binary directly on the client.
+  // Skipped while streaming is active so it doesn't interfere.
+  useEffect(() => {
+    if (streamingContent !== undefined) return
+
+    let cancelled = false
+
+    async function render() {
+      if (cancelled) return
+      try {
         if (cached) {
           setSlides(cached)
           return
         }
 
         if (!fileData) return
+        setRendering(true)
+        setRenderError(null)
         setSlides([])
         const data = new Uint8Array(fileData)
         const images: string[] = []
@@ -605,7 +648,7 @@ function PptxPreview({
           pptxCacheSet(cacheKey, images)
         }
       } catch (err) {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
+        if (!cancelled) {
           const msg = err instanceof Error ? err.message : 'Failed to render presentation'
           logger.error('PPTX render failed', { error: msg })
           setRenderError(msg)
@@ -615,18 +658,10 @@ function PptxPreview({
       }
     }
 
-    // Debounce streaming renders so rapid SSE updates don't spawn a subprocess
-    // per event. Non-streaming renders (file load / cache) run immediately.
-    if (streamingContent !== undefined) {
-      debounceTimer = setTimeout(render, 500)
-    } else {
-      render()
-    }
+    render()
 
     return () => {
       cancelled = true
-      if (debounceTimer) clearTimeout(debounceTimer)
-      controller.abort()
     }
   }, [fileData, dataUpdatedAt, streamingContent, cacheKey, workspaceId])
 
@@ -679,7 +714,19 @@ function PptxPreview({
   )
 }
 
-function UnsupportedPreview({ file }: { file: WorkspaceFileRecord }) {
+function toggleMarkdownCheckbox(markdown: string, targetIndex: number, checked: boolean): string {
+  let currentIndex = 0
+  return markdown.replace(/^(\s*(?:[-*+]|\d+[.)]) +)\[([ xX])\]/gm, (match, prefix: string) => {
+    if (currentIndex++ !== targetIndex) return match
+    return `${prefix}[${checked ? 'x' : ' '}]`
+  })
+}
+
+const UnsupportedPreview = memo(function UnsupportedPreview({
+  file,
+}: {
+  file: WorkspaceFileRecord
+}) {
   const ext = getFileExtension(file.name)
 
   return (
@@ -692,4 +739,4 @@ function UnsupportedPreview({ file }: { file: WorkspaceFileRecord }) {
       </p>
     </div>
   )
-}
+})

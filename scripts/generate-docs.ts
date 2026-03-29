@@ -123,7 +123,7 @@ async function generateIconMapping(): Promise<Record<string, string>> {
       // For icon mapping, we need ALL blocks including hidden ones
       // because V2 blocks inherit icons from legacy blocks via spread
       // First, extract the primary icon from the file (usually the legacy block's icon)
-      const primaryIcon = extractIconName(fileContent)
+      const primaryIcon = extractIconNameFromContent(fileContent)
 
       // Find all block exports and their types
       const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
@@ -316,6 +316,49 @@ function extractOperationsFromContent(blockContent: string): { label: string; id
 }
 
 /**
+ * Extract a mapping from operation id → tool id by scanning switch/case/return
+ * patterns in a block file. Handles both simple returns and ternary returns
+ * (for ternaries, takes the last quoted tool-like string, which is typically
+ * the default/list variant). Also picks up named helper functions referenced
+ * from tools.config.tool (e.g. selectGmailToolId).
+ */
+function extractSwitchCaseToolMapping(fileContent: string): Map<string, string> {
+  const mapping = new Map<string, string>()
+  const caseRegex = /\bcase\s+['"]([^'"]+)['"]\s*:/g
+  let caseMatch: RegExpExecArray | null
+
+  while ((caseMatch = caseRegex.exec(fileContent)) !== null) {
+    const opId = caseMatch[1]
+    if (mapping.has(opId)) continue
+
+    const searchStart = caseMatch.index + caseMatch[0].length
+    const searchEnd = Math.min(searchStart + 300, fileContent.length)
+    const segment = fileContent.substring(searchStart, searchEnd)
+
+    const returnIdx = segment.search(/\breturn\b/)
+    if (returnIdx === -1) continue
+
+    const afterReturn = segment.substring(returnIdx + 'return'.length)
+    // Limit scope to before the next case/default to avoid capturing sibling cases
+    const nextCaseIdx = afterReturn.search(/\bcase\b|\bdefault\b/)
+    const returnScope = nextCaseIdx > 0 ? afterReturn.substring(0, nextCaseIdx) : afterReturn
+
+    const toolMatches = [...returnScope.matchAll(/['"]([a-z][a-z0-9_]+)['"]/g)]
+    // Take the last tool-like string (underscore = tool ID pattern); for ternaries this
+    // is the fallback/list variant
+    const toolId = toolMatches
+      .map((m) => m[1])
+      .filter((id) => id.includes('_'))
+      .pop()
+    if (toolId) {
+      mapping.set(opId, toolId)
+    }
+  }
+
+  return mapping
+}
+
+/**
  * Scan all tool files under apps/sim/tools/ and build a map from tool ID to description.
  * Used to enrich operation entries with descriptions.
  */
@@ -331,7 +374,8 @@ async function buildToolDescriptionMap(): Promise<ToolMaps> {
   try {
     const toolFiles = await glob(`${toolsDir}/**/*.ts`)
     for (const file of toolFiles) {
-      if (file.endsWith('index.ts') || file.endsWith('types.ts')) continue
+      const basename = path.basename(file)
+      if (basename === 'index.ts' || basename === 'types.ts') continue
       const content = fs.readFileSync(file, 'utf-8')
 
       // Find every `id: 'tool_id'` occurrence in the file. For each, search
@@ -512,6 +556,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
 
     for (const blockFile of blockFiles) {
       const fileContent = fs.readFileSync(blockFile, 'utf-8')
+      const switchCaseMap = extractSwitchCaseToolMapping(fileContent)
       const configs = extractAllBlockConfigs(fileContent)
 
       for (const config of configs) {
@@ -542,15 +587,32 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
         const rawOps: { label: string; id: string }[] = (config as any).operations || []
 
         // Enrich each operation with a description from the tool registry.
-        // Primary lookup: derive toolId as `{baseType}_{operationId}` and check
-        // the map directly. Fallback: some blocks use short op IDs that don't
-        // match tool IDs (e.g. Slack uses "send" while the tool ID is
-        // "slack_message"). In that case, find the tool in tools.access whose
-        // name exactly matches the operation label.
+        // Lookup order:
+        // 1. Derive toolId as `{baseType}_{operationId}` and check directly.
+        // 2. Check switch/case mapping parsed from tools.config.tool (handles
+        //    cases where op IDs differ from tool IDs, e.g. get_carts → list_carts,
+        //    or send_gmail → gmail_send).
+        // 3. Find the tool in tools.access whose name exactly matches the label.
         const toolsAccess: string[] = (config as any).tools?.access || []
         const operations: OperationInfo[] = rawOps.map(({ label, id }) => {
           const toolId = `${baseType}_${id}`
           let opDesc = toolDescMap.get(toolId) || toolDescMap.get(id) || ''
+
+          if (!opDesc) {
+            const switchMappedId = switchCaseMap.get(id)
+            if (switchMappedId) {
+              opDesc = toolDescMap.get(switchMappedId) || ''
+              // Also check versioned variants in tools.access (e.g. gmail_send_v2)
+              if (!opDesc) {
+                for (const tId of toolsAccess) {
+                  if (tId === switchMappedId || tId.startsWith(`${switchMappedId}_v`)) {
+                    opDesc = toolDescMap.get(tId) || ''
+                    if (opDesc) break
+                  }
+                }
+              }
+            }
+          }
 
           if (!opDesc && toolsAccess.length > 0) {
             for (const tId of toolsAccess) {
@@ -575,9 +637,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/^-|-$/g, '')
 
-        // Detect auth type from the original block file content
-        const blockFileContent = fs.readFileSync(blockFile, 'utf-8')
-        const authType = extractAuthType(blockFileContent)
+        const authType = extractAuthType(fileContent)
 
         integrations.push({
           type: blockType,
@@ -618,7 +678,7 @@ function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
   const configs: BlockConfig[] = []
 
   // First, extract the primary icon from the file (for V2 blocks that inherit via spread)
-  const primaryIcon = extractIconName(fileContent)
+  const primaryIcon = extractIconNameFromContent(fileContent)
 
   // Find all block exports in the file
   const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
@@ -770,10 +830,7 @@ function extractBlockConfigFromContent(
       extractEnumPropertyFromContent(blockContent, 'integrationType') ||
       baseConfig?.integrationType ||
       null
-    const tags =
-      extractArrayPropertyFromContent(blockContent, 'tags') ||
-      baseConfig?.tags ||
-      null
+    const tags = extractArrayPropertyFromContent(blockContent, 'tags') || baseConfig?.tags || null
 
     return {
       type: blockType,
@@ -977,209 +1034,7 @@ function extractOutputsFromContent(content: string): Record<string, any> {
 function extractToolsAccessFromContent(content: string): string[] {
   const accessMatch = content.match(/access\s*:\s*\[\s*([^\]]+)\s*\]/)
   if (!accessMatch) return []
-
-  const accessContent = accessMatch[1]
-  const tools: string[] = []
-
-  const toolMatches = accessContent.match(/['"]([^'"]+)['"]/g)
-  if (toolMatches) {
-    toolMatches.forEach((toolText) => {
-      const match = toolText.match(/['"]([^'"]+)['"]/)
-      if (match) {
-        tools.push(match[1])
-      }
-    })
-  }
-
-  return tools
-}
-
-// Legacy function for backward compatibility (icon mapping, etc.)
-function extractBlockConfig(fileContent: string): BlockConfig | null {
-  const configs = extractAllBlockConfigs(fileContent)
-  // Return first non-hidden block for legacy code paths
-  return configs.length > 0 ? configs[0] : null
-}
-
-function findBlockType(content: string, blockName: string): string {
-  const blockExportRegex = new RegExp(
-    `export\\s+const\\s+${blockName}Block\\s*:[^{]*{[\\s\\S]*?type\\s*:\\s*['"]([^'"]+)['"][\\s\\S]*?}`,
-    'i'
-  )
-  const blockExportMatch = content.match(blockExportRegex)
-  if (blockExportMatch) return blockExportMatch[1]
-
-  const exportMatch = content.match(new RegExp(`export\\s+const\\s+${blockName}Block\\s*:`))
-  if (exportMatch) {
-    const afterExport = content.substring(exportMatch.index! + exportMatch[0].length)
-
-    const blockStartMatch = afterExport.match(/{/)
-    if (blockStartMatch) {
-      const blockStart = blockStartMatch.index!
-
-      let braceCount = 1
-      let blockEnd = blockStart + 1
-
-      while (blockEnd < afterExport.length && braceCount > 0) {
-        if (afterExport[blockEnd] === '{') braceCount++
-        else if (afterExport[blockEnd] === '}') braceCount--
-        blockEnd++
-      }
-
-      const blockContent = afterExport.substring(blockStart, blockEnd)
-      const typeMatch = blockContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
-      if (typeMatch) return typeMatch[1]
-    }
-  }
-
-  return blockName
-    .replace(/([A-Z])/g, '_$1')
-    .toLowerCase()
-    .replace(/^_/, '')
-}
-
-function extractStringProperty(content: string, propName: string): string | null {
-  const singleQuoteMatch = content.match(new RegExp(`${propName}\\s*:\\s*'(.*?)'`, 'm'))
-  if (singleQuoteMatch) return singleQuoteMatch[1]
-
-  const doubleQuoteMatch = content.match(new RegExp(`${propName}\\s*:\\s*"(.*?)"`, 'm'))
-  if (doubleQuoteMatch) return doubleQuoteMatch[1]
-
-  const templateMatch = content.match(new RegExp(`${propName}\\s*:\\s*\`([^\`]+)\``, 's'))
-  if (templateMatch) {
-    let templateContent = templateMatch[1]
-
-    templateContent = templateContent.replace(
-      /\$\{[^}]*shouldEnableURLInput[^}]*\?[^:]*:[^}]*\}/g,
-      'Upload files directly. '
-    )
-    templateContent = templateContent.replace(/\$\{[^}]*shouldEnableURLInput[^}]*\}/g, 'false')
-
-    templateContent = templateContent.replace(/\$\{[^}]+\}/g, '')
-
-    templateContent = templateContent.replace(/\s+/g, ' ').trim()
-
-    return templateContent
-  }
-
-  return null
-}
-
-function extractIconName(content: string): string | null {
-  const iconMatch = content.match(/icon\s*:\s*(\w+Icon)/)
-  return iconMatch ? iconMatch[1] : null
-}
-
-function extractOutputs(content: string): Record<string, any> {
-  const outputsStart = content.search(/outputs\s*:\s*{/)
-  if (outputsStart === -1) return {}
-
-  const openBracePos = content.indexOf('{', outputsStart)
-  if (openBracePos === -1) return {}
-
-  let braceCount = 1
-  let pos = openBracePos + 1
-
-  while (pos < content.length && braceCount > 0) {
-    if (content[pos] === '{') {
-      braceCount++
-    } else if (content[pos] === '}') {
-      braceCount--
-    }
-    pos++
-  }
-
-  if (braceCount === 0) {
-    const outputsContent = content.substring(openBracePos + 1, pos - 1).trim()
-    const outputs: Record<string, any> = {}
-
-    const fieldRegex = /(\w+)\s*:\s*{/g
-    let match
-    const fieldPositions: Array<{ name: string; start: number }> = []
-
-    while ((match = fieldRegex.exec(outputsContent)) !== null) {
-      fieldPositions.push({
-        name: match[1],
-        start: match.index + match[0].length - 1,
-      })
-    }
-
-    fieldPositions.forEach((field) => {
-      const startPos = field.start
-      let braceCount = 1
-      let endPos = startPos + 1
-
-      while (endPos < outputsContent.length && braceCount > 0) {
-        if (outputsContent[endPos] === '{') {
-          braceCount++
-        } else if (outputsContent[endPos] === '}') {
-          braceCount--
-        }
-        endPos++
-      }
-
-      if (braceCount === 0) {
-        const fieldContent = outputsContent.substring(startPos + 1, endPos - 1).trim()
-
-        const typeMatch = fieldContent.match(/type\s*:\s*['"](.*?)['"]/)
-        const description = extractDescription(fieldContent)
-
-        if (typeMatch) {
-          outputs[field.name] = {
-            type: typeMatch[1],
-            description: description || `${field.name} output from the block`,
-          }
-        }
-      }
-    })
-
-    if (Object.keys(outputs).length > 0) {
-      return outputs
-    }
-
-    const flatFieldMatches = outputsContent.match(/(\w+)\s*:\s*['"](.*?)['"]/g)
-
-    if (flatFieldMatches && flatFieldMatches.length > 0) {
-      flatFieldMatches.forEach((fieldMatch) => {
-        const fieldParts = fieldMatch.match(/(\w+)\s*:\s*['"](.*?)['"]/)
-        if (fieldParts) {
-          const fieldName = fieldParts[1]
-          const fieldType = fieldParts[2]
-
-          outputs[fieldName] = {
-            type: fieldType,
-            description: `${fieldName} output from the block`,
-          }
-        }
-      })
-
-      if (Object.keys(outputs).length > 0) {
-        return outputs
-      }
-    }
-  }
-
-  return {}
-}
-
-function extractToolsAccess(content: string): string[] {
-  const accessMatch = content.match(/access\s*:\s*\[\s*([^\]]+)\s*\]/)
-  if (!accessMatch) return []
-
-  const accessContent = accessMatch[1]
-  const tools: string[] = []
-
-  const toolMatches = accessContent.match(/['"]([^'"]+)['"]/g)
-  if (toolMatches) {
-    toolMatches.forEach((toolText) => {
-      const match = toolText.match(/['"]([^'"]+)['"]/)
-      if (match) {
-        tools.push(match[1])
-      }
-    })
-  }
-
-  return tools
+  return [...accessMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1])
 }
 
 /**

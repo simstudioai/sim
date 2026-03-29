@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { PANEL_WIDTH } from '@/stores/constants'
 import { usePanelStore } from '@/stores/panel'
 
@@ -13,7 +14,13 @@ const CONTENT_WINDOW_GAP = 8
  * @returns Resize state and handlers
  */
 export function usePanelResize() {
-  const { setPanelWidth, isResizing, setIsResizing } = usePanelStore()
+  const { setPanelWidth, isResizing, setIsResizing } = usePanelStore(
+    useShallow((s) => ({
+      setPanelWidth: s.setPanelWidth,
+      isResizing: s.isResizing,
+      setIsResizing: s.setIsResizing,
+    }))
+  )
 
   /**
    * Handles mouse down on resize handle

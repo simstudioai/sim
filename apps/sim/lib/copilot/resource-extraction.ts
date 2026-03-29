@@ -3,21 +3,94 @@ import type { MothershipResource, MothershipResourceType } from '@/lib/copilot/r
 type ChatResource = MothershipResource
 type ResourceType = MothershipResourceType
 
-const RESOURCE_TOOL_NAMES = new Set([
-  'user_table',
-  'workspace_file',
-  'download_to_workspace_file',
-  'create_workflow',
-  'edit_workflow',
-  'function_execute',
-  'knowledge_base',
-  'knowledge',
-  'generate_visualization',
-  'generate_image',
-])
+/**
+ * Defines how each tool's result is surfaced in the resource panel:
+ * - `dedicated` — opens its own resource tab (table, file, workflow, knowledgebase)
+ * - `deferred`  — may open a dedicated tab; falls back to the Results tab if no resource is produced
+ * - `excluded`  — hidden from the resource panel (internal tools, management, subagent wrappers)
+ *
+ * Any tool not listed here appears in the generic Results tab by default.
+ */
+const TOOL_PANEL_BEHAVIOR: Record<string, 'dedicated' | 'deferred' | 'excluded'> = {
+  // Dedicated resource tab openers
+  user_table: 'dedicated',
+  workspace_file: 'dedicated',
+  download_to_workspace_file: 'dedicated',
+  create_workflow: 'dedicated',
+  edit_workflow: 'dedicated',
+  knowledge_base: 'dedicated',
+  knowledge: 'dedicated',
+  generate_visualization: 'dedicated',
+  generate_image: 'dedicated',
+  // Deferred: may produce a dedicated resource; falls back to Results tab otherwise
+  function_execute: 'deferred',
+  // Excluded: saves files without opening a resource tab
+  materialize_file: 'excluded',
+  // Excluded: internal / invisible
+  user_memory: 'excluded',
+  context_write: 'excluded',
+  context_compaction: 'excluded',
+  // Excluded: workflow and folder management
+  rename_workflow: 'excluded',
+  move_workflow: 'excluded',
+  delete_workflow: 'excluded',
+  create_folder: 'excluded',
+  delete_folder: 'excluded',
+  move_folder: 'excluded',
+  list_folders: 'excluded',
+  list_user_workspaces: 'excluded',
+  open_resource: 'excluded',
+  // Excluded: settings and credential management
+  set_environment_variables: 'excluded',
+  set_global_workflow_variables: 'excluded',
+  manage_mcp_tool: 'excluded',
+  manage_skill: 'excluded',
+  manage_credential: 'excluded',
+  manage_custom_tool: 'excluded',
+  oauth_get_auth_link: 'excluded',
+  oauth_request_access: 'excluded',
+  update_workspace_mcp_server: 'excluded',
+  delete_workspace_mcp_server: 'excluded',
+  create_workspace_mcp_server: 'excluded',
+  list_workspace_mcp_servers: 'excluded',
+  // Excluded: subagent wrappers — inner tools fire as individual events
+  build: 'excluded',
+  run: 'excluded',
+  deploy: 'excluded',
+  auth: 'excluded',
+  table: 'excluded',
+  job: 'excluded',
+  agent: 'excluded',
+  custom_tool: 'excluded',
+  research: 'excluded',
+  plan: 'excluded',
+  debug: 'excluded',
+  edit: 'excluded',
+  fast_edit: 'excluded',
+}
 
+/**
+ * Returns true for resources that are client-only and must never be persisted to the server.
+ * This covers the generic Results tab and the in-flight streaming-file preview.
+ */
+export function isEphemeralResource(resource: { id: string; type: string }): boolean {
+  return resource.type === 'generic' || resource.id === 'streaming-file'
+}
+
+/** Returns true for tools that open a dedicated resource tab or may fall back to the Results tab. */
 export function isResourceToolName(toolName: string): boolean {
-  return RESOURCE_TOOL_NAMES.has(toolName)
+  const b = TOOL_PANEL_BEHAVIOR[toolName]
+  return b === 'dedicated' || b === 'deferred'
+}
+
+/** Returns true if the tool's result should appear in the Results tab at call time. */
+export function shouldOpenGenericResource(toolName: string): boolean {
+  return !(toolName in TOOL_PANEL_BEHAVIOR)
+}
+
+/** Returns true for tools that may fall back to the Results tab at completion time. */
+export function isDeferredResourceTool(toolName: string): boolean {
+  return TOOL_PANEL_BEHAVIOR[toolName] === 'deferred'
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -155,11 +228,13 @@ export function extractResourcesFromToolResult(
     case 'knowledge_base': {
       if (READ_ONLY_KB_OPS.has(getOperation(params) ?? '')) return []
 
+      const args = asRecord(params?.args)
       const kbId =
-        (data.id as string) ??
+        (args.knowledgeBaseId as string) ??
+        (params?.knowledgeBaseId as string) ??
         (result.knowledgeBaseId as string) ??
         (data.knowledgeBaseId as string) ??
-        (params?.knowledgeBaseId as string)
+        (data.id as string)
       if (kbId) {
         const kbName =
           (data.name as string) ?? (result.knowledgeBaseName as string) ?? 'Knowledge Base'

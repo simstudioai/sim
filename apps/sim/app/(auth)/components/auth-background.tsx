@@ -9,7 +9,7 @@ type AuthBackgroundProps = {
 export default function AuthBackground({ className, children }: AuthBackgroundProps) {
   return (
     <div className={cn('fixed inset-0 overflow-hidden', className)}>
-      <div className='-z-50 pointer-events-none absolute inset-0 bg-[#1C1C1C]' />
+      <div className='-z-50 pointer-events-none absolute inset-0 bg-[var(--landing-bg)]' />
       <AuthBackgroundSVG />
       <div className='relative z-20 h-full overflow-auto'>{children}</div>
     </div>

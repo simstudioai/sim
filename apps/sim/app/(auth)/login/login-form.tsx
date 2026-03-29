@@ -1,9 +1,8 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
-import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
+import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -21,10 +20,9 @@ import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
-import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 
 const logger = createLogger('LoginForm')
 
@@ -88,10 +86,6 @@ export default function LoginPage({
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
-  const turnstileRef = useRef<TurnstileInstance>(null)
-  const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
-  const buttonClass = useBrandedButtonClass()
-
   const callbackUrlParam = searchParams?.get('callbackUrl')
   const isValidCallbackUrl = callbackUrlParam ? validateCallbackUrl(callbackUrlParam) : false
   const invalidCallbackRef = useRef(false)
@@ -169,20 +163,6 @@ export default function LoginPage({
       const safeCallbackUrl = callbackUrl
       let errorHandled = false
 
-      // Execute Turnstile challenge on submit and get a fresh token
-      let token: string | undefined
-      if (turnstileSiteKey && turnstileRef.current) {
-        try {
-          turnstileRef.current.reset()
-          turnstileRef.current.execute()
-          token = await turnstileRef.current.getResponsePromise(15_000)
-        } catch {
-          setFormError('Captcha verification failed. Please try again.')
-          setIsLoading(false)
-          return
-        }
-      }
-
       setFormError(null)
       const result = await client.signIn.email(
         {
@@ -191,12 +171,7 @@ export default function LoginPage({
           callbackURL: safeCallbackUrl,
         },
         {
-          fetchOptions: {
-            headers: {
-              ...(token ? { 'x-captcha-response': token } : {}),
-            },
-          },
-          onError: (ctx) => {
+          onError: (ctx: any) => {
             logger.error('Login error:', ctx.error)
 
             if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
@@ -364,10 +339,10 @@ export default function LoginPage({
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
+        <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           Sign in
         </h1>
-        <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
+        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
           Enter your details
         </p>
       </div>
@@ -375,11 +350,7 @@ export default function LoginPage({
       {/* SSO Login Button (primary top-only when it is the only method) */}
       {showTopSSO && (
         <div className='mt-8'>
-          <SSOLoginButton
-            callbackURL={callbackUrl}
-            variant='primary'
-            primaryClassName={buttonClass}
-          />
+          <SSOLoginButton callbackURL={callbackUrl} variant='primary' />
         </div>
       )}
 
@@ -421,7 +392,7 @@ export default function LoginPage({
                 <button
                   type='button'
                   onClick={() => setForgotPasswordOpen(true)}
-                  className='font-medium text-[#999] text-xs transition hover:text-[#ECECEC]'
+                  className='font-medium text-[var(--landing-text-muted)] text-xs transition hover:text-[var(--landing-text)]'
                 >
                   Forgot password?
                 </button>
@@ -448,7 +419,7 @@ export default function LoginPage({
                 <button
                   type='button'
                   onClick={() => setShowPassword(!showPassword)}
-                  className='-translate-y-1/2 absolute top-1/2 right-3 text-[#999] transition hover:text-[#ECECEC]'
+                  className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] transition hover:text-[var(--landing-text)]'
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -464,16 +435,6 @@ export default function LoginPage({
             </div>
           </div>
 
-          {turnstileSiteKey && (
-            <div className='absolute'>
-              <Turnstile
-                ref={turnstileRef}
-                siteKey={turnstileSiteKey}
-                options={{ size: 'invisible', execution: 'execute' }}
-              />
-            </div>
-          )}
-
           {resetSuccessMessage && (
             <div className='text-[#4CAF50] text-xs'>
               <p>{resetSuccessMessage}</p>
@@ -486,14 +447,16 @@ export default function LoginPage({
             </div>
           )}
 
-          <BrandedButton
-            type='submit'
-            disabled={isLoading}
-            loading={isLoading}
-            loadingText='Signing in'
-          >
-            Sign in
-          </BrandedButton>
+          <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
+            {isLoading ? (
+              <span className='flex items-center gap-2'>
+                <Loader2 className='h-4 w-4 animate-spin' />
+                Signing in...
+              </span>
+            ) : (
+              'Sign in'
+            )}
+          </button>
         </form>
       )}
 
@@ -501,10 +464,12 @@ export default function LoginPage({
       {showDivider && (
         <div className='relative my-6 font-light'>
           <div className='absolute inset-0 flex items-center'>
-            <div className='w-full border-[#2A2A2A] border-t' />
+            <div className='w-full border-[var(--landing-bg-elevated)] border-t' />
           </div>
           <div className='relative flex justify-center text-sm'>
-            <span className='bg-[#1C1C1C] px-4 font-[340] text-[#999]'>Or continue with</span>
+            <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--landing-text-muted)]'>
+              Or continue with
+            </span>
           </div>
         </div>
       )}
@@ -518,11 +483,7 @@ export default function LoginPage({
             callbackURL={callbackUrl}
           >
             {ssoEnabled && !hasOnlySSO && (
-              <SSOLoginButton
-                callbackURL={callbackUrl}
-                variant='outline'
-                primaryClassName={buttonClass}
-              />
+              <SSOLoginButton callbackURL={callbackUrl} variant='outline' />
             )}
           </SocialLoginButtons>
         </div>
@@ -534,20 +495,20 @@ export default function LoginPage({
           <span className='font-normal'>Don't have an account? </span>
           <Link
             href={isInviteFlow ? `/signup?invite_flow=true&callbackUrl=${callbackUrl}` : '/signup'}
-            className='font-medium text-[#ECECEC] underline-offset-4 transition hover:text-white hover:underline'
+            className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
           >
             Sign up
           </Link>
         </div>
       )}
 
-      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[#999] text-[13px] leading-relaxed sm:px-8 md:px-[44px]'>
+      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[13px] text-[var(--landing-text-muted)] leading-relaxed sm:px-8 md:px-11'>
         By signing in, you agree to our{' '}
         <Link
           href='/terms'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[#999] underline-offset-4 transition hover:text-[#ECECEC] hover:underline'
+          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
         >
           Terms of Service
         </Link>{' '}
@@ -556,7 +517,7 @@ export default function LoginPage({
           href='/privacy'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[#999] underline-offset-4 transition hover:text-[#ECECEC] hover:underline'
+          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
         >
           Privacy Policy
         </Link>
@@ -601,14 +562,16 @@ export default function LoginPage({
                     <p>{resetStatus.message}</p>
                   </div>
                 )}
-                <BrandedButton
-                  type='submit'
-                  disabled={isSubmittingReset}
-                  loading={isSubmittingReset}
-                  loadingText='Sending'
-                >
-                  Send Reset Link
-                </BrandedButton>
+                <button type='submit' disabled={isSubmittingReset} className={AUTH_SUBMIT_BTN}>
+                  {isSubmittingReset ? (
+                    <span className='flex items-center gap-2'>
+                      <Loader2 className='h-4 w-4 animate-spin' />
+                      Sending...
+                    </span>
+                  ) : (
+                    'Send Reset Link'
+                  )}
+                </button>
               </div>
             </form>
           </ModalBody>

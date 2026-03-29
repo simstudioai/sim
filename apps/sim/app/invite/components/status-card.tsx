@@ -2,7 +2,7 @@
 
 import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { cn } from '@/lib/core/utils/cn'
 
 interface InviteStatusCardProps {
   type: 'login' | 'loading' | 'error' | 'success' | 'invitation' | 'warning'
@@ -32,11 +32,13 @@ export function InviteStatusCard({
     return (
       <>
         <div className='space-y-1 text-center'>
-          <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>Loading</h1>
-          <p className='font-[380] text-[#999] text-[16px]'>{description}</p>
+          <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
+            Loading
+          </h1>
+          <p className='font-[380] text-[var(--landing-text-muted)] text-md'>{description}</p>
         </div>
         <div className='mt-8 flex w-full items-center justify-center py-8'>
-          <Loader2 className='h-8 w-8 animate-spin text-[#999]' />
+          <Loader2 className='h-8 w-8 animate-spin text-[var(--landing-text-muted)]' />
         </div>
       </>
     )
@@ -45,33 +47,42 @@ export function InviteStatusCard({
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>{title}</h1>
-        <p className='font-[380] text-[#999] text-[16px]'>{description}</p>
+        <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
+          {title}
+        </h1>
+        <p className='font-[380] text-[var(--landing-text-muted)] text-md'>{description}</p>
       </div>
 
       <div className='mt-8 w-full max-w-[410px] space-y-3'>
         {isExpiredError && (
-          <BrandedButton onClick={() => router.push('/')} showArrow={false}>
+          <button
+            onClick={() => router.push('/')}
+            className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
+          >
             Request New Invitation
-          </BrandedButton>
+          </button>
         )}
 
         {actions.map((action, index) => (
-          <BrandedButton
+          <button
             key={index}
             onClick={action.onClick}
             disabled={action.disabled || action.loading}
-            loading={action.loading}
-            loadingText={action.label}
-            showArrow={false}
-            className={
-              index !== 0
-                ? 'border-[#3d3d3d] bg-transparent text-[#ECECEC] hover:border-[#3d3d3d] hover:bg-[#2A2A2A]'
-                : undefined
-            }
+            className={cn(
+              'inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50',
+              index !== 0 &&
+                'border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-elevated)]'
+            )}
           >
-            {action.label}
-          </BrandedButton>
+            {action.loading ? (
+              <span className='flex items-center gap-2'>
+                <Loader2 className='h-4 w-4 animate-spin' />
+                {action.label}...
+              </span>
+            ) : (
+              action.label
+            )}
+          </button>
         ))}
       </div>
     </>

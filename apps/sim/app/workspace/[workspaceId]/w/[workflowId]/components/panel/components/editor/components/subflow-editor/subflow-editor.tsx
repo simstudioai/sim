@@ -68,10 +68,10 @@ export function SubflowEditor({
     <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
       {/* Subflow Editor Section */}
       <div ref={subBlocksRef} className='subblocks-section flex flex-1 flex-col overflow-hidden'>
-        <div className='flex-1 overflow-y-auto overflow-x-hidden px-[8px] pt-[9px] pb-[8px]'>
+        <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-[9px] pb-2'>
           {/* Type Selection */}
           <div>
-            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+            <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
             </Label>
             <Combobox
@@ -84,7 +84,7 @@ export function SubflowEditor({
           </div>
 
           {/* Dashed Line Separator */}
-          <div className='px-[2px] pt-[16px] pb-[10px]'>
+          <div className='px-0.5 pt-4 pb-2.5'>
             <div
               className='h-[1.25px]'
               style={{
@@ -96,7 +96,7 @@ export function SubflowEditor({
 
           {/* Configuration */}
           <div>
-            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+            <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               {isCountMode
                 ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
                 : isConditionMode
@@ -113,9 +113,9 @@ export function SubflowEditor({
                   onBlur={handleSubflowIterationsSave}
                   onKeyDown={(e) => e.key === 'Enter' && handleSubflowIterationsSave()}
                   disabled={!userCanEdit}
-                  className='mb-[4px]'
+                  className='mb-1'
                 />
-                <div className='text-[10px] text-muted-foreground'>
+                <div className='text-micro text-muted-foreground'>
                   Enter a number between 1 and {subflowConfig.maxIterations}
                 </div>
               </div>
@@ -180,7 +180,7 @@ export function SubflowEditor({
 
           {/* Connections Header with Chevron */}
           <div
-            className='flex flex-shrink-0 cursor-pointer items-center gap-[8px] px-[10px] pt-[5px] pb-[5px]'
+            className='flex flex-shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
             onClick={toggleConnectionsCollapsed}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
@@ -198,11 +198,11 @@ export function SubflowEditor({
                 (!isConnectionsAtMinHeight ? ' rotate-180' : '')
               }
             />
-            <div className='font-medium text-[13px] text-[var(--text-primary)]'>Connections</div>
+            <div className='font-medium text-[var(--text-primary)] text-small'>Connections</div>
           </div>
 
           {/* Connections Content - Always visible */}
-          <div className='flex-1 overflow-y-auto overflow-x-hidden px-[6px] pb-[8px]'>
+          <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
             <ConnectionBlocks connections={incomingConnections} currentBlockId={currentBlock.id} />
           </div>
         </div>

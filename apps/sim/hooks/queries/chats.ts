@@ -106,7 +106,7 @@ function buildChatPayload(
     title: formData.title.trim(),
     description: formData.description.trim(),
     customizations: {
-      primaryColor: 'var(--brand-primary-hover-hex)',
+      primaryColor: 'var(--brand-hover)',
       welcomeMessage: formData.welcomeMessage.trim(),
       ...(imageUrl && { imageUrl }),
     },

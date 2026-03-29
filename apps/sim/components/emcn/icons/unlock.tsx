@@ -16,6 +16,7 @@ export function Unlock(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <rect x='2.75' y='8.75' width='15' height='10' rx='2' />

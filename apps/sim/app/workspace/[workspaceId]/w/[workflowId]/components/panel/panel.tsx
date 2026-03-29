@@ -34,16 +34,9 @@ import { Lock, Unlock, Upload } from '@/components/emcn/icons'
 import { VariableIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
-import { ConversationListItem, MessageActions } from '@/app/workspace/[workspaceId]/components'
-import {
-  assistantMessageHasRenderableContent,
-  MessageContent,
-  QueuedMessages,
-  UserInput,
-  UserMessageContent,
-} from '@/app/workspace/[workspaceId]/home/components'
-import { PendingTagIndicator } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { useAutoScroll, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
+import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
+import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components'
+import { getWorkflowCopilotUseChatOptions, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
 import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -72,6 +65,7 @@ import type { ChatContext, PanelTab } from '@/stores/panel'
 import { usePanelStore, useVariablesStore as usePanelVariablesStore } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { captureBaselineSnapshot } from '@/stores/workflow-diff/utils'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -95,10 +89,15 @@ const logger = createLogger('Panel')
  *
  * @returns Panel on the right side of the workflow
  */
-export const Panel = memo(function Panel() {
+interface PanelProps {
+  /** Override workspaceId when rendered outside a workspace route (e.g. sandbox mode) */
+  workspaceId?: string
+}
+
+export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: PanelProps = {}) {
   const router = useRouter()
   const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = propWorkspaceId ?? (params.workspaceId as string)
 
   const panelRef = useRef<HTMLElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -297,6 +296,8 @@ export const Panel = memo(function Panel() {
       const workflowId = activeWorkflowId || useWorkflowRegistry.getState().activeWorkflowId
       if (!workflowId) return
 
+      const baselineWorkflow = captureBaselineSnapshot(workflowId)
+
       fetch(`/api/workflows/${workflowId}/state`)
         .then((res) => {
           if (!res.ok) throw new Error(`State fetch failed: ${res.status}`)
@@ -305,6 +306,7 @@ export const Panel = memo(function Panel() {
         .then((freshState) => {
           const diffStore = useWorkflowDiffStore.getState()
           return diffStore.setProposedChanges(freshState as WorkflowState, undefined, {
+            baselineWorkflow,
             skipPersist: true,
           })
         })
@@ -321,6 +323,7 @@ export const Panel = memo(function Panel() {
   const {
     messages: copilotMessages,
     isSending: copilotIsSending,
+    isReconnecting: copilotIsReconnecting,
     sendMessage: copilotSendMessage,
     stopGeneration: copilotStopGeneration,
     resolvedChatId: copilotResolvedChatId,
@@ -328,13 +331,15 @@ export const Panel = memo(function Panel() {
     removeFromQueue: copilotRemoveFromQueue,
     sendNow: copilotSendNow,
     editQueuedMessage: copilotEditQueuedMessage,
-  } = useChat(workspaceId, copilotChatId, {
-    apiPath: '/api/copilot/chat',
-    stopPath: '/api/mothership/chat/stop',
-    workflowId: activeWorkflowId || undefined,
-    onTitleUpdate: loadCopilotChats,
-    onToolResult: handleCopilotToolResult,
-  })
+  } = useChat(
+    workspaceId,
+    copilotChatId,
+    getWorkflowCopilotUseChatOptions({
+      workflowId: activeWorkflowId || undefined,
+      onTitleUpdate: loadCopilotChats,
+      onToolResult: handleCopilotToolResult,
+    })
+  )
 
   const handleCopilotNewChat = useCallback(() => {
     if (!activeWorkflowId || !workspaceId) return
@@ -398,9 +403,6 @@ export const Panel = memo(function Panel() {
     },
     [copilotSendMessage]
   )
-
-  const { ref: copilotScrollRef, scrollToBottom: copilotScrollToBottom } =
-    useAutoScroll(copilotIsSending)
 
   /**
    * Mark hydration as complete on mount
@@ -597,14 +599,14 @@ export const Panel = memo(function Panel() {
         className='panel-container relative shrink-0 overflow-hidden bg-[var(--bg)]'
         aria-label='Workflow panel'
       >
-        <div className='flex h-full flex-col border-[var(--border)] border-l pt-[14px]'>
+        <div className='flex h-full flex-col border-[var(--border)] border-l pt-3.5'>
           {/* Header */}
-          <div className='flex flex-shrink-0 items-center justify-between px-[8px]'>
+          <div className='flex flex-shrink-0 items-center justify-between px-2'>
             {/* More and Chat */}
-            <div className='flex gap-[6px]'>
+            <div className='flex gap-1.5'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  <Button className='h-[30px] w-[30px] rounded-[5px]'>
+                  <Button className='h-[30px] w-[30px] rounded-[5px]' data-tour='panel-menu'>
                     <MoreHorizontal />
                   </Button>
                 </DropdownMenuTrigger>
@@ -664,10 +666,11 @@ export const Panel = memo(function Panel() {
             </div>
 
             {/* Deploy and Run */}
-            <div className='flex gap-[6px]'>
+            <div className='flex gap-1.5' data-tour='deploy-run'>
               <Deploy activeWorkflowId={activeWorkflowId} userPermissions={userPermissions} />
               <Button
-                className='h-[30px] gap-[8px] px-[10px]'
+                className='h-[30px] gap-2 px-2.5'
+                data-tour='run-button'
                 variant={isExecuting ? 'active' : 'tertiary'}
                 onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
                 disabled={!isExecuting && isButtonDisabled}
@@ -683,43 +686,46 @@ export const Panel = memo(function Panel() {
           </div>
 
           {/* Tabs */}
-          <div className='flex flex-shrink-0 items-center justify-between px-[8px] pt-[14px]'>
-            <div className='flex gap-[4px]'>
+          <div className='flex flex-shrink-0 items-center justify-between px-2 pt-3.5'>
+            <div className='flex gap-1'>
               {!permissionConfig.hideCopilot && (
                 <Button
-                  className={`h-[28px] truncate rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                  className={`h-[28px] truncate rounded-md border px-2 py-[5px] text-[12.5px] ${
                     _hasHydrated && activeTab === 'copilot'
                       ? 'border-[var(--border-1)]'
-                      : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                      : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
                   }`}
                   variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
                   onClick={() => handleTabClick('copilot')}
                   data-tab-button='copilot'
+                  data-tour='tab-copilot'
                 >
                   Copilot
                 </Button>
               )}
               <Button
-                className={`h-[28px] rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                className={`h-[28px] rounded-md border px-2 py-[5px] text-[12.5px] ${
                   _hasHydrated && activeTab === 'toolbar'
                     ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
                 }`}
                 variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
+                data-tour='tab-toolbar'
               >
                 Toolbar
               </Button>
               <Button
-                className={`h-[28px] rounded-[6px] border px-[8px] py-[5px] text-[12.5px] ${
+                className={`h-[28px] rounded-md border px-2 py-[5px] text-[12.5px] ${
                   _hasHydrated && activeTab === 'editor'
                     ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover:border-[var(--border-1)] hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
                 }`}
                 variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
+                data-tour='tab-editor'
               >
                 Editor
               </Button>
@@ -727,7 +733,7 @@ export const Panel = memo(function Panel() {
           </div>
 
           {/* Tab Content - Keep all tabs mounted but hidden to preserve state */}
-          <div className='flex-1 overflow-hidden pt-[12px]'>
+          <div className='flex-1 overflow-hidden pt-3'>
             {!permissionConfig.hideCopilot && (
               <div
                 className={
@@ -740,11 +746,11 @@ export const Panel = memo(function Panel() {
                 data-tab-content='copilot'
               >
                 {/* Copilot Header */}
-                <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between gap-[8px] rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] px-[12px] py-[6px]'>
+                <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between gap-2 border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
                   <h2 className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
                     {copilotChatTitle || 'New Chat'}
                   </h2>
-                  <div className='flex items-center gap-[8px]'>
+                  <div className='flex items-center gap-2'>
                     <Button variant='ghost' className='p-0' onClick={handleCopilotNewChat}>
                       <Plus className='h-[14px] w-[14px]' />
                     </Button>
@@ -762,7 +768,7 @@ export const Panel = memo(function Panel() {
                       </PopoverTrigger>
                       <PopoverContent align='end' side='bottom' sideOffset={8} maxHeight={280}>
                         {copilotChatList.length === 0 ? (
-                          <div className='px-[6px] py-[16px] text-center text-[12px] text-muted-foreground'>
+                          <div className='px-1.5 py-4 text-center text-[12px] text-muted-foreground'>
                             No chats yet
                           </div>
                         ) : (
@@ -781,7 +787,7 @@ export const Panel = memo(function Panel() {
                                       titleClassName='text-[13px]'
                                       actions={
                                         <div
-                                          className={`flex flex-shrink-0 items-center gap-[4px] ${copilotChatId !== chat.id ? 'opacity-0 transition-opacity group-hover:opacity-100' : ''}`}
+                                          className={`flex flex-shrink-0 items-center gap-1 ${copilotChatId !== chat.id ? 'opacity-0 transition-opacity group-hover:opacity-100' : ''}`}
                                         >
                                           <Button
                                             variant='ghost'
@@ -808,77 +814,22 @@ export const Panel = memo(function Panel() {
                   </div>
                 </div>
 
-                <div
-                  ref={copilotScrollRef}
-                  className='min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pt-2 pb-4'
-                >
-                  <div className='space-y-4'>
-                    {copilotMessages.map((msg, index) => {
-                      if (msg.role === 'user') {
-                        return (
-                          <div key={msg.id} className='flex flex-col items-end gap-[6px] pt-2'>
-                            <div className='max-w-[85%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3 py-2'>
-                              <UserMessageContent content={msg.content} contexts={msg.contexts} />
-                            </div>
-                          </div>
-                        )
-                      }
-
-                      const hasAnyBlocks = Boolean(msg.contentBlocks?.length)
-                      const hasRenderableAssistant = assistantMessageHasRenderableContent(
-                        msg.contentBlocks ?? [],
-                        msg.content ?? ''
-                      )
-                      const isLastAssistant =
-                        msg.role === 'assistant' && index === copilotMessages.length - 1
-                      const isThisStreaming = copilotIsSending && isLastAssistant
-
-                      if (!hasAnyBlocks && !msg.content?.trim() && isThisStreaming) {
-                        return <PendingTagIndicator key={msg.id} />
-                      }
-
-                      if (!hasRenderableAssistant && !msg.content?.trim() && !isThisStreaming) {
-                        return null
-                      }
-
-                      const isLastMessage = index === copilotMessages.length - 1
-
-                      return (
-                        <div key={msg.id} className='group/msg relative pb-3'>
-                          {!isThisStreaming && (msg.content || msg.contentBlocks?.length) && (
-                            <div className='absolute right-0 bottom-0 z-10'>
-                              <MessageActions content={msg.content} requestId={msg.requestId} />
-                            </div>
-                          )}
-                          <MessageContent
-                            blocks={msg.contentBlocks || []}
-                            fallbackContent={msg.content}
-                            isStreaming={isThisStreaming}
-                            onOptionSelect={isLastMessage ? copilotSendMessage : undefined}
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                <div className='flex-shrink-0 px-3 pb-3'>
-                  <QueuedMessages
-                    messageQueue={copilotMessageQueue}
-                    onRemove={copilotRemoveFromQueue}
-                    onSendNow={copilotSendNow}
-                    onEdit={handleCopilotEditQueuedMessage}
-                  />
-                  <UserInput
-                    onSubmit={handleCopilotSubmit}
-                    isSending={copilotIsSending}
-                    onStopGeneration={copilotStopGeneration}
-                    isInitialView={false}
-                    userId={session?.user?.id}
-                    editValue={copilotEditingInputValue}
-                    onEditValueConsumed={clearCopilotEditingValue}
-                  />
-                </div>
+                <MothershipChat
+                  className='min-h-0 flex-1'
+                  messages={copilotMessages}
+                  isSending={copilotIsSending}
+                  isReconnecting={copilotIsReconnecting}
+                  onSubmit={handleCopilotSubmit}
+                  onStopGeneration={copilotStopGeneration}
+                  messageQueue={copilotMessageQueue}
+                  onRemoveQueuedMessage={copilotRemoveFromQueue}
+                  onSendQueuedMessage={copilotSendNow}
+                  onEditQueuedMessage={handleCopilotEditQueuedMessage}
+                  userId={session?.user?.id}
+                  editValue={copilotEditingInputValue}
+                  onEditValueConsumed={clearCopilotEditingValue}
+                  layout='copilot-view'
+                />
               </div>
             )}
             <div
@@ -928,7 +879,10 @@ export const Panel = memo(function Panel() {
               <span className='font-medium text-[var(--text-primary)]'>
                 {currentWorkflow?.name ?? 'this workflow'}
               </span>
-              ? All associated blocks, executions, and configuration will be removed.{' '}
+              ?{' '}
+              <span className='text-[var(--text-error)]'>
+                All associated blocks, executions, and configuration will be removed.
+              </span>{' '}
               <span className='text-[var(--text-tertiary)]'>
                 You can restore it from Recently Deleted in Settings.
               </span>

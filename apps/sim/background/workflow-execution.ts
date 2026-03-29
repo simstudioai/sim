@@ -36,6 +36,7 @@ export function buildWorkflowCorrelation(
 export type WorkflowExecutionPayload = {
   workflowId: string
   userId: string
+  workspaceId?: string
   input?: any
   triggerType?: CoreTriggerType
   executionId?: string

@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
@@ -56,6 +57,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = SmtpSendSchema.parse(body)
 
+    const hostValidation = await validateDatabaseHost(validatedData.smtpHost, 'smtpHost')
+    if (!hostValidation.isValid) {
+      logger.warn(`[${requestId}] SMTP host validation failed`, {
+        host: validatedData.smtpHost,
+        error: hostValidation.error,
+      })
+      return NextResponse.json({ success: false, error: hostValidation.error }, { status: 400 })
+    }
+
     logger.info(`[${requestId}] Sending email via SMTP`, {
       host: validatedData.smtpHost,
       port: validatedData.smtpPort,
@@ -64,8 +74,13 @@ export async function POST(request: NextRequest) {
       secure: validatedData.smtpSecure,
     })
 
+    // Pin the pre-resolved IP to prevent DNS rebinding (TOCTOU) attacks.
+    // Pass resolvedIP as the host so nodemailer connects to the validated address,
+    // and set servername for correct TLS SNI/certificate validation.
+    const pinnedHost = hostValidation.resolvedIP ?? validatedData.smtpHost
+
     const transporter = nodemailer.createTransport({
-      host: validatedData.smtpHost,
+      host: pinnedHost,
       port: validatedData.smtpPort,
       secure: validatedData.smtpSecure === 'SSL',
       auth: {
@@ -74,12 +89,8 @@ export async function POST(request: NextRequest) {
       },
       tls:
         validatedData.smtpSecure === 'None'
-          ? {
-              rejectUnauthorized: false,
-            }
-          : {
-              rejectUnauthorized: true,
-            },
+          ? { rejectUnauthorized: false, servername: validatedData.smtpHost }
+          : { rejectUnauthorized: true, servername: validatedData.smtpHost },
     })
 
     const contentType = validatedData.contentType || 'text'
@@ -189,16 +200,16 @@ export async function POST(request: NextRequest) {
     if (isNodeError(error)) {
       if (error.code === 'EAUTH') {
         errorMessage = 'SMTP authentication failed - check username and password'
-      } else if (error.code === 'ECONNECTION' || error.code === 'ECONNREFUSED') {
+      } else if (
+        error.code === 'ECONNECTION' ||
+        error.code === 'ECONNREFUSED' ||
+        error.code === 'ECONNRESET' ||
+        error.code === 'ETIMEDOUT'
+      ) {
         errorMessage = 'Could not connect to SMTP server - check host and port'
-      } else if (error.code === 'ECONNRESET') {
-        errorMessage = 'Connection was reset by SMTP server'
-      } else if (error.code === 'ETIMEDOUT') {
-        errorMessage = 'SMTP server connection timeout'
       }
     }
 
-    // Check for SMTP response codes
     const hasResponseCode = (err: unknown): err is { responseCode: number } => {
       return typeof err === 'object' && err !== null && 'responseCode' in err
     }

@@ -27,6 +27,7 @@ import type { McpToolSchema } from '@/lib/mcp/types'
 import { getProviderIdFromServiceId, type OAuthProvider, type OAuthService } from '@/lib/oauth'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { McpServerFormModal } from '@/app/workspace/[workspaceId]/settings/components/mcp/components/mcp-server-form-modal/mcp-server-form-modal'
 import {
   LongInput,
   ShortInput,
@@ -48,6 +49,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 import { getAllBlocks } from '@/blocks'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
+import { BUILT_IN_TOOL_TYPES } from '@/blocks/utils'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import {
   type CustomTool as CustomToolDefinition,
@@ -55,12 +57,15 @@ import {
 } from '@/hooks/queries/custom-tools'
 import { useDeploymentInfo, useDeployWorkflow } from '@/hooks/queries/deployments'
 import {
+  useAllowedMcpDomains,
+  useCreateMcpServer,
   useForceRefreshMcpTools,
   useMcpServers,
   useMcpToolsEvents,
   useStoredMcpTools,
 } from '@/hooks/queries/mcp'
 import { useWorkflowState, useWorkflows } from '@/hooks/queries/workflows'
+import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -330,24 +335,6 @@ function resolveCustomToolFromReference(
  * These are distinguished from third-party integrations for categorization
  * in the tool selection dropdown.
  */
-const BUILT_IN_TOOL_TYPES = new Set([
-  'api',
-  'file',
-  'function',
-  'knowledge',
-  'search',
-  'thinking',
-  'image_generator',
-  'video_generator',
-  'vision',
-  'translate',
-  'tts',
-  'stt',
-  'memory',
-  'table',
-  'webhook_request',
-  'workflow',
-])
 
 /**
  * Checks if a block supports multiple operations.
@@ -436,7 +423,7 @@ function createToolIcon(
 ) {
   return (
     <div
-      className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+      className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
       style={{ background: bgColor }}
     >
       <IconComponent className='h-[10px] w-[10px] text-white' />
@@ -469,6 +456,7 @@ export const ToolInput = memo(function ToolInput({
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
+  const [mcpModalOpen, setMcpModalOpen] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -507,6 +495,9 @@ export const ToolInput = memo(function ToolInput({
   const forceRefreshMcpTools = useForceRefreshMcpTools()
   useMcpToolsEvents(workspaceId)
   const { navigateToSettings } = useSettingsNavigation()
+  const createMcpServer = useCreateMcpServer()
+  const { data: allowedMcpDomains = null } = useAllowedMcpDomains()
+  const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
   const mcpDataLoading = mcpLoading || mcpServersLoading
 
   const { data: workflowsList = [] } = useWorkflows(workspaceId, { syncRegistry: false })
@@ -1379,7 +1370,7 @@ export const ToolInput = memo(function ToolInput({
         icon: McpIcon,
         onSelect: () => {
           setOpen(false)
-          navigateToSettings({ section: 'mcp' })
+          setMcpModalOpen(true)
         },
         disabled: isPreview,
       })
@@ -1536,7 +1527,7 @@ export const ToolInput = memo(function ToolInput({
   ])
 
   return (
-    <div className='w-full space-y-[8px]'>
+    <div className='w-full space-y-2'>
       <Combobox
         options={[]}
         groups={toolGroups}
@@ -1665,7 +1656,7 @@ export const ToolInput = memo(function ToolInput({
             <div
               key={`${tool.customToolId || tool.toolId || toolIndex}-${toolIndex}`}
               className={cn(
-                'group relative flex flex-col overflow-hidden rounded-[4px] border border-[var(--border-1)] transition-all duration-200 ease-in-out',
+                'group relative flex flex-col overflow-hidden rounded-sm border border-[var(--border-1)] transition-all duration-200 ease-in-out',
                 draggedIndex === toolIndex ? 'scale-95 opacity-40' : '',
                 dragOverIndex === toolIndex && draggedIndex !== toolIndex && draggedIndex !== null
                   ? 'translate-y-1 transform border-t-2 border-t-muted-foreground/40'
@@ -1680,7 +1671,7 @@ export const ToolInput = memo(function ToolInput({
             >
               <div
                 className={cn(
-                  'flex items-center justify-between gap-[8px] rounded-t-[4px] bg-[var(--surface-4)] px-[8px] py-[6.5px]',
+                  'flex items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-[6.5px]',
                   (isCustomTool || hasToolBody) && 'cursor-pointer'
                 )}
                 onClick={() => {
@@ -1691,9 +1682,9 @@ export const ToolInput = memo(function ToolInput({
                   }
                 }}
               >
-                <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+                <div className='flex min-w-0 flex-1 items-center gap-2'>
                   <div
-                    className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                    className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
                     style={{
                       backgroundColor: isCustomTool
                         ? '#3B82F6'
@@ -1717,7 +1708,7 @@ export const ToolInput = memo(function ToolInput({
                       />
                     )}
                   </div>
-                  <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+                  <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                     {isCustomTool ? customToolTitle : tool.title}
                   </span>
                   {isMcpTool &&
@@ -1754,7 +1745,7 @@ export const ToolInput = memo(function ToolInput({
                       <WorkflowToolDeployBadge workflowId={tool.params.workflowId} />
                     )}
                 </div>
-                <div className='flex flex-shrink-0 items-center gap-[8px]'>
+                <div className='flex flex-shrink-0 items-center gap-2'>
                   {supportsToolControl && !(isMcpTool && isMcpToolUnavailable(tool)) && (
                     <Popover
                       open={usageControlPopoverIndex === toolIndex}
@@ -1762,7 +1753,7 @@ export const ToolInput = memo(function ToolInput({
                     >
                       <PopoverTrigger asChild>
                         <button
-                          className='flex items-center justify-center font-medium text-[12px] text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                          className='flex items-center justify-center font-medium text-[var(--text-tertiary)] text-caption transition-colors hover-hover:text-[var(--text-primary)]'
                           onClick={(e: React.MouseEvent) => e.stopPropagation()}
                           aria-label='Tool usage control'
                         >
@@ -1777,7 +1768,7 @@ export const ToolInput = memo(function ToolInput({
                         align='end'
                         sideOffset={8}
                         onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                        className='gap-[2px]'
+                        className='gap-0.5'
                         border
                       >
                         <PopoverItem
@@ -1831,7 +1822,7 @@ export const ToolInput = memo(function ToolInput({
                             e.stopPropagation()
                             setMcpRemovePopoverIndex(toolIndex)
                           }}
-                          className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                          className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                           aria-label='Remove tool'
                         >
                           <XIcon className='h-[13px] w-[13px]' />
@@ -1842,7 +1833,7 @@ export const ToolInput = memo(function ToolInput({
                         align='end'
                         sideOffset={8}
                         onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                        className='gap-[2px]'
+                        className='gap-0.5'
                         border
                       >
                         <PopoverItem
@@ -1869,7 +1860,7 @@ export const ToolInput = memo(function ToolInput({
                         e.stopPropagation()
                         handleRemoveTool(toolIndex)
                       }}
-                      className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)]'
+                      className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                       aria-label='Remove tool'
                     >
                       <XIcon className='h-[13px] w-[13px]' />
@@ -1879,15 +1870,15 @@ export const ToolInput = memo(function ToolInput({
               </div>
 
               {!isCustomTool && isExpandedForDisplay && (
-                <div className='flex flex-col gap-[10px] overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[8px] py-[8px]'>
+                <div className='flex flex-col gap-2.5 overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2 py-2'>
                   {/* Operation dropdown for tools with multiple operations */}
                   {(() => {
                     const hasOperations = hasMultipleOperations(tool.type)
                     const operationOptions = hasOperations ? getOperationOptions(tool.type) : []
 
                     return hasOperations && operationOptions.length > 0 ? (
-                      <div className='relative space-y-[6px]'>
-                        <div className='font-medium text-[13px] text-[var(--text-primary)]'>
+                      <div className='relative space-y-1.5'>
+                        <div className='font-medium text-[var(--text-primary)] text-small'>
                           Operation
                         </div>
                         <Combobox
@@ -2012,9 +2003,7 @@ export const ToolInput = memo(function ToolInput({
                         )
                       })
 
-                      return (
-                        <div className='flex flex-col gap-[14px] pt-[4px]'>{renderedElements}</div>
-                      )
+                      return <div className='flex flex-col gap-3.5 pt-1'>{renderedElements}</div>
                     }
 
                     const filteredParams = displayParams.filter((param) =>
@@ -2094,6 +2083,18 @@ export const ToolInput = memo(function ToolInput({
               })()
             : undefined
         }
+      />
+
+      <McpServerFormModal
+        open={mcpModalOpen}
+        onOpenChange={setMcpModalOpen}
+        mode='add'
+        onSubmit={async (config) => {
+          await createMcpServer.mutateAsync({ workspaceId, config: { ...config, enabled: true } })
+        }}
+        workspaceId={workspaceId}
+        availableEnvVars={availableEnvVars}
+        allowedMcpDomains={allowedMcpDomains}
       />
     </div>
   )

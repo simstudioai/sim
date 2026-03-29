@@ -71,6 +71,10 @@ function stripStorageKeyPrefix(segment: string): string {
   return STORAGE_KEY_PREFIX_RE.test(segment) ? segment.replace(STORAGE_KEY_PREFIX_RE, '') : segment
 }
 
+function getWorkspaceIdForCompile(key: string): string | undefined {
+  return parseWorkspaceFileKey(key) ?? undefined
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
@@ -90,18 +94,19 @@ export async function GET(
     const isCloudPath = isS3Path || isBlobPath
     const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
 
-    const contextParam = request.nextUrl.searchParams.get('context')
-    const raw = request.nextUrl.searchParams.get('raw') === '1'
+    const isPublicByKeyPrefix =
+      cloudKey.startsWith('profile-pictures/') || cloudKey.startsWith('og-images/')
 
-    const context = contextParam || (isCloudPath ? inferContextFromKey(cloudKey) : undefined)
-
-    if (context === 'profile-pictures' || context === 'og-images') {
+    if (isPublicByKeyPrefix) {
+      const context = inferContextFromKey(cloudKey)
       logger.info(`Serving public ${context}:`, { cloudKey })
       if (isUsingCloudStorage() || isCloudPath) {
         return await handleCloudProxyPublic(cloudKey, context)
       }
       return await handleLocalFilePublic(fullPath)
     }
+
+    const raw = request.nextUrl.searchParams.get('raw') === '1'
 
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
 
@@ -116,7 +121,7 @@ export async function GET(
     const userId = authResult.userId
 
     if (isUsingCloudStorage()) {
-      return await handleCloudProxy(cloudKey, userId, contextParam, raw)
+      return await handleCloudProxy(cloudKey, userId, raw)
     }
 
     return await handleLocalFile(cloudKey, userId, raw)
@@ -163,7 +168,7 @@ async function handleLocalFile(
     const rawBuffer = await readFile(filePath)
     const segment = filename.split('/').pop() || filename
     const displayName = stripStorageKeyPrefix(segment)
-    const workspaceId = parseWorkspaceFileKey(filename) ?? undefined
+    const workspaceId = getWorkspaceIdForCompile(filename)
     const { buffer: fileBuffer, contentType } = await compilePptxIfNeeded(
       rawBuffer,
       displayName,
@@ -188,19 +193,11 @@ async function handleLocalFile(
 async function handleCloudProxy(
   cloudKey: string,
   userId: string,
-  contextParam?: string | null,
   raw = false
 ): Promise<NextResponse> {
   try {
-    let context: StorageContext
-
-    if (contextParam) {
-      context = contextParam as StorageContext
-      logger.info(`Using explicit context: ${context} for key: ${cloudKey}`)
-    } else {
-      context = inferContextFromKey(cloudKey)
-      logger.info(`Inferred context: ${context} from key pattern: ${cloudKey}`)
-    }
+    const context = inferContextFromKey(cloudKey)
+    logger.info(`Inferred context: ${context} from key pattern: ${cloudKey}`)
 
     const hasAccess = await verifyFileAccess(
       cloudKey,
@@ -228,7 +225,7 @@ async function handleCloudProxy(
 
     const segment = cloudKey.split('/').pop() || 'download'
     const displayName = stripStorageKeyPrefix(segment)
-    const workspaceId = parseWorkspaceFileKey(cloudKey) ?? undefined
+    const workspaceId = getWorkspaceIdForCompile(cloudKey)
     const { buffer: fileBuffer, contentType } = await compilePptxIfNeeded(
       rawBuffer,
       displayName,

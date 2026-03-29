@@ -2,6 +2,7 @@
   "name": "@sim/tsconfig",
   "version": "0.0.0",
   "private": true,
+  "sideEffects": false,
   "license": "Apache-2.0",
   "description": "Shared TypeScript configurations for Sim monorepo",
   "exports": {

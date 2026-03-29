@@ -2,11 +2,11 @@
 
 import { type KeyboardEvent, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(home)/components/navbar/navbar'
 
@@ -80,18 +80,18 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
 
   return (
     <AuthBackground className='dark font-[430] font-season'>
-      <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
-        <header className='shrink-0 bg-[#1C1C1C]'>
+      <main className='relative flex min-h-full flex-col text-[var(--landing-text)]'>
+        <header className='shrink-0 bg-[var(--landing-bg)]'>
           <Navbar logoOnly />
         </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>
+                <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
                   Password Required
                 </h1>
-                <p className='font-[380] text-[#999] text-[16px]'>
+                <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
                   This chat is password-protected
                 </p>
               </div>
@@ -103,57 +103,75 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
                 }}
                 className='mt-8 w-full max-w-[410px] space-y-6'
               >
-                <div className='space-y-2'>
+                <div className='space-y-6'>
                   <div className='flex items-center justify-between'>
                     <Label htmlFor='password'>Password</Label>
                   </div>
                   <div className='relative'>
-                    <Input
-                      id='password'
-                      name='password'
-                      required
-                      type={showPassword ? 'text' : 'password'}
-                      autoCapitalize='none'
-                      autoComplete='new-password'
-                      autoCorrect='off'
-                      placeholder='Enter password'
-                      value={password}
-                      onChange={handlePasswordChange}
-                      onKeyDown={handleKeyDown}
-                      className={cn(
-                        'pr-10',
-                        showValidationError &&
-                          passwordErrors.length > 0 &&
-                          'border-red-500 focus:border-red-500'
-                      )}
-                      autoFocus
-                    />
-                    <button
-                      type='button'
-                      onClick={() => setShowPassword(!showPassword)}
-                      className='-translate-y-1/2 absolute top-1/2 right-3 text-[#999] hover:text-[#ECECEC]'
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                  {showValidationError && passwordErrors.length > 0 && (
-                    <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                      {passwordErrors.map((error, index) => (
-                        <p key={index}>{error}</p>
-                      ))}
+                    <div className='relative'>
+                      <Input
+                        id='password'
+                        name='password'
+                        required
+                        type={showPassword ? 'text' : 'password'}
+                        autoCapitalize='none'
+                        autoComplete='new-password'
+                        autoCorrect='off'
+                        placeholder='Enter password'
+                        value={password}
+                        onChange={handlePasswordChange}
+                        onKeyDown={handleKeyDown}
+                        className={cn(
+                          'pr-10',
+                          showValidationError &&
+                            passwordErrors.length > 0 &&
+                            'border-red-500 focus:border-red-500'
+                        )}
+                        autoFocus
+                      />
+                      <button
+                        type='button'
+                        onClick={() => setShowPassword(!showPassword)}
+                        className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] hover:text-[var(--landing-text)]'
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
                     </div>
-                  )}
+                    <div
+                      className={cn(
+                        'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',
+                        showValidationError && passwordErrors.length > 0
+                          ? 'grid-rows-[1fr]'
+                          : 'grid-rows-[0fr]'
+                      )}
+                      aria-live='polite'
+                    >
+                      <div className='overflow-hidden'>
+                        <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                          {passwordErrors.map((error, index) => (
+                            <p key={index}>{error}</p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <BrandedButton
+                <button
                   type='submit'
-                  disabled={!password.trim()}
-                  loading={isAuthenticating}
-                  loadingText='Authenticating'
+                  disabled={!password.trim() || isAuthenticating}
+                  className={AUTH_SUBMIT_BTN}
                 >
-                  Continue
-                </BrandedButton>
+                  {isAuthenticating ? (
+                    <span className='flex items-center gap-2'>
+                      <Loader2 className='h-4 w-4 animate-spin' />
+                      Authenticating...
+                    </span>
+                  ) : (
+                    'Continue'
+                  )}
+                </button>
               </form>
             </div>
           </div>

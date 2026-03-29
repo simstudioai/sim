@@ -152,7 +152,6 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
       mode: 'per_request',
       requestsPerMinute: 20,
     },
-    skipFixedUsageLog: true,
   },
 
   request: {

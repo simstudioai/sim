@@ -14,6 +14,7 @@ export {
   getDaysRemainingInPeriod,
   getFilledPillColor,
   getRemainingBudget,
+  getSubscriptionAccessState,
   getSubscriptionStatus,
   getUsage,
   isAtLeastPro,

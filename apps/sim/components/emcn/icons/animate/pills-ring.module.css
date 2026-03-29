@@ -20,3 +20,9 @@
   animation: pill-fade 1.2s ease-in-out infinite;
   will-change: opacity;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .animated-pills-ring-svg .pill {
+    animation: none;
+  }
+}

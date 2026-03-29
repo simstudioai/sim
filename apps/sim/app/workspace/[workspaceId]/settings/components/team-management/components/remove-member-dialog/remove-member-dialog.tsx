@@ -50,18 +50,18 @@ export function RemoveMemberDialog({
           </p>
 
           {!isSelfRemoval && (
-            <div className='mt-[16px]'>
-              <div className='flex items-center gap-[8px]'>
+            <div className='mt-4'>
+              <div className='flex items-center gap-2'>
                 <Checkbox
                   id='reduce-seats'
                   checked={shouldReduceSeats}
                   onCheckedChange={(checked) => onShouldReduceSeatsChange(checked === true)}
                 />
-                <label htmlFor='reduce-seats' className='text-[13px] text-[var(--text-primary)]'>
+                <label htmlFor='reduce-seats' className='text-[var(--text-primary)] text-small'>
                   Also reduce seat count in my subscription
                 </label>
               </div>
-              <p className='mt-[4px] text-[13px] text-[var(--text-muted)]'>
+              <p className='mt-1 text-[var(--text-muted)] text-small'>
                 If selected, your team seat count will be reduced by 1, lowering your monthly
                 billing.
               </p>
@@ -69,8 +69,8 @@ export function RemoveMemberDialog({
           )}
 
           {error && (
-            <div className='mt-[8px]'>
-              <p className='text-[13px] text-[var(--text-error)] leading-tight'>
+            <div className='mt-2'>
+              <p className='text-[var(--text-error)] text-small leading-tight'>
                 {error instanceof Error && error.message ? error.message : String(error)}
               </p>
             </div>

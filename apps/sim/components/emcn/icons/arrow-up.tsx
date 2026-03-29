@@ -16,6 +16,7 @@ export function ArrowUp(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path d='M4 9.25L10.25 3L16.5 9.25' />

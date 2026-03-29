@@ -79,6 +79,22 @@ vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: vi.fn().mockReturnValue('https://test.sim.ai'),
 }))
 
+vi.mock('@/components/emails', () => ({
+  WorkspaceInvitationEmail: vi.fn().mockReturnValue(null),
+}))
+
+vi.mock('@/lib/messaging/email/mailer', () => ({
+  sendEmail: vi.fn().mockResolvedValue({ success: true }),
+}))
+
+vi.mock('@/lib/messaging/email/utils', () => ({
+  getFromEmailAddress: vi.fn().mockReturnValue('noreply@test.com'),
+}))
+
+vi.mock('@react-email/render', () => ({
+  render: vi.fn().mockResolvedValue('<html></html>'),
+}))
+
 vi.mock('@sim/db', () => ({
   db: {
     select: () => mockDbSelect(),
@@ -171,9 +187,10 @@ describe('Workspace Invitation [invitationId] API Route', () => {
   })
 
   describe('GET /api/workspaces/invitations/[invitationId]', () => {
-    it('should return invitation details when called without token', async () => {
-      const session = createSession({ userId: mockUser.id, email: mockUser.email })
+    it('should return invitation details when caller is the invitee', async () => {
+      const session = createSession({ userId: mockUser.id, email: 'invited@example.com' })
       mockGetSession.mockResolvedValue(session)
+      mockHasWorkspaceAdminAccess.mockResolvedValue(false)
       dbSelectResults = [[mockInvitation], [mockWorkspace]]
 
       const request = new NextRequest('http://localhost/api/workspaces/invitations/invitation-789')
@@ -189,6 +206,43 @@ describe('Workspace Invitation [invitationId] API Route', () => {
         status: 'pending',
         workspaceName: 'Test Workspace',
       })
+    })
+
+    it('should return invitation details when caller is a workspace admin', async () => {
+      const session = createSession({ userId: mockUser.id, email: mockUser.email })
+      mockGetSession.mockResolvedValue(session)
+      mockHasWorkspaceAdminAccess.mockResolvedValue(true)
+      dbSelectResults = [[mockInvitation], [mockWorkspace]]
+
+      const request = new NextRequest('http://localhost/api/workspaces/invitations/invitation-789')
+      const params = Promise.resolve({ invitationId: 'invitation-789' })
+
+      const response = await GET(request, { params })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data).toMatchObject({
+        id: 'invitation-789',
+        email: 'invited@example.com',
+        status: 'pending',
+        workspaceName: 'Test Workspace',
+      })
+    })
+
+    it('should return 403 when caller is neither invitee nor workspace admin', async () => {
+      const session = createSession({ userId: mockUser.id, email: 'unrelated@example.com' })
+      mockGetSession.mockResolvedValue(session)
+      mockHasWorkspaceAdminAccess.mockResolvedValue(false)
+      dbSelectResults = [[mockInvitation], [mockWorkspace]]
+
+      const request = new NextRequest('http://localhost/api/workspaces/invitations/invitation-789')
+      const params = Promise.resolve({ invitationId: 'invitation-789' })
+
+      const response = await GET(request, { params })
+      const data = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(data).toEqual({ error: 'Insufficient permissions' })
     })
 
     it('should redirect to login when unauthenticated with token', async () => {

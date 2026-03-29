@@ -329,7 +329,7 @@ const CollapseButton = memo(function CollapseButton({ isCollapsed, onClick }: Co
     <button
       type='button'
       onClick={onClick}
-      className='flex h-[21px] w-[12px] cursor-pointer items-center justify-center border-none bg-transparent p-0 text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+      className='relative flex h-[21px] w-[12px] cursor-pointer items-center justify-center border-none bg-transparent p-0 text-[var(--text-muted)] before:absolute before:inset-[-10px] before:content-[""] hover-hover:text-[var(--text-secondary)]'
       aria-label={isCollapsed ? 'Expand' : 'Collapse'}
     >
       <ChevronRight
@@ -376,9 +376,9 @@ function Container({ children, className, style, onDragOver, onDrop }: CodeConta
     <div
       className={cn(
         // Base container styling
-        'group relative min-h-[100px] rounded-[4px] border border-[var(--border-1)]',
+        'group relative min-h-[100px] rounded-sm border border-[var(--border-1)]',
         'bg-[var(--surface-1)] font-medium font-mono text-sm transition-colors',
-        'dark:bg-[#1F1F1F]',
+        'dark:bg-[var(--code-bg)]',
         // Overflow handling for long content
         'overflow-x-auto overflow-y-auto',
         className
@@ -441,7 +441,7 @@ export function getCodeEditorProps(options?: {
     className: cn(
       // Base editor classes
       'bg-transparent font-[inherit] text-[inherit] font-medium',
-      'text-[var(--text-primary)] dark:text-[#eeeeee]',
+      'text-[var(--text-primary)] dark:text-[var(--code-foreground)]',
       'leading-[21px] outline-none focus:outline-none',
       'min-h-[106px]',
       // Streaming/disabled states
@@ -452,8 +452,8 @@ export function getCodeEditorProps(options?: {
       'border-none bg-transparent outline-none resize-none',
       'focus:outline-none focus:ring-0',
       // Selection styling - light and dark modes
-      'selection:bg-[#add6ff] selection:text-[#1b1b1b]',
-      'dark:selection:bg-[#264f78] dark:selection:text-white',
+      'selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)]',
+      'dark:selection:bg-[var(--selection-dark)] dark:selection:text-white',
       // Caret color - adapts to mode
       'caret-[var(--text-primary)] dark:caret-white',
       // Font smoothing
@@ -488,7 +488,7 @@ function Gutter({ children, width, className, style }: CodeGutterProps) {
       className={cn(
         'absolute top-0 bottom-0 left-0',
         'flex select-none flex-col items-end overflow-hidden',
-        'rounded-l-[4px] bg-[var(--surface-1)] dark:bg-[#1F1F1F]',
+        'rounded-l-[4px] bg-[var(--surface-1)] dark:bg-[var(--code-bg)]',
         'pr-0.5',
         className
       )}
@@ -613,7 +613,7 @@ function CodeRow({ index, style, ...props }: RowComponentProps<CodeRowProps>) {
     <div style={style} className={cn('flex', wrapText && 'overflow-hidden')} data-row-index={index}>
       {showGutter && (
         <div
-          className='flex-shrink-0 select-none pr-0.5 text-right text-[var(--text-muted)] text-xs tabular-nums leading-[21px] dark:text-[#a8a8a8]'
+          className='flex-shrink-0 select-none pr-0.5 text-right text-[var(--text-muted)] text-xs tabular-nums leading-[21px] dark:text-[var(--code-line-number)]'
           style={{ width: gutterWidth, marginLeft: leftOffset, ...gutterStyle }}
         >
           {line.lineNumber}
@@ -634,7 +634,7 @@ function CodeRow({ index, style, ...props }: RowComponentProps<CodeRowProps>) {
       )}
       <pre
         className={cn(
-          'm-0 flex-1 pr-2 pl-2 font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:text-[#eeeeee]',
+          'm-0 flex-1 pr-2 pl-2 font-mono text-[var(--text-primary)] text-small leading-[21px] dark:text-[var(--code-foreground)]',
           wrapText ? 'min-w-0 whitespace-pre-wrap break-words' : 'whitespace-pre'
         )}
         dangerouslySetInnerHTML={{ __html: line.html || '&nbsp;' }}
@@ -676,10 +676,10 @@ function applySearchHighlightingToLine(
         matchesInLine++
 
         const bgClass = isCurrentMatch
-          ? 'bg-[#F6AD55] text-[#1a1a1a] dark:bg-[#F6AD55] dark:text-[#1a1a1a]'
+          ? 'bg-[var(--highlight-search-active)] text-[var(--text-primary)]'
           : 'bg-[#FCD34D]/40 dark:bg-[#FCD34D]/30'
 
-        return `<mark class="${bgClass} rounded-[2px]" data-search-match>${match}</mark>`
+        return `<mark class="${bgClass} rounded-xs" data-search-match>${match}</mark>`
       })
     })
     .join('')
@@ -764,10 +764,10 @@ function applySearchHighlighting(
         matchCounter.count++
 
         const bgClass = isCurrentMatch
-          ? 'bg-[#F6AD55] text-[#1a1a1a] dark:bg-[#F6AD55] dark:text-[#1a1a1a]'
+          ? 'bg-[var(--highlight-search-active)] text-[var(--text-primary)]'
           : 'bg-[#FCD34D]/40 dark:bg-[#FCD34D]/30'
 
-        return `<mark class="${bgClass} rounded-[2px]" data-search-match>${match}</mark>`
+        return `<mark class="${bgClass} rounded-xs" data-search-match>${match}</mark>`
       })
     })
     .join('')
@@ -983,9 +983,9 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
     <div
       ref={setRefs}
       className={cn(
-        'code-editor-theme relative rounded-[4px] border border-[var(--border-1)]',
+        'code-editor-theme relative rounded-sm border border-[var(--border-1)]',
         'bg-[var(--surface-1)] font-medium font-mono text-sm',
-        'dark:bg-[#1F1F1F]',
+        'dark:bg-[var(--code-bg)]',
         className
       )}
       style={{ height: containerHeight }}
@@ -1135,7 +1135,7 @@ const ViewerInner = memo(function ViewerInner({
               return (
                 <Fragment key={idx}>
                   <div
-                    className='select-none pr-0.5 text-right text-[var(--text-muted)] text-xs tabular-nums leading-[21px] dark:text-[#a8a8a8]'
+                    className='select-none pr-0.5 text-right text-[var(--text-muted)] text-xs tabular-nums leading-[21px] dark:text-[var(--code-line-number)]'
                     style={gutterStyle}
                   >
                     {lineNumber}
@@ -1152,7 +1152,7 @@ const ViewerInner = memo(function ViewerInner({
                   )}
                   <pre
                     className={cn(
-                      'm-0 min-w-0 pr-2 pl-2 font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:text-[#eeeeee]',
+                      'm-0 min-w-0 pr-2 pl-2 font-mono text-[var(--text-primary)] text-small leading-[21px] dark:text-[var(--code-foreground)]',
                       whitespaceClass
                     )}
                     dangerouslySetInnerHTML={{ __html: html }}
@@ -1173,7 +1173,7 @@ const ViewerInner = memo(function ViewerInner({
         <pre
           className={cn(
             whitespaceClass,
-            'p-2 font-mono text-[13px] text-[var(--text-primary)] leading-[21px] dark:text-[#eeeeee]'
+            'p-2 font-mono text-[var(--text-primary)] text-small leading-[21px] dark:text-[var(--code-foreground)]'
           )}
           style={{ paddingLeft: paddingLeft > 0 ? paddingLeft : undefined }}
           dangerouslySetInnerHTML={{ __html: highlightedCode }}

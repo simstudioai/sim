@@ -197,7 +197,7 @@ export function ChunkEditor({
         }}
       >
         {tokenizerOn ? (
-          <div className='h-full w-full cursor-default overflow-y-auto whitespace-pre-wrap break-words p-[24px] font-sans text-[14px] text-[var(--text-body)]'>
+          <div className='h-full w-full cursor-default overflow-y-auto whitespace-pre-wrap break-words p-6 font-sans text-[var(--text-body)] text-sm'>
             {tokenStrings.map((token, index) => (
               <span
                 key={index}
@@ -223,20 +223,20 @@ export function ChunkEditor({
                     ? 'This chunk is synced from a connector and cannot be edited'
                     : 'Read-only view'
             }
-            className='min-h-0 flex-1 resize-none border-0 bg-transparent p-[24px] font-sans text-[14px] text-[var(--text-body)] outline-none placeholder:text-[var(--text-subtle)]'
+            className='min-h-0 flex-1 resize-none border-0 bg-transparent p-6 font-sans text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-subtle)]'
             disabled={!canEdit}
             readOnly={!canEdit}
             spellCheck={false}
           />
         )}
       </div>
-      <div className='flex items-center justify-between border-[var(--border)] border-t px-[24px] py-[10px]'>
+      <div className='flex items-center justify-between border-[var(--border)] border-t px-6 py-2.5'>
         <TokenizerToggle
           checked={tokenizerOn}
           onCheckedChange={setTokenizerOn}
           hoveredTokenIndex={tokenizerOn ? hoveredTokenIndex : null}
         />
-        <span className='text-[12px] text-[var(--text-secondary)]'>
+        <span className='text-[var(--text-secondary)] text-caption'>
           {tokenCount.toLocaleString()}
           {maxChunkSize !== undefined && `/${maxChunkSize.toLocaleString()}`} tokens
         </span>
@@ -255,11 +255,11 @@ const TokenizerToggle = React.memo(function TokenizerToggle({
   hoveredTokenIndex: number | null
 }) {
   return (
-    <div className='flex items-center gap-[8px]'>
-      <Label className='text-[12px] text-[var(--text-secondary)]'>Tokenizer</Label>
+    <div className='flex items-center gap-2'>
+      <Label className='text-[var(--text-secondary)] text-caption'>Tokenizer</Label>
       <Switch checked={checked} onCheckedChange={onCheckedChange} />
       {checked && hoveredTokenIndex !== null && (
-        <span className='text-[12px] text-[var(--text-tertiary)]'>
+        <span className='text-[var(--text-tertiary)] text-caption'>
           Token #{hoveredTokenIndex + 1}
         </span>
       )}

@@ -74,7 +74,7 @@ export function RequestIntegrationModal() {
       <button
         type='button'
         onClick={() => setOpen(true)}
-        className='inline-flex h-[32px] shrink-0 items-center gap-[6px] rounded-[5px] border border-[#3d3d3d] px-[10px] font-[430] font-season text-[#ECECEC] text-[14px] transition-colors hover:bg-[#2A2A2A]'
+        className='inline-flex h-[32px] shrink-0 items-center gap-1.5 rounded-[5px] border border-[var(--landing-border-strong)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
       >
         Request an integration
       </button>
@@ -88,7 +88,7 @@ export function RequestIntegrationModal() {
               <div className='flex flex-col items-center gap-3 py-6 text-center'>
                 <div className='flex h-10 w-10 items-center justify-center rounded-full bg-[#33C482]/10'>
                   <svg
-                    className='h-5 w-5 text-[#33C482]'
+                    className='h-5 w-5 text-[var(--brand-accent)]'
                     viewBox='0 0 24 24'
                     fill='none'
                     stroke='currentColor'
@@ -99,7 +99,7 @@ export function RequestIntegrationModal() {
                     <polyline points='20 6 9 17 4 12' />
                   </svg>
                 </div>
-                <p className='text-[14px] text-[var(--text-primary)]'>
+                <p className='text-[14px] text-[var(--landing-text)]'>
                   Request submitted — we&apos;ll follow up at{' '}
                   <span className='font-medium'>{email}</span>.
                 </p>
@@ -108,8 +108,8 @@ export function RequestIntegrationModal() {
           ) : (
             <form onSubmit={handleSubmit} className='flex min-h-0 flex-1 flex-col'>
               <ModalBody>
-                <div className='space-y-[12px]'>
-                  <div className='flex flex-col gap-[4px]'>
+                <div className='space-y-3'>
+                  <div className='flex flex-col gap-1'>
                     <Label htmlFor='integration-name'>Integration name</Label>
                     <Input
                       id='integration-name'
@@ -122,7 +122,7 @@ export function RequestIntegrationModal() {
                     />
                   </div>
 
-                  <div className='flex flex-col gap-[4px]'>
+                  <div className='flex flex-col gap-1'>
                     <Label htmlFor='requester-email'>Your email</Label>
                     <Input
                       id='requester-email'
@@ -135,7 +135,7 @@ export function RequestIntegrationModal() {
                     />
                   </div>
 
-                  <div className='flex flex-col gap-[4px]'>
+                  <div className='flex flex-col gap-1'>
                     <Label htmlFor='use-case'>
                       Use case <span className='text-[var(--text-tertiary)]'>(optional)</span>
                     </Label>

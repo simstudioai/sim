@@ -2,12 +2,13 @@
 
 import { type KeyboardEvent, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(home)/components/navbar/navbar'
 
@@ -97,18 +98,18 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
 
   return (
     <AuthBackground className='dark font-[430] font-season'>
-      <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
-        <header className='shrink-0 bg-[#1C1C1C]'>
+      <main className='relative flex min-h-full flex-col text-[var(--landing-text)]'>
+        <header className='shrink-0 bg-[var(--landing-bg)]'>
           <Navbar logoOnly />
         </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>
+                <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
                   SSO Authentication
                 </h1>
-                <p className='font-[380] text-[#999] text-[16px]'>
+                <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
                   This chat requires SSO authentication
                 </p>
               </div>
@@ -152,9 +153,16 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
                   )}
                 </div>
 
-                <BrandedButton type='submit' loading={isLoading} loadingText='Redirecting to SSO'>
-                  Continue with SSO
-                </BrandedButton>
+                <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
+                  {isLoading ? (
+                    <span className='flex items-center gap-2'>
+                      <Loader2 className='h-4 w-4 animate-spin' />
+                      Redirecting to SSO...
+                    </span>
+                  ) : (
+                    'Continue with SSO'
+                  )}
+                </button>
               </form>
             </div>
           </div>

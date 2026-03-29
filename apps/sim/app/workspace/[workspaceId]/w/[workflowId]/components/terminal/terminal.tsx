@@ -14,6 +14,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import Link from 'next/link'
+import { List, type RowComponentProps, useListRef } from 'react-window'
 import {
   Button,
   ChevronDown,
@@ -44,19 +45,27 @@ import {
   type EntryNode,
   type ExecutionGroup,
   flattenBlockEntriesOnly,
+  flattenVisibleExecutionRows,
   getBlockColor,
   getBlockIcon,
   groupEntriesByExecution,
   isEventFromEditableElement,
   type NavigableBlockEntry,
   TERMINAL_CONFIG,
+  type VisibleTerminalRow,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useShowTrainingControls } from '@/hooks/queries/general-settings'
 import { OUTPUT_PANEL_WIDTH, TERMINAL_HEIGHT } from '@/stores/constants'
 import { sendMothershipMessage } from '@/stores/notifications/utils'
 import type { ConsoleEntry } from '@/stores/terminal'
-import { useTerminalConsoleStore, useTerminalStore } from '@/stores/terminal'
+import {
+  safeConsoleStringify,
+  useConsoleEntry,
+  useTerminalConsoleStore,
+  useTerminalStore,
+  useWorkflowConsoleEntries,
+} from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -114,16 +123,16 @@ const BlockRow = memo(function BlockRow({
         onSelect(entry)
       }}
     >
-      <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+      <div className='flex min-w-0 flex-1 items-center gap-2'>
         <div
-          className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+          className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
           style={{ background: bgColor }}
         >
           {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
         </div>
         <span
           className={clsx(
-            'min-w-0 truncate font-base text-[14px]',
+            'min-w-0 truncate font-base text-sm',
             hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
           )}
         >
@@ -132,7 +141,7 @@ const BlockRow = memo(function BlockRow({
       </div>
       <span
         className={clsx(
-          'flex-shrink-0 font-base text-[14px]',
+          'flex-shrink-0 font-base text-sm',
           !isRunning && 'text-[var(--text-secondary)]'
         )}
       >
@@ -157,6 +166,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
   onToggle,
   expandedNodes,
   onToggleNode,
+  renderChildren = true,
 }: {
   node: EntryNode
   selectedEntryId: string | null
@@ -165,6 +175,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
   onToggle: () => void
   expandedNodes: Set<string>
   onToggleNode: (nodeId: string) => void
+  renderChildren?: boolean
 }) {
   const { entry, children, iterationInfo } = node
   const hasError = Boolean(entry.error) || children.some((c) => c.entry.error)
@@ -186,10 +197,10 @@ const IterationNodeRow = memo(function IterationNodeRow({
           onToggle()
         }}
       >
-        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
           <span
             className={clsx(
-              'min-w-0 truncate font-base text-[14px]',
+              'min-w-0 truncate font-base text-sm',
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
@@ -206,7 +217,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-base text-[14px]',
+            'flex-shrink-0 font-base text-sm',
             !hasRunningChild && 'text-[var(--text-secondary)]'
           )}
         >
@@ -219,7 +230,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
       </div>
 
       {/* Nested Blocks */}
-      {isExpanded && hasChildren && (
+      {renderChildren && isExpanded && hasChildren && (
         <div className={ROW_STYLES.nested}>
           {children.map((child) => (
             <EntryNodeRow
@@ -246,12 +257,14 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
   onSelectEntry,
   expandedNodes,
   onToggleNode,
+  renderChildren = true,
 }: {
   node: EntryNode
   selectedEntryId: string | null
   onSelectEntry: (entry: ConsoleEntry) => void
   expandedNodes: Set<string>
   onToggleNode: (nodeId: string) => void
+  renderChildren?: boolean
 }) {
   const { entry, children } = node
   const BlockIcon = getBlockIcon(entry.blockType)
@@ -281,16 +294,16 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
           onToggleNode(nodeId)
         }}
       >
-        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
           <div
-            className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+            className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
             {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
           </div>
           <span
             className={clsx(
-              'min-w-0 truncate font-base text-[14px]',
+              'min-w-0 truncate font-base text-sm',
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
@@ -307,7 +320,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-base text-[14px]',
+            'flex-shrink-0 font-base text-sm',
             !hasRunningDescendant && 'text-[var(--text-secondary)]'
           )}
         >
@@ -320,7 +333,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
       </div>
 
       {/* Nested Iterations */}
-      {isExpanded && hasChildren && (
+      {renderChildren && isExpanded && hasChildren && (
         <div className={ROW_STYLES.nested}>
           {children.map((iterNode) => (
             <IterationNodeRow
@@ -349,12 +362,14 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
   onSelectEntry,
   expandedNodes,
   onToggleNode,
+  renderChildren = true,
 }: {
   node: EntryNode
   selectedEntryId: string | null
   onSelectEntry: (entry: ConsoleEntry) => void
   expandedNodes: Set<string>
   onToggleNode: (nodeId: string) => void
+  renderChildren?: boolean
 }) {
   const { entry, children } = node
   const BlockIcon = getBlockIcon(entry.blockType)
@@ -392,16 +407,16 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
           if (hasChildren) onToggleNode(nodeId)
         }}
       >
-        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
           <div
-            className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+            className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
             {BlockIcon && <BlockIcon className='h-[10px] w-[10px] text-white' />}
           </div>
           <span
             className={clsx(
-              'min-w-0 truncate font-base text-[14px]',
+              'min-w-0 truncate font-base text-sm',
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
@@ -418,7 +433,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
         </div>
         <span
           className={clsx(
-            'flex-shrink-0 font-base text-[14px]',
+            'flex-shrink-0 font-base text-sm',
             !hasRunningDescendant && 'text-[var(--text-secondary)]'
           )}
         >
@@ -431,7 +446,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
       </div>
 
       {/* Nested Child Blocks — rendered through EntryNodeRow for full loop/parallel support */}
-      {isExpanded && hasChildren && (
+      {renderChildren && isExpanded && hasChildren && (
         <div className={ROW_STYLES.nested}>
           {children.map((child) => (
             <EntryNodeRow
@@ -458,12 +473,14 @@ const EntryNodeRow = memo(function EntryNodeRow({
   onSelectEntry,
   expandedNodes,
   onToggleNode,
+  renderChildren = true,
 }: {
   node: EntryNode
   selectedEntryId: string | null
   onSelectEntry: (entry: ConsoleEntry) => void
   expandedNodes: Set<string>
   onToggleNode: (nodeId: string) => void
+  renderChildren?: boolean
 }) {
   const { nodeType } = node
 
@@ -475,6 +492,7 @@ const EntryNodeRow = memo(function EntryNodeRow({
         onSelectEntry={onSelectEntry}
         expandedNodes={expandedNodes}
         onToggleNode={onToggleNode}
+        renderChildren={renderChildren}
       />
     )
   }
@@ -487,6 +505,7 @@ const EntryNodeRow = memo(function EntryNodeRow({
         onSelectEntry={onSelectEntry}
         expandedNodes={expandedNodes}
         onToggleNode={onToggleNode}
+        renderChildren={renderChildren}
       />
     )
   }
@@ -501,6 +520,7 @@ const EntryNodeRow = memo(function EntryNodeRow({
         onToggle={() => onToggleNode(node.entry.id)}
         expandedNodes={expandedNodes}
         onToggleNode={onToggleNode}
+        renderChildren={renderChildren}
       />
     )
   }
@@ -515,42 +535,122 @@ const EntryNodeRow = memo(function EntryNodeRow({
   )
 })
 
-/**
- * Execution group row component with dashed separator
- */
-const ExecutionGroupRow = memo(function ExecutionGroupRow({
-  group,
-  showSeparator,
+interface TerminalLogListRowProps {
+  rows: VisibleTerminalRow[]
+  selectedEntryId: string | null
+  onSelectEntry: (entry: ConsoleEntry) => void
+  expandedNodes: Set<string>
+  onToggleNode: (nodeId: string) => void
+}
+
+function TerminalLogListRow({
+  index,
+  style,
+  ...props
+}: RowComponentProps<TerminalLogListRowProps>) {
+  const { rows, selectedEntryId, onSelectEntry, expandedNodes, onToggleNode } = props
+  const row = rows[index]
+
+  if (row.rowType === 'separator') {
+    return (
+      <div style={style} className='px-[6px]'>
+        <div className='mx-[4px] mt-[6px] border-[var(--border)] border-t' />
+      </div>
+    )
+  }
+
+  return (
+    <div style={style} className='px-[6px]'>
+      <div className='ml-[4px]' style={{ paddingLeft: row.depth === 0 ? 0 : row.depth * 16 }}>
+        <EntryNodeRow
+          node={row.node!}
+          selectedEntryId={selectedEntryId}
+          onSelectEntry={onSelectEntry}
+          expandedNodes={expandedNodes}
+          onToggleNode={onToggleNode}
+          renderChildren={false}
+        />
+      </div>
+    </div>
+  )
+}
+
+const TerminalLogsPane = memo(function TerminalLogsPane({
+  executionGroups,
   selectedEntryId,
   onSelectEntry,
   expandedNodes,
   onToggleNode,
 }: {
-  group: ExecutionGroup
-  showSeparator: boolean
+  executionGroups: ExecutionGroup[]
   selectedEntryId: string | null
   onSelectEntry: (entry: ConsoleEntry) => void
   expandedNodes: Set<string>
   onToggleNode: (nodeId: string) => void
 }) {
-  return (
-    <div className='flex flex-col px-[6px]'>
-      {/* Separator between executions */}
-      {showSeparator && <div className='mx-[4px] mb-[6px] border-[var(--border)] border-t' />}
+  const containerRef = useRef<HTMLDivElement>(null)
+  const listRef = useListRef(null)
+  const [listHeight, setListHeight] = useState(400)
 
-      {/* Entry tree */}
-      <div className='ml-[4px] flex flex-col gap-[2px] pb-[6px]'>
-        {group.entryTree.map((node) => (
-          <EntryNodeRow
-            key={node.entry.id}
-            node={node}
-            selectedEntryId={selectedEntryId}
-            onSelectEntry={onSelectEntry}
-            expandedNodes={expandedNodes}
-            onToggleNode={onToggleNode}
-          />
-        ))}
-      </div>
+  const rows = useMemo(
+    () => flattenVisibleExecutionRows(executionGroups, expandedNodes),
+    [executionGroups, expandedNodes]
+  )
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const updateHeight = () => {
+      if (container.clientHeight > 0) {
+        setListHeight(container.clientHeight)
+      }
+    }
+
+    updateHeight()
+    const resizeObserver = new ResizeObserver(updateHeight)
+    resizeObserver.observe(container)
+    return () => resizeObserver.disconnect()
+  }, [])
+
+  const rowsRef = useRef(rows)
+  rowsRef.current = rows
+
+  useEffect(() => {
+    if (!selectedEntryId) return
+
+    const currentRows = rowsRef.current
+    const rowIndex = currentRows.findIndex(
+      (row) => row.rowType === 'node' && row.node?.entry.id === selectedEntryId
+    )
+
+    if (rowIndex !== -1) {
+      listRef.current?.scrollToRow({ index: rowIndex, align: 'smart' })
+    }
+  }, [selectedEntryId, listRef])
+
+  const rowProps = useMemo<TerminalLogListRowProps>(
+    () => ({
+      rows,
+      selectedEntryId,
+      onSelectEntry,
+      expandedNodes,
+      onToggleNode,
+    }),
+    [rows, selectedEntryId, onSelectEntry, expandedNodes, onToggleNode]
+  )
+
+  return (
+    <div ref={containerRef} className='h-full'>
+      <List
+        listRef={listRef}
+        defaultHeight={listHeight}
+        rowCount={rows.length}
+        rowHeight={TERMINAL_CONFIG.LOG_ROW_HEIGHT_PX}
+        rowComponent={TerminalLogListRow}
+        rowProps={rowProps}
+        overscanCount={8}
+      />
     </div>
   )
 })
@@ -560,7 +660,6 @@ const ExecutionGroupRow = memo(function ExecutionGroupRow({
  */
 export const Terminal = memo(function Terminal() {
   const terminalRef = useRef<HTMLElement>(null)
-  const logsContainerRef = useRef<HTMLDivElement>(null)
   const prevWorkflowEntriesLengthRef = useRef(0)
   const hasInitializedEntriesRef = useRef(false)
   const isTerminalFocusedRef = useRef(false)
@@ -584,18 +683,15 @@ export const Terminal = memo(function Terminal() {
   )
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const hasConsoleHydrated = useTerminalConsoleStore((state) => state._hasHydrated)
-
-  // Get all entries and filter in useMemo to avoid new array on every store update
-  const allStoreEntries = useTerminalConsoleStore((state) => state.entries)
-  const entries = useMemo(() => {
-    if (!hasConsoleHydrated) return []
-    return allStoreEntries.filter((entry) => entry.workflowId === activeWorkflowId)
-  }, [allStoreEntries, activeWorkflowId, hasConsoleHydrated])
+  const consoleWorkflowId: string | undefined =
+    hasConsoleHydrated && typeof activeWorkflowId === 'string' ? activeWorkflowId : undefined
+  const entries = useWorkflowConsoleEntries(consoleWorkflowId)
 
   const clearWorkflowConsole = useTerminalConsoleStore((state) => state.clearWorkflowConsole)
   const exportConsoleCSV = useTerminalConsoleStore((state) => state.exportConsoleCSV)
 
-  const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
+  const selectedEntry = useConsoleEntry(selectedEntryId)
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set())
   const [isToggling, setIsToggling] = useState(false)
   const [showCopySuccess, setShowCopySuccess] = useState(false)
@@ -677,6 +773,14 @@ export const Terminal = memo(function Terminal() {
     return result
   }, [executionGroups])
 
+  const autoExpandNodeIds = useMemo(() => {
+    if (executionGroups.length === 0) {
+      return []
+    }
+
+    return collectExpandableNodeIds(executionGroups[0].entryTree)
+  }, [executionGroups])
+
   /**
    * Check if input data exists for selected entry
    */
@@ -705,11 +809,6 @@ export const Terminal = memo(function Terminal() {
     if (selectedEntry.error) return selectedEntry.error
     return selectedEntry.output
   }, [selectedEntry, showInput])
-
-  const outputDataStringified = useMemo(() => {
-    if (outputData === null || outputData === undefined) return ''
-    return JSON.stringify(outputData, null, 2)
-  }, [outputData])
 
   // Keep refs in sync for keyboard handler
   selectedEntryRef.current = selectedEntry
@@ -776,20 +875,20 @@ export const Terminal = memo(function Terminal() {
    * This always runs regardless of autoSelectEnabled - new runs should always be visible.
    */
   useEffect(() => {
-    if (executionGroups.length === 0) return
+    if (autoExpandNodeIds.length === 0) return
 
-    const nodeIdsToExpand = collectExpandableNodeIds(executionGroups[0].entryTree)
-
-    if (nodeIdsToExpand.length > 0) {
+    const rafId = requestAnimationFrame(() => {
       setExpandedNodes((prev) => {
-        const hasAll = nodeIdsToExpand.every((id) => prev.has(id))
+        const hasAll = autoExpandNodeIds.every((id) => prev.has(id))
         if (hasAll) return prev
         const next = new Set(prev)
-        nodeIdsToExpand.forEach((id) => next.add(id))
+        autoExpandNodeIds.forEach((id) => next.add(id))
         return next
       })
-    }
-  }, [executionGroups])
+    })
+
+    return () => cancelAnimationFrame(rafId)
+  }, [autoExpandNodeIds])
 
   /**
    * Focus the terminal for keyboard navigation
@@ -805,10 +904,10 @@ export const Terminal = memo(function Terminal() {
   const handleSelectEntry = useCallback(
     (entry: ConsoleEntry) => {
       focusTerminal()
-      setSelectedEntry((prev) => {
+      setSelectedEntryId((prev) => {
         // Disable auto-select on any manual selection/deselection
         setAutoSelectEnabled(false)
-        return prev?.id === entry.id ? null : entry
+        return prev === entry.id ? null : entry.id
       })
     },
     [focusTerminal]
@@ -854,15 +953,17 @@ export const Terminal = memo(function Terminal() {
 
   const handleCopy = useCallback(() => {
     if (!selectedEntry) return
-    const textToCopy = shouldShowCodeDisplay ? selectedEntry.input.code : outputDataStringified
+    const textToCopy = shouldShowCodeDisplay
+      ? selectedEntry.input.code
+      : safeConsoleStringify(outputData)
     navigator.clipboard.writeText(textToCopy)
     setShowCopySuccess(true)
-  }, [selectedEntry, outputDataStringified, shouldShowCodeDisplay])
+  }, [selectedEntry, outputData, shouldShowCodeDisplay])
 
   const clearCurrentWorkflowConsole = useCallback(() => {
     if (activeWorkflowId) {
       clearWorkflowConsole(activeWorkflowId)
-      setSelectedEntry(null)
+      setSelectedEntryId(null)
       setExpandedNodes(new Set())
     }
   }, [activeWorkflowId, clearWorkflowConsole])
@@ -990,19 +1091,10 @@ export const Terminal = memo(function Terminal() {
     }
   }, [showCopySuccess])
 
-  const scrollEntryIntoView = useCallback((entryId: string) => {
-    const container = logsContainerRef.current
-    if (!container) return
-    const el = container.querySelector(`[data-entry-id="${entryId}"]`)
-    if (el) {
-      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-    }
-  }, [])
-
   useEffect(() => {
     if (executionGroups.length === 0 || navigableEntries.length === 0) {
       setAutoSelectEnabled(true)
-      setSelectedEntry(null)
+      setSelectedEntryId(null)
       return
     }
 
@@ -1020,9 +1112,9 @@ export const Terminal = memo(function Terminal() {
     }
 
     if (!lastNavEntry) return
-    if (selectedEntry?.id === lastNavEntry.entry.id) return
+    if (selectedEntryId === lastNavEntry.entry.id) return
 
-    setSelectedEntry(lastNavEntry.entry)
+    setSelectedEntryId(lastNavEntry.entry.id)
     focusTerminal()
 
     if (lastNavEntry.parentNodeIds.length > 0) {
@@ -1034,36 +1126,7 @@ export const Terminal = memo(function Terminal() {
         return next
       })
     }
-  }, [executionGroups, navigableEntries, autoSelectEnabled, selectedEntry?.id, focusTerminal])
-
-  useEffect(() => {
-    if (selectedEntry) {
-      scrollEntryIntoView(selectedEntry.id)
-    }
-  }, [selectedEntry?.id, scrollEntryIntoView])
-
-  /**
-   * Sync selected entry with latest data from store.
-   * This ensures the output panel updates when a running block completes or is canceled.
-   */
-  useEffect(() => {
-    if (!selectedEntry) return
-
-    const updatedEntry = filteredEntries.find((e) => e.id === selectedEntry.id)
-    if (updatedEntry && updatedEntry !== selectedEntry) {
-      // Only update if the entry data has actually changed
-      const hasChanged =
-        updatedEntry.output !== selectedEntry.output ||
-        updatedEntry.isRunning !== selectedEntry.isRunning ||
-        updatedEntry.isCanceled !== selectedEntry.isCanceled ||
-        updatedEntry.durationMs !== selectedEntry.durationMs ||
-        updatedEntry.error !== selectedEntry.error ||
-        updatedEntry.success !== selectedEntry.success
-      if (hasChanged) {
-        setSelectedEntry(updatedEntry)
-      }
-    }
-  }, [filteredEntries, selectedEntry])
+  }, [executionGroups, navigableEntries, autoSelectEnabled, selectedEntryId, focusTerminal])
 
   /**
    * Clear filters when there are no logs
@@ -1080,7 +1143,7 @@ export const Terminal = memo(function Terminal() {
   const navigateToEntry = useCallback(
     (navEntry: NavigableBlockEntry) => {
       setAutoSelectEnabled(false)
-      setSelectedEntry(navEntry.entry)
+      setSelectedEntryId(navEntry.entry.id)
 
       // Auto-expand parent nodes (subflows, iterations)
       if (navEntry.parentNodeIds.length > 0) {
@@ -1095,11 +1158,8 @@ export const Terminal = memo(function Terminal() {
 
       // Keep terminal focused for continued navigation
       focusTerminal()
-
-      // Scroll entry into view if needed
-      scrollEntryIntoView(navEntry.entry.id)
     },
-    [focusTerminal, scrollEntryIntoView]
+    [focusTerminal]
   )
 
   /**
@@ -1123,7 +1183,7 @@ export const Terminal = memo(function Terminal() {
       if (e.key === 'Escape') {
         if (currentEntry) {
           e.preventDefault()
-          setSelectedEntry(null)
+          setSelectedEntryId(null)
           setAutoSelectEnabled(true)
         }
         return
@@ -1203,7 +1263,7 @@ export const Terminal = memo(function Terminal() {
       // Close output panel if there's not enough space for minimum width
       if (maxWidth < MIN_OUTPUT_PANEL_WIDTH_PX) {
         setAutoSelectEnabled(false)
-        setSelectedEntry(null)
+        setSelectedEntryId(null)
         return
       }
 
@@ -1262,7 +1322,7 @@ export const Terminal = memo(function Terminal() {
           >
             {/* Header */}
             <div
-              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-[16px] pl-[16px]'
+              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-4'
               onClick={handleHeaderClick}
             >
               {/* Left side - Logs label */}
@@ -1270,7 +1330,7 @@ export const Terminal = memo(function Terminal() {
 
               {/* Right side - Icons and options */}
               {!selectedEntry && (
-                <div className='flex items-center gap-[8px]'>
+                <div className='flex items-center gap-2'>
                   {/* Sort toggle */}
                   {allWorkflowEntries.length > 0 && (
                     <Tooltip.Root>
@@ -1396,7 +1456,7 @@ export const Terminal = memo(function Terminal() {
                       collisionPadding={0}
                       onClick={(e) => e.stopPropagation()}
                       style={{ minWidth: '140px', maxWidth: '160px' }}
-                      className='gap-[2px]'
+                      className='gap-0.5'
                     >
                       <PopoverItem
                         active={openOnRun}
@@ -1423,23 +1483,19 @@ export const Terminal = memo(function Terminal() {
             </div>
 
             {/* Execution list */}
-            <div ref={logsContainerRef} className='flex-1 overflow-y-auto overflow-x-hidden'>
+            <div className='flex-1 overflow-hidden'>
               {executionGroups.length === 0 ? (
-                <div className='flex h-full items-center justify-center text-[#8D8D8D] text-[13px]'>
+                <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
                   No logs yet
                 </div>
               ) : (
-                executionGroups.map((group, index) => (
-                  <ExecutionGroupRow
-                    key={group.executionId}
-                    group={group}
-                    showSeparator={index > 0}
-                    selectedEntryId={selectedEntry?.id || null}
-                    onSelectEntry={handleSelectEntry}
-                    expandedNodes={expandedNodes}
-                    onToggleNode={handleToggleNode}
-                  />
-                ))
+                <TerminalLogsPane
+                  executionGroups={executionGroups}
+                  selectedEntryId={selectedEntryId}
+                  onSelectEntry={handleSelectEntry}
+                  expandedNodes={expandedNodes}
+                  onToggleNode={handleToggleNode}
+                />
               )}
             </div>
           </div>
@@ -1461,11 +1517,10 @@ export const Terminal = memo(function Terminal() {
               handleTrainingClick={handleTrainingClick}
               showCopySuccess={showCopySuccess}
               handleCopy={handleCopy}
-              filteredEntries={filteredEntries}
+              hasEntries={filteredEntries.length > 0}
               handleExportConsole={handleExportConsole}
               handleClearConsole={handleClearConsole}
               shouldShowCodeDisplay={shouldShowCodeDisplay}
-              outputDataStringified={outputDataStringified}
               outputData={outputData}
               handleClearConsoleFromMenu={handleClearConsoleFromMenu}
             />

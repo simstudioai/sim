@@ -8,6 +8,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { ASYNC_TOOL_STATUS, isDeliveredAsyncStatus, isTerminalAsyncStatus } from './lifecycle'
 
 const logger = createLogger('CopilotAsyncRunsRepo')
 
@@ -85,6 +86,25 @@ export async function getLatestRunForExecution(executionId: string) {
   return run ?? null
 }
 
+export async function getLatestRunForStream(streamId: string, userId?: string) {
+  const conditions = userId
+    ? and(eq(copilotRuns.streamId, streamId), eq(copilotRuns.userId, userId))
+    : eq(copilotRuns.streamId, streamId)
+  const [run] = await db
+    .select()
+    .from(copilotRuns)
+    .where(conditions)
+    .orderBy(desc(copilotRuns.startedAt))
+    .limit(1)
+
+  return run ?? null
+}
+
+export async function getRunSegment(runId: string) {
+  const [run] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId)).limit(1)
+  return run ?? null
+}
+
 export async function createRunCheckpoint(input: {
   runId: string
   pendingToolCallId: string
@@ -107,33 +127,58 @@ export async function createRunCheckpoint(input: {
 }
 
 export async function upsertAsyncToolCall(input: {
-  runId: string
+  runId?: string | null
   checkpointId?: string | null
   toolCallId: string
   toolName: string
   args?: Record<string, unknown>
   status?: CopilotAsyncToolStatus
 }) {
+  const existing = await getAsyncToolCall(input.toolCallId)
+  const incomingStatus = input.status ?? 'pending'
+  if (
+    existing &&
+    (isTerminalAsyncStatus(existing.status) || isDeliveredAsyncStatus(existing.status)) &&
+    !isTerminalAsyncStatus(incomingStatus) &&
+    !isDeliveredAsyncStatus(incomingStatus)
+  ) {
+    logger.info('Ignoring async tool upsert that would downgrade terminal state', {
+      toolCallId: input.toolCallId,
+      existingStatus: existing.status,
+      incomingStatus,
+    })
+    return existing
+  }
+  const effectiveRunId = input.runId ?? existing?.runId ?? null
+  if (!effectiveRunId) {
+    logger.warn('upsertAsyncToolCall missing runId and no existing row', {
+      toolCallId: input.toolCallId,
+      toolName: input.toolName,
+      status: input.status ?? 'pending',
+    })
+    return null
+  }
+
   const now = new Date()
   const [row] = await db
     .insert(copilotAsyncToolCalls)
     .values({
-      runId: input.runId,
+      runId: effectiveRunId,
       checkpointId: input.checkpointId ?? null,
       toolCallId: input.toolCallId,
       toolName: input.toolName,
       args: input.args ?? {},
-      status: input.status ?? 'pending',
+      status: incomingStatus,
       updatedAt: now,
     })
     .onConflictDoUpdate({
       target: copilotAsyncToolCalls.toolCallId,
       set: {
-        runId: input.runId,
+        runId: effectiveRunId,
         checkpointId: input.checkpointId ?? null,
         toolName: input.toolName,
         args: input.args ?? {},
-        status: input.status ?? 'pending',
+        status: incomingStatus,
         updatedAt: now,
       },
     })
@@ -142,22 +187,33 @@ export async function upsertAsyncToolCall(input: {
   return row
 }
 
+export async function getAsyncToolCall(toolCallId: string) {
+  const [row] = await db
+    .select()
+    .from(copilotAsyncToolCalls)
+    .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+    .limit(1)
+
+  return row ?? null
+}
+
 export async function markAsyncToolStatus(
   toolCallId: string,
   status: CopilotAsyncToolStatus,
   updates: {
     claimedBy?: string | null
+    claimedAt?: Date | null
     result?: Record<string, unknown> | null
     error?: string | null
     completedAt?: Date | null
   } = {}
 ) {
   const claimedAt =
-    status === 'running' && updates.claimedBy
-      ? updates.completedAt
-        ? undefined
-        : new Date()
-      : undefined
+    updates.claimedAt !== undefined
+      ? updates.claimedAt
+      : status === 'running' && updates.claimedBy
+        ? new Date()
+        : undefined
 
   const [row] = await db
     .update(copilotAsyncToolCalls)
@@ -186,11 +242,7 @@ export async function completeAsyncToolCall(input: {
   result?: Record<string, unknown> | null
   error?: string | null
 }) {
-  const [existing] = await db
-    .select()
-    .from(copilotAsyncToolCalls)
-    .where(eq(copilotAsyncToolCalls.toolCallId, input.toolCallId))
-    .limit(1)
+  const existing = await getAsyncToolCall(input.toolCallId)
 
   if (!existing) {
     logger.warn('completeAsyncToolCall called before pending row existed', {
@@ -200,27 +252,24 @@ export async function completeAsyncToolCall(input: {
     return null
   }
 
-  if (
-    existing.status === 'completed' ||
-    existing.status === 'failed' ||
-    existing.status === 'cancelled'
-  ) {
+  if (isTerminalAsyncStatus(existing.status) || isDeliveredAsyncStatus(existing.status)) {
     return existing
   }
 
   return markAsyncToolStatus(input.toolCallId, input.status, {
+    claimedBy: null,
+    claimedAt: null,
     result: input.result ?? null,
     error: input.error ?? null,
     completedAt: new Date(),
   })
 }
 
-export async function enqueueAsyncToolResume(toolCallId: string) {
-  return markAsyncToolStatus(toolCallId, 'resume_enqueued')
-}
-
-export async function markAsyncToolResumed(toolCallId: string) {
-  return markAsyncToolStatus(toolCallId, 'resumed')
+export async function markAsyncToolDelivered(toolCallId: string) {
+  return markAsyncToolStatus(toolCallId, ASYNC_TOOL_STATUS.delivered, {
+    claimedBy: null,
+    claimedAt: null,
+  })
 }
 
 export async function listAsyncToolCallsForRun(runId: string) {
@@ -243,7 +292,6 @@ export async function claimCompletedAsyncToolCall(toolCallId: string, workerId: 
   const [row] = await db
     .update(copilotAsyncToolCalls)
     .set({
-      status: 'resume_enqueued',
       claimedBy: workerId,
       claimedAt: new Date(),
       updatedAt: new Date(),
@@ -253,6 +301,26 @@ export async function claimCompletedAsyncToolCall(toolCallId: string, workerId: 
         eq(copilotAsyncToolCalls.toolCallId, toolCallId),
         inArray(copilotAsyncToolCalls.status, ['completed', 'failed', 'cancelled']),
         isNull(copilotAsyncToolCalls.claimedBy)
+      )
+    )
+    .returning()
+
+  return row ?? null
+}
+
+export async function releaseCompletedAsyncToolClaim(toolCallId: string, workerId: string) {
+  const [row] = await db
+    .update(copilotAsyncToolCalls)
+    .set({
+      claimedBy: null,
+      claimedAt: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+        inArray(copilotAsyncToolCalls.status, ['completed', 'failed', 'cancelled']),
+        eq(copilotAsyncToolCalls.claimedBy, workerId)
       )
     )
     .returning()

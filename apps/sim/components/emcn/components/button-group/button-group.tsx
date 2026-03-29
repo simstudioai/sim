@@ -17,7 +17,7 @@ const buttonGroupVariants = cva('inline-flex', {
   variants: {
     gap: {
       none: 'gap-0',
-      sm: 'gap-[2px]',
+      sm: 'gap-0.5',
     },
   },
   defaultVariants: {
@@ -79,7 +79,7 @@ function ButtonGroup({
 
   return (
     <ButtonGroupContext.Provider value={{ value, onValueChange, disabled }}>
-      <div role='group' className={cn(buttonGroupVariants({ gap }), className)} {...props}>
+      <div role='radiogroup' className={cn(buttonGroupVariants({ gap }), className)} {...props}>
         {validChildren.map((child, index) => {
           const position: 'first' | 'middle' | 'last' | 'only' =
             childCount === 1
@@ -100,13 +100,13 @@ function ButtonGroup({
 }
 
 const buttonGroupItemVariants = cva(
-  'inline-flex items-center justify-center font-medium transition-colors outline-none focus:outline-none focus-visible:outline-none disabled:pointer-events-none disabled:opacity-70 px-[8px] py-[4px] text-[12px] border',
+  'inline-flex items-center justify-center font-medium transition-colors outline-none focus:outline-none focus-visible:outline-none disabled:pointer-events-none disabled:opacity-70 px-2 py-1 text-caption border',
   {
     variants: {
       active: {
-        true: 'bg-[#1D1D1D] text-[var(--text-inverse)] border-[#1D1D1D] hover:bg-[#2A2A2A] hover:border-[#2A2A2A] dark:bg-white dark:border-white dark:hover:bg-[#E0E0E0] dark:hover:border-[#E0E0E0]',
+        true: 'bg-[var(--text-primary)] text-[var(--text-inverse)] border-[var(--text-primary)] hover-hover:bg-[var(--text-primary)] hover-hover:text-[var(--text-inverse)] hover-hover:border-[var(--text-primary)] dark:bg-white dark:text-[var(--bg)] dark:border-white dark:hover-hover:bg-white dark:hover-hover:text-[var(--bg)] dark:hover-hover:border-white',
         false:
-          'bg-[var(--surface-4)] text-[var(--text-secondary)] border-[var(--border)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-6)] hover:border-[var(--border-1)]',
+          'bg-[var(--surface-4)] text-[var(--text-secondary)] border-[var(--border)] hover-hover:text-[var(--text-primary)] hover-hover:bg-[var(--surface-6)] hover-hover:border-[var(--border-1)]',
       },
       position: {
         only: 'rounded-[5px]',

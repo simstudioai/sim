@@ -120,8 +120,9 @@ export function useDeleteWorkspace() {
 
       return response.json()
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) })
     },
   })
 }

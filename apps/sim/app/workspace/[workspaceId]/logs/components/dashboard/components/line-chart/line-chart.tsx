@@ -269,7 +269,7 @@ function LineChartComponent({
                     type='button'
                     aria-pressed={activeSeriesId === s.id}
                     aria-label={`Toggle ${s.label}`}
-                    className='inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px]'
+                    className='inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-micro'
                     style={{
                       color: resolvedColors[s.id || ''] || s.color,
                       opacity: dimmed ? 0.4 : isHovered ? 1 : 0.9,
@@ -290,7 +290,7 @@ function LineChartComponent({
                   >
                     <span
                       aria-hidden='true'
-                      className='inline-block h-[6px] w-[6px] rounded-[2px]'
+                      className='inline-block h-[6px] w-[6px] rounded-xs'
                       style={{ backgroundColor: resolvedColors[s.id || ''] || s.color }}
                     />
                     <span style={{ color: 'hsl(var(--muted-foreground))' }}>{s.label}</span>
@@ -671,11 +671,11 @@ function LineChartComponent({
             const top = Math.min(Math.max(anchorY - 26, padding.top), height - padding.bottom - 18)
             return (
               <div
-                className='pointer-events-none absolute rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-1)] px-[8px] py-[6px] font-medium text-[11px] shadow-lg'
+                className='pointer-events-none absolute rounded-lg border border-[var(--border-1)] bg-[var(--surface-1)] px-2 py-1.5 font-medium text-xs shadow-lg'
                 style={{ left, top }}
               >
                 {currentHoverDate && (
-                  <div className='mb-1 text-[10px] text-[var(--text-tertiary)]'>
+                  <div className='mb-1 text-[var(--text-tertiary)] text-micro'>
                     {currentHoverDate}
                   </div>
                 )}
@@ -686,9 +686,9 @@ function LineChartComponent({
                   const showLabel =
                     seriesLabel && seriesLabel !== 'base' && seriesLabel.trim() !== ''
                   return (
-                    <div key={`tt-${s.id}`} className='flex items-center gap-[8px]'>
+                    <div key={`tt-${s.id}`} className='flex items-center gap-2'>
                       <span
-                        className='inline-block h-[6px] w-[6px] rounded-[2px]'
+                        className='inline-block h-[6px] w-[6px] rounded-xs'
                         style={{ backgroundColor: resolvedColors[s.id || ''] || s.color }}
                       />
                       {showLabel && (

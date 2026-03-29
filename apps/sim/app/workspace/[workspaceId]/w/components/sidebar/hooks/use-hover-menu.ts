@@ -12,6 +12,8 @@ const preventAutoFocus = (e: Event) => e.preventDefault()
 export function useHoverMenu() {
   const [isOpen, setIsOpen] = useState(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isLockedRef = useRef(false)
+  const hoverRegionCountRef = useRef(0)
 
   const cancelClose = useCallback(() => {
     if (closeTimerRef.current) {
@@ -29,8 +31,15 @@ export function useHoverMenu() {
   }, [])
 
   const scheduleClose = useCallback(() => {
+    if (isLockedRef.current) {
+      return
+    }
     cancelClose()
-    closeTimerRef.current = setTimeout(() => setIsOpen(false), CLOSE_DELAY_MS)
+    closeTimerRef.current = setTimeout(() => {
+      if (!isLockedRef.current && hoverRegionCountRef.current === 0) {
+        setIsOpen(false)
+      }
+    }, CLOSE_DELAY_MS)
   }, [cancelClose])
 
   const open = useCallback(() => {
@@ -39,24 +48,64 @@ export function useHoverMenu() {
   }, [cancelClose])
 
   const close = useCallback(() => {
+    if (isLockedRef.current) {
+      return
+    }
     cancelClose()
     setIsOpen(false)
   }, [cancelClose])
 
+  const setLocked = useCallback(
+    (locked: boolean) => {
+      isLockedRef.current = locked
+      cancelClose()
+      if (locked) {
+        setIsOpen(true)
+      } else if (hoverRegionCountRef.current === 0) {
+        setIsOpen(false)
+      }
+    },
+    [cancelClose]
+  )
+
+  const handleTriggerMouseEnter = useCallback(() => {
+    hoverRegionCountRef.current += 1
+    open()
+  }, [open])
+
+  const handleTriggerMouseLeave = useCallback(() => {
+    hoverRegionCountRef.current = Math.max(0, hoverRegionCountRef.current - 1)
+    scheduleClose()
+  }, [scheduleClose])
+
+  const handleContentMouseEnter = useCallback(() => {
+    hoverRegionCountRef.current += 1
+    cancelClose()
+  }, [cancelClose])
+
+  const handleContentMouseLeave = useCallback(() => {
+    hoverRegionCountRef.current = Math.max(0, hoverRegionCountRef.current - 1)
+    scheduleClose()
+  }, [scheduleClose])
+
   const triggerProps = useMemo(
-    () => ({ onMouseEnter: open, onMouseLeave: scheduleClose }) as const,
-    [open, scheduleClose]
+    () =>
+      ({
+        onMouseEnter: handleTriggerMouseEnter,
+        onMouseLeave: handleTriggerMouseLeave,
+      }) as const,
+    [handleTriggerMouseEnter, handleTriggerMouseLeave]
   )
 
   const contentProps = useMemo(
     () =>
       ({
-        onMouseEnter: cancelClose,
-        onMouseLeave: scheduleClose,
+        onMouseEnter: handleContentMouseEnter,
+        onMouseLeave: handleContentMouseLeave,
         onCloseAutoFocus: preventAutoFocus,
       }) as const,
-    [cancelClose, scheduleClose]
+    [handleContentMouseEnter, handleContentMouseLeave]
   )
 
-  return { isOpen, open, close, triggerProps, contentProps }
+  return { isOpen, open, close, setLocked, triggerProps, contentProps }
 }

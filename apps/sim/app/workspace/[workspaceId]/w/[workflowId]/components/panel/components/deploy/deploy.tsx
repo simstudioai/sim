@@ -90,7 +90,7 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
         <Tooltip.Trigger asChild>
           <span>
             <Button
-              className='h-[30px] gap-[6px] px-[10px]'
+              className='h-[30px] gap-1.5 px-2.5'
               variant={
                 isRegistryLoading ? 'active' : changeDetected || !isDeployed ? 'tertiary' : 'active'
               }

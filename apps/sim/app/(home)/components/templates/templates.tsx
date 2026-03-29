@@ -19,7 +19,7 @@ const LandingPreviewWorkflow = dynamic(
     ).then((mod) => mod.LandingPreviewWorkflow),
   {
     ssr: false,
-    loading: () => <div className='h-full w-full bg-[#1b1b1b]' />,
+    loading: () => <div className='h-full w-full bg-[var(--landing-bg)]' />,
   }
 )
 
@@ -337,7 +337,7 @@ function DotGrid({ className, cols, rows, gap = 0 }: DotGridProps) {
       }}
     >
       {Array.from({ length: cols * rows }, (_, i) => (
-        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[#2A2A2A]' />
+        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[var(--landing-bg-elevated)]' />
       ))}
     </div>
   )
@@ -412,7 +412,7 @@ export default function Templates() {
       ref={sectionRef}
       id='templates'
       aria-labelledby='templates-heading'
-      className='mt-[40px] mb-[80px]'
+      className='mt-10 mb-20'
     >
       <p className='sr-only'>
         Sim includes {TEMPLATE_WORKFLOWS.length} pre-built workflow templates covering OCR
@@ -422,9 +422,9 @@ export default function Templates() {
         customise it, and deploy in minutes.
       </p>
 
-      <div className='bg-[#1C1C1C]'>
+      <div className='bg-[var(--landing-bg)]'>
         <DotGrid
-          className='overflow-hidden border-[#2A2A2A] border-y bg-[#1C1C1C] p-[6px]'
+          className='overflow-hidden border-[var(--landing-bg-elevated)] border-y bg-[var(--landing-bg)] p-1.5'
           cols={160}
           rows={1}
           gap={6}
@@ -449,8 +449,8 @@ export default function Templates() {
             </svg>
           </div>
 
-          <div className='px-[20px] pt-[60px] lg:px-[80px] lg:pt-[100px]'>
-            <div className='flex flex-col items-start gap-[20px]'>
+          <div className='px-5 pt-[60px] lg:px-20 lg:pt-[100px]'>
+            <div className='flex flex-col items-start gap-5'>
               <Badge
                 variant='blue'
                 size='md'
@@ -466,12 +466,12 @@ export default function Templates() {
 
               <h2
                 id='templates-heading'
-                className='font-[430] font-season text-[28px] text-white leading-[100%] tracking-[-0.02em] lg:text-[40px]'
+                className='text-balance font-[430] font-season text-[28px] text-white leading-[100%] tracking-[-0.02em] lg:text-[40px]'
               >
                 Ship your agent in minutes
               </h2>
 
-              <p className='font-[430] font-season text-[#F6F6F0]/50 text-[15px] leading-[150%] tracking-[0.02em] lg:text-[18px]'>
+              <p className='font-[430] font-season text-[#F6F6F0]/50 text-base leading-[150%] tracking-[0.02em] lg:text-lg'>
                 Pre-built templates for every use case—pick one, swap{' '}
                 <br className='hidden lg:inline' />
                 models and tools to fit your stack, and deploy.
@@ -479,11 +479,11 @@ export default function Templates() {
             </div>
           </div>
 
-          <div className='mt-[40px] flex border-[#2A2A2A] border-y lg:mt-[73px]'>
+          <div className='mt-10 flex border-[var(--landing-bg-elevated)] border-y lg:mt-[73px]'>
             <div className='shrink-0'>
               <div className='h-full lg:hidden'>
                 <DotGrid
-                  className='h-full w-[24px] overflow-hidden border-[#2A2A2A] border-r p-[4px]'
+                  className='h-full w-[24px] overflow-hidden border-[var(--landing-bg-elevated)] border-r p-1'
                   cols={2}
                   rows={55}
                   gap={4}
@@ -491,7 +491,7 @@ export default function Templates() {
               </div>
               <div className='hidden h-full lg:block'>
                 <DotGrid
-                  className='h-full w-[80px] overflow-hidden border-[#2A2A2A] border-r p-[6px]'
+                  className='h-full w-[80px] overflow-hidden border-[var(--landing-bg-elevated)] border-r p-1.5'
                   cols={8}
                   rows={55}
                   gap={6}
@@ -503,7 +503,7 @@ export default function Templates() {
               <div
                 role='tablist'
                 aria-label='Workflow templates'
-                className='flex w-full shrink-0 flex-col border-[#2A2A2A] lg:w-[300px] lg:border-r'
+                className='flex w-full shrink-0 flex-col border-[var(--landing-bg-elevated)] lg:w-[300px] lg:border-r'
               >
                 {TEMPLATE_WORKFLOWS.map((workflow, index) => {
                   const isActive = index === activeIndex
@@ -521,7 +521,7 @@ export default function Templates() {
                           isActive
                             ? 'z-10'
                             : cn(
-                                'flex items-center px-[12px] py-[10px] hover:bg-[#232323]/50',
+                                'flex items-center px-3 py-2.5 hover:bg-[color-mix(in_srgb,var(--landing-bg-card)_50%,transparent)]',
                                 index < TEMPLATE_WORKFLOWS.length - 1 &&
                                   'shadow-[inset_0_-1px_0_0_#2A2A2A]'
                               )
@@ -543,8 +543,8 @@ export default function Templates() {
                                   className='absolute right-[-8px] bottom-0 left-2 h-2'
                                   style={buildBottomWallStyle(depth)}
                                 />
-                                <div className='-translate-y-2 relative flex translate-x-2 items-center bg-[#242424] px-[12px] py-[10px] shadow-[inset_0_0_0_1.5px_#3E3E3E]'>
-                                  <span className='flex-1 font-[430] font-season text-[16px] text-white'>
+                                <div className='-translate-y-2 relative flex translate-x-2 items-center bg-[var(--landing-bg-card)] px-3 py-2.5 shadow-[inset_0_0_0_1.5px_#3E3E3E]'>
+                                  <span className='flex-1 font-[430] font-season text-md text-white'>
                                     {workflow.name}
                                   </span>
                                   <ChevronDown
@@ -556,7 +556,7 @@ export default function Templates() {
                             )
                           })()
                         ) : (
-                          <span className='font-[430] font-season text-[#F6F6F0]/50 text-[16px]'>
+                          <span className='font-[430] font-season text-[#F6F6F0]/50 text-md'>
                             {workflow.name}
                           </span>
                         )}
@@ -571,19 +571,19 @@ export default function Templates() {
                             transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
                             className='overflow-hidden'
                           >
-                            <div className='aspect-[16/10] w-full border-[#2A2A2A] border-y bg-[#1b1b1b]'>
+                            <div className='aspect-[16/10] w-full border-[var(--landing-bg-elevated)] border-y bg-[var(--landing-bg)]'>
                               <LandingPreviewWorkflow
                                 workflow={workflow}
                                 animate
                                 fitViewOptions={{ padding: 0.15, maxZoom: 1.3 }}
                               />
                             </div>
-                            <div className='p-[12px]'>
+                            <div className='p-3'>
                               <button
                                 type='button'
                                 onClick={handleUseTemplate}
                                 disabled={isPreparingTemplate}
-                                className='inline-flex h-[32px] w-full cursor-pointer items-center justify-center gap-[6px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] font-[430] font-season text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
+                                className='inline-flex h-[32px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-[5px] border border-white bg-white font-[430] font-season text-black text-sm transition-colors active:bg-[#E0E0E0]'
                               >
                                 {isPreparingTemplate ? 'Preparing...' : 'Use template'}
                               </button>
@@ -614,7 +614,7 @@ export default function Templates() {
                   type='button'
                   onClick={handleUseTemplate}
                   disabled={isPreparingTemplate}
-                  className='group/cta absolute top-[16px] right-[16px] z-10 inline-flex h-[32px] cursor-pointer items-center gap-[6px] rounded-[5px] border border-[#FFFFFF] bg-[#FFFFFF] px-[10px] font-[430] font-season text-[14px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                  className='group/cta absolute top-4 right-[16px] z-10 inline-flex h-[32px] cursor-pointer items-center gap-1.5 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                 >
                   {isPreparingTemplate ? 'Preparing...' : 'Use template'}
                   <span className='relative h-[10px] w-[10px] shrink-0'>
@@ -642,7 +642,7 @@ export default function Templates() {
             <div className='shrink-0'>
               <div className='h-full lg:hidden'>
                 <DotGrid
-                  className='h-full w-[24px] overflow-hidden border-[#2A2A2A] border-l p-[4px]'
+                  className='h-full w-[24px] overflow-hidden border-[var(--landing-bg-elevated)] border-l p-1'
                   cols={2}
                   rows={55}
                   gap={4}
@@ -650,7 +650,7 @@ export default function Templates() {
               </div>
               <div className='hidden h-full lg:block'>
                 <DotGrid
-                  className='h-full w-[80px] overflow-hidden border-[#2A2A2A] border-l p-[6px]'
+                  className='h-full w-[80px] overflow-hidden border-[var(--landing-bg-elevated)] border-l p-1.5'
                   cols={8}
                   rows={55}
                   gap={6}

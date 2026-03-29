@@ -16,6 +16,7 @@ export function Hammer(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path d='M7 6.75L10.25 3.5L16.75 10L13.5 13.25Z' />

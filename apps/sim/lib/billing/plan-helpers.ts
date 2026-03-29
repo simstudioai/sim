@@ -10,6 +10,8 @@
  * and map to their original dollar amounts ($20 / $40).
  */
 
+import type { AnyColumn } from 'drizzle-orm'
+import { eq, like, or, type SQL } from 'drizzle-orm'
 import {
   CREDIT_TIERS,
   DEFAULT_PRO_TIER_COST_LIMIT,
@@ -113,6 +115,22 @@ export function getValidPlanNames(type: 'pro' | 'team'): string[] {
  * @example getDisplayPlanName('team_6000') => 'Pro for Teams'
  * @example getDisplayPlanName('pro') => 'Legacy Pro'
  */
+/**
+ * SQL-level plan filters for Drizzle queries.
+ * These are the SQL equivalents of the JS helpers above.
+ */
+export function sqlIsPro(column: AnyColumn): SQL | undefined {
+  return or(eq(column, 'pro'), like(column, 'pro_%'))
+}
+
+export function sqlIsTeam(column: AnyColumn): SQL | undefined {
+  return or(eq(column, 'team'), like(column, 'team_%'))
+}
+
+export function sqlIsPaid(column: AnyColumn): SQL | undefined {
+  return or(sqlIsPro(column)!, sqlIsTeam(column)!, eq(column, 'enterprise'))
+}
+
 export function getDisplayPlanName(plan: string | null | undefined): string {
   if (!plan || isFree(plan)) return 'Free'
   if (isEnterprise(plan)) return 'Enterprise'

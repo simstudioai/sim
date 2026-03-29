@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { Loader2 } from 'lucide-react'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
+import Navbar from '@/app/(home)/components/navbar/navbar'
 import {
   FormErrorState,
   FormField,
@@ -221,7 +222,7 @@ export default function Form({ identifier }: { identifier: string }) {
     [identifier, fetchFormConfig]
   )
 
-  const primaryColor = formConfig?.customizations?.primaryColor || 'var(--brand-primary-hex)'
+  const primaryColor = formConfig?.customizations?.primaryColor || 'var(--brand)'
 
   if (isLoading && !authRequired) {
     return <FormLoadingState />
@@ -238,7 +239,10 @@ export default function Form({ identifier }: { identifier: string }) {
   if (isSubmitted && thankYouData) {
     return (
       <AuthBackground className={`${martianMono.variable} dark font-[430] font-season`}>
-        <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
+        <main className='relative flex min-h-full flex-col text-[var(--landing-text)]'>
+          <header className='shrink-0 bg-[var(--landing-bg)]'>
+            <Navbar logoOnly />
+          </header>
           <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
             <ThankYouScreen
               title={thankYouData.title}
@@ -270,22 +274,27 @@ export default function Form({ identifier }: { identifier: string }) {
 
   return (
     <AuthBackground className={`${martianMono.variable} dark font-[430] font-season`}>
-      <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
-        <div className='relative z-30 flex flex-1 justify-center px-4 pt-16 pb-24'>
+      <main className='relative flex min-h-full flex-col text-[var(--landing-text)]'>
+        <header className='shrink-0 bg-[var(--landing-bg)]'>
+          <Navbar logoOnly />
+        </header>
+        <div className='relative z-30 flex flex-1 justify-center px-4 pt-8 pb-24'>
           <div className='w-full max-w-[410px]'>
             {/* Form title */}
             <div className='mb-8 text-center'>
-              <h1 className='font-[500] text-[#ECECEC] text-[28px] tracking-tight'>
+              <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
                 {formConfig.title}
               </h1>
               {formConfig.description && (
-                <p className='mt-2 font-[380] text-[#999] text-[15px]'>{formConfig.description}</p>
+                <p className='mt-2 font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
+                  {formConfig.description}
+                </p>
               )}
             </div>
 
             <form onSubmit={handleSubmit} className='space-y-6'>
               {fields.length === 0 ? (
-                <div className='rounded-[10px] border border-[#2A2A2A] bg-[#2A2A2A] p-6 text-center text-[#999]'>
+                <div className='rounded-[10px] border border-[var(--landing-bg-elevated)] bg-[var(--surface-4)] p-6 text-center text-[var(--landing-text-muted)]'>
                   This form has no fields configured.
                 </div>
               ) : (
@@ -307,20 +316,26 @@ export default function Form({ identifier }: { identifier: string }) {
               )}
 
               {error && (
-                <div className='rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] p-3 text-red-500 text-sm'>
+                <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-4)] p-3 text-red-500 text-sm'>
                   {error}
                 </div>
               )}
 
               {fields.length > 0 && (
-                <BrandedButton
+                <button
                   type='submit'
-                  loading={isSubmitting}
-                  loadingText='Submitting...'
-                  fullWidth
+                  disabled={isSubmitting}
+                  className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
                 >
-                  Submit
-                </BrandedButton>
+                  {isSubmitting ? (
+                    <span className='flex items-center gap-2'>
+                      <Loader2 className='h-4 w-4 animate-spin' />
+                      Submitting...
+                    </span>
+                  ) : (
+                    'Submit'
+                  )}
+                </button>
               )}
             </form>
           </div>

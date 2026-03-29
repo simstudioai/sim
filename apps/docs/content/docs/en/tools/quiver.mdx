@@ -1,0 +1,132 @@
+---
+title: Quiver
+description: Generate and vectorize SVGs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="quiver"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[QuiverAI](https://quiver.ai/) is an AI-powered SVG generation platform that creates high-quality, scalable vector graphics from text descriptions or by vectorizing raster images. It produces clean, resolution-independent SVGs that are ideal for icons, illustrations, logos, and UI elements.
+
+With Quiver, you can:
+
+- **Generate SVGs from text prompts**: Describe the vector graphic you need and get production-ready SVG output
+- **Vectorize raster images**: Convert PNG, JPG, and other raster images into clean SVG vector format
+- **Provide reference images**: Upload up to 4 reference images to guide the style and composition of generated SVGs
+- **Control generation parameters**: Adjust temperature, number of outputs, and token limits to fine-tune results
+- **List available models**: Query available QuiverAI models to discover supported operations and capabilities
+- **Get clean SVG markup**: Receive raw SVG content alongside downloadable files for easy embedding
+
+In Sim, the Quiver integration enables your workflows to generate and vectorize graphics on demand. This is useful for creating dynamic illustrations, converting raster assets to scalable vectors, generating icons for applications, producing visual assets for content pipelines, or building design automation workflows. The generated SVGs are returned as files that can be passed to downstream blocks for further processing, storage, or delivery.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Generate SVG images from text prompts or vectorize raster images into SVGs using QuiverAI. Supports reference images, style instructions, and multiple output generation.
+
+
+
+## Tools
+
+### `quiver_text_to_svg`
+
+Generate SVG images from text prompts using QuiverAI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | QuiverAI API key |
+| `prompt` | string | Yes | A text description of the desired SVG |
+| `model` | string | Yes | The model to use for SVG generation \(e.g., "arrow-preview"\) |
+| `instructions` | string | No | Style or formatting guidance for the SVG output |
+| `references` | file | No | Reference images to guide SVG generation \(up to 4\) |
+| `n` | number | No | Number of SVGs to generate \(1-16, default 1\) |
+| `temperature` | number | No | Sampling temperature \(0-2, default 1\) |
+| `top_p` | number | No | Nucleus sampling probability \(0-1, default 1\) |
+| `max_output_tokens` | number | No | Maximum output tokens \(1-131072\) |
+| `presence_penalty` | number | No | Token penalty for prior output \(-2 to 2, default 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the SVG generation succeeded |
+| `output` | object | Generated SVG output |
+|   ↳ `file` | file | First generated SVG file |
+|   ↳ `files` | json | All generated SVG files \(when n &gt; 1\) |
+|   ↳ `svgContent` | string | Raw SVG markup content of the first result |
+|   ↳ `id` | string | Generation request ID |
+|   ↳ `usage` | json | Token usage statistics |
+|     ↳ `totalTokens` | number | Total tokens used |
+|     ↳ `inputTokens` | number | Input tokens used |
+|     ↳ `outputTokens` | number | Output tokens used |
+
+### `quiver_image_to_svg`
+
+Convert raster images into vector SVG format using QuiverAI
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | QuiverAI API key |
+| `model` | string | Yes | The model to use for vectorization \(e.g., "arrow-preview"\) |
+| `image` | file | Yes | The raster image to vectorize into SVG |
+| `temperature` | number | No | Sampling temperature \(0-2, default 1\) |
+| `top_p` | number | No | Nucleus sampling probability \(0-1, default 1\) |
+| `max_output_tokens` | number | No | Maximum output tokens \(1-131072\) |
+| `presence_penalty` | number | No | Token penalty for prior output \(-2 to 2, default 0\) |
+| `auto_crop` | boolean | No | Automatically crop the image before vectorizing |
+| `target_size` | number | No | Square resize target in pixels \(128-4096\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the vectorization succeeded |
+| `output` | object | Vectorized SVG output |
+|   ↳ `file` | file | Generated SVG file |
+|   ↳ `svgContent` | string | Raw SVG markup content |
+|   ↳ `id` | string | Vectorization request ID |
+|   ↳ `usage` | json | Token usage statistics |
+|     ↳ `totalTokens` | number | Total tokens used |
+|     ↳ `inputTokens` | number | Input tokens used |
+|     ↳ `outputTokens` | number | Output tokens used |
+
+### `quiver_list_models`
+
+List all available QuiverAI models
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | QuiverAI API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the request succeeded |
+| `output` | object | Available models |
+|   ↳ `models` | json | List of available QuiverAI models |
+|     ↳ `id` | string | Model identifier |
+|     ↳ `name` | string | Human-readable model name |
+|     ↳ `description` | string | Model capabilities summary |
+|     ↳ `created` | number | Unix timestamp of creation |
+|     ↳ `ownedBy` | string | Organization that owns the model |
+|     ↳ `inputModalities` | json | Supported input types \(text, image, svg\) |
+|     ↳ `outputModalities` | json | Supported output types \(text, image, svg\) |
+|     ↳ `contextLength` | number | Maximum context window |
+|     ↳ `maxOutputLength` | number | Maximum generation length |
+|     ↳ `supportedOperations` | json | Available operations \(svg_generate, svg_edit, svg_animate, svg_vectorize, chat_completions\) |
+|     ↳ `supportedSamplingParameters` | json | Supported sampling parameters \(temperature, top_p, top_k, repetition_penalty, presence_penalty, stop\) |
+
+

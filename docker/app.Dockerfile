@@ -1,7 +1,7 @@
 # ========================================
 # Base Stage: Debian-based Bun with Node.js 22
 # ========================================
-FROM oven/bun:1.3.10-slim AS base
+FROM oven/bun:1.3.11-slim AS base
 
 # Install Node.js 22 and common dependencies once in base stage
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -110,6 +110,12 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modu
 
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
+
+# Copy the bundled PPTX worker artifact
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/dist/pptx-worker.cjs ./apps/sim/dist/pptx-worker.cjs
+
+# Copy the bundled BullMQ worker (self-contained ESM bundle, only isolated-vm is external)
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/dist/worker ./apps/sim/dist/worker
 
 # Guardrails setup with pip caching
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/requirements.txt ./apps/sim/lib/guardrails/requirements.txt

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Validate Integration"
+  short_description: "Audit a Sim service integration"
+  brand_color: "#B45309"
+  default_prompt: "Use $validate-integration to audit and fix a Sim integration against its API docs."

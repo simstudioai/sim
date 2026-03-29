@@ -36,10 +36,13 @@ export interface A2AAgent {
  */
 export const a2aAgentKeys = {
   all: ['a2a-agents'] as const,
-  list: (workspaceId: string) => [...a2aAgentKeys.all, 'list', workspaceId] as const,
-  detail: (agentId: string) => [...a2aAgentKeys.all, 'detail', agentId] as const,
+  lists: () => [...a2aAgentKeys.all, 'list'] as const,
+  list: (workspaceId: string) => [...a2aAgentKeys.lists(), workspaceId] as const,
+  details: () => [...a2aAgentKeys.all, 'detail'] as const,
+  detail: (agentId: string) => [...a2aAgentKeys.details(), agentId] as const,
+  byWorkflows: () => [...a2aAgentKeys.all, 'byWorkflow'] as const,
   byWorkflow: (workspaceId: string, workflowId: string) =>
-    [...a2aAgentKeys.all, 'byWorkflow', workspaceId, workflowId] as const,
+    [...a2aAgentKeys.byWorkflows(), workspaceId, workflowId] as const,
 }
 
 /**
@@ -148,9 +151,11 @@ export function useCreateA2AAgent() {
   return useMutation({
     mutationFn: createA2AAgent,
     onSuccess: () => {
-      // Invalidate all a2a-agent queries (list, detail, byWorkflow, etc.)
       queryClient.invalidateQueries({
-        queryKey: a2aAgentKeys.all,
+        queryKey: a2aAgentKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.byWorkflows(),
       })
     },
   })
@@ -197,10 +202,15 @@ export function useUpdateA2AAgent() {
 
   return useMutation({
     mutationFn: updateA2AAgent,
-    onSuccess: () => {
-      // Invalidate all a2a-agent queries (list, detail, byWorkflow, etc.)
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: a2aAgentKeys.all,
+        queryKey: a2aAgentKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.detail(variables.agentId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.byWorkflows(),
       })
     },
   })
@@ -227,10 +237,15 @@ export function useDeleteA2AAgent() {
 
   return useMutation({
     mutationFn: deleteA2AAgent,
-    onSuccess: () => {
-      // Invalidate all a2a-agent queries (list, detail, byWorkflow, etc.)
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: a2aAgentKeys.all,
+        queryKey: a2aAgentKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.detail(variables.agentId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.byWorkflows(),
       })
     },
   })
@@ -272,10 +287,15 @@ export function usePublishA2AAgent() {
 
   return useMutation({
     mutationFn: publishA2AAgent,
-    onSuccess: () => {
-      // Invalidate all a2a-agent queries (list, detail, byWorkflow, etc.)
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
-        queryKey: a2aAgentKeys.all,
+        queryKey: a2aAgentKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.detail(variables.agentId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: a2aAgentKeys.byWorkflows(),
       })
     },
   })

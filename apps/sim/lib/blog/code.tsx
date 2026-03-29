@@ -7,7 +7,7 @@ interface CodeBlockProps {
 
 export function CodeBlock({ code, language }: CodeBlockProps) {
   return (
-    <div className='dark w-full overflow-hidden rounded-md border border-[#2a2a2a] bg-[#1F1F1F] text-sm'>
+    <div className='dark w-full overflow-hidden rounded-md border border-[var(--landing-bg-elevated)] bg-[var(--code-bg)] text-sm'>
       <Code.Viewer
         code={code}
         showGutter

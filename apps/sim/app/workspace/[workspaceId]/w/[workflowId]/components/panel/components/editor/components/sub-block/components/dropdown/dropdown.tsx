@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import isEqual from 'lodash/isEqual'
+import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Badge } from '@/components/emcn'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
@@ -463,10 +463,7 @@ export const Dropdown = memo(function Dropdown({
     return (
       <div className='flex items-center gap-1 overflow-hidden whitespace-nowrap'>
         {multiValues.map((selectedValue: string) => (
-          <Badge
-            key={selectedValue}
-            className='shrink-0 rounded-[8px] py-[4px] text-[12px] leading-none'
-          >
+          <Badge key={selectedValue} className='shrink-0 rounded-lg py-1 text-caption leading-none'>
             {(optionMap.get(selectedValue) || selectedValue).toLowerCase()}
           </Badge>
         ))}

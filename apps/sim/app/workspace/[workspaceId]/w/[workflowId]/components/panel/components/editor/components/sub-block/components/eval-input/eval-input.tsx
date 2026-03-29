@@ -127,11 +127,9 @@ export function EvalInput({
   }
 
   const renderMetricHeader = (metric: EvalMetric, index: number) => (
-    <div className='flex items-center justify-between overflow-hidden rounded-t-[4px] border-[var(--border-1)] border-b bg-[var(--surface-4)] px-[10px] py-[5px]'>
-      <span className='font-medium text-[14px] text-[var(--text-tertiary)]'>
-        Metric {index + 1}
-      </span>
-      <div className='flex items-center gap-[8px]'>
+    <div className='flex items-center justify-between overflow-hidden rounded-t-[4px] border-[var(--border-1)] border-b bg-[var(--surface-4)] px-2.5 py-[5px]'>
+      <span className='font-medium text-[var(--text-tertiary)] text-sm'>Metric {index + 1}</span>
+      <div className='flex items-center gap-2'>
         <Tooltip.Root key={`add-${metric.id}`}>
           <Tooltip.Trigger asChild>
             <Button
@@ -153,7 +151,7 @@ export function EvalInput({
               variant='ghost'
               onClick={() => removeMetric(metric.id)}
               disabled={isPreview || disabled || metrics.length === 1}
-              className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
+              className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
             >
               <Trash className='h-[14px] w-[14px]' />
               <span className='sr-only'>Delete Metric</span>
@@ -166,18 +164,18 @@ export function EvalInput({
   )
 
   return (
-    <div className='space-y-[8px]'>
+    <div className='space-y-2'>
       {metrics.map((metric, index) => (
         <div
           key={metric.id}
           data-metric-id={metric.id}
-          className='group relative overflow-visible rounded-[4px] border border-[var(--border-1)]'
+          className='group relative overflow-visible rounded-sm border border-[var(--border-1)]'
         >
           {renderMetricHeader(metric, index)}
 
-          <div className='flex flex-col gap-[8px] border-[var(--border-1)] px-[10px] pt-[6px] pb-[10px]'>
-            <div key={`name-${metric.id}`} className='flex flex-col gap-[6px]'>
-              <Label className='text-[13px]'>Name</Label>
+          <div className='flex flex-col gap-2 border-[var(--border-1)] px-2.5 pt-1.5 pb-2.5'>
+            <div key={`name-${metric.id}`} className='flex flex-col gap-1.5'>
+              <Label className='text-small'>Name</Label>
               <Input
                 name='name'
                 value={metric.name}
@@ -187,8 +185,8 @@ export function EvalInput({
               />
             </div>
 
-            <div key={`description-${metric.id}`} className='flex flex-col gap-[6px]'>
-              <Label className='text-[13px]'>Description</Label>
+            <div key={`description-${metric.id}`} className='flex flex-col gap-1.5'>
+              <Label className='text-small'>Description</Label>
               <div className='relative'>
                 {(() => {
                   const fieldState = inputController.fieldHelpers.getFieldState(metric.id)
@@ -218,7 +216,7 @@ export function EvalInput({
                         placeholder='How accurate is the response?'
                         disabled={isPreview || disabled}
                         className={cn(
-                          'min-h-[80px] whitespace-pre-wrap text-transparent caret-white'
+                          'min-h-[80px] whitespace-pre-wrap text-transparent caret-foreground'
                         )}
                         rows={3}
                       />
@@ -227,7 +225,7 @@ export function EvalInput({
                           if (el) descriptionOverlayRefs.current[metric.id] = el
                         }}
                         className={cn(
-                          'absolute inset-0 overflow-auto bg-transparent px-[8px] py-[8px] font-medium font-sans text-[#eeeeee] text-sm',
+                          'absolute inset-0 overflow-auto bg-transparent px-2 py-2 font-medium font-sans text-[var(--code-foreground)] text-sm',
                           !(isPreview || disabled) && 'pointer-events-none'
                         )}
                       >
@@ -258,9 +256,9 @@ export function EvalInput({
               </div>
             </div>
 
-            <div key={`range-${metric.id}`} className='grid grid-cols-2 gap-[8px]'>
-              <div className='flex flex-col gap-[6px]'>
-                <Label className='text-[13px]'>Min Value</Label>
+            <div key={`range-${metric.id}`} className='grid grid-cols-2 gap-2'>
+              <div className='flex flex-col gap-1.5'>
+                <Label className='text-small'>Min Value</Label>
                 <Input
                   type='text'
                   value={metric.range.min}
@@ -272,8 +270,8 @@ export function EvalInput({
                   name='eval-range-min'
                 />
               </div>
-              <div className='flex flex-col gap-[6px]'>
-                <Label className='text-[13px]'>Max Value</Label>
+              <div className='flex flex-col gap-1.5'>
+                <Label className='text-small'>Max Value</Label>
                 <Input
                   type='text'
                   value={metric.range.max}

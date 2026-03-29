@@ -4,10 +4,12 @@ import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
+import { clearExecutionPointer, consolePersistence, saveExecutionPointer } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CopilotRunToolExecution')
 const activeRunToolByWorkflowId = new Map<string, string>()
+const activeRunAbortByWorkflowId = new Map<string, AbortController>()
 const manuallyStoppedToolCallIds = new Set<string>()
 
 /**
@@ -40,11 +42,19 @@ export function executeRunToolOnClient(
  * concurrent doExecuteRunTool catch/success paths see the marker and skip
  * their own completion report.
  */
-export function markRunToolManuallyStopped(workflowId: string): void {
+export function markRunToolManuallyStopped(workflowId: string): string | null {
   const toolCallId = activeRunToolByWorkflowId.get(workflowId)
-  if (!toolCallId) return
+  if (!toolCallId) return null
   manuallyStoppedToolCallIds.add(toolCallId)
   setToolState(toolCallId, ClientToolCallState.cancelled)
+  return toolCallId
+}
+
+export function cancelRunToolExecution(workflowId: string): void {
+  const controller = activeRunAbortByWorkflowId.get(workflowId)
+  if (!controller) return
+  controller.abort()
+  activeRunAbortByWorkflowId.delete(workflowId)
 }
 
 /**
@@ -52,8 +62,11 @@ export function markRunToolManuallyStopped(workflowId: string): void {
  * This lets Copilot know the run was intentionally cancelled by the user.
  * Call markRunToolManuallyStopped first to prevent race conditions.
  */
-export async function reportManualRunToolStop(workflowId: string): Promise<void> {
-  const toolCallId = activeRunToolByWorkflowId.get(workflowId)
+export async function reportManualRunToolStop(
+  workflowId: string,
+  toolCallIdOverride?: string | null
+): Promise<void> {
+  const toolCallId = toolCallIdOverride || activeRunToolByWorkflowId.get(workflowId)
   if (!toolCallId) return
 
   if (!manuallyStoppedToolCallIds.has(toolCallId)) {
@@ -133,11 +146,35 @@ async function doExecuteRunTool(
   })()
 
   const { setCurrentExecutionId } = useExecutionStore.getState()
+  const abortController = new AbortController()
+  activeRunAbortByWorkflowId.set(targetWorkflowId, abortController)
 
+  consolePersistence.executionStarted()
   setIsExecuting(targetWorkflowId, true)
   const executionId = uuidv4()
   setCurrentExecutionId(targetWorkflowId, executionId)
+  saveExecutionPointer({ workflowId: targetWorkflowId, executionId, lastEventId: 0 })
   const executionStartTime = new Date().toISOString()
+
+  const onPageHide = () => {
+    if (manuallyStoppedToolCallIds.has(toolCallId)) return
+    navigator.sendBeacon(
+      COPILOT_CONFIRM_API_PATH,
+      new Blob(
+        [
+          JSON.stringify({
+            toolCallId,
+            status: 'background',
+            message: 'Client disconnected, execution continuing server-side',
+          }),
+        ],
+        { type: 'application/json' }
+      )
+    )
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', onPageHide)
+  }
 
   logger.info('[RunTool] Starting client-side workflow execution', {
     toolCallId,
@@ -157,6 +194,7 @@ async function doExecuteRunTool(
       overrideTriggerType: 'copilot',
       stopAfterBlockId,
       runFromBlock,
+      abortSignal: abortController.signal,
     })
 
     // Determine success (same logic as staging's RunWorkflowClientTool)
@@ -215,13 +253,22 @@ async function doExecuteRunTool(
       await reportCompletion(toolCallId, 'error', msg)
     }
   } finally {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pagehide', onPageHide)
+    }
     manuallyStoppedToolCallIds.delete(toolCallId)
     const activeToolCallId = activeRunToolByWorkflowId.get(targetWorkflowId)
     if (activeToolCallId === toolCallId) {
       activeRunToolByWorkflowId.delete(targetWorkflowId)
     }
+    const activeAbortController = activeRunAbortByWorkflowId.get(targetWorkflowId)
+    if (activeAbortController === abortController) {
+      activeRunAbortByWorkflowId.delete(targetWorkflowId)
+    }
     const { setCurrentExecutionId: clearExecId } = useExecutionStore.getState()
     clearExecId(targetWorkflowId, null)
+    clearExecutionPointer(targetWorkflowId)
+    consolePersistence.executionEnded()
     setIsExecuting(targetWorkflowId, false)
   }
 }
@@ -263,9 +310,8 @@ function buildResultData(result: unknown): Record<string, unknown> | undefined {
 
 /**
  * Report tool completion to the server via the existing /api/copilot/confirm endpoint.
- * This writes {status, message, data} to Redis. The server-side handler
- * is polling Redis via waitForToolCompletion() and will pick this up, then fire-and-forget
- * markToolComplete to the Go backend.
+ * This persists the durable async-tool row and wakes the server-side waiter so
+ * it can continue the paused Copilot run and notify Go.
  */
 async function reportCompletion(
   toolCallId: string,

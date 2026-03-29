@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { GithubOutlineIcon } from '@/components/icons'
-import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
+import { getFormattedGitHubStars } from '@/app/(home)/actions/github'
 
 const logger = createLogger('github-stars')
 
@@ -31,7 +31,7 @@ export function GitHubStars() {
       href='https://github.com/simstudioai/sim'
       target='_blank'
       rel='noopener noreferrer'
-      className='flex items-center gap-[8px] px-[12px]'
+      className='flex items-center gap-2 px-3'
       aria-label={`GitHub repository — ${stars} stars`}
     >
       <GithubOutlineIcon className='h-[14px] w-[14px]' />

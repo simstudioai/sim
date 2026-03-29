@@ -753,7 +753,7 @@ export const userStats = pgTable('user_stats', {
   totalChatExecutions: integer('total_chat_executions').notNull().default(0),
   totalMcpExecutions: integer('total_mcp_executions').notNull().default(0),
   totalA2aExecutions: integer('total_a2a_executions').notNull().default(0),
-  totalTokensUsed: integer('total_tokens_used').notNull().default(0),
+  totalTokensUsed: bigint('total_tokens_used', { mode: 'number' }).notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
   currentUsageLimit: decimal('current_usage_limit').default(DEFAULT_FREE_CREDITS.toString()), // Default $5 (1,000 credits) for free plan, null for team/enterprise
   usageLimitUpdatedAt: timestamp('usage_limit_updated_at').defaultNow(),
@@ -769,7 +769,7 @@ export const userStats = pgTable('user_stats', {
   totalCopilotCost: decimal('total_copilot_cost').notNull().default('0'),
   currentPeriodCopilotCost: decimal('current_period_copilot_cost').notNull().default('0'),
   lastPeriodCopilotCost: decimal('last_period_copilot_cost').default('0'),
-  totalCopilotTokens: integer('total_copilot_tokens').notNull().default(0),
+  totalCopilotTokens: bigint('total_copilot_tokens', { mode: 'number' }).notNull().default(0),
   totalCopilotCalls: integer('total_copilot_calls').notNull().default(0),
   // MCP Copilot usage tracking
   totalMcpCopilotCalls: integer('total_mcp_copilot_calls').notNull().default(0),
@@ -1275,7 +1275,7 @@ export const document = pgTable(
 
     // Connector-sourced document fields
     connectorId: text('connector_id').references(() => knowledgeConnector.id, {
-      onDelete: 'cascade',
+      onDelete: 'set null',
     }),
     externalId: text('external_id'),
     contentHash: text('content_hash'),
@@ -1667,8 +1667,7 @@ export const copilotAsyncToolStatusEnum = pgEnum('copilot_async_tool_status', [
   'completed',
   'failed',
   'cancelled',
-  'resume_enqueued',
-  'resumed',
+  'delivered',
 ])
 
 export type CopilotRunStatus = (typeof copilotRunStatusEnum.enumValues)[number]
@@ -2864,3 +2863,39 @@ export const mothershipInboxWebhook = pgTable('mothership_inbox_webhook', {
   secret: text('secret').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── Sim Academy ─────────────────────────────────────────────────────────────
+
+export const academyCertStatusEnum = pgEnum('academy_cert_status', ['active', 'revoked', 'expired'])
+
+/** Partner certification records issued on course completion */
+export const academyCertificate = pgTable(
+  'academy_certificate',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** References the file-based course ID from lib/academy/content */
+    courseId: text('course_id').notNull(),
+    status: academyCertStatusEnum('status').notNull().default('active'),
+    issuedAt: timestamp('issued_at').notNull().defaultNow(),
+    /** Optional expiry for recertification requirements */
+    expiresAt: timestamp('expires_at'),
+    /** Human-readable unique certificate number, e.g. SIM-2026-00042 */
+    certificateNumber: text('certificate_number').notNull().unique(),
+    /** Snapshot of name and other metadata at time of issue */
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('academy_certificate_user_id_idx').on(table.userId),
+    courseIdIdx: index('academy_certificate_course_id_idx').on(table.courseId),
+    userCourseUnique: uniqueIndex('academy_certificate_user_course_unique').on(
+      table.userId,
+      table.courseId
+    ),
+    certNumberIdx: index('academy_certificate_number_idx').on(table.certificateNumber),
+    statusIdx: index('academy_certificate_status_idx').on(table.status),
+  })
+)

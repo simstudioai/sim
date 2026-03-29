@@ -137,7 +137,7 @@ function PreviewFlow({ workflow, animate = false, fitViewOptions }: LandingPrevi
       proOptions={PRO_OPTIONS}
       fitView
       fitViewOptions={resolvedFitViewOptions}
-      className='h-full w-full bg-[#1b1b1b]'
+      className='h-full w-full bg-[var(--landing-bg)]'
     />
   )
 }

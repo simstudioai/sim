@@ -14,7 +14,7 @@ import { X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/core/utils/cn'
 
-const AUTO_DISMISS_MS = 0
+const AUTO_DISMISS_MS = 5000
 const EXIT_ANIMATION_MS = 200
 const MAX_VISIBLE = 20
 
@@ -22,6 +22,12 @@ const RING_RADIUS = 5.5
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
 
 type ToastVariant = 'default' | 'success' | 'error'
+
+const VARIANT_STYLES: Record<ToastVariant, string> = {
+  default: 'border-[var(--border)] bg-[var(--bg)]',
+  success: 'border-[var(--border)] bg-[var(--bg)]',
+  error: 'border-[var(--border)] bg-[var(--bg)]',
+}
 
 interface ToastAction {
   label: string
@@ -31,6 +37,7 @@ interface ToastAction {
 interface ToastData {
   id: string
   message: string
+  description?: string
   variant: ToastVariant
   action?: ToastAction
   duration: number
@@ -38,6 +45,7 @@ interface ToastData {
 
 type ToastInput = {
   message: string
+  description?: string
   variant?: ToastVariant
   action?: ToastAction
   duration?: number
@@ -160,48 +168,52 @@ function ToastItem({ toast: t, onDismiss }: { toast: ToastData; onDismiss: (id: 
       onMouseEnter={hasDuration ? handleMouseEnter : undefined}
       onMouseLeave={hasDuration ? handleMouseLeave : undefined}
       className={cn(
-        'pointer-events-auto w-[240px] overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)] shadow-sm',
+        'pointer-events-auto flex w-[min(100vw-2rem,320px)] flex-col gap-2 overflow-hidden rounded-lg border px-3 py-2.5 shadow-md transition-[transform,opacity]',
+        VARIANT_STYLES[t.variant],
         exiting
-          ? 'animate-[toast-exit_200ms_ease-in_forwards]'
-          : 'animate-[toast-enter_200ms_ease-out_forwards]'
+          ? 'animate-[toast-exit_200ms_ease-in_forwards] motion-reduce:animate-none'
+          : 'animate-[toast-enter_200ms_ease-out_forwards] motion-reduce:animate-none'
       )}
     >
-      <div className='flex flex-col gap-[8px] p-[8px]'>
-        <div className='flex items-start gap-[8px]'>
-          <div className='line-clamp-2 min-w-0 flex-1 font-medium text-[12px] text-[var(--text-body)]'>
+      <div className='flex items-start gap-2'>
+        <div className='min-w-0 flex-1'>
+          <div className='line-clamp-2 font-medium text-[var(--text-body)] text-small leading-[18px]'>
             {t.variant === 'error' && (
-              <span className='mr-[8px] mb-[2px] inline-block h-[8px] w-[8px] rounded-[2px] bg-[var(--text-error)] align-middle' />
+              <span className='mr-2 mb-0.5 inline-block h-2 w-2 rounded-[2px] bg-[var(--text-error)] align-middle' />
             )}
             {t.variant === 'success' && (
-              <span className='mr-[8px] mb-[2px] inline-block h-[8px] w-[8px] rounded-[2px] bg-[var(--text-success)] align-middle' />
+              <span className='mr-2 mb-0.5 inline-block h-2 w-2 rounded-[2px] bg-[var(--text-success)] align-middle' />
             )}
             {t.message}
           </div>
-          <div className='flex shrink-0 items-start gap-[2px]'>
-            {t.duration > 0 && <CountdownRing duration={t.duration} />}
-            <button
-              type='button'
-              onClick={dismiss}
-              aria-label='Dismiss notification'
-              className='-m-[2px] shrink-0 rounded-[5px] p-[4px] hover:bg-[var(--surface-active)]'
-            >
-              <X className='h-[14px] w-[14px] text-[var(--text-icon)]' />
-            </button>
-          </div>
+          {t.description ? (
+            <p className='mt-0.5 text-caption leading-4 opacity-80'>{t.description}</p>
+          ) : null}
         </div>
-        {t.action && (
+        <div className='flex shrink-0 items-start gap-0.5'>
+          {t.duration > 0 ? <CountdownRing duration={t.duration} /> : null}
           <button
             type='button'
-            onClick={() => {
-              t.action!.onClick()
-              dismiss()
-            }}
-            className='w-full rounded-[5px] bg-[var(--surface-active)] px-[8px] py-[4px] font-medium text-[12px] hover:bg-[var(--surface-hover)]'
+            onClick={dismiss}
+            aria-label='Dismiss notification'
+            className='-m-0.5 relative shrink-0 rounded-sm p-1 text-[var(--text-icon)] before:absolute before:inset-[-8px] before:content-[""] hover:bg-[var(--surface-active)]'
           >
-            {t.action.label}
+            <X className='h-[14px] w-[14px]' />
           </button>
-        )}
+        </div>
       </div>
+      {t.action ? (
+        <button
+          type='button'
+          onClick={() => {
+            t.action!.onClick()
+            dismiss()
+          }}
+          className='w-full rounded-md bg-[var(--surface-active)] px-2 py-1 font-medium text-small hover:bg-[var(--surface-hover)]'
+        >
+          {t.action.label}
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -228,6 +240,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     const data: ToastData = {
       id,
       message: input.message,
+      description: input.description,
       variant: input.variant ?? 'default',
       action: input.action,
       duration: input.duration ?? AUTO_DISMISS_MS,
@@ -263,7 +276,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
           <div
             aria-live='polite'
             aria-label='Notifications'
-            className='pointer-events-none fixed right-[16px] bottom-[16px] z-[10000400] flex flex-col-reverse items-end gap-[8px]'
+            className='pointer-events-none fixed right-[16px] bottom-4 z-[var(--z-toast)] flex flex-col-reverse items-end gap-2'
           >
             {toasts.map((t) => (
               <ToastItem key={t.id} toast={t} onDismiss={dismissToast} />

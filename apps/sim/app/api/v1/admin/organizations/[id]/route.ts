@@ -19,7 +19,8 @@
 import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq } from 'drizzle-orm'
+import { and, count, eq, inArray } from 'drizzle-orm'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -58,7 +59,12 @@ export const GET = withAdminAuthParams<RouteParams>(async (request, context) => 
       db
         .select()
         .from(subscription)
-        .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+        .where(
+          and(
+            eq(subscription.referenceId, organizationId),
+            inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          )
+        )
         .limit(1),
     ])
 

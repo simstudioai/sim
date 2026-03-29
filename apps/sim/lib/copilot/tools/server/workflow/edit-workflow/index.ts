@@ -7,7 +7,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { applyTargetedLayout } from '@/lib/workflows/autolayout'
+import { applyTargetedLayout, getTargetedLayoutImpact } from '@/lib/workflows/autolayout'
 import {
   DEFAULT_HORIZONTAL_SPACING,
   DEFAULT_VERTICAL_SPACING,
@@ -233,29 +233,18 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Persist the workflow state to the database
     const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
 
-    // Identify blocks that need layout by comparing against the pre-operation
-    // state. New blocks and blocks inserted into subflows (position reset to
-    // 0,0) need repositioning. Extracted blocks are excluded — their handler
-    // already computed valid absolute positions from the container offset.
-    const preOperationBlockIds = new Set(Object.keys(workflowState.blocks || {}))
-    const blocksNeedingLayout = Object.keys(finalWorkflowState.blocks).filter((id) => {
-      if (!preOperationBlockIds.has(id)) return true
-      const prevParent = workflowState.blocks[id]?.data?.parentId ?? null
-      const currParent = finalWorkflowState.blocks[id]?.data?.parentId ?? null
-      if (prevParent === currParent) return false
-      // Parent changed — only needs layout if position was reset to (0,0)
-      // by insert_into_subflow. extract_from_subflow computes absolute
-      // positions directly, so those blocks don't need repositioning.
-      const pos = finalWorkflowState.blocks[id]?.position
-      return pos?.x === 0 && pos?.y === 0
+    const { layoutBlockIds, shiftSourceBlockIds } = getTargetedLayoutImpact({
+      before: workflowState,
+      after: finalWorkflowState,
     })
 
     let layoutedBlocks = finalWorkflowState.blocks
 
-    if (blocksNeedingLayout.length > 0) {
+    if (layoutBlockIds.length > 0 || shiftSourceBlockIds.length > 0) {
       try {
         layoutedBlocks = applyTargetedLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
-          changedBlockIds: blocksNeedingLayout,
+          changedBlockIds: layoutBlockIds,
+          shiftSourceBlockIds,
           horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
           verticalSpacing: DEFAULT_VERTICAL_SPACING,
         })

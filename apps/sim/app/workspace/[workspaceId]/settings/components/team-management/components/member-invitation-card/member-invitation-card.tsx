@@ -38,21 +38,21 @@ const PermissionSelector = React.memo<PermissionSelectorProps>(
       >
         <ButtonGroupItem
           value='read'
-          className='h-[22px] min-w-[38px] px-[6px] py-0 text-[11px]'
+          className='h-[22px] min-w-[38px] px-1.5 py-0 text-xs'
           title='View only'
         >
           Read
         </ButtonGroupItem>
         <ButtonGroupItem
           value='write'
-          className='h-[22px] min-w-[38px] px-[6px] py-0 text-[11px]'
+          className='h-[22px] min-w-[38px] px-1.5 py-0 text-xs'
           title='Edit content'
         >
           Write
         </ButtonGroupItem>
         <ButtonGroupItem
           value='admin'
-          className='h-[22px] min-w-[38px] px-[6px] py-0 text-[11px]'
+          className='h-[22px] min-w-[38px] px-1.5 py-0 text-xs'
           title='Full access'
         >
           Admin
@@ -120,16 +120,16 @@ export function MemberInvitationCard({
   }
 
   return (
-    <div className='overflow-hidden rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-      <div className='px-[14px] py-[10px]'>
-        <h4 className='font-medium text-[15px] text-[var(--text-primary)]'>Invite Team Members</h4>
-        <p className='text-[13px] text-[var(--text-muted)]'>
+    <div className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
+      <div className='px-3.5 py-2.5'>
+        <h4 className='font-medium text-[var(--text-primary)] text-base'>Invite Team Members</h4>
+        <p className='text-[var(--text-muted)] text-small'>
           Add new members to your team and optionally give them access to specific workspaces
         </p>
       </div>
 
-      <div className='flex flex-col gap-[12px] border-[var(--border-1)] border-t bg-[var(--surface-4)] px-[14px] py-[12px]'>
-        <div className='flex items-start gap-[8px]'>
+      <div className='flex flex-col gap-3 border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3'>
+        <div className='flex items-start gap-2'>
           <div className='flex-1'>
             <TagInput
               items={inviteEmails}
@@ -177,15 +177,15 @@ export function MemberInvitationCard({
               className='max-h-[320px] min-w-[240px] max-w-[240px] overflow-y-auto'
             >
               {isLoadingWorkspaces ? (
-                <div className='px-[6px] py-[16px] text-center'>
-                  <p className='text-[13px] text-[var(--text-tertiary)]'>Loading...</p>
+                <div className='px-1.5 py-4 text-center'>
+                  <p className='text-[var(--text-tertiary)] text-small'>Loading...</p>
                 </div>
               ) : userWorkspaces.length === 0 ? (
-                <div className='px-[6px] py-[16px] text-center'>
-                  <p className='text-[13px] text-[var(--text-tertiary)]'>No workspaces available</p>
+                <div className='px-1.5 py-4 text-center'>
+                  <p className='text-[var(--text-tertiary)] text-small'>No workspaces available</p>
                 </div>
               ) : (
-                <div className='flex flex-col gap-[2px]'>
+                <div className='flex flex-col gap-0.5'>
                   {userWorkspaces.map((workspace) => {
                     const isSelected = selectedWorkspaces.some(
                       (w) => w.workspaceId === workspace.id
@@ -195,7 +195,7 @@ export function MemberInvitationCard({
                     )
 
                     return (
-                      <div key={workspace.id} className='flex flex-col gap-[4px]'>
+                      <div key={workspace.id} className='flex flex-col gap-1'>
                         <DropdownMenuItem
                           onSelect={(e) => {
                             e.preventDefault()
@@ -216,8 +216,8 @@ export function MemberInvitationCard({
                           <span className='flex-1 truncate'>{workspace.name}</span>
                         </DropdownMenuItem>
                         {isSelected && (
-                          <div className='ml-[31px] flex items-center gap-[6px] pb-[4px]'>
-                            <span className='text-[11px] text-[var(--text-tertiary)]'>Access:</span>
+                          <div className='ml-[31px] flex items-center gap-1.5 pb-1'>
+                            <span className='text-[var(--text-tertiary)] text-xs'>Access:</span>
                             <PermissionSelector
                               value={
                                 (['read', 'write', 'admin'].includes(
@@ -248,7 +248,7 @@ export function MemberInvitationCard({
         </div>
 
         {invitationError && (
-          <p className='text-[13px] text-[var(--text-error)] leading-tight'>
+          <p className='text-[var(--text-error)] text-small leading-tight'>
             {invitationError instanceof Error && invitationError.message
               ? invitationError.message
               : String(invitationError)}
@@ -256,7 +256,7 @@ export function MemberInvitationCard({
         )}
 
         {inviteSuccess && (
-          <p className='text-[11px] text-[var(--text-success)] leading-tight'>
+          <p className='text-[var(--text-success)] text-xs leading-tight'>
             Invitation sent successfully
             {selectedCount > 0 &&
               ` with access to ${selectedCount} workspace${selectedCount !== 1 ? 's' : ''}`}

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { v4 as uuidv4 } from 'uuid'
+import { getTargetedLayoutImpact } from '@/lib/workflows/autolayout'
 import type { BlockWithDiff } from '@/lib/workflows/diff/types'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { isUuid } from '@/executor/constants'
@@ -17,6 +18,7 @@ function hasBlockChanged(currentBlock: BlockState, proposedBlock: BlockState): b
   if (currentBlock.enabled !== proposedBlock.enabled) return true
   if (currentBlock.triggerMode !== proposedBlock.triggerMode) return true
   if (!!currentBlock.locked !== !!proposedBlock.locked) return true
+  if ((currentBlock.data?.parentId ?? null) !== (proposedBlock.data?.parentId ?? null)) return true
 
   // Compare subBlocks
   const currentSubKeys = Object.keys(currentBlock.subBlocks || {})
@@ -47,15 +49,32 @@ function computeFieldDiff(
   const unchangedFields: string[] = []
 
   // Check basic fields
-  const fieldsToCheck = ['type', 'name', 'enabled', 'triggerMode', 'horizontalHandles'] as const
+  const fieldsToCheck = [
+    'type',
+    'name',
+    'enabled',
+    'triggerMode',
+    'horizontalHandles',
+    'locked',
+  ] as const
   for (const field of fieldsToCheck) {
     const currentValue = currentBlock[field]
     const proposedValue = proposedBlock[field]
-    if (JSON.stringify(currentValue) !== JSON.stringify(proposedValue)) {
+    if (
+      field === 'locked'
+        ? !!currentValue !== !!proposedValue
+        : JSON.stringify(currentValue) !== JSON.stringify(proposedValue)
+    ) {
       changedFields.push(field)
     } else if (currentValue !== undefined) {
       unchangedFields.push(field)
     }
+  }
+
+  if ((currentBlock.data?.parentId ?? null) !== (proposedBlock.data?.parentId ?? null)) {
+    changedFields.push('parentId')
+  } else {
+    unchangedFields.push('parentId')
   }
 
   // Check subBlocks - use just the key name for UI compatibility
@@ -503,33 +522,14 @@ export class WorkflowDiffEngine {
       // Apply autolayout to the proposed state
       logger.info('Applying autolayout to proposed workflow state')
       try {
-        const baselineBlockIds = new Set(Object.keys(mergedBaseline.blocks))
-
-        // Identify blocks that need positioning: genuinely new blocks that
-        // don't have valid positions yet. Blocks already positioned by a
-        // previous server-side layout (non-origin position) are skipped to
-        // avoid redundant client-side re-layout that can shift blocks when
-        // block metrics change between edits (e.g. condition handle offsets).
-        const blocksNeedingLayout = Object.keys(finalBlocks).filter((id) => {
-          if (!baselineBlockIds.has(id)) {
-            const pos = finalBlocks[id]?.position
-            const hasValidPosition =
-              pos &&
-              Number.isFinite(pos.x) &&
-              Number.isFinite(pos.y) &&
-              !(pos.x === 0 && pos.y === 0)
-            return !hasValidPosition
-          }
-          const baselineParent = mergedBaseline.blocks[id]?.data?.parentId ?? null
-          const proposedParent = finalBlocks[id]?.data?.parentId ?? null
-          if (baselineParent === proposedParent) return false
-          const pos = finalBlocks[id]?.position
-          return pos?.x === 0 && pos?.y === 0
+        const { layoutBlockIds, shiftSourceBlockIds } = getTargetedLayoutImpact({
+          before: mergedBaseline,
+          after: fullyCleanedState,
         })
 
         const totalBlocks = Object.keys(finalBlocks).length
 
-        if (blocksNeedingLayout.length === 0) {
+        if (layoutBlockIds.length === 0 && shiftSourceBlockIds.length === 0) {
           logger.info('No blocks need layout; skipping autolayout', {
             totalBlocks,
           })
@@ -540,8 +540,9 @@ export class WorkflowDiffEngine {
           // gracefully to a full layout from the padding origin — same result
           // as applyAutoLayout but with one unified code path.
           logger.info('Using targeted layout for copilot edits', {
-            blocksNeedingLayout: blocksNeedingLayout.length,
-            anchors: totalBlocks - blocksNeedingLayout.length,
+            blocksNeedingLayout: layoutBlockIds.length,
+            shiftSourceBlocks: shiftSourceBlockIds.length,
+            anchors: totalBlocks - layoutBlockIds.length,
             totalBlocks,
           })
 
@@ -551,7 +552,8 @@ export class WorkflowDiffEngine {
           )
 
           const layoutedBlocks = applyTargetedLayout(finalBlocks, fullyCleanedState.edges, {
-            changedBlockIds: blocksNeedingLayout,
+            changedBlockIds: layoutBlockIds,
+            shiftSourceBlockIds,
             horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
             verticalSpacing: DEFAULT_VERTICAL_SPACING,
           })
@@ -582,7 +584,7 @@ export class WorkflowDiffEngine {
 
           logger.info('Successfully applied targeted layout to proposed state', {
             blocksLayouted: Object.keys(layoutedBlocks).length,
-            blocksNeedingLayout: blocksNeedingLayout.length,
+            blocksNeedingLayout: layoutBlockIds.length,
           })
         }
       } catch (layoutError) {

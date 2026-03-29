@@ -8,7 +8,9 @@ const baseUrl = getBaseUrl()
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
-  title: 'Sim — Build AI Agents & Run Your Agentic Workforce',
+  title: {
+    absolute: 'Sim — Build AI Agents & Run Your Agentic Workforce',
+  },
   description:
     'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to orchestrate agentic workflows.',
   keywords:
