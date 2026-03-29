@@ -1467,6 +1467,10 @@ export function Table({
     setFilterOpen((prev) => !prev)
   }, [])
 
+  const handleFilterClose = useCallback(() => {
+    setFilterOpen(false)
+  }, [])
+
   const columnOptions = useMemo<ColumnOption[]>(
     () =>
       displayColumns.map((col) => ({
@@ -1621,7 +1625,7 @@ export function Table({
               columns={displayColumns}
               filter={queryOptions.filter}
               onApply={handleFilterApply}
-              onClose={handleFilterToggle}
+              onClose={handleFilterClose}
             />
           )}
         </>
