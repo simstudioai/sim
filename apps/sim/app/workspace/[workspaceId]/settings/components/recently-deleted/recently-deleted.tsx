@@ -3,7 +3,17 @@
 import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Button, SModalTabs, SModalTabsList, SModalTabsTrigger } from '@/components/emcn'
+import {
+  ArrowUpDown,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  SModalTabs,
+  SModalTabsList,
+  SModalTabsTrigger,
+} from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { formatDate } from '@/lib/core/utils/formatting'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
@@ -33,6 +43,19 @@ function getResourceHref(
 }
 
 type ResourceType = 'all' | 'workflow' | 'table' | 'knowledge' | 'file'
+
+type SortColumn = 'deleted' | 'name' | 'type'
+
+interface SortConfig {
+  column: SortColumn
+  direction: 'asc' | 'desc'
+}
+
+const SORT_OPTIONS: { column: SortColumn; direction: 'asc' | 'desc'; label: string }[] = [
+  { column: 'deleted', direction: 'desc', label: 'Deleted (newest first)' },
+  { column: 'name', direction: 'asc', label: 'Name (A–Z)' },
+  { column: 'type', direction: 'asc', label: 'Type (A–Z)' },
+]
 
 const ICON_CLASS = 'h-[14px] w-[14px]'
 
@@ -100,6 +123,7 @@ export function RecentlyDeleted() {
   const workspaceId = params?.workspaceId as string
   const [activeTab, setActiveTab] = useState<ResourceType>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [activeSort, setActiveSort] = useState<SortConfig | null>(null)
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set())
   const [restoredItems, setRestoredItems] = useState<Map<string, DeletedResource>>(new Map())
 
@@ -174,7 +198,6 @@ export function RecentlyDeleted() {
       }
     }
 
-    items.sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime())
     return items
   }, [
     workflowsQuery.data,
@@ -191,8 +214,24 @@ export function RecentlyDeleted() {
       const normalized = searchTerm.toLowerCase()
       items = items.filter((r) => r.name.toLowerCase().includes(normalized))
     }
-    return items
-  }, [resources, activeTab, searchTerm])
+    const col = activeSort?.column ?? 'deleted'
+    const dir = activeSort?.direction ?? 'desc'
+    return [...items].sort((a, b) => {
+      let cmp = 0
+      switch (col) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name)
+          break
+        case 'type':
+          cmp = a.type.localeCompare(b.type)
+          break
+        case 'deleted':
+          cmp = a.deletedAt.getTime() - b.deletedAt.getTime()
+          break
+      }
+      return dir === 'asc' ? cmp : -cmp
+    })
+  }, [resources, activeTab, searchTerm, activeSort])
 
   const showNoResults = searchTerm.trim() && filtered.length === 0 && resources.length > 0
 
@@ -232,18 +271,57 @@ export function RecentlyDeleted() {
 
   return (
     <div className='flex h-full flex-col gap-4.5'>
-      <div className='flex items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-        <Search
-          className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-          strokeWidth={2}
-        />
-        <Input
-          placeholder='Search deleted items...'
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          disabled={isLoading}
-          className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-        />
+      <div className='flex items-center gap-2'>
+        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+          <Search
+            className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+            strokeWidth={2}
+          />
+          <Input
+            placeholder='Search deleted items...'
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            disabled={isLoading}
+            className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+          />
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant='outline'
+              size='sm'
+              className='h-[30px] shrink-0 gap-1.5 px-2.5'
+              disabled={isLoading}
+            >
+              <ArrowUpDown className='h-[12px] w-[12px]' />
+              <span className='text-xs'>
+                {SORT_OPTIONS.find(
+                  (o) =>
+                    o.column === (activeSort?.column ?? 'deleted') &&
+                    o.direction === (activeSort?.direction ?? 'desc')
+                )?.label ?? 'Sort'}
+              </span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end' className='w-48'>
+            {SORT_OPTIONS.map((option) => {
+              const isActive =
+                (activeSort?.column ?? 'deleted') === option.column &&
+                (activeSort?.direction ?? 'desc') === option.direction
+              return (
+                <DropdownMenuItem
+                  key={`${option.column}-${option.direction}`}
+                  onClick={() =>
+                    setActiveSort({ column: option.column, direction: option.direction })
+                  }
+                  className={isActive ? 'bg-[var(--bg-selected)]' : ''}
+                >
+                  {option.label}
+                </DropdownMenuItem>
+              )
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <SModalTabs value={activeTab} onValueChange={(v) => setActiveTab(v as ResourceType)}>
