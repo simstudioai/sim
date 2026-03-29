@@ -5,6 +5,10 @@ const STICK_THRESHOLD = 30
 /** User must scroll back to within this distance to re-engage auto-scroll. */
 const REATTACH_THRESHOLD = 5
 
+interface UseAutoScrollOptions {
+  scrollOnMount?: boolean
+}
+
 /**
  * Manages sticky auto-scroll for a streaming chat container.
  *
@@ -16,10 +20,6 @@ const REATTACH_THRESHOLD = 5
  * Returns `ref` (callback ref for the scroll container) and `scrollToBottom`
  * for imperative use after layout-changing events like panel expansion.
  */
-interface UseAutoScrollOptions {
-  scrollOnMount?: boolean
-}
-
 export function useAutoScroll(
   isStreaming: boolean,
   { scrollOnMount = false }: UseAutoScrollOptions = {}

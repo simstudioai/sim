@@ -32,22 +32,18 @@ export async function queryChunks(
     sortOrder = 'asc',
   } = filters
 
-  // Build query conditions
   const conditions = [eq(embedding.documentId, documentId)]
 
-  // Add enabled filter
   if (enabled === 'true') {
     conditions.push(eq(embedding.enabled, true))
   } else if (enabled === 'false') {
     conditions.push(eq(embedding.enabled, false))
   }
 
-  // Add search filter
   if (search) {
     conditions.push(ilike(embedding.content, `%${search}%`))
   }
 
-  // Fetch chunks
   const chunks = await db
     .select({
       id: embedding.id,
@@ -84,7 +80,6 @@ export async function queryChunks(
     .limit(limit)
     .offset(offset)
 
-  // Get total count for pagination
   const totalCount = await db
     .select({ count: sql`count(*)` })
     .from(embedding)
