@@ -3,9 +3,16 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
+import {
+  Button,
+  Combobox,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn'
 import { Calendar } from '@/components/emcn/icons'
-import { cn } from '@/lib/core/utils/cn'
 import { formatAbsoluteDate } from '@/lib/core/utils/formatting'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import type {
@@ -84,9 +91,9 @@ export function ScheduledTasks() {
     column: string
     direction: 'asc' | 'desc'
   } | null>(null)
-  const [scheduleTypeFilter, setScheduleTypeFilter] = useState<'all' | 'recurring' | 'once'>('all')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused'>('all')
-  const [healthFilter, setHealthFilter] = useState<'all' | 'has-failures'>('all')
+  const [scheduleTypeFilter, setScheduleTypeFilter] = useState<string[]>([])
+  const [statusFilter, setStatusFilter] = useState<string[]>([])
+  const [healthFilter, setHealthFilter] = useState<string[]>([])
 
   const visibleItems = useMemo(
     () => allItems.filter((item) => item.sourceType === 'job' && item.status !== 'completed'),
@@ -104,19 +111,23 @@ export function ScheduledTasks() {
         })
       : visibleItems
 
-    if (scheduleTypeFilter !== 'all') {
-      result = result.filter((item) =>
-        scheduleTypeFilter === 'recurring' ? Boolean(item.cronExpression) : !item.cronExpression
-      )
+    if (scheduleTypeFilter.length > 0) {
+      result = result.filter((item) => {
+        if (scheduleTypeFilter.includes('recurring') && Boolean(item.cronExpression)) return true
+        if (scheduleTypeFilter.includes('once') && !item.cronExpression) return true
+        return false
+      })
     }
 
-    if (statusFilter !== 'all') {
-      result = result.filter((item) =>
-        statusFilter === 'active' ? item.status === 'active' : item.status === 'disabled'
-      )
+    if (statusFilter.length > 0) {
+      result = result.filter((item) => {
+        if (statusFilter.includes('active') && item.status === 'active') return true
+        if (statusFilter.includes('paused') && item.status === 'disabled') return true
+        return false
+      })
     }
 
-    if (healthFilter === 'has-failures') {
+    if (healthFilter.length > 0 && healthFilter.includes('has-failures')) {
       result = result.filter((item) => (item.failedCount ?? 0) > 0)
     }
 
@@ -239,101 +250,117 @@ export function ScheduledTasks() {
     [activeSort]
   )
 
+  const scheduleTypeDisplayLabel = useMemo(() => {
+    if (scheduleTypeFilter.length === 0) return 'All'
+    if (scheduleTypeFilter.length === 1)
+      return scheduleTypeFilter[0] === 'recurring' ? 'Recurring' : 'One-time'
+    return `${scheduleTypeFilter.length} selected`
+  }, [scheduleTypeFilter])
+
+  const statusDisplayLabel = useMemo(() => {
+    if (statusFilter.length === 0) return 'All'
+    if (statusFilter.length === 1) return statusFilter[0] === 'active' ? 'Active' : 'Paused'
+    return `${statusFilter.length} selected`
+  }, [statusFilter])
+
+  const healthDisplayLabel = useMemo(() => {
+    if (healthFilter.length === 0) return 'All'
+    return 'Has failures'
+  }, [healthFilter])
+
+  const hasActiveFilters =
+    scheduleTypeFilter.length > 0 || statusFilter.length > 0 || healthFilter.length > 0
+
   const filterContent = (
-    <div className='w-[200px]'>
-      <div className='border-[var(--border-1)] border-b px-3 py-2'>
+    <div className='flex w-[240px] flex-col gap-3 p-3'>
+      <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Schedule Type</span>
-      </div>
-      <div className='flex flex-col gap-0.5 px-3 py-2'>
-        {(
-          [
-            { value: 'all', label: 'All' },
+        <Combobox
+          options={[
             { value: 'recurring', label: 'Recurring' },
             { value: 'once', label: 'One-time' },
-          ] as const
-        ).map(({ value, label }) => (
-          <button
-            key={value}
-            type='button'
-            className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-              scheduleTypeFilter === value && 'bg-[var(--surface-active)]'
-            )}
-            onClick={() => setScheduleTypeFilter(value)}
-          >
-            {label}
-          </button>
-        ))}
+          ]}
+          multiSelect
+          multiSelectValues={scheduleTypeFilter}
+          onMultiSelectChange={setScheduleTypeFilter}
+          overlayContent={
+            <span className='truncate text-[var(--text-primary)]'>{scheduleTypeDisplayLabel}</span>
+          }
+          showAllOption
+          allOptionLabel='All'
+          size='sm'
+          className='h-[32px] w-full rounded-md'
+        />
       </div>
-      <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
+      <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
-      </div>
-      <div className='flex flex-col gap-0.5 px-3 py-2'>
-        {(
-          [
-            { value: 'all', label: 'All' },
+        <Combobox
+          options={[
             { value: 'active', label: 'Active' },
             { value: 'paused', label: 'Paused' },
-          ] as const
-        ).map(({ value, label }) => (
-          <button
-            key={value}
-            type='button'
-            className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-              statusFilter === value && 'bg-[var(--surface-active)]'
-            )}
-            onClick={() => setStatusFilter(value)}
-          >
-            {label}
-          </button>
-        ))}
+          ]}
+          multiSelect
+          multiSelectValues={statusFilter}
+          onMultiSelectChange={setStatusFilter}
+          overlayContent={
+            <span className='truncate text-[var(--text-primary)]'>{statusDisplayLabel}</span>
+          }
+          showAllOption
+          allOptionLabel='All'
+          size='sm'
+          className='h-[32px] w-full rounded-md'
+        />
       </div>
-      <div className='border-[var(--border-1)] border-t border-b px-3 py-2'>
+      <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Health</span>
+        <Combobox
+          options={[{ value: 'has-failures', label: 'Has failures' }]}
+          multiSelect
+          multiSelectValues={healthFilter}
+          onMultiSelectChange={setHealthFilter}
+          overlayContent={
+            <span className='truncate text-[var(--text-primary)]'>{healthDisplayLabel}</span>
+          }
+          showAllOption
+          allOptionLabel='All'
+          size='sm'
+          className='h-[32px] w-full rounded-md'
+        />
       </div>
-      <div className='flex flex-col gap-0.5 px-3 py-2'>
-        {(
-          [
-            { value: 'all', label: 'All' },
-            { value: 'has-failures', label: 'Has failures' },
-          ] as const
-        ).map(({ value, label }) => (
-          <button
-            key={value}
-            type='button'
-            className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-              healthFilter === value && 'bg-[var(--surface-active)]'
-            )}
-            onClick={() => setHealthFilter(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {hasActiveFilters && (
+        <button
+          type='button'
+          onClick={() => {
+            setScheduleTypeFilter([])
+            setStatusFilter([])
+            setHealthFilter([])
+          }}
+          className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+        >
+          Clear all filters
+        </button>
+      )}
     </div>
   )
 
   const filterTags: FilterTag[] = useMemo(() => {
     const tags: FilterTag[] = []
-    if (scheduleTypeFilter !== 'all') {
-      tags.push({
-        label: scheduleTypeFilter === 'recurring' ? 'Type: Recurring' : 'Type: One-time',
-        onRemove: () => setScheduleTypeFilter('all'),
-      })
+    if (scheduleTypeFilter.length > 0) {
+      const label =
+        scheduleTypeFilter.length === 1
+          ? `Type: ${scheduleTypeFilter[0] === 'recurring' ? 'Recurring' : 'One-time'}`
+          : `Type: ${scheduleTypeFilter.length} selected`
+      tags.push({ label, onRemove: () => setScheduleTypeFilter([]) })
     }
-    if (statusFilter !== 'all') {
-      tags.push({
-        label: statusFilter === 'active' ? 'Status: Active' : 'Status: Paused',
-        onRemove: () => setStatusFilter('all'),
-      })
+    if (statusFilter.length > 0) {
+      const label =
+        statusFilter.length === 1
+          ? `Status: ${statusFilter[0] === 'active' ? 'Active' : 'Paused'}`
+          : `Status: ${statusFilter.length} selected`
+      tags.push({ label, onRemove: () => setStatusFilter([]) })
     }
-    if (healthFilter === 'has-failures') {
-      tags.push({
-        label: 'Health: Has failures',
-        onRemove: () => setHealthFilter('all'),
-      })
+    if (healthFilter.length > 0) {
+      tags.push({ label: 'Health: Has failures', onRemove: () => setHealthFilter([]) })
     }
     return tags
   }, [scheduleTypeFilter, statusFilter, healthFilter])
