@@ -11,8 +11,7 @@ interface FileWriteParams {
 export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
   id: 'file_write',
   name: 'File Write',
-  description:
-    'Create a new workspace file. Fails if a file with the same name already exists.',
+  description: 'Create a new workspace file. Fails if a file with the same name already exists.',
   version: '1.0.0',
 
   params: {
@@ -20,8 +19,7 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'File name (e.g., "data.csv"). Fails if a file with this name already exists.',
+      description: 'File name (e.g., "data.csv"). Fails if a file with this name already exists.',
     },
     content: {
       type: 'string',
