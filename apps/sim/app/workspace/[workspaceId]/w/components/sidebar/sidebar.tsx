@@ -183,13 +183,13 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
         <div className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>{task.name}</div>
         {task.id !== 'new' && (
           <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
-            {isActive && !isCurrentRoute && (
+            {isActive && !isCurrentRoute && !isMenuOpen && (
               <span className='absolute h-[7px] w-[7px] animate-ping rounded-full bg-amber-400 opacity-30 group-hover:hidden' />
             )}
-            {isActive && !isCurrentRoute && (
+            {isActive && !isCurrentRoute && !isMenuOpen && (
               <span className='absolute h-[7px] w-[7px] rounded-full bg-amber-400 group-hover:hidden' />
             )}
-            {!isActive && isUnread && !isCurrentRoute && (
+            {!isActive && isUnread && !isCurrentRoute && !isMenuOpen && (
               <span className='absolute h-[7px] w-[7px] rounded-full bg-[var(--brand-accent)] group-hover:hidden' />
             )}
             <button
