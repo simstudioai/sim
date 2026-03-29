@@ -16,7 +16,12 @@ import {
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName } from '@/lib/table/constants'
-import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
+import type {
+  ResourceColumn,
+  ResourceRow,
+  SearchConfig,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components'
 import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { TablesListContextMenu } from '@/app/workspace/[workspaceId]/tables/components'
@@ -29,6 +34,7 @@ import {
   useUploadCsvToTable,
 } from '@/hooks/queries/tables'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
+import { useDebounce } from '@/hooks/use-debounce'
 
 const logger = createLogger('Tables')
 
@@ -60,6 +66,11 @@ export function Tables() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [activeTable, setActiveTable] = useState<TableDefinition | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
+  const [activeSort, setActiveSort] = useState<{
+    column: string
+    direction: 'asc' | 'desc'
+  } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const csvInputRef = useRef<HTMLInputElement>(null)
@@ -78,15 +89,39 @@ export function Tables() {
     closeMenu: closeRowContextMenu,
   } = useContextMenu()
 
-  const filteredTables = useMemo(() => {
-    if (!searchTerm) return tables
-    const term = searchTerm.toLowerCase()
-    return tables.filter((table) => table.name.toLowerCase().includes(term))
-  }, [tables, searchTerm])
+  const processedTables = useMemo(() => {
+    const result = debouncedSearchTerm
+      ? tables.filter((t) => t.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
+      : tables
+
+    const col = activeSort?.column ?? 'created'
+    const dir = activeSort?.direction ?? 'desc'
+    return [...result].sort((a, b) => {
+      let cmp = 0
+      switch (col) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name)
+          break
+        case 'columns':
+          cmp = a.schema.columns.length - b.schema.columns.length
+          break
+        case 'rows':
+          cmp = a.rowCount - b.rowCount
+          break
+        case 'created':
+          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          break
+        case 'updated':
+          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+          break
+      }
+      return dir === 'asc' ? cmp : -cmp
+    })
+  }, [tables, debouncedSearchTerm, activeSort])
 
   const rows: ResourceRow[] = useMemo(
     () =>
-      filteredTables.map((table) => ({
+      processedTables.map((table) => ({
         id: table.id,
         cells: {
           name: {
@@ -105,14 +140,34 @@ export function Tables() {
           owner: ownerCell(table.createdBy, members),
           updated: timeCell(table.updatedAt),
         },
-        sortValues: {
-          columns: table.schema.columns.length,
-          rows: table.rowCount,
-          created: -new Date(table.createdAt).getTime(),
-          updated: -new Date(table.updatedAt).getTime(),
-        },
       })),
-    [filteredTables, members]
+    [processedTables, members]
+  )
+
+  const searchConfig: SearchConfig = useMemo(
+    () => ({
+      value: searchTerm,
+      onChange: setSearchTerm,
+      onClearAll: () => setSearchTerm(''),
+      placeholder: 'Search tables...',
+    }),
+    [searchTerm]
+  )
+
+  const sortConfig: SortConfig = useMemo(
+    () => ({
+      options: [
+        { id: 'name', label: 'Name' },
+        { id: 'columns', label: 'Columns' },
+        { id: 'rows', label: 'Rows' },
+        { id: 'created', label: 'Created' },
+        { id: 'updated', label: 'Last Updated' },
+      ],
+      active: activeSort,
+      onSort: (column, direction) => setActiveSort({ column, direction }),
+      onClear: () => setActiveSort(null),
+    }),
+    [activeSort]
   )
 
   const handleContentContextMenu = useCallback(
@@ -260,12 +315,8 @@ export function Tables() {
           onClick: handleCreateTable,
           disabled: uploading || userPermissions.canEdit !== true || createTable.isPending,
         }}
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: 'Search tables...',
-        }}
-        defaultSort='created'
+        search={searchConfig}
+        sort={sortConfig}
         headerActions={[
           {
             label: uploadButtonLabel,
