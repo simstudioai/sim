@@ -97,7 +97,7 @@ export function AccessControlPanel() {
 
           return (
             <div key={category.label} className={catIdx > 0 ? 'mt-4' : ''}>
-              <span className='font-[430] font-season text-[#F6F6F6]/30 text-[10px] uppercase leading-none tracking-[0.08em]'>
+              <span className='font-[430] font-season text-[#F6F6F6]/55 text-[10px] uppercase leading-none tracking-[0.08em]'>
                 {category.label}
               </span>
               <div className='mt-2 grid grid-cols-2 gap-x-4 gap-y-2'>
@@ -107,6 +107,10 @@ export function AccessControlPanel() {
                   return (
                     <motion.div
                       key={feature.key}
+                      role='button'
+                      tabIndex={0}
+                      aria-label={`Toggle ${feature.name}`}
+                      aria-pressed={enabled}
                       className='flex cursor-pointer items-center gap-2 rounded-[4px] py-0.5'
                       initial={{ opacity: 0, x: -6 }}
                       animate={isInView ? { opacity: 1, x: 0 } : {}}
@@ -117,6 +121,12 @@ export function AccessControlPanel() {
                       onClick={() =>
                         setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
                       }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
+                        }
+                      }}
                       whileTap={{ scale: 0.98 }}
                     >
                       <CheckboxIcon checked={enabled} color={category.color} />
@@ -140,7 +150,7 @@ export function AccessControlPanel() {
       <div className='hidden lg:block'>
         {PERMISSION_CATEGORIES.map((category, catIdx) => (
           <div key={category.label} className={catIdx > 0 ? 'mt-4' : ''}>
-            <span className='font-[430] font-season text-[#F6F6F6]/30 text-[10px] uppercase leading-none tracking-[0.08em]'>
+            <span className='font-[430] font-season text-[#F6F6F6]/55 text-[10px] uppercase leading-none tracking-[0.08em]'>
               {category.label}
             </span>
             <div className='mt-2 grid grid-cols-2 gap-x-4 gap-y-2'>
@@ -155,6 +165,10 @@ export function AccessControlPanel() {
                 return (
                   <motion.div
                     key={feature.key}
+                    role='button'
+                    tabIndex={0}
+                    aria-label={`Toggle ${feature.name}`}
+                    aria-pressed={enabled}
                     className='flex cursor-pointer items-center gap-2 rounded-[4px] py-0.5'
                     initial={{ opacity: 0, x: -6 }}
                     animate={isInView ? { opacity: 1, x: 0 } : {}}
@@ -166,6 +180,12 @@ export function AccessControlPanel() {
                     onClick={() =>
                       setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
                     }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
+                      }
+                    }}
                     whileTap={{ scale: 0.98 }}
                   >
                     <CheckboxIcon checked={enabled} color={category.color} />

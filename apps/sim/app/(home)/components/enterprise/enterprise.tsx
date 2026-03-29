@@ -85,7 +85,7 @@ function TrustStrip() {
           <strong className='font-[430] font-season text-small text-white leading-none'>
             SOC 2 & HIPAA
           </strong>
-          <span className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_30%,transparent)] text-xs leading-none tracking-[0.02em] transition-colors group-hover:text-[color-mix(in_srgb,var(--landing-text-subtle)_55%,transparent)]'>
+          <span className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_55%,transparent)] text-xs leading-none tracking-[0.02em] transition-colors group-hover:text-[color-mix(in_srgb,var(--landing-text-subtle)_75%,transparent)]'>
             Type II · PHI protected →
           </span>
         </div>
@@ -105,7 +105,7 @@ function TrustStrip() {
           <strong className='font-[430] font-season text-small text-white leading-none'>
             Open Source
           </strong>
-          <span className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_30%,transparent)] text-xs leading-none tracking-[0.02em] transition-colors group-hover:text-[color-mix(in_srgb,var(--landing-text-subtle)_55%,transparent)]'>
+          <span className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_55%,transparent)] text-xs leading-none tracking-[0.02em] transition-colors group-hover:text-[color-mix(in_srgb,var(--landing-text-subtle)_75%,transparent)]'>
             View on GitHub →
           </span>
         </div>
@@ -120,7 +120,7 @@ function TrustStrip() {
           <strong className='font-[430] font-season text-small text-white leading-none'>
             SSO & SCIM
           </strong>
-          <span className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_30%,transparent)] text-xs leading-none tracking-[0.02em]'>
+          <span className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_55%,transparent)] text-xs leading-none tracking-[0.02em]'>
             Okta, Azure AD, Google
           </span>
         </div>
@@ -165,7 +165,7 @@ export default function Enterprise() {
                 <h3 className='font-[430] font-season text-[16px] text-white leading-[120%] tracking-[-0.01em]'>
                   Audit Trail
                 </h3>
-                <p className='mt-2 max-w-[480px] font-[430] font-season text-[#F6F6F6]/50 text-[14px] leading-[150%] tracking-[0.02em]'>
+                <p className='mt-2 max-w-[480px] font-[430] font-season text-[#F6F6F6]/70 text-[14px] leading-[150%] tracking-[0.02em]'>
                   Every action is captured with full actor attribution.
                 </p>
               </div>
@@ -179,7 +179,7 @@ export default function Enterprise() {
                 <h3 className='font-[430] font-season text-[16px] text-white leading-[120%] tracking-[-0.01em]'>
                   Access Control
                 </h3>
-                <p className='mt-1.5 font-[430] font-season text-[#F6F6F6]/50 text-[14px] leading-[150%] tracking-[0.02em]'>
+                <p className='mt-1.5 font-[430] font-season text-[#F6F6F6]/70 text-[14px] leading-[150%] tracking-[0.02em]'>
                   Restrict providers, surfaces, and tools per group.
                 </p>
               </div>
@@ -211,7 +211,7 @@ export default function Enterprise() {
                 (tag, i) => (
                   <span
                     key={i}
-                    className='enterprise-feature-marquee-tag whitespace-nowrap border-[var(--landing-bg-elevated)] border-r px-5 py-4 font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_40%,transparent)] text-small leading-none tracking-[0.02em] hover:bg-white/[0.04] hover:text-[color-mix(in_srgb,var(--landing-text-subtle)_55%,transparent)]'
+                    className='enterprise-feature-marquee-tag whitespace-nowrap border-[var(--landing-bg-elevated)] border-r px-5 py-4 font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-small leading-none tracking-[0.02em] hover:bg-white/[0.04] hover:text-[color-mix(in_srgb,var(--landing-text-subtle)_80%,transparent)]'
                   >
                     {tag}
                   </span>
@@ -221,7 +221,7 @@ export default function Enterprise() {
           </div>
 
           <div className='flex items-center justify-between border-[var(--landing-bg-elevated)] border-t px-6 py-5 md:px-8 md:py-6'>
-            <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_40%,transparent)] text-base leading-[150%] tracking-[0.02em]'>
+            <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-base leading-[150%] tracking-[0.02em]'>
               Ready for growth?
             </p>
             <DemoRequestModal>
