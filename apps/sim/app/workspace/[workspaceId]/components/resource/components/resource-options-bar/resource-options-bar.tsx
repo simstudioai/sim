@@ -134,7 +134,7 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
                 <PopoverPrimitive.Content
                   align='start'
                   sideOffset={6}
-                  className='z-50 rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+                  className='z-50 w-fit rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
                 >
                   {filter}
                 </PopoverPrimitive.Content>
