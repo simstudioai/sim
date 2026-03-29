@@ -264,6 +264,10 @@ export async function searchKBTable(
     sql`e.enabled = TRUE`,
     sql`e.embedding <=> ${vecParam} < ${distanceThreshold}`,
     sql`d.deleted_at IS NULL`,
+    sql`d.archived_at IS NULL`,
+    sql`d.enabled = TRUE`,
+    sql`d.processing_status = 'completed'`,
+    sql`d.user_excluded = FALSE`,
     ...filterConditions,
   ]
 
@@ -306,6 +310,10 @@ export async function searchKBTableTagOnly(
     sql`e.knowledge_base_id = ${kbId}`,
     sql`e.enabled = TRUE`,
     sql`d.deleted_at IS NULL`,
+    sql`d.archived_at IS NULL`,
+    sql`d.enabled = TRUE`,
+    sql`d.processing_status = 'completed'`,
+    sql`d.user_excluded = FALSE`,
     ...filterConditions,
   ]
 
