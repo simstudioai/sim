@@ -208,7 +208,7 @@ export function KnowledgeBase({
 
   const [searchQuery, setSearchQuery] = useState('')
   const [showTagsModal, setShowTagsModal] = useState(false)
-  const [enabledFilter, setEnabledFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
+  const [enabledFilter, setEnabledFilter] = useState<string[]>([])
   const [tagFilterEntries, setTagFilterEntries] = useState<
     {
       id: string
@@ -234,6 +234,17 @@ export function KnowledgeBase({
         })),
     [tagFilterEntries]
   )
+
+  const enabledFilterParam = useMemo<'all' | 'enabled' | 'disabled'>(() => {
+    if (enabledFilter.length === 1) return enabledFilter[0] as 'enabled' | 'disabled'
+    return 'all'
+  }, [enabledFilter])
+
+  const enabledDisplayLabel = useMemo(() => {
+    if (enabledFilter.length === 0) return 'All'
+    if (enabledFilter.length === 1) return enabledFilter[0] === 'enabled' ? 'Enabled' : 'Disabled'
+    return '2 selected'
+  }, [enabledFilter])
 
   const handleSearchChange = useCallback((newQuery: string) => {
     setSearchQuery(newQuery)
@@ -301,7 +312,7 @@ export function KnowledgeBase({
       if (hasSyncingConnectorsRef.current) return 5000
       return false
     },
-    enabledFilter,
+    enabledFilter: enabledFilterParam,
     tagFilters: activeTagFilters.length > 0 ? activeTagFilters : undefined,
   })
 
@@ -571,7 +582,7 @@ export function KnowledgeBase({
           knowledgeBaseId: id,
           operation: 'enable',
           selectAll: true,
-          enabledFilter,
+          enabledFilter: enabledFilterParam,
         },
         {
           onSuccess: (result) => {
@@ -618,7 +629,7 @@ export function KnowledgeBase({
           knowledgeBaseId: id,
           operation: 'disable',
           selectAll: true,
-          enabledFilter,
+          enabledFilter: enabledFilterParam,
         },
         {
           onSuccess: (result) => {
@@ -667,7 +678,7 @@ export function KnowledgeBase({
           knowledgeBaseId: id,
           operation: 'delete',
           selectAll: true,
-          enabledFilter,
+          enabledFilter: enabledFilterParam,
         },
         {
           onSuccess: (result) => {
@@ -707,12 +718,12 @@ export function KnowledgeBase({
 
   const selectedDocumentsList = documents.filter((doc) => selectedDocuments.has(doc.id))
   const enabledCount = isSelectAllMode
-    ? enabledFilter === 'disabled'
+    ? enabledFilterParam === 'disabled'
       ? 0
       : pagination.total
     : selectedDocumentsList.filter((doc) => doc.enabled).length
   const disabledCount = isSelectAllMode
-    ? enabledFilter === 'enabled'
+    ? enabledFilterParam === 'enabled'
       ? 0
       : pagination.total
     : selectedDocumentsList.filter((doc) => !doc.enabled).length
@@ -813,30 +824,45 @@ export function KnowledgeBase({
   }
 
   const filterContent = (
-    <div className='w-[200px]'>
-      <div className='border-[var(--border-1)] border-b px-3 py-2'>
+    <div className='flex w-[240px] flex-col gap-3 p-3'>
+      <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
+        <Combobox
+          options={[
+            { value: 'enabled', label: 'Enabled' },
+            { value: 'disabled', label: 'Disabled' },
+          ]}
+          multiSelect
+          multiSelectValues={enabledFilter}
+          onMultiSelectChange={(values) => {
+            setEnabledFilter(values)
+            setCurrentPage(1)
+            setSelectedDocuments(new Set())
+            setIsSelectAllMode(false)
+          }}
+          overlayContent={
+            <span className='truncate text-[var(--text-primary)]'>{enabledDisplayLabel}</span>
+          }
+          showAllOption
+          allOptionLabel='All'
+          size='sm'
+          className='h-[32px] w-full rounded-md'
+        />
       </div>
-      <div className='flex flex-col gap-0.5 px-3 py-2'>
-        {(['all', 'enabled', 'disabled'] as const).map((value) => (
-          <button
-            key={value}
-            type='button'
-            className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-              enabledFilter === value && 'bg-[var(--surface-active)]'
-            )}
-            onClick={() => {
-              setEnabledFilter(value)
-              setCurrentPage(1)
-              setSelectedDocuments(new Set())
-              setIsSelectAllMode(false)
-            }}
-          >
-            {value.charAt(0).toUpperCase() + value.slice(1)}
-          </button>
-        ))}
-      </div>
+      {enabledFilter.length > 0 && (
+        <button
+          type='button'
+          onClick={() => {
+            setEnabledFilter([])
+            setCurrentPage(1)
+            setSelectedDocuments(new Set())
+            setIsSelectAllMode(false)
+          }}
+          className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+        >
+          Clear status filter
+        </button>
+      )}
       <TagFilterSection
         tagDefinitions={tagDefinitions}
         entries={tagFilterEntries}
@@ -872,12 +898,15 @@ export function KnowledgeBase({
     ) : null
 
   const filterTags: FilterTag[] = [
-    ...(enabledFilter !== 'all'
+    ...(enabledFilter.length > 0
       ? [
           {
-            label: `Status: ${enabledFilter === 'enabled' ? 'Enabled' : 'Disabled'}`,
+            label:
+              enabledFilter.length === 1
+                ? `Status: ${enabledFilter[0] === 'enabled' ? 'Enabled' : 'Disabled'}`
+                : 'Status: 2 selected',
             onRemove: () => {
-              setEnabledFilter('all')
+              setEnabledFilter([])
               setCurrentPage(1)
               setSelectedDocuments(new Set())
               setIsSelectAllMode(false)
@@ -1019,7 +1048,7 @@ export function KnowledgeBase({
 
   const emptyMessage = searchQuery
     ? 'No documents found'
-    : enabledFilter !== 'all' || activeTagFilters.length > 0
+    : enabledFilter.length > 0 || activeTagFilters.length > 0
       ? 'Nothing matches your filter'
       : undefined
 

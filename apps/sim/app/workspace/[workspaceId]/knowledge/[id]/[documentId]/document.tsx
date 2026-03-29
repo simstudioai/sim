@@ -15,7 +15,6 @@ import {
   Trash,
 } from '@/components/emcn'
 import { SearchHighlight } from '@/components/ui/search-highlight'
-import { cn } from '@/lib/core/utils/cn'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { formatTokenCount } from '@/lib/tokenization'
 import type {
@@ -152,7 +151,14 @@ export function Document({
 
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
-  const [enabledFilter, setEnabledFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
+  const [enabledFilter, setEnabledFilter] = useState<string[]>([])
+  const [activeSort, setActiveSort] = useState<{
+    column: string
+    direction: 'asc' | 'desc'
+  } | null>(null)
+
+  const enabledFilterParam =
+    enabledFilter.length === 1 ? (enabledFilter[0] as 'enabled' | 'disabled') : 'all'
 
   const {
     chunks: initialChunks,
@@ -165,7 +171,7 @@ export function Document({
     refreshChunks: initialRefreshChunks,
     updateChunk: initialUpdateChunk,
     isFetching: isFetchingChunks,
-  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL, '', enabledFilter)
+  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL, '', enabledFilterParam)
 
   const { data: searchResults = [], error: searchQueryError } = useDocumentChunkSearchQuery(
     {
@@ -229,7 +235,28 @@ export function Document({
     searchStartIndex + SEARCH_PAGE_SIZE
   )
 
-  const displayChunks = showingSearch ? paginatedSearchResults : initialChunks
+  const rawDisplayChunks = showingSearch ? paginatedSearchResults : initialChunks
+
+  const displayChunks = useMemo(() => {
+    if (!activeSort || !rawDisplayChunks) return rawDisplayChunks ?? []
+    const { column, direction } = activeSort
+    return [...rawDisplayChunks].sort((a, b) => {
+      let cmp = 0
+      switch (column) {
+        case 'index':
+          cmp = a.chunkIndex - b.chunkIndex
+          break
+        case 'tokens':
+          cmp = (a.tokenCount ?? 0) - (b.tokenCount ?? 0)
+          break
+        case 'status':
+          cmp = (a.enabled ? 1 : 0) - (b.enabled ? 1 : 0)
+          break
+      }
+      return direction === 'asc' ? cmp : -cmp
+    })
+  }, [rawDisplayChunks, activeSort])
+
   const currentPage = showingSearch ? searchCurrentPage : initialPage
   const totalPages = showingSearch ? searchTotalPages : initialTotalPages
   const hasNextPage = showingSearch ? searchCurrentPage < searchTotalPages : initialHasNextPage
@@ -562,46 +589,62 @@ export function Document({
       }
     : undefined
 
+  const enabledDisplayLabel = useMemo(() => {
+    if (enabledFilter.length === 0) return 'All'
+    if (enabledFilter.length === 1) return enabledFilter[0] === 'enabled' ? 'Enabled' : 'Disabled'
+    return `${enabledFilter.length} selected`
+  }, [enabledFilter])
+
   const filterContent = (
-    <div className='w-[200px]'>
-      <div className='border-[var(--border-1)] border-b px-3 py-2'>
+    <div className='flex w-[240px] flex-col gap-3 p-3'>
+      <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
+        <Combobox
+          options={[
+            { value: 'enabled', label: 'Enabled' },
+            { value: 'disabled', label: 'Disabled' },
+          ]}
+          multiSelect
+          multiSelectValues={enabledFilter}
+          onMultiSelectChange={(values) => {
+            setEnabledFilter(values)
+            setSelectedChunks(new Set())
+            void goToPage(1)
+          }}
+          overlayContent={
+            <span className='truncate text-[var(--text-primary)]'>{enabledDisplayLabel}</span>
+          }
+          showAllOption
+          allOptionLabel='All'
+          size='sm'
+          className='h-[32px] w-full rounded-md'
+        />
       </div>
-      <div className='flex flex-col gap-0.5 px-3 py-2'>
-        {(['all', 'enabled', 'disabled'] as const).map((value) => (
-          <button
-            key={value}
-            type='button'
-            className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-              enabledFilter === value && 'bg-[var(--surface-active)]'
-            )}
-            onClick={() => {
-              setEnabledFilter(value)
-              setSelectedChunks(new Set())
-              void goToPage(1)
-            }}
-          >
-            {value.charAt(0).toUpperCase() + value.slice(1)}
-          </button>
-        ))}
-      </div>
+      {enabledFilter.length > 0 && (
+        <button
+          type='button'
+          onClick={() => {
+            setEnabledFilter([])
+            setSelectedChunks(new Set())
+            void goToPage(1)
+          }}
+          className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+        >
+          Clear all filters
+        </button>
+      )}
     </div>
   )
 
   const filterTags: FilterTag[] = [
-    ...(enabledFilter !== 'all'
-      ? [
-          {
-            label: `Status: ${enabledFilter === 'enabled' ? 'Enabled' : 'Disabled'}`,
-            onRemove: () => {
-              setEnabledFilter('all')
-              setSelectedChunks(new Set())
-              void goToPage(1)
-            },
-          },
-        ]
-      : []),
+    ...enabledFilter.map((value) => ({
+      label: `Status: ${value === 'enabled' ? 'Enabled' : 'Disabled'}`,
+      onRemove: () => {
+        setEnabledFilter(enabledFilter.filter((v) => v !== value))
+        setSelectedChunks(new Set())
+        void goToPage(1)
+      },
+    })),
   ]
 
   const handleChunkClick = useCallback((rowId: string) => {
@@ -813,6 +856,20 @@ export function Document({
           onPageChange: goToPage,
         }
       : undefined
+
+  const sortConfig: SortConfig = useMemo(
+    () => ({
+      options: [
+        { id: 'index', label: 'Index' },
+        { id: 'tokens', label: 'Tokens' },
+        { id: 'status', label: 'Status' },
+      ],
+      active: activeSort,
+      onSort: (column, direction) => setActiveSort({ column, direction }),
+      onClear: () => setActiveSort(null),
+    }),
+    [activeSort]
+  )
 
   const chunkRows: ResourceRow[] = useMemo(() => {
     if (!isCompleted) {
@@ -1100,6 +1157,7 @@ export function Document({
         emptyMessage={emptyMessage}
         filter={combinedError ? undefined : filterContent}
         filterTags={combinedError ? undefined : filterTags}
+        sort={combinedError ? undefined : sortConfig}
       />
 
       <DocumentTagsModal
