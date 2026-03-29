@@ -341,12 +341,8 @@ export const Sidebar = memo(function Sidebar() {
 
   useLayoutEffect(() => {
     if (!_hasHydrated) return
-    if (isCollapsed) {
-      document.documentElement.setAttribute('data-sidebar-collapsed', '')
-    } else {
-      document.documentElement.removeAttribute('data-sidebar-collapsed')
-    }
-  }, [isCollapsed, _hasHydrated])
+    document.documentElement.removeAttribute('data-sidebar-collapsed')
+  }, [_hasHydrated])
 
   useEffect(() => {
     if (isCollapsed) {
@@ -1221,12 +1217,12 @@ export const Sidebar = memo(function Sidebar() {
             {/* Top bar: Logo + Collapse toggle */}
             <div className='flex flex-shrink-0 items-center pr-2 pb-2 pl-2.5'>
               <div className='flex h-[30px] items-center'>
-                <SidebarTooltip label='Expand sidebar' enabled={showCollapsedTooltips}>
+                <div className='relative h-[30px]'>
                   <Link
                     href={`/workspace/${workspaceId}/home`}
-                    onClick={isCollapsed ? handleExpandSidebar : undefined}
-                    className='group flex h-[30px] items-center rounded-[8px] px-1.5 hover-hover:bg-[var(--surface-hover)]'
-                    aria-label={isCollapsed ? 'Expand sidebar' : brand.name}
+                    className='sidebar-collapse-hide !transition-none group flex h-[30px] items-center rounded-[8px] px-[7px] hover-hover:bg-[var(--surface-hover)]'
+                    tabIndex={isCollapsed ? -1 : undefined}
+                    aria-label={brand.name}
                   >
                     {brand.logoUrl ? (
                       <Image
@@ -1234,18 +1230,37 @@ export const Sidebar = memo(function Sidebar() {
                         alt={brand.name}
                         width={16}
                         height={16}
-                        className='h-[16px] w-[16px] flex-shrink-0 object-contain group-hover:hidden'
+                        className='h-[16px] w-[16px] flex-shrink-0 object-contain'
                         unoptimized
                       />
                     ) : (
-                      <>
-                        <Wordmark className='sidebar-collapse-hide h-[16px] w-auto text-[var(--text-body)]' />
-                        <Sim className='sidebar-collapse-show h-[16px] w-[16px] flex-shrink-0 group-hover:hidden' />
-                      </>
+                      <Wordmark className='h-[16px] w-auto text-[var(--text-body)]' />
                     )}
-                    <PanelLeft className='sidebar-collapse-show hidden h-[16px] w-[16px] flex-shrink-0 rotate-180 text-[var(--text-icon)] group-hover:block' />
                   </Link>
-                </SidebarTooltip>
+                  <SidebarTooltip label='Expand sidebar' enabled={showCollapsedTooltips}>
+                    <Link
+                      href={`/workspace/${workspaceId}/home`}
+                      onClick={handleExpandSidebar}
+                      className='sidebar-collapse-show !transition-none group absolute top-0 left-0 flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover-hover:bg-[var(--surface-hover)]'
+                      tabIndex={isCollapsed ? undefined : -1}
+                      aria-label='Expand sidebar'
+                    >
+                      {brand.logoUrl ? (
+                        <Image
+                          src={brand.logoUrl}
+                          alt=''
+                          width={16}
+                          height={16}
+                          className='h-[16px] w-[16px] flex-shrink-0 object-contain group-hover:hidden'
+                          unoptimized
+                        />
+                      ) : (
+                        <Sim className='h-[16px] w-[16px] flex-shrink-0 group-hover:hidden' />
+                      )}
+                      <PanelLeft className='hidden h-[16px] w-[16px] rotate-180 text-[var(--text-icon)] group-hover:block' />
+                    </Link>
+                  </SidebarTooltip>
+                </div>
               </div>
               <SidebarTooltip label='Collapse sidebar' enabled={!isCollapsed} side='bottom'>
                 <button

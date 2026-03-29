@@ -379,13 +379,11 @@ export function Table({
         setColumnWidths(updatedWidths)
       }
       const updatedOrder = columnOrderRef.current?.map((n) => (n === columnName ? newName : n))
-      if (updatedOrder) {
-        setColumnOrder(updatedOrder)
-        updateMetadataRef.current({
-          columnWidths: updatedWidths,
-          columnOrder: updatedOrder,
-        })
-      }
+      if (updatedOrder) setColumnOrder(updatedOrder)
+      updateMetadataRef.current({
+        columnWidths: updatedWidths,
+        columnOrder: updatedOrder,
+      })
       updateColumnMutation.mutate({ columnName, updates: { name: newName } })
     },
   })
@@ -694,6 +692,7 @@ export function Table({
     }
     setDragColumnName(null)
     setDropTargetColumnName(null)
+    setDropSide('left')
   }, [])
 
   const handleColumnDragLeave = useCallback(() => {
@@ -1352,8 +1351,7 @@ export function Table({
 
   const insertColumnInOrder = useCallback(
     (anchorColumn: string, newColumn: string, side: 'left' | 'right') => {
-      const order = columnOrderRef.current
-      if (!order) return
+      const order = columnOrderRef.current ?? schemaColumnsRef.current.map((c) => c.name)
       const newOrder = [...order]
       let anchorIdx = newOrder.indexOf(anchorColumn)
       if (anchorIdx === -1) {
@@ -1434,12 +1432,12 @@ export function Table({
   const handleDeleteColumnConfirm = useCallback(() => {
     if (!deletingColumn) return
     const columnToDelete = deletingColumn
+    const orderAtDelete = columnOrderRef.current
     setDeletingColumn(null)
     deleteColumnMutation.mutate(columnToDelete, {
       onSuccess: () => {
-        const order = columnOrderRef.current
-        if (!order) return
-        const newOrder = order.filter((n) => n !== columnToDelete)
+        if (!orderAtDelete) return
+        const newOrder = orderAtDelete.filter((n) => n !== columnToDelete)
         setColumnOrder(newOrder)
         updateMetadataRef.current({
           columnWidths: columnWidthsRef.current,

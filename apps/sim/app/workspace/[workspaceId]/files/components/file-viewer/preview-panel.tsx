@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useMemo, useRef } from 'react'
+import { createContext, memo, useContext, useMemo, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
@@ -69,6 +69,18 @@ export const PreviewPanel = memo(function PreviewPanel({
 })
 
 const REMARK_PLUGINS = [remarkGfm, remarkBreaks]
+
+/**
+ * Carries the contentRef and toggle handler from MarkdownPreview down to the
+ * task-list renderers. Only present when the preview is interactive.
+ */
+const MarkdownCheckboxCtx = createContext<{
+  contentRef: React.MutableRefObject<string>
+  onToggle: (index: number, checked: boolean) => void
+} | null>(null)
+
+/** Carries the resolved checkbox index from LiRenderer to InputRenderer. */
+const CheckboxIndexCtx = createContext(-1)
 
 const STATIC_MARKDOWN_COMPONENTS = {
   p: ({ children }: any) => (
@@ -163,67 +175,89 @@ const STATIC_MARKDOWN_COMPONENTS = {
   td: ({ children }: any) => <td className='px-3 py-2 text-[var(--text-secondary)]'>{children}</td>,
 }
 
-function buildMarkdownComponents(
-  checkboxCounterRef: React.MutableRefObject<number>,
-  onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
-) {
-  const isInteractive = Boolean(onCheckboxToggle)
+function UlRenderer({ className, children }: any) {
+  const isTaskList = typeof className === 'string' && className.includes('contains-task-list')
+  return (
+    <ul
+      className={cn(
+        'mt-1 mb-3 space-y-1 break-words text-[14px] text-[var(--text-primary)]',
+        isTaskList ? 'list-none pl-0' : 'list-disc pl-6'
+      )}
+    >
+      {children}
+    </ul>
+  )
+}
 
-  return {
-    ...STATIC_MARKDOWN_COMPONENTS,
-    ul: ({ className, children }: any) => {
-      const isTaskList = typeof className === 'string' && className.includes('contains-task-list')
-      return (
-        <ul
-          className={cn(
-            'mt-1 mb-3 space-y-1 break-words text-[14px] text-[var(--text-primary)]',
-            isTaskList ? 'list-none pl-0' : 'list-disc pl-6'
-          )}
-        >
-          {children}
-        </ul>
-      )
-    },
-    ol: ({ className, children }: any) => {
-      const isTaskList = typeof className === 'string' && className.includes('contains-task-list')
-      return (
-        <ol
-          className={cn(
-            'mt-1 mb-3 space-y-1 break-words text-[14px] text-[var(--text-primary)]',
-            isTaskList ? 'list-none pl-0' : 'list-decimal pl-6'
-          )}
-        >
-          {children}
-        </ol>
-      )
-    },
-    li: ({ className, children }: any) => {
-      const isTaskItem = typeof className === 'string' && className.includes('task-list-item')
-      if (isTaskItem) {
-        return <li className='flex items-start gap-2 break-words leading-[1.6]'>{children}</li>
+function OlRenderer({ className, children }: any) {
+  const isTaskList = typeof className === 'string' && className.includes('contains-task-list')
+  return (
+    <ol
+      className={cn(
+        'mt-1 mb-3 space-y-1 break-words text-[14px] text-[var(--text-primary)]',
+        isTaskList ? 'list-none pl-0' : 'list-decimal pl-6'
+      )}
+    >
+      {children}
+    </ol>
+  )
+}
+
+function LiRenderer({ className, children, node }: any) {
+  const ctx = useContext(MarkdownCheckboxCtx)
+  const isTaskItem = typeof className === 'string' && className.includes('task-list-item')
+
+  if (isTaskItem) {
+    if (ctx) {
+      // Derive the index by counting task-list items before this node's source
+      // offset — a pure computation that produces the same value on every call,
+      // making it safe under React Strict Mode's intentional double-invocation.
+      const offset: number | undefined = node?.position?.start?.offset
+      let index = 0
+      if (offset !== undefined && offset > 0) {
+        const before = ctx.contentRef.current.slice(0, offset)
+        const prior = before.match(/^(\s*(?:[-*+]|\d+[.)]) +)\[([ xX])\]/gm)
+        index = prior ? prior.length : 0
       }
-      return <li className='break-words leading-[1.6]'>{children}</li>
-    },
-    input: ({ type, checked, ...props }: any) => {
-      if (type !== 'checkbox') return <input type={type} checked={checked} {...props} />
-
-      const index = checkboxCounterRef.current++
-
       return (
-        <Checkbox
-          checked={checked ?? false}
-          onCheckedChange={
-            isInteractive
-              ? (newChecked) => onCheckboxToggle!(index, Boolean(newChecked))
-              : undefined
-          }
-          disabled={!isInteractive}
-          size='sm'
-          className='mt-1 shrink-0'
-        />
+        <CheckboxIndexCtx.Provider value={index}>
+          <li className='flex items-start gap-2 break-words leading-[1.6]'>{children}</li>
+        </CheckboxIndexCtx.Provider>
       )
-    },
+    }
+    return <li className='flex items-start gap-2 break-words leading-[1.6]'>{children}</li>
   }
+
+  return <li className='break-words leading-[1.6]'>{children}</li>
+}
+
+function InputRenderer({ type, checked, ...props }: any) {
+  const ctx = useContext(MarkdownCheckboxCtx)
+  const index = useContext(CheckboxIndexCtx)
+
+  if (type !== 'checkbox') return <input type={type} checked={checked} {...props} />
+
+  const isInteractive = ctx !== null && index >= 0
+
+  return (
+    <Checkbox
+      checked={checked ?? false}
+      onCheckedChange={
+        isInteractive ? (newChecked) => ctx.onToggle(index, Boolean(newChecked)) : undefined
+      }
+      disabled={!isInteractive}
+      size='sm'
+      className='mt-1 shrink-0'
+    />
+  )
+}
+
+const MARKDOWN_COMPONENTS = {
+  ...STATIC_MARKDOWN_COMPONENTS,
+  ul: UlRenderer,
+  ol: OlRenderer,
+  li: LiRenderer,
+  input: InputRenderer,
 }
 
 const MarkdownPreview = memo(function MarkdownPreview({
@@ -238,32 +272,33 @@ const MarkdownPreview = memo(function MarkdownPreview({
   const { ref: scrollRef } = useAutoScroll(isStreaming)
   const { committed, incoming, generation } = useStreamingReveal(content, isStreaming)
 
-  const checkboxCounterRef = useRef(0)
+  const contentRef = useRef(content)
+  contentRef.current = content
 
-  const components = useMemo(
-    () => buildMarkdownComponents(checkboxCounterRef, onCheckboxToggle),
+  const ctxValue = useMemo(
+    () => (onCheckboxToggle ? { contentRef, onToggle: onCheckboxToggle } : null),
     [onCheckboxToggle]
   )
-
-  checkboxCounterRef.current = 0
 
   const committedMarkdown = useMemo(
     () =>
       committed ? (
-        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
           {committed}
         </ReactMarkdown>
       ) : null,
-    [committed, components]
+    [committed]
   )
 
   if (onCheckboxToggle) {
     return (
-      <div ref={scrollRef} className='h-full overflow-auto p-6'>
-        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
-          {content}
-        </ReactMarkdown>
-      </div>
+      <MarkdownCheckboxCtx.Provider value={ctxValue}>
+        <div ref={scrollRef} className='h-full overflow-auto p-6'>
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
+            {content}
+          </ReactMarkdown>
+        </div>
+      </MarkdownCheckboxCtx.Provider>
     )
   }
 
@@ -275,7 +310,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
           key={generation}
           className={cn(isStreaming && 'animate-stream-fade-in', '[&>:first-child]:mt-0')}
         >
-          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
             {incoming}
           </ReactMarkdown>
         </div>

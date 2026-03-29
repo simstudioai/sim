@@ -16,7 +16,14 @@ const REATTACH_THRESHOLD = 5
  * Returns `ref` (callback ref for the scroll container) and `scrollToBottom`
  * for imperative use after layout-changing events like panel expansion.
  */
-export function useAutoScroll(isStreaming: boolean) {
+interface UseAutoScrollOptions {
+  scrollOnMount?: boolean
+}
+
+export function useAutoScroll(
+  isStreaming: boolean,
+  { scrollOnMount = false }: UseAutoScrollOptions = {}
+) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stickyRef = useRef(true)
   const userDetachedRef = useRef(false)
@@ -24,6 +31,7 @@ export function useAutoScroll(isStreaming: boolean) {
   const prevScrollHeightRef = useRef(0)
   const touchStartYRef = useRef(0)
   const rafIdRef = useRef(0)
+  const scrollOnMountRef = useRef(scrollOnMount)
 
   const scrollToBottom = useCallback(() => {
     const el = containerRef.current
@@ -33,7 +41,7 @@ export function useAutoScroll(isStreaming: boolean) {
 
   const callbackRef = useCallback((el: HTMLDivElement | null) => {
     containerRef.current = el
-    if (el) el.scrollTop = el.scrollHeight
+    if (el && scrollOnMountRef.current) el.scrollTop = el.scrollHeight
   }, [])
 
   useEffect(() => {
