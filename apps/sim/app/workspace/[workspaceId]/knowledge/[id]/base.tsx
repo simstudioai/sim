@@ -260,8 +260,10 @@ export function KnowledgeBase({
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [showConnectorsModal, setShowConnectorsModal] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [sortBy, setSortBy] = useState<DocumentSortField>('uploadedAt')
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [activeSort, setActiveSort] = useState<{
+    column: string
+    direction: 'asc' | 'desc'
+  } | null>(null)
   const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
@@ -301,8 +303,8 @@ export function KnowledgeBase({
     search: searchQuery || undefined,
     limit: DOCUMENTS_PER_PAGE,
     offset: (currentPage - 1) * DOCUMENTS_PER_PAGE,
-    sortBy,
-    sortOrder,
+    sortBy: (activeSort?.column ?? 'uploadedAt') as DocumentSortField,
+    sortOrder: (activeSort?.direction ?? 'desc') as SortOrder,
     refetchInterval: (data) => {
       if (isDeleting) return false
       const hasPending = data?.documents?.some(
@@ -816,14 +818,17 @@ export function KnowledgeBase({
         { id: 'uploadedAt', label: 'Uploaded' },
         { id: 'enabled', label: 'Status' },
       ],
-      active: { column: sortBy, direction: sortOrder },
+      active: activeSort,
       onSort: (column, direction) => {
-        setSortBy(column as DocumentSortField)
-        setSortOrder(direction)
+        setActiveSort({ column, direction })
+        setCurrentPage(1)
+      },
+      onClear: () => {
+        setActiveSort(null)
         setCurrentPage(1)
       },
     }),
-    [sortBy, sortOrder]
+    [activeSort]
   )
 
   const filterContent = useMemo(

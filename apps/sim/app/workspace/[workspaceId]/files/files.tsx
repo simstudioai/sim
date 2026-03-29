@@ -33,11 +33,11 @@ import {
   formatFileSize,
   getFileExtension,
   getMimeTypeFromExtension,
+  isAudioFileType,
+  isVideoFileType,
 } from '@/lib/uploads/utils/file-utils'
 import {
-  isSupportedAudioExtension,
   isSupportedExtension,
-  isSupportedVideoExtension,
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
@@ -219,8 +219,8 @@ export function Files() {
       result = result.filter((f) => {
         const ext = getFileExtension(f.name)
         if (typeFilter.includes('document') && isSupportedExtension(ext)) return true
-        if (typeFilter.includes('audio') && isSupportedAudioExtension(ext)) return true
-        if (typeFilter.includes('video') && isSupportedVideoExtension(ext)) return true
+        if (typeFilter.includes('audio') && isAudioFileType(f.type)) return true
+        if (typeFilter.includes('video') && isVideoFileType(f.type)) return true
         return false
       })
     }
