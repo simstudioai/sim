@@ -5,13 +5,16 @@ import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { Tooltip } from '@/components/emcn'
 import { Database } from '@/components/emcn/icons'
+import { cn } from '@/lib/core/utils/cn'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import type {
   CreateAction,
+  FilterTag,
   ResourceCell,
   ResourceColumn,
   ResourceRow,
   SearchConfig,
+  SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
@@ -97,6 +100,12 @@ export function Knowledge() {
 
   const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
   const { mutateAsync: deleteKnowledgeBaseMutation } = useDeleteKnowledgeBase(workspaceId)
+
+  const [activeSort, setActiveSort] = useState<{
+    column: string
+    direction: 'asc' | 'desc'
+  } | null>(null)
+  const [connectorFilter, setConnectorFilter] = useState<'all' | 'connected' | 'unconnected'>('all')
 
   const [searchInputValue, setSearchInputValue] = useState('')
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
@@ -184,14 +193,47 @@ export function Knowledge() {
     [deleteKnowledgeBaseMutation]
   )
 
-  const filteredKnowledgeBases = useMemo(
-    () => filterKnowledgeBases(knowledgeBases, debouncedSearchQuery),
-    [knowledgeBases, debouncedSearchQuery]
-  )
+  const processedKBs = useMemo(() => {
+    let result = filterKnowledgeBases(knowledgeBases, debouncedSearchQuery)
+
+    if (connectorFilter !== 'all') {
+      result = result.filter((kb) =>
+        connectorFilter === 'connected'
+          ? (kb.connectorTypes?.length ?? 0) > 0
+          : (kb.connectorTypes?.length ?? 0) === 0
+      )
+    }
+
+    const col = activeSort?.column ?? 'created'
+    const dir = activeSort?.direction ?? 'desc'
+    return [...result].sort((a, b) => {
+      let cmp = 0
+      switch (col) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name)
+          break
+        case 'documents':
+          cmp =
+            ((a as KnowledgeBaseWithDocCount).docCount || 0) -
+            ((b as KnowledgeBaseWithDocCount).docCount || 0)
+          break
+        case 'tokens':
+          cmp = (a.tokenCount || 0) - (b.tokenCount || 0)
+          break
+        case 'created':
+          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          break
+        case 'updated':
+          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+          break
+      }
+      return dir === 'asc' ? cmp : -cmp
+    })
+  }, [knowledgeBases, debouncedSearchQuery, connectorFilter, activeSort])
 
   const rows: ResourceRow[] = useMemo(
     () =>
-      filteredKnowledgeBases.map((kb) => {
+      processedKBs.map((kb) => {
         const kbWithCount = kb as KnowledgeBaseWithDocCount
         return {
           id: kb.id,
@@ -211,16 +253,9 @@ export function Knowledge() {
             owner: ownerCell(kb.userId, members),
             updated: timeCell(kb.updatedAt),
           },
-          sortValues: {
-            documents: kbWithCount.docCount || 0,
-            tokens: kb.tokenCount || 0,
-            connectors: kb.connectorTypes?.length || 0,
-            created: -new Date(kb.createdAt).getTime(),
-            updated: -new Date(kb.updatedAt).getTime(),
-          },
         }
       }),
-    [filteredKnowledgeBases, members]
+    [processedKBs, members]
   )
 
   const handleRowClick = useCallback(
@@ -310,6 +345,64 @@ export function Knowledge() {
     [searchInputValue, handleSearchChange, handleSearchClearAll]
   )
 
+  const sortConfig: SortConfig = useMemo(
+    () => ({
+      options: [
+        { id: 'name', label: 'Name' },
+        { id: 'documents', label: 'Documents' },
+        { id: 'tokens', label: 'Tokens' },
+        { id: 'created', label: 'Created' },
+        { id: 'updated', label: 'Last Updated' },
+      ],
+      active: activeSort,
+      onSort: (column, direction) => setActiveSort({ column, direction }),
+      onClear: () => setActiveSort(null),
+    }),
+    [activeSort]
+  )
+
+  const filterContent = (
+    <div className='w-[200px]'>
+      <div className='border-[var(--border-1)] border-b px-3 py-2'>
+        <span className='font-medium text-[var(--text-secondary)] text-caption'>Connectors</span>
+      </div>
+      <div className='flex flex-col gap-0.5 px-3 py-2'>
+        {(
+          [
+            { value: 'all', label: 'All' },
+            { value: 'connected', label: 'With connectors' },
+            { value: 'unconnected', label: 'Without connectors' },
+          ] as const
+        ).map(({ value, label }) => (
+          <button
+            key={value}
+            type='button'
+            className={cn(
+              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
+              connectorFilter === value && 'bg-[var(--surface-active)]'
+            )}
+            onClick={() => setConnectorFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const filterTags: FilterTag[] = useMemo(
+    () =>
+      connectorFilter === 'all'
+        ? []
+        : [
+            {
+              label: connectorFilter === 'connected' ? 'Connectors: Active' : 'Connectors: None',
+              onRemove: () => setConnectorFilter('all'),
+            },
+          ],
+    [connectorFilter]
+  )
+
   return (
     <>
       <Resource
@@ -317,7 +410,9 @@ export function Knowledge() {
         title='Knowledge Base'
         create={createAction}
         search={searchConfig}
-        defaultSort='created'
+        sort={sortConfig}
+        filter={filterContent}
+        filterTags={filterTags}
         columns={COLUMNS}
         rows={rows}
         onRowClick={handleRowClick}
