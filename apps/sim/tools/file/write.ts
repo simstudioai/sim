@@ -2,7 +2,6 @@ import type { ToolConfig, ToolResponse, WorkflowToolExecutionContext } from '@/t
 
 interface FileWriteParams {
   fileName?: string
-  fileId?: string
   content: string
   contentType?: string
   append?: boolean
@@ -14,22 +13,16 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
   id: 'file_write',
   name: 'File Write',
   description:
-    'Write content to a workspace resource file. Provide fileName to create a new file or overwrite an existing one with the same name. Provide fileId to update a specific file. Use append mode to add content to the end instead of replacing.',
+    'Write content to a workspace resource file. Provide fileName to create a new file or overwrite an existing one with the same name. Use append mode to add content to the end instead of replacing.',
   version: '1.0.0',
 
   params: {
     fileName: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description:
         'File name (e.g., "data.csv"). Creates the file if it does not exist, or overwrites/appends to it if it does.',
-    },
-    fileId: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'ID of an existing file to update. Provide this to write to an existing file.',
     },
     content: {
       type: 'string',
@@ -61,7 +54,6 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
     body: (params) => ({
       operation: 'write',
       fileName: params.fileName,
-      fileId: params.fileId,
       content: params.content,
       contentType: params.contentType,
       append: params.append ?? false,

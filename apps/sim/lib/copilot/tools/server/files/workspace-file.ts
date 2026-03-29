@@ -15,7 +15,6 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('WorkspaceFileServerTool')
 
@@ -45,7 +44,6 @@ function validateFlatWorkspaceFileName(fileName: string): string | null {
   }
   return null
 }
-
 
 export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, WorkspaceFileResult> = {
   name: 'workspace_file',

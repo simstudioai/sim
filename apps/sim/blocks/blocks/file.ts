@@ -299,13 +299,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
       type: 'short-input' as SubBlockType,
       placeholder: 'File name (e.g., data.csv) — overwrites if exists',
       condition: { field: 'operation', value: 'file_write' },
-    },
-    {
-      id: 'fileId',
-      title: 'File ID',
-      type: 'short-input' as SubBlockType,
-      placeholder: 'Existing file ID to update',
-      condition: { field: 'operation', value: 'file_write' },
+      required: { field: 'operation', value: 'file_write' },
     },
     {
       id: 'content',
@@ -340,7 +334,6 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
         if (operation === 'file_write') {
           return {
             fileName: params.fileName,
-            fileId: params.fileId,
             content: params.content,
             contentType: params.contentType,
             append: Boolean(params.append),
@@ -388,7 +381,6 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     fileInput: { type: 'json', description: 'File input for read (canonical param)' },
     fileType: { type: 'string', description: 'File type for read' },
     fileName: { type: 'string', description: 'Name for a new file (write)' },
-    fileId: { type: 'string', description: 'ID of an existing file to update (write)' },
     content: { type: 'string', description: 'File content to write' },
     contentType: { type: 'string', description: 'MIME content type for write' },
     append: { type: 'string', description: 'Whether to append content (write)' },

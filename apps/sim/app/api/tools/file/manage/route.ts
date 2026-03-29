@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import {
   downloadWorkspaceFile,
   getWorkspaceFile,
@@ -81,7 +82,12 @@ export async function POST(request: NextRequest) {
 
             return NextResponse.json({
               success: true,
-              data: { id: existing.id, name: existing.name, size: fileBuffer.length },
+              data: {
+                id: existing.id,
+                name: existing.name,
+                size: fileBuffer.length,
+                url: ensureAbsoluteUrl(existing.path),
+              },
             })
           }
 
@@ -103,7 +109,12 @@ export async function POST(request: NextRequest) {
 
           return NextResponse.json({
             success: true,
-            data: { id: result.id, name: result.name, size: fileBuffer.length, url: result.url },
+            data: {
+              id: result.id,
+              name: result.name,
+              size: fileBuffer.length,
+              url: ensureAbsoluteUrl(result.url),
+            },
           })
         }
 
@@ -137,7 +148,12 @@ export async function POST(request: NextRequest) {
 
           return NextResponse.json({
             success: true,
-            data: { id: fileId, name: fileRecord.name, size: fileBuffer.length },
+            data: {
+              id: fileId,
+              name: fileRecord.name,
+              size: fileBuffer.length,
+              url: ensureAbsoluteUrl(fileRecord.path),
+            },
           })
         }
 
