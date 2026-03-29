@@ -271,76 +271,91 @@ export function ScheduledTasks() {
   const hasActiveFilters =
     scheduleTypeFilter.length > 0 || statusFilter.length > 0 || healthFilter.length > 0
 
-  const filterContent = (
-    <div className='flex w-[240px] flex-col gap-3 p-3'>
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Schedule Type</span>
-        <Combobox
-          options={[
-            { value: 'recurring', label: 'Recurring' },
-            { value: 'once', label: 'One-time' },
-          ]}
-          multiSelect
-          multiSelectValues={scheduleTypeFilter}
-          onMultiSelectChange={setScheduleTypeFilter}
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{scheduleTypeDisplayLabel}</span>
-          }
-          showAllOption
-          allOptionLabel='All'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
-        />
+  const filterContent = useMemo(
+    () => (
+      <div className='flex w-[240px] flex-col gap-3 p-3'>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>
+            Schedule Type
+          </span>
+          <Combobox
+            options={[
+              { value: 'recurring', label: 'Recurring' },
+              { value: 'once', label: 'One-time' },
+            ]}
+            multiSelect
+            multiSelectValues={scheduleTypeFilter}
+            onMultiSelectChange={setScheduleTypeFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>
+                {scheduleTypeDisplayLabel}
+              </span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
+          <Combobox
+            options={[
+              { value: 'active', label: 'Active' },
+              { value: 'paused', label: 'Paused' },
+            ]}
+            multiSelect
+            multiSelectValues={statusFilter}
+            onMultiSelectChange={setStatusFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{statusDisplayLabel}</span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Health</span>
+          <Combobox
+            options={[{ value: 'has-failures', label: 'Has failures' }]}
+            multiSelect
+            multiSelectValues={healthFilter}
+            onMultiSelectChange={setHealthFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{healthDisplayLabel}</span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        {hasActiveFilters && (
+          <button
+            type='button'
+            onClick={() => {
+              setScheduleTypeFilter([])
+              setStatusFilter([])
+              setHealthFilter([])
+            }}
+            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+          >
+            Clear all filters
+          </button>
+        )}
       </div>
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
-        <Combobox
-          options={[
-            { value: 'active', label: 'Active' },
-            { value: 'paused', label: 'Paused' },
-          ]}
-          multiSelect
-          multiSelectValues={statusFilter}
-          onMultiSelectChange={setStatusFilter}
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{statusDisplayLabel}</span>
-          }
-          showAllOption
-          allOptionLabel='All'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
-        />
-      </div>
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Health</span>
-        <Combobox
-          options={[{ value: 'has-failures', label: 'Has failures' }]}
-          multiSelect
-          multiSelectValues={healthFilter}
-          onMultiSelectChange={setHealthFilter}
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{healthDisplayLabel}</span>
-          }
-          showAllOption
-          allOptionLabel='All'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
-        />
-      </div>
-      {hasActiveFilters && (
-        <button
-          type='button'
-          onClick={() => {
-            setScheduleTypeFilter([])
-            setStatusFilter([])
-            setHealthFilter([])
-          }}
-          className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
-        >
-          Clear all filters
-        </button>
-      )}
-    </div>
+    ),
+    [
+      scheduleTypeFilter,
+      statusFilter,
+      healthFilter,
+      scheduleTypeDisplayLabel,
+      statusDisplayLabel,
+      healthDisplayLabel,
+      hasActiveFilters,
+    ]
   )
 
   const filterTags: FilterTag[] = useMemo(() => {

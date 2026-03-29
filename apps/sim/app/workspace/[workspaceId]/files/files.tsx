@@ -871,82 +871,98 @@ export function Files() {
   const hasActiveFilters =
     typeFilter.length > 0 || sizeFilter.length > 0 || uploadedByFilter.length > 0
 
-  const filterContent = (
-    <div className='flex w-[240px] flex-col gap-3 p-3'>
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>File Type</span>
-        <Combobox
-          options={[
-            { value: 'document', label: 'Documents' },
-            { value: 'audio', label: 'Audio' },
-            { value: 'video', label: 'Video' },
-          ]}
-          multiSelect
-          multiSelectValues={typeFilter}
-          onMultiSelectChange={setTypeFilter}
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{typeDisplayLabel}</span>
-          }
-          showAllOption
-          allOptionLabel='All'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
-        />
-      </div>
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Size</span>
-        <Combobox
-          options={[
-            { value: 'small', label: 'Small (< 1 MB)' },
-            { value: 'medium', label: 'Medium (1–10 MB)' },
-            { value: 'large', label: 'Large (> 10 MB)' },
-          ]}
-          multiSelect
-          multiSelectValues={sizeFilter}
-          onMultiSelectChange={setSizeFilter}
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{sizeDisplayLabel}</span>
-          }
-          showAllOption
-          allOptionLabel='All'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
-        />
-      </div>
-      {memberOptions.length > 0 && (
+  const filterContent = useMemo(
+    () => (
+      <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>Uploaded By</span>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>File Type</span>
           <Combobox
-            options={memberOptions}
+            options={[
+              { value: 'document', label: 'Documents' },
+              { value: 'audio', label: 'Audio' },
+              { value: 'video', label: 'Video' },
+            ]}
             multiSelect
-            multiSelectValues={uploadedByFilter}
-            onMultiSelectChange={setUploadedByFilter}
+            multiSelectValues={typeFilter}
+            onMultiSelectChange={setTypeFilter}
             overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{uploadedByDisplayLabel}</span>
+              <span className='truncate text-[var(--text-primary)]'>{typeDisplayLabel}</span>
             }
-            searchable
-            searchPlaceholder='Search members...'
             showAllOption
             allOptionLabel='All'
             size='sm'
             className='h-[32px] w-full rounded-md'
           />
         </div>
-      )}
-      {hasActiveFilters && (
-        <button
-          type='button'
-          onClick={() => {
-            setTypeFilter([])
-            setSizeFilter([])
-            setUploadedByFilter([])
-          }}
-          className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
-        >
-          Clear all filters
-        </button>
-      )}
-    </div>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Size</span>
+          <Combobox
+            options={[
+              { value: 'small', label: 'Small (< 1 MB)' },
+              { value: 'medium', label: 'Medium (1–10 MB)' },
+              { value: 'large', label: 'Large (> 10 MB)' },
+            ]}
+            multiSelect
+            multiSelectValues={sizeFilter}
+            onMultiSelectChange={setSizeFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{sizeDisplayLabel}</span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        {memberOptions.length > 0 && (
+          <div className='flex flex-col gap-1.5'>
+            <span className='font-medium text-[var(--text-secondary)] text-caption'>
+              Uploaded By
+            </span>
+            <Combobox
+              options={memberOptions}
+              multiSelect
+              multiSelectValues={uploadedByFilter}
+              onMultiSelectChange={setUploadedByFilter}
+              overlayContent={
+                <span className='truncate text-[var(--text-primary)]'>
+                  {uploadedByDisplayLabel}
+                </span>
+              }
+              searchable
+              searchPlaceholder='Search members...'
+              showAllOption
+              allOptionLabel='All'
+              size='sm'
+              className='h-[32px] w-full rounded-md'
+            />
+          </div>
+        )}
+        {hasActiveFilters && (
+          <button
+            type='button'
+            onClick={() => {
+              setTypeFilter([])
+              setSizeFilter([])
+              setUploadedByFilter([])
+            }}
+            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+          >
+            Clear all filters
+          </button>
+        )}
+      </div>
+    ),
+    [
+      typeFilter,
+      sizeFilter,
+      uploadedByFilter,
+      memberOptions,
+      typeDisplayLabel,
+      sizeDisplayLabel,
+      uploadedByDisplayLabel,
+      hasActiveFilters,
+    ]
   )
 
   const filterTags: FilterTag[] = useMemo(() => {

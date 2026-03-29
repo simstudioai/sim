@@ -417,80 +417,92 @@ export function Knowledge() {
   const hasActiveFilters =
     connectorFilter.length > 0 || contentFilter.length > 0 || ownerFilter.length > 0
 
-  const filterContent = (
-    <div className='flex w-[240px] flex-col gap-3 p-3'>
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Connectors</span>
-        <Combobox
-          options={[
-            { value: 'connected', label: 'With connectors' },
-            { value: 'unconnected', label: 'Without connectors' },
-          ]}
-          multiSelect
-          multiSelectValues={connectorFilter}
-          onMultiSelectChange={setConnectorFilter}
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{connectorDisplayLabel}</span>
-          }
-          showAllOption
-          allOptionLabel='All'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
-        />
-      </div>
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Content</span>
-        <Combobox
-          options={[
-            { value: 'has-docs', label: 'Has documents' },
-            { value: 'empty', label: 'Empty' },
-          ]}
-          multiSelect
-          multiSelectValues={contentFilter}
-          onMultiSelectChange={setContentFilter}
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{contentDisplayLabel}</span>
-          }
-          showAllOption
-          allOptionLabel='All'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
-        />
-      </div>
-      {memberOptions.length > 0 && (
+  const filterContent = useMemo(
+    () => (
+      <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Connectors</span>
           <Combobox
-            options={memberOptions}
+            options={[
+              { value: 'connected', label: 'With connectors' },
+              { value: 'unconnected', label: 'Without connectors' },
+            ]}
             multiSelect
-            multiSelectValues={ownerFilter}
-            onMultiSelectChange={setOwnerFilter}
+            multiSelectValues={connectorFilter}
+            onMultiSelectChange={setConnectorFilter}
             overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
+              <span className='truncate text-[var(--text-primary)]'>{connectorDisplayLabel}</span>
             }
-            searchable
-            searchPlaceholder='Search members...'
             showAllOption
             allOptionLabel='All'
             size='sm'
             className='h-[32px] w-full rounded-md'
           />
         </div>
-      )}
-      {hasActiveFilters && (
-        <button
-          type='button'
-          onClick={() => {
-            setConnectorFilter([])
-            setContentFilter([])
-            setOwnerFilter([])
-          }}
-          className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
-        >
-          Clear all filters
-        </button>
-      )}
-    </div>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Content</span>
+          <Combobox
+            options={[
+              { value: 'has-docs', label: 'Has documents' },
+              { value: 'empty', label: 'Empty' },
+            ]}
+            multiSelect
+            multiSelectValues={contentFilter}
+            onMultiSelectChange={setContentFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{contentDisplayLabel}</span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        {memberOptions.length > 0 && (
+          <div className='flex flex-col gap-1.5'>
+            <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
+            <Combobox
+              options={memberOptions}
+              multiSelect
+              multiSelectValues={ownerFilter}
+              onMultiSelectChange={setOwnerFilter}
+              overlayContent={
+                <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
+              }
+              searchable
+              searchPlaceholder='Search members...'
+              showAllOption
+              allOptionLabel='All'
+              size='sm'
+              className='h-[32px] w-full rounded-md'
+            />
+          </div>
+        )}
+        {hasActiveFilters && (
+          <button
+            type='button'
+            onClick={() => {
+              setConnectorFilter([])
+              setContentFilter([])
+              setOwnerFilter([])
+            }}
+            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+          >
+            Clear all filters
+          </button>
+        )}
+      </div>
+    ),
+    [
+      connectorFilter,
+      contentFilter,
+      ownerFilter,
+      memberOptions,
+      connectorDisplayLabel,
+      contentDisplayLabel,
+      ownerDisplayLabel,
+      hasActiveFilters,
+    ]
   )
 
   const filterTags: FilterTag[] = useMemo(() => {

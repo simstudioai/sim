@@ -236,61 +236,71 @@ export function Tables() {
 
   const hasActiveFilters = rowCountFilter.length > 0 || ownerFilter.length > 0
 
-  const filterContent = (
-    <div className='flex w-[240px] flex-col gap-3 p-3'>
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Row Count</span>
-        <Combobox
-          options={[
-            { value: 'empty', label: 'Empty' },
-            { value: 'small', label: 'Small (1–100 rows)' },
-            { value: 'large', label: 'Large (101+ rows)' },
-          ]}
-          multiSelect
-          multiSelectValues={rowCountFilter}
-          onMultiSelectChange={setRowCountFilter}
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{rowCountDisplayLabel}</span>
-          }
-          showAllOption
-          allOptionLabel='All'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
-        />
-      </div>
-      {memberOptions.length > 0 && (
+  const filterContent = useMemo(
+    () => (
+      <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Row Count</span>
           <Combobox
-            options={memberOptions}
+            options={[
+              { value: 'empty', label: 'Empty' },
+              { value: 'small', label: 'Small (1–100 rows)' },
+              { value: 'large', label: 'Large (101+ rows)' },
+            ]}
             multiSelect
-            multiSelectValues={ownerFilter}
-            onMultiSelectChange={setOwnerFilter}
+            multiSelectValues={rowCountFilter}
+            onMultiSelectChange={setRowCountFilter}
             overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
+              <span className='truncate text-[var(--text-primary)]'>{rowCountDisplayLabel}</span>
             }
-            searchable
-            searchPlaceholder='Search members...'
             showAllOption
             allOptionLabel='All'
             size='sm'
             className='h-[32px] w-full rounded-md'
           />
         </div>
-      )}
-      {hasActiveFilters && (
-        <button
-          type='button'
-          onClick={() => {
-            setRowCountFilter([])
-            setOwnerFilter([])
-          }}
-          className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
-        >
-          Clear all filters
-        </button>
-      )}
-    </div>
+        {memberOptions.length > 0 && (
+          <div className='flex flex-col gap-1.5'>
+            <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
+            <Combobox
+              options={memberOptions}
+              multiSelect
+              multiSelectValues={ownerFilter}
+              onMultiSelectChange={setOwnerFilter}
+              overlayContent={
+                <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
+              }
+              searchable
+              searchPlaceholder='Search members...'
+              showAllOption
+              allOptionLabel='All'
+              size='sm'
+              className='h-[32px] w-full rounded-md'
+            />
+          </div>
+        )}
+        {hasActiveFilters && (
+          <button
+            type='button'
+            onClick={() => {
+              setRowCountFilter([])
+              setOwnerFilter([])
+            }}
+            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+          >
+            Clear all filters
+          </button>
+        )}
+      </div>
+    ),
+    [
+      rowCountFilter,
+      ownerFilter,
+      memberOptions,
+      rowCountDisplayLabel,
+      ownerDisplayLabel,
+      hasActiveFilters,
+    ]
   )
 
   const filterTags: FilterTag[] = useMemo(() => {

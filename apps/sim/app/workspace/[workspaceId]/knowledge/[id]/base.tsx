@@ -826,57 +826,60 @@ export function KnowledgeBase({
     [sortBy, sortOrder]
   )
 
-  const filterContent = (
-    <div className='flex w-[240px] flex-col gap-3 p-3'>
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
-        <Combobox
-          options={[
-            { value: 'enabled', label: 'Enabled' },
-            { value: 'disabled', label: 'Disabled' },
-          ]}
-          multiSelect
-          multiSelectValues={enabledFilter}
-          onMultiSelectChange={(values) => {
-            setEnabledFilter(values)
+  const filterContent = useMemo(
+    () => (
+      <div className='flex w-[240px] flex-col gap-3 p-3'>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
+          <Combobox
+            options={[
+              { value: 'enabled', label: 'Enabled' },
+              { value: 'disabled', label: 'Disabled' },
+            ]}
+            multiSelect
+            multiSelectValues={enabledFilter}
+            onMultiSelectChange={(values) => {
+              setEnabledFilter(values)
+              setCurrentPage(1)
+              setSelectedDocuments(new Set())
+              setIsSelectAllMode(false)
+            }}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{enabledDisplayLabel}</span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        {enabledFilter.length > 0 && (
+          <button
+            type='button'
+            onClick={() => {
+              setEnabledFilter([])
+              setCurrentPage(1)
+              setSelectedDocuments(new Set())
+              setIsSelectAllMode(false)
+            }}
+            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+          >
+            Clear status filter
+          </button>
+        )}
+        <TagFilterSection
+          tagDefinitions={tagDefinitions}
+          entries={tagFilterEntries}
+          onChange={(entries) => {
+            setTagFilterEntries(entries)
             setCurrentPage(1)
             setSelectedDocuments(new Set())
             setIsSelectAllMode(false)
           }}
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{enabledDisplayLabel}</span>
-          }
-          showAllOption
-          allOptionLabel='All'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
         />
       </div>
-      {enabledFilter.length > 0 && (
-        <button
-          type='button'
-          onClick={() => {
-            setEnabledFilter([])
-            setCurrentPage(1)
-            setSelectedDocuments(new Set())
-            setIsSelectAllMode(false)
-          }}
-          className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
-        >
-          Clear status filter
-        </button>
-      )}
-      <TagFilterSection
-        tagDefinitions={tagDefinitions}
-        entries={tagFilterEntries}
-        onChange={(entries) => {
-          setTagFilterEntries(entries)
-          setCurrentPage(1)
-          setSelectedDocuments(new Set())
-          setIsSelectAllMode(false)
-        }}
-      />
-    </div>
+    ),
+    [enabledFilter, enabledDisplayLabel, tagDefinitions, tagFilterEntries]
   )
 
   const connectorBadges =

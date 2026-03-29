@@ -595,45 +595,48 @@ export function Document({
     return `${enabledFilter.length} selected`
   }, [enabledFilter])
 
-  const filterContent = (
-    <div className='flex w-[240px] flex-col gap-3 p-3'>
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
-        <Combobox
-          options={[
-            { value: 'enabled', label: 'Enabled' },
-            { value: 'disabled', label: 'Disabled' },
-          ]}
-          multiSelect
-          multiSelectValues={enabledFilter}
-          onMultiSelectChange={(values) => {
-            setEnabledFilter(values)
-            setSelectedChunks(new Set())
-            void goToPage(1)
-          }}
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{enabledDisplayLabel}</span>
-          }
-          showAllOption
-          allOptionLabel='All'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
-        />
+  const filterContent = useMemo(
+    () => (
+      <div className='flex w-[240px] flex-col gap-3 p-3'>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
+          <Combobox
+            options={[
+              { value: 'enabled', label: 'Enabled' },
+              { value: 'disabled', label: 'Disabled' },
+            ]}
+            multiSelect
+            multiSelectValues={enabledFilter}
+            onMultiSelectChange={(values) => {
+              setEnabledFilter(values)
+              setSelectedChunks(new Set())
+              void goToPage(1)
+            }}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{enabledDisplayLabel}</span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        {enabledFilter.length > 0 && (
+          <button
+            type='button'
+            onClick={() => {
+              setEnabledFilter([])
+              setSelectedChunks(new Set())
+              void goToPage(1)
+            }}
+            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+          >
+            Clear all filters
+          </button>
+        )}
       </div>
-      {enabledFilter.length > 0 && (
-        <button
-          type='button'
-          onClick={() => {
-            setEnabledFilter([])
-            setSelectedChunks(new Set())
-            void goToPage(1)
-          }}
-          className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
-        >
-          Clear all filters
-        </button>
-      )}
-    </div>
+    ),
+    [enabledFilter, enabledDisplayLabel, goToPage]
   )
 
   const filterTags: FilterTag[] = useMemo(
