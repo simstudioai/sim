@@ -419,7 +419,7 @@ function buildRawFilterCondition(filter: StructuredFilter): ReturnType<typeof sq
       case 'between':
         if (valueTo !== undefined) {
           const numTo = typeof valueTo === 'number' ? valueTo : Number.parseFloat(String(valueTo))
-          if (!Number.isNaN(numTo)) return sql`${col} >= ${numValue} AND ${col} <= ${numTo}`
+          if (!Number.isNaN(numTo)) return sql`(${col} >= ${numValue} AND ${col} <= ${numTo})`
         }
         return sql`${col} = ${numValue}`
       default:
@@ -447,7 +447,7 @@ function buildRawFilterCondition(filter: StructuredFilter): ReturnType<typeof sq
         if (valueTo !== undefined) {
           const dateStrTo = String(valueTo)
           if (/^\d{4}-\d{2}-\d{2}$/.test(dateStrTo))
-            return sql`${col}::date >= ${dateStr}::date AND ${col}::date <= ${dateStrTo}::date`
+            return sql`(${col}::date >= ${dateStr}::date AND ${col}::date <= ${dateStrTo}::date)`
         }
         return sql`${col}::date = ${dateStr}::date`
       default:
