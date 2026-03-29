@@ -168,7 +168,7 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
           const numValueTo =
             typeof valueTo === 'number' ? valueTo : Number.parseFloat(String(valueTo))
           if (Number.isNaN(numValueTo)) return sql`${column} = ${numValue}`
-          return sql`${column} >= ${numValue} AND ${column} <= ${numValueTo}`
+          return sql`(${column} >= ${numValue} AND ${column} <= ${numValueTo})`
         }
         return sql`${column} = ${numValue}`
       default:
@@ -203,7 +203,7 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
           if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStrTo)) {
             return sql`${column}::date = ${dateStr}::date`
           }
-          return sql`${column}::date >= ${dateStr}::date AND ${column}::date <= ${dateStrTo}::date`
+          return sql`(${column}::date >= ${dateStr}::date AND ${column}::date <= ${dateStrTo}::date)`
         }
         return sql`${column}::date = ${dateStr}::date`
       default:
