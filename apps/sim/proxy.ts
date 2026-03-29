@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
-import { isProfoundEnabled, sendToProfound } from './lib/analytics/profound'
+import { sendToProfound } from './lib/analytics/profound'
 import { isAuthDisabled, isHosted } from './lib/core/config/feature-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
 
@@ -201,9 +201,7 @@ export async function proxy(request: NextRequest) {
  * Sends request data to Profound analytics (fire-and-forget) and returns the response.
  */
 function track(request: NextRequest, response: NextResponse): NextResponse {
-  if (isProfoundEnabled()) {
-    sendToProfound(request, response.status)
-  }
+  sendToProfound(request, response.status)
   return response
 }
 
