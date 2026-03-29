@@ -22,6 +22,9 @@ function isTagSlotKey(key: string): key is AllTagSlot {
 
 /** Convert a KB UUID to a valid Postgres table name */
 export function kbTableName(kbId: string): string {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(kbId)) {
+    throw new Error(`Invalid knowledge base ID: "${kbId}". Must be a UUID.`)
+  }
   return `kb_embeddings_${kbId.replace(/-/g, '_')}`
 }
 
