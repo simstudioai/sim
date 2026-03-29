@@ -1,4 +1,4 @@
-import { memo, type ReactNode, useCallback, useRef, useState } from 'react'
+import { memo, type ReactNode } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import {
   ArrowDown,
@@ -149,34 +149,6 @@ export const ResourceOptionsBar = memo(function ResourceOptionsBar({
 })
 
 const SearchSection = memo(function SearchSection({ search }: { search: SearchConfig }) {
-  const [localValue, setLocalValue] = useState(search.value)
-
-  const lastReportedRef = useRef(search.value)
-
-  if (search.value !== lastReportedRef.current) {
-    setLocalValue(search.value)
-    lastReportedRef.current = search.value
-  }
-
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const next = e.target.value
-      setLocalValue(next)
-      search.onChange(next)
-    },
-    [search.onChange]
-  )
-
-  const handleClearAll = useCallback(() => {
-    setLocalValue('')
-    lastReportedRef.current = ''
-    if (search.onClearAll) {
-      search.onClearAll()
-    } else {
-      search.onChange('')
-    }
-  }, [search.onClearAll, search.onChange])
-
   return (
     <div className='relative flex flex-1 items-center'>
       {SEARCH_ICON}
@@ -198,8 +170,8 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
         <input
           ref={search.inputRef}
           type='text'
-          value={localValue}
-          onChange={handleInputChange}
+          value={search.value}
+          onChange={(e) => search.onChange(e.target.value)}
           onKeyDown={search.onKeyDown}
           onFocus={search.onFocus}
           onBlur={search.onBlur}
@@ -207,11 +179,11 @@ const SearchSection = memo(function SearchSection({ search }: { search: SearchCo
           className='min-w-[80px] flex-1 bg-transparent py-1 text-[var(--text-secondary)] text-caption outline-none placeholder:text-[var(--text-subtle)]'
         />
       </div>
-      {search.tags?.length || localValue ? (
+      {search.tags?.length || search.value ? (
         <button
           type='button'
           className='mr-0.5 flex h-[14px] w-[14px] shrink-0 items-center justify-center text-[var(--text-subtle)] transition-colors hover-hover:text-[var(--text-secondary)]'
-          onClick={handleClearAll}
+          onClick={search.onClearAll ?? (() => search.onChange(''))}
         >
           <span className='text-caption'>✕</span>
         </button>

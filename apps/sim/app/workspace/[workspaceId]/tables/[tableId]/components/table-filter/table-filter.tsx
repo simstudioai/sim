@@ -32,8 +32,6 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
     return fromFilter.length > 0 ? fromFilter : [createRule(columns)]
   })
 
-  // Ref kept in sync each render so callbacks can read current rules
-  // without capturing them in their dependency arrays (keeps memo stable)
   const rulesRef = useRef(rules)
   rulesRef.current = rules
 

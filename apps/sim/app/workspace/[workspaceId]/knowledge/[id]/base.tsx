@@ -813,7 +813,7 @@ export function KnowledgeBase({
   }
 
   const filterContent = (
-    <div className='w-[320px]'>
+    <div className='w-[200px]'>
       <div className='border-[var(--border-1)] border-b px-3 py-2'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
       </div>
