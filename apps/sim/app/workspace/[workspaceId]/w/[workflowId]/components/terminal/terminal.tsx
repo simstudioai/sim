@@ -926,24 +926,9 @@ export const Terminal = memo(function Terminal() {
     return result
   }, [executionGroups])
 
-  const prevAutoExpandKeyRef = useRef('')
-  const prevAutoExpandIdsRef = useRef<string[]>([])
-
   const autoExpandNodeIds = useMemo(() => {
-    if (executionGroups.length === 0) {
-      prevAutoExpandKeyRef.current = ''
-      prevAutoExpandIdsRef.current = []
-      return prevAutoExpandIdsRef.current
-    }
-
-    const ids = collectExpandableNodeIds(executionGroups[0].entryTree)
-    const key = ids.join(',')
-    if (key === prevAutoExpandKeyRef.current) {
-      return prevAutoExpandIdsRef.current
-    }
-    prevAutoExpandKeyRef.current = key
-    prevAutoExpandIdsRef.current = ids
-    return ids
+    if (executionGroups.length === 0) return []
+    return collectExpandableNodeIds(executionGroups[0].entryTree)
   }, [executionGroups])
 
   /**

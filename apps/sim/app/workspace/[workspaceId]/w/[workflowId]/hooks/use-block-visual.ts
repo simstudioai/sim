@@ -100,6 +100,7 @@ export function useBlockVisual({ blockId, data, isSelected = false }: UseBlockVi
     activeWorkflowId,
     isEnabled,
     isLocked,
+    isPending,
     handleClick,
     hasRing,
     ringStyles,
