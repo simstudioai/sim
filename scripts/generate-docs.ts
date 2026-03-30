@@ -679,7 +679,16 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
     integrations.sort((a, b) => a.name.localeCompare(b.name))
 
     const jsonPath = path.join(LANDING_INTEGRATIONS_DATA_PATH, 'integrations.json')
-    fs.writeFileSync(jsonPath, JSON.stringify(integrations, null, 2))
+    // JSON.stringify always expands arrays across multiple lines. Biome's formatter
+    // collapses short arrays of primitives onto single lines. Post-process to match.
+    const json = JSON.stringify(integrations, null, 2).replace(
+      /\[\n(\s+"[^"\n]*"(?:,\n\s+"[^"\n]*")*)\n\s+\]/g,
+      (_match, inner) => {
+        const items = (inner as string).split(',\n').map((s: string) => s.trim())
+        return `[${items.join(', ')}]`
+      }
+    )
+    fs.writeFileSync(jsonPath, `${json}\n`)
     console.log(`✓ Integration data written: ${integrations.length} integrations → ${jsonPath}`)
   } catch (error) {
     console.error('Error writing integrations JSON:', error)
@@ -2828,7 +2837,7 @@ function updateMetaJson() {
     pages: items,
   }
 
-  fs.writeFileSync(metaJsonPath, JSON.stringify(metaJson, null, 2))
+  fs.writeFileSync(metaJsonPath, `${JSON.stringify(metaJson, null, 2)}\n`)
   console.log(`Updated meta.json with ${items.length} entries`)
 }
 
