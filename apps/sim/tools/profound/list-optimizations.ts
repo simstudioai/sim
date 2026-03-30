@@ -42,8 +42,8 @@ export const profoundListOptimizationsTool: ToolConfig<
       const url = new URL(
         `https://api.tryprofound.com/v1/content/${encodeURIComponent(params.assetId)}/optimization`
       )
-      if (params.limit) url.searchParams.set('limit', String(params.limit))
-      if (params.offset) url.searchParams.set('offset', String(params.offset))
+      if (params.limit != null) url.searchParams.set('limit', String(params.limit))
+      if (params.offset != null) url.searchParams.set('offset', String(params.offset))
       return url.toString()
     },
     method: 'GET',

@@ -56,7 +56,7 @@ const DIMENSION_OPS = [
   'prompt_volume',
 ] as const
 
-const FILTER_OPS = [...ALL_REPORT_OPS, 'prompt_answers', 'prompt_volume'] as const
+const FILTER_OPS = [...ALL_REPORT_OPS, 'prompt_volume'] as const
 
 export const ProfoundBlock: BlockConfig = {
   type: 'profound',
@@ -372,8 +372,8 @@ export const ProfoundBlock: BlockConfig = {
         if (metricsField && params[metricsField]) {
           result.metrics = params[metricsField]
         }
-        if (params.limit) result.limit = Number(params.limit)
-        if (params.offset) result.offset = Number(params.offset)
+        if (params.limit != null) result.limit = Number(params.limit)
+        if (params.offset != null) result.offset = Number(params.offset)
         return result
       },
     },

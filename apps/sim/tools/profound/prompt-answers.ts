@@ -65,7 +65,11 @@ export const profoundPromptAnswersTool: ToolConfig<
         end_date: params.endDate,
       }
       if (params.filters) {
-        body.filters = JSON.parse(params.filters)
+        try {
+          body.filters = JSON.parse(params.filters)
+        } catch {
+          throw new Error('Invalid JSON in filters parameter')
+        }
       }
       if (params.limit) {
         body.pagination = { limit: params.limit }
