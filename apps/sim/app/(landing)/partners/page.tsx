@@ -152,12 +152,13 @@ export default async function PartnersPage() {
               recognition in the growing ecosystem of AI workflow builders.
             </p>
             <div className='flex items-center gap-4'>
-              <Link
+              {/* TODO: Uncomment when academy is public */}
+              {/* <Link
                 href='/academy'
                 className='inline-flex h-[44px] items-center rounded-[5px] bg-white px-6 text-[#1C1C1C] text-[15px] transition-colors hover:bg-[#E8E8E8]'
               >
                 Start Sim Academy →
-              </Link>
+              </Link> */}
               <a
                 href='#how-it-works'
                 className='inline-flex h-[44px] items-center rounded-[5px] border border-[#3A3A3A] px-6 text-[#ECECEC] text-[15px] transition-colors hover:border-[#4A4A4A]'
@@ -275,12 +276,13 @@ export default async function PartnersPage() {
               Complete Sim Academy to earn your first certification and unlock partner benefits.
               It's free to start — no credit card required.
             </p>
-            <Link
+            {/* TODO: Uncomment when academy is public */}
+            {/* <Link
               href='/academy'
               className='inline-flex h-[48px] items-center rounded-[5px] bg-white px-8 font-[430] text-[#1C1C1C] text-[15px] transition-colors hover:bg-[#E8E8E8]'
             >
               Start Sim Academy →
-            </Link>
+            </Link> */}
           </div>
         </section>
       </main>

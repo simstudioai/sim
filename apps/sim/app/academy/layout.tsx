@@ -1,5 +1,9 @@
 import type React from 'react'
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+
+// TODO: Remove notFound() call to make academy pages public once content is ready
+const ACADEMY_ENABLED = false
 
 export const metadata: Metadata = {
   title: {
@@ -17,6 +21,10 @@ export const metadata: Metadata = {
 }
 
 export default function AcademyLayout({ children }: { children: React.ReactNode }) {
+  if (!ACADEMY_ENABLED) {
+    notFound()
+  }
+
   return (
     <div className='min-h-screen bg-[#1C1C1C] font-[430] font-season text-[#ECECEC]'>
       {children}
