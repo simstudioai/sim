@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import Landing from '@/app/(home)/landing'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 3600
 
 const baseUrl = getBaseUrl()
 

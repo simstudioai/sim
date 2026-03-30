@@ -218,6 +218,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta httpEquiv='x-ua-compatible' content='ie=edge' />
 
         {/* OneDollarStats Analytics */}
+        <link rel='dns-prefetch' href='https://assets.onedollarstats.com' />
         <script defer src='https://assets.onedollarstats.com/stonks.js' />
 
         <PublicEnvScript />
