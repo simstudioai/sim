@@ -644,14 +644,19 @@ const VirtualEntryNodeRow = memo(function VirtualEntryNodeRow({
   const onSelectEntry = signalStore.getOnSelectEntry()
   const onToggleNode = signalStore.getOnToggleNode()
 
+  const singleNodeExpandedSet = useMemo(
+    () => (isExpanded ? new Set([nodeId]) : EMPTY_EXPANDED_NODES),
+    [isExpanded, nodeId]
+  )
+
   if (nodeType === 'subflow') {
     return (
       <SubflowNodeRow
         node={node}
         selectedEntryId={isSelected ? nodeId : null}
         onSelectEntry={onSelectEntry}
-        expandedNodes={EMPTY_EXPANDED_NODES}
-        onToggleNode={NOOP_TOGGLE}
+        expandedNodes={singleNodeExpandedSet}
+        onToggleNode={onToggleNode}
         renderChildren={false}
       />
     )
@@ -663,8 +668,8 @@ const VirtualEntryNodeRow = memo(function VirtualEntryNodeRow({
         node={node}
         selectedEntryId={isSelected ? nodeId : null}
         onSelectEntry={onSelectEntry}
-        expandedNodes={EMPTY_EXPANDED_NODES}
-        onToggleNode={NOOP_TOGGLE}
+        expandedNodes={singleNodeExpandedSet}
+        onToggleNode={onToggleNode}
         renderChildren={false}
       />
     )
