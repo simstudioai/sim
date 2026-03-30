@@ -1285,6 +1285,17 @@ export function StartIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function ProfoundIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg width='1em' height='1em' viewBox='0 0 55 55' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <path
+        fill='currentColor'
+        d='M0 36.685V21.349a7.017 7.017 0 0 1 2.906-5.69l19.742-14.25A7.443 7.443 0 0 1 27.004 0h.062c1.623 0 3.193.508 4.501 1.452l19.684 14.207a7.016 7.016 0 0 1 2.906 5.69v12.302a7.013 7.013 0 0 1-2.907 5.689L31.527 53.562A7.605 7.605 0 0 1 27.078 55a7.641 7.641 0 0 1-4.465-1.44c-2.581-1.859-6.732-4.855-6.732-4.855V29.777c0-.249.28-.393.482-.248l10.538 7.605c.106.077.249.077.355 0l13.005-9.386a.306.306 0 0 0 0-.496l-13.005-9.386a.303.303 0 0 0-.355 0L.482 36.933A.304.304 0 0 1 0 36.685Z'
+      />
+    </svg>
+  )
+}
+
 export function PineconeIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
