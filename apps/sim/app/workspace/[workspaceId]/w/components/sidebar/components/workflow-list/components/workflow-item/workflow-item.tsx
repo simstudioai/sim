@@ -368,12 +368,10 @@ export function WorkflowItem({
         return
       }
 
-      // cmd/ctrl+click: let the browser open the link in a new tab
       if (e.metaKey || e.ctrlKey) {
         return
       }
 
-      // shift+click: range selection — prevent navigation
       if (e.shiftKey) {
         e.preventDefault()
       }
