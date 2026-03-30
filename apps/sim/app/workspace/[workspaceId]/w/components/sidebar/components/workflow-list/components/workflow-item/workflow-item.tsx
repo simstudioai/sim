@@ -368,13 +368,17 @@ export function WorkflowItem({
         return
       }
 
-      const isModifierClick = e.shiftKey || e.metaKey || e.ctrlKey
+      // cmd/ctrl+click: let the browser open the link in a new tab
+      if (e.metaKey || e.ctrlKey) {
+        return
+      }
 
-      if (isModifierClick) {
+      // shift+click: range selection — prevent navigation
+      if (e.shiftKey) {
         e.preventDefault()
       }
 
-      onWorkflowClick(workflow.id, e.shiftKey, e.metaKey || e.ctrlKey)
+      onWorkflowClick(workflow.id, e.shiftKey, false)
     },
     [shouldPreventClickRef, workflow.id, onWorkflowClick, isEditing]
   )

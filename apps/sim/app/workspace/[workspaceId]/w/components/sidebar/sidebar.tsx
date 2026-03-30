@@ -167,9 +167,10 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
         )}
         onClick={(e) => {
           if (task.id === 'new') return
-          if (e.shiftKey || e.metaKey || e.ctrlKey) {
+          if (e.metaKey || e.ctrlKey) return
+          if (e.shiftKey) {
             e.preventDefault()
-            onMultiSelectClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
+            onMultiSelectClick(task.id, true, false)
           } else {
             useFolderStore.setState({
               selectedTasks: new Set<string>(),
@@ -1057,8 +1058,6 @@ export const Sidebar = memo(function Sidebar() {
     }),
     [handleCreateWorkflow]
   )
-
-  const noop = useCallback(() => {}, [])
 
   const handleExpandSidebar = useCallback(
     (e: React.MouseEvent) => {
