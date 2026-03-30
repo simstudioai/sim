@@ -78,7 +78,7 @@ export const profoundCategoryPromptsTool: ToolConfig<
       const url = new URL(
         `https://api.tryprofound.com/v1/org/categories/${encodeURIComponent(params.categoryId)}/prompts`
       )
-      if (params.limit) url.searchParams.set('limit', String(params.limit))
+      if (params.limit != null) url.searchParams.set('limit', String(params.limit))
       if (params.cursor) url.searchParams.set('cursor', params.cursor)
       if (params.orderDir) url.searchParams.set('order_dir', params.orderDir)
       if (params.promptType) {

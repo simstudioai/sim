@@ -71,7 +71,7 @@ export const profoundPromptAnswersTool: ToolConfig<
           throw new Error('Invalid JSON in filters parameter')
         }
       }
-      if (params.limit) {
+      if (params.limit != null) {
         body.pagination = { limit: params.limit }
       }
       return body
