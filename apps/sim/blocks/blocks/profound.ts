@@ -359,13 +359,19 @@ export const ProfoundBlock: BlockConfig = {
       tool: (params) => `profound_${params.operation}`,
       params: (params) => {
         const result: Record<string, unknown> = {}
-        if (params.visibilityMetrics) result.metrics = params.visibilityMetrics
-        if (params.sentimentMetrics) result.metrics = params.sentimentMetrics
-        if (params.citationsMetrics) result.metrics = params.citationsMetrics
-        if (params.botsMetrics) result.metrics = params.botsMetrics
-        if (params.referralsMetrics) result.metrics = params.referralsMetrics
-        if (params.fanoutsMetrics) result.metrics = params.fanoutsMetrics
-        if (params.volumeMetrics) result.metrics = params.volumeMetrics
+        const metricsMap: Record<string, string> = {
+          visibility_report: 'visibilityMetrics',
+          sentiment_report: 'sentimentMetrics',
+          citations_report: 'citationsMetrics',
+          bots_report: 'botsMetrics',
+          referrals_report: 'referralsMetrics',
+          query_fanouts: 'fanoutsMetrics',
+          prompt_volume: 'volumeMetrics',
+        }
+        const metricsField = metricsMap[params.operation as string]
+        if (metricsField && params[metricsField]) {
+          result.metrics = params[metricsField]
+        }
         if (params.limit) result.limit = Number(params.limit)
         if (params.offset) result.offset = Number(params.offset)
         return result
