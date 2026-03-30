@@ -81,6 +81,59 @@ function ProviderPreviewIcon({ providerId }: { providerId?: string }) {
   )
 }
 
+interface FeatureToggleItemProps {
+  feature: PermissionFeature
+  enabled: boolean
+  color: string
+  isInView: boolean
+  delay: number
+  textClassName: string
+  transition: Record<string, unknown>
+  onToggle: () => void
+}
+
+function FeatureToggleItem({
+  feature,
+  enabled,
+  color,
+  isInView,
+  delay,
+  textClassName,
+  transition,
+  onToggle,
+}: FeatureToggleItemProps) {
+  return (
+    <motion.div
+      key={feature.key}
+      role='button'
+      tabIndex={0}
+      aria-label={`Toggle ${feature.name}`}
+      aria-pressed={enabled}
+      className='flex cursor-pointer items-center gap-2 rounded-[4px] py-0.5'
+      initial={{ opacity: 0, x: -6 }}
+      animate={isInView ? { opacity: 1, x: 0 } : {}}
+      transition={{ delay, ...transition }}
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onToggle()
+        }
+      }}
+      whileTap={{ scale: 0.98 }}
+    >
+      <CheckboxIcon checked={enabled} color={color} />
+      <ProviderPreviewIcon providerId={feature.providerId} />
+      <span
+        className={textClassName}
+        style={{ color: enabled ? '#F6F6F6AA' : '#F6F6F640' }}
+      >
+        {feature.name}
+      </span>
+    </motion.div>
+  )
+}
+
 export function AccessControlPanel() {
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true, margin: '-40px' })
@@ -101,45 +154,21 @@ export function AccessControlPanel() {
                 {category.label}
               </span>
               <div className='mt-2 grid grid-cols-2 gap-x-4 gap-y-2'>
-                {category.features.map((feature, featIdx) => {
-                  const enabled = accessState[feature.key]
-
-                  return (
-                    <motion.div
-                      key={feature.key}
-                      role='button'
-                      tabIndex={0}
-                      aria-label={`Toggle ${feature.name}`}
-                      aria-pressed={enabled}
-                      className='flex cursor-pointer items-center gap-2 rounded-[4px] py-0.5'
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={isInView ? { opacity: 1, x: 0 } : {}}
-                      transition={{
-                        delay: 0.05 + (offsetBefore + featIdx) * 0.04,
-                        duration: 0.3,
-                      }}
-                      onClick={() =>
-                        setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
-                        }
-                      }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <CheckboxIcon checked={enabled} color={category.color} />
-                      <ProviderPreviewIcon providerId={feature.providerId} />
-                      <span
-                        className='truncate font-[430] font-season text-[13px] leading-none tracking-[0.02em]'
-                        style={{ color: enabled ? '#F6F6F6AA' : '#F6F6F640' }}
-                      >
-                        {feature.name}
-                      </span>
-                    </motion.div>
-                  )
-                })}
+                {category.features.map((feature, featIdx) => (
+                  <FeatureToggleItem
+                    key={feature.key}
+                    feature={feature}
+                    enabled={accessState[feature.key]}
+                    color={category.color}
+                    isInView={isInView}
+                    delay={0.05 + (offsetBefore + featIdx) * 0.04}
+                    textClassName='truncate font-[430] font-season text-[13px] leading-none tracking-[0.02em]'
+                    transition={{ duration: 0.3 }}
+                    onToggle={() =>
+                      setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
+                    }
+                  />
+                ))}
               </div>
             </div>
           )
@@ -155,7 +184,6 @@ export function AccessControlPanel() {
             </span>
             <div className='mt-2 grid grid-cols-2 gap-x-4 gap-y-2'>
               {category.features.map((feature, featIdx) => {
-                const enabled = accessState[feature.key]
                 const currentIndex =
                   PERMISSION_CATEGORIES.slice(0, catIdx).reduce(
                     (sum, c) => sum + c.features.length,
@@ -163,40 +191,19 @@ export function AccessControlPanel() {
                   ) + featIdx
 
                 return (
-                  <motion.div
+                  <FeatureToggleItem
                     key={feature.key}
-                    role='button'
-                    tabIndex={0}
-                    aria-label={`Toggle ${feature.name}`}
-                    aria-pressed={enabled}
-                    className='flex cursor-pointer items-center gap-2 rounded-[4px] py-0.5'
-                    initial={{ opacity: 0, x: -6 }}
-                    animate={isInView ? { opacity: 1, x: 0 } : {}}
-                    transition={{
-                      delay: 0.1 + currentIndex * 0.04,
-                      duration: 0.3,
-                      ease: [0.25, 0.46, 0.45, 0.94],
-                    }}
-                    onClick={() =>
+                    feature={feature}
+                    enabled={accessState[feature.key]}
+                    color={category.color}
+                    isInView={isInView}
+                    delay={0.1 + currentIndex * 0.04}
+                    textClassName='truncate font-[430] font-season text-[11px] leading-none tracking-[0.02em] transition-opacity duration-200'
+                    transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+                    onToggle={() =>
                       setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
                     }
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        setAccessState((prev) => ({ ...prev, [feature.key]: !prev[feature.key] }))
-                      }
-                    }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <CheckboxIcon checked={enabled} color={category.color} />
-                    <ProviderPreviewIcon providerId={feature.providerId} />
-                    <span
-                      className='truncate font-[430] font-season text-[11px] leading-none tracking-[0.02em] transition-opacity duration-200'
-                      style={{ color: enabled ? '#F6F6F6AA' : '#F6F6F640' }}
-                    >
-                      {feature.name}
-                    </span>
-                  </motion.div>
+                  />
                 )
               })}
             </div>
