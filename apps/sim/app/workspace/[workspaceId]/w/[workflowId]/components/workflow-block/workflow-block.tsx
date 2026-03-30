@@ -47,6 +47,7 @@ import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedule
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
+import { useIsBlockPending } from '@/stores/execution'
 import { useVariablesStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -855,7 +856,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   data,
   selected,
 }: NodeProps<WorkflowBlockProps>) {
-  const { type, config, name, isPending, isSandbox } = data
+  const { type, config, name, isSandbox } = data
 
   const contentRef = useRef<HTMLDivElement>(null)
 
@@ -873,7 +874,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     hasRing,
     ringStyles,
     runPathStatus,
-  } = useBlockVisual({ blockId: id, data, isPending, isSelected: selected })
+  } = useBlockVisual({ blockId: id, data, isSelected: selected })
+
+  const isPending = useIsBlockPending(id)
 
   const currentBlock = currentWorkflow.getBlockById(id)
 

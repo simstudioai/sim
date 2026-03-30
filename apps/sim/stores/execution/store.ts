@@ -193,6 +193,24 @@ export function useIsBlockActive(blockId: string): boolean {
   })
 }
 
+export function useIsBlockPending(blockId: string): boolean {
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  return useExecutionStore((state) => {
+    if (!activeWorkflowId) return false
+    const wf = state.workflowExecutions.get(activeWorkflowId)
+    if (!wf?.isDebugging) return false
+    return wf.pendingBlocks.includes(blockId)
+  })
+}
+
+export function useBlockRunStatus(blockId: string): BlockRunStatus | undefined {
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  return useExecutionStore((state) => {
+    if (!activeWorkflowId) return undefined
+    return state.workflowExecutions.get(activeWorkflowId)?.lastRunPath.get(blockId)
+  })
+}
+
 /**
  * Returns the last run path (block statuses) for the current workflow.
  * More granular than useCurrentWorkflowExecution — only re-renders when

@@ -84,17 +84,18 @@ export function useTerminalFilters() {
    */
   const filterEntries = useCallback(
     (entries: ConsoleEntry[]): ConsoleEntry[] => {
-      // Apply filters first
+      if (!hasActiveFilters && sortConfig.direction === 'desc') {
+        return entries
+      }
+
       let result = entries
 
       if (hasActiveFilters) {
         result = entries.filter((entry) => {
-          // Block ID filter
           if (filters.blockIds.size > 0 && !filters.blockIds.has(entry.blockId)) {
             return false
           }
 
-          // Status filter
           if (filters.statuses.size > 0) {
             const isError = !!entry.error
             const hasStatus = isError ? filters.statuses.has('error') : filters.statuses.has('info')
@@ -105,7 +106,6 @@ export function useTerminalFilters() {
         })
       }
 
-      // Sort by executionOrder (monotonically increasing integer from server)
       result = [...result].sort((a, b) => {
         const comparison = a.executionOrder - b.executionOrder
         return sortConfig.direction === 'asc' ? comparison : -comparison

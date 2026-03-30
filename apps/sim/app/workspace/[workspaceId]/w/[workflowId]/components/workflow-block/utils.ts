@@ -33,8 +33,6 @@ export function shouldSkipBlockRender(
     prevProps.id === nextProps.id &&
     prevProps.data.type === nextProps.data.type &&
     prevProps.data.name === nextProps.data.name &&
-    prevProps.data.isActive === nextProps.data.isActive &&
-    prevProps.data.isPending === nextProps.data.isPending &&
     prevProps.data.isPreview === nextProps.data.isPreview &&
     prevProps.data.isPreviewSelected === nextProps.data.isPreviewSelected &&
     prevProps.data.config === nextProps.data.config &&

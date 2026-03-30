@@ -67,8 +67,7 @@ export function useBlockState(
   const isDeletedBlock = !isShowingDiff && diffAnalysis?.deleted_blocks?.includes(blockId)
 
   // Execution state
-  const isActiveBlock = useIsBlockActive(blockId)
-  const isActive = data.isActive || isActiveBlock
+  const isActive = useIsBlockActive(blockId)
 
   return {
     isEnabled,

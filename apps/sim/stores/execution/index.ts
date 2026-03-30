@@ -1,7 +1,9 @@
 export {
+  useBlockRunStatus,
   useCurrentWorkflowExecution,
   useExecutionStore,
   useIsBlockActive,
+  useIsBlockPending,
   useLastRunEdges,
   useLastRunPath,
 } from './store'

@@ -535,7 +535,7 @@ const EntryNodeRow = memo(function EntryNodeRow({
   )
 })
 
-interface TerminalLogListRowProps {
+interface TerminalLogListDataRef {
   rows: VisibleTerminalRow[]
   selectedEntryId: string | null
   onSelectEntry: (entry: ConsoleEntry) => void
@@ -543,12 +543,12 @@ interface TerminalLogListRowProps {
   onToggleNode: (nodeId: string) => void
 }
 
-function TerminalLogListRow({
-  index,
-  style,
-  ...props
-}: RowComponentProps<TerminalLogListRowProps>) {
-  const { rows, selectedEntryId, onSelectEntry, expandedNodes, onToggleNode } = props
+interface TerminalLogListRowProps {
+  dataRef: React.RefObject<TerminalLogListDataRef>
+}
+
+function TerminalLogListRow({ index, style, dataRef }: RowComponentProps<TerminalLogListRowProps>) {
+  const { rows, selectedEntryId, onSelectEntry, expandedNodes, onToggleNode } = dataRef.current
   const row = rows[index]
 
   if (row.rowType === 'separator') {
@@ -591,6 +591,8 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
   const containerRef = useRef<HTMLDivElement>(null)
   const listRef = useListRef(null)
   const [listHeight, setListHeight] = useState(400)
+  const prevRowCountRef = useRef(0)
+  const isNearBottomRef = useRef(true)
 
   const rows = useMemo(
     () => flattenVisibleExecutionRows(executionGroups, expandedNodes),
@@ -613,13 +615,59 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
     return () => resizeObserver.disconnect()
   }, [])
 
-  const rowsRef = useRef(rows)
-  rowsRef.current = rows
+  useEffect(() => {
+    const tryAttach = () => {
+      const outerEl = listRef.current?.element
+      if (!outerEl) return false
+
+      const handleScroll = () => {
+        const { scrollTop, scrollHeight, clientHeight } = outerEl
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+        isNearBottomRef.current = distanceFromBottom < TERMINAL_CONFIG.LOG_ROW_HEIGHT_PX * 3
+      }
+
+      outerEl.addEventListener('scroll', handleScroll, { passive: true })
+      cleanupRef.current = () => outerEl.removeEventListener('scroll', handleScroll)
+      return true
+    }
+
+    const cleanupRef = { current: () => {} }
+
+    if (!tryAttach()) {
+      const frameId = requestAnimationFrame(() => tryAttach())
+      return () => {
+        cancelAnimationFrame(frameId)
+        cleanupRef.current()
+      }
+    }
+
+    return () => cleanupRef.current()
+  }, [listRef])
+
+  useEffect(() => {
+    const newCount = rows.length
+    const prevCount = prevRowCountRef.current
+    prevRowCountRef.current = newCount
+
+    if (newCount <= prevCount || newCount === 0) return
+    if (!isNearBottomRef.current) return
+
+    listRef.current?.scrollToRow({ index: newCount - 1, align: 'end' })
+  }, [rows.length, listRef])
+
+  const dataRef = useRef<TerminalLogListDataRef>({
+    rows,
+    selectedEntryId,
+    onSelectEntry,
+    expandedNodes,
+    onToggleNode,
+  })
+  dataRef.current = { rows, selectedEntryId, onSelectEntry, expandedNodes, onToggleNode }
 
   useEffect(() => {
     if (!selectedEntryId) return
 
-    const currentRows = rowsRef.current
+    const currentRows = dataRef.current.rows
     const rowIndex = currentRows.findIndex(
       (row) => row.rowType === 'node' && row.node?.entry.id === selectedEntryId
     )
@@ -629,27 +677,19 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
     }
   }, [selectedEntryId, listRef])
 
-  const rowProps = useMemo<TerminalLogListRowProps>(
-    () => ({
-      rows,
-      selectedEntryId,
-      onSelectEntry,
-      expandedNodes,
-      onToggleNode,
-    }),
-    [rows, selectedEntryId, onSelectEntry, expandedNodes, onToggleNode]
-  )
+  const rowProps = useMemo<TerminalLogListRowProps>(() => ({ dataRef }), [dataRef])
 
   return (
-    <div ref={containerRef} className='h-full'>
+    <div ref={containerRef} className='h-full bg-[var(--bg-primary)]' style={{ contain: 'strict' }}>
       <List
+        className='bg-[var(--bg-primary)]'
         listRef={listRef}
         defaultHeight={listHeight}
         rowCount={rows.length}
         rowHeight={TERMINAL_CONFIG.LOG_ROW_HEIGHT_PX}
         rowComponent={TerminalLogListRow}
         rowProps={rowProps}
-        overscanCount={8}
+        overscanCount={30}
       />
     </div>
   )
@@ -697,6 +737,7 @@ export const Terminal = memo(function Terminal() {
   const [showCopySuccess, setShowCopySuccess] = useState(false)
   const [showInput, setShowInput] = useState(false)
   const [autoSelectEnabled, setAutoSelectEnabled] = useState(true)
+  const autoSelectExecutionIdRef = useRef<string | null>(null)
   const [mainOptionsOpen, setMainOptionsOpen] = useState(false)
 
   const [isTrainingEnvEnabled] = useState(() =>
@@ -773,12 +814,24 @@ export const Terminal = memo(function Terminal() {
     return result
   }, [executionGroups])
 
+  const prevAutoExpandKeyRef = useRef('')
+  const prevAutoExpandIdsRef = useRef<string[]>([])
+
   const autoExpandNodeIds = useMemo(() => {
     if (executionGroups.length === 0) {
-      return []
+      prevAutoExpandKeyRef.current = ''
+      prevAutoExpandIdsRef.current = []
+      return prevAutoExpandIdsRef.current
     }
 
-    return collectExpandableNodeIds(executionGroups[0].entryTree)
+    const ids = collectExpandableNodeIds(executionGroups[0].entryTree)
+    const key = ids.join(',')
+    if (key === prevAutoExpandKeyRef.current) {
+      return prevAutoExpandIdsRef.current
+    }
+    prevAutoExpandKeyRef.current = key
+    prevAutoExpandIdsRef.current = ids
+    return ids
   }, [executionGroups])
 
   /**
@@ -877,17 +930,13 @@ export const Terminal = memo(function Terminal() {
   useEffect(() => {
     if (autoExpandNodeIds.length === 0) return
 
-    const rafId = requestAnimationFrame(() => {
-      setExpandedNodes((prev) => {
-        const hasAll = autoExpandNodeIds.every((id) => prev.has(id))
-        if (hasAll) return prev
-        const next = new Set(prev)
-        autoExpandNodeIds.forEach((id) => next.add(id))
-        return next
-      })
+    setExpandedNodes((prev) => {
+      const hasAll = autoExpandNodeIds.every((id) => prev.has(id))
+      if (hasAll) return prev
+      const next = new Set(prev)
+      autoExpandNodeIds.forEach((id) => next.add(id))
+      return next
     })
-
-    return () => cancelAnimationFrame(rafId)
   }, [autoExpandNodeIds])
 
   /**
@@ -1095,12 +1144,21 @@ export const Terminal = memo(function Terminal() {
     if (executionGroups.length === 0 || navigableEntries.length === 0) {
       setAutoSelectEnabled(true)
       setSelectedEntryId(null)
+      autoSelectExecutionIdRef.current = null
       return
     }
 
     if (!autoSelectEnabled) return
 
     const newestExecutionId = executionGroups[0].executionId
+    const isNewExecution = newestExecutionId !== autoSelectExecutionIdRef.current
+
+    if (isNewExecution) {
+      autoSelectExecutionIdRef.current = newestExecutionId
+    } else if (selectedEntryId !== null) {
+      return
+    }
+
     let lastNavEntry: NavigableBlockEntry | null = null
 
     for (const navEntry of navigableEntries) {

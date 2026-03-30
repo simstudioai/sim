@@ -32,7 +32,7 @@ import { coerceValue } from '@/executor/utils/start-block'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
-import { useCurrentWorkflowExecution, useExecutionStore } from '@/stores/execution'
+import { defaultWorkflowExecutionState, useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
 import { useVariablesStore } from '@/stores/panel'
 import { useEnvironmentStore } from '@/stores/settings/environment'
@@ -125,8 +125,18 @@ export function useWorkflowExecution() {
       variables: s.variables,
     }))
   )
-  const { isExecuting, isDebugging, pendingBlocks, executor, debugContext } =
-    useCurrentWorkflowExecution()
+  const { isExecuting, isDebugging, pendingBlocks, executor, debugContext } = useExecutionStore(
+    useShallow((state) => {
+      const wf = activeWorkflowId ? state.workflowExecutions.get(activeWorkflowId) : undefined
+      return {
+        isExecuting: wf?.isExecuting ?? false,
+        isDebugging: wf?.isDebugging ?? false,
+        pendingBlocks: wf?.pendingBlocks ?? defaultWorkflowExecutionState.pendingBlocks,
+        executor: wf?.executor ?? null,
+        debugContext: wf?.debugContext ?? null,
+      }
+    })
+  )
   const setCurrentExecutionId = useExecutionStore((s) => s.setCurrentExecutionId)
   const getCurrentExecutionId = useExecutionStore((s) => s.getCurrentExecutionId)
   const rawSetIsExecuting = useExecutionStore((s) => s.setIsExecuting)

@@ -7,8 +7,6 @@ export interface WorkflowBlockProps {
   type: string
   config: BlockConfig
   name: string
-  isActive?: boolean
-  isPending?: boolean
   isPreview?: boolean
   /** Whether this block is selected in preview mode */
   isPreviewSelected?: boolean

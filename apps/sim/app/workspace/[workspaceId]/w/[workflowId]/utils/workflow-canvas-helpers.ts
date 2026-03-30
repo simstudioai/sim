@@ -2,6 +2,8 @@ import type { Edge, Node } from 'reactflow'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { clampPositionToContainer } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position-utils'
+import { DEFAULT_PASTE_OFFSET } from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow-constants'
+import { usePanelEditorStore } from '@/stores/panel'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /**
@@ -285,4 +287,73 @@ export function resolveSelectionConflicts(
       : undefined
 
   return resolveSelectionContextConflicts(afterParentChild, blocks, preferredContextId)
+}
+
+export function calculatePasteOffset(
+  clipboard: {
+    blocks: Record<string, { position: { x: number; y: number }; type: string; height?: number }>
+  } | null,
+  viewportCenter: { x: number; y: number }
+): { x: number; y: number } {
+  if (!clipboard) return DEFAULT_PASTE_OFFSET
+
+  const clipboardBlocks = Object.values(clipboard.blocks)
+  if (clipboardBlocks.length === 0) return DEFAULT_PASTE_OFFSET
+
+  const minX = Math.min(...clipboardBlocks.map((b) => b.position.x))
+  const maxX = Math.max(
+    ...clipboardBlocks.map((b) => {
+      const width =
+        b.type === 'loop' || b.type === 'parallel'
+          ? CONTAINER_DIMENSIONS.DEFAULT_WIDTH
+          : BLOCK_DIMENSIONS.FIXED_WIDTH
+      return b.position.x + width
+    })
+  )
+  const minY = Math.min(...clipboardBlocks.map((b) => b.position.y))
+  const maxY = Math.max(
+    ...clipboardBlocks.map((b) => {
+      const height =
+        b.type === 'loop' || b.type === 'parallel'
+          ? CONTAINER_DIMENSIONS.DEFAULT_HEIGHT
+          : Math.max(b.height || BLOCK_DIMENSIONS.MIN_HEIGHT, BLOCK_DIMENSIONS.MIN_HEIGHT)
+      return b.position.y + height
+    })
+  )
+  const clipboardCenter = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }
+
+  return {
+    x: viewportCenter.x - clipboardCenter.x,
+    y: viewportCenter.y - clipboardCenter.y,
+  }
+}
+
+export function mapEdgesByNode(edges: Edge[], nodeIds: Set<string>): Map<string, Edge[]> {
+  const result = new Map<string, Edge[]>()
+  edges.forEach((edge) => {
+    if (nodeIds.has(edge.source)) {
+      const list = result.get(edge.source) ?? []
+      list.push(edge)
+      result.set(edge.source, list)
+      return
+    }
+    if (nodeIds.has(edge.target)) {
+      const list = result.get(edge.target) ?? []
+      list.push(edge)
+      result.set(edge.target, list)
+    }
+  })
+  return result
+}
+
+export function syncPanelWithSelection(selectedIds: string[]): void {
+  const { currentBlockId, clearCurrentBlock, setCurrentBlockId } = usePanelEditorStore.getState()
+  if (selectedIds.length === 0) {
+    if (currentBlockId) clearCurrentBlock()
+  } else {
+    const lastSelectedId = selectedIds[selectedIds.length - 1]
+    if (lastSelectedId !== currentBlockId) {
+      setCurrentBlockId(lastSelectedId)
+    }
+  }
 }

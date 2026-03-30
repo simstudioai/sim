@@ -711,11 +711,24 @@ export const StructuredOutput = memo(function StructuredOutput({
   }, [])
 
   // Reset expanded paths when data changes
+  const prevDataJsonRef = useRef<string>('')
+
   useEffect(() => {
-    if (prevDataRef.current !== data || prevIsErrorRef.current !== isError) {
+    if (prevIsErrorRef.current !== isError) {
       prevDataRef.current = data
       prevIsErrorRef.current = isError
+      prevDataJsonRef.current = JSON.stringify(data)
       setExpandedPaths(computeInitialPaths(data, isError))
+      return
+    }
+
+    if (prevDataRef.current !== data) {
+      const newJson = JSON.stringify(data)
+      if (prevDataJsonRef.current !== newJson) {
+        prevDataJsonRef.current = newJson
+        setExpandedPaths(computeInitialPaths(data, isError))
+      }
+      prevDataRef.current = data
     }
   }, [data, isError])
 

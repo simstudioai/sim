@@ -3,7 +3,7 @@ import { useBlockState } from '@/app/workspace/[workspaceId]/w/[workflowId]/comp
 import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { getBlockRingStyles } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-ring-utils'
-import { useLastRunPath } from '@/stores/execution'
+import { useBlockRunStatus, useIsBlockPending } from '@/stores/execution'
 import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -15,8 +15,6 @@ interface UseBlockVisualProps {
   blockId: string
   /** Block data including type, config, and preview state */
   data: WorkflowBlockProps
-  /** Whether the block is pending execution */
-  isPending?: boolean
   /** Whether the block is selected (via shift-click or selection box) */
   isSelected?: boolean
 }
@@ -30,12 +28,7 @@ interface UseBlockVisualProps {
  * @param props - The hook properties
  * @returns Visual state, click handler, and ring styling for the block
  */
-export function useBlockVisual({
-  blockId,
-  data,
-  isPending = false,
-  isSelected = false,
-}: UseBlockVisualProps) {
+export function useBlockVisual({ blockId, data, isSelected = false }: UseBlockVisualProps) {
   const isPreview = data.isPreview ?? false
   const isEmbedded = data.isEmbedded ?? false
   const isPreviewSelected = data.isPreviewSelected ?? false
@@ -65,8 +58,8 @@ export function useBlockVisual({
   )
   const isEditorOpen = !isPreview && !isEmbedded && isThisBlockInEditor && activeTabIsEditor
 
-  const lastRunPath = useLastRunPath()
-  const runPathStatus = isPreview ? undefined : lastRunPath.get(blockId)
+  const isPending = useIsBlockPending(blockId)
+  const runPathStatus = useBlockRunStatus(blockId)
 
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
 
@@ -84,7 +77,7 @@ export function useBlockVisual({
         isPending: isPreview ? false : isPending,
         isDeletedBlock: isPreview ? false : isDeletedBlock,
         diffStatus: isPreview ? undefined : diffStatus,
-        runPathStatus,
+        runPathStatus: isPreview ? undefined : runPathStatus,
         isPreviewSelection: isPreview && isPreviewSelected,
         isSelected: isPreview || isEmbedded ? false : isSelected,
       }),
