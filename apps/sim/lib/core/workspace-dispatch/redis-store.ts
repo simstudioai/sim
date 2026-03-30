@@ -12,7 +12,7 @@ import {
 const logger = createLogger('WorkspaceDispatchRedisStore')
 
 const DISPATCH_PREFIX = 'workspace-dispatch:v1'
-const JOB_TTL_SECONDS = 48 * 60 * 60
+const JOB_TTL_SECONDS = 2 * 60 * 60
 const SEQUENCE_KEY = `${DISPATCH_PREFIX}:sequence`
 const ACTIVE_WORKSPACES_KEY = `${DISPATCH_PREFIX}:workspaces`
 const GLOBAL_DEPTH_KEY = `${DISPATCH_PREFIX}:global-depth`
@@ -549,6 +549,7 @@ export class RedisWorkspaceDispatchStorage implements WorkspaceDispatchStorageAd
       status: 'completed',
       completedAt: Date.now(),
       output,
+      bullmqPayload: undefined,
     }))
     await this.redis.decr(GLOBAL_DEPTH_KEY).catch(() => undefined)
   }
@@ -559,6 +560,7 @@ export class RedisWorkspaceDispatchStorage implements WorkspaceDispatchStorageAd
       status: 'failed',
       completedAt: Date.now(),
       error,
+      bullmqPayload: undefined,
     }))
     await this.redis.decr(GLOBAL_DEPTH_KEY).catch(() => undefined)
   }

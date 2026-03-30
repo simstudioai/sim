@@ -473,6 +473,7 @@ export class MemoryWorkspaceDispatchStorage implements WorkspaceDispatchStorageA
       status: 'completed',
       completedAt: Date.now(),
       output,
+      bullmqPayload: undefined,
     }))
   }
 
@@ -482,6 +483,7 @@ export class MemoryWorkspaceDispatchStorage implements WorkspaceDispatchStorageA
       status: 'failed',
       completedAt: Date.now(),
       error,
+      bullmqPayload: undefined,
     }))
   }
 

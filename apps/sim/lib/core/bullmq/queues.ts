@@ -28,22 +28,22 @@ function getQueueDefaultOptions(type: JobType) {
       return {
         attempts: 3,
         backoff: { type: 'exponential' as const, delay: 1000 },
-        removeOnComplete: { age: 24 * 60 * 60 },
-        removeOnFail: { age: 7 * 24 * 60 * 60 },
+        removeOnComplete: { age: 2 * 60 * 60, count: 1000 },
+        removeOnFail: { age: 2 * 60 * 60, count: 500 },
       }
     case 'webhook-execution':
       return {
         attempts: 2,
         backoff: { type: 'exponential' as const, delay: 2000 },
-        removeOnComplete: { age: 24 * 60 * 60 },
-        removeOnFail: { age: 3 * 24 * 60 * 60 },
+        removeOnComplete: { age: 2 * 60 * 60, count: 1000 },
+        removeOnFail: { age: 2 * 60 * 60, count: 500 },
       }
     case 'schedule-execution':
       return {
         attempts: 2,
         backoff: { type: 'exponential' as const, delay: 5000 },
-        removeOnComplete: { age: 24 * 60 * 60 },
-        removeOnFail: { age: 3 * 24 * 60 * 60 },
+        removeOnComplete: { age: 2 * 60 * 60, count: 1000 },
+        removeOnFail: { age: 2 * 60 * 60, count: 500 },
       }
   }
 }
@@ -69,8 +69,8 @@ function createNamedQueue(
         defaultJobOptions: {
           attempts: 3,
           backoff: { type: 'exponential', delay: 5000 },
-          removeOnComplete: { age: 24 * 60 * 60 },
-          removeOnFail: { age: 7 * 24 * 60 * 60 },
+          removeOnComplete: { age: 2 * 60 * 60, count: 500 },
+          removeOnFail: { age: 2 * 60 * 60, count: 200 },
         },
       })
     case KNOWLEDGE_DOCUMENT_PROCESSING_QUEUE:
@@ -79,8 +79,8 @@ function createNamedQueue(
         defaultJobOptions: {
           attempts: 3,
           backoff: { type: 'exponential', delay: 1000 },
-          removeOnComplete: { age: 24 * 60 * 60 },
-          removeOnFail: { age: 7 * 24 * 60 * 60 },
+          removeOnComplete: { age: 2 * 60 * 60, count: 500 },
+          removeOnFail: { age: 2 * 60 * 60, count: 200 },
         },
       })
     case MOTHERSHIP_JOB_EXECUTION_QUEUE:
@@ -88,8 +88,8 @@ function createNamedQueue(
         connection: getBullMQConnectionOptions(),
         defaultJobOptions: {
           attempts: 1,
-          removeOnComplete: { age: 24 * 60 * 60 },
-          removeOnFail: { age: 7 * 24 * 60 * 60 },
+          removeOnComplete: { age: 2 * 60 * 60, count: 500 },
+          removeOnFail: { age: 2 * 60 * 60, count: 200 },
         },
       })
     case WORKSPACE_NOTIFICATION_DELIVERY_QUEUE:
@@ -97,8 +97,8 @@ function createNamedQueue(
         connection: getBullMQConnectionOptions(),
         defaultJobOptions: {
           attempts: 1,
-          removeOnComplete: { age: 24 * 60 * 60 },
-          removeOnFail: { age: 7 * 24 * 60 * 60 },
+          removeOnComplete: { age: 2 * 60 * 60, count: 500 },
+          removeOnFail: { age: 2 * 60 * 60, count: 200 },
         },
       })
   }
