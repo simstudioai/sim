@@ -400,25 +400,7 @@ export const ProfoundBlock: BlockConfig = {
 
   outputs: {
     response: {
-      type: {
-        totalRows: 'number',
-        data: 'json',
-        categories: 'json',
-        regions: 'json',
-        models: 'json',
-        domains: 'json',
-        assets: 'json',
-        personas: 'json',
-        topics: 'json',
-        tags: 'json',
-        prompts: 'json',
-        optimizations: 'json',
-        content: 'json',
-        aeoContentScore: 'json',
-        analysis: 'json',
-        recommendations: 'json',
-        nextCursor: 'string',
-      },
+      type: 'json',
     },
   },
 }
