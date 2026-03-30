@@ -1,7 +1,15 @@
 'use client'
 
 import type React from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import clsx from 'clsx'
 import {
   ArrowDown,
@@ -535,21 +543,67 @@ const EntryNodeRow = memo(function EntryNodeRow({
   )
 })
 
-interface TerminalLogListDataRef {
-  rows: VisibleTerminalRow[]
-  selectedEntryId: string | null
-  onSelectEntry: (entry: ConsoleEntry) => void
-  expandedNodes: Set<string>
-  onToggleNode: (nodeId: string) => void
+const EMPTY_EXPANDED_NODES = new Set<string>()
+const NOOP_TOGGLE = () => {}
+
+type Listener = () => void
+
+interface RowSignalStore {
+  subscribe: (listener: Listener) => () => void
+  getSelectedId: () => string | null
+  getExpandedNodes: () => Set<string>
+  getOnSelectEntry: () => (entry: ConsoleEntry) => void
+  getOnToggleNode: () => (nodeId: string) => void
+}
+
+function createRowSignalStore(): RowSignalStore & {
+  update: (
+    selectedEntryId: string | null,
+    expandedNodes: Set<string>,
+    onSelectEntry: (entry: ConsoleEntry) => void,
+    onToggleNode: (nodeId: string) => void
+  ) => void
+} {
+  let _selectedId: string | null = null
+  let _expandedNodes: Set<string> = new Set()
+  let _onSelectEntry: (entry: ConsoleEntry) => void = () => {}
+  let _onToggleNode: (nodeId: string) => void = () => {}
+  const _listeners = new Set<Listener>()
+
+  return {
+    subscribe(listener: Listener) {
+      _listeners.add(listener)
+      return () => _listeners.delete(listener)
+    },
+    getSelectedId: () => _selectedId,
+    getExpandedNodes: () => _expandedNodes,
+    getOnSelectEntry: () => _onSelectEntry,
+    getOnToggleNode: () => _onToggleNode,
+    update(selectedEntryId, expandedNodes, onSelectEntry, onToggleNode) {
+      const changed = _selectedId !== selectedEntryId || _expandedNodes !== expandedNodes
+      _selectedId = selectedEntryId
+      _expandedNodes = expandedNodes
+      _onSelectEntry = onSelectEntry
+      _onToggleNode = onToggleNode
+      if (changed) {
+        _listeners.forEach((l) => l())
+      }
+    },
+  }
 }
 
 interface TerminalLogListRowProps {
-  dataRef: React.RefObject<TerminalLogListDataRef>
+  dataRef: React.RefObject<{ rows: VisibleTerminalRow[] }>
+  signalStore: RowSignalStore
 }
 
-function TerminalLogListRow({ index, style, dataRef }: RowComponentProps<TerminalLogListRowProps>) {
-  const { rows, selectedEntryId, onSelectEntry, expandedNodes, onToggleNode } = dataRef.current
-  const row = rows[index]
+function TerminalLogListRow({
+  index,
+  style,
+  dataRef,
+  signalStore,
+}: RowComponentProps<TerminalLogListRowProps>) {
+  const row = dataRef.current.rows[index]
 
   if (row.rowType === 'separator') {
     return (
@@ -562,18 +616,77 @@ function TerminalLogListRow({ index, style, dataRef }: RowComponentProps<Termina
   return (
     <div style={style} className='px-[6px]'>
       <div className='ml-[4px]' style={{ paddingLeft: row.depth === 0 ? 0 : row.depth * 16 }}>
-        <EntryNodeRow
-          node={row.node!}
-          selectedEntryId={selectedEntryId}
-          onSelectEntry={onSelectEntry}
-          expandedNodes={expandedNodes}
-          onToggleNode={onToggleNode}
-          renderChildren={false}
-        />
+        <VirtualEntryNodeRow node={row.node!} signalStore={signalStore} />
       </div>
     </div>
   )
 }
+
+const VirtualEntryNodeRow = memo(function VirtualEntryNodeRow({
+  node,
+  signalStore,
+}: {
+  node: EntryNode
+  signalStore: RowSignalStore
+}) {
+  const nodeId = node.entry.id
+  const { nodeType } = node
+
+  const isSelected = useSyncExternalStore(
+    signalStore.subscribe,
+    () => signalStore.getSelectedId() === nodeId
+  )
+
+  const isExpanded = useSyncExternalStore(signalStore.subscribe, () =>
+    signalStore.getExpandedNodes().has(nodeId)
+  )
+
+  const onSelectEntry = signalStore.getOnSelectEntry()
+  const onToggleNode = signalStore.getOnToggleNode()
+
+  if (nodeType === 'subflow') {
+    return (
+      <SubflowNodeRow
+        node={node}
+        selectedEntryId={isSelected ? nodeId : null}
+        onSelectEntry={onSelectEntry}
+        expandedNodes={EMPTY_EXPANDED_NODES}
+        onToggleNode={NOOP_TOGGLE}
+        renderChildren={false}
+      />
+    )
+  }
+
+  if (nodeType === 'workflow') {
+    return (
+      <WorkflowNodeRow
+        node={node}
+        selectedEntryId={isSelected ? nodeId : null}
+        onSelectEntry={onSelectEntry}
+        expandedNodes={EMPTY_EXPANDED_NODES}
+        onToggleNode={NOOP_TOGGLE}
+        renderChildren={false}
+      />
+    )
+  }
+
+  if (nodeType === 'iteration') {
+    return (
+      <IterationNodeRow
+        node={node}
+        selectedEntryId={isSelected ? nodeId : null}
+        onSelectEntry={onSelectEntry}
+        isExpanded={isExpanded}
+        onToggle={() => onToggleNode(nodeId)}
+        expandedNodes={EMPTY_EXPANDED_NODES}
+        onToggleNode={NOOP_TOGGLE}
+        renderChildren={false}
+      />
+    )
+  }
+
+  return <BlockRow entry={node.entry} isSelected={isSelected} onSelect={onSelectEntry} />
+})
 
 const TerminalLogsPane = memo(function TerminalLogsPane({
   executionGroups,
@@ -655,21 +768,17 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
     listRef.current?.scrollToRow({ index: newCount - 1, align: 'end' })
   }, [rows.length, listRef])
 
-  const dataRef = useRef<TerminalLogListDataRef>({
-    rows,
-    selectedEntryId,
-    onSelectEntry,
-    expandedNodes,
-    onToggleNode,
-  })
-  dataRef.current = { rows, selectedEntryId, onSelectEntry, expandedNodes, onToggleNode }
+  const dataRef = useRef<{ rows: VisibleTerminalRow[] }>({ rows })
+  dataRef.current = { rows }
+
+  const signalStoreRef = useRef(createRowSignalStore())
+  signalStoreRef.current.update(selectedEntryId, expandedNodes, onSelectEntry, onToggleNode)
 
   useEffect(() => {
     if (!selectedEntryId) return
 
-    const currentRows = dataRef.current.rows
-    const rowIndex = currentRows.findIndex(
-      (row) => row.rowType === 'node' && row.node?.entry.id === selectedEntryId
+    const rowIndex = dataRef.current.rows.findIndex(
+      (row: VisibleTerminalRow) => row.rowType === 'node' && row.node?.entry.id === selectedEntryId
     )
 
     if (rowIndex !== -1) {
@@ -677,7 +786,10 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
     }
   }, [selectedEntryId, listRef])
 
-  const rowProps = useMemo<TerminalLogListRowProps>(() => ({ dataRef }), [dataRef])
+  const rowProps = useMemo<TerminalLogListRowProps>(
+    () => ({ dataRef, signalStore: signalStoreRef.current }),
+    [dataRef]
+  )
 
   return (
     <div ref={containerRef} className='h-full bg-[var(--bg-primary)]' style={{ contain: 'strict' }}>
@@ -1000,14 +1112,20 @@ export const Terminal = memo(function Terminal() {
     }
   }, [])
 
+  const outputDataRef = useRef(outputData)
+  outputDataRef.current = outputData
+  const shouldShowCodeDisplayRef = useRef(shouldShowCodeDisplay)
+  shouldShowCodeDisplayRef.current = shouldShowCodeDisplay
+
   const handleCopy = useCallback(() => {
-    if (!selectedEntry) return
-    const textToCopy = shouldShowCodeDisplay
-      ? selectedEntry.input.code
-      : safeConsoleStringify(outputData)
+    const entry = selectedEntryRef.current
+    if (!entry) return
+    const textToCopy = shouldShowCodeDisplayRef.current
+      ? entry.input.code
+      : safeConsoleStringify(outputDataRef.current)
     navigator.clipboard.writeText(textToCopy)
     setShowCopySuccess(true)
-  }, [selectedEntry, outputData, shouldShowCodeDisplay])
+  }, [])
 
   const clearCurrentWorkflowConsole = useCallback(() => {
     if (activeWorkflowId) {

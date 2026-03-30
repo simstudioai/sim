@@ -101,6 +101,222 @@ export interface OutputPanelProps {
   handleClearConsoleFromMenu: () => void
 }
 
+interface OutputPanelToolbarProps {
+  isOutputSearchActive: boolean
+  handleSearchClick: (e: React.MouseEvent) => void
+  handleCloseSearchClick: (e: React.MouseEvent) => void
+  isPlaygroundEnabled: boolean
+  shouldShowTrainingButton: boolean
+  isTraining: boolean
+  handleTrainingClick: (e: React.MouseEvent) => void
+  showCopySuccess: boolean
+  handleCopyClick: (e: React.MouseEvent) => void
+  hasEntries: boolean
+  handleExportConsole: (e: React.MouseEvent) => void
+  handleClearConsole: (e: React.MouseEvent) => void
+  structuredView: boolean
+  handleToggleStructuredView: () => void
+  wrapText: boolean
+  handleToggleWrapText: () => void
+  openOnRun: boolean
+  handleToggleOpenOnRun: () => void
+  isExpanded: boolean
+  handleToggleButtonClick: (e: React.MouseEvent) => void
+}
+
+const OutputPanelToolbar = React.memo(function OutputPanelToolbar({
+  isOutputSearchActive,
+  handleSearchClick,
+  handleCloseSearchClick,
+  isPlaygroundEnabled,
+  shouldShowTrainingButton,
+  isTraining,
+  handleTrainingClick,
+  showCopySuccess,
+  handleCopyClick,
+  hasEntries,
+  handleExportConsole,
+  handleClearConsole,
+  structuredView,
+  handleToggleStructuredView,
+  wrapText,
+  handleToggleWrapText,
+  openOnRun,
+  handleToggleOpenOnRun,
+  isExpanded,
+  handleToggleButtonClick,
+}: OutputPanelToolbarProps) {
+  const [outputOptionsOpen, setOutputOptionsOpen] = useState(false)
+
+  return (
+    <div className='flex flex-shrink-0 items-center gap-2'>
+      {isOutputSearchActive ? (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='ghost'
+              onClick={handleCloseSearchClick}
+              aria-label='Close search'
+              className='!p-1.5 -m-1.5'
+            >
+              <X className='h-3.5 w-3.5' />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content>
+            <span>Close search</span>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      ) : (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='ghost'
+              onClick={handleSearchClick}
+              aria-label='Search in output'
+              className='!p-1.5 -m-1.5'
+            >
+              <Search className='h-3.5 w-3.5' />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content>
+            <span>Search</span>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
+
+      {isPlaygroundEnabled && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Link href='/playground'>
+              <Button variant='ghost' aria-label='Component Playground' className='!p-1.5 -m-1.5'>
+                <Palette className='h-3.5 w-3.5' />
+              </Button>
+            </Link>
+          </Tooltip.Trigger>
+          <Tooltip.Content>
+            <span>Component Playground</span>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
+
+      {shouldShowTrainingButton && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='ghost'
+              onClick={handleTrainingClick}
+              aria-label={isTraining ? 'Stop training' : 'Train Copilot'}
+              className={clsx(
+                '!p-1.5 -m-1.5',
+                isTraining && 'text-orange-600 dark:text-orange-400'
+              )}
+            >
+              {isTraining ? (
+                <Pause className='h-3.5 w-3.5' />
+              ) : (
+                <Database className='h-3.5 w-3.5' />
+              )}
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content>
+            <span>{isTraining ? 'Stop Training' : 'Train Copilot'}</span>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
+
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='ghost'
+            onClick={handleCopyClick}
+            aria-label='Copy output'
+            className='!p-1.5 -m-1.5'
+          >
+            {showCopySuccess ? (
+              <Check className='h-3.5 w-3.5' />
+            ) : (
+              <Clipboard className='h-3.5 w-3.5' />
+            )}
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content>
+          <span>{showCopySuccess ? 'Copied' : 'Copy output'}</span>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      {hasEntries && (
+        <>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='ghost'
+                onClick={handleExportConsole}
+                aria-label='Download console CSV'
+                className='!p-1.5 -m-1.5'
+              >
+                <ArrowDownToLine className='h-3.5 w-3.5' />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content>
+              <span>Download CSV</span>
+            </Tooltip.Content>
+          </Tooltip.Root>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                variant='ghost'
+                onClick={handleClearConsole}
+                aria-label='Clear console'
+                className='!p-1.5 -m-1.5'
+              >
+                <Trash2 className='h-3.5 w-3.5' />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content>
+              <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
+            </Tooltip.Content>
+          </Tooltip.Root>
+        </>
+      )}
+      <Popover open={outputOptionsOpen} onOpenChange={setOutputOptionsOpen} size='sm'>
+        <PopoverTrigger asChild>
+          <Button
+            variant='ghost'
+            onClick={(e) => e.stopPropagation()}
+            aria-label='Terminal options'
+            className='!p-1.5 -m-1.5'
+          >
+            <MoreHorizontal className='h-3.5 w-3.5' />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          side='bottom'
+          align='end'
+          sideOffset={4}
+          collisionPadding={0}
+          onClick={(e) => e.stopPropagation()}
+          style={{ minWidth: '140px', maxWidth: '160px' }}
+          className='gap-0.5'
+        >
+          <PopoverItem
+            active={structuredView}
+            showCheck={structuredView}
+            onClick={handleToggleStructuredView}
+          >
+            <span>Structured view</span>
+          </PopoverItem>
+          <PopoverItem active={wrapText} showCheck={wrapText} onClick={handleToggleWrapText}>
+            <span>Wrap text</span>
+          </PopoverItem>
+          <PopoverItem active={openOnRun} showCheck={openOnRun} onClick={handleToggleOpenOnRun}>
+            <span>Open on run</span>
+          </PopoverItem>
+        </PopoverContent>
+      </Popover>
+      <ToggleButton isExpanded={isExpanded} onClick={handleToggleButtonClick} />
+    </div>
+  )
+})
+
 /**
  * Output panel component that manages its own search state.
  * Accesses store-backed settings directly to reduce prop drilling.
@@ -137,7 +353,6 @@ export const OutputPanel = React.memo(function OutputPanel({
   const setStructuredView = useTerminalStore((state) => state.setStructuredView)
 
   const outputContentRef = useRef<HTMLDivElement>(null)
-  const [outputOptionsOpen, setOutputOptionsOpen] = useState(false)
   const {
     isSearchActive: isOutputSearchActive,
     searchQuery: outputSearchQuery,
@@ -333,179 +548,28 @@ export const OutputPanel = React.memo(function OutputPanel({
               </Button>
             )}
           </div>
-          <div className='flex flex-shrink-0 items-center gap-2'>
-            {isOutputSearchActive ? (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    onClick={handleCloseSearchClick}
-                    aria-label='Close search'
-                    className='!p-1.5 -m-1.5'
-                  >
-                    <X className='h-3.5 w-3.5' />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <span>Close search</span>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            ) : (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    onClick={handleSearchClick}
-                    aria-label='Search in output'
-                    className='!p-1.5 -m-1.5'
-                  >
-                    <Search className='h-3.5 w-3.5' />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <span>Search</span>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            )}
-
-            {isPlaygroundEnabled && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Link href='/playground'>
-                    <Button
-                      variant='ghost'
-                      aria-label='Component Playground'
-                      className='!p-1.5 -m-1.5'
-                    >
-                      <Palette className='h-3.5 w-3.5' />
-                    </Button>
-                  </Link>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <span>Component Playground</span>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            )}
-
-            {shouldShowTrainingButton && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    onClick={handleTrainingClick}
-                    aria-label={isTraining ? 'Stop training' : 'Train Copilot'}
-                    className={clsx(
-                      '!p-1.5 -m-1.5',
-                      isTraining && 'text-orange-600 dark:text-orange-400'
-                    )}
-                  >
-                    {isTraining ? (
-                      <Pause className='h-3.5 w-3.5' />
-                    ) : (
-                      <Database className='h-3.5 w-3.5' />
-                    )}
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <span>{isTraining ? 'Stop Training' : 'Train Copilot'}</span>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            )}
-
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  onClick={handleCopyClick}
-                  aria-label='Copy output'
-                  className='!p-1.5 -m-1.5'
-                >
-                  {showCopySuccess ? (
-                    <Check className='h-3.5 w-3.5' />
-                  ) : (
-                    <Clipboard className='h-3.5 w-3.5' />
-                  )}
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content>
-                <span>{showCopySuccess ? 'Copied' : 'Copy output'}</span>
-              </Tooltip.Content>
-            </Tooltip.Root>
-            {hasEntries && (
-              <>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      variant='ghost'
-                      onClick={handleExportConsole}
-                      aria-label='Download console CSV'
-                      className='!p-1.5 -m-1.5'
-                    >
-                      <ArrowDownToLine className='h-3.5 w-3.5' />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>
-                    <span>Download CSV</span>
-                  </Tooltip.Content>
-                </Tooltip.Root>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      variant='ghost'
-                      onClick={handleClearConsole}
-                      aria-label='Clear console'
-                      className='!p-1.5 -m-1.5'
-                    >
-                      <Trash2 className='h-3.5 w-3.5' />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content>
-                    <Tooltip.Shortcut keys='⌘D'>Clear console</Tooltip.Shortcut>
-                  </Tooltip.Content>
-                </Tooltip.Root>
-              </>
-            )}
-            <Popover open={outputOptionsOpen} onOpenChange={setOutputOptionsOpen} size='sm'>
-              <PopoverTrigger asChild>
-                <Button
-                  variant='ghost'
-                  onClick={(e) => e.stopPropagation()}
-                  aria-label='Terminal options'
-                  className='!p-1.5 -m-1.5'
-                >
-                  <MoreHorizontal className='h-3.5 w-3.5' />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                side='bottom'
-                align='end'
-                sideOffset={4}
-                collisionPadding={0}
-                onClick={(e) => e.stopPropagation()}
-                style={{ minWidth: '140px', maxWidth: '160px' }}
-                className='gap-0.5'
-              >
-                <PopoverItem
-                  active={structuredView}
-                  showCheck={structuredView}
-                  onClick={handleToggleStructuredView}
-                >
-                  <span>Structured view</span>
-                </PopoverItem>
-                <PopoverItem active={wrapText} showCheck={wrapText} onClick={handleToggleWrapText}>
-                  <span>Wrap text</span>
-                </PopoverItem>
-                <PopoverItem
-                  active={openOnRun}
-                  showCheck={openOnRun}
-                  onClick={handleToggleOpenOnRun}
-                >
-                  <span>Open on run</span>
-                </PopoverItem>
-              </PopoverContent>
-            </Popover>
-            <ToggleButton isExpanded={isExpanded} onClick={handleToggleButtonClick} />
-          </div>
+          <OutputPanelToolbar
+            isOutputSearchActive={isOutputSearchActive}
+            handleSearchClick={handleSearchClick}
+            handleCloseSearchClick={handleCloseSearchClick}
+            isPlaygroundEnabled={isPlaygroundEnabled}
+            shouldShowTrainingButton={shouldShowTrainingButton}
+            isTraining={isTraining}
+            handleTrainingClick={handleTrainingClick}
+            showCopySuccess={showCopySuccess}
+            handleCopyClick={handleCopyClick}
+            hasEntries={hasEntries}
+            handleExportConsole={handleExportConsole}
+            handleClearConsole={handleClearConsole}
+            structuredView={structuredView}
+            handleToggleStructuredView={handleToggleStructuredView}
+            wrapText={wrapText}
+            handleToggleWrapText={handleToggleWrapText}
+            openOnRun={openOnRun}
+            handleToggleOpenOnRun={handleToggleOpenOnRun}
+            isExpanded={isExpanded}
+            handleToggleButtonClick={handleToggleButtonClick}
+          />
         </div>
 
         {/* Search Overlay */}
