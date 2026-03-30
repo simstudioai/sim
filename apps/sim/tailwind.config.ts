@@ -126,6 +126,12 @@ export default {
         'brand-inset': 'var(--shadow-brand-inset)',
         card: 'var(--shadow-card)',
       },
+      dropShadow: {
+        tour: [
+          '0 0 0.5px color-mix(in srgb, var(--text-primary) 10%, transparent)',
+          '0 4px 12px rgba(0,0,0,0.1)',
+        ],
+      },
       transitionProperty: {
         width: 'width',
         left: 'left',
