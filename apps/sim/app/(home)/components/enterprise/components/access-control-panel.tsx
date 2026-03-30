@@ -112,7 +112,7 @@ function FeatureToggleItem({
       className='flex cursor-pointer items-center gap-2 rounded-[4px] py-0.5'
       initial={{ opacity: 0, x: -6 }}
       animate={isInView ? { opacity: 1, x: 0 } : {}}
-      transition={{ delay, ...transition }}
+      transition={{ ...transition, delay }}
       onClick={onToggle}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
