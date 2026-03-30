@@ -8,6 +8,7 @@
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
+import { getBaseDomain } from '@/lib/core/utils/urls'
 
 const logger = createLogger('ProfoundAnalytics')
 
@@ -97,7 +98,7 @@ export function sendToProfound(request: Request, statusCode: number): void {
     buffer.push({
       timestamp: new Date().toISOString(),
       method: request.method,
-      host: url.hostname,
+      host: getBaseDomain(),
       path: url.pathname,
       status_code: statusCode,
       ip:
