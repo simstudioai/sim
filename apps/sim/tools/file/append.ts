@@ -3,7 +3,6 @@ import type { ToolConfig, ToolResponse, WorkflowToolExecutionContext } from '@/t
 interface FileAppendParams {
   fileName: string
   content: string
-  contentType?: string
   workspaceId?: string
   _context?: WorkflowToolExecutionContext
 }
@@ -28,12 +27,6 @@ export const fileAppendTool: ToolConfig<FileAppendParams, ToolResponse> = {
       visibility: 'user-or-llm',
       description: 'The text content to append to the file.',
     },
-    contentType: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'MIME type (e.g., "text/plain"). Auto-detected from file extension if omitted.',
-    },
   },
 
   request: {
@@ -44,7 +37,6 @@ export const fileAppendTool: ToolConfig<FileAppendParams, ToolResponse> = {
       operation: 'append',
       fileName: params.fileName,
       content: params.content,
-      contentType: params.contentType,
       workspaceId: params.workspaceId || params._context?.workspaceId,
     }),
   },
