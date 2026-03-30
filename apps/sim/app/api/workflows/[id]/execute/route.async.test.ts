@@ -46,15 +46,24 @@ vi.mock('@/lib/core/async-jobs', () => ({
     completeJob: vi.fn(),
     markJobFailed: vi.fn(),
   }),
-  shouldExecuteInline: vi.fn().mockReturnValue(false),
-  shouldUseBullMQ: vi.fn().mockReturnValue(true),
 }))
 
 vi.mock('@/lib/core/bullmq', () => ({
-  createBullMQJobData: vi.fn((payload: unknown, metadata?: unknown) => ({ payload, metadata })),
+  createBullMQJobData: vi.fn((payload: unknown, metadata?: unknown) => ({
+    payload,
+    metadata: metadata ?? {},
+  })),
+  isBullMQEnabled: vi.fn().mockReturnValue(true),
 }))
 
 vi.mock('@/lib/core/workspace-dispatch', () => ({
+  DispatchQueueFullError: class DispatchQueueFullError extends Error {
+    statusCode = 503
+    constructor(scope: string, depth: number, limit: number) {
+      super(`${scope} queue at capacity (${depth}/${limit})`)
+      this.name = 'DispatchQueueFullError'
+    }
+  },
   enqueueWorkspaceDispatch: mockEnqueueWorkspaceDispatch,
   waitForDispatchJob: vi.fn(),
 }))
