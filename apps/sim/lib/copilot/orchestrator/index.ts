@@ -14,7 +14,6 @@ import {
   updateRunStatus,
 } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
-import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import {
   isToolAvailableOnSimSide,
   prepareExecutionContext,
@@ -128,15 +127,11 @@ export async function orchestrateCopilotStream(
     messageId,
   })
   const continuationWorkerId = `sim-resume:${crypto.randomUUID()}`
-  const withLogContext = (message: string) =>
-    appendCopilotLogContext(message, {
-      requestId: context.requestId,
-      messageId,
-    })
+  const reqLogger = logger.withMetadata({ requestId: context.requestId, messageId })
   let claimedToolCallIds: string[] = []
   let claimedByWorkerId: string | null = null
 
-  logger.error(withLogContext('Starting copilot orchestration'), {
+  reqLogger.info('Starting copilot orchestration', {
     goRoute,
     workflowId,
     workspaceId,
@@ -155,7 +150,7 @@ export async function orchestrateCopilotStream(
     for (;;) {
       context.streamComplete = false
 
-      logger.error(withLogContext('Starting orchestration loop iteration'), {
+      reqLogger.info('Starting orchestration loop iteration', {
         route,
         hasPendingAsyncContinuation: Boolean(context.awaitingAsyncContinuation),
         claimedToolCallCount: claimedToolCallIds.length,
@@ -168,7 +163,7 @@ export async function orchestrateCopilotStream(
             const d = (event.data ?? {}) as Record<string, unknown>
             const response = (d.response ?? {}) as Record<string, unknown>
             if (response.async_pause) {
-              logger.error(withLogContext('Detected async pause from copilot backend'), {
+              reqLogger.info('Detected async pause from copilot backend', {
                 route,
                 checkpointId:
                   typeof (response.async_pause as Record<string, unknown>)?.checkpointId ===
@@ -201,7 +196,7 @@ export async function orchestrateCopilotStream(
         loopOptions
       )
 
-      logger.error(withLogContext('Completed orchestration loop iteration'), {
+      reqLogger.info('Completed orchestration loop iteration', {
         route,
         streamComplete: context.streamComplete,
         wasAborted: context.wasAborted,
@@ -210,7 +205,7 @@ export async function orchestrateCopilotStream(
       })
 
       if (claimedToolCallIds.length > 0) {
-        logger.error(withLogContext('Marking async tool calls as delivered'), {
+        reqLogger.info('Marking async tool calls as delivered', {
           toolCallIds: claimedToolCallIds,
         })
         await Promise.all(
@@ -223,7 +218,7 @@ export async function orchestrateCopilotStream(
       }
 
       if (options.abortSignal?.aborted || context.wasAborted) {
-        logger.error(withLogContext('Stopping orchestration because request was aborted'), {
+        reqLogger.info('Stopping orchestration because request was aborted', {
           pendingToolCallCount: Array.from(context.toolCalls.values()).filter(
             (toolCall) => toolCall.status === 'pending' || toolCall.status === 'executing'
           ).length,
@@ -241,13 +236,13 @@ export async function orchestrateCopilotStream(
 
       const continuation = context.awaitingAsyncContinuation
       if (!continuation) {
-        logger.error(withLogContext('No async continuation pending; finishing orchestration'))
+        reqLogger.info('No async continuation pending; finishing orchestration')
         break
       }
 
       let resumeReady = false
       let resumeRetries = 0
-      logger.error(withLogContext('Processing async continuation'), {
+      reqLogger.info('Processing async continuation', {
         checkpointId: continuation.checkpointId,
         runId: continuation.runId,
         pendingToolCallIds: continuation.pendingToolCallIds,
@@ -267,26 +262,19 @@ export async function orchestrateCopilotStream(
 
           if (localPendingPromise) {
             localPendingPromises.push(localPendingPromise)
-            logger.info(
-              withLogContext(
-                'Waiting for local async tool completion before retrying resume claim'
-              ),
-              {
-                toolCallId,
-                runId: continuation.runId,
-                workerId: resumeWorkerId,
-              }
-            )
+            reqLogger.info('Waiting for local async tool completion before retrying resume claim', {
+              toolCallId,
+              runId: continuation.runId,
+              workerId: resumeWorkerId,
+            })
             continue
           }
 
           if (durableRow && isTerminalAsyncStatus(durableRow.status)) {
             if (durableRow.claimedBy && durableRow.claimedBy !== resumeWorkerId) {
               missingToolCallIds.push(toolCallId)
-              logger.warn(
-                withLogContext(
-                  'Async tool continuation is waiting on a claim held by another worker'
-                ),
+              reqLogger.warn(
+                'Async tool continuation is waiting on a claim held by another worker',
                 {
                   toolCallId,
                   runId: continuation.runId,
@@ -312,15 +300,12 @@ export async function orchestrateCopilotStream(
             isTerminalToolCallStatus(toolState.status) &&
             !isToolAvailableOnSimSide(toolState.name)
           ) {
-            logger.info(
-              withLogContext('Including Go-handled tool in resume payload (no Sim-side row)'),
-              {
-                toolCallId,
-                toolName: toolState.name,
-                status: toolState.status,
-                runId: continuation.runId,
-              }
-            )
+            reqLogger.info('Including Go-handled tool in resume payload (no Sim-side row)', {
+              toolCallId,
+              toolName: toolState.name,
+              status: toolState.status,
+              runId: continuation.runId,
+            })
             readyTools.push({
               toolCallId,
               toolState,
@@ -330,7 +315,7 @@ export async function orchestrateCopilotStream(
             continue
           }
 
-          logger.warn(withLogContext('Skipping already-claimed or missing async tool resume'), {
+          reqLogger.warn('Skipping already-claimed or missing async tool resume', {
             toolCallId,
             runId: continuation.runId,
             durableStatus: durableRow?.status,
@@ -340,13 +325,10 @@ export async function orchestrateCopilotStream(
         }
 
         if (localPendingPromises.length > 0) {
-          logger.info(
-            withLogContext('Waiting for local pending async tools before resuming continuation'),
-            {
-              checkpointId: continuation.checkpointId,
-              pendingPromiseCount: localPendingPromises.length,
-            }
-          )
+          reqLogger.info('Waiting for local pending async tools before resuming continuation', {
+            checkpointId: continuation.checkpointId,
+            pendingPromiseCount: localPendingPromises.length,
+          })
           await Promise.allSettled(localPendingPromises)
           continue
         }
@@ -354,23 +336,18 @@ export async function orchestrateCopilotStream(
         if (missingToolCallIds.length > 0) {
           if (resumeRetries < 3) {
             resumeRetries++
-            logger.info(
-              withLogContext('Retrying async resume after some tool calls were not yet ready'),
-              {
-                checkpointId: continuation.checkpointId,
-                runId: continuation.runId,
-                workerId: resumeWorkerId,
-                retry: resumeRetries,
-                missingToolCallIds,
-              }
-            )
+            reqLogger.info('Retrying async resume after some tool calls were not yet ready', {
+              checkpointId: continuation.checkpointId,
+              runId: continuation.runId,
+              workerId: resumeWorkerId,
+              retry: resumeRetries,
+              missingToolCallIds,
+            })
             await new Promise((resolve) => setTimeout(resolve, 250 * resumeRetries))
             continue
           }
-          logger.error(
-            withLogContext(
-              'Async continuation failed because pending tool calls never became ready'
-            ),
+          reqLogger.error(
+            'Async continuation failed because pending tool calls never became ready',
             {
               checkpointId: continuation.checkpointId,
               runId: continuation.runId,
@@ -385,26 +362,20 @@ export async function orchestrateCopilotStream(
         if (readyTools.length === 0) {
           if (resumeRetries < 3 && continuation.pendingToolCallIds.length > 0) {
             resumeRetries++
-            logger.info(
-              withLogContext('Retrying async resume because no tool calls were ready yet'),
-              {
-                checkpointId: continuation.checkpointId,
-                runId: continuation.runId,
-                workerId: resumeWorkerId,
-                retry: resumeRetries,
-              }
-            )
+            reqLogger.info('Retrying async resume because no tool calls were ready yet', {
+              checkpointId: continuation.checkpointId,
+              runId: continuation.runId,
+              workerId: resumeWorkerId,
+              retry: resumeRetries,
+            })
             await new Promise((resolve) => setTimeout(resolve, 250 * resumeRetries))
             continue
           }
-          logger.error(
-            withLogContext('Async continuation failed because no tool calls were ready'),
-            {
-              checkpointId: continuation.checkpointId,
-              runId: continuation.runId,
-              requestedToolCallIds: continuation.pendingToolCallIds,
-            }
-          )
+          reqLogger.error('Async continuation failed because no tool calls were ready', {
+            checkpointId: continuation.checkpointId,
+            runId: continuation.runId,
+            requestedToolCallIds: continuation.pendingToolCallIds,
+          })
           throw new Error('Failed to resume async tool continuation: no tool calls were ready')
         }
 
@@ -425,16 +396,13 @@ export async function orchestrateCopilotStream(
 
         if (claimFailures.length > 0) {
           if (newlyClaimedToolCallIds.length > 0) {
-            logger.info(
-              withLogContext('Releasing async tool claims after claim contention during resume'),
-              {
-                checkpointId: continuation.checkpointId,
-                runId: continuation.runId,
-                workerId: resumeWorkerId,
-                newlyClaimedToolCallIds,
-                claimFailures,
-              }
-            )
+            reqLogger.info('Releasing async tool claims after claim contention during resume', {
+              checkpointId: continuation.checkpointId,
+              runId: continuation.runId,
+              workerId: resumeWorkerId,
+              newlyClaimedToolCallIds,
+              claimFailures,
+            })
             await Promise.all(
               newlyClaimedToolCallIds.map((toolCallId) =>
                 releaseCompletedAsyncToolClaim(toolCallId, resumeWorkerId).catch(() => null)
@@ -443,7 +411,7 @@ export async function orchestrateCopilotStream(
           }
           if (resumeRetries < 3) {
             resumeRetries++
-            logger.error(withLogContext('Retrying async resume after claim contention'), {
+            reqLogger.info('Retrying async resume after claim contention', {
               checkpointId: continuation.checkpointId,
               runId: continuation.runId,
               workerId: resumeWorkerId,
@@ -453,14 +421,11 @@ export async function orchestrateCopilotStream(
             await new Promise((resolve) => setTimeout(resolve, 250 * resumeRetries))
             continue
           }
-          logger.error(
-            withLogContext('Async continuation failed because tool claims could not be acquired'),
-            {
-              checkpointId: continuation.checkpointId,
-              runId: continuation.runId,
-              claimFailures,
-            }
-          )
+          reqLogger.error('Async continuation failed because tool claims could not be acquired', {
+            checkpointId: continuation.checkpointId,
+            runId: continuation.runId,
+            claimFailures,
+          })
           throw new Error(
             `Failed to resume async tool continuation: unable to claim tool calls (${claimFailures.join(', ')})`
           )
@@ -474,7 +439,7 @@ export async function orchestrateCopilotStream(
         ]
         claimedByWorkerId = claimedToolCallIds.length > 0 ? resumeWorkerId : null
 
-        logger.error(withLogContext('Resuming async tool continuation'), {
+        reqLogger.info('Resuming async tool continuation', {
           checkpointId: continuation.checkpointId,
           runId: continuation.runId,
           workerId: resumeWorkerId,
@@ -514,10 +479,8 @@ export async function orchestrateCopilotStream(
               !isTerminalAsyncStatus(durableStatus) &&
               !isDeliveredAsyncStatus(durableStatus)
             ) {
-              logger.warn(
-                withLogContext(
-                  'Async tool row was claimed for resume without terminal durable state'
-                ),
+              reqLogger.warn(
+                'Async tool row was claimed for resume without terminal durable state',
                 {
                   toolCallId: tool.toolCallId,
                   status: durableStatus,
@@ -540,7 +503,7 @@ export async function orchestrateCopilotStream(
           checkpointId: continuation.checkpointId,
           results,
         }
-        logger.error(withLogContext('Prepared async continuation payload for resume endpoint'), {
+        reqLogger.info('Prepared async continuation payload for resume endpoint', {
           route,
           checkpointId: continuation.checkpointId,
           resultCount: results.length,
@@ -550,7 +513,7 @@ export async function orchestrateCopilotStream(
       }
 
       if (!resumeReady) {
-        logger.warn(withLogContext('Async continuation loop exited without resume payload'), {
+        reqLogger.warn('Async continuation loop exited without resume payload', {
           checkpointId: continuation.checkpointId,
           runId: continuation.runId,
         })
@@ -569,7 +532,7 @@ export async function orchestrateCopilotStream(
       usage: context.usage,
       cost: context.cost,
     }
-    logger.error(withLogContext('Completing copilot orchestration'), {
+    reqLogger.info('Completing copilot orchestration', {
       success: result.success,
       chatId: result.chatId,
       hasRequestId: Boolean(result.requestId),
@@ -581,7 +544,7 @@ export async function orchestrateCopilotStream(
   } catch (error) {
     const err = error instanceof Error ? error : new Error('Copilot orchestration failed')
     if (claimedToolCallIds.length > 0 && claimedByWorkerId) {
-      logger.warn(withLogContext('Releasing async tool claims after delivery failure'), {
+      reqLogger.warn('Releasing async tool claims after delivery failure', {
         toolCallIds: claimedToolCallIds,
         workerId: claimedByWorkerId,
       })
@@ -591,7 +554,7 @@ export async function orchestrateCopilotStream(
         )
       )
     }
-    logger.error(withLogContext('Copilot orchestration failed'), {
+    reqLogger.error('Copilot orchestration failed', {
       error: err.message,
     })
     await options.onError?.(err)

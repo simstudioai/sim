@@ -3,7 +3,6 @@ import { credential, mcpServers, pendingCredentialDraft, user } from '@sim/db/sc
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, lt } from 'drizzle-orm'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
-import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import type {
   ExecutionContext,
   ToolCallResult,
@@ -322,17 +321,14 @@ async function executeManageCustomTool(
       error: `Unsupported operation for manage_custom_tool: ${operation}`,
     }
   } catch (error) {
-    logger.error(
-      appendCopilotLogContext('manage_custom_tool execution failed', {
-        messageId: context.messageId,
-      }),
-      {
+    logger
+      .withMetadata({ messageId: context.messageId })
+      .error('manage_custom_tool execution failed', {
         operation,
         workspaceId,
         userId: context.userId,
         error: error instanceof Error ? error.message : String(error),
-      }
-    )
+      })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to manage custom tool',
@@ -559,16 +555,13 @@ async function executeManageMcpTool(
 
     return { success: false, error: `Unsupported operation for manage_mcp_tool: ${operation}` }
   } catch (error) {
-    logger.error(
-      appendCopilotLogContext('manage_mcp_tool execution failed', {
-        messageId: context.messageId,
-      }),
-      {
+    logger
+      .withMetadata({ messageId: context.messageId })
+      .error('manage_mcp_tool execution failed', {
         operation,
         workspaceId,
         error: error instanceof Error ? error.message : String(error),
-      }
-    )
+      })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to manage MCP server',
@@ -727,16 +720,11 @@ async function executeManageSkill(
 
     return { success: false, error: `Unsupported operation for manage_skill: ${operation}` }
   } catch (error) {
-    logger.error(
-      appendCopilotLogContext('manage_skill execution failed', {
-        messageId: context.messageId,
-      }),
-      {
-        operation,
-        workspaceId,
-        error: error instanceof Error ? error.message : String(error),
-      }
-    )
+    logger.withMetadata({ messageId: context.messageId }).error('manage_skill execution failed', {
+      operation,
+      workspaceId,
+      error: error instanceof Error ? error.message : String(error),
+    })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to manage skill',
@@ -1007,15 +995,12 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
         },
       }
     } catch (err) {
-      logger.warn(
-        appendCopilotLogContext('Failed to generate OAuth link, falling back to generic URL', {
-          messageId: c.messageId,
-        }),
-        {
+      logger
+        .withMetadata({ messageId: c.messageId })
+        .warn('Failed to generate OAuth link, falling back to generic URL', {
           providerName,
           error: err instanceof Error ? err.message : String(err),
-        }
-      )
+        })
       const workspaceUrl = c.workspaceId
         ? `${baseUrl}/workspace/${c.workspaceId}`
         : `${baseUrl}/workspace`
@@ -1199,12 +1184,9 @@ export async function executeToolServerSide(
 
   const toolConfig = getTool(resolvedToolName)
   if (!toolConfig) {
-    logger.warn(
-      appendCopilotLogContext('Tool not found in registry', {
-        messageId: context.messageId,
-      }),
-      { toolName, resolvedToolName }
-    )
+    logger
+      .withMetadata({ messageId: context.messageId })
+      .warn('Tool not found in registry', { toolName, resolvedToolName })
     return {
       success: false,
       error: `Tool not found: ${toolName}`,
@@ -1293,15 +1275,10 @@ async function executeServerToolDirect(
 
     return { success: true, output: result }
   } catch (error) {
-    logger.error(
-      appendCopilotLogContext('Server tool execution failed', {
-        messageId: context.messageId,
-      }),
-      {
-        toolName,
-        error: error instanceof Error ? error.message : String(error),
-      }
-    )
+    logger.withMetadata({ messageId: context.messageId }).error('Server tool execution failed', {
+      toolName,
+      error: error instanceof Error ? error.message : String(error),
+    })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Server tool execution failed',
@@ -1377,7 +1354,7 @@ export async function markToolComplete(
       })
 
       if (!response.ok) {
-        logger.warn(appendCopilotLogContext('Mark-complete call failed', { messageId }), {
+        logger.withMetadata({ messageId }).warn('Mark-complete call failed', {
           toolCallId,
           toolName,
           status: response.status,
@@ -1391,7 +1368,7 @@ export async function markToolComplete(
     }
   } catch (error) {
     const isTimeout = error instanceof DOMException && error.name === 'AbortError'
-    logger.error(appendCopilotLogContext('Mark-complete call failed', { messageId }), {
+    logger.withMetadata({ messageId }).error('Mark-complete call failed', {
       toolCallId,
       toolName,
       timedOut: isTimeout,

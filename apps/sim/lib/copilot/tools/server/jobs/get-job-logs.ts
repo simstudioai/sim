@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { jobExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
-import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -86,8 +85,7 @@ function extractOutputAndError(executionData: any): {
 export const getJobLogsServerTool: BaseServerTool<GetJobLogsArgs, JobLogEntry[]> = {
   name: 'get_job_logs',
   async execute(rawArgs: GetJobLogsArgs, context?: ServerToolContext): Promise<JobLogEntry[]> {
-    const withMessageId = (message: string) =>
-      appendCopilotLogContext(message, { messageId: context?.messageId })
+    const reqLogger = logger.withMetadata({ messageId: context?.messageId })
 
     const {
       jobId,
@@ -114,7 +112,7 @@ export const getJobLogsServerTool: BaseServerTool<GetJobLogsArgs, JobLogEntry[]>
 
     const clampedLimit = Math.min(Math.max(1, limit), 5)
 
-    logger.info(withMessageId('Fetching job logs'), {
+    reqLogger.info('Fetching job logs', {
       jobId,
       executionId,
       limit: clampedLimit,
@@ -173,7 +171,7 @@ export const getJobLogsServerTool: BaseServerTool<GetJobLogsArgs, JobLogEntry[]>
       return entry
     })
 
-    logger.info(withMessageId('Job logs prepared'), {
+    reqLogger.info('Job logs prepared', {
       jobId,
       count: entries.length,
       resultSizeKB: Math.round(JSON.stringify(entries).length / 1024),

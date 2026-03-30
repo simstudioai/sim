@@ -82,14 +82,16 @@ vi.mock('@/background/workflow-execution', () => ({
   executeWorkflowJob: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
+vi.mock('@sim/logger', () => {
+  const createMockLogger = (): Record<string, any> => ({
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
-  }),
-}))
+    withMetadata: vi.fn(() => createMockLogger()),
+  })
+  return { createLogger: vi.fn(() => createMockLogger()) }
+})
 
 vi.mock('uuid', () => ({
   validate: vi.fn().mockReturnValue(true),
