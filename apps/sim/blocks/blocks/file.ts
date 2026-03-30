@@ -250,9 +250,9 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
 export const FileV3Block: BlockConfig<FileParserV3Output> = {
   type: 'file_v3',
   name: 'File',
-  description: 'Read and parse multiple files',
+  description: 'Read and write workspace files',
   longDescription:
-    'Upload files directly or import from external URLs to get UserFile objects for use in other blocks.',
+    'Read and parse files from uploads or URLs, write new workspace files, or append content to existing files.',
   docsLink: 'https://docs.sim.ai/tools/file',
   category: 'tools',
   integrationType: IntegrationType.FileStorage,
@@ -260,6 +260,17 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
   bgColor: '#40916C',
   icon: DocumentIcon,
   subBlocks: [
+    {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown' as SubBlockType,
+      options: [
+        { label: 'Read', id: 'file_parser_v3' },
+        { label: 'Write', id: 'file_write' },
+        { label: 'Append', id: 'file_append' },
+      ],
+      value: () => 'file_parser_v3',
+    },
     {
       id: 'file',
       title: 'Files',
@@ -270,7 +281,8 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
       multiple: true,
       mode: 'basic',
       maxSize: 100,
-      required: true,
+      required: { field: 'operation', value: 'file_parser_v3' },
+      condition: { field: 'operation', value: 'file_parser_v3' },
     },
     {
       id: 'fileUrl',
@@ -279,15 +291,84 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
       canonicalParamId: 'fileInput',
       placeholder: 'https://example.com/document.pdf',
       mode: 'advanced',
-      required: true,
+      required: { field: 'operation', value: 'file_parser_v3' },
+      condition: { field: 'operation', value: 'file_parser_v3' },
+    },
+    {
+      id: 'fileName',
+      title: 'File Name',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'File name (e.g., data.csv)',
+      condition: { field: 'operation', value: 'file_write' },
+      required: { field: 'operation', value: 'file_write' },
+    },
+    {
+      id: 'content',
+      title: 'Content',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'File content to write...',
+      condition: { field: 'operation', value: 'file_write' },
+      required: { field: 'operation', value: 'file_write' },
+    },
+    {
+      id: 'contentType',
+      title: 'Content Type',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'text/plain (auto-detected from extension)',
+      condition: { field: 'operation', value: 'file_write' },
+      mode: 'advanced',
+    },
+    {
+      id: 'appendFileName',
+      title: 'File',
+      type: 'dropdown' as SubBlockType,
+      placeholder: 'Select a workspace file...',
+      condition: { field: 'operation', value: 'file_append' },
+      required: { field: 'operation', value: 'file_append' },
+      options: [],
+      fetchOptions: async () => {
+        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
+        const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
+        if (!workspaceId) return []
+        const response = await fetch(`/api/workspaces/${workspaceId}/files`)
+        const data = await response.json()
+        if (!data.success || !data.files) return []
+        return data.files.map((f: { name: string }) => ({ label: f.name, id: f.name }))
+      },
+    },
+    {
+      id: 'appendContent',
+      title: 'Content',
+      type: 'long-input' as SubBlockType,
+      placeholder: 'Content to append...',
+      condition: { field: 'operation', value: 'file_append' },
+      required: { field: 'operation', value: 'file_append' },
     },
   ],
   tools: {
-    access: ['file_parser_v3'],
+    access: ['file_parser_v3', 'file_write', 'file_append'],
     config: {
-      tool: () => 'file_parser_v3',
+      tool: (params) => params.operation || 'file_parser_v3',
       params: (params) => {
-        // Use canonical 'fileInput' param directly
+        const operation = params.operation || 'file_parser_v3'
+
+        if (operation === 'file_write') {
+          return {
+            fileName: params.fileName,
+            content: params.content,
+            contentType: params.contentType,
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_append') {
+          return {
+            fileName: params.appendFileName,
+            content: params.appendContent,
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
         const fileInput = params.fileInput
         if (!fileInput) {
           logger.error('No file input provided')
@@ -326,17 +407,39 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
     },
   },
   inputs: {
-    fileInput: { type: 'json', description: 'File input (canonical param)' },
-    fileType: { type: 'string', description: 'File type' },
+    operation: { type: 'string', description: 'Operation to perform (read, write, or append)' },
+    fileInput: { type: 'json', description: 'File input for read (canonical param)' },
+    fileType: { type: 'string', description: 'File type for read' },
+    fileName: { type: 'string', description: 'Name for a new file (write)' },
+    content: { type: 'string', description: 'File content to write' },
+    contentType: { type: 'string', description: 'MIME content type for write' },
+    appendFileName: { type: 'string', description: 'Name of existing file to append to' },
+    appendContent: { type: 'string', description: 'Content to append to file' },
   },
   outputs: {
     files: {
       type: 'file[]',
-      description: 'Parsed files as UserFile objects',
+      description: 'Parsed files as UserFile objects (read)',
     },
     combinedContent: {
       type: 'string',
-      description: 'All file contents merged into a single text string',
+      description: 'All file contents merged into a single text string (read)',
+    },
+    id: {
+      type: 'string',
+      description: 'File ID (write)',
+    },
+    name: {
+      type: 'string',
+      description: 'File name (write)',
+    },
+    size: {
+      type: 'number',
+      description: 'File size in bytes (write)',
+    },
+    url: {
+      type: 'string',
+      description: 'URL to access the file (write)',
     },
   },
 }

@@ -498,7 +498,13 @@ import {
   fathomListTeamMembersTool,
   fathomListTeamsTool,
 } from '@/tools/fathom'
-import { fileParserV2Tool, fileParserV3Tool, fileParseTool } from '@/tools/file'
+import {
+  fileAppendTool,
+  fileParserV2Tool,
+  fileParserV3Tool,
+  fileParseTool,
+  fileWriteTool,
+} from '@/tools/file'
 import {
   firecrawlAgentTool,
   firecrawlCrawlTool,
@@ -2603,6 +2609,8 @@ export const tools: Record<string, ToolConfig> = {
   file_parser: fileParseTool,
   file_parser_v2: fileParserV2Tool,
   file_parser_v3: fileParserV3Tool,
+  file_append: fileAppendTool,
+  file_write: fileWriteTool,
   firecrawl_scrape: firecrawlScrapeTool,
   firecrawl_search: firecrawlSearchTool,
   firecrawl_crawl: firecrawlCrawlTool,
