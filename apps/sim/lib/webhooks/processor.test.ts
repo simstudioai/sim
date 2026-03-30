@@ -11,14 +11,12 @@ const {
   mockEnqueue,
   mockEnqueueWorkspaceDispatch,
   mockGetJobQueue,
-  mockShouldExecuteInline,
 } = vi.hoisted(() => ({
   mockUuidV4: vi.fn(),
   mockPreprocessExecution: vi.fn(),
   mockEnqueue: vi.fn(),
   mockEnqueueWorkspaceDispatch: vi.fn(),
   mockGetJobQueue: vi.fn(),
-  mockShouldExecuteInline: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -61,7 +59,6 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
 vi.mock('@/lib/core/async-jobs', () => ({
   getInlineJobQueue: vi.fn(),
   getJobQueue: mockGetJobQueue,
-  shouldExecuteInline: mockShouldExecuteInline,
 }))
 
 vi.mock('@/lib/core/bullmq', () => ({
@@ -75,6 +72,7 @@ vi.mock('@/lib/core/workspace-dispatch', () => ({
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isProd: false,
+  isTriggerDevEnabled: false,
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
@@ -155,7 +153,6 @@ describe('webhook processor execution identity', () => {
     mockEnqueue.mockResolvedValue('job-1')
     mockEnqueueWorkspaceDispatch.mockResolvedValue('job-1')
     mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
-    mockShouldExecuteInline.mockReturnValue(false)
     mockUuidV4.mockReturnValue('generated-execution-id')
   })
 
