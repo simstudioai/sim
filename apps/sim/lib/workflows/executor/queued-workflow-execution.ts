@@ -108,7 +108,7 @@ export async function executeQueuedWorkflowJob(
       payload.workflow,
       payload.input,
       payload.variables,
-      payload.selectedOutputs ?? []
+      Array.isArray(payload.selectedOutputs) ? payload.selectedOutputs : []
     )
 
     let callbacks = {}

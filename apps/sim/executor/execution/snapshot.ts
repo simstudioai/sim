@@ -28,7 +28,7 @@ export class ExecutionSnapshot {
       data.workflow,
       data.input,
       data.workflowVariables,
-      data.selectedOutputs,
+      Array.isArray(data.selectedOutputs) ? data.selectedOutputs : [],
       data.state
     )
   }

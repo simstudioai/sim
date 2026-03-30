@@ -121,17 +121,6 @@ if selectedRecord == nil then
 end
 
 redis.call('ZADD', leaseKey(), leaseExpiresAt, leaseId)
-selectedRecord.status = 'admitting'
-selectedRecord.lease = {
-  workspaceId = workspaceId,
-  leaseId = leaseId
-}
-if selectedRecord.metadata == nil then
-  selectedRecord.metadata = {}
-end
-selectedRecord.metadata.dispatchLeaseExpiresAt = leaseExpiresAt
-
-redis.call('SET', jobPrefix .. selectedId, cjson.encode(selectedRecord), 'EX', jobTtlSeconds)
 redis.call('ZREM', laneKey(selectedLane), selectedId)
 
 local hasPending, minReadyAt = workspaceHasPending()
@@ -146,7 +135,7 @@ end
 
 return cjson.encode({
   type = 'admitted',
-  record = selectedRecord,
+  jobId = selectedId,
   leaseId = leaseId,
   leaseExpiresAt = leaseExpiresAt
 })
@@ -325,13 +314,37 @@ export class RedisWorkspaceDispatchStorage implements WorkspaceDispatchStorageAd
       String(JOB_TTL_SECONDS)
     )
 
-    const parsed = JSON.parse(String(raw)) as WorkspaceDispatchClaimResult
+    const parsed = JSON.parse(String(raw))
     switch (parsed.type) {
-      case WORKSPACE_DISPATCH_CLAIM_RESULTS.ADMITTED:
-      case WORKSPACE_DISPATCH_CLAIM_RESULTS.DELAYED:
       case WORKSPACE_DISPATCH_CLAIM_RESULTS.LIMIT_REACHED:
       case WORKSPACE_DISPATCH_CLAIM_RESULTS.EMPTY:
-        return parsed
+        return parsed as WorkspaceDispatchClaimResult
+      case WORKSPACE_DISPATCH_CLAIM_RESULTS.DELAYED:
+        return parsed as WorkspaceDispatchClaimResult
+      case WORKSPACE_DISPATCH_CLAIM_RESULTS.ADMITTED: {
+        const record = await this.getDispatchJobRecord(parsed.jobId)
+        if (!record) {
+          throw new Error(`Claimed job ${parsed.jobId} not found in store`)
+        }
+
+        const updatedRecord: WorkspaceDispatchJobRecord = {
+          ...record,
+          status: 'admitting',
+          lease: { workspaceId, leaseId: parsed.leaseId },
+          metadata: {
+            ...record.metadata,
+            dispatchLeaseExpiresAt: parsed.leaseExpiresAt,
+          },
+        }
+        await this.saveDispatchJob(updatedRecord)
+
+        return {
+          type: WORKSPACE_DISPATCH_CLAIM_RESULTS.ADMITTED,
+          record: updatedRecord,
+          leaseId: parsed.leaseId,
+          leaseExpiresAt: parsed.leaseExpiresAt,
+        }
+      }
       default:
         throw new Error(
           `Unknown dispatch claim result: ${String((parsed as { type?: string }).type)}`
