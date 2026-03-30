@@ -1325,7 +1325,7 @@ export async function queueWebhookExecution(
         `[${options.requestId}] Queued ${foundWebhook.provider} webhook execution ${jobId} via inline backend`
       )
 
-      if (shouldExecuteInline()) {
+      if (!isBullMQEnabled()) {
         void (async () => {
           try {
             await jobQueue.startJob(jobId)
