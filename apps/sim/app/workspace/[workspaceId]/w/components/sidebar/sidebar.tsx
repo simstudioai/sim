@@ -151,7 +151,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   isUnread: boolean
   isMenuOpen: boolean
   showCollapsedTooltips: boolean
-  onMultiSelectClick: (taskId: string, shiftKey: boolean, metaKey: boolean) => void
+  onMultiSelectClick: (taskId: string, shiftKey: boolean) => void
   onContextMenu: (e: React.MouseEvent, taskId: string) => void
   onMorePointerDown: () => void
   onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, taskId: string) => void
@@ -167,9 +167,10 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
         )}
         onClick={(e) => {
           if (task.id === 'new') return
-          if (e.shiftKey || e.metaKey || e.ctrlKey) {
+          if (e.metaKey || e.ctrlKey) return
+          if (e.shiftKey) {
             e.preventDefault()
-            onMultiSelectClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
+            onMultiSelectClick(task.id, true)
           } else {
             useFolderStore.setState({
               selectedTasks: new Set<string>(),
@@ -1057,8 +1058,6 @@ export const Sidebar = memo(function Sidebar() {
     }),
     [handleCreateWorkflow]
   )
-
-  const noop = useCallback(() => {}, [])
 
   const handleExpandSidebar = useCallback(
     (e: React.MouseEvent) => {

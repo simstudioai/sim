@@ -35,7 +35,7 @@ interface WorkflowItemProps {
   active: boolean
   level: number
   dragDisabled?: boolean
-  onWorkflowClick: (workflowId: string, shiftKey: boolean, metaKey: boolean) => void
+  onWorkflowClick: (workflowId: string, shiftKey: boolean) => void
   onDragStart?: () => void
   onDragEnd?: () => void
 }
@@ -368,13 +368,15 @@ export function WorkflowItem({
         return
       }
 
-      const isModifierClick = e.shiftKey || e.metaKey || e.ctrlKey
+      if (e.metaKey || e.ctrlKey) {
+        return
+      }
 
-      if (isModifierClick) {
+      if (e.shiftKey) {
         e.preventDefault()
       }
 
-      onWorkflowClick(workflow.id, e.shiftKey, e.metaKey || e.ctrlKey)
+      onWorkflowClick(workflow.id, e.shiftKey)
     },
     [shouldPreventClickRef, workflow.id, onWorkflowClick, isEditing]
   )
