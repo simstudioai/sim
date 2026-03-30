@@ -4,8 +4,6 @@ export {
   getInlineJobQueue,
   getJobQueue,
   resetJobQueueCache,
-  shouldExecuteInline,
-  shouldUseBullMQ,
 } from './config'
 export type {
   AsyncBackendType,

@@ -96,18 +96,6 @@ export async function getInlineJobQueue(): Promise<JobQueueBackend> {
 }
 
 /**
- * Checks if jobs should be executed inline in-process.
- * Database fallback is the only mode that still relies on inline execution.
- */
-export function shouldExecuteInline(): boolean {
-  return getAsyncBackendType() === 'database'
-}
-
-export function shouldUseBullMQ(): boolean {
-  return isBullMQEnabled()
-}
-
-/**
  * Resets the cached backend (useful for testing)
  */
 export function resetJobQueueCache(): void {

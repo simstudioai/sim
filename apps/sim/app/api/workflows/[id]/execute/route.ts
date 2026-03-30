@@ -4,8 +4,8 @@ import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
-import { getJobQueue, shouldExecuteInline, shouldUseBullMQ } from '@/lib/core/async-jobs'
-import { createBullMQJobData } from '@/lib/core/bullmq'
+import { getJobQueue } from '@/lib/core/async-jobs'
+import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import {
   createTimeoutAbortController,
   getTimeoutErrorMessage,
@@ -209,7 +209,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
   }
 
   try {
-    const useBullMQ = shouldUseBullMQ()
+    const useBullMQ = isBullMQEnabled()
     const jobQueue = useBullMQ ? null : await getJobQueue()
     const jobId = useBullMQ
       ? await enqueueWorkspaceDispatch({
@@ -238,7 +238,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
       jobId,
     })
 
-    if (shouldExecuteInline() && jobQueue) {
+    if (!isBullMQEnabled() && jobQueue) {
       const inlineJobQueue = jobQueue
       void (async () => {
         try {
@@ -792,7 +792,7 @@ async function handleExecutePost(
 
       const executionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
 
-      if (shouldUseBullMQ() && !INLINE_TRIGGER_TYPES.has(triggerType)) {
+      if (isBullMQEnabled() && !INLINE_TRIGGER_TYPES.has(triggerType)) {
         try {
           const dispatchJobId = await enqueueDirectWorkflowExecution(
             {
@@ -992,7 +992,7 @@ async function handleExecutePost(
     }
 
     if (shouldUseDraftState) {
-      const shouldDispatchViaQueue = shouldUseBullMQ() && !INLINE_TRIGGER_TYPES.has(triggerType)
+      const shouldDispatchViaQueue = isBullMQEnabled() && !INLINE_TRIGGER_TYPES.has(triggerType)
       if (shouldDispatchViaQueue) {
         const metadata: ExecutionMetadata = {
           requestId,

@@ -4,7 +4,7 @@ import { and, eq, isNull, lt, lte, ne, not, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
+import { getJobQueue } from '@/lib/core/async-jobs'
 import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
           `[${requestId}] Queued schedule execution task ${jobId} for workflow ${schedule.workflowId}`
         )
 
-        if (shouldExecuteInline()) {
+        if (!isBullMQEnabled()) {
           try {
             await jobQueue.startJob(jobId)
             const output = await executeScheduleJob(payload)

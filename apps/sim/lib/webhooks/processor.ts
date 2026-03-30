@@ -5,7 +5,7 @@ import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing/core/subscription'
-import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
+import { getInlineJobQueue, getJobQueue } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { isProd } from '@/lib/core/config/feature-flags'
@@ -1265,7 +1265,7 @@ export async function queueWebhookExecution(
 
     const isPolling = isPollingWebhookProvider(payload.provider)
 
-    if (isPolling && !shouldExecuteInline()) {
+    if (isPolling && isBullMQEnabled()) {
       const jobId = isBullMQEnabled()
         ? await enqueueWorkspaceDispatch({
             id: executionId,
