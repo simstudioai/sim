@@ -314,26 +314,38 @@ export class RedisWorkspaceDispatchStorage implements WorkspaceDispatchStorageAd
       String(JOB_TTL_SECONDS)
     )
 
-    const parsed = JSON.parse(String(raw))
-    switch (parsed.type) {
+    interface LuaClaimResponse {
+      type: string
+      jobId?: string
+      leaseId?: string
+      leaseExpiresAt?: number
+      nextReadyAt?: number
+    }
+
+    const lua: LuaClaimResponse = JSON.parse(String(raw))
+    switch (lua.type) {
       case WORKSPACE_DISPATCH_CLAIM_RESULTS.LIMIT_REACHED:
+        return { type: WORKSPACE_DISPATCH_CLAIM_RESULTS.LIMIT_REACHED }
       case WORKSPACE_DISPATCH_CLAIM_RESULTS.EMPTY:
-        return parsed as WorkspaceDispatchClaimResult
+        return { type: WORKSPACE_DISPATCH_CLAIM_RESULTS.EMPTY }
       case WORKSPACE_DISPATCH_CLAIM_RESULTS.DELAYED:
-        return parsed as WorkspaceDispatchClaimResult
+        return {
+          type: WORKSPACE_DISPATCH_CLAIM_RESULTS.DELAYED,
+          nextReadyAt: lua.nextReadyAt ?? Date.now(),
+        }
       case WORKSPACE_DISPATCH_CLAIM_RESULTS.ADMITTED: {
-        const record = await this.getDispatchJobRecord(parsed.jobId)
+        const record = await this.getDispatchJobRecord(lua.jobId!)
         if (!record) {
-          throw new Error(`Claimed job ${parsed.jobId} not found in store`)
+          throw new Error(`Claimed job ${lua.jobId} not found in store`)
         }
 
         const updatedRecord: WorkspaceDispatchJobRecord = {
           ...record,
           status: 'admitting',
-          lease: { workspaceId, leaseId: parsed.leaseId },
+          lease: { workspaceId, leaseId: lua.leaseId! },
           metadata: {
             ...record.metadata,
-            dispatchLeaseExpiresAt: parsed.leaseExpiresAt,
+            dispatchLeaseExpiresAt: lua.leaseExpiresAt!,
           },
         }
         await this.saveDispatchJob(updatedRecord)
@@ -341,14 +353,12 @@ export class RedisWorkspaceDispatchStorage implements WorkspaceDispatchStorageAd
         return {
           type: WORKSPACE_DISPATCH_CLAIM_RESULTS.ADMITTED,
           record: updatedRecord,
-          leaseId: parsed.leaseId,
-          leaseExpiresAt: parsed.leaseExpiresAt,
+          leaseId: lua.leaseId!,
+          leaseExpiresAt: lua.leaseExpiresAt!,
         }
       }
       default:
-        throw new Error(
-          `Unknown dispatch claim result: ${String((parsed as { type?: string }).type)}`
-        )
+        throw new Error(`Unknown dispatch claim result: ${String(lua.type)}`)
     }
   }
 
