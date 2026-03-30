@@ -151,7 +151,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   isUnread: boolean
   isMenuOpen: boolean
   showCollapsedTooltips: boolean
-  onMultiSelectClick: (taskId: string, shiftKey: boolean, metaKey: boolean) => void
+  onMultiSelectClick: (taskId: string, shiftKey: boolean) => void
   onContextMenu: (e: React.MouseEvent, taskId: string) => void
   onMorePointerDown: () => void
   onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, taskId: string) => void
@@ -170,7 +170,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           if (e.metaKey || e.ctrlKey) return
           if (e.shiftKey) {
             e.preventDefault()
-            onMultiSelectClick(task.id, true, false)
+            onMultiSelectClick(task.id, true)
           } else {
             useFolderStore.setState({
               selectedTasks: new Set<string>(),
