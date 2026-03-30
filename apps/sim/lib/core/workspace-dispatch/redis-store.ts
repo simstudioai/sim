@@ -336,7 +336,11 @@ export class RedisWorkspaceDispatchStorage implements WorkspaceDispatchStorageAd
       case WORKSPACE_DISPATCH_CLAIM_RESULTS.ADMITTED: {
         const record = await this.getDispatchJobRecord(lua.jobId!)
         if (!record) {
-          throw new Error(`Claimed job ${lua.jobId} not found in store`)
+          await this.redis.zrem(workspaceLeaseKey(workspaceId), lua.leaseId!).catch(() => undefined)
+          logger.warn('Claimed job record expired before status update, lease released', {
+            jobId: lua.jobId,
+          })
+          return { type: WORKSPACE_DISPATCH_CLAIM_RESULTS.EMPTY }
         }
 
         const updatedRecord: WorkspaceDispatchJobRecord = {
