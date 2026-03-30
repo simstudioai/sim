@@ -5,6 +5,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { releasePendingChatStream } from '@/lib/copilot/chat-streaming'
 import { taskPubSub } from '@/lib/copilot/task-events'
 
 const logger = createLogger('MothershipChatStopAPI')
@@ -57,6 +58,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { chatId, streamId, content, contentBlocks } = StopSchema.parse(await req.json())
+
+    await releasePendingChatStream(chatId, streamId)
 
     const setClause: Record<string, unknown> = {
       conversationId: null,
