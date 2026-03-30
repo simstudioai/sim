@@ -124,10 +124,7 @@ function FeatureToggleItem({
     >
       <CheckboxIcon checked={enabled} color={color} />
       <ProviderPreviewIcon providerId={feature.providerId} />
-      <span
-        className={textClassName}
-        style={{ color: enabled ? '#F6F6F6AA' : '#F6F6F640' }}
-      >
+      <span className={textClassName} style={{ color: enabled ? '#F6F6F6AA' : '#F6F6F640' }}>
         {feature.name}
       </span>
     </motion.div>
