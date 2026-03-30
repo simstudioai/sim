@@ -210,9 +210,7 @@ function writeIconMapping(iconMapping: Record<string, string>): void {
     const iconMappingPath = path.join(rootDir, 'apps/docs/components/ui/icon-mapping.ts')
 
     // Get unique icon names
-    const iconNames = [...new Set(Object.values(iconMapping))].sort((a, b) =>
-      a.localeCompare(b, 'en', { sensitivity: 'base' }) || a.localeCompare(b)
-    )
+    const iconNames = [...new Set(Object.values(iconMapping))].sort()
 
     // Generate imports
     const imports = iconNames.map((icon) => `  ${icon},`).join('\n')
@@ -510,9 +508,7 @@ function writeIntegrationsIconMapping(iconMapping: Record<string, string>): void
     }
     const iconMappingPath = path.join(LANDING_INTEGRATIONS_DATA_PATH, 'icon-mapping.ts')
 
-    const iconNames = [...new Set(Object.values(iconMapping))].sort((a, b) =>
-      a.localeCompare(b, 'en', { sensitivity: 'base' }) || a.localeCompare(b)
-    )
+    const iconNames = [...new Set(Object.values(iconMapping))].sort()
     const imports = iconNames.map((icon) => `  ${icon},`).join('\n')
     const mappingEntries = Object.entries(iconMapping)
       .sort(([a], [b]) => a.localeCompare(b))
