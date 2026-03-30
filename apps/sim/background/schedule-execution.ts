@@ -303,6 +303,7 @@ async function runWorkflowExecution({
 export type ScheduleExecutionPayload = {
   scheduleId: string
   workflowId: string
+  workspaceId?: string
   executionId?: string
   requestId?: string
   correlation?: AsyncExecutionCorrelation

@@ -82,6 +82,7 @@ const TOOL_ICONS: Record<MothershipToolName | SubagentName | 'mothership', IconC
   create_job: Calendar,
   manage_job: Calendar,
   update_job_history: Calendar,
+  job_respond: Calendar,
   // Management
   manage_mcp_tool: Settings,
   manage_skill: Asterisk,

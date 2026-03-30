@@ -1,6 +1,7 @@
 import { copilotChats, db, mothershipInboxTask, permissions, user, workspace } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
+import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
 import { requestChatTitle } from '@/lib/copilot/chat-streaming'
@@ -187,10 +188,27 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       ...(fileAttachments.length > 0 ? { fileAttachments } : {}),
     }
 
+    const executionId = crypto.randomUUID()
+    const runId = crypto.randomUUID()
+    const runStreamId = crypto.randomUUID()
+
+    if (chatId) {
+      await createRunSegment({
+        id: runId,
+        executionId,
+        chatId,
+        userId,
+        workspaceId: ws.id,
+        streamId: runStreamId,
+      }).catch(() => {})
+    }
+
     const result = await orchestrateCopilotStream(requestPayload, {
       userId,
       workspaceId: ws.id,
       chatId: chatId ?? undefined,
+      executionId,
+      runId,
       goRoute: '/api/mothership/execute',
       autoExecuteTools: true,
       interactive: false,

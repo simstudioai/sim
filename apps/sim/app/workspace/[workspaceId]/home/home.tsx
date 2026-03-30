@@ -54,6 +54,7 @@ export function Home({ chatId }: HomeProps = {}) {
                 description,
                 color,
                 workspaceId,
+                deduplicate: true,
               }),
             })
 

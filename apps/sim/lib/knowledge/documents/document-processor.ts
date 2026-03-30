@@ -5,9 +5,10 @@ import { type Chunk, JsonYamlChunker, StructuredDataChunker, TextChunker } from 
 import { env } from '@/lib/core/config/env'
 import { parseBuffer, parseFile } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
+import { resolveParserExtension } from '@/lib/knowledge/documents/parser-extension'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { StorageService } from '@/lib/uploads'
-import { getExtensionFromMimeType, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { mistralParserTool } from '@/tools/mistral/parser'
 
@@ -759,10 +760,7 @@ async function parseDataURI(fileUrl: string, filename: string, mimeType: string)
       : decodeURIComponent(base64Data)
   }
 
-  const extension =
-    (filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : undefined) ||
-    getExtensionFromMimeType(mimeType) ||
-    'txt'
+  const extension = resolveParserExtension(filename, mimeType, 'txt')
   const buffer = Buffer.from(base64Data, 'base64')
   const result = await parseBuffer(buffer, extension)
   return result.content
@@ -775,14 +773,7 @@ async function parseHttpFile(
 ): Promise<{ content: string; metadata?: FileParseMetadata }> {
   const buffer = await downloadFileWithTimeout(fileUrl)
 
-  let extension = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() : undefined
-  if (!extension && mimeType) {
-    extension = getExtensionFromMimeType(mimeType) ?? undefined
-  }
-  if (!extension) {
-    throw new Error(`Could not determine file type for: ${filename}`)
-  }
-
+  const extension = resolveParserExtension(filename, mimeType)
   const result = await parseBuffer(buffer, extension)
   return result
 }

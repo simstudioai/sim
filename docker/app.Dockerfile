@@ -105,6 +105,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/public ./apps/sim/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/static ./apps/sim/.next/static
 
+# Copy the full dependency tree and app source so the BullMQ worker can run from source.
+# The standalone server continues to use server.js; the worker uses bun on worker/index.ts.
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim ./apps/sim
+COPY --from=builder --chown=nextjs:nodejs /app/packages ./packages
+
 # Copy isolated-vm native module (compiled for Node.js in deps stage)
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modules/isolated-vm
 

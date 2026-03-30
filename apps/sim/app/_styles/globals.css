@@ -15,6 +15,12 @@
   --toolbar-triggers-height: 300px; /* TOOLBAR_TRIGGERS_HEIGHT.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
+  --auth-primary-btn-bg: #ffffff;
+  --auth-primary-btn-border: #ffffff;
+  --auth-primary-btn-text: #000000;
+  --auth-primary-btn-hover-bg: #e0e0e0;
+  --auth-primary-btn-hover-border: #e0e0e0;
+  --auth-primary-btn-hover-text: #000000;
 
   /* z-index scale for layered UI
      Popover must be above modal so dropdowns inside modals render correctly */

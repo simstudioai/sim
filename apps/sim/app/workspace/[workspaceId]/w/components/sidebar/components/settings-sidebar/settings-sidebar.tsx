@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { ChevronDown, Skeleton, Tooltip } from '@/components/emcn'
+import { ChevronDown, Skeleton } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -15,6 +15,7 @@ import {
   isBillingEnabled,
   sectionConfig,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
 import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/general-settings'
@@ -186,31 +187,24 @@ export function SettingsSidebar({
     <>
       {/* Back button */}
       <div className='mt-2.5 flex flex-shrink-0 flex-col gap-0.5 px-2'>
-        <Tooltip.Root key={`back-${isCollapsed}`}>
-          <Tooltip.Trigger asChild>
-            <button
-              type='button'
-              onClick={handleBack}
-              className='group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm hover-hover:bg-[var(--surface-hover)]'
-            >
-              <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
-                <ChevronDown className='h-[10px] w-[10px] rotate-90' />
-              </div>
-              <span className='truncate font-base text-[var(--text-body)]'>Back</span>
-            </button>
-          </Tooltip.Trigger>
-          {showCollapsedTooltips && (
-            <Tooltip.Content side='right'>
-              <p>Back</p>
-            </Tooltip.Content>
-          )}
-        </Tooltip.Root>
+        <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
+          <button
+            type='button'
+            onClick={handleBack}
+            className='group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm hover-hover:bg-[var(--surface-hover)]'
+          >
+            <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
+              <ChevronDown className='h-[10px] w-[10px] rotate-90' />
+            </div>
+            <span className='truncate font-base text-[var(--text-body)]'>Back</span>
+          </button>
+        </SidebarTooltip>
       </div>
 
       {/* Settings sections */}
       <div
         className={cn(
-          'mt-3.5 flex flex-1 flex-col gap-3.5',
+          'mt-3.5 flex flex-1 flex-col gap-3.5 pb-2',
           !isCollapsed && 'overflow-y-auto overflow-x-hidden'
         )}
       >
@@ -303,14 +297,13 @@ export function SettingsSidebar({
                     )
 
                     return (
-                      <Tooltip.Root key={`${item.id}-${isCollapsed}`}>
-                        <Tooltip.Trigger asChild>{element}</Tooltip.Trigger>
-                        {showCollapsedTooltips && (
-                          <Tooltip.Content side='right'>
-                            <p>{item.label}</p>
-                          </Tooltip.Content>
-                        )}
-                      </Tooltip.Root>
+                      <SidebarTooltip
+                        key={`${item.id}-${isCollapsed}`}
+                        label={item.label}
+                        enabled={showCollapsedTooltips}
+                      >
+                        {element}
+                      </SidebarTooltip>
                     )
                   })}
                 </div>

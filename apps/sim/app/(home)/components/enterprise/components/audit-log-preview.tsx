@@ -146,14 +146,14 @@ function AuditRow({ entry, index }: AuditRowProps) {
         </div>
 
         {/* Time */}
-        <span className='w-[56px] shrink-0 font-[430] font-season text-[#F6F6F6]/30 text-[11px] leading-none tracking-[0.02em]'>
+        <span className='w-[56px] shrink-0 font-[430] font-season text-[#F6F6F6]/55 text-[11px] leading-none tracking-[0.02em]'>
           {timeAgo}
         </span>
 
         <span className='min-w-0 truncate font-[430] font-season text-[12px] leading-none tracking-[0.02em]'>
           <span className='text-[#F6F6F6]/80'>{entry.actor}</span>
           <span className='hidden sm:inline'>
-            <span className='text-[#F6F6F6]/40'> · </span>
+            <span className='text-[#F6F6F6]/60'> · </span>
             <span className='text-[#F6F6F6]/55'>{entry.description}</span>
           </span>
         </span>

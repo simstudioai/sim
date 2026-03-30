@@ -128,7 +128,7 @@ function TaskStatusIcon({
 function WorkflowColorSwatch({ color }: { color: string }) {
   return (
     <div
-      className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+      className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
       style={{
         backgroundColor: color,
         borderColor: `${color}60`,
@@ -161,7 +161,7 @@ export function CollapsedSidebarMenu({
             <button
               type='button'
               aria-label={ariaLabel}
-              className='mx-0.5 flex h-[30px] items-center rounded-[8px] px-2 hover-hover:bg-[var(--surface-hover)]'
+              className='mx-0.5 flex h-[30px] items-center rounded-lg px-2 hover-hover:bg-[var(--surface-hover)]'
             >
               {icon}
             </button>
@@ -245,9 +245,6 @@ export function CollapsedTaskFlyoutItem({
           title={task.name}
           isActive={!!task.isActive}
           isUnread={!!task.isUnread}
-          statusIndicatorClassName={
-            !(isCurrentRoute || isMenuOpen) ? 'group-hover:hidden' : undefined
-          }
         />
       </Link>
       {showActions && (

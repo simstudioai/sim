@@ -18,7 +18,7 @@ export const metadata = {
   metadataBase: new URL('https://docs.sim.ai'),
   title: {
     default: 'Sim Documentation — Build AI Agents & Run Your Agentic Workforce',
-    template: '%s',
+    template: '%s | Sim Docs',
   },
   description:
     'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.',

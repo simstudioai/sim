@@ -1,0 +1,33 @@
+config:
+  target: "{{ $processEnvironment.BASE_URL }}"
+  phases:
+    - duration: "{{ $processEnvironment.WAVE_ONE_DURATION }}"
+      arrivalRate: "{{ $processEnvironment.WAVE_ONE_RATE }}"
+      name: wave-one
+    - duration: "{{ $processEnvironment.QUIET_DURATION }}"
+      arrivalRate: 1
+      name: quiet-gap
+    - duration: "{{ $processEnvironment.WAVE_TWO_DURATION }}"
+      arrivalRate: "{{ $processEnvironment.WAVE_TWO_RATE }}"
+      name: wave-two
+    - duration: "{{ $processEnvironment.QUIET_DURATION }}"
+      arrivalRate: 1
+      name: quiet-gap-two
+    - duration: "{{ $processEnvironment.WAVE_THREE_DURATION }}"
+      arrivalRate: "{{ $processEnvironment.WAVE_THREE_RATE }}"
+      name: wave-three
+  defaults:
+    headers:
+      content-type: application/json
+      x-api-key: "{{ $processEnvironment.SIM_API_KEY }}"
+      x-execution-mode: async
+scenarios:
+  - name: workflow-queue-waves
+    flow:
+      - post:
+          url: "/api/workflows/{{ $processEnvironment.WORKFLOW_ID }}/execute"
+          json:
+            input:
+              source: artillery-waves
+              runId: "{{ $uuid }}"
+              waveProfile: single-workspace

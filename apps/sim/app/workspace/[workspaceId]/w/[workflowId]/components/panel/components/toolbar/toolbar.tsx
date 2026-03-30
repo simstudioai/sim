@@ -28,6 +28,7 @@ import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/component
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import type { BlockConfig } from '@/blocks/types'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSandboxBlockConstraints } from '@/hooks/use-sandbox-block-constraints'
 import { useToolbarStore } from '@/stores/panel'
 
 interface BlockItem {
@@ -348,12 +349,20 @@ export const Toolbar = memo(
     })
 
     const { filterBlocks } = usePermissionConfig()
+    const sandboxAllowedBlocks = useSandboxBlockConstraints()
 
     const allTriggers = getTriggers()
     const allBlocks = getBlocks()
 
-    const blocks = useMemo(() => filterBlocks(allBlocks), [filterBlocks, allBlocks])
-    const triggers = useMemo(() => filterBlocks(allTriggers), [filterBlocks, allTriggers])
+    const blocks = useMemo(() => {
+      const permitted = filterBlocks(allBlocks)
+      if (sandboxAllowedBlocks === null) return permitted
+      return permitted.filter((b) => sandboxAllowedBlocks.includes(b.type))
+    }, [filterBlocks, allBlocks, sandboxAllowedBlocks])
+    const triggers = useMemo(() => {
+      if (sandboxAllowedBlocks !== null) return []
+      return filterBlocks(allTriggers)
+    }, [filterBlocks, allTriggers, sandboxAllowedBlocks])
 
     const isTriggersAtMinimum = toolbarTriggersHeight <= TRIGGERS_MIN_THRESHOLD
 

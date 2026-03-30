@@ -10,17 +10,36 @@ function isDarkBackground(hexColor: string): boolean {
   return luminance < 0.5
 }
 
+function getContrastTextColor(hexColor: string): string {
+  return isDarkBackground(hexColor) ? '#ffffff' : '#000000'
+}
+
 export function generateThemeCSS(): string {
   const cssVars: string[] = []
 
   if (process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR) {
     cssVars.push(`--brand: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR};`)
-    // Override brand-accent so Run/Deploy buttons and other accent-styled elements use the brand color
     cssVars.push(`--brand-accent: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR};`)
+    cssVars.push(`--auth-primary-btn-bg: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR};`)
+    cssVars.push(`--auth-primary-btn-border: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR};`)
+    cssVars.push(`--auth-primary-btn-hover-bg: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR};`)
+    cssVars.push(`--auth-primary-btn-hover-border: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR};`)
+    const primaryTextColor = getContrastTextColor(process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR)
+    cssVars.push(`--auth-primary-btn-text: ${primaryTextColor};`)
+    cssVars.push(`--auth-primary-btn-hover-text: ${primaryTextColor};`)
   }
 
   if (process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR) {
     cssVars.push(`--brand-hover: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR};`)
+    cssVars.push(
+      `--auth-primary-btn-hover-bg: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR};`
+    )
+    cssVars.push(
+      `--auth-primary-btn-hover-border: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR};`
+    )
+    cssVars.push(
+      `--auth-primary-btn-hover-text: ${getContrastTextColor(process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR)};`
+    )
   }
 
   if (process.env.NEXT_PUBLIC_BRAND_ACCENT_COLOR) {
@@ -32,7 +51,6 @@ export function generateThemeCSS(): string {
   }
 
   if (process.env.NEXT_PUBLIC_BRAND_BACKGROUND_COLOR) {
-    // Add dark theme class when background is dark
     const isDark = isDarkBackground(process.env.NEXT_PUBLIC_BRAND_BACKGROUND_COLOR)
     if (isDark) {
       cssVars.push(`--brand-is-dark: 1;`)

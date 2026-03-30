@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { copilotFeedback } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import {
@@ -109,7 +110,7 @@ export async function POST(req: NextRequest) {
 
 /**
  * GET /api/copilot/feedback
- * Get all feedback records (for analytics)
+ * Get feedback records for the authenticated user
  */
 export async function GET(req: NextRequest) {
   const tracker = createRequestTracker()
@@ -123,7 +124,7 @@ export async function GET(req: NextRequest) {
       return createUnauthorizedResponse()
     }
 
-    // Get all feedback records
+    // Get feedback records for the authenticated user only
     const feedbackRecords = await db
       .select({
         feedbackId: copilotFeedback.feedbackId,
@@ -137,6 +138,7 @@ export async function GET(req: NextRequest) {
         createdAt: copilotFeedback.createdAt,
       })
       .from(copilotFeedback)
+      .where(eq(copilotFeedback.userId, authenticatedUserId))
 
     logger.info(`[${tracker.requestId}] Retrieved ${feedbackRecords.length} feedback records`)
 

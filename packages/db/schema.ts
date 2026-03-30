@@ -1275,7 +1275,7 @@ export const document = pgTable(
 
     // Connector-sourced document fields
     connectorId: text('connector_id').references(() => knowledgeConnector.id, {
-      onDelete: 'cascade',
+      onDelete: 'set null',
     }),
     externalId: text('external_id'),
     contentHash: text('content_hash'),
@@ -2863,3 +2863,39 @@ export const mothershipInboxWebhook = pgTable('mothership_inbox_webhook', {
   secret: text('secret').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── Sim Academy ─────────────────────────────────────────────────────────────
+
+export const academyCertStatusEnum = pgEnum('academy_cert_status', ['active', 'revoked', 'expired'])
+
+/** Partner certification records issued on course completion */
+export const academyCertificate = pgTable(
+  'academy_certificate',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** References the file-based course ID from lib/academy/content */
+    courseId: text('course_id').notNull(),
+    status: academyCertStatusEnum('status').notNull().default('active'),
+    issuedAt: timestamp('issued_at').notNull().defaultNow(),
+    /** Optional expiry for recertification requirements */
+    expiresAt: timestamp('expires_at'),
+    /** Human-readable unique certificate number, e.g. SIM-2026-00042 */
+    certificateNumber: text('certificate_number').notNull().unique(),
+    /** Snapshot of name and other metadata at time of issue */
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('academy_certificate_user_id_idx').on(table.userId),
+    courseIdIdx: index('academy_certificate_course_id_idx').on(table.courseId),
+    userCourseUnique: uniqueIndex('academy_certificate_user_course_unique').on(
+      table.userId,
+      table.courseId
+    ),
+    certNumberIdx: index('academy_certificate_number_idx').on(table.certificateNumber),
+    statusIdx: index('academy_certificate_status_idx').on(table.status),
+  })
+)

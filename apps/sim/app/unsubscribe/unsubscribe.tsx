@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { InviteLayout } from '@/app/invite/components'
 
 interface UnsubscribeData {
@@ -143,10 +144,7 @@ function UnsubscribeContent() {
         </div>
 
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
-          <button
-            onClick={() => window.history.back()}
-            className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
-          >
+          <button onClick={() => window.history.back()} className={AUTH_SUBMIT_BTN}>
             Go Back
           </button>
         </div>
@@ -168,10 +166,7 @@ function UnsubscribeContent() {
         </div>
 
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
-          <button
-            onClick={() => window.close()}
-            className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
-          >
+          <button onClick={() => window.close()} className={AUTH_SUBMIT_BTN}>
             Close
           </button>
         </div>
@@ -193,10 +188,7 @@ function UnsubscribeContent() {
         </div>
 
         <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
-          <button
-            onClick={() => window.close()}
-            className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
-          >
+          <button onClick={() => window.close()} className={AUTH_SUBMIT_BTN}>
             Close
           </button>
         </div>
@@ -222,7 +214,7 @@ function UnsubscribeContent() {
         <button
           onClick={() => handleUnsubscribe('all')}
           disabled={processing || isAlreadyUnsubscribedFromAll}
-          className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
+          className={AUTH_SUBMIT_BTN}
         >
           {processing ? (
             <span className='flex items-center gap-2'>
@@ -249,7 +241,7 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeMarketing
           }
-          className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
+          className={AUTH_SUBMIT_BTN}
         >
           {data?.currentPreferences.unsubscribeMarketing
             ? 'Unsubscribed from Marketing'
@@ -263,7 +255,7 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeUpdates
           }
-          className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
+          className={AUTH_SUBMIT_BTN}
         >
           {data?.currentPreferences.unsubscribeUpdates
             ? 'Unsubscribed from Updates'
@@ -277,7 +269,7 @@ function UnsubscribeContent() {
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeNotifications
           }
-          className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
+          className={AUTH_SUBMIT_BTN}
         >
           {data?.currentPreferences.unsubscribeNotifications
             ? 'Unsubscribed from Notifications'
