@@ -375,6 +375,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
           throw new Error('File input is required')
         }
 
+        // First, try to normalize as file objects (handles JSON strings from advanced mode)
         const normalizedFiles = normalizeFileInput(fileInput)
         if (normalizedFiles) {
           const filePaths = resolveFilePathsFromInput(normalizedFiles)
@@ -389,6 +390,7 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
           }
         }
 
+        // If normalization fails, treat as direct URL string
         if (typeof fileInput === 'string' && fileInput.trim()) {
           return {
             filePath: fileInput.trim(),

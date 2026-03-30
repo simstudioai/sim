@@ -309,27 +309,31 @@ export async function trackChatUpload(
 }
 
 /**
- * Check if a file with the same name already exists in workspace.
- * Throws on DB errors so callers can distinguish "not found" from "lookup failed."
+ * Check if a file with the same name already exists in workspace
  */
 export async function fileExistsInWorkspace(
   workspaceId: string,
   fileName: string
 ): Promise<boolean> {
-  const existing = await db
-    .select()
-    .from(workspaceFiles)
-    .where(
-      and(
-        eq(workspaceFiles.workspaceId, workspaceId),
-        eq(workspaceFiles.originalName, fileName),
-        eq(workspaceFiles.context, 'workspace'),
-        isNull(workspaceFiles.deletedAt)
+  try {
+    const existing = await db
+      .select()
+      .from(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.workspaceId, workspaceId),
+          eq(workspaceFiles.originalName, fileName),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt)
+        )
       )
-    )
-    .limit(1)
+      .limit(1)
 
-  return existing.length > 0
+    return existing.length > 0
+  } catch (error) {
+    logger.error(`Failed to check file existence for ${fileName}:`, error)
+    return false
+  }
 }
 
 /**
