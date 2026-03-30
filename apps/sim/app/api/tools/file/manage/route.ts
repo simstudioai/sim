@@ -62,14 +62,6 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        const existing = await getWorkspaceFileByName(workspaceId, fileName)
-        if (existing) {
-          return NextResponse.json(
-            { success: false, error: `File already exists: "${fileName}"` },
-            { status: 409 }
-          )
-        }
-
         const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(fileName))
         const fileBuffer = Buffer.from(content ?? '', 'utf-8')
         const result = await uploadWorkspaceFile(
