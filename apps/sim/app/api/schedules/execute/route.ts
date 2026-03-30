@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
+import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import {
@@ -153,7 +154,7 @@ export async function GET(request: NextRequest) {
           `[${requestId}] Queued schedule execution task ${jobId} for workflow ${schedule.workflowId}`
         )
 
-        if (!isBullMQEnabled()) {
+        if (!isBullMQEnabled() && !isTriggerDevEnabled) {
           try {
             await jobQueue.startJob(jobId)
             const output = await executeScheduleJob(payload)

@@ -8,7 +8,7 @@ import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing/core/subscri
 import { getInlineJobQueue, getJobQueue } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
-import { isProd } from '@/lib/core/config/feature-flags'
+import { isProd, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { safeCompare } from '@/lib/core/security/encryption'
 import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
@@ -1265,9 +1265,16 @@ export async function queueWebhookExecution(
 
     const isPolling = isPollingWebhookProvider(payload.provider)
 
-    if (isPolling && isBullMQEnabled()) {
-      const jobId = isBullMQEnabled()
-        ? await enqueueWorkspaceDispatch({
+    if (isPolling && (isTriggerDevEnabled || isBullMQEnabled())) {
+      const jobId = isTriggerDevEnabled
+        ? await (await getJobQueue()).enqueue('webhook-execution', payload, {
+            metadata: {
+              workflowId: foundWorkflow.id,
+              userId: actorUserId,
+              correlation,
+            },
+          })
+        : await enqueueWorkspaceDispatch({
             id: executionId,
             workspaceId: foundWorkflow.workspaceId,
             lane: 'runtime',
@@ -1278,13 +1285,6 @@ export async function queueWebhookExecution(
               userId: actorUserId,
               correlation,
             }),
-            metadata: {
-              workflowId: foundWorkflow.id,
-              userId: actorUserId,
-              correlation,
-            },
-          })
-        : await (await getJobQueue()).enqueue('webhook-execution', payload, {
             metadata: {
               workflowId: foundWorkflow.id,
               userId: actorUserId,

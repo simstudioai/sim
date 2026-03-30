@@ -6,6 +6,7 @@ import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
+import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import {
   createTimeoutAbortController,
   getTimeoutErrorMessage,
@@ -238,7 +239,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
       jobId,
     })
 
-    if (!isBullMQEnabled() && jobQueue) {
+    if (!isBullMQEnabled() && !isTriggerDevEnabled && jobQueue) {
       const inlineJobQueue = jobQueue
       void (async () => {
         try {
