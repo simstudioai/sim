@@ -27,7 +27,6 @@ local sequenceKey = ARGV[7]
 local activeWorkspacesKey = ARGV[8]
 local jobPrefix = ARGV[9]
 local workspacePrefix = ARGV[10]
-local jobTtlSeconds = tonumber(ARGV[11])
 
 local function laneKey(lane)
   return workspacePrefix .. workspaceId .. ':lane:' .. lane
@@ -310,8 +309,7 @@ export class RedisWorkspaceDispatchStorage implements WorkspaceDispatchStorageAd
       SEQUENCE_KEY,
       ACTIVE_WORKSPACES_KEY,
       `${DISPATCH_PREFIX}:job:`,
-      `${DISPATCH_PREFIX}:workspace:`,
-      String(JOB_TTL_SECONDS)
+      `${DISPATCH_PREFIX}:workspace:`
     )
 
     interface LuaClaimResponse {
