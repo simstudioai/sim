@@ -84,10 +84,6 @@ export function useTerminalFilters() {
    */
   const filterEntries = useCallback(
     (entries: ConsoleEntry[]): ConsoleEntry[] => {
-      if (!hasActiveFilters && sortConfig.direction === 'desc') {
-        return entries
-      }
-
       let result = entries
 
       if (hasActiveFilters) {

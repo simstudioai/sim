@@ -406,12 +406,7 @@ const WorkflowContent = React.memo(
     const pendingZoomBlockIdsRef = useRef<Set<string> | null>(null)
     const seenDiffBlocksRef = useRef<Set<string>>(new Set())
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // CONSOLIDATED EFFECT 1/7: Diff management (reapply markers + zoom queue)
-    // Merges the former "diff reapply" and "pending zoom block IDs" effects.
-    // ═══════════════════════════════════════════════════════════════════════════
     useEffect(() => {
-      // --- Part A: Queue newly changed blocks for viewport panning ---
       if (!isDiffReady || !diffAnalysis) {
         pendingZoomBlockIdsRef.current = null
         seenDiffBlocksRef.current.clear()
@@ -434,7 +429,6 @@ const WorkflowContent = React.memo(
         }
       }
 
-      // --- Part B: Re-apply diff markers when blocks change after socket rehydration ---
       if (!isWorkflowReady) return
       if (hasActiveDiff && isDiffReady && blocks !== diffBlocksRef.current) {
         diffBlocksRef.current = blocks
@@ -571,15 +565,12 @@ const WorkflowContent = React.memo(
         const currentBlocks = blocksRef.current
         const currentEdges = edgesForDisplayRef.current
 
-        // Build set of node IDs for efficient lookup
         const nodeIds = new Set(nodesToProcess.map((n) => n.id))
 
-        // Filter to nodes whose parent is actually changing
         const nodesNeedingUpdate = nodesToProcess.filter((n) => {
           const block = currentBlocks[n.id]
           if (!block) return false
           const currentParent = block.data?.parentId || null
-          // Skip if the node's parent is also being moved (keep children with their parent)
           if (currentParent && nodeIds.has(currentParent)) return false
           return currentParent !== targetParentId
         })
@@ -740,10 +731,6 @@ const WorkflowContent = React.memo(
       ? CONNECTION_LINE_STYLE_ERROR
       : CONNECTION_LINE_STYLE_DEFAULT
 
-    // NOTE: Permission logging useEffect was removed — it was purely debug logging
-    // and not necessary for functionality. If needed, use browser DevTools or
-    // add logging at the permission-fetching layer instead.
-
     const updateNodeParent = useCallback(
       (nodeId: string, newParentId: string | null, affectedEdges: any[] = []) => {
         const node = getNodes().find((n: any) => n.id === nodeId)
@@ -755,9 +742,6 @@ const WorkflowContent = React.memo(
 
         const oldParentId = node.parentId || currentBlock.data?.parentId
         const oldPosition = { ...node.position }
-
-        // affectedEdges are edges that are either being removed (when leaving a subflow)
-        // or being added (when entering a subflow)
         if (!affectedEdges.length && !newParentId && oldParentId) {
           affectedEdges = edgesForDisplayRef.current.filter(
             (e) => e.source === nodeId || e.target === nodeId
@@ -1447,13 +1431,7 @@ const WorkflowContent = React.memo(
       ]
     )
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // CONSOLIDATED EFFECT 2/7: All window event listeners + cursor unmount cleanup
-    // Merges the former "oauth/trigger warning", "add-block-from-toolbar/overlay-drop",
-    // "remove-from-subflow", and "cursor cleanup on unmount" effects into one.
-    // ═══════════════════════════════════════════════════════════════════════════
     useEffect(() => {
-      // --- Handler: OAuth connect modal ---
       const handleOpenOAuthConnect = (event: Event) => {
         const detail = (event as CustomEvent<OAuthConnectEventDetail>).detail
         if (!detail) return
@@ -1466,7 +1444,6 @@ const WorkflowContent = React.memo(
         })
       }
 
-      // --- Handler: Trigger warning notifications ---
       const handleShowTriggerWarning = (event: Event) => {
         const { type, triggerName } = (event as CustomEvent).detail
         const message =
@@ -1482,7 +1459,6 @@ const WorkflowContent = React.memo(
         })
       }
 
-      // --- Handler: Add block from toolbar (search modal / command list) ---
       const handleAddBlockFromToolbar = (event: Event) => {
         if (!effectivePermissions.canEdit) return
 
@@ -1552,7 +1528,6 @@ const WorkflowContent = React.memo(
         )
       }
 
-      // --- Handler: Overlay toolbar drop (empty workflow overlay) ---
       const handleOverlayToolbarDrop = (event: Event) => {
         const customEvent = event as CustomEvent<{
           type: string
@@ -1589,7 +1564,6 @@ const WorkflowContent = React.memo(
         }
       }
 
-      // --- Handler: Remove from subflow (ActionBar) ---
       const handleRemoveFromSubflow = (event: Event) => {
         const customEvent = event as CustomEvent<{ blockIds: string[] }>
         const blockIds = customEvent.detail?.blockIds
@@ -1670,7 +1644,6 @@ const WorkflowContent = React.memo(
         }
       }
 
-      // --- Register all listeners ---
       window.addEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
       window.addEventListener('show-trigger-warning', handleShowTriggerWarning as EventListener)
       window.addEventListener('add-block-from-toolbar', handleAddBlockFromToolbar as EventListener)
@@ -1680,7 +1653,6 @@ const WorkflowContent = React.memo(
       )
       window.addEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
 
-      // --- Cleanup: remove all listeners + emit null cursor on unmount ---
       return () => {
         window.removeEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
         window.removeEventListener(
@@ -1803,11 +1775,6 @@ const WorkflowContent = React.memo(
 
     const workflowCount = useMemo(() => Object.keys(workflows).length, [workflows])
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // CONSOLIDATED EFFECT 3/7: Workflow loading + navigation validation
-    // Merges the former "setActiveWorkflow" and "navigation redirect" effects.
-    // Navigation checks run first (redirecting if needed), then workflow loading.
-    // ═══════════════════════════════════════════════════════════════════════════
     useEffect(() => {
       if (sandbox) return
 
@@ -1927,9 +1894,6 @@ const WorkflowContent = React.memo(
     } = useNodeDerivation({
       blocks,
       embedded,
-      activeBlockIds,
-      pendingBlocks,
-      isDebugging,
       pendingSelection,
       clearPendingSelection,
       sandbox,
@@ -2954,12 +2918,6 @@ const WorkflowContent = React.memo(
       })
     }, [edgesForDisplay, nodeMap, elevatedNodeIdSet, selectedEdges, handleEdgeDelete])
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // CONSOLIDATED EFFECT 7/7: Embedded view (ResizeObserver + structure hash fit)
-    // Merges the former "embedded ResizeObserver" and "embedded fit on blocksStructureHash"
-    // effects. Both call scheduleEmbeddedFit(); the ResizeObserver handles container
-    // resizes while blocksStructureHash triggers re-fit when blocks are added/removed.
-    // ═══════════════════════════════════════════════════════════════════════════
     useEffect(() => {
       if (!embedded || !isWorkflowReady) {
         return
@@ -2970,7 +2928,6 @@ const WorkflowContent = React.memo(
         return
       }
 
-      // Initial fit + fit on blocksStructureHash change (effect re-runs when hash changes)
       scheduleEmbeddedFit()
 
       const resizeObserver = new ResizeObserver(() => {

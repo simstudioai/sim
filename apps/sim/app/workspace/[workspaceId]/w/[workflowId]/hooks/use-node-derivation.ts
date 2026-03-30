@@ -18,9 +18,6 @@ const logger = createLogger('NodeDerivation')
 interface UseNodeDerivationProps {
   blocks: Record<string, BlockState>
   embedded?: boolean
-  activeBlockIds: Set<string>
-  pendingBlocks: string[]
-  isDebugging: boolean
   pendingSelection: string[] | null
   clearPendingSelection: () => void
   sandbox?: boolean
@@ -43,9 +40,6 @@ interface UseNodeDerivationReturn {
 export function useNodeDerivation({
   blocks,
   embedded,
-  activeBlockIds,
-  pendingBlocks,
-  isDebugging,
   pendingSelection,
   clearPendingSelection,
   sandbox,
@@ -121,9 +115,6 @@ export function useNodeDerivation({
         return
       }
 
-      const isActive = activeBlockIds.has(block.id)
-      const isPending = isDebugging && pendingBlocks.includes(block.id)
-
       const nodeType = block.type === 'note' ? 'noteBlock' : 'workflowBlock'
       const dragHandle = block.type === 'note' ? '.note-drag-handle' : '.workflow-drag-handle'
       const childZIndex = block.data?.parentId ? 1000 : undefined
@@ -142,8 +133,6 @@ export function useNodeDerivation({
           type: block.type,
           config: blockConfig,
           name: block.name,
-          isActive,
-          isPending,
           ...(embedded && { isEmbedded: true }),
           ...(sandbox && { isSandbox: true }),
         },
@@ -155,16 +144,7 @@ export function useNodeDerivation({
     })
 
     return nodeArray
-  }, [
-    blocksStructureHash,
-    blocks,
-    activeBlockIds,
-    pendingBlocks,
-    isDebugging,
-    getBlockConfig,
-    sandbox,
-    embedded,
-  ])
+  }, [blocksStructureHash, blocks, getBlockConfig, sandbox, embedded])
 
   const [displayNodes, setDisplayNodes] = useState<Node[]>([])
   const [lastInteractedNodeId, setLastInteractedNodeId] = useState<string | null>(null)
