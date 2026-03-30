@@ -15,8 +15,10 @@ import {
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { getServePathPrefix } from '@/lib/uploads'
 import { downloadFile, hasCloudStorage, uploadFile } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey, insertFileMetadata } from '@/lib/uploads/server/metadata'
+import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
@@ -221,7 +223,6 @@ export async function uploadWorkspaceFile(
         logger.error(`Failed to update storage tracking:`, storageError)
       }
 
-      const { getServePathPrefix } = await import('@/lib/uploads')
       const pathPrefix = getServePathPrefix()
       const serveUrl = `${pathPrefix}${encodeURIComponent(uploadResult.key)}?context=workspace`
 
@@ -360,7 +361,6 @@ export async function getWorkspaceFileByName(
 
   if (files.length === 0) return null
 
-  const { getServePathPrefix } = await import('@/lib/uploads')
   const pathPrefix = getServePathPrefix()
 
   const file = files[0]
@@ -410,7 +410,6 @@ export async function listWorkspaceFiles(
       )
       .orderBy(workspaceFiles.uploadedAt)
 
-    const { getServePathPrefix } = await import('@/lib/uploads')
     const pathPrefix = getServePathPrefix()
 
     return files.map((file) => ({
@@ -535,7 +534,6 @@ export async function getWorkspaceFile(
 
     if (files.length === 0) return null
 
-    const { getServePathPrefix } = await import('@/lib/uploads')
     const pathPrefix = getServePathPrefix()
 
     const file = files[0]
@@ -773,7 +771,6 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
     throw new Error('File is not archived')
   }
 
-  const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
   const ws = await getWorkspaceWithOwner(workspaceId)
   if (!ws || ws.archivedAt) {
     throw new Error('Cannot restore file into an archived workspace')

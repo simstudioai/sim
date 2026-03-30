@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import {
   downloadWorkspaceFile,
@@ -115,26 +116,40 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        const existingBuffer = await downloadWorkspaceFile(existing)
-        const finalContent = existingBuffer.toString('utf-8') + content
-        const fileBuffer = Buffer.from(finalContent, 'utf-8')
-        await updateWorkspaceFileContent(workspaceId, existing.id, userId, fileBuffer)
+        const lockKey = `file-append:${workspaceId}:${existing.id}`
+        const lockValue = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const acquired = await acquireLock(lockKey, lockValue, 30)
+        if (!acquired) {
+          return NextResponse.json(
+            { success: false, error: 'File is busy, please retry' },
+            { status: 409 }
+          )
+        }
 
-        logger.info('File appended', {
-          fileId: existing.id,
-          name: existing.name,
-          size: fileBuffer.length,
-        })
+        try {
+          const existingBuffer = await downloadWorkspaceFile(existing)
+          const finalContent = existingBuffer.toString('utf-8') + content
+          const fileBuffer = Buffer.from(finalContent, 'utf-8')
+          await updateWorkspaceFileContent(workspaceId, existing.id, userId, fileBuffer)
 
-        return NextResponse.json({
-          success: true,
-          data: {
-            id: existing.id,
+          logger.info('File appended', {
+            fileId: existing.id,
             name: existing.name,
             size: fileBuffer.length,
-            url: ensureAbsoluteUrl(existing.path),
-          },
-        })
+          })
+
+          return NextResponse.json({
+            success: true,
+            data: {
+              id: existing.id,
+              name: existing.name,
+              size: fileBuffer.length,
+              url: ensureAbsoluteUrl(existing.path),
+            },
+          })
+        } finally {
+          await releaseLock(lockKey, lockValue)
+        }
       }
 
       default:
