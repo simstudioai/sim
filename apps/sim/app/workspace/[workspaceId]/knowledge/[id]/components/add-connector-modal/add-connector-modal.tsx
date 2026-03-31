@@ -86,7 +86,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
     workspaceId,
   })
 
-  useCredentialRefreshTriggers(refetchCredentials, connectorProviderId ?? undefined, workspaceId)
+  useCredentialRefreshTriggers(refetchCredentials, connectorProviderId ?? '', workspaceId)
 
   const effectiveCredentialId =
     selectedCredentialId ?? (credentials.length === 1 ? credentials[0].id : null)
