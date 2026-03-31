@@ -27,7 +27,13 @@ let folderState: {
   folders: Record<string, any>
 }
 
-let workflowList: Array<{ id: string; name: string; workspaceId: string; folderId: string; sortOrder: number }>
+let workflowList: Array<{
+  id: string
+  name: string
+  workspaceId: string
+  folderId: string
+  sortOrder: number
+}>
 
 vi.mock('@sim/logger', () => ({
   createLogger: vi.fn(() => mockLogger),
