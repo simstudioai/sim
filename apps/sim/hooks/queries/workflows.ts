@@ -207,7 +207,7 @@ export function useCreateWorkflow() {
 
       if (!stateResponse.ok) {
         const text = await stateResponse.text()
-        throw new Error(`Failed to persist default workflow state: ${text}`)
+        logger.error('Failed to persist default workflow state:', text)
       }
 
       return {

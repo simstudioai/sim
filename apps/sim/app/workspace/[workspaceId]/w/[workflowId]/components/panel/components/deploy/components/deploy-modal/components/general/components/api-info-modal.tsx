@@ -177,7 +177,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
       }
 
       if (description.trim() !== (workflowMetadata?.description || '')) {
-        updateWorkflowMutation.mutate({
+        await updateWorkflowMutation.mutateAsync({
           workspaceId,
           workflowId,
           metadata: { description: description.trim() || 'New workflow' },
