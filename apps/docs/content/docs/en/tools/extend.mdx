@@ -1,35 +1,20 @@
 ---
 title: Extend
-description: Parse and extract content from documents using Extend AI
+description: Parse and extract content from documents
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="extend_v2"
   color="#000000"
 />
 
-## Description
+## Usage Instructions
 
-The Extend block connects to [Extend AI](https://www.extend.ai/) to parse and extract structured content from documents. It supports a wide range of file formats including PDFs, images (JPEG, PNG, TIFF, GIF, BMP, WebP), and Office documents (Word, PowerPoint, Excel).
+Integrate Extend AI into the workflow. Parse and extract structured content from documents or file references.
 
-Extend uses advanced document understanding to convert unstructured documents into clean, structured output — returning parsed chunks and block-level elements with content type classification and spatial metadata.
 
-### Key Capabilities
-
-- **Document Parsing**: Extract text, tables, figures, and structured content from uploaded documents or URLs.
-- **Multiple Output Formats**: Choose between Markdown (default) for clean text output, or Spatial for layout-preserving extraction.
-- **Chunking Strategies**: Split output by page, document, or section depending on your downstream use case.
-- **Engine Selection**: Use the default `Performance` engine for best quality, or `Light` for faster processing on simpler documents.
-
-### Authentication
-
-An Extend API key is required. You can generate one from the [Extend Developer Dashboard](https://dashboard.extend.ai).
-
-### Supported File Types
-
-PDF, JPEG, PNG, TIFF, GIF, BMP, WebP, HEIC/HEIF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), XML, HTML, CSV, TXT.
 
 ## Tools
 
@@ -49,13 +34,6 @@ PDF, JPEG, PNG, TIFF, GIF, BMP, WebP, HEIC/HEIF, Word (.docx), PowerPoint (.pptx
 
 #### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `id` | string | Unique identifier for the parser run |
-| `status` | string | Processing status |
-| `chunks` | json | Parsed document content chunks |
-| `blocks` | json | Block-level document elements with type and content |
-| `pageCount` | number | Number of pages processed |
-| `creditsUsed` | number | API credits consumed |
+This tool does not produce any outputs.
 
 
