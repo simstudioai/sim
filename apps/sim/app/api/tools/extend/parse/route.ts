@@ -75,17 +75,17 @@ export async function POST(request: NextRequest) {
     }
 
     const extendBody: Record<string, unknown> = {
-      fileUrl,
+      file: { fileUrl },
     }
 
     const config: Record<string, unknown> = {}
 
     if (validatedData.outputFormat) {
-      config.targetFormat = validatedData.outputFormat
+      config.target = validatedData.outputFormat
     }
 
     if (validatedData.chunking) {
-      config.chunking = { strategy: validatedData.chunking }
+      config.chunkingStrategy = { type: validatedData.chunking }
     }
 
     if (validatedData.engine) {
