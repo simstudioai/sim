@@ -187,7 +187,10 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
             if (rest.versionStage) result.versionStage = rest.versionStage
             break
           case 'list_secrets':
-            if (maxResults) result.maxResults = Number.parseInt(String(maxResults), 10)
+            if (maxResults) {
+              const parsed = Number.parseInt(String(maxResults), 10)
+              if (!Number.isNaN(parsed)) result.maxResults = parsed
+            }
             if (rest.nextToken) result.nextToken = rest.nextToken
             break
           case 'create_secret':
@@ -202,9 +205,11 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
             break
           case 'delete_secret':
             result.secretId = rest.secretId
-            if (recoveryWindowInDays)
-              result.recoveryWindowInDays = Number.parseInt(String(recoveryWindowInDays), 10)
-            if (forceDelete === 'true') result.forceDelete = true
+            if (recoveryWindowInDays) {
+              const parsed = Number.parseInt(String(recoveryWindowInDays), 10)
+              if (!Number.isNaN(parsed)) result.recoveryWindowInDays = parsed
+            }
+            if (forceDelete === 'true' || forceDelete === true) result.forceDelete = true
             break
         }
 
