@@ -13,12 +13,12 @@
  */
 
 import { db } from '@sim/db'
-import { templates, workflowBlocks, workflowEdges } from '@sim/db/schema'
+import { workflowBlocks, workflowEdges } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
-import { archiveWorkflow } from '@/lib/workflows/lifecycle'
+import { performDeleteWorkflow } from '@/lib/workflows/orchestration'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   internalErrorResponse,
@@ -69,7 +69,7 @@ export const GET = withAdminAuthParams<RouteParams>(async (request, context) => 
   }
 })
 
-export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) => {
+export const DELETE = withAdminAuthParams<RouteParams>(async (_request, context) => {
   const { id: workflowId } = await context.params
 
   try {
@@ -79,11 +79,17 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) 
       return notFoundResponse('Workflow')
     }
 
-    await db.update(templates).set({ workflowId: null }).where(eq(templates.workflowId, workflowId))
-
-    await archiveWorkflow(workflowId, {
+    const result = await performDeleteWorkflow({
+      workflowId,
+      userId: workflowData.userId,
+      skipLastWorkflowGuard: true,
       requestId: `admin-workflow-${workflowId}`,
+      actorId: 'admin-api',
     })
+
+    if (!result.success) {
+      return internalErrorResponse(result.error || 'Failed to delete workflow')
+    }
 
     logger.info(`Admin API: Deleted workflow ${workflowId} (${workflowData.name})`)
 

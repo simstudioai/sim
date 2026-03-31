@@ -2,13 +2,14 @@ import { db } from '@sim/db'
 import { permissions, workspace } from '@sim/db/schema'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { authorizeWorkflowByWorkspacePermission, type getWorkflowById } from '@/lib/workflows/utils'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { checkWorkspaceAccess, getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 type WorkflowRecord = NonNullable<Awaited<ReturnType<typeof getWorkflowById>>>
 
 export async function ensureWorkflowAccess(
   workflowId: string,
-  userId: string
+  userId: string,
+  action: 'read' | 'write' | 'admin' = 'read'
 ): Promise<{
   workflow: WorkflowRecord
   workspaceId?: string | null
@@ -16,7 +17,7 @@ export async function ensureWorkflowAccess(
   const result = await authorizeWorkflowByWorkspacePermission({
     workflowId,
     userId,
-    action: 'read',
+    action,
   })
 
   if (!result.workflow) {
@@ -56,25 +57,25 @@ export async function getDefaultWorkspaceId(userId: string): Promise<string> {
 export async function ensureWorkspaceAccess(
   workspaceId: string,
   userId: string,
-  requireWrite: boolean
+  level: 'read' | 'write' | 'admin' = 'read'
 ): Promise<void> {
   const access = await checkWorkspaceAccess(workspaceId, userId)
   if (!access.exists || !access.hasAccess) {
     throw new Error(`Workspace ${workspaceId} not found`)
   }
 
-  const permissionType = access.canWrite
-    ? 'write'
-    : access.workspace?.ownerId === userId
-      ? 'admin'
-      : 'read'
-  const canWrite = permissionType === 'admin' || permissionType === 'write'
+  if (level === 'read') return
 
-  if (requireWrite && !canWrite) {
-    throw new Error('Write or admin access required for this workspace')
+  if (level === 'admin') {
+    if (access.workspace?.ownerId === userId) return
+    const perm = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+    if (perm !== 'admin') {
+      throw new Error('Admin access required for this workspace')
+    }
+    return
   }
 
-  if (!requireWrite && !canWrite && permissionType !== 'read') {
-    throw new Error('Access denied to workspace')
+  if (!access.canWrite) {
+    throw new Error('Write or admin access required for this workspace')
   }
 }

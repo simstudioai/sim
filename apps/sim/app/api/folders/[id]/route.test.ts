@@ -6,7 +6,14 @@
 import { auditMock, createMockRequest, type MockUser } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetUserEntityPermissions, mockLogger, mockDbRef } = vi.hoisted(() => {
+const {
+  mockGetSession,
+  mockGetUserEntityPermissions,
+  mockLogger,
+  mockDbRef,
+  mockPerformDeleteFolder,
+  mockCheckForCircularReference,
+} = vi.hoisted(() => {
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -21,6 +28,8 @@ const { mockGetSession, mockGetUserEntityPermissions, mockLogger, mockDbRef } = 
     mockGetUserEntityPermissions: vi.fn(),
     mockLogger: logger,
     mockDbRef: { current: null as any },
+    mockPerformDeleteFolder: vi.fn(),
+    mockCheckForCircularReference: vi.fn(),
   }
 })
 
@@ -38,6 +47,12 @@ vi.mock('@sim/db', () => ({
   get db() {
     return mockDbRef.current
   },
+}))
+vi.mock('@/lib/workflows/orchestration', () => ({
+  performDeleteFolder: mockPerformDeleteFolder,
+}))
+vi.mock('@/lib/workflows/utils', () => ({
+  checkForCircularReference: mockCheckForCircularReference,
 }))
 
 import { DELETE, PUT } from '@/app/api/folders/[id]/route'
@@ -144,6 +159,11 @@ describe('Individual Folder API Route', () => {
 
     mockGetUserEntityPermissions.mockResolvedValue('admin')
     mockDbRef.current = createFolderDbMock()
+    mockPerformDeleteFolder.mockResolvedValue({
+      success: true,
+      deletedItems: { folders: 1, workflows: 0 },
+    })
+    mockCheckForCircularReference.mockResolvedValue(false)
   })
 
   describe('PUT /api/folders/[id]', () => {
@@ -369,12 +389,16 @@ describe('Individual Folder API Route', () => {
     it('should prevent circular references when updating parent', async () => {
       mockAuthenticatedUser()
 
-      const circularCheckResults = [{ parentId: 'folder-2' }, { parentId: 'folder-3' }]
-
       mockDbRef.current = createFolderDbMock({
-        folderLookupResult: { id: 'folder-3', parentId: null, name: 'Folder 3' },
-        circularCheckResults,
+        folderLookupResult: {
+          id: 'folder-3',
+          parentId: null,
+          name: 'Folder 3',
+          workspaceId: 'workspace-123',
+        },
       })
+
+      mockCheckForCircularReference.mockResolvedValue(true)
 
       const req = createMockRequest('PUT', {
         name: 'Updated Folder 3',
@@ -388,6 +412,7 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Cannot create circular folder reference')
+      expect(mockCheckForCircularReference).toHaveBeenCalledWith('folder-3', 'folder-1')
     })
   })
 
@@ -409,6 +434,12 @@ describe('Individual Folder API Route', () => {
       const data = await response.json()
       expect(data).toHaveProperty('success', true)
       expect(data).toHaveProperty('deletedItems')
+      expect(mockPerformDeleteFolder).toHaveBeenCalledWith({
+        folderId: 'folder-1',
+        workspaceId: 'workspace-123',
+        userId: TEST_USER.id,
+        folderName: 'Test Folder',
+      })
     })
 
     it('should return 401 for unauthenticated delete requests', async () => {
@@ -472,6 +503,7 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('success', true)
+      expect(mockPerformDeleteFolder).toHaveBeenCalled()
     })
 
     it('should handle database errors during deletion', async () => {
