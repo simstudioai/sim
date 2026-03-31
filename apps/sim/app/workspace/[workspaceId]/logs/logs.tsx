@@ -429,7 +429,7 @@ export default function Logs() {
   }
 
   useEffect(() => {
-    if (!pendingExecutionIdRef.current || sortedLogs.length === 0) return
+    if (!pendingExecutionIdRef.current) return
     const targetExecutionId = pendingExecutionIdRef.current
     const found = sortedLogs.find((l) => l.executionId === targetExecutionId)
     if (found) {
@@ -437,10 +437,10 @@ export default function Logs() {
       dispatch({ type: 'TOGGLE_LOG', logId: found.id })
     } else if (!logsQuery.hasNextPage) {
       pendingExecutionIdRef.current = null
-    } else if (!logsQueryRef.current.isFetching) {
+    } else if (!logsQuery.isFetching) {
       logsQueryRef.current.fetchNextPage()
     }
-  }, [sortedLogs, logsQuery.hasNextPage])
+  }, [sortedLogs, logsQuery.hasNextPage, logsQuery.isFetching])
 
   useEffect(() => {
     const timers = refreshTimersRef.current
