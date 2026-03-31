@@ -44,7 +44,7 @@ export const launchDarklyListEnvironmentsTool: ToolConfig<
     },
     method: 'GET',
     headers: (params) => ({
-      Authorization: params.apiKey,
+      Authorization: params.apiKey.trim(),
     }),
   },
 

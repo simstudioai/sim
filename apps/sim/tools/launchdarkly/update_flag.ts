@@ -77,7 +77,7 @@ export const launchDarklyUpdateFlagTool: ToolConfig<
       `https://app.launchdarkly.com/api/v2/flags/${encodeURIComponent(params.projectKey.trim())}/${encodeURIComponent(params.flagKey.trim())}`,
     method: 'PATCH',
     headers: (params) => ({
-      Authorization: params.apiKey,
+      Authorization: params.apiKey.trim(),
       'Content-Type': 'application/json; domain-model=launchdarkly.semanticpatch',
     }),
     body: (params) => {
@@ -105,6 +105,10 @@ export const launchDarklyUpdateFlagTool: ToolConfig<
         instructions.push({ kind: 'archiveFlag' })
       } else if (params.archive === false) {
         instructions.push({ kind: 'restoreFlag' })
+      }
+
+      if (instructions.length === 0) {
+        throw new Error('At least one update field must be provided (updateName, updateDescription, addTags, removeTags, or archive)')
       }
 
       const body: Record<string, unknown> = { instructions }

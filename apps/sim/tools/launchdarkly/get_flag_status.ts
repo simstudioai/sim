@@ -47,7 +47,7 @@ export const launchDarklyGetFlagStatusTool: ToolConfig<
       `https://app.launchdarkly.com/api/v2/flag-statuses/${encodeURIComponent(params.projectKey.trim())}/${encodeURIComponent(params.environmentKey.trim())}/${encodeURIComponent(params.flagKey.trim())}`,
     method: 'GET',
     headers: (params) => ({
-      Authorization: params.apiKey,
+      Authorization: params.apiKey.trim(),
     }),
   },
 

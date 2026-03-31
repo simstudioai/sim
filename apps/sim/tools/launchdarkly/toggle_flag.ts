@@ -52,7 +52,7 @@ export const launchDarklyToggleFlagTool: ToolConfig<
       `https://app.launchdarkly.com/api/v2/flags/${encodeURIComponent(params.projectKey.trim())}/${encodeURIComponent(params.flagKey.trim())}`,
     method: 'PATCH',
     headers: (params) => ({
-      Authorization: params.apiKey,
+      Authorization: params.apiKey.trim(),
       'Content-Type': 'application/json; domain-model=launchdarkly.semanticpatch',
     }),
     body: (params) => ({

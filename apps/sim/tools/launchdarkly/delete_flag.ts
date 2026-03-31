@@ -39,7 +39,7 @@ export const launchDarklyDeleteFlagTool: ToolConfig<
       `https://app.launchdarkly.com/api/v2/flags/${encodeURIComponent(params.projectKey.trim())}/${encodeURIComponent(params.flagKey.trim())}`,
     method: 'DELETE',
     headers: (params) => ({
-      Authorization: params.apiKey,
+      Authorization: params.apiKey.trim(),
     }),
   },
 

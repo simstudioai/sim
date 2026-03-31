@@ -50,7 +50,7 @@ export const launchDarklyGetFlagTool: ToolConfig<
     },
     method: 'GET',
     headers: (params) => ({
-      Authorization: params.apiKey,
+      Authorization: params.apiKey.trim(),
     }),
   },
 

@@ -64,7 +64,7 @@ export const launchDarklyCreateFlagTool: ToolConfig<
       `https://app.launchdarkly.com/api/v2/flags/${encodeURIComponent(params.projectKey.trim())}`,
     method: 'POST',
     headers: (params) => ({
-      Authorization: params.apiKey,
+      Authorization: params.apiKey.trim(),
       'Content-Type': 'application/json',
     }),
     body: (params) => {

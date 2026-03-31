@@ -58,7 +58,7 @@ export const launchDarklyListFlagsTool: ToolConfig<
     },
     method: 'GET',
     headers: (params) => ({
-      Authorization: params.apiKey,
+      Authorization: params.apiKey.trim(),
     }),
   },
 
