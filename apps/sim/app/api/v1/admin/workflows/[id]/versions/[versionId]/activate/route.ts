@@ -44,12 +44,8 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
     })
 
     if (!result.success) {
-      if (result.error === 'Deployment version not found') {
-        return notFoundResponse('Deployment version')
-      }
-      if (result.error?.startsWith('Invalid')) {
-        return badRequestResponse(result.error)
-      }
+      if (result.errorCode === 'not_found') return notFoundResponse('Deployment version')
+      if (result.errorCode === 'validation') return badRequestResponse(result.error!)
       return internalErrorResponse(result.error || 'Failed to activate version')
     }
 

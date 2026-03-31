@@ -89,7 +89,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
 
     if (!result.success) {
-      return createErrorResponse(result.error || 'Failed to deploy workflow', 500)
+      const status =
+        result.errorCode === 'validation' ? 400 : result.errorCode === 'not_found' ? 404 : 500
+      return createErrorResponse(result.error || 'Failed to deploy workflow', status)
     }
 
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)

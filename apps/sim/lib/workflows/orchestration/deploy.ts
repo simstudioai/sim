@@ -43,12 +43,15 @@ export interface PerformFullDeployParams {
   actorId?: string
 }
 
+export type DeployErrorCode = 'validation' | 'not_found' | 'internal'
+
 export interface PerformFullDeployResult {
   success: boolean
   deployedAt?: Date
   version?: number
   deploymentVersionId?: string
   error?: string
+  errorCode?: DeployErrorCode
   warnings?: string[]
 }
 
@@ -68,12 +71,16 @@ export async function performFullDeploy(
 
   const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
   if (!normalizedData) {
-    return { success: false, error: 'Failed to load workflow state' }
+    return { success: false, error: 'Failed to load workflow state', errorCode: 'not_found' }
   }
 
   const scheduleValidation = validateWorkflowSchedules(normalizedData.blocks)
   if (!scheduleValidation.isValid) {
-    return { success: false, error: `Invalid schedule configuration: ${scheduleValidation.error}` }
+    return {
+      success: false,
+      error: `Invalid schedule configuration: ${scheduleValidation.error}`,
+      errorCode: 'validation',
+    }
   }
 
   const [workflowRecord] = await db
@@ -83,7 +90,7 @@ export async function performFullDeploy(
     .limit(1)
 
   if (!workflowRecord) {
-    return { success: false, error: 'Workflow not found' }
+    return { success: false, error: 'Workflow not found', errorCode: 'not_found' }
   }
 
   const workflowData = workflowRecord as Record<string, unknown>
@@ -299,6 +306,7 @@ export interface PerformActivateVersionResult {
   success: boolean
   deployedAt?: Date
   error?: string
+  errorCode?: DeployErrorCode
   warnings?: string[]
 }
 
@@ -332,13 +340,13 @@ export async function performActivateVersion(
     .limit(1)
 
   if (!versionRow?.state) {
-    return { success: false, error: 'Deployment version not found' }
+    return { success: false, error: 'Deployment version not found', errorCode: 'not_found' }
   }
 
   const deployedState = versionRow.state as { blocks?: Record<string, unknown> }
   const blocks = deployedState.blocks
   if (!blocks || typeof blocks !== 'object') {
-    return { success: false, error: 'Invalid deployed state structure' }
+    return { success: false, error: 'Invalid deployed state structure', errorCode: 'validation' }
   }
 
   const [currentActiveVersion] = await db
@@ -357,7 +365,11 @@ export async function performActivateVersion(
     blocks as Record<string, import('@/stores/workflows/workflow/types').BlockState>
   )
   if (!scheduleValidation.isValid) {
-    return { success: false, error: `Invalid schedule configuration: ${scheduleValidation.error}` }
+    return {
+      success: false,
+      error: `Invalid schedule configuration: ${scheduleValidation.error}`,
+      errorCode: 'validation',
+    }
   }
 
   const triggerSaveResult = await saveTriggerWebhooksForDeploy({

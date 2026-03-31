@@ -4,6 +4,7 @@ import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { performFullDeploy, performFullUndeploy } from '@/lib/workflows/orchestration'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
   singleResponse,
@@ -46,6 +47,8 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
     })
 
     if (!result.success) {
+      if (result.errorCode === 'not_found') return notFoundResponse('Workflow state')
+      if (result.errorCode === 'validation') return badRequestResponse(result.error!)
       return internalErrorResponse(result.error || 'Failed to deploy workflow')
     }
 

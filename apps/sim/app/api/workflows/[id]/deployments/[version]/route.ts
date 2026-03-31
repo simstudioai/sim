@@ -131,9 +131,9 @@ export async function PATCH(
 
       if (!activateResult.success) {
         const status =
-          activateResult.error === 'Deployment version not found'
+          activateResult.errorCode === 'not_found'
             ? 404
-            : activateResult.error?.startsWith('Invalid')
+            : activateResult.errorCode === 'validation'
               ? 400
               : 500
         return createErrorResponse(activateResult.error || 'Failed to activate deployment', status)

@@ -7,6 +7,7 @@ export {
   performChatUndeploy,
 } from './chat-deploy'
 export {
+  type DeployErrorCode,
   type PerformActivateVersionParams,
   type PerformActivateVersionResult,
   type PerformFullDeployParams,
