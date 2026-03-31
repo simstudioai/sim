@@ -927,6 +927,10 @@
         "description": "List tasks in Attio, optionally filtered by record, assignee, or completion status"
       },
       {
+        "name": "Get Task",
+        "description": "Get a single task by ID from Attio"
+      },
+      {
         "name": "Create Task",
         "description": "Create a task in Attio"
       },
@@ -1039,7 +1043,7 @@
         "description": "Delete a webhook from Attio"
       }
     ],
-    "operationCount": 40,
+    "operationCount": 41,
     "triggers": [
       {
         "id": "attio_record_created",
@@ -1127,12 +1131,32 @@
         "description": "Trigger workflow when a list entry is deleted in Attio"
       },
       {
+        "id": "attio_list_created",
+        "name": "Attio List Created",
+        "description": "Trigger workflow when a list is created in Attio"
+      },
+      {
+        "id": "attio_list_updated",
+        "name": "Attio List Updated",
+        "description": "Trigger workflow when a list is updated in Attio"
+      },
+      {
+        "id": "attio_list_deleted",
+        "name": "Attio List Deleted",
+        "description": "Trigger workflow when a list is deleted in Attio"
+      },
+      {
+        "id": "attio_workspace_member_created",
+        "name": "Attio Workspace Member Created",
+        "description": "Trigger workflow when a new member is added to the Attio workspace"
+      },
+      {
         "id": "attio_webhook",
         "name": "Attio Webhook (All Events)",
         "description": "Trigger workflow on any Attio webhook event"
       }
     ],
-    "triggerCount": 18,
+    "triggerCount": 22,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "crm",
