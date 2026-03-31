@@ -392,8 +392,7 @@ export function useWorkflowExecution() {
         return
       }
 
-      // Get workspaceId from workflow metadata
-      const workspaceId = activeWorkflow?.workspaceId
+      const workspaceId = scopedWorkspaceId ?? activeWorkflow?.workspaceId
 
       if (!workspaceId) {
         logger.error('Cannot execute workflow without workspaceId')
