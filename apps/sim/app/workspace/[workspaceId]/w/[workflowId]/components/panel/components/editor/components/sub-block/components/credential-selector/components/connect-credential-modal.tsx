@@ -14,6 +14,7 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import { client } from '@/lib/auth/auth-client'
+import type { OAuthReturnContext } from '@/lib/credentials/client-state'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
@@ -27,16 +28,21 @@ import { useCreateCredentialDraft } from '@/hooks/queries/credentials'
 
 const logger = createLogger('ConnectCredentialModal')
 
-export interface ConnectCredentialModalProps {
+interface ConnectCredentialModalBaseProps {
   isOpen: boolean
   onClose: () => void
   provider: OAuthProvider
   serviceId: string
   workspaceId: string
-  workflowId: string
   /** Number of existing credentials for this provider — used to detect a successful new connection. */
   credentialCount: number
 }
+
+export type ConnectCredentialModalProps = ConnectCredentialModalBaseProps &
+  (
+    | { workflowId: string; knowledgeBaseId?: never }
+    | { workflowId?: never; knowledgeBaseId: string }
+  )
 
 export function ConnectCredentialModal({
   isOpen,
@@ -45,6 +51,7 @@ export function ConnectCredentialModal({
   serviceId,
   workspaceId,
   workflowId,
+  knowledgeBaseId,
   credentialCount,
 }: ConnectCredentialModalProps) {
   const [displayName, setDisplayName] = useState('')
@@ -97,15 +104,19 @@ export function ConnectCredentialModal({
     try {
       await createDraft.mutateAsync({ workspaceId, providerId, displayName: trimmedName })
 
-      writeOAuthReturnContext({
-        origin: 'workflow',
-        workflowId,
+      const baseContext = {
         displayName: trimmedName,
         providerId,
         preCount: credentialCount,
         workspaceId,
         requestedAt: Date.now(),
-      })
+      }
+
+      const returnContext: OAuthReturnContext = knowledgeBaseId
+        ? { ...baseContext, origin: 'kb-connectors' as const, knowledgeBaseId }
+        : { ...baseContext, origin: 'workflow' as const, workflowId: workflowId! }
+
+      writeOAuthReturnContext(returnContext)
 
       if (providerId === 'trello') {
         window.location.href = '/api/auth/trello/authorize'

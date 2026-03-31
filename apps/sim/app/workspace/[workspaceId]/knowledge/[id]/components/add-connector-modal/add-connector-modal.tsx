@@ -19,21 +19,17 @@ import {
   ModalHeader,
   Tooltip,
 } from '@/components/emcn'
-import { useSession } from '@/lib/auth/auth-client'
-import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
-import {
-  getCanonicalScopesForProvider,
-  getProviderIdFromServiceId,
-  type OAuthProvider,
-} from '@/lib/oauth'
+import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
+import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/components/connector-selector-field'
-import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { ConnectCredentialModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/connect-credential-modal'
 import { getDependsOnFields } from '@/blocks/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfig, ConnectorConfigField } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import type { SelectorKey } from '@/hooks/selectors/types'
+import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 
 const SYNC_INTERVALS = [
   { label: 'Every hour', value: 60 },
@@ -69,7 +65,6 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
   const [searchTerm, setSearchTerm] = useState('')
 
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const { data: session } = useSession()
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
   const connectorConfig = selectedType ? CONNECTOR_REGISTRY[selectedType] : null
@@ -82,10 +77,16 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
     [connectorConfig]
   )
 
-  const { data: credentials = [], isLoading: credentialsLoading } = useOAuthCredentials(
-    connectorProviderId ?? undefined,
-    { enabled: Boolean(connectorConfig) && !isApiKeyMode, workspaceId }
-  )
+  const {
+    data: credentials = [],
+    isLoading: credentialsLoading,
+    refetch: refetchCredentials,
+  } = useOAuthCredentials(connectorProviderId ?? undefined, {
+    enabled: Boolean(connectorConfig) && !isApiKeyMode,
+    workspaceId,
+  })
+
+  useCredentialRefreshTriggers(refetchCredentials, connectorProviderId ?? '', workspaceId)
 
   const effectiveCredentialId =
     selectedCredentialId ?? (credentials.length === 1 ? credentials[0].id : null)
@@ -263,51 +264,9 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
     )
   }
 
-  const handleConnectNewAccount = useCallback(async () => {
-    if (!connectorConfig || !connectorProviderId || !workspaceId) return
-
-    const userName = session?.user?.name
-    const integrationName = connectorConfig.name
-    const displayName = userName ? `${userName}'s ${integrationName}` : integrationName
-
-    try {
-      const res = await fetch('/api/credentials/draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId,
-          providerId: connectorProviderId,
-          displayName,
-        }),
-      })
-      if (!res.ok) {
-        setError('Failed to prepare credential. Please try again.')
-        return
-      }
-    } catch {
-      setError('Failed to prepare credential. Please try again.')
-      return
-    }
-
-    writeOAuthReturnContext({
-      origin: 'kb-connectors',
-      knowledgeBaseId,
-      displayName,
-      providerId: connectorProviderId,
-      preCount: credentials.length,
-      workspaceId,
-      requestedAt: Date.now(),
-    })
-
+  const handleConnectNewAccount = useCallback(() => {
     setShowOAuthModal(true)
-  }, [
-    connectorConfig,
-    connectorProviderId,
-    workspaceId,
-    session?.user?.name,
-    knowledgeBaseId,
-    credentials.length,
-  ])
+  }, [])
 
   const filteredEntries = useMemo(() => {
     const term = searchTerm.toLowerCase().trim()
@@ -396,40 +355,40 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                 ) : (
                   <div className='flex flex-col gap-2'>
                     <Label>Account</Label>
-                    {credentialsLoading ? (
-                      <div className='flex items-center gap-2 text-[var(--text-muted)] text-small'>
-                        <Loader2 className='h-4 w-4 animate-spin' />
-                        Loading credentials...
-                      </div>
-                    ) : (
-                      <Combobox
-                        size='sm'
-                        options={[
-                          ...credentials.map(
-                            (cred): ComboboxOption => ({
-                              label: cred.name || cred.provider,
-                              value: cred.id,
-                              icon: connectorConfig.icon,
-                            })
-                          ),
-                          {
-                            label: 'Connect new account',
-                            value: '__connect_new__',
-                            icon: Plus,
-                            onSelect: () => {
-                              void handleConnectNewAccount()
-                            },
+                    <Combobox
+                      size='sm'
+                      options={[
+                        ...credentials.map(
+                          (cred): ComboboxOption => ({
+                            label: cred.name || cred.provider,
+                            value: cred.id,
+                            icon: connectorConfig.icon,
+                          })
+                        ),
+                        {
+                          label:
+                            credentials.length > 0
+                              ? `Connect another ${connectorConfig.name} account`
+                              : `Connect ${connectorConfig.name} account`,
+                          value: '__connect_new__',
+                          icon: Plus,
+                          onSelect: () => {
+                            void handleConnectNewAccount()
                           },
-                        ]}
-                        value={effectiveCredentialId ?? undefined}
-                        onChange={(value) => setSelectedCredentialId(value)}
-                        placeholder={
-                          credentials.length === 0
-                            ? `No ${connectorConfig.name} accounts`
-                            : 'Select account'
-                        }
-                      />
-                    )}
+                        },
+                      ]}
+                      value={effectiveCredentialId ?? undefined}
+                      onChange={(value) => setSelectedCredentialId(value)}
+                      onOpenChange={(isOpen) => {
+                        if (isOpen) void refetchCredentials()
+                      }}
+                      placeholder={
+                        credentials.length === 0
+                          ? `No ${connectorConfig.name} accounts`
+                          : 'Select account'
+                      }
+                      isLoading={credentialsLoading}
+                    />
                   </div>
                 )}
 
@@ -590,20 +549,23 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
           )}
         </ModalContent>
       </Modal>
-      {connectorConfig && connectorConfig.auth.mode === 'oauth' && connectorProviderId && (
-        <OAuthRequiredModal
-          isOpen={showOAuthModal}
-          onClose={() => {
-            consumeOAuthReturnContext()
-            setShowOAuthModal(false)
-          }}
-          provider={connectorProviderId}
-          toolName={connectorConfig.name}
-          requiredScopes={getCanonicalScopesForProvider(connectorProviderId)}
-          newScopes={[]}
-          serviceId={connectorConfig.auth.provider}
-        />
-      )}
+      {showOAuthModal &&
+        connectorConfig &&
+        connectorConfig.auth.mode === 'oauth' &&
+        connectorProviderId && (
+          <ConnectCredentialModal
+            isOpen={showOAuthModal}
+            onClose={() => {
+              consumeOAuthReturnContext()
+              setShowOAuthModal(false)
+            }}
+            provider={connectorProviderId}
+            serviceId={connectorConfig.auth.provider}
+            workspaceId={workspaceId}
+            knowledgeBaseId={knowledgeBaseId}
+            credentialCount={credentials.length}
+          />
+        )}
     </>
   )
 }
