@@ -108,7 +108,9 @@ export const launchDarklyUpdateFlagTool: ToolConfig<
       }
 
       if (instructions.length === 0) {
-        throw new Error('At least one update field must be provided (updateName, updateDescription, addTags, removeTags, or archive)')
+        throw new Error(
+          'At least one update field must be provided (updateName, updateDescription, addTags, removeTags, or archive)'
+        )
       }
 
       const body: Record<string, unknown> = { instructions }
