@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const extendData = await extendResponse.json()
+    const extendData = (await extendResponse.json()) as Record<string, unknown>
 
     logger.info(`[${requestId}] Extend parse successful`)
 
