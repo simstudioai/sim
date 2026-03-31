@@ -157,6 +157,44 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 1050000,
       },
       {
+        id: 'gpt-5.4-mini',
+        pricing: {
+          input: 0.75,
+          cachedInput: 0.075,
+          output: 4.5,
+          updatedAt: '2026-03-17',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 400000,
+      },
+      {
+        id: 'gpt-5.4-nano',
+        pricing: {
+          input: 0.2,
+          cachedInput: 0.02,
+          output: 1.25,
+          updatedAt: '2026-03-17',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 400000,
+      },
+      {
         id: 'gpt-5.2',
         pricing: {
           input: 1.75,
@@ -545,6 +583,44 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           maxOutputTokens: 128000,
         },
         contextWindow: 1050000,
+      },
+      {
+        id: 'azure/gpt-5.4-mini',
+        pricing: {
+          input: 0.75,
+          cachedInput: 0.075,
+          output: 4.5,
+          updatedAt: '2026-03-17',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 400000,
+      },
+      {
+        id: 'azure/gpt-5.4-nano',
+        pricing: {
+          input: 0.2,
+          cachedInput: 0.02,
+          output: 1.25,
+          updatedAt: '2026-03-17',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 400000,
       },
       {
         id: 'azure/gpt-5.2',
