@@ -360,6 +360,7 @@ describe('Workflow By ID API Route', () => {
       mockPerformDeleteWorkflow.mockResolvedValue({
         success: false,
         error: 'Cannot delete the only workflow in the workspace',
+        errorCode: 'validation',
       })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
