@@ -491,6 +491,7 @@ import {
   exaResearchTool,
   exaSearchTool,
 } from '@/tools/exa'
+import { extendParserTool, extendParserV2Tool } from '@/tools/extend'
 import {
   fathomGetSummaryTool,
   fathomGetTranscriptTool,
@@ -3533,6 +3534,8 @@ export const tools: Record<string, ToolConfig> = {
   enrich_search_posts: enrichSearchPostsTool,
   enrich_search_similar_companies: enrichSearchSimilarCompaniesTool,
   enrich_verify_email: enrichVerifyEmailTool,
+  extend_parser: extendParserTool,
+  extend_parser_v2: extendParserV2Tool,
   exa_search: exaSearchTool,
   exa_get_contents: exaGetContentsTool,
   exa_find_similar_links: exaFindSimilarLinksTool,

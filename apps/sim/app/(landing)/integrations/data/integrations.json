@@ -2979,6 +2979,24 @@
     "tags": ["web-scraping", "enrichment"]
   },
   {
+    "type": "extend_v2",
+    "slug": "extend",
+    "name": "Extend",
+    "description": "Parse and extract content from documents",
+    "longDescription": "Integrate Extend AI into the workflow. Parse and extract structured content from documents or file references.",
+    "bgColor": "#000000",
+    "iconName": "ExtendIcon",
+    "docsUrl": "https://docs.sim.ai/tools/extend",
+    "operations": [],
+    "operationCount": 0,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "ai",
+    "tags": ["document-processing", "ocr"]
+  },
+  {
     "type": "fathom",
     "slug": "fathom",
     "name": "Fathom",

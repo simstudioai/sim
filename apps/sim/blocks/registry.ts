@@ -42,6 +42,7 @@ import { EnrichBlock } from '@/blocks/blocks/enrich'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { EvernoteBlock } from '@/blocks/blocks/evernote'
 import { ExaBlock } from '@/blocks/blocks/exa'
+import { ExtendBlock, ExtendV2Block } from '@/blocks/blocks/extend'
 import { FathomBlock } from '@/blocks/blocks/fathom'
 import { FileBlock, FileV2Block, FileV3Block } from '@/blocks/blocks/file'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
@@ -256,9 +257,11 @@ export const registry: Record<string, BlockConfig> = {
   elevenlabs: ElevenLabsBlock,
   fathom: FathomBlock,
   enrich: EnrichBlock,
-  evernote: EvernoteBlock,
   evaluator: EvaluatorBlock,
+  evernote: EvernoteBlock,
   exa: ExaBlock,
+  extend: ExtendBlock,
+  extend_v2: ExtendV2Block,
   file: FileBlock,
   file_v2: FileV2Block,
   file_v3: FileV3Block,
