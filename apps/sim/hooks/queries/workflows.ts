@@ -553,7 +553,7 @@ export function useDeleteWorkflowMutation() {
       }
     },
     onSettled: (_data, _error, variables) => {
-      return invalidateWorkflowLists(queryClient, variables.workspaceId)
+      return invalidateWorkflowLists(queryClient, variables.workspaceId, ['active', 'archived'])
     },
   })
 }
