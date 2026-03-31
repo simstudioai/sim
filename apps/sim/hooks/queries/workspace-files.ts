@@ -35,12 +35,12 @@ export interface StorageInfo {
 
 /**
  * Hook to fetch a single workspace file record by ID.
- * Uses the full list query so the result is shared from cache when available.
+ * Uses the same query key as useWorkspaceFiles so the result is served from cache when the list is already loaded.
  */
 export function useWorkspaceFileRecord(workspaceId: string, fileId: string) {
   return useQuery({
-    queryKey: workspaceFilesKeys.list(workspaceId, 'all'),
-    queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, 'all', signal),
+    queryKey: workspaceFilesKeys.list(workspaceId, 'active'),
+    queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, 'active', signal),
     enabled: !!workspaceId && !!fileId,
     staleTime: 30 * 1000,
     select: (files) => files.find((f) => f.id === fileId) ?? null,
