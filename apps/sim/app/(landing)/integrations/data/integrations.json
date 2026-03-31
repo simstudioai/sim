@@ -2984,7 +2984,7 @@
     "name": "Extend",
     "description": "Parse and extract content from documents",
     "longDescription": "Integrate Extend AI into the workflow. Parse and extract structured content from documents or file references.",
-    "bgColor": "#1A1A2E",
+    "bgColor": "#000000",
     "iconName": "ExtendIcon",
     "docsUrl": "https://docs.sim.ai/tools/extend",
     "operations": [],
