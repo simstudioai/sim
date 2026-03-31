@@ -97,6 +97,13 @@ export async function downloadJiraAttachments(
   return downloaded
 }
 
+function normalizeDomain(domain: string): string {
+  return `https://${domain
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/+$/, '')}`.toLowerCase()
+}
+
 export async function getJiraCloudId(domain: string, accessToken: string): Promise<string> {
   const response = await fetchWithRetry(
     'https://api.atlassian.com/oauth/token/accessible-resources',
@@ -116,18 +123,25 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
 
   const resources = await response.json()
 
-  if (Array.isArray(resources) && resources.length > 0) {
-    const normalizedInput = `https://${domain}`.toLowerCase()
-    const matchedResource = resources.find((r) => r.url.toLowerCase() === normalizedInput)
-
-    if (matchedResource) {
-      return matchedResource.id
-    }
+  if (!Array.isArray(resources) || resources.length === 0) {
+    throw new Error('No Jira resources found')
   }
 
-  if (Array.isArray(resources) && resources.length > 0) {
+  const normalized = normalizeDomain(domain)
+  const match = resources.find(
+    (r: { url: string }) => r.url.toLowerCase().replace(/\/+$/, '') === normalized
+  )
+
+  if (match) {
+    return match.id
+  }
+
+  if (resources.length === 1) {
     return resources[0].id
   }
 
-  throw new Error('No Jira resources found')
+  throw new Error(
+    `Could not match Jira domain "${domain}" to any accessible resource. ` +
+      `Available sites: ${resources.map((r: { url: string }) => r.url).join(', ')}`
+  )
 }

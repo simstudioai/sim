@@ -101,6 +101,8 @@ async function getEmbeddingConfig(
   }
 }
 
+const EMBEDDING_REQUEST_TIMEOUT_MS = 60_000
+
 async function callEmbeddingAPI(inputs: string[], config: EmbeddingConfig): Promise<number[][]> {
   return retryWithExponentialBackoff(
     async () => {
@@ -119,11 +121,15 @@ async function callEmbeddingAPI(inputs: string[], config: EmbeddingConfig): Prom
             ...(useDimensions && { dimensions: EMBEDDING_DIMENSIONS }),
           }
 
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), EMBEDDING_REQUEST_TIMEOUT_MS)
+
       const response = await fetch(config.apiUrl, {
         method: 'POST',
         headers: config.headers,
         body: JSON.stringify(requestBody),
-      })
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout))
 
       if (!response.ok) {
         const errorText = await response.text()

@@ -1737,6 +1737,8 @@ export function useChat(
       }
 
       if (options?.error) {
+        pendingRecoveryMessageRef.current = null
+        setPendingRecoveryMessage(null)
         setMessageQueue([])
         return
       }

@@ -156,17 +156,12 @@ export async function dispatchDocumentProcessingJob(payload: DocumentJobData): P
     return
   }
 
-  void processDocumentAsync(
+  await processDocumentAsync(
     payload.knowledgeBaseId,
     payload.documentId,
     payload.docData,
     payload.processingOptions
-  ).catch((error) => {
-    logger.error(`[${payload.requestId}] Direct document processing failed`, {
-      documentId: payload.documentId,
-      error: error instanceof Error ? error.message : String(error),
-    })
-  })
+  )
 }
 
 export interface DocumentTagData {
@@ -385,9 +380,27 @@ export async function processDocumentsWithQueue(
     }
   )
 
-  await Promise.all(jobPayloads.map((payload) => dispatchDocumentProcessingJob(payload)))
+  const results = await Promise.allSettled(
+    jobPayloads.map((payload) => dispatchDocumentProcessingJob(payload))
+  )
 
-  logger.info(`[${requestId}] All documents dispatched for processing`)
+  const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+  if (failures.length > 0) {
+    logger.error(`[${requestId}] ${failures.length}/${results.length} document dispatches failed`, {
+      errors: failures.map((f) =>
+        f.reason instanceof Error ? f.reason.message : String(f.reason)
+      ),
+    })
+  }
+
+  logger.info(
+    `[${requestId}] Document dispatch complete: ${results.length - failures.length}/${results.length} succeeded`
+  )
+
+  if (failures.length === results.length) {
+    throw new Error(`All ${failures.length} document processing dispatches failed`)
+  }
+
   return
 }
 
@@ -434,6 +447,7 @@ export async function processDocumentAsync(
       .set({
         processingStatus: 'processing',
         processingStartedAt: new Date(),
+        processingCompletedAt: null,
         processingError: null,
       })
       .where(
@@ -624,8 +638,9 @@ export async function processDocumentAsync(
     logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
   } catch (error) {
     const processingTime = Date.now() - startTime
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     logger.error(`[${documentId}] Failed to process document after ${processingTime}ms:`, {
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
       filename: docData.filename,
       fileUrl: docData.fileUrl,
@@ -636,10 +651,12 @@ export async function processDocumentAsync(
       .update(document)
       .set({
         processingStatus: 'failed',
-        processingError: error instanceof Error ? error.message : 'Unknown error',
+        processingError: errorMessage,
         processingCompletedAt: new Date(),
       })
       .where(eq(document.id, documentId))
+
+    throw error
   }
 }
 
@@ -1527,7 +1544,7 @@ export async function markDocumentAsFailedTimeout(
     .update(document)
     .set({
       processingStatus: 'failed',
-      processingError: 'Processing timed out - background process may have been terminated',
+      processingError: 'Processing timed out. Please retry or re-sync the connector.',
       processingCompletedAt: now,
     })
     .where(eq(document.id, documentId))

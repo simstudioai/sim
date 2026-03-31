@@ -3,13 +3,15 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => ({
+vi.mock('@sim/logger', () => {
+  const createMockLogger = (): Record<string, any> => ({
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
-  })),
-}))
+    withMetadata: vi.fn(() => createMockLogger()),
+  })
+  return { createLogger: vi.fn(() => createMockLogger()) }
+})
 
 vi.mock('@/lib/billing/core/subscription', () => ({
   getUserSubscriptionState: vi.fn(),

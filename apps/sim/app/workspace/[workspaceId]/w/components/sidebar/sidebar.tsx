@@ -151,7 +151,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   isUnread: boolean
   isMenuOpen: boolean
   showCollapsedTooltips: boolean
-  onMultiSelectClick: (taskId: string, shiftKey: boolean, metaKey: boolean) => void
+  onMultiSelectClick: (taskId: string, shiftKey: boolean) => void
   onContextMenu: (e: React.MouseEvent, taskId: string) => void
   onMorePointerDown: () => void
   onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, taskId: string) => void
@@ -167,9 +167,10 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
         )}
         onClick={(e) => {
           if (task.id === 'new') return
-          if (e.shiftKey || e.metaKey || e.ctrlKey) {
+          if (e.metaKey || e.ctrlKey) return
+          if (e.shiftKey) {
             e.preventDefault()
-            onMultiSelectClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
+            onMultiSelectClick(task.id, true)
           } else {
             useFolderStore.setState({
               selectedTasks: new Set<string>(),
@@ -1058,8 +1059,6 @@ export const Sidebar = memo(function Sidebar() {
     [handleCreateWorkflow]
   )
 
-  const noop = useCallback(() => {}, [])
-
   const handleExpandSidebar = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
@@ -1330,8 +1329,11 @@ export const Sidebar = memo(function Sidebar() {
                     !hasOverflowTop && 'border-transparent'
                   )}
                 >
-                  <div className='tasks-section flex flex-shrink-0 flex-col' data-tour='nav-tasks'>
-                    <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
+                  <div
+                    className='tasks-section mx-2 flex flex-shrink-0 flex-col'
+                    data-tour='nav-tasks'
+                  >
+                    <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-2'>
                       <div className='font-base text-[var(--text-icon)] text-small'>All tasks</div>
                       {!isCollapsed && (
                         <div className='flex items-center justify-center gap-2'>
@@ -1452,10 +1454,10 @@ export const Sidebar = memo(function Sidebar() {
                   </div>
 
                   <div
-                    className='workflows-section relative mt-3.5 flex flex-col'
+                    className='workflows-section relative mx-2 mt-3.5 flex flex-col'
                     data-tour='nav-workflows'
                   >
-                    <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
+                    <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-2'>
                       <div className='font-base text-[var(--text-icon)] text-small'>Workflows</div>
                       {!isCollapsed && (
                         <div className='flex items-center justify-center gap-2'>

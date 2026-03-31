@@ -900,7 +900,11 @@ export function KnowledgeBase({
               onClick={() => setShowConnectorsModal(true)}
               className='flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-[var(--text-secondary)] text-caption shadow-[inset_0_0_0_1px_var(--border)] transition-colors hover-hover:bg-[var(--surface-3)]'
             >
-              {ConnectorIcon && <ConnectorIcon className='h-[14px] w-[14px]' />}
+              {connector.status === 'syncing' ? (
+                <Loader2 className='h-[14px] w-[14px] animate-spin' />
+              ) : (
+                ConnectorIcon && <ConnectorIcon className='h-[14px] w-[14px]' />
+              )}
               {def?.name || connector.connectorType}
             </button>
           )

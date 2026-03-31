@@ -616,6 +616,36 @@ export async function deleteFolderRecord(folderId: string): Promise<boolean> {
   return true
 }
 
+/**
+ * Checks whether setting `parentId` as the parent of `folderId` would
+ * create a circular reference in the folder tree.
+ */
+export async function checkForCircularReference(
+  folderId: string,
+  parentId: string
+): Promise<boolean> {
+  let currentParentId: string | null = parentId
+  const visited = new Set<string>()
+
+  while (currentParentId) {
+    if (visited.has(currentParentId) || currentParentId === folderId) {
+      return true
+    }
+
+    visited.add(currentParentId)
+
+    const [parent] = await db
+      .select({ parentId: workflowFolder.parentId })
+      .from(workflowFolder)
+      .where(eq(workflowFolder.id, currentParentId))
+      .limit(1)
+
+    currentParentId = parent?.parentId || null
+  }
+
+  return false
+}
+
 export async function listFolders(workspaceId: string) {
   return db
     .select({

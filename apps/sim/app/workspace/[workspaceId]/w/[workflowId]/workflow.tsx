@@ -19,6 +19,7 @@ import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-tool'
+import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import type { OAuthProvider } from '@/lib/oauth'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
@@ -263,7 +264,7 @@ const WorkflowContent = React.memo(
     const params = useParams()
     const router = useRouter()
     const reactFlowInstance = useReactFlow()
-    const { screenToFlowPosition, getNodes, setNodes, getIntersectingNodes } = reactFlowInstance
+    const { screenToFlowPosition, getNodes, setNodes } = reactFlowInstance
     const { fitViewToBounds, getViewportCenter } = useCanvasViewport(reactFlowInstance, {
       embedded,
     })
@@ -478,6 +479,17 @@ const WorkflowContent = React.memo(
       const handleOpenOAuthConnect = (event: Event) => {
         const detail = (event as CustomEvent<OAuthConnectEventDetail>).detail
         if (!detail) return
+
+        writeOAuthReturnContext({
+          origin: 'workflow',
+          workflowId: workflowIdParam,
+          displayName: detail.providerName,
+          providerId: detail.providerId,
+          preCount: 0,
+          workspaceId,
+          requestedAt: Date.now(),
+        })
+
         setOauthModal({
           provider: detail.providerId as OAuthProvider,
           serviceId: detail.serviceId,
@@ -490,7 +502,7 @@ const WorkflowContent = React.memo(
       window.addEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
       return () =>
         window.removeEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
-    }, [])
+    }, [workflowIdParam, workspaceId])
 
     const { diffAnalysis, isShowingDiff, isDiffReady, reapplyDiffMarkers, hasActiveDiff } =
       useWorkflowDiffStore(
@@ -2849,38 +2861,29 @@ const WorkflowContent = React.memo(
     )
 
     /**
-     * Finds the best node at a given flow position for drop-on-block connection.
-     * Skips subflow containers as they have their own connection logic.
+     * Finds the node under the cursor using DOM hit-testing for pixel-perfect
+     * detection that matches exactly what the user sees on screen.
+     * Uses the same approach as ReactFlow's internal handle detection.
      */
-    const findNodeAtPosition = useCallback(
-      (position: { x: number; y: number }) => {
-        const cursorRect = {
-          x: position.x - 1,
-          y: position.y - 1,
-          width: 2,
-          height: 2,
+    const findNodeAtScreenPosition = useCallback(
+      (clientX: number, clientY: number) => {
+        const elements = document.elementsFromPoint(clientX, clientY)
+        const nodes = getNodes()
+
+        for (const el of elements) {
+          const nodeEl = el.closest('.react-flow__node') as HTMLElement | null
+          if (!nodeEl) continue
+
+          const nodeId = nodeEl.getAttribute('data-id')
+          if (!nodeId) continue
+
+          const node = nodes.find((n) => n.id === nodeId)
+          if (node && node.type !== 'subflowNode') return node
         }
 
-        const intersecting = getIntersectingNodes(cursorRect, true).filter(
-          (node) => node.type !== 'subflowNode'
-        )
-
-        if (intersecting.length === 0) return undefined
-        if (intersecting.length === 1) return intersecting[0]
-
-        return intersecting.reduce((closest, node) => {
-          const getDistance = (n: Node) => {
-            const absPos = getNodeAbsolutePosition(n.id)
-            const dims = getBlockDimensions(n.id)
-            const centerX = absPos.x + dims.width / 2
-            const centerY = absPos.y + dims.height / 2
-            return Math.hypot(position.x - centerX, position.y - centerY)
-          }
-
-          return getDistance(node) < getDistance(closest) ? node : closest
-        })
+        return undefined
       },
-      [getIntersectingNodes, getNodeAbsolutePosition, getBlockDimensions]
+      [getNodes]
     )
 
     /**
@@ -3005,15 +3008,9 @@ const WorkflowContent = React.memo(
           return
         }
 
-        // Get cursor position in flow coordinates
+        // Find node under cursor using DOM hit-testing
         const clientPos = 'changedTouches' in event ? event.changedTouches[0] : event
-        const flowPosition = screenToFlowPosition({
-          x: clientPos.clientX,
-          y: clientPos.clientY,
-        })
-
-        // Find node under cursor
-        const targetNode = findNodeAtPosition(flowPosition)
+        const targetNode = findNodeAtScreenPosition(clientPos.clientX, clientPos.clientY)
 
         // Create connection if valid target found (handle-to-body case)
         if (targetNode && targetNode.id !== source.nodeId) {
@@ -3027,7 +3024,7 @@ const WorkflowContent = React.memo(
 
         connectionSourceRef.current = null
       },
-      [screenToFlowPosition, findNodeAtPosition, onConnect]
+      [findNodeAtScreenPosition, onConnect]
     )
 
     /** Handles node drag to detect container intersections and update highlighting. */
@@ -4118,7 +4115,10 @@ const WorkflowContent = React.memo(
           <Suspense fallback={null}>
             <LazyOAuthRequiredModal
               isOpen={true}
-              onClose={() => setOauthModal(null)}
+              onClose={() => {
+                consumeOAuthReturnContext()
+                setOauthModal(null)
+              }}
               provider={oauthModal.provider}
               toolName={oauthModal.providerName}
               serviceId={oauthModal.serviceId}

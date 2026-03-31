@@ -266,16 +266,17 @@ export default function Logs() {
     isSidebarOpen: false,
   })
   const isInitialized = useRef<boolean>(false)
+  const pendingExecutionIdRef = useRef<string | null>(null)
 
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
   useEffect(() => {
-    const urlSearch = new URLSearchParams(window.location.search).get('search') || ''
-    if (urlSearch && urlSearch !== searchQuery) {
-      setSearchQuery(urlSearch)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const params = new URLSearchParams(window.location.search)
+    const urlSearch = params.get('search')
+    if (urlSearch) setSearchQuery(urlSearch)
+    const urlExecutionId = params.get('executionId')
+    if (urlExecutionId) pendingExecutionIdRef.current = urlExecutionId
   }, [])
 
   const isLive = true
@@ -298,7 +299,6 @@ export default function Logs() {
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
   const [contextMenuLog, setContextMenuLog] = useState<WorkflowLog | null>(null)
-  const contextMenuRef = useRef<HTMLDivElement>(null)
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [previewLogId, setPreviewLogId] = useState<string | null>(null)
@@ -417,28 +417,30 @@ export default function Logs() {
 
   useFolders(workspaceId)
 
+  logsRef.current = sortedLogs
+  selectedLogIndexRef.current = selectedLogIndex
+  selectedLogIdRef.current = selectedLogId
+  logsRefetchRef.current = logsQuery.refetch
+  activeLogRefetchRef.current = activeLogQuery.refetch
+  logsQueryRef.current = {
+    isFetching: logsQuery.isFetching,
+    hasNextPage: logsQuery.hasNextPage ?? false,
+    fetchNextPage: logsQuery.fetchNextPage,
+  }
+
   useEffect(() => {
-    logsRef.current = sortedLogs
-  }, [sortedLogs])
-  useEffect(() => {
-    selectedLogIndexRef.current = selectedLogIndex
-  }, [selectedLogIndex])
-  useEffect(() => {
-    selectedLogIdRef.current = selectedLogId
-  }, [selectedLogId])
-  useEffect(() => {
-    logsRefetchRef.current = logsQuery.refetch
-  }, [logsQuery.refetch])
-  useEffect(() => {
-    activeLogRefetchRef.current = activeLogQuery.refetch
-  }, [activeLogQuery.refetch])
-  useEffect(() => {
-    logsQueryRef.current = {
-      isFetching: logsQuery.isFetching,
-      hasNextPage: logsQuery.hasNextPage ?? false,
-      fetchNextPage: logsQuery.fetchNextPage,
+    if (!pendingExecutionIdRef.current) return
+    const targetExecutionId = pendingExecutionIdRef.current
+    const found = sortedLogs.find((l) => l.executionId === targetExecutionId)
+    if (found) {
+      pendingExecutionIdRef.current = null
+      dispatch({ type: 'TOGGLE_LOG', logId: found.id })
+    } else if (!logsQuery.hasNextPage && logsQuery.status === 'success') {
+      pendingExecutionIdRef.current = null
+    } else if (!logsQuery.isFetching && logsQuery.status === 'success') {
+      logsQueryRef.current.fetchNextPage()
     }
-  }, [logsQuery.isFetching, logsQuery.hasNextPage, logsQuery.fetchNextPage])
+  }, [sortedLogs, logsQuery.hasNextPage, logsQuery.isFetching, logsQuery.status])
 
   useEffect(() => {
     const timers = refreshTimersRef.current
@@ -490,9 +492,16 @@ export default function Logs() {
 
   const handleCopyExecutionId = useCallback(() => {
     if (contextMenuLog?.executionId) {
-      navigator.clipboard.writeText(contextMenuLog.executionId)
+      navigator.clipboard.writeText(contextMenuLog.executionId).catch(() => {})
     }
   }, [contextMenuLog])
+
+  const handleCopyLink = useCallback(() => {
+    if (contextMenuLog?.executionId) {
+      const url = `${window.location.origin}/workspace/${workspaceId}/logs?executionId=${contextMenuLog.executionId}`
+      navigator.clipboard.writeText(url).catch(() => {})
+    }
+  }, [contextMenuLog, workspaceId])
 
   const handleOpenWorkflow = useCallback(() => {
     const wfId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
@@ -1165,6 +1174,7 @@ export default function Logs() {
         onClose={handleCloseContextMenu}
         log={contextMenuLog}
         onCopyExecutionId={handleCopyExecutionId}
+        onCopyLink={handleCopyLink}
         onOpenWorkflow={handleOpenWorkflow}
         onOpenPreview={handleOpenPreview}
         onToggleWorkflowFilter={handleToggleWorkflowFilter}
