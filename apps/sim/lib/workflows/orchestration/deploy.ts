@@ -36,6 +36,11 @@ export interface PerformFullDeployParams {
    * If not provided, a synthetic request is constructed from the base URL.
    */
   request?: NextRequest
+  /**
+   * Override the actor ID used in audit logs and the `deployedBy` field.
+   * Defaults to `userId`. Use `'admin-api'` for admin-initiated actions.
+   */
+  actorId?: string
 }
 
 export interface PerformFullDeployResult {
@@ -57,6 +62,7 @@ export async function performFullDeploy(
   params: PerformFullDeployParams
 ): Promise<PerformFullDeployResult> {
   const { workflowId, userId, workflowName } = params
+  const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
   const request = params.request ?? new NextRequest(new URL('/api/webhooks', getBaseUrl()))
 
@@ -114,7 +120,7 @@ export async function performFullDeploy(
 
   const deployResult = await deployWorkflow({
     workflowId,
-    deployedBy: userId,
+    deployedBy: actorId,
     workflowName: workflowName || workflowRecord.name || undefined,
   })
 
@@ -191,7 +197,7 @@ export async function performFullDeploy(
 
   recordAudit({
     workspaceId: (workflowData.workspaceId as string) || null,
-    actorId: userId,
+    actorId: actorId,
     action: AuditAction.WORKFLOW_DEPLOYED,
     resourceType: AuditResourceType.WORKFLOW,
     resourceId: workflowId,
@@ -214,6 +220,8 @@ export interface PerformFullUndeployParams {
   workflowId: string
   userId: string
   requestId?: string
+  /** Override the actor ID used in audit logs. Defaults to `userId`. */
+  actorId?: string
 }
 
 export interface PerformFullUndeployResult {
@@ -231,6 +239,7 @@ export async function performFullUndeploy(
   params: PerformFullUndeployParams
 ): Promise<PerformFullUndeployResult> {
   const { workflowId, userId } = params
+  const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
 
   const [workflowRecord] = await db
@@ -264,7 +273,7 @@ export async function performFullUndeploy(
 
   recordAudit({
     workspaceId: (workflowData.workspaceId as string) || null,
-    actorId: userId,
+    actorId: actorId,
     action: AuditAction.WORKFLOW_UNDEPLOYED,
     resourceType: AuditResourceType.WORKFLOW,
     resourceId: workflowId,
@@ -282,6 +291,8 @@ export interface PerformActivateVersionParams {
   workflow: Record<string, unknown>
   requestId?: string
   request?: NextRequest
+  /** Override the actor ID used in audit logs. Defaults to `userId`. */
+  actorId?: string
 }
 
 export interface PerformActivateVersionResult {
@@ -302,6 +313,7 @@ export async function performActivateVersion(
   params: PerformActivateVersionParams
 ): Promise<PerformActivateVersionResult> {
   const { workflowId, version, userId, workflow } = params
+  const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
   const request = params.request ?? new NextRequest(new URL('/api/webhooks', getBaseUrl()))
 
@@ -445,7 +457,7 @@ export async function performActivateVersion(
 
   recordAudit({
     workspaceId: (workflow.workspaceId as string) || null,
-    actorId: userId,
+    actorId: actorId,
     action: AuditAction.WORKFLOW_DEPLOYMENT_ACTIVATED,
     resourceType: AuditResourceType.WORKFLOW,
     resourceId: workflowId,

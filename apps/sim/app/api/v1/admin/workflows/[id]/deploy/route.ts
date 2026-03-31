@@ -16,6 +16,15 @@ interface RouteParams {
   id: string
 }
 
+/**
+ * POST — Deploy a workflow via admin API.
+ *
+ * `userId` is set to the workflow owner so that webhook credential resolution
+ * (OAuth token lookups for providers like Airtable, Attio, etc.) uses a real
+ * user. `actorId` is set to `'admin-api'` so that the `deployedBy` field on
+ * the deployment version and audit log entries are correctly attributed to an
+ * admin action rather than the workflow owner.
+ */
 export const POST = withAdminAuthParams<RouteParams>(async (request, context) => {
   const { id: workflowId } = await context.params
   const requestId = generateRequestId()
@@ -33,6 +42,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       workflowName: workflowRecord.name,
       requestId,
       request,
+      actorId: 'admin-api',
     })
 
     if (!result.success) {
@@ -70,6 +80,7 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (_request, context)
       workflowId,
       userId: workflowRecord.userId,
       requestId,
+      actorId: 'admin-api',
     })
 
     if (!result.success) {

@@ -40,6 +40,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
       workflow: workflowRecord as Record<string, unknown>,
       requestId,
       request,
+      actorId: 'admin-api',
     })
 
     if (!result.success) {

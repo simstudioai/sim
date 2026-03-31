@@ -84,6 +84,7 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (_request, context)
       userId: workflowData.userId,
       skipLastWorkflowGuard: true,
       requestId: `admin-workflow-${workflowId}`,
+      actorId: 'admin-api',
     })
 
     if (!result.success) {

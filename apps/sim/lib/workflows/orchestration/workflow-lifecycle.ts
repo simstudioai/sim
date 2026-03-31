@@ -16,6 +16,8 @@ export interface PerformDeleteWorkflowParams {
   templateAction?: 'delete' | 'orphan'
   /** When true, allows deleting the last workflow in a workspace (used by admin API). */
   skipLastWorkflowGuard?: boolean
+  /** Override the actor ID used in audit logs. Defaults to `userId`. */
+  actorId?: string
 }
 
 export interface PerformDeleteWorkflowResult {
@@ -33,6 +35,7 @@ export async function performDeleteWorkflow(
   params: PerformDeleteWorkflowParams
 ): Promise<PerformDeleteWorkflowResult> {
   const { workflowId, userId, templateAction = 'orphan', skipLastWorkflowGuard = false } = params
+  const actorId = params.actorId ?? userId
   const requestId = params.requestId ?? generateRequestId()
 
   const [workflowRecord] = await db
@@ -96,7 +99,7 @@ export async function performDeleteWorkflow(
 
   recordAudit({
     workspaceId: workflowRecord.workspaceId || null,
-    actorId: userId,
+    actorId: actorId,
     action: AuditAction.WORKFLOW_DELETED,
     resourceType: AuditResourceType.WORKFLOW,
     resourceId: workflowId,
