@@ -3,9 +3,10 @@ import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import { fetchDeploymentVersionState } from '@/hooks/queries/utils/fetch-deployment-version-state'
+import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { fetchDeploymentVersionState, workflowKeys } from './workflows'
 
 const logger = createLogger('DeploymentQueries')
 

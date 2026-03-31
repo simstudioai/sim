@@ -5,7 +5,6 @@ import { devtools } from 'zustand/middleware'
 import { normalizeName } from '@/executor/constants'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import type { Variable, VariablesStore } from '@/stores/panel/variables/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('VariablesStore')
@@ -175,10 +174,10 @@ export const useVariablesStore = create<VariablesStore>()(
             update.name = undefined
           } else if (newName !== oldVariableName) {
             const subBlockStore = useSubBlockStore.getState()
-            const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+            const targetWorkflowId = oldVariable.workflowId
 
-            if (activeWorkflowId) {
-              const workflowValues = subBlockStore.workflowValues[activeWorkflowId] || {}
+            if (targetWorkflowId) {
+              const workflowValues = subBlockStore.workflowValues[targetWorkflowId] || {}
               const updatedWorkflowValues = { ...workflowValues }
               const changedSubBlocks: Array<{ blockId: string; subBlockId: string; value: any }> =
                 []
@@ -227,7 +226,7 @@ export const useVariablesStore = create<VariablesStore>()(
               useSubBlockStore.setState({
                 workflowValues: {
                   ...subBlockStore.workflowValues,
-                  [activeWorkflowId]: updatedWorkflowValues,
+                  [targetWorkflowId]: updatedWorkflowValues,
                 },
               })
 
@@ -242,7 +241,7 @@ export const useVariablesStore = create<VariablesStore>()(
                     target: 'subblock',
                     payload: { blockId, subblockId: subBlockId, value },
                   },
-                  workflowId: activeWorkflowId,
+                  workflowId: targetWorkflowId,
                   userId: 'system',
                 })
               }

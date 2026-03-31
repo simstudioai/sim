@@ -1,5 +1,8 @@
-import { getWorkflows } from '@/hooks/queries/workflows'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { fetchJson, fetchOAuthToken } from '@/hooks/selectors/helpers'
+import { selectorKeys } from '@/hooks/selectors/query-keys'
 import type {
   SelectorContext,
   SelectorDefinition,
@@ -1685,15 +1688,16 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
   },
   'sim.workflows': {
     key: 'sim.workflows',
-    staleTime: 0, // Always fetch fresh from store
-    getQueryKey: ({ context }: SelectorQueryArgs) => [
-      'selectors',
-      'sim.workflows',
-      context.excludeWorkflowId ?? 'none',
-    ],
-    enabled: () => true,
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) =>
+      context.workspaceId
+        ? selectorKeys.simWorkflows(context.workspaceId, context.excludeWorkflowId)
+        : [...selectorKeys.all, 'sim.workflows', 'none', context.excludeWorkflowId ?? 'none'],
+    enabled: ({ context }) => Boolean(context.workspaceId),
     fetchList: async ({ context }: SelectorQueryArgs): Promise<SelectorOption[]> => {
-      const workflows = getWorkflows()
+      if (!context.workspaceId) return []
+      await getQueryClient().ensureQueryData(getWorkflowListQueryOptions(context.workspaceId))
+      const workflows = getWorkflows(context.workspaceId)
       return workflows
         .filter((w) => w.id !== context.excludeWorkflowId)
         .map((w) => ({
@@ -1702,10 +1706,10 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         }))
         .sort((a, b) => a.label.localeCompare(b.label))
     },
-    fetchById: async ({ detailId }: SelectorQueryArgs): Promise<SelectorOption | null> => {
-      if (!detailId) return null
-      const workflows = getWorkflows()
-      const workflow = workflows.find((w) => w.id === detailId)
+    fetchById: async ({ context, detailId }: SelectorQueryArgs): Promise<SelectorOption | null> => {
+      if (!detailId || !context.workspaceId) return null
+      await getQueryClient().ensureQueryData(getWorkflowListQueryOptions(context.workspaceId))
+      const workflow = getWorkflowById(context.workspaceId, detailId)
       if (!workflow) return null
       return {
         id: detailId,

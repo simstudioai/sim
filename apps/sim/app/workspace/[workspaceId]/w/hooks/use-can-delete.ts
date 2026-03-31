@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
+import { useFolderMap } from '@/hooks/queries/folders'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useFolderStore } from '@/stores/folders/store'
 
 interface UseCanDeleteProps {
   /**
@@ -37,7 +37,7 @@ interface UseCanDeleteReturn {
  */
 export function useCanDelete({ workspaceId }: UseCanDeleteProps): UseCanDeleteReturn {
   const { data: workflowList = [] } = useWorkflows(workspaceId)
-  const folders = useFolderStore((s) => s.folders)
+  const { data: folders = {} } = useFolderMap(workspaceId)
 
   /**
    * Pre-computed data structures for efficient lookups

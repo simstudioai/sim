@@ -66,6 +66,16 @@ describe('buildSelectorContextFromBlock', () => {
     expect(ctx.workflowId).toBe('wf-123')
   })
 
+  it('should pass through workspaceId from opts', () => {
+    const ctx = buildSelectorContextFromBlock(
+      'knowledge',
+      { operation: { id: 'operation', type: 'dropdown', value: 'search' } },
+      { workspaceId: 'ws-123' }
+    )
+
+    expect(ctx.workspaceId).toBe('ws-123')
+  })
+
   it('should ignore subblock keys not in SELECTOR_CONTEXT_FIELDS', () => {
     const ctx = buildSelectorContextFromBlock('knowledge', {
       operation: { id: 'operation', type: 'dropdown', value: 'search' },

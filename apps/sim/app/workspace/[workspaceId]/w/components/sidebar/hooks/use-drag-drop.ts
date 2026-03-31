@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { getFolderPath } from '@/lib/folders/tree'
 import { useReorderFolders } from '@/hooks/queries/folders'
-import { getWorkflows, useReorderWorkflows } from '@/hooks/queries/workflows'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { useReorderWorkflows } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 
 const logger = createLogger('WorkflowList:DragDrop')
@@ -232,7 +235,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     const cached = siblingsCacheRef.current.get(cacheKey)
     if (cached) return cached
 
-    const currentFolders = useFolderStore.getState().folders
+    const currentFolders = workspaceId ? getFolderMap(workspaceId) : {}
     const currentWorkflows = getWorkflows(workspaceId)
     const siblings = [
       ...Object.values(currentFolders)
@@ -293,10 +296,11 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     (folderId: string, destinationFolderId: string | null): boolean => {
       if (folderId === destinationFolderId) return false
       if (!destinationFolderId) return true
-      const targetPath = useFolderStore.getState().getFolderPath(destinationFolderId)
+      if (!workspaceId) return false
+      const targetPath = getFolderPath(getFolderMap(workspaceId), destinationFolderId)
       return !targetPath.some((f) => f.id === folderId)
     },
-    []
+    [workspaceId]
   )
 
   const collectMovingItems = useCallback(
@@ -305,7 +309,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       folderIds: string[],
       destinationFolderId: string | null
     ): { fromDestination: SiblingItem[]; fromOther: SiblingItem[] } => {
-      const { folders } = useFolderStore.getState()
+      const folders = workspaceId ? getFolderMap(workspaceId) : {}
       const workflows = getWorkflows(workspaceId)
 
       const fromDestination: SiblingItem[] = []

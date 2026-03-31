@@ -6,12 +6,12 @@ const logger = createLogger('OptimisticMutation')
 export interface OptimisticMutationConfig<TData, TVariables, TItem, TContext> {
   name: string
   getQueryKey: (variables: TVariables) => readonly unknown[]
-  getSnapshot: () => Record<string, TItem>
+  getSnapshot: (variables: TVariables) => Record<string, TItem>
   generateTempId: (variables: TVariables) => string
   createOptimisticItem: (variables: TVariables, tempId: string) => TItem
   applyOptimisticUpdate: (tempId: string, item: TItem) => void
   replaceOptimisticEntry: (tempId: string, data: TData) => void
-  rollback: (snapshot: Record<string, TItem>) => void
+  rollback: (snapshot: Record<string, TItem>, variables: TVariables) => void
   onSuccessExtra?: (data: TData, variables: TVariables) => void
 }
 
@@ -40,7 +40,7 @@ export function createOptimisticMutationHandlers<TData, TVariables, TItem>(
     onMutate: async (variables: TVariables): Promise<OptimisticMutationContext<TItem>> => {
       const queryKey = getQueryKey(variables)
       await queryClient.cancelQueries({ queryKey })
-      const previousState = getSnapshot()
+      const previousState = getSnapshot(variables)
       const tempId = generateTempId(variables)
       const optimisticItem = createOptimisticItem(variables, tempId)
       applyOptimisticUpdate(tempId, optimisticItem)
@@ -61,7 +61,7 @@ export function createOptimisticMutationHandlers<TData, TVariables, TItem>(
     ) => {
       logger.error(`[${name}] Failed:`, error)
       if (context?.previousState) {
-        rollback(context.previousState)
+        rollback(context.previousState, _variables)
         logger.info(`[${name}] Rolled back to previous state`)
       }
     },

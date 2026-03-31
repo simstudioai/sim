@@ -25,7 +25,9 @@ import {
   useExportSelection,
   useExportWorkflow,
 } from '@/app/workspace/[workspaceId]/w/hooks'
-import { getWorkflows, useUpdateWorkflow } from '@/hooks/queries/workflows'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -229,7 +231,7 @@ export function WorkflowItem({
     const isMixed = workflowIds.length > 0 && folderIds.length > 0
 
     const workflows = getWorkflows(workspaceId)
-    const { folders } = useFolderStore.getState()
+    const folderMap = getFolderMap(workspaceId)
 
     const names: string[] = []
     for (const id of workflowIds) {
@@ -237,7 +239,7 @@ export function WorkflowItem({
       if (w) names.push(w.name)
     }
     for (const id of folderIds) {
-      const f = folders[id]
+      const f = folderMap[id]
       if (f) names.push(f.name)
     }
 

@@ -245,7 +245,10 @@ export function RecentlyDeleted() {
 
     switch (resource.type) {
       case 'workflow':
-        restoreWorkflow.mutate(resource.id, { onSettled, onSuccess })
+        restoreWorkflow.mutate(
+          { workflowId: resource.id, workspaceId: resource.workspaceId },
+          { onSettled, onSuccess }
+        )
         break
       case 'table':
         restoreTable.mutate(resource.id, { onSettled, onSuccess })

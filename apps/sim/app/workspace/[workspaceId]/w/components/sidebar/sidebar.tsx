@@ -38,6 +38,7 @@ import {
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { isMacPlatform } from '@/lib/core/utils/platform'
+import { buildFolderTree } from '@/lib/folders/tree'
 import {
   START_NAV_TOUR_EVENT,
   START_WORKFLOW_TOUR_EVENT,
@@ -77,7 +78,7 @@ import {
   useImportWorkspace,
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { getBrandConfig } from '@/ee/whitelabeling'
-import { useFolders } from '@/hooks/queries/folders'
+import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import {
@@ -436,13 +437,12 @@ export const Sidebar = memo(function Sidebar() {
   })
 
   useFolders(workspaceId)
-  const folders = useFolderStore((s) => s.folders)
-  const getFolderTree = useFolderStore((s) => s.getFolderTree)
+  const { data: folderMap = {} } = useFolderMap(workspaceId)
   const updateWorkflowMutation = useUpdateWorkflow()
 
   const folderTree = useMemo(
-    () => (isCollapsed && workspaceId ? getFolderTree(workspaceId) : []),
-    [isCollapsed, workspaceId, folders, getFolderTree]
+    () => (isCollapsed && workspaceId ? buildFolderTree(folderMap, workspaceId) : []),
+    [isCollapsed, workspaceId, folderMap]
   )
 
   const workflowsByFolder = useMemo(

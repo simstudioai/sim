@@ -8,7 +8,7 @@ import {
   fetchWorkflowForExport,
   sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
-import { getWorkflows } from '@/hooks/queries/workflows'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useFolderStore } from '@/stores/folders/store'
 
 const logger = createLogger('useExportWorkflow')

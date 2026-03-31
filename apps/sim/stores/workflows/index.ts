@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getWorkflows } from '@/hooks/queries/workflows'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -11,13 +11,12 @@ const logger = createLogger('Workflows')
  * Get a workflow with its state merged in by ID
  * Note: Since localStorage has been removed, this only works for the active workflow
  * @param workflowId ID of the workflow to retrieve
+ * @param workspaceId Workspace containing the workflow metadata
  * @returns The workflow with merged state values or null if not found/not active
  */
-export function getWorkflowWithValues(workflowId: string) {
-  const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId ?? undefined
+export function getWorkflowWithValues(workflowId: string, workspaceId: string) {
   const workflows = getWorkflows(workspaceId)
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-  const currentState = useWorkflowStore.getState()
 
   const metadata = workflows.find((w) => w.id === workflowId)
   if (!metadata) {
@@ -78,12 +77,24 @@ export function getBlockWithValues(blockId: string): BlockState | null {
 /**
  * Get all workflows with their values merged
  * Note: Since localStorage has been removed, this only includes the active workflow state
+ * @param workspaceId Workspace containing the workflow metadata
  * @returns An object containing workflows, with state only for the active workflow
  */
-export function getAllWorkflowsWithValues() {
-  const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId ?? undefined
+export function getAllWorkflowsWithValues(workspaceId: string) {
   const workflows = getWorkflows(workspaceId)
-  const result: Record<string, any> = {}
+  const result: Record<
+    string,
+    {
+      id: string
+      name: string
+      description?: string
+      color: string
+      folderId?: string | null
+      workspaceId?: string
+      apiKey?: string
+      state: WorkflowState & { isDeployed: boolean; deployedAt?: Date }
+    }
+  > = {}
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
   const currentState = useWorkflowStore.getState()
 

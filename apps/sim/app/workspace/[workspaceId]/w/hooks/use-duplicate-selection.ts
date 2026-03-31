@@ -1,9 +1,12 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { getChildFolders, getFolderById } from '@/lib/folders/tree'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useDuplicateFolderMutation } from '@/hooks/queries/folders'
-import { getWorkflows, useDuplicateWorkflowMutation } from '@/hooks/queries/workflows'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { useDuplicateWorkflowMutation } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 
 const logger = createLogger('useDuplicateSelection')
@@ -62,20 +65,20 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
       setIsDuplicating(true)
       try {
         const workflowMap = new Map(getWorkflows(workspaceIdRef.current).map((w) => [w.id, w]))
-        const folderStore = useFolderStore.getState()
+        const folderMap = getFolderMap(workspaceIdRef.current)
 
         const duplicatedWorkflowIds: string[] = []
         const duplicatedFolderIds: string[] = []
 
         for (const folderId of folderIds) {
-          const folder = folderStore.getFolderById(folderId)
+          const folder = getFolderById(folderMap, folderId)
           if (!folder) {
             logger.warn(`Folder ${folderId} not found, skipping`)
             continue
           }
 
           const siblingNames = new Set(
-            folderStore.getChildFolders(folder.parentId).map((sibling) => sibling.name)
+            getChildFolders(folderMap, folder.parentId).map((sibling) => sibling.name)
           )
           siblingNames.add(folder.name)
 

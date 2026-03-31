@@ -8,7 +8,8 @@ import {
   fetchWorkflowForExport,
   type WorkflowExportData,
 } from '@/lib/workflows/operations/import-export'
-import { getWorkflows } from '@/hooks/queries/workflows'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -121,18 +122,18 @@ export function useExportSelection({ onSuccess }: UseExportSelectionProps = {}) 
       try {
         const workflowsArray = getWorkflows(workspaceIdRef.current)
         const workflows = Object.fromEntries(workflowsArray.map((w) => [w.id, w]))
-        const { folders } = useFolderStore.getState()
+        const folderMap = getFolderMap(workspaceIdRef.current)
 
         const workflowsFromFolders: CollectedWorkflow[] = []
         for (const folderId of folderIds) {
-          const collected = collectWorkflowsInFolder(folderId, workflows, folders)
+          const collected = collectWorkflowsInFolder(folderId, workflows, folderMap)
           workflowsFromFolders.push(...collected)
         }
 
-        const subfolders = collectSubfoldersForMultipleFolders(folderIds, folders)
+        const subfolders = collectSubfoldersForMultipleFolders(folderIds, folderMap)
 
         const selectedFoldersData: FolderExportData[] = folderIds.map((folderId) => {
-          const folder = folders[folderId]
+          const folder = folderMap[folderId]
           return {
             id: folder.id,
             name: folder.name,

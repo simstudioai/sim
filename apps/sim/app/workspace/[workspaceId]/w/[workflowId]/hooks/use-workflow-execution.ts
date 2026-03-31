@@ -31,7 +31,7 @@ import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { coerceValue } from '@/executor/utils/start-block'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
-import { getWorkflows } from '@/hooks/queries/workflows'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
 import { useCurrentWorkflowExecution, useExecutionStore } from '@/stores/execution'
@@ -384,7 +384,8 @@ export function useWorkflowExecution() {
 
       // Sandbox exercises have no real workflow — signal the SandboxCanvasProvider
       // to run mock execution by setting isExecuting, then bail out immediately.
-      const cachedWorkflows = getWorkflows(routeWorkspaceId ?? hydrationWorkspaceId ?? undefined)
+      const scopedWorkspaceId = routeWorkspaceId ?? hydrationWorkspaceId ?? undefined
+      const cachedWorkflows = scopedWorkspaceId ? getWorkflows(scopedWorkspaceId) : []
       const activeWorkflow = cachedWorkflows.find((w) => w.id === activeWorkflowId)
       if (activeWorkflow?.isSandbox) {
         setIsExecuting(activeWorkflowId, true)

@@ -3,19 +3,18 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
-import { getWorkspaceIdFromUrl } from '@/hooks/queries/utils/get-workspace-id-from-url'
-import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
+import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { useVariablesStore } from '@/stores/panel/variables/store'
+import type { Variable } from '@/stores/panel/variables/types'
 import type {
   DeploymentStatus,
   HydrationState,
-  WorkflowMetadata,
   WorkflowRegistry,
 } from '@/stores/workflows/registry/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { getUniqueBlockName, regenerateBlockIds } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
+import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowRegistry')
 const initialHydration: HydrationState = {
@@ -30,6 +29,7 @@ const createRequestId = () => `${Date.now()}-${Math.random().toString(16).slice(
 
 function resetWorkflowStores() {
   useWorkflowStore.setState({
+    currentWorkflowId: null,
     blocks: {},
     edges: [],
     loops: {},
@@ -57,7 +57,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         logger.info(`Switching to workspace: ${workspaceId}`)
 
         resetWorkflowStores()
-        getQueryClient().invalidateQueries({ queryKey: workflowKeys.lists() })
+        void invalidateWorkflowLists(getQueryClient(), workspaceId)
 
         set({
           activeWorkflowId: null,
@@ -108,8 +108,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               apiKey,
               needsRedeployment: isDeployed
                 ? false
-                : ((state.deploymentStatuses?.[workflowId as string] as any)?.needsRedeployment ??
-                  false),
+                : (state.deploymentStatuses?.[workflowId as string]?.needsRedeployment ?? false),
             },
           },
         }))
@@ -143,16 +142,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       },
 
       loadWorkflowState: async (workflowId: string) => {
-        const workspaceId = get().hydration.workspaceId ?? getWorkspaceIdFromUrl()
-
-        const workflows = workspaceId
-          ? (getQueryClient().getQueryData<WorkflowMetadata[]>(
-              workflowKeys.list(workspaceId, 'active')
-            ) ?? [])
-          : []
-
-        if (workflows.length > 0 && !workflows.find((w) => w.id === workflowId)) {
-          const message = `Workflow not found: ${workflowId}`
+        const workspaceId = get().hydration.workspaceId
+        if (!workspaceId) {
+          const message = `Cannot load workflow ${workflowId} without a workspace scope`
           logger.error(message)
           set({ error: message })
           throw new Error(message)
@@ -178,32 +170,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }
 
           const workflowData = (await response.json()).data
-          let workflowState: any
-
-          if (workflowData?.state) {
-            workflowState = {
-              blocks: workflowData.state.blocks || {},
-              edges: workflowData.state.edges || [],
-              loops: workflowData.state.loops || {},
-              parallels: workflowData.state.parallels || {},
-              lastSaved: Date.now(),
-              deploymentStatuses: {},
-            }
-          } else {
-            workflowState = {
-              blocks: {},
-              edges: [],
-              loops: {},
-              parallels: {},
-              deploymentStatuses: {},
-              lastSaved: Date.now(),
-            }
-
-            logger.info(
-              `Workflow ${workflowId} has no state yet - will load from DB or show empty canvas`
-            )
-          }
-
           const nextDeploymentStatuses =
             workflowData?.isDeployed || workflowData?.deployedAt
               ? {
@@ -218,6 +184,34 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   },
                 }
               : get().deploymentStatuses
+
+          let workflowState: WorkflowState
+
+          if (workflowData?.state) {
+            workflowState = {
+              currentWorkflowId: workflowId,
+              blocks: workflowData.state.blocks || {},
+              edges: workflowData.state.edges || [],
+              loops: workflowData.state.loops || {},
+              parallels: workflowData.state.parallels || {},
+              lastSaved: Date.now(),
+              deploymentStatuses: nextDeploymentStatuses,
+            }
+          } else {
+            workflowState = {
+              currentWorkflowId: workflowId,
+              blocks: {},
+              edges: [],
+              loops: {},
+              parallels: {},
+              deploymentStatuses: nextDeploymentStatuses,
+              lastSaved: Date.now(),
+            }
+
+            logger.info(
+              `Workflow ${workflowId} has no state yet - will load from DB or show empty canvas`
+            )
+          }
 
           const currentHydration = get().hydration
           if (
@@ -237,7 +231,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           if (workflowData?.variables && typeof workflowData.variables === 'object') {
             useVariablesStore.setState((state) => {
               const withoutWorkflow = Object.fromEntries(
-                Object.entries(state.variables).filter(([, v]: any) => v.workflowId !== workflowId)
+                Object.entries(state.variables).filter(
+                  (entry): entry is [string, Variable] => entry[1].workflowId !== workflowId
+                )
               )
               return {
                 variables: { ...withoutWorkflow, ...workflowData.variables },

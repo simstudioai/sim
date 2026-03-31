@@ -476,7 +476,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
     setIsExporting(true)
     try {
-      const workflow = getWorkflowWithValues(activeWorkflowId)
+      const workflow = getWorkflowWithValues(activeWorkflowId, workspaceId)
 
       if (!workflow || !workflow.state) {
         throw new Error('No workflow state found')

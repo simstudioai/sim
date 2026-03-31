@@ -13,8 +13,8 @@ import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils
 import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { getBlock } from '@/blocks'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
-import { getWorkflows } from '@/hooks/queries/workflows'
 import { useVariablesStore } from '@/stores/panel/variables/store'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 /** Execution status for blocks in preview mode */
 type ExecutionStatus = 'success' | 'error' | 'not-executed'
@@ -48,6 +48,8 @@ const ERROR_HANDLE_STYLE: CSSProperties = {
 interface WorkflowPreviewBlockData {
   type: string
   name: string
+  workflowMap?: Record<string, WorkflowMetadata>
+  workflowLabelsReady?: boolean
   isTrigger?: boolean
   horizontalHandles?: boolean
   enabled?: boolean
@@ -77,6 +79,8 @@ interface SubBlockRowProps {
   value?: string
   subBlock?: SubBlockConfig
   rawValue?: unknown
+  workflowMap: Record<string, WorkflowMetadata>
+  workflowLabelsReady: boolean
 }
 
 /**
@@ -107,13 +111,15 @@ function resolveDropdownLabel(
  */
 function resolveWorkflowName(
   subBlock: SubBlockConfig | undefined,
-  rawValue: unknown
+  rawValue: unknown,
+  workflowMap: Record<string, WorkflowMetadata>,
+  workflowLabelsReady: boolean
 ): string | null {
   if (subBlock?.type !== 'workflow-selector') return null
   if (!rawValue || typeof rawValue !== 'string') return null
+  if (!workflowLabelsReady) return null
 
-  const workflows = getWorkflows()
-  return workflows.find((w) => w.id === rawValue)?.name ?? DELETED_WORKFLOW_LABEL
+  return workflowMap[rawValue]?.name ?? DELETED_WORKFLOW_LABEL
 }
 
 /**
@@ -228,6 +234,8 @@ const SubBlockRow = memo(function SubBlockRow({
   value,
   subBlock,
   rawValue,
+  workflowMap,
+  workflowLabelsReady,
 }: SubBlockRowProps) {
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
@@ -235,7 +243,7 @@ const SubBlockRow = memo(function SubBlockRow({
   const dropdownLabel = resolveDropdownLabel(subBlock, rawValue)
   const variablesDisplay = resolveVariablesDisplay(subBlock, rawValue)
   const toolsDisplay = resolveToolsDisplay(subBlock, rawValue)
-  const workflowName = resolveWorkflowName(subBlock, rawValue)
+  const workflowName = resolveWorkflowName(subBlock, rawValue, workflowMap, workflowLabelsReady)
 
   const isSelectorType = subBlock?.type && SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlock.type)
 
@@ -272,6 +280,8 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
   const {
     type,
     name,
+    workflowMap = {},
+    workflowLabelsReady = false,
     isTrigger = false,
     horizontalHandles = false,
     enabled = true,
@@ -492,6 +502,8 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
                 key={cond.id}
                 title={cond.title}
                 value={lightweight ? undefined : getDisplayValue(cond.value)}
+                workflowMap={workflowMap}
+                workflowLabelsReady={workflowLabelsReady}
               />
             ))
           ) : type === 'router_v2' ? (
@@ -500,12 +512,16 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
                 key='context'
                 title='Context'
                 value={lightweight ? undefined : getDisplayValue(rawValues.context)}
+                workflowMap={workflowMap}
+                workflowLabelsReady={workflowLabelsReady}
               />
               {routerRows.map((route, index) => (
                 <SubBlockRow
                   key={route.id}
                   title={`Route ${index + 1}`}
                   value={lightweight ? undefined : getDisplayValue(route.value)}
+                  workflowMap={workflowMap}
+                  workflowLabelsReady={workflowLabelsReady}
                 />
               ))}
             </>
@@ -519,12 +535,20 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
                   value={lightweight ? undefined : getDisplayValue(rawValue)}
                   subBlock={lightweight ? undefined : subBlock}
                   rawValue={rawValue}
+                  workflowMap={workflowMap}
+                  workflowLabelsReady={workflowLabelsReady}
                 />
               )
             })
           )}
           {/* Error row for non-trigger blocks */}
-          {shouldShowDefaultHandles && <SubBlockRow title='error' />}
+          {shouldShowDefaultHandles && (
+            <SubBlockRow
+              title='error'
+              workflowMap={workflowMap}
+              workflowLabelsReady={workflowLabelsReady}
+            />
+          )}
         </div>
       )}
 

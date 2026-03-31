@@ -18,7 +18,8 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { tableKeys } from '@/hooks/queries/tables'
-import { useWorkflows, workflowKeys } from '@/hooks/queries/workflows'
+import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { useWorkflows } from '@/hooks/queries/workflows'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 interface DropdownItemRenderProps {
@@ -162,8 +163,8 @@ const RESOURCE_INVALIDATORS: Record<
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.contentFile(wId, id) })
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
   },
-  workflow: (qc, _wId) => {
-    qc.invalidateQueries({ queryKey: workflowKeys.lists() })
+  workflow: (qc, wId) => {
+    void invalidateWorkflowLists(qc, wId)
   },
   knowledgebase: (qc, _wId, id) => {
     qc.invalidateQueries({ queryKey: knowledgeKeys.lists() })

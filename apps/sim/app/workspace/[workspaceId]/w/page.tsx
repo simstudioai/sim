@@ -17,7 +17,7 @@ export default function WorkflowsPage() {
   const workspaceId = params.workspaceId as string
   const [isMounted, setIsMounted] = useState(false)
 
-  const { data: workflows = [], isLoading, isError } = useWorkflows(workspaceId)
+  const { data: workflows = [], isLoading, isError, isPlaceholderData } = useWorkflows(workspaceId)
 
   useEffect(() => {
     setIsMounted(true)
@@ -25,7 +25,7 @@ export default function WorkflowsPage() {
 
   useEffect(() => {
     if (!isMounted) return
-    if (isLoading) return
+    if (isLoading || isPlaceholderData) return
 
     if (isError) {
       logger.error('Failed to load workflows for workspace')
@@ -37,7 +37,16 @@ export default function WorkflowsPage() {
     if (workspaceWorkflows.length > 0) {
       router.replace(`/workspace/${workspaceId}/w/${workspaceWorkflows[0].id}`)
     }
-  }, [isMounted, isLoading, workflows, workspaceId, router, setActiveWorkflow, isError])
+  }, [
+    isMounted,
+    isLoading,
+    isPlaceholderData,
+    workflows,
+    workspaceId,
+    router,
+    setActiveWorkflow,
+    isError,
+  ])
 
   // Always show loading state until redirect happens
   // There should always be a default workflow, so we never show "no workflows found"

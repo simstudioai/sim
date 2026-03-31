@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
+import { useParams } from 'next/navigation'
 import ReactFlow, {
   ConnectionLineType,
   type Edge,
@@ -19,6 +20,7 @@ import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/compo
 import { estimateBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { PreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/block'
 import { PreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/subflow'
+import { useWorkflowMap } from '@/hooks/queries/workflows'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('PreviewWorkflow')
@@ -130,6 +132,7 @@ function calculateAbsolutePosition(
 
 interface PreviewWorkflowProps {
   workflowState: WorkflowState
+  workspaceId?: string
   className?: string
   height?: string | number
   width?: string | number
@@ -213,6 +216,7 @@ function FitViewOnChange({ nodeIds, fitPadding, containerRef }: FitViewOnChangeP
 /** Readonly workflow visualization with execution status highlighting. */
 export function PreviewWorkflow({
   workflowState,
+  workspaceId: propWorkspaceId,
   className,
   height = '100%',
   width = '100%',
@@ -228,6 +232,14 @@ export function PreviewWorkflow({
   selectedBlockId,
   lightweight = false,
 }: PreviewWorkflowProps) {
+  const params = useParams<{ workspaceId: string }>()
+  const workspaceId = propWorkspaceId ?? params.workspaceId
+  const {
+    data: workflowMap = {},
+    isLoading: isWorkflowMapLoading,
+    isPlaceholderData: isWorkflowMapPlaceholderData,
+  } = useWorkflowMap(workspaceId)
+  const workflowLabelsReady = !isWorkflowMapLoading && !isWorkflowMapPlaceholderData
   const containerRef = useRef<HTMLDivElement>(null)
   const nodeTypes = previewNodeTypes
   const isValidWorkflowState = workflowState?.blocks && workflowState.edges
@@ -424,6 +436,8 @@ export function PreviewWorkflow({
         data: {
           type: block.type,
           name: block.name,
+          workflowMap,
+          workflowLabelsReady,
           isTrigger: block.triggerMode === true,
           horizontalHandles: block.horizontalHandles ?? false,
           enabled: block.enabled ?? true,
@@ -445,6 +459,8 @@ export function PreviewWorkflow({
     executedBlocks,
     selectedBlockId,
     getSubflowExecutionStatus,
+    workflowMap,
+    workflowLabelsReady,
     lightweight,
   ])
 

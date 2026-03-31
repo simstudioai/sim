@@ -15,8 +15,8 @@ import {
   type WorkflowData,
 } from '@/lib/logs/search-suggestions'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
+import { useFolderMap } from '@/hooks/queries/folders'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useFolderStore } from '@/stores/folders/store'
 
 function truncateFilterValue(field: string, value: string): string {
   if ((field === 'executionId' || field === 'workflowId') && value.length > 12) {
@@ -45,7 +45,7 @@ export function AutocompleteSearch({
 }: AutocompleteSearchProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { data: workflowList = [] } = useWorkflows(workspaceId)
-  const folders = useFolderStore((state) => state.folders)
+  const { data: folders = {} } = useFolderMap(workspaceId)
 
   const workflowsData = useMemo<WorkflowData[]>(() => {
     return workflowList.map((w) => ({

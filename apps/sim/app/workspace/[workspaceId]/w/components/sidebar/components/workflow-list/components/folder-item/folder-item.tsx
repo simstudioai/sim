@@ -27,7 +27,9 @@ import {
   useExportSelection,
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCreateFolder, useUpdateFolder } from '@/hooks/queries/folders'
-import { getWorkflows, useCreateWorkflow } from '@/hooks/queries/workflows'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
@@ -244,12 +246,12 @@ export function FolderItem({
     const workflowIds = Array.from(finalWorkflowSelection)
     const isMixed = folderIds.length > 0 && workflowIds.length > 0
 
-    const { folders } = useFolderStore.getState()
+    const folderMap = getFolderMap(workspaceId)
     const workflows = getWorkflows(workspaceId)
 
     const names: string[] = []
     for (const id of folderIds) {
-      const f = folders[id]
+      const f = folderMap[id]
       if (f) names.push(f.name)
     }
     for (const id of workflowIds) {

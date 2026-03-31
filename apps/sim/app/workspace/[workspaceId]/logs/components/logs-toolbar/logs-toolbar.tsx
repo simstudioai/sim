@@ -20,8 +20,8 @@ import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { type LogStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
 import { getBlock } from '@/blocks/registry'
+import { useFolderMap } from '@/hooks/queries/folders'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { AutocompleteSearch } from './components/search'
@@ -218,7 +218,7 @@ export const LogsToolbar = memo(function LogsToolbar({
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [previousTimeRange, setPreviousTimeRange] = useState(timeRange)
-  const folders = useFolderStore((state) => state.folders)
+  const { data: folders = {} } = useFolderMap(workspaceId)
 
   const { data: allWorkflowList = [] } = useWorkflows(workspaceId)
 
