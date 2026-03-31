@@ -61,9 +61,7 @@ async function fetchWorkflowState(
 export function useWorkflowState(workflowId: string | undefined) {
   return useQuery({
     queryKey: workflowKeys.state(workflowId),
-    queryFn: workflowId
-      ? ({ signal }) => fetchWorkflowState(workflowId, signal)
-      : skipToken,
+    queryFn: workflowId ? ({ signal }) => fetchWorkflowState(workflowId, signal) : skipToken,
     staleTime: 30 * 1000,
   })
 }
@@ -118,9 +116,7 @@ export function useWorkflows(workspaceId?: string, options?: { scope?: WorkflowQ
 
   return useQuery({
     queryKey: workflowKeys.list(workspaceId, scope),
-    queryFn: workspaceId
-      ? ({ signal }) => fetchWorkflows(workspaceId, scope, signal)
-      : skipToken,
+    queryFn: workspaceId ? ({ signal }) => fetchWorkflows(workspaceId, scope, signal) : skipToken,
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
   })
@@ -136,9 +132,7 @@ export function useWorkflowMap(workspaceId?: string, options?: { scope?: Workflo
 
   return useQuery({
     queryKey: workflowKeys.list(workspaceId, scope),
-    queryFn: workspaceId
-      ? ({ signal }) => fetchWorkflows(workspaceId, scope, signal)
-      : skipToken,
+    queryFn: workspaceId ? ({ signal }) => fetchWorkflows(workspaceId, scope, signal) : skipToken,
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
     select: (data) => Object.fromEntries(data.map((w) => [w.id, w])),
@@ -213,9 +207,7 @@ export function useCreateWorkflow() {
 
       if (!stateResponse.ok) {
         const text = await stateResponse.text()
-        logger.error('Failed to persist default Start block:', text)
-      } else {
-        logger.info('Successfully persisted default Start block')
+        throw new Error(`Failed to persist default workflow state: ${text}`)
       }
 
       return {
@@ -570,7 +562,7 @@ export function useUpdateWorkflow() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
-        queryKey: workflowKeys.list(variables.workspaceId, 'active'),
+        queryKey: workflowKeys.lists(),
       })
     },
   })
@@ -623,7 +615,7 @@ export function useDeleteWorkflowMutation() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
-        queryKey: workflowKeys.list(variables.workspaceId, 'active'),
+        queryKey: workflowKeys.lists(),
       })
     },
   })

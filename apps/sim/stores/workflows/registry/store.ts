@@ -27,9 +27,6 @@ const initialHydration: HydrationState = {
 
 const createRequestId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
-let isWorkspaceTransitioning = false
-const TRANSITION_TIMEOUT = 5000
-
 function resetWorkflowStores() {
   useWorkflowStore.setState({
     blocks: {},
@@ -45,19 +42,6 @@ function resetWorkflowStores() {
   })
 }
 
-function setWorkspaceTransitioning(isTransitioning: boolean): void {
-  isWorkspaceTransitioning = isTransitioning
-
-  if (isTransitioning) {
-    setTimeout(() => {
-      if (isWorkspaceTransitioning) {
-        logger.warn('Forcing workspace transition to complete due to timeout')
-        isWorkspaceTransitioning = false
-      }
-    }, TRANSITION_TIMEOUT)
-  }
-}
-
 export const useWorkflowRegistry = create<WorkflowRegistry>()(
   devtools(
     (set, get) => ({
@@ -68,53 +52,24 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       clipboard: null,
       pendingSelection: null,
 
-      switchToWorkspace: async (workspaceId: string) => {
-        if (isWorkspaceTransitioning) {
-          logger.warn(
-            `Ignoring workspace switch to ${workspaceId} - transition already in progress`
-          )
-          return
-        }
+      switchToWorkspace: (workspaceId: string) => {
+        logger.info(`Switching to workspace: ${workspaceId}`)
 
-        setWorkspaceTransitioning(true)
+        resetWorkflowStores()
+        getQueryClient().invalidateQueries({ queryKey: workflowKeys.lists() })
 
-        try {
-          logger.info(`Switching to workspace: ${workspaceId}`)
-
-          resetWorkflowStores()
-
-          // Invalidate the old workspace workflow cache so a fresh fetch happens
-          getQueryClient().invalidateQueries({ queryKey: workflowKeys.lists() })
-
-          set({
-            activeWorkflowId: null,
-            deploymentStatuses: {},
+        set({
+          activeWorkflowId: null,
+          deploymentStatuses: {},
+          error: null,
+          hydration: {
+            phase: 'idle',
+            workspaceId,
+            workflowId: null,
+            requestId: null,
             error: null,
-            hydration: {
-              phase: 'idle',
-              workspaceId,
-              workflowId: null,
-              requestId: null,
-              error: null,
-            },
-          })
-
-          logger.info(`Successfully switched to workspace: ${workspaceId}`)
-        } catch (error) {
-          logger.error(`Error switching to workspace ${workspaceId}:`, { error })
-          set({
-            error: `Failed to switch workspace: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            hydration: {
-              phase: 'error',
-              workspaceId,
-              workflowId: null,
-              requestId: null,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            },
-          })
-        } finally {
-          setWorkspaceTransitioning(false)
-        }
+          },
+        })
       },
 
       getWorkflowDeploymentStatus: (workflowId: string | null): DeploymentStatus | null => {

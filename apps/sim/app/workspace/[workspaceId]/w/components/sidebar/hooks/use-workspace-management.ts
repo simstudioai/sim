@@ -110,7 +110,7 @@ export function useWorkspaceManagement({
       }
 
       try {
-        await switchToWorkspace(workspace.id)
+        switchToWorkspace(workspace.id)
         routerRef.current?.push(`/workspace/${workspace.id}/home`)
         logger.info(`Switched to workspace: ${workspace.name} (${workspace.id})`)
       } catch (error) {

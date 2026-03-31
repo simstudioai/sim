@@ -46,7 +46,7 @@ import { useCredentialName } from '@/hooks/queries/oauth/oauth-credentials'
 import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedules'
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
-import { useWorkflows } from '@/hooks/queries/workflows'
+import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { useVariablesStore } from '@/stores/panel'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -600,11 +600,11 @@ const SubBlockRow = memo(function SubBlockRow({
   )
   const knowledgeBaseDisplayName = kbForDisplayName?.name ?? null
 
-  const { data: workflowListForLookup } = useWorkflows(workspaceId)
+  const { data: workflowMapForLookup = {} } = useWorkflowMap(workspaceId)
   const workflowSelectionName = useMemo(() => {
     if (subBlock?.id !== 'workflowId' || typeof rawValue !== 'string') return null
-    return (workflowListForLookup ?? []).find((w) => w.id === rawValue)?.name ?? null
-  }, [workflowListForLookup, subBlock?.id, rawValue])
+    return workflowMapForLookup[rawValue]?.name ?? null
+  }, [workflowMapForLookup, subBlock?.id, rawValue])
 
   const { data: mcpServers = [] } = useMcpServers(workspaceId || '')
   const mcpServerDisplayName = useMemo(() => {

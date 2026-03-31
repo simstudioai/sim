@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
-import { useCreateWorkflow, useWorkflowMap, useWorkflows } from '@/hooks/queries/workflows'
+import { useCreateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
 
@@ -14,19 +14,15 @@ interface UseWorkflowOperationsProps {
 
 export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProps) {
   const router = useRouter()
-  const workflowsQuery = useWorkflows(workspaceId)
-  const { data: workflowList = [] } = workflowsQuery
-  const { data: workflows = {} } = useWorkflowMap(workspaceId)
+  const { data: workflows = {}, isLoading: workflowsLoading } = useWorkflowMap(workspaceId)
   const createWorkflowMutation = useCreateWorkflow()
 
   const regularWorkflows = useMemo(
     () =>
-      workflowList
+      Object.values(workflows)
         .filter((workflow) => workflow.workspaceId === workspaceId)
-        .sort((a, b) => {
-          return b.createdAt.getTime() - a.createdAt.getTime()
-        }),
-    [workflowList, workspaceId]
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
+    [workflows, workspaceId]
   )
 
   const handleCreateWorkflow = useCallback(async (): Promise<string | null> => {
@@ -58,7 +54,7 @@ export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProp
   return {
     workflows,
     regularWorkflows,
-    workflowsLoading: workflowsQuery.isLoading,
+    workflowsLoading,
     isCreatingWorkflow: createWorkflowMutation.isPending,
 
     handleCreateWorkflow,

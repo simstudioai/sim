@@ -61,7 +61,7 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
 
       setIsDuplicating(true)
       try {
-        const workflows = getWorkflows(workspaceIdRef.current)
+        const workflowMap = new Map(getWorkflows(workspaceIdRef.current).map((w) => [w.id, w]))
         const folderStore = useFolderStore.getState()
 
         const duplicatedWorkflowIds: string[] = []
@@ -96,7 +96,7 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
         }
 
         for (const workflowId of workflowIds) {
-          const workflow = workflows.find((w) => w.id === workflowId)
+          const workflow = workflowMap.get(workflowId)
           if (!workflow) {
             logger.warn(`Workflow ${workflowId} not found, skipping`)
             continue

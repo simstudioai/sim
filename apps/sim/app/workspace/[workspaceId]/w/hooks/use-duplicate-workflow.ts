@@ -60,10 +60,10 @@ export function useDuplicateWorkflow({ workspaceId, onSuccess }: UseDuplicateWor
       const duplicatedIds: string[] = []
 
       try {
-        const workflows = getWorkflows(workspaceIdRef.current)
+        const workflowMap = new Map(getWorkflows(workspaceIdRef.current).map((w) => [w.id, w]))
 
         for (const sourceId of workflowIdsToDuplicate) {
-          const sourceWorkflow = workflows.find((w) => w.id === sourceId)
+          const sourceWorkflow = workflowMap.get(sourceId)
           if (!sourceWorkflow) {
             logger.warn(`Workflow ${sourceId} not found, skipping`)
             continue

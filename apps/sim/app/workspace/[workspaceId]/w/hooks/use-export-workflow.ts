@@ -58,11 +58,11 @@ export function useExportWorkflow({ onSuccess }: UseExportWorkflowProps = {}) {
           count: workflowIdsToExport.length,
         })
 
-        const workflows = getWorkflows(workspaceIdRef.current)
+        const workflowMap = new Map(getWorkflows(workspaceIdRef.current).map((w) => [w.id, w]))
         const exportedWorkflows = []
 
         for (const workflowId of workflowIdsToExport) {
-          const workflowMeta = workflows.find((w) => w.id === workflowId)
+          const workflowMeta = workflowMap.get(workflowId)
           if (!workflowMeta) {
             logger.warn(`Workflow ${workflowId} not found in registry`)
             continue

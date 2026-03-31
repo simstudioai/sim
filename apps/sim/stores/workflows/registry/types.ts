@@ -54,7 +54,7 @@ export interface WorkflowRegistryState {
 export interface WorkflowRegistryActions {
   setActiveWorkflow: (id: string) => Promise<void>
   loadWorkflowState: (workflowId: string) => Promise<void>
-  switchToWorkspace: (id: string) => Promise<void>
+  switchToWorkspace: (id: string) => void
   getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
   setDeploymentStatus: (
     workflowId: string | null,
