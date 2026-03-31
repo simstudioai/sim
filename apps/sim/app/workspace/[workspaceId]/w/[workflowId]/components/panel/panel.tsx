@@ -525,7 +525,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       const result = await duplicateWorkflowMutation.mutateAsync({
         workspaceId,
         sourceId: activeWorkflowId,
-        name: `${sourceWorkflow.name} (copy)`,
+        name: `${sourceWorkflow.name} (Copy)`,
         description: sourceWorkflow.description,
         color: sourceWorkflow.color ?? '',
         folderId: sourceWorkflow.folderId,

@@ -1,33 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger, queryClient, useFolderStoreMock, useWorkflowRegistryMock } = vi.hoisted(() => ({
-  mockLogger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  },
-  queryClient: {
-    cancelQueries: vi.fn().mockResolvedValue(undefined),
-    invalidateQueries: vi.fn().mockResolvedValue(undefined),
-  },
-  useFolderStoreMock: Object.assign(vi.fn(), {
-    getState: vi.fn(),
-    setState: vi.fn(),
-  }),
-  useWorkflowRegistryMock: Object.assign(vi.fn(), {
-    getState: vi.fn(),
-    setState: vi.fn(),
-  }),
-}))
+const { mockLogger, mockGetWorkflows, queryClient, useFolderStoreMock, useWorkflowRegistryMock } =
+  vi.hoisted(() => ({
+    mockLogger: {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    },
+    mockGetWorkflows: vi.fn(() => []),
+    queryClient: {
+      cancelQueries: vi.fn().mockResolvedValue(undefined),
+      invalidateQueries: vi.fn().mockResolvedValue(undefined),
+    },
+    useFolderStoreMock: Object.assign(vi.fn(), {
+      getState: vi.fn(),
+      setState: vi.fn(),
+    }),
+    useWorkflowRegistryMock: Object.assign(vi.fn(), {
+      getState: vi.fn(),
+      setState: vi.fn(),
+    }),
+  }))
 
 let folderState: {
   folders: Record<string, any>
 }
 
-let workflowRegistryState: {
-  workflows: Record<string, any>
-}
+let workflowList: Array<{ id: string; name: string; workspaceId: string; folderId: string; sortOrder: number }>
 
 vi.mock('@sim/logger', () => ({
   createLogger: vi.fn(() => mockLogger),
@@ -49,6 +49,7 @@ vi.mock('@/stores/workflows/registry/store', () => ({
 }))
 
 vi.mock('@/hooks/queries/workflows', () => ({
+  getWorkflows: mockGetWorkflows,
   workflowKeys: {
     list: (workspaceId: string | undefined) => ['workflows', 'list', workspaceId ?? ''],
   },
@@ -77,7 +78,7 @@ describe('folder optimistic top insertion ordering', () => {
 
       folderState = { ...folderState, ...updater }
     })
-    useWorkflowRegistryMock.getState.mockImplementation(() => workflowRegistryState)
+    mockGetWorkflows.mockImplementation(() => workflowList)
 
     folderState = {
       folders: {
@@ -108,24 +109,22 @@ describe('folder optimistic top insertion ordering', () => {
       },
     }
 
-    workflowRegistryState = {
-      workflows: {
-        'workflow-parent-match': {
-          id: 'workflow-parent-match',
-          name: 'Existing sibling workflow',
-          workspaceId: 'ws-1',
-          folderId: 'parent-1',
-          sortOrder: 2,
-        },
-        'workflow-other-parent': {
-          id: 'workflow-other-parent',
-          name: 'Other parent workflow',
-          workspaceId: 'ws-1',
-          folderId: 'parent-2',
-          sortOrder: -50,
-        },
+    workflowList = [
+      {
+        id: 'workflow-parent-match',
+        name: 'Existing sibling workflow',
+        workspaceId: 'ws-1',
+        folderId: 'parent-1',
+        sortOrder: 2,
       },
-    }
+      {
+        id: 'workflow-other-parent',
+        name: 'Other parent workflow',
+        workspaceId: 'ws-1',
+        folderId: 'parent-2',
+        sortOrder: -50,
+      },
+    ]
   })
 
   it('creates folders at top of mixed non-root siblings', async () => {

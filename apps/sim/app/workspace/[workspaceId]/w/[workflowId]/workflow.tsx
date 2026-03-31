@@ -2202,7 +2202,7 @@ const WorkflowContent = React.memo(
       const currentId = workflowIdParam
       const currentWorkspaceHydration = hydration.workspaceId
 
-      const isRegistryReady = hydration.phase !== 'idle'
+      const isRegistryReady = hydration.workspaceId !== null
 
       // Wait for registry to be ready to prevent race conditions
       if (

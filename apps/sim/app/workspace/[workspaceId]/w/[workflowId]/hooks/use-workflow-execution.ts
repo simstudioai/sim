@@ -105,6 +105,7 @@ function normalizeErrorMessage(error: unknown): string {
 
 export function useWorkflowExecution() {
   const { workspaceId: routeWorkspaceId } = useParams<{ workspaceId: string }>()
+  const hydrationWorkspaceId = useWorkflowRegistry((s) => s.hydration.workspaceId)
   const queryClient = useQueryClient()
   const currentWorkflow = useCurrentWorkflow()
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
@@ -383,7 +384,7 @@ export function useWorkflowExecution() {
 
       // Sandbox exercises have no real workflow — signal the SandboxCanvasProvider
       // to run mock execution by setting isExecuting, then bail out immediately.
-      const cachedWorkflows = getWorkflows(routeWorkspaceId)
+      const cachedWorkflows = getWorkflows(routeWorkspaceId ?? hydrationWorkspaceId ?? undefined)
       const activeWorkflow = cachedWorkflows.find((w) => w.id === activeWorkflowId)
       if (activeWorkflow?.isSandbox) {
         setIsExecuting(activeWorkflowId, true)
