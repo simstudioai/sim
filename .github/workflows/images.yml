@@ -70,6 +70,8 @@ jobs:
           # ECR tags (always build for ECR)
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             ECR_TAG="latest"
+          elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            ECR_TAG="dev"
           else
             ECR_TAG="staging"
           fi
