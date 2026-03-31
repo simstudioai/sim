@@ -2041,6 +2041,15 @@ export function Mem0Icon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function ExtendIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'>
+      <rect width='24' height='24' rx='4' fill='#1A1A2E' />
+      <path d='M7 8h10M7 12h10M7 16h6' stroke='#FFFFFF' strokeWidth='2' strokeLinecap='round' />
+    </svg>
+  )
+}
+
 export function EvernoteIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='#7fce2c'>
