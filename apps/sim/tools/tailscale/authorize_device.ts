@@ -50,8 +50,7 @@ export const tailscaleAuthorizeDeviceTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response, _ctx, params) => {
-    const typedParams = params as { deviceId?: string; authorized?: boolean }
+  transformResponse: async (response: Response, params?: TailscaleAuthorizeDeviceParams) => {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
       return {
@@ -65,8 +64,8 @@ export const tailscaleAuthorizeDeviceTool: ToolConfig<
       success: true,
       output: {
         success: true,
-        deviceId: typedParams?.deviceId ?? '',
-        authorized: typedParams?.authorized ?? true,
+        deviceId: params?.deviceId ?? '',
+        authorized: params?.authorized ?? true,
       },
     }
   },

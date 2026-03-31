@@ -40,7 +40,7 @@ export const tailscaleDeleteDeviceTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response, _ctx, params) => {
+  transformResponse: async (response: Response, params?: TailscaleDeviceParams) => {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
       return {
@@ -54,7 +54,7 @@ export const tailscaleDeleteDeviceTool: ToolConfig<
       success: true,
       output: {
         success: true,
-        deviceId: (params as { deviceId?: string })?.deviceId ?? '',
+        deviceId: params?.deviceId ?? '',
       },
     }
   },

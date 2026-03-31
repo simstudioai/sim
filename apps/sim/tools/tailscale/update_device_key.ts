@@ -50,8 +50,7 @@ export const tailscaleUpdateDeviceKeyTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response, _ctx, params) => {
-    const typedParams = params as { deviceId?: string; keyExpiryDisabled?: boolean }
+  transformResponse: async (response: Response, params?: TailscaleUpdateDeviceKeyParams) => {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
       return {
@@ -65,8 +64,8 @@ export const tailscaleUpdateDeviceKeyTool: ToolConfig<
       success: true,
       output: {
         success: true,
-        deviceId: typedParams?.deviceId ?? '',
-        keyExpiryDisabled: typedParams?.keyExpiryDisabled ?? true,
+        deviceId: params?.deviceId ?? '',
+        keyExpiryDisabled: params?.keyExpiryDisabled ?? true,
       },
     }
   },

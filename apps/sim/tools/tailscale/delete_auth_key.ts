@@ -52,7 +52,7 @@ export const tailscaleDeleteAuthKeyTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response, _ctx, params) => {
+  transformResponse: async (response: Response, params?: TailscaleDeleteAuthKeyParams) => {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
       return {
@@ -66,7 +66,7 @@ export const tailscaleDeleteAuthKeyTool: ToolConfig<
       success: true,
       output: {
         success: true,
-        keyId: (params as TailscaleDeleteAuthKeyParams)?.keyId ?? '',
+        keyId: params?.keyId ?? '',
       },
     }
   },

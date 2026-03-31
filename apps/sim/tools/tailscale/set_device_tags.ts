@@ -53,8 +53,7 @@ export const tailscaleSetDeviceTagsTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response, _ctx, params) => {
-    const typedParams = params as { deviceId?: string; tags?: string }
+  transformResponse: async (response: Response, params?: TailscaleSetDeviceTagsParams) => {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
       return {
@@ -64,8 +63,8 @@ export const tailscaleSetDeviceTagsTool: ToolConfig<
       }
     }
 
-    const tags = typedParams?.tags
-      ? typedParams.tags
+    const tags = params?.tags
+      ? params.tags
           .split(',')
           .map((t) => t.trim())
           .filter(Boolean)
@@ -75,7 +74,7 @@ export const tailscaleSetDeviceTagsTool: ToolConfig<
       success: true,
       output: {
         success: true,
-        deviceId: typedParams?.deviceId ?? '',
+        deviceId: params?.deviceId ?? '',
         tags,
       },
     }
