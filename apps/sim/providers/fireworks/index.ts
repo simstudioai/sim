@@ -3,12 +3,12 @@ import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
-import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromOpenAIStream,
   supportsNativeStructuredOutputs,
 } from '@/providers/fireworks/utils'
+import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type {
   FunctionCallResponse,
   Message,
