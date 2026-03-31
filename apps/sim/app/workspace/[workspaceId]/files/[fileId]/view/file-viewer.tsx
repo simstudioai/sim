@@ -1,25 +1,17 @@
 'use client'
 
-import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
 
 const logger = createLogger('FileViewer')
 
 export function FileViewer() {
   const params = useParams()
-  const router = useRouter()
   const workspaceId = params?.workspaceId as string
   const fileId = params?.fileId as string
 
   const { data: file, isLoading } = useWorkspaceFileRecord(workspaceId, fileId)
-
-  useEffect(() => {
-    if (!isLoading && !file) {
-      router.replace(`/workspace/${workspaceId}/files`)
-    }
-  }, [isLoading, file, router, workspaceId])
 
   if (isLoading || !file) {
     return null
