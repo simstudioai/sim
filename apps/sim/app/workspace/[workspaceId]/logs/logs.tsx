@@ -437,6 +437,8 @@ export default function Logs() {
       dispatch({ type: 'TOGGLE_LOG', logId: found.id })
     } else if (!logsQuery.hasNextPage) {
       pendingExecutionIdRef.current = null
+    } else if (!logsQueryRef.current.isFetching) {
+      logsQueryRef.current.fetchNextPage()
     }
   }, [sortedLogs, logsQuery.hasNextPage])
 
