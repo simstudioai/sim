@@ -28,15 +28,11 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
-import {
-  getCanonicalScopesForProvider,
-  getProviderIdFromServiceId,
-  type OAuthProvider,
-} from '@/lib/oauth'
+import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
+import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
-import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { ConnectCredentialModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/connect-credential-modal'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
 import {
@@ -333,6 +329,7 @@ function ConnectorCard({
   const missingScopes = useMemo(() => {
     if (!credentials || !connector.credentialId) return []
     const credential = credentials.find((c) => c.id === connector.credentialId)
+    if (!credential) return []
     return getMissingRequiredScopes(credential, requiredScopes)
   }, [credentials, connector.credentialId, requiredScopes])
 
@@ -483,18 +480,7 @@ function ConnectorCard({
             {canEdit && (
               <Button
                 variant='active'
-                onClick={() => {
-                  writeOAuthReturnContext({
-                    origin: 'kb-connectors',
-                    knowledgeBaseId,
-                    displayName: connectorDef?.name ?? connector.connectorType,
-                    providerId: providerId!,
-                    preCount: credentials?.length ?? 0,
-                    workspaceId,
-                    requestedAt: Date.now(),
-                  })
-                  setShowOAuthModal(true)
-                }}
+                onClick={() => setShowOAuthModal(true)}
                 className='w-full px-2 py-1 font-medium text-caption'
               >
                 Update access
@@ -511,17 +497,17 @@ function ConnectorCard({
       )}
 
       {showOAuthModal && serviceId && providerId && (
-        <OAuthRequiredModal
+        <ConnectCredentialModal
           isOpen={showOAuthModal}
           onClose={() => {
             consumeOAuthReturnContext()
             setShowOAuthModal(false)
           }}
           provider={providerId as OAuthProvider}
-          toolName={connectorDef?.name ?? connector.connectorType}
-          requiredScopes={getCanonicalScopesForProvider(providerId)}
-          newScopes={missingScopes}
           serviceId={serviceId}
+          workspaceId={workspaceId}
+          knowledgeBaseId={knowledgeBaseId}
+          credentialCount={credentials?.length ?? 0}
         />
       )}
     </div>
