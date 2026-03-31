@@ -89,6 +89,7 @@ export type IntegrationTag =
   | 'forms'
   | 'link-management'
   | 'events'
+  | 'feature-flags'
 
 // Authentication modes for sub-blocks and summaries
 export enum AuthMode {
