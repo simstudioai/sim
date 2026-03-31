@@ -247,7 +247,7 @@ function formatCost(cost?: Record<string, unknown>): string {
 }
 
 function buildLogUrl(workspaceId: string, executionId: string): string {
-  return `${getBaseUrl()}/workspace/${workspaceId}/logs?search=${encodeURIComponent(executionId)}`
+  return `${getBaseUrl()}/workspace/${workspaceId}/logs?executionId=${encodeURIComponent(executionId)}`
 }
 
 function formatAlertReason(alertConfig: AlertConfig): string {
