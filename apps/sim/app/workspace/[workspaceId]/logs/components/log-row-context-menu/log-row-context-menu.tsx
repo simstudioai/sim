@@ -1,7 +1,6 @@
 'use client'
 
 import { memo } from 'react'
-import { Link } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Copy, Eye, ListFilter, SquareArrowUpRight, X } from '@/components/emcn/icons'
+import { Copy, Eye, Link, ListFilter, SquareArrowUpRight, X } from '@/components/emcn/icons'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 
 interface LogRowContextMenuProps {

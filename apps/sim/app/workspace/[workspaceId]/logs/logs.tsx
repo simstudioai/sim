@@ -492,14 +492,14 @@ export default function Logs() {
 
   const handleCopyExecutionId = useCallback(() => {
     if (contextMenuLog?.executionId) {
-      navigator.clipboard.writeText(contextMenuLog.executionId)
+      navigator.clipboard.writeText(contextMenuLog.executionId).catch(() => {})
     }
   }, [contextMenuLog])
 
   const handleCopyLink = useCallback(() => {
     if (contextMenuLog?.executionId) {
       const url = `${window.location.origin}/workspace/${workspaceId}/logs?executionId=${contextMenuLog.executionId}`
-      navigator.clipboard.writeText(url)
+      navigator.clipboard.writeText(url).catch(() => {})
     }
   }, [contextMenuLog, workspaceId])
 
