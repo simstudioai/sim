@@ -380,9 +380,27 @@ export async function processDocumentsWithQueue(
     }
   )
 
-  await Promise.all(jobPayloads.map((payload) => dispatchDocumentProcessingJob(payload)))
+  const results = await Promise.allSettled(
+    jobPayloads.map((payload) => dispatchDocumentProcessingJob(payload))
+  )
 
-  logger.info(`[${requestId}] All documents dispatched for processing`)
+  const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+  if (failures.length > 0) {
+    logger.error(`[${requestId}] ${failures.length}/${results.length} document dispatches failed`, {
+      errors: failures.map((f) =>
+        f.reason instanceof Error ? f.reason.message : String(f.reason)
+      ),
+    })
+  }
+
+  logger.info(
+    `[${requestId}] Document dispatch complete: ${results.length - failures.length}/${results.length} succeeded`
+  )
+
+  if (failures.length === results.length) {
+    throw new Error(`All ${failures.length} document processing dispatches failed`)
+  }
+
   return
 }
 

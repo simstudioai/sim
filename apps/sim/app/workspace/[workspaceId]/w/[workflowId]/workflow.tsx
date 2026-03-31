@@ -19,6 +19,7 @@ import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-tool'
+import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import type { OAuthProvider } from '@/lib/oauth'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
@@ -478,6 +479,17 @@ const WorkflowContent = React.memo(
       const handleOpenOAuthConnect = (event: Event) => {
         const detail = (event as CustomEvent<OAuthConnectEventDetail>).detail
         if (!detail) return
+
+        writeOAuthReturnContext({
+          origin: 'workflow',
+          workflowId: workflowIdParam,
+          displayName: detail.providerName,
+          providerId: detail.providerId,
+          preCount: 0,
+          workspaceId,
+          requestedAt: Date.now(),
+        })
+
         setOauthModal({
           provider: detail.providerId as OAuthProvider,
           serviceId: detail.serviceId,
@@ -490,7 +502,7 @@ const WorkflowContent = React.memo(
       window.addEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
       return () =>
         window.removeEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
-    }, [])
+    }, [workflowIdParam, workspaceId])
 
     const { diffAnalysis, isShowingDiff, isDiffReady, reapplyDiffMarkers, hasActiveDiff } =
       useWorkflowDiffStore(
@@ -4103,7 +4115,10 @@ const WorkflowContent = React.memo(
           <Suspense fallback={null}>
             <LazyOAuthRequiredModal
               isOpen={true}
-              onClose={() => setOauthModal(null)}
+              onClose={() => {
+                consumeOAuthReturnContext()
+                setOauthModal(null)
+              }}
               provider={oauthModal.provider}
               toolName={oauthModal.providerName}
               serviceId={oauthModal.serviceId}
