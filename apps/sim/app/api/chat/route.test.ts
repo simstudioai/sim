@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { auditMock, createEnvMock } from '@sim/testing'
+import { createEnvMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,45 +12,38 @@ const {
   mockFrom,
   mockWhere,
   mockLimit,
-  mockInsert,
-  mockValues,
-  mockReturning,
   mockCreateSuccessResponse,
   mockCreateErrorResponse,
-  mockEncryptSecret,
   mockCheckWorkflowAccessForChatCreation,
-  mockDeployWorkflow,
+  mockPerformChatDeploy,
   mockGetSession,
-  mockUuidV4,
 } = vi.hoisted(() => ({
   mockSelect: vi.fn(),
   mockFrom: vi.fn(),
   mockWhere: vi.fn(),
   mockLimit: vi.fn(),
-  mockInsert: vi.fn(),
-  mockValues: vi.fn(),
-  mockReturning: vi.fn(),
   mockCreateSuccessResponse: vi.fn(),
   mockCreateErrorResponse: vi.fn(),
-  mockEncryptSecret: vi.fn(),
   mockCheckWorkflowAccessForChatCreation: vi.fn(),
-  mockDeployWorkflow: vi.fn(),
+  mockPerformChatDeploy: vi.fn(),
   mockGetSession: vi.fn(),
-  mockUuidV4: vi.fn(),
 }))
-
-vi.mock('@/lib/audit/log', () => auditMock)
 
 vi.mock('@sim/db', () => ({
   db: {
     select: mockSelect,
-    insert: mockInsert,
   },
 }))
 
 vi.mock('@sim/db/schema', () => ({
-  chat: { userId: 'userId', identifier: 'identifier' },
+  chat: { userId: 'userId', identifier: 'identifier', archivedAt: 'archivedAt' },
   workflow: { id: 'id', userId: 'userId', isDeployed: 'isDeployed' },
+}))
+
+vi.mock('drizzle-orm', () => ({
+  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
+  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
+  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
 }))
 
 vi.mock('@/app/api/workflows/utils', () => ({
@@ -58,20 +51,12 @@ vi.mock('@/app/api/workflows/utils', () => ({
   createErrorResponse: mockCreateErrorResponse,
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret: mockEncryptSecret,
-}))
-
-vi.mock('uuid', () => ({
-  v4: mockUuidV4,
-}))
-
 vi.mock('@/app/api/chat/utils', () => ({
   checkWorkflowAccessForChatCreation: mockCheckWorkflowAccessForChatCreation,
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  deployWorkflow: mockDeployWorkflow,
+vi.mock('@/lib/workflows/orchestration', () => ({
+  performChatDeploy: mockPerformChatDeploy,
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -94,10 +79,6 @@ describe('Chat API Route', () => {
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
     mockWhere.mockReturnValue({ limit: mockLimit })
-    mockInsert.mockReturnValue({ values: mockValues })
-    mockValues.mockReturnValue({ returning: mockReturning })
-
-    mockUuidV4.mockReturnValue('test-uuid')
 
     mockCreateSuccessResponse.mockImplementation((data) => {
       return new Response(JSON.stringify(data), {
@@ -113,12 +94,10 @@ describe('Chat API Route', () => {
       })
     })
 
-    mockEncryptSecret.mockResolvedValue({ encrypted: 'encrypted-password' })
-
-    mockDeployWorkflow.mockResolvedValue({
+    mockPerformChatDeploy.mockResolvedValue({
       success: true,
-      version: 1,
-      deployedAt: new Date(),
+      chatId: 'test-uuid',
+      chatUrl: 'http://localhost:3000/chat/test-chat',
     })
   })
 
@@ -277,7 +256,6 @@ describe('Chat API Route', () => {
         hasAccess: true,
         workflow: { userId: 'user-id', workspaceId: null, isDeployed: true },
       })
-      mockReturning.mockResolvedValue([{ id: 'test-uuid' }])
 
       const req = new NextRequest('http://localhost:3000/api/chat', {
         method: 'POST',
@@ -287,6 +265,13 @@ describe('Chat API Route', () => {
 
       expect(response.status).toBe(200)
       expect(mockCheckWorkflowAccessForChatCreation).toHaveBeenCalledWith('workflow-123', 'user-id')
+      expect(mockPerformChatDeploy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowId: 'workflow-123',
+          userId: 'user-id',
+          identifier: 'test-chat',
+        })
+      )
     })
 
     it('should allow chat deployment when user has workspace admin permission', async () => {
@@ -309,7 +294,6 @@ describe('Chat API Route', () => {
         hasAccess: true,
         workflow: { userId: 'other-user-id', workspaceId: 'workspace-123', isDeployed: true },
       })
-      mockReturning.mockResolvedValue([{ id: 'test-uuid' }])
 
       const req = new NextRequest('http://localhost:3000/api/chat', {
         method: 'POST',
@@ -319,6 +303,12 @@ describe('Chat API Route', () => {
 
       expect(response.status).toBe(200)
       expect(mockCheckWorkflowAccessForChatCreation).toHaveBeenCalledWith('workflow-123', 'user-id')
+      expect(mockPerformChatDeploy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowId: 'workflow-123',
+          workspaceId: 'workspace-123',
+        })
+      )
     })
 
     it('should reject when workflow is in workspace but user lacks admin permission', async () => {
@@ -383,7 +373,7 @@ describe('Chat API Route', () => {
       expect(mockCheckWorkflowAccessForChatCreation).toHaveBeenCalledWith('workflow-123', 'user-id')
     })
 
-    it('should auto-deploy workflow if not already deployed', async () => {
+    it('should call performChatDeploy for undeployed workflow', async () => {
       mockGetSession.mockResolvedValue({
         user: { id: 'user-id', email: 'user@example.com' },
       })
@@ -403,7 +393,6 @@ describe('Chat API Route', () => {
         hasAccess: true,
         workflow: { userId: 'user-id', workspaceId: null, isDeployed: false },
       })
-      mockReturning.mockResolvedValue([{ id: 'test-uuid' }])
 
       const req = new NextRequest('http://localhost:3000/api/chat', {
         method: 'POST',
@@ -412,10 +401,12 @@ describe('Chat API Route', () => {
       const response = await POST(req)
 
       expect(response.status).toBe(200)
-      expect(mockDeployWorkflow).toHaveBeenCalledWith({
-        workflowId: 'workflow-123',
-        deployedBy: 'user-id',
-      })
+      expect(mockPerformChatDeploy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowId: 'workflow-123',
+          userId: 'user-id',
+        })
+      )
     })
   })
 })

@@ -8,12 +8,13 @@ import {
   workflowMcpTool,
 } from '@sim/db/schema'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
-import { ensureWorkflowAccess } from '../access'
+import { ensureWorkflowAccess, ensureWorkspaceAccess } from '../access'
 import type {
   CheckDeploymentStatusParams,
   CreateWorkspaceMcpServerParams,
@@ -182,7 +183,11 @@ export async function executeCreateWorkspaceMcpServer(
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(
+      workflowId,
+      context.userId,
+      'write'
+    )
     const workspaceId = workflowRecord.workspaceId
     if (!workspaceId) {
       return { success: false, error: 'workspaceId is required' }
@@ -242,6 +247,16 @@ export async function executeCreateWorkspaceMcpServer(
       mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId })
     }
 
+    recordAudit({
+      workspaceId,
+      actorId: context.userId,
+      action: AuditAction.MCP_SERVER_ADDED,
+      resourceType: AuditResourceType.MCP_SERVER,
+      resourceId: serverId,
+      resourceName: name,
+      description: `Created MCP server "${name}"`,
+    })
+
     return { success: true, output: { server, addedTools } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
@@ -277,7 +292,10 @@ export async function executeUpdateWorkspaceMcpServer(
     }
 
     const [existing] = await db
-      .select({ id: workflowMcpServer.id, createdBy: workflowMcpServer.createdBy })
+      .select({
+        id: workflowMcpServer.id,
+        workspaceId: workflowMcpServer.workspaceId,
+      })
       .from(workflowMcpServer)
       .where(eq(workflowMcpServer.id, serverId))
       .limit(1)
@@ -286,7 +304,17 @@ export async function executeUpdateWorkspaceMcpServer(
       return { success: false, error: 'MCP server not found' }
     }
 
+    await ensureWorkspaceAccess(existing.workspaceId, context.userId, 'write')
+
     await db.update(workflowMcpServer).set(updates).where(eq(workflowMcpServer.id, serverId))
+
+    recordAudit({
+      actorId: context.userId,
+      action: AuditAction.MCP_SERVER_UPDATED,
+      resourceType: AuditResourceType.MCP_SERVER,
+      resourceId: params.serverId,
+      description: `Updated MCP server`,
+    })
 
     return { success: true, output: { serverId, ...updates, updatedAt: undefined } }
   } catch (error) {
@@ -318,9 +346,19 @@ export async function executeDeleteWorkspaceMcpServer(
       return { success: false, error: 'MCP server not found' }
     }
 
+    await ensureWorkspaceAccess(existing.workspaceId, context.userId, 'admin')
+
     await db.delete(workflowMcpServer).where(eq(workflowMcpServer.id, serverId))
 
     mcpPubSub?.publishWorkflowToolsChanged({ serverId, workspaceId: existing.workspaceId })
+
+    recordAudit({
+      actorId: context.userId,
+      action: AuditAction.MCP_SERVER_REMOVED,
+      resourceType: AuditResourceType.MCP_SERVER,
+      resourceId: params.serverId,
+      description: `Deleted MCP server`,
+    })
 
     return { success: true, output: { serverId, name: existing.name, deleted: true } }
   } catch (error) {
@@ -379,7 +417,7 @@ export async function executeRevertToVersion(
       return { success: false, error: 'version is required' }
     }
 
-    await ensureWorkflowAccess(workflowId, context.userId)
+    await ensureWorkflowAccess(workflowId, context.userId, 'admin')
 
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000'

@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { credential, mcpServers, pendingCredentialDraft, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, lt } from 'drizzle-orm'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import type {
   ExecutionContext,
@@ -231,6 +232,16 @@ async function executeManageCustomTool(
       })
       const created = resultTools.find((tool) => tool.title === title)
 
+      recordAudit({
+        workspaceId,
+        actorId: context.userId,
+        action: AuditAction.CUSTOM_TOOL_CREATED,
+        resourceType: AuditResourceType.CUSTOM_TOOL,
+        resourceId: created?.id,
+        resourceName: title,
+        description: `Created custom tool "${title}"`,
+      })
+
       return {
         success: true,
         output: {
@@ -279,6 +290,16 @@ async function executeManageCustomTool(
         userId: context.userId,
       })
 
+      recordAudit({
+        workspaceId,
+        actorId: context.userId,
+        action: AuditAction.CUSTOM_TOOL_UPDATED,
+        resourceType: AuditResourceType.CUSTOM_TOOL,
+        resourceId: params.toolId,
+        resourceName: title,
+        description: `Updated custom tool "${title}"`,
+      })
+
       return {
         success: true,
         output: {
@@ -304,6 +325,15 @@ async function executeManageCustomTool(
       if (!deleted) {
         return { success: false, error: `Custom tool not found: ${params.toolId}` }
       }
+
+      recordAudit({
+        workspaceId,
+        actorId: context.userId,
+        action: AuditAction.CUSTOM_TOOL_DELETED,
+        resourceType: AuditResourceType.CUSTOM_TOOL,
+        resourceId: params.toolId,
+        description: 'Deleted custom tool',
+      })
 
       return {
         success: true,
@@ -461,6 +491,18 @@ async function executeManageMcpTool(
 
       await mcpService.clearCache(workspaceId)
 
+      recordAudit({
+        workspaceId,
+        actorId: context.userId,
+        action: AuditAction.MCP_SERVER_ADDED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: serverId,
+        resourceName: config.name,
+        description: existing
+          ? `Updated existing MCP server "${config.name}"`
+          : `Added MCP server "${config.name}"`,
+      })
+
       return {
         success: true,
         output: {
@@ -514,6 +556,15 @@ async function executeManageMcpTool(
 
       await mcpService.clearCache(workspaceId)
 
+      recordAudit({
+        workspaceId,
+        actorId: context.userId,
+        action: AuditAction.MCP_SERVER_UPDATED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: params.serverId,
+        description: `Updated MCP server "${updated.name}"`,
+      })
+
       return {
         success: true,
         output: {
@@ -527,6 +578,13 @@ async function executeManageMcpTool(
     }
 
     if (operation === 'delete') {
+      if (context.userPermission && context.userPermission !== 'admin') {
+        return {
+          success: false,
+          error: `Permission denied: 'delete' on manage_mcp_tool requires admin access. You have '${context.userPermission}' permission.`,
+        }
+      }
+
       if (!params.serverId) {
         return { success: false, error: "'serverId' is required for 'delete'" }
       }
@@ -541,6 +599,15 @@ async function executeManageMcpTool(
       }
 
       await mcpService.clearCache(workspaceId)
+
+      recordAudit({
+        workspaceId,
+        actorId: context.userId,
+        action: AuditAction.MCP_SERVER_REMOVED,
+        resourceType: AuditResourceType.MCP_SERVER,
+        resourceId: params.serverId,
+        description: `Deleted MCP server "${deleted.name}"`,
+      })
 
       return {
         success: true,
@@ -643,6 +710,16 @@ async function executeManageSkill(
       })
       const created = resultSkills.find((s) => s.name === params.name)
 
+      recordAudit({
+        workspaceId,
+        actorId: context.userId,
+        action: AuditAction.SKILL_CREATED,
+        resourceType: AuditResourceType.SKILL,
+        resourceId: created?.id,
+        resourceName: params.name,
+        description: `Created skill "${params.name}"`,
+      })
+
       return {
         success: true,
         output: {
@@ -685,14 +762,26 @@ async function executeManageSkill(
         userId: context.userId,
       })
 
+      const updatedName = params.name || found.name
+
+      recordAudit({
+        workspaceId,
+        actorId: context.userId,
+        action: AuditAction.SKILL_UPDATED,
+        resourceType: AuditResourceType.SKILL,
+        resourceId: params.skillId,
+        resourceName: updatedName,
+        description: `Updated skill "${updatedName}"`,
+      })
+
       return {
         success: true,
         output: {
           success: true,
           operation,
           skillId: params.skillId,
-          name: params.name || found.name,
-          message: `Updated skill "${params.name || found.name}"`,
+          name: updatedName,
+          message: `Updated skill "${updatedName}"`,
         },
       }
     }
@@ -706,6 +795,15 @@ async function executeManageSkill(
       if (!deleted) {
         return { success: false, error: `Skill not found: ${params.skillId}` }
       }
+
+      recordAudit({
+        workspaceId,
+        actorId: context.userId,
+        action: AuditAction.SKILL_DELETED,
+        resourceType: AuditResourceType.SKILL,
+        resourceId: params.skillId,
+        description: 'Deleted skill',
+      })
 
       return {
         success: true,
@@ -951,10 +1049,24 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
             .update(credential)
             .set({ displayName, updatedAt: new Date() })
             .where(eq(credential.id, credentialId))
+          recordAudit({
+            actorId: c.userId,
+            action: AuditAction.CREDENTIAL_RENAMED,
+            resourceType: AuditResourceType.OAUTH,
+            resourceId: credentialId,
+            description: `Renamed credential to "${displayName}"`,
+          })
           return { success: true, output: { credentialId, displayName } }
         }
         case 'delete': {
           await db.delete(credential).where(eq(credential.id, credentialId))
+          recordAudit({
+            actorId: c.userId,
+            action: AuditAction.CREDENTIAL_DELETED,
+            resourceType: AuditResourceType.OAUTH,
+            resourceId: credentialId,
+            description: `Deleted credential`,
+          })
           return { success: true, output: { credentialId, deleted: true } }
         }
         default:
