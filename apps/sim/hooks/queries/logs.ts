@@ -176,7 +176,7 @@ export function useLogDetail(logId: string | undefined, options?: UseLogDetailOp
 export function prefetchLogDetail(queryClient: QueryClient, logId: string) {
   queryClient.prefetchQuery({
     queryKey: logKeys.detail(logId),
-    queryFn: () => fetchLogDetail(logId),
+    queryFn: ({ signal }) => fetchLogDetail(logId, signal),
     staleTime: 30 * 1000,
   })
 }

@@ -201,7 +201,7 @@ export function useUpdateFolder() {
       const { folder } = await response.json()
       return mapFolder(folder)
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: folderKeys.list(variables.workspaceId) })
     },
   })
@@ -221,9 +221,9 @@ export function useDeleteFolderMutation() {
 
       return response.json()
     },
-    onSuccess: async (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: folderKeys.list(variables.workspaceId) })
-      await invalidateWorkflowLists(queryClient, variables.workspaceId, ['active', 'archived'])
+      return invalidateWorkflowLists(queryClient, variables.workspaceId, ['active', 'archived'])
     },
   })
 }
