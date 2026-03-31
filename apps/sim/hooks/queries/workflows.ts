@@ -3,7 +3,13 @@
  */
 
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
@@ -55,8 +61,9 @@ async function fetchWorkflowState(
 export function useWorkflowState(workflowId: string | undefined) {
   return useQuery({
     queryKey: workflowKeys.state(workflowId),
-    queryFn: ({ signal }) => fetchWorkflowState(workflowId!, signal),
-    enabled: Boolean(workflowId),
+    queryFn: workflowId
+      ? ({ signal }) => fetchWorkflowState(workflowId, signal)
+      : skipToken,
     staleTime: 30 * 1000,
   })
 }
@@ -111,8 +118,9 @@ export function useWorkflows(workspaceId?: string, options?: { scope?: WorkflowQ
 
   return useQuery({
     queryKey: workflowKeys.list(workspaceId, scope),
-    queryFn: ({ signal }) => fetchWorkflows(workspaceId as string, scope, signal),
-    enabled: Boolean(workspaceId),
+    queryFn: workspaceId
+      ? ({ signal }) => fetchWorkflows(workspaceId, scope, signal)
+      : skipToken,
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
   })
@@ -128,8 +136,9 @@ export function useWorkflowMap(workspaceId?: string, options?: { scope?: Workflo
 
   return useQuery({
     queryKey: workflowKeys.list(workspaceId, scope),
-    queryFn: ({ signal }) => fetchWorkflows(workspaceId as string, scope, signal),
-    enabled: Boolean(workspaceId),
+    queryFn: workspaceId
+      ? ({ signal }) => fetchWorkflows(workspaceId, scope, signal)
+      : skipToken,
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
     select: (data) => Object.fromEntries(data.map((w) => [w.id, w])),
@@ -650,9 +659,10 @@ export async function fetchDeploymentVersionState(
 export function useDeploymentVersionState(workflowId: string | null, version: number | null) {
   return useQuery({
     queryKey: workflowKeys.deploymentVersion(workflowId ?? undefined, version ?? undefined),
-    queryFn: ({ signal }) =>
-      fetchDeploymentVersionState(workflowId as string, version as number, signal),
-    enabled: Boolean(workflowId) && version !== null,
+    queryFn:
+      workflowId && version !== null
+        ? ({ signal }) => fetchDeploymentVersionState(workflowId, version, signal)
+        : skipToken,
     staleTime: 5 * 60 * 1000,
   })
 }
