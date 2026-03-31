@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Copy, Eye, ListFilter, SquareArrowUpRight, X } from '@/components/emcn/icons'
+import { Copy, Eye, Link, ListFilter, SquareArrowUpRight, X } from '@/components/emcn/icons'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 
 interface LogRowContextMenuProps {
@@ -17,6 +17,7 @@ interface LogRowContextMenuProps {
   onClose: () => void
   log: WorkflowLog | null
   onCopyExecutionId: () => void
+  onCopyLink: () => void
   onOpenWorkflow: () => void
   onOpenPreview: () => void
   onToggleWorkflowFilter: () => void
@@ -35,6 +36,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   onClose,
   log,
   onCopyExecutionId,
+  onCopyLink,
   onOpenWorkflow,
   onOpenPreview,
   onToggleWorkflowFilter,
@@ -70,6 +72,10 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyExecutionId}>
           <Copy />
           Copy Execution ID
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyLink}>
+          <Link />
+          Copy Link
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
