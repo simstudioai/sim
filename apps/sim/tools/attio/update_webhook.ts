@@ -55,7 +55,7 @@ export const attioUpdateWebhookTool: ToolConfig<
     }),
     body: (params) => {
       const data: Record<string, unknown> = {}
-      if (params.targetUrl) data.target_url = params.targetUrl
+      if (params.targetUrl) data.target_url = params.targetUrl.trim()
       if (params.subscriptions) {
         try {
           data.subscriptions =
