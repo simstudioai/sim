@@ -319,22 +319,25 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
       mode: 'advanced',
     },
     {
-      id: 'appendFileName',
+      id: 'appendFile',
       title: 'File',
-      type: 'dropdown' as SubBlockType,
-      placeholder: 'Select a workspace file...',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'appendFileInput',
+      acceptedTypes: '.txt,.md,.json,.csv,.xml,.html,.htm,.yaml,.yml,.log,.rtf',
+      placeholder: 'Select or upload a workspace file',
+      mode: 'basic',
       condition: { field: 'operation', value: 'file_append' },
       required: { field: 'operation', value: 'file_append' },
-      options: [],
-      fetchOptions: async () => {
-        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-        const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
-        if (!workspaceId) return []
-        const response = await fetch(`/api/workspaces/${workspaceId}/files`)
-        const data = await response.json()
-        if (!data.success || !data.files) return []
-        return data.files.map((f: { name: string }) => ({ label: f.name, id: f.name }))
-      },
+    },
+    {
+      id: 'appendFileName',
+      title: 'File',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'appendFileInput',
+      placeholder: 'File name (e.g., notes.md)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_append' },
+      required: { field: 'operation', value: 'file_append' },
     },
     {
       id: 'appendContent',
@@ -362,8 +365,26 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
         }
 
         if (operation === 'file_append') {
+          const appendInput = params.appendFileInput
+          if (!appendInput) {
+            throw new Error('File is required for append')
+          }
+
+          let fileName: string
+          if (typeof appendInput === 'string') {
+            fileName = appendInput.trim()
+          } else {
+            const normalized = normalizeFileInput(appendInput, { single: true })
+            const file = normalized as Record<string, unknown> | null
+            fileName = (file?.name as string) ?? ''
+          }
+
+          if (!fileName) {
+            throw new Error('Could not determine file name')
+          }
+
           return {
-            fileName: params.appendFileName,
+            fileName,
             content: params.appendContent,
             workspaceId: params._context?.workspaceId,
           }
@@ -408,12 +429,12 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform (read, write, or append)' },
-    fileInput: { type: 'json', description: 'File input for read (canonical param)' },
+    fileInput: { type: 'json', description: 'File input for read' },
     fileType: { type: 'string', description: 'File type for read' },
     fileName: { type: 'string', description: 'Name for a new file (write)' },
     content: { type: 'string', description: 'File content to write' },
     contentType: { type: 'string', description: 'MIME content type for write' },
-    appendFileName: { type: 'string', description: 'Name of existing file to append to' },
+    appendFileInput: { type: 'json', description: 'File to append to' },
     appendContent: { type: 'string', description: 'Content to append to file' },
   },
   outputs: {

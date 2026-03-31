@@ -100,7 +100,7 @@ const emailTemplates = {
       trigger: 'api',
       duration: '2.3s',
       cost: '$0.0042',
-      logUrl: 'https://sim.ai/workspace/ws_123/logs?search=exec_abc123',
+      logUrl: 'https://sim.ai/workspace/ws_123/logs?executionId=exec_abc123',
     }),
   'workflow-notification-error': () =>
     renderWorkflowNotificationEmail({
@@ -109,7 +109,7 @@ const emailTemplates = {
       trigger: 'webhook',
       duration: '1.1s',
       cost: '$0.0021',
-      logUrl: 'https://sim.ai/workspace/ws_123/logs?search=exec_abc123',
+      logUrl: 'https://sim.ai/workspace/ws_123/logs?executionId=exec_abc123',
     }),
   'workflow-notification-alert': () =>
     renderWorkflowNotificationEmail({
@@ -118,7 +118,7 @@ const emailTemplates = {
       trigger: 'schedule',
       duration: '45.2s',
       cost: '$0.0156',
-      logUrl: 'https://sim.ai/workspace/ws_123/logs?search=exec_abc123',
+      logUrl: 'https://sim.ai/workspace/ws_123/logs?executionId=exec_abc123',
       alertReason: '3 consecutive failures detected',
     }),
   'workflow-notification-full': () =>
@@ -128,7 +128,7 @@ const emailTemplates = {
       trigger: 'api',
       duration: '12.5s',
       cost: '$0.0234',
-      logUrl: 'https://sim.ai/workspace/ws_123/logs?search=exec_abc123',
+      logUrl: 'https://sim.ai/workspace/ws_123/logs?executionId=exec_abc123',
       finalOutput: { processed: 150, skipped: 3, status: 'completed' },
       rateLimits: {
         sync: { requestsPerMinute: 60, remaining: 45 },

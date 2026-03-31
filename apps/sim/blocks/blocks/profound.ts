@@ -68,7 +68,7 @@ export const ProfoundBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   tags: ['seo', 'data-analytics'],
-  bgColor: '#1A1A2E',
+  bgColor: '#000000',
   icon: ProfoundIcon,
   authMode: AuthMode.ApiKey,
 

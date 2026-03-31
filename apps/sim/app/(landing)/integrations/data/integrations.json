@@ -2993,13 +2993,26 @@
     "type": "file_v3",
     "slug": "file",
     "name": "File",
-    "description": "Read and parse multiple files",
-    "longDescription": "Upload files directly or import from external URLs to get UserFile objects for use in other blocks.",
+    "description": "Read and write workspace files",
+    "longDescription": "Read and parse files from uploads or URLs, write new workspace files, or append content to existing files.",
     "bgColor": "#40916C",
     "iconName": "DocumentIcon",
     "docsUrl": "https://docs.sim.ai/tools/file",
-    "operations": [],
-    "operationCount": 0,
+    "operations": [
+      {
+        "name": "Read",
+        "description": "Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)"
+      },
+      {
+        "name": "Write",
+        "description": "Create a new workspace file. If a file with the same name already exists, a numeric suffix is added (e.g., "
+      },
+      {
+        "name": "Append",
+        "description": "Append content to an existing workspace file. The file must already exist. Content is added to the end of the file."
+      }
+    ],
+    "operationCount": 3,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
@@ -8617,7 +8630,7 @@
     "name": "Profound",
     "description": "AI visibility and analytics with Profound",
     "longDescription": "Track how your brand appears across AI platforms. Monitor visibility scores, sentiment, citations, bot traffic, referrals, content optimization, and prompt volumes with Profound.",
-    "bgColor": "#1A1A2E",
+    "bgColor": "#000000",
     "iconName": "ProfoundIcon",
     "docsUrl": "https://docs.sim.ai/tools/profound",
     "operations": [
