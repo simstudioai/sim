@@ -44,10 +44,11 @@ export async function POST(request: NextRequest) {
         params.forceDelete
       )
 
-      logger.info(`[${requestId}] Secret scheduled for deletion: ${result.name}`)
+      const action = params.forceDelete ? 'permanently deleted' : 'scheduled for deletion'
+      logger.info(`[${requestId}] Secret ${action}: ${result.name}`)
 
       return NextResponse.json({
-        message: `Secret "${result.name}" scheduled for deletion`,
+        message: `Secret "${result.name}" ${action}`,
         ...result,
       })
     } finally {

@@ -33,6 +33,13 @@ export async function getSecretValue(
   })
 
   const response = await client.send(command)
+
+  if (!response.SecretString && response.SecretBinary) {
+    throw new Error(
+      'Secret is stored as binary (SecretBinary). This integration only supports string secrets.'
+    )
+  }
+
   return {
     name: response.Name ?? '',
     secretValue: response.SecretString ?? '',
