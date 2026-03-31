@@ -1,3 +1,4 @@
+import { getWorkflows } from '@/hooks/queries/workflows'
 import { fetchJson, fetchOAuthToken } from '@/hooks/selectors/helpers'
 import type {
   SelectorContext,
@@ -6,7 +7,6 @@ import type {
   SelectorOption,
   SelectorQueryArgs,
 } from '@/hooks/selectors/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const SELECTOR_STALE = 60 * 1000
 
@@ -1693,19 +1693,19 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     ],
     enabled: () => true,
     fetchList: async ({ context }: SelectorQueryArgs): Promise<SelectorOption[]> => {
-      const { workflows } = useWorkflowRegistry.getState()
-      return Object.entries(workflows)
-        .filter(([id]) => id !== context.excludeWorkflowId)
-        .map(([id, workflow]) => ({
-          id,
-          label: workflow.name || `Workflow ${id.slice(0, 8)}`,
+      const workflows = getWorkflows()
+      return workflows
+        .filter((w) => w.id !== context.excludeWorkflowId)
+        .map((w) => ({
+          id: w.id,
+          label: w.name || `Workflow ${w.id.slice(0, 8)}`,
         }))
         .sort((a, b) => a.label.localeCompare(b.label))
     },
     fetchById: async ({ detailId }: SelectorQueryArgs): Promise<SelectorOption | null> => {
       if (!detailId) return null
-      const { workflows } = useWorkflowRegistry.getState()
-      const workflow = workflows[detailId]
+      const workflows = getWorkflows()
+      const workflow = workflows.find((w) => w.id === detailId)
       if (!workflow) return null
       return {
         id: detailId,

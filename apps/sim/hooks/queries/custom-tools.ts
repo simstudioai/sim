@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
+import { getWorkspaceIdFromUrl } from '@/hooks/queries/utils/get-workspace-id-from-url'
 
 const logger = createLogger('CustomToolsQueries')
 const API_ENDPOINT = '/api/tools/custom'
@@ -91,12 +92,6 @@ function normalizeCustomTool(tool: ApiCustomTool, workspaceId: string): CustomTo
  * Extract workspaceId from the current URL path
  * Expected format: /workspace/{workspaceId}/...
  */
-function getWorkspaceIdFromUrl(): string | null {
-  if (typeof window === 'undefined') return null
-  const match = window.location.pathname.match(/^\/workspace\/([^/]+)/)
-  return match?.[1] ?? null
-}
-
 /**
  * Get all custom tools from the query cache (for non-React code)
  * If workspaceId is not provided, extracts it from the current URL

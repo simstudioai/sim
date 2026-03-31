@@ -41,6 +41,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { getCustomTool } from '@/hooks/queries/custom-tools'
+import { getWorkflows } from '@/hooks/queries/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -1630,7 +1631,7 @@ const META_run_workflow: ToolMetadata = {
   getDynamicText: (params, state) => {
     const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
     if (workflowId) {
-      const workflowName = useWorkflowRegistry.getState().workflows[workflowId]?.name
+      const workflowName = getWorkflows().find((w) => w.id === workflowId)?.name
       if (workflowName) {
         switch (state) {
           case ClientToolCallState.success:

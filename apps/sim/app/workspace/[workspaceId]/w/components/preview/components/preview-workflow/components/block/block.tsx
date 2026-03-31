@@ -13,8 +13,8 @@ import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils
 import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { getBlock } from '@/blocks'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
+import { getWorkflows } from '@/hooks/queries/workflows'
 import { useVariablesStore } from '@/stores/panel/variables/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /** Execution status for blocks in preview mode */
 type ExecutionStatus = 'success' | 'error' | 'not-executed'
@@ -112,8 +112,8 @@ function resolveWorkflowName(
   if (subBlock?.type !== 'workflow-selector') return null
   if (!rawValue || typeof rawValue !== 'string') return null
 
-  const workflowMap = useWorkflowRegistry.getState().workflows
-  return workflowMap[rawValue]?.name ?? DELETED_WORKFLOW_LABEL
+  const workflows = getWorkflows()
+  return workflows.find((w) => w.id === rawValue)?.name ?? DELETED_WORKFLOW_LABEL
 }
 
 /**

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
 import {
   downloadFile,
   exportFolderToZip,
@@ -8,9 +9,9 @@ import {
   sanitizePathSegment,
   type WorkflowExportData,
 } from '@/lib/workflows/operations/import-export'
+import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 const logger = createLogger('useExportFolder')
@@ -89,7 +90,8 @@ function collectSubfolders(
  * Hook for managing folder export to ZIP.
  */
 export function useExportFolder({ folderId, onSuccess }: UseExportFolderProps) {
-  const workflows = useWorkflowRegistry((s) => s.workflows)
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const folders = useFolderStore((s) => s.folders)
   const [isExporting, setIsExporting] = useState(false)
 

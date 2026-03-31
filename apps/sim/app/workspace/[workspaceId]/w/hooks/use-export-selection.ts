@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
 import {
   downloadFile,
   exportWorkflowsToZip,
@@ -7,9 +8,9 @@ import {
   fetchWorkflowForExport,
   type WorkflowExportData,
 } from '@/lib/workflows/operations/import-export'
+import { getWorkflows } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 const logger = createLogger('useExportSelection')
@@ -88,9 +89,14 @@ function collectSubfoldersForMultipleFolders(
  */
 export function useExportSelection({ onSuccess }: UseExportSelectionProps = {}) {
   const [isExporting, setIsExporting] = useState(false)
+  const params = useParams()
+  const workspaceId = params.workspaceId as string | undefined
 
   const onSuccessRef = useRef(onSuccess)
   onSuccessRef.current = onSuccess
+
+  const workspaceIdRef = useRef(workspaceId)
+  workspaceIdRef.current = workspaceId
 
   /**
    * Export all selected workflows and folders to a ZIP file.
@@ -113,7 +119,8 @@ export function useExportSelection({ onSuccess }: UseExportSelectionProps = {}) 
 
       setIsExporting(true)
       try {
-        const { workflows } = useWorkflowRegistry.getState()
+        const workflowsArray = getWorkflows(workspaceIdRef.current)
+        const workflows = Object.fromEntries(workflowsArray.map((w) => [w.id, w]))
         const { folders } = useFolderStore.getState()
 
         const workflowsFromFolders: CollectedWorkflow[] = []

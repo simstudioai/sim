@@ -57,12 +57,12 @@ import {
   useLogDetail,
   useLogsList,
 } from '@/hooks/queries/logs'
+import { useWorkflowMap, useWorkflows } from '@/hooks/queries/workflows'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import {
   Dashboard,
   ExecutionSnapshot,
@@ -774,7 +774,7 @@ export default function Logs() {
     ]
   )
 
-  const allWorkflows = useWorkflowRegistry((state) => state.workflows)
+  const { data: allWorkflows = {} } = useWorkflowMap(workspaceId)
   const folders = useFolderStore((state) => state.folders)
 
   const filterTags = useMemo<FilterTag[]>(() => {
@@ -1234,11 +1234,11 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [previousTimeRange, setPreviousTimeRange] = useState(timeRange)
   const folders = useFolderStore((state) => state.folders)
-  const allWorkflows = useWorkflowRegistry((state) => state.workflows)
+  const { data: allWorkflowList = [] } = useWorkflows(workspaceId)
 
   const workflows = useMemo(
-    () => Object.values(allWorkflows).map((w) => ({ id: w.id, name: w.name, color: w.color })),
-    [allWorkflows]
+    () => allWorkflowList.map((w) => ({ id: w.id, name: w.name, color: w.color })),
+    [allWorkflowList]
   )
 
   const folderList = useMemo(

@@ -20,10 +20,10 @@ import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { type LogStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
 import { getBlock } from '@/blocks/registry'
+import { useWorkflows } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { AutocompleteSearch } from './components/search'
 
 const TIME_RANGE_OPTIONS: ComboboxOption[] = [
@@ -220,15 +220,15 @@ export const LogsToolbar = memo(function LogsToolbar({
   const [previousTimeRange, setPreviousTimeRange] = useState(timeRange)
   const folders = useFolderStore((state) => state.folders)
 
-  const allWorkflows = useWorkflowRegistry((state) => state.workflows)
+  const { data: allWorkflowList = [] } = useWorkflows(workspaceId)
 
   const workflows = useMemo(() => {
-    return Object.values(allWorkflows).map((w) => ({
+    return allWorkflowList.map((w) => ({
       id: w.id,
       name: w.name,
       color: w.color,
     }))
-  }, [allWorkflows])
+  }, [allWorkflowList])
 
   const folderList = useMemo(() => {
     return Object.values(folders).filter((f) => f.workspaceId === workspaceId)
