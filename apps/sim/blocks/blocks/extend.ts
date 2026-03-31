@@ -143,7 +143,7 @@ const extendV2SubBlocks = (ExtendBlock.subBlocks || []).flatMap((subBlock) => {
         title: 'Document',
         type: 'short-input' as SubBlockType,
         canonicalParamId: 'document',
-        placeholder: 'File reference',
+        placeholder: 'Connect a file output from another block',
         mode: 'advanced' as const,
         required: true,
       },

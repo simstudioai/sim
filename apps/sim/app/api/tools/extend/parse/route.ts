@@ -129,10 +129,19 @@ export async function POST(request: NextRequest) {
     if (!extendResponse.ok) {
       const errorText = await extendResponse.text()
       logger.error(`[${requestId}] Extend API error:`, errorText)
+      let clientError = `Extend API error: ${extendResponse.statusText || extendResponse.status}`
+      try {
+        const parsedError = JSON.parse(errorText)
+        if (parsedError?.message || parsedError?.error) {
+          clientError = (parsedError.message ?? parsedError.error) as string
+        }
+      } catch {
+        // errorText is not JSON; keep generic message
+      }
       return NextResponse.json(
         {
           success: false,
-          error: `Extend API error: ${extendResponse.statusText}`,
+          error: clientError,
         },
         { status: extendResponse.status }
       )
