@@ -266,11 +266,13 @@ export default function Logs() {
     isSidebarOpen: false,
   })
   const isInitialized = useRef<boolean>(false)
-  const pendingExecutionIdRef = useRef<string | null>(
-    typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search).get('executionId')
-      : null
-  )
+  const pendingExecutionIdRef = useRef<string | null | undefined>(undefined)
+  if (pendingExecutionIdRef.current === undefined) {
+    pendingExecutionIdRef.current =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('executionId')
+        : null
+  }
 
   const [searchQuery, setSearchQuery] = useState(() => {
     if (typeof window === 'undefined') return ''

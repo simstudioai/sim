@@ -151,6 +151,14 @@ function buildCronExpression(
   }
 }
 
+/**
+ * Modal for creating and editing scheduled tasks.
+ *
+ * All `useState` initializers read from the `schedule` prop at mount time only.
+ * When editing an existing task, the call-site **must** supply a `key` prop equal to the
+ * task's ID so React remounts the component when the selected task changes — otherwise
+ * the form will display stale values from the previously selected task.
+ */
 export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: ScheduleModalProps) {
   const createScheduleMutation = useCreateSchedule()
   const updateScheduleMutation = useUpdateSchedule()
