@@ -429,12 +429,12 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform (read, write, or append)' },
-    fileInput: { type: 'json', description: 'File input for read (canonical param)' },
+    fileInput: { type: 'json', description: 'File input for read' },
     fileType: { type: 'string', description: 'File type for read' },
     fileName: { type: 'string', description: 'Name for a new file (write)' },
     content: { type: 'string', description: 'File content to write' },
     contentType: { type: 'string', description: 'MIME content type for write' },
-    appendFileInput: { type: 'json', description: 'File to append to (canonical param)' },
+    appendFileInput: { type: 'json', description: 'File to append to' },
     appendContent: { type: 'string', description: 'Content to append to file' },
   },
   outputs: {
