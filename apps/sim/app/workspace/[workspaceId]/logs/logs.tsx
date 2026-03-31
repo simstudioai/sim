@@ -435,12 +435,12 @@ export default function Logs() {
     if (found) {
       pendingExecutionIdRef.current = null
       dispatch({ type: 'TOGGLE_LOG', logId: found.id })
-    } else if (!logsQuery.hasNextPage) {
+    } else if (!logsQuery.hasNextPage && logsQuery.status === 'success') {
       pendingExecutionIdRef.current = null
     } else if (!logsQuery.isFetching) {
       logsQueryRef.current.fetchNextPage()
     }
-  }, [sortedLogs, logsQuery.hasNextPage, logsQuery.isFetching])
+  }, [sortedLogs, logsQuery.hasNextPage, logsQuery.isFetching, logsQuery.status])
 
   useEffect(() => {
     const timers = refreshTimersRef.current
