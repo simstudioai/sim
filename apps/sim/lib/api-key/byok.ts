@@ -3,6 +3,7 @@ import { workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
+import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
@@ -69,7 +70,7 @@ export async function getApiKeyWithBYOK(
   const isVllmModel =
     provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
   if (isVllmModel) {
-    return { apiKey: userProvidedKey || 'empty', isBYOK: false }
+    return { apiKey: userProvidedKey || env.VLLM_API_KEY || 'empty', isBYOK: false }
   }
 
   const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
