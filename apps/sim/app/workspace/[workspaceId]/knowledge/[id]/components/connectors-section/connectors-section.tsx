@@ -334,7 +334,7 @@ function ConnectorCard({
     workspaceId,
   })
 
-  useCredentialRefreshTriggers(refetchCredentials, providerId, workspaceId)
+  useCredentialRefreshTriggers(refetchCredentials, providerId ?? '', workspaceId)
 
   const missingScopes = useMemo(() => {
     if (!credentials || !connector.credentialId) return []
