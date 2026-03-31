@@ -1291,6 +1291,20 @@ import {
   knowledgeUpsertDocumentTool,
 } from '@/tools/knowledge'
 import { langsmithCreateRunsBatchTool, langsmithCreateRunTool } from '@/tools/langsmith'
+import {
+  launchDarklyCreateFlagTool,
+  launchDarklyDeleteFlagTool,
+  launchDarklyGetAuditLogTool,
+  launchDarklyGetFlagStatusTool,
+  launchDarklyGetFlagTool,
+  launchDarklyListEnvironmentsTool,
+  launchDarklyListFlagsTool,
+  launchDarklyListMembersTool,
+  launchDarklyListProjectsTool,
+  launchDarklyListSegmentsTool,
+  launchDarklyToggleFlagTool,
+  launchDarklyUpdateFlagTool,
+} from '@/tools/launchdarkly'
 import { lemlistGetActivitiesTool, lemlistGetLeadTool, lemlistSendEmailTool } from '@/tools/lemlist'
 import {
   linearAddLabelToIssueTool,
@@ -4300,6 +4314,18 @@ export const tools: Record<string, ToolConfig> = {
   linear_list_project_statuses: linearListProjectStatusesTool,
   langsmith_create_run: langsmithCreateRunTool,
   langsmith_create_runs_batch: langsmithCreateRunsBatchTool,
+  launchdarkly_create_flag: launchDarklyCreateFlagTool,
+  launchdarkly_delete_flag: launchDarklyDeleteFlagTool,
+  launchdarkly_get_audit_log: launchDarklyGetAuditLogTool,
+  launchdarkly_get_flag: launchDarklyGetFlagTool,
+  launchdarkly_get_flag_status: launchDarklyGetFlagStatusTool,
+  launchdarkly_list_environments: launchDarklyListEnvironmentsTool,
+  launchdarkly_list_flags: launchDarklyListFlagsTool,
+  launchdarkly_list_members: launchDarklyListMembersTool,
+  launchdarkly_list_projects: launchDarklyListProjectsTool,
+  launchdarkly_list_segments: launchDarklyListSegmentsTool,
+  launchdarkly_toggle_flag: launchDarklyToggleFlagTool,
+  launchdarkly_update_flag: launchDarklyUpdateFlagTool,
   lemlist_get_activities: lemlistGetActivitiesTool,
   lemlist_get_lead: lemlistGetLeadTool,
   lemlist_send_email: lemlistSendEmailTool,

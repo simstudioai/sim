@@ -6358,6 +6358,73 @@
     "tags": ["monitoring", "llm", "data-analytics"]
   },
   {
+    "type": "launchdarkly",
+    "slug": "launchdarkly",
+    "name": "LaunchDarkly",
+    "description": "Manage feature flags with LaunchDarkly.",
+    "longDescription": "Integrate LaunchDarkly into your workflow. List, create, update, toggle, and delete feature flags. Manage projects, environments, segments, members, and audit logs. Requires API Key.",
+    "bgColor": "#191919",
+    "iconName": "LaunchDarklyIcon",
+    "docsUrl": "https://docs.sim.ai/tools/launchdarkly",
+    "operations": [
+      {
+        "name": "List Flags",
+        "description": "List feature flags in a LaunchDarkly project."
+      },
+      {
+        "name": "Get Flag",
+        "description": "Get a single feature flag by key from a LaunchDarkly project."
+      },
+      {
+        "name": "Create Flag",
+        "description": "Create a new feature flag in a LaunchDarkly project."
+      },
+      {
+        "name": "Update Flag",
+        "description": "Update a feature flag metadata (name, description, tags, temporary, archived) using semantic patch."
+      },
+      {
+        "name": "Toggle Flag",
+        "description": "Toggle a feature flag on or off in a specific LaunchDarkly environment."
+      },
+      {
+        "name": "Delete Flag",
+        "description": "Delete a feature flag from a LaunchDarkly project."
+      },
+      {
+        "name": "Get Flag Status",
+        "description": "Get the status of a feature flag across environments (active, inactive, launched, etc.)."
+      },
+      {
+        "name": "List Projects",
+        "description": "List all projects in your LaunchDarkly account."
+      },
+      {
+        "name": "List Environments",
+        "description": "List environments in a LaunchDarkly project."
+      },
+      {
+        "name": "List Segments",
+        "description": "List user segments in a LaunchDarkly project and environment."
+      },
+      {
+        "name": "List Members",
+        "description": "List account members in your LaunchDarkly organization."
+      },
+      {
+        "name": "Get Audit Log",
+        "description": "List audit log entries from your LaunchDarkly account."
+      }
+    ],
+    "operationCount": 12,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "developer-tools",
+    "tags": ["feature-flags", "ci-cd"]
+  },
+  {
     "type": "lemlist",
     "slug": "lemlist",
     "name": "Lemlist",
