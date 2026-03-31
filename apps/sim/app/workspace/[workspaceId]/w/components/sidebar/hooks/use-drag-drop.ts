@@ -13,7 +13,6 @@ const logger = createLogger('WorkflowList:DragDrop')
 const SCROLL_THRESHOLD = 60
 const SCROLL_SPEED = 8
 const HOVER_EXPAND_DELAY = 400
-const DRAG_OVER_THROTTLE_MS = 16
 
 export interface DropIndicator {
   targetId: string
@@ -32,21 +31,35 @@ type SiblingItem = {
   createdAt: Date
 }
 
+/** Root folder vs root workflow scope: API/cache may use null or undefined for "no parent". */
+function isSameFolderScope(
+  parentOrFolderId: string | null | undefined,
+  scope: string | null
+): boolean {
+  return (parentOrFolderId ?? null) === (scope ?? null)
+}
+
 export function useDragDrop(options: UseDragDropOptions = {}) {
   const { disabled = false } = options
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null)
+  /**
+   * Mirrors `dropIndicator` synchronously. `drop` can fire before React commits the last
+   * `dragOver` state update, so `handleDrop` must read this ref instead of state.
+   */
+  const dropIndicatorRef = useRef<DropIndicator | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [hoverFolderId, setHoverFolderId] = useState<string | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const scrollAnimationRef = useRef<number | null>(null)
   const hoverExpandTimerRef = useRef<number | null>(null)
   const lastDragYRef = useRef<number>(0)
-  const lastDragOverTimeRef = useRef<number>(0)
   const draggedSourceFolderRef = useRef<string | null>(null)
   const siblingsCacheRef = useRef<Map<string, SiblingItem[]>>(new Map())
+  const isDraggingRef = useRef(false)
 
   const params = useParams()
   const workspaceId = params.workspaceId as string | undefined
+
   const reorderWorkflowsMutation = useReorderWorkflows()
   const reorderFoldersMutation = useReorderFolders()
   const setExpanded = useFolderStore((s) => s.setExpanded)
@@ -127,6 +140,10 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     }
   }, [hoverFolderId, isDragging, expandedFolders, setExpanded])
 
+  useEffect(() => {
+    siblingsCacheRef.current.clear()
+  }, [workspaceId])
+
   const calculateDropPosition = useCallback(
     (e: React.DragEvent, element: HTMLElement): 'before' | 'after' => {
       const rect = element.getBoundingClientRect()
@@ -164,12 +181,28 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       : indicator.folderId
   }, [])
 
-  const calculateInsertIndex = useCallback(
-    (remaining: SiblingItem[], indicator: DropIndicator): number => {
-      return indicator.position === 'inside'
-        ? remaining.length
-        : remaining.findIndex((item) => item.id === indicator.targetId) +
-            (indicator.position === 'after' ? 1 : 0)
+  /**
+   * Insert index into the list of siblings **excluding** moving items. Must use the full
+   * `siblingItems` list for lookup: when the drop line targets the dragged row,
+   * `indicator.targetId` is not present in `remaining`, so indexing `remaining` alone
+   * returns -1 and corrupts the splice.
+   */
+  const getInsertIndexInRemaining = useCallback(
+    (siblingItems: SiblingItem[], movingIds: Set<string>, indicator: DropIndicator): number => {
+      if (indicator.position === 'inside') {
+        return siblingItems.filter((s) => !movingIds.has(s.id)).length
+      }
+
+      const targetIdx = siblingItems.findIndex((s) => s.id === indicator.targetId)
+      if (targetIdx === -1) {
+        return siblingItems.filter((s) => !movingIds.has(s.id)).length
+      }
+
+      if (indicator.position === 'before') {
+        return siblingItems.slice(0, targetIdx).filter((s) => !movingIds.has(s.id)).length
+      }
+
+      return siblingItems.slice(0, targetIdx + 1).filter((s) => !movingIds.has(s.id)).length
     },
     []
   )
@@ -217,57 +250,65 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       lastDragYRef.current = e.clientY
 
       if (!isDragging) {
+        isDraggingRef.current = true
         setIsDragging(true)
       }
 
-      const now = performance.now()
-      if (now - lastDragOverTimeRef.current < DRAG_OVER_THROTTLE_MS) {
-        return false
-      }
-      lastDragOverTimeRef.current = now
       return true
     },
     [isDragging]
   )
 
-  const getSiblingItems = useCallback((folderId: string | null): SiblingItem[] => {
-    const cacheKey = folderId ?? 'root'
-    const cached = siblingsCacheRef.current.get(cacheKey)
-    if (cached) return cached
+  const getSiblingItems = useCallback(
+    (folderId: string | null): SiblingItem[] => {
+      const cacheKey = folderId ?? 'root'
+      if (!isDraggingRef.current) {
+        const cached = siblingsCacheRef.current.get(cacheKey)
+        if (cached) return cached
+      }
 
-    const currentFolders = workspaceId ? getFolderMap(workspaceId) : {}
-    const currentWorkflows = workspaceId ? getWorkflows(workspaceId) : []
-    const siblings = [
-      ...Object.values(currentFolders)
-        .filter((f) => f.parentId === folderId)
-        .map((f) => ({
-          type: 'folder' as const,
-          id: f.id,
-          sortOrder: f.sortOrder,
-          createdAt: f.createdAt,
-        })),
-      ...currentWorkflows
-        .filter((w) => w.folderId === folderId)
-        .map((w) => ({
-          type: 'workflow' as const,
-          id: w.id,
-          sortOrder: w.sortOrder,
-          createdAt: w.createdAt,
-        })),
-    ].sort(compareSiblingItems)
+      const currentFolders = workspaceId ? getFolderMap(workspaceId) : {}
+      const currentWorkflows = workspaceId ? getWorkflows(workspaceId) : []
+      const siblings = [
+        ...Object.values(currentFolders)
+          .filter((f) => isSameFolderScope(f.parentId, folderId))
+          .map((f) => ({
+            type: 'folder' as const,
+            id: f.id,
+            sortOrder: f.sortOrder,
+            createdAt: f.createdAt,
+          })),
+        ...currentWorkflows
+          .filter((w) => isSameFolderScope(w.folderId, folderId))
+          .map((w) => ({
+            type: 'workflow' as const,
+            id: w.id,
+            sortOrder: w.sortOrder,
+            createdAt: w.createdAt,
+          })),
+      ].sort(compareSiblingItems)
 
-    siblingsCacheRef.current.set(cacheKey, siblings)
-    return siblings
-  }, [])
+      if (!isDraggingRef.current) {
+        siblingsCacheRef.current.set(cacheKey, siblings)
+      }
+      return siblings
+    },
+    [workspaceId]
+  )
 
   const setNormalizedDropIndicator = useCallback(
     (indicator: DropIndicator | null) => {
-      setDropIndicator((prev) => {
-        let next: DropIndicator | null = indicator
+      if (indicator === null) {
+        dropIndicatorRef.current = null
+        setDropIndicator(null)
+        return
+      }
 
-        if (indicator && indicator.position === 'after' && indicator.targetId !== 'root') {
-          const siblings = getSiblingItems(indicator.folderId)
-          const currentIdx = siblings.findIndex((s) => s.id === indicator.targetId)
+      let next: DropIndicator = indicator
+      if (indicator.position === 'after' && indicator.targetId !== 'root') {
+        const siblings = getSiblingItems(indicator.folderId)
+        const currentIdx = siblings.findIndex((s) => s.id === indicator.targetId)
+        if (currentIdx !== -1) {
           const nextSibling = siblings[currentIdx + 1]
           if (nextSibling) {
             next = {
@@ -277,15 +318,18 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
             }
           }
         }
+      }
 
+      setDropIndicator((prev) => {
         if (
-          prev?.targetId === next?.targetId &&
-          prev?.position === next?.position &&
-          prev?.folderId === next?.folderId
+          prev?.targetId === next.targetId &&
+          prev?.position === next.position &&
+          prev?.folderId === next.folderId
         ) {
+          dropIndicatorRef.current = prev
           return prev
         }
-
+        dropIndicatorRef.current = next
         return next
       })
     },
@@ -324,7 +368,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
           sortOrder: workflow.sortOrder,
           createdAt: workflow.createdAt,
         }
-        if (workflow.folderId === destinationFolderId) {
+        if (isSameFolderScope(workflow.folderId, destinationFolderId)) {
           fromDestination.push(item)
         } else {
           fromOther.push(item)
@@ -340,7 +384,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
           sortOrder: folder.sortOrder,
           createdAt: folder.createdAt,
         }
-        if (folder.parentId === destinationFolderId) {
+        if (isSameFolderScope(folder.parentId, destinationFolderId)) {
           fromDestination.push(item)
         } else {
           fromOther.push(item)
@@ -352,7 +396,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
 
       return { fromDestination, fromOther }
     },
-    []
+    [workspaceId]
   )
 
   const handleSelectionDrop = useCallback(
@@ -365,7 +409,9 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       try {
         const destinationFolderId = getDestinationFolderId(indicator)
         const validFolderIds = folderIds.filter((id) => canMoveFolderTo(id, destinationFolderId))
-        if (workflowIds.length === 0 && validFolderIds.length === 0) return
+        if (workflowIds.length === 0 && validFolderIds.length === 0) {
+          return
+        }
 
         const siblingItems = getSiblingItems(destinationFolderId)
         const movingIds = new Set([...workflowIds, ...validFolderIds])
@@ -377,7 +423,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
           destinationFolderId
         )
 
-        const insertAt = calculateInsertIndex(remaining, indicator)
+        const insertAt = getInsertIndexInRemaining(siblingItems, movingIds, indicator)
         const newOrder = [
           ...remaining.slice(0, insertAt),
           ...fromDestination,
@@ -400,7 +446,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       canMoveFolderTo,
       getSiblingItems,
       collectMovingItems,
-      calculateInsertIndex,
+      getInsertIndexInRemaining,
       buildAndSubmitUpdates,
     ]
   )
@@ -410,8 +456,10 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       e.preventDefault()
       e.stopPropagation()
 
-      const indicator = dropIndicator
+      const indicator = dropIndicatorRef.current
+      dropIndicatorRef.current = null
       setDropIndicator(null)
+      isDraggingRef.current = false
       setIsDragging(false)
       siblingsCacheRef.current.clear()
 
@@ -430,7 +478,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
         logger.error('Failed to handle drop:', error)
       }
     },
-    [dropIndicator, handleSelectionDrop]
+    [handleSelectionDrop]
   )
 
   const createWorkflowDragHandlers = useCallback(
@@ -538,7 +586,9 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       onDragOver: (e: React.DragEvent<HTMLElement>) => {
         if (!initDragOver(e)) return
         if (itemId) {
-          setDropIndicator({ targetId: itemId, position, folderId: null })
+          const edge: DropIndicator = { targetId: itemId, position, folderId: null }
+          dropIndicatorRef.current = edge
+          setDropIndicator(edge)
         } else {
           setNormalizedDropIndicator({ targetId: 'root', position: 'inside', folderId: null })
         }
@@ -551,11 +601,15 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
 
   const handleDragStart = useCallback((sourceFolderId: string | null) => {
     draggedSourceFolderRef.current = sourceFolderId
+    siblingsCacheRef.current.clear()
+    isDraggingRef.current = true
     setIsDragging(true)
   }, [])
 
   const handleDragEnd = useCallback(() => {
+    isDraggingRef.current = false
     setIsDragging(false)
+    dropIndicatorRef.current = null
     setDropIndicator(null)
     draggedSourceFolderRef.current = null
     setHoverFolderId(null)

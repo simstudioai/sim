@@ -24,7 +24,7 @@ export function mapWorkflow(workflow: WorkflowApiRow): WorkflowMetadata {
     description: workflow.description ?? undefined,
     color: workflow.color,
     workspaceId: workflow.workspaceId,
-    folderId: workflow.folderId ?? undefined,
+    folderId: workflow.folderId ?? null,
     sortOrder: workflow.sortOrder ?? 0,
     createdAt: new Date(workflow.createdAt),
     lastModified: new Date(workflow.updatedAt || workflow.createdAt),

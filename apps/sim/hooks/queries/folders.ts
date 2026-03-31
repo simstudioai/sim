@@ -19,7 +19,7 @@ function mapFolder(folder: any): WorkflowFolder {
     name: folder.name,
     userId: folder.userId,
     workspaceId: folder.workspaceId,
-    parentId: folder.parentId,
+    parentId: folder.parentId ?? null,
     color: folder.color,
     isExpanded: folder.isExpanded,
     sortOrder: folder.sortOrder,
@@ -332,8 +332,9 @@ export function useReorderFolders() {
       )
 
       const updatesById = new Map(variables.updates.map((update) => [update.id, update]))
-      queryClient.setQueryData<WorkflowFolder[]>(folderKeys.list(variables.workspaceId), (old) =>
-        (old ?? []).map((folder) => {
+      queryClient.setQueryData<WorkflowFolder[]>(folderKeys.list(variables.workspaceId), (old) => {
+        if (!old?.length) return old
+        return old.map((folder) => {
           const update = updatesById.get(folder.id)
           if (!update) return folder
           return {
@@ -342,7 +343,7 @@ export function useReorderFolders() {
             parentId: update.parentId !== undefined ? update.parentId : folder.parentId,
           }
         })
-      )
+      })
 
       return { snapshot }
     },
