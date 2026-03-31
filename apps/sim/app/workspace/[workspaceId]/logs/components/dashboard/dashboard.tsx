@@ -158,7 +158,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
   )
 
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const { data: allWorkflowList = [] } = useWorkflows(workspaceId)
+  const { data: allWorkflowList = [], isPending: isWorkflowsPending } = useWorkflows(workspaceId)
 
   const expandedWorkflowId = workflowIds.length === 1 ? workflowIds[0] : null
 
@@ -461,7 +461,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
     )
   }
 
-  if (allWorkflowList.length === 0) {
+  if (!isWorkflowsPending && allWorkflowList.length === 0) {
     return (
       <div className='mt-6 flex flex-1 items-center justify-center'>
         <div className='text-center text-[var(--text-secondary)]'>

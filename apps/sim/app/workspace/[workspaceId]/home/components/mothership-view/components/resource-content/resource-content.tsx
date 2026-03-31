@@ -376,17 +376,16 @@ interface EmbeddedWorkflowProps {
 }
 
 function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
-  const { data: workflowList } = useWorkflows(workspaceId)
+  const { data: workflowList, isPending: isWorkflowsPending } = useWorkflows(workspaceId)
   const workflowExists = useMemo(
     () => (workflowList ?? []).some((w) => w.id === workflowId),
     [workflowList, workflowId]
   )
-  const isMetadataLoaded = useWorkflowRegistry((state) => state.hydration.phase !== 'idle')
   const hasLoadError = useWorkflowRegistry(
     (state) => state.hydration.phase === 'error' && state.hydration.workflowId === workflowId
   )
 
-  if (!isMetadataLoaded) return LOADING_SKELETON
+  if (isWorkflowsPending) return LOADING_SKELETON
 
   if (!workflowExists || hasLoadError) {
     return (
