@@ -133,14 +133,16 @@ export function useExportSelection({ onSuccess }: UseExportSelectionProps = {}) 
 
         const subfolders = collectSubfoldersForMultipleFolders(folderIds, folderMap)
 
-        const selectedFoldersData: FolderExportData[] = folderIds.map((folderId) => {
-          const folder = folderMap[folderId]
-          return {
-            id: folder.id,
-            name: folder.name,
-            parentId: null,
-          }
-        })
+        const selectedFoldersData: FolderExportData[] = folderIds
+          .filter((folderId) => folderMap[folderId])
+          .map((folderId) => {
+            const folder = folderMap[folderId]
+            return {
+              id: folder.id,
+              name: folder.name,
+              parentId: null,
+            }
+          })
 
         const allFolders = [...selectedFoldersData, ...subfolders]
         const workflowIdsFromFolders = workflowsFromFolders.map((w) => w.id)
