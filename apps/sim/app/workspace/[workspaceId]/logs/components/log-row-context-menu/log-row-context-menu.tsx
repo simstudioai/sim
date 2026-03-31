@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { Link } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +18,7 @@ interface LogRowContextMenuProps {
   onClose: () => void
   log: WorkflowLog | null
   onCopyExecutionId: () => void
+  onCopyLink: () => void
   onOpenWorkflow: () => void
   onOpenPreview: () => void
   onToggleWorkflowFilter: () => void
@@ -35,6 +37,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   onClose,
   log,
   onCopyExecutionId,
+  onCopyLink,
   onOpenWorkflow,
   onOpenPreview,
   onToggleWorkflowFilter,
@@ -70,6 +73,10 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyExecutionId}>
           <Copy />
           Copy Execution ID
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyLink}>
+          <Link />
+          Copy Link
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
