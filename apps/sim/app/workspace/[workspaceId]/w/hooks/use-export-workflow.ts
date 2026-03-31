@@ -58,6 +58,7 @@ export function useExportWorkflow({ onSuccess }: UseExportWorkflowProps = {}) {
           count: workflowIdsToExport.length,
         })
 
+        if (!workspaceIdRef.current) return
         const workflowMap = new Map(getWorkflows(workspaceIdRef.current).map((w) => [w.id, w]))
         const exportedWorkflows = []
 

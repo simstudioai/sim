@@ -236,7 +236,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     if (cached) return cached
 
     const currentFolders = workspaceId ? getFolderMap(workspaceId) : {}
-    const currentWorkflows = getWorkflows(workspaceId)
+    const currentWorkflows = workspaceId ? getWorkflows(workspaceId) : []
     const siblings = [
       ...Object.values(currentFolders)
         .filter((f) => f.parentId === folderId)
@@ -310,7 +310,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       destinationFolderId: string | null
     ): { fromDestination: SiblingItem[]; fromOther: SiblingItem[] } => {
       const folders = workspaceId ? getFolderMap(workspaceId) : {}
-      const workflows = getWorkflows(workspaceId)
+      const workflows = workspaceId ? getWorkflows(workspaceId) : []
 
       const fromDestination: SiblingItem[] = []
       const fromOther: SiblingItem[] = []

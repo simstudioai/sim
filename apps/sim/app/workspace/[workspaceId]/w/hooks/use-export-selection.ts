@@ -120,6 +120,7 @@ export function useExportSelection({ onSuccess }: UseExportSelectionProps = {}) 
 
       setIsExporting(true)
       try {
+        if (!workspaceIdRef.current) return
         const workflowsArray = getWorkflows(workspaceIdRef.current)
         const workflows = Object.fromEntries(workflowsArray.map((w) => [w.id, w]))
         const folderMap = getFolderMap(workspaceIdRef.current)
