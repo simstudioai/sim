@@ -1,9 +1,6 @@
-import { createLogger } from '@sim/logger'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { checkForForcedToolUsageOpenAI, createOpenAICompatibleStream } from '@/providers/utils'
-
-const logger = createLogger('FireworksUtils')
 
 /**
  * Checks if a model supports native structured outputs (json_schema).

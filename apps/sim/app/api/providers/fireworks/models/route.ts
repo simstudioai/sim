@@ -17,22 +17,16 @@ interface FireworksModelsResponse {
   object?: string
 }
 
-export interface FireworksModelInfo {
-  id: string
-  supportsStructuredOutputs?: boolean
-  supportsTools?: boolean
-}
-
 export async function GET(_request: NextRequest) {
   if (isProviderBlacklisted('fireworks')) {
     logger.info('Fireworks provider is blacklisted, returning empty models')
-    return NextResponse.json({ models: [], modelInfo: {} })
+    return NextResponse.json({ models: [] })
   }
 
   const apiKey = env.FIREWORKS_API_KEY
   if (!apiKey) {
     logger.info('No FIREWORKS_API_KEY configured, returning empty models')
-    return NextResponse.json({ models: [], modelInfo: {} })
+    return NextResponse.json({ models: [] })
   }
 
   try {
@@ -49,23 +43,14 @@ export async function GET(_request: NextRequest) {
         status: response.status,
         statusText: response.statusText,
       })
-      return NextResponse.json({ models: [], modelInfo: {} })
+      return NextResponse.json({ models: [] })
     }
 
     const data = (await response.json()) as FireworksModelsResponse
 
-    const modelInfo: Record<string, FireworksModelInfo> = {}
     const allModels: string[] = []
-
     for (const model of data.data ?? []) {
-      const modelId = `fireworks/${model.id}`
-      allModels.push(modelId)
-
-      modelInfo[modelId] = {
-        id: modelId,
-        supportsStructuredOutputs: true,
-        supportsTools: true,
-      }
+      allModels.push(`fireworks/${model.id}`)
     }
 
     const uniqueModels = Array.from(new Set(allModels))
@@ -76,11 +61,11 @@ export async function GET(_request: NextRequest) {
       filtered: uniqueModels.length - models.length,
     })
 
-    return NextResponse.json({ models, modelInfo })
+    return NextResponse.json({ models })
   } catch (error) {
     logger.error('Error fetching Fireworks models', {
       error: error instanceof Error ? error.message : 'Unknown error',
     })
-    return NextResponse.json({ models: [], modelInfo: {} })
+    return NextResponse.json({ models: [] })
   }
 }
