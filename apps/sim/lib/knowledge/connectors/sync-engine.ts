@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   document,
+  embedding,
   knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorSyncLog,
@@ -658,6 +659,23 @@ export async function executeSync(
     if (stuckDocs.length > 0) {
       logger.info(`Retrying ${stuckDocs.length} stuck documents`, { connectorId })
       try {
+        const stuckDocIds = stuckDocs.map((doc) => doc.id)
+
+        await db.delete(embedding).where(inArray(embedding.documentId, stuckDocIds))
+
+        await db
+          .update(document)
+          .set({
+            processingStatus: 'pending',
+            processingStartedAt: null,
+            processingCompletedAt: null,
+            processingError: null,
+            chunkCount: 0,
+            tokenCount: 0,
+            characterCount: 0,
+          })
+          .where(inArray(document.id, stuckDocIds))
+
         await processDocumentsWithQueue(
           stuckDocs.map((doc) => ({
             documentId: doc.id,
