@@ -2200,16 +2200,11 @@ const WorkflowContent = React.memo(
       if (sandbox) return
 
       const currentId = workflowIdParam
-      const currentWorkspaceHydration = hydration.workspaceId
-
-      const isRegistryReady = hydration.workspaceId !== null
-
-      // Wait for registry to be ready to prevent race conditions
+      // Wait for workflow data to be available before attempting to load
       if (
         !currentId ||
         !currentWorkflowExists ||
-        !isRegistryReady ||
-        (currentWorkspaceHydration && currentWorkspaceHydration !== workspaceId)
+        (hydration.workspaceId && hydration.workspaceId !== workspaceId)
       ) {
         return
       }

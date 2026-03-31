@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { getWorkspaceIdFromUrl } from '@/hooks/queries/utils/get-workspace-id-from-url'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type {
@@ -142,15 +143,15 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       },
 
       loadWorkflowState: async (workflowId: string) => {
-        // Check if the workflow exists in the React Query cache
-        const workspaceId = get().hydration.workspaceId
+        const workspaceId = get().hydration.workspaceId ?? getWorkspaceIdFromUrl()
+
         const workflows = workspaceId
           ? (getQueryClient().getQueryData<WorkflowMetadata[]>(
               workflowKeys.list(workspaceId, 'active')
             ) ?? [])
           : []
 
-        if (!workflows.find((w) => w.id === workflowId)) {
+        if (workflows.length > 0 && !workflows.find((w) => w.id === workflowId)) {
           const message = `Workflow not found: ${workflowId}`
           logger.error(message)
           set({ error: message })
@@ -163,7 +164,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           error: null,
           hydration: {
             phase: 'state-loading',
-            workspaceId: state.hydration.workspaceId,
+            workspaceId: workspaceId ?? state.hydration.workspaceId,
             workflowId,
             requestId,
             error: null,
