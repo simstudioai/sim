@@ -23,7 +23,12 @@ export const isTest = env.NODE_ENV === 'test'
  * True for sim.ai and any subdomain of sim.ai (e.g. staging.sim.ai, dev.sim.ai).
  */
 const appUrl = getEnv('NEXT_PUBLIC_APP_URL')
-const appHostname = appUrl ? new URL(appUrl).hostname : ''
+let appHostname = ''
+try {
+  appHostname = appUrl ? new URL(appUrl).hostname : ''
+} catch {
+  // invalid URL — isHosted stays false
+}
 export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
 
 /**
