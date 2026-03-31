@@ -335,7 +335,6 @@ export function mapEdgesByNode(edges: Edge[], nodeIds: Set<string>): Map<string,
       const list = result.get(edge.source) ?? []
       list.push(edge)
       result.set(edge.source, list)
-      return
     }
     if (nodeIds.has(edge.target)) {
       const list = result.get(edge.target) ?? []

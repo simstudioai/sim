@@ -580,7 +580,11 @@ function createRowSignalStore(): RowSignalStore & {
     getOnSelectEntry: () => _onSelectEntry,
     getOnToggleNode: () => _onToggleNode,
     update(selectedEntryId, expandedNodes, onSelectEntry, onToggleNode) {
-      const changed = _selectedId !== selectedEntryId || _expandedNodes !== expandedNodes
+      const changed =
+        _selectedId !== selectedEntryId ||
+        _expandedNodes !== expandedNodes ||
+        _onSelectEntry !== onSelectEntry ||
+        _onToggleNode !== onToggleNode
       _selectedId = selectedEntryId
       _expandedNodes = expandedNodes
       _onSelectEntry = onSelectEntry
