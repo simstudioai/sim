@@ -167,7 +167,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
 
   const initialCronState = useMemo(
     () => (schedule ? parseCronToScheduleType(schedule.cronExpression) : null),
-    [schedule?.cronExpression]
+    [schedule]
   )
 
   const [title, setTitle] = useState(schedule?.jobTitle ?? '')
