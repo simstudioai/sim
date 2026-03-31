@@ -203,7 +203,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
                 onMoreClick(e, task.id)
               }}
               className={cn(
-                'flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 group-hover:opacity-100',
+                'flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
                 isMenuOpen && 'opacity-100'
               )}
             >
@@ -1329,11 +1329,8 @@ export const Sidebar = memo(function Sidebar() {
                     !hasOverflowTop && 'border-transparent'
                   )}
                 >
-                  <div
-                    className='tasks-section mx-2 flex flex-shrink-0 flex-col'
-                    data-tour='nav-tasks'
-                  >
-                    <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-2'>
+                  <div className='tasks-section flex flex-shrink-0 flex-col' data-tour='nav-tasks'>
+                    <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
                       <div className='font-base text-[var(--text-icon)] text-small'>All tasks</div>
                       {!isCollapsed && (
                         <div className='flex items-center justify-center gap-2'>
@@ -1454,10 +1451,10 @@ export const Sidebar = memo(function Sidebar() {
                   </div>
 
                   <div
-                    className='workflows-section relative mx-2 mt-3.5 flex flex-col'
+                    className='workflows-section relative mt-3.5 flex flex-col'
                     data-tour='nav-workflows'
                   >
-                    <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-2'>
+                    <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
                       <div className='font-base text-[var(--text-icon)] text-small'>Workflows</div>
                       {!isCollapsed && (
                         <div className='flex items-center justify-center gap-2'>

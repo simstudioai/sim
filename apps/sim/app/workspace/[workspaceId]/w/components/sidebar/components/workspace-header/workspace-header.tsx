@@ -120,6 +120,7 @@ export function WorkspaceHeader({
 
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
+  const [menuOpenWorkspaceId, setMenuOpenWorkspaceId] = useState<string | null>(null)
   const contextMenuRef = useRef<HTMLDivElement | null>(null)
   const capturedWorkspaceRef = useRef<Workspace | null>(null)
   const isRenamingRef = useRef(false)
@@ -185,6 +186,7 @@ export function WorkspaceHeader({
     contextMenuClosedRef.current = false
 
     capturedWorkspaceRef.current = workspace
+    setMenuOpenWorkspaceId(workspace.id)
     setContextMenuPosition({ x, y })
     setIsContextMenuOpen(true)
   }
@@ -210,6 +212,7 @@ export function WorkspaceHeader({
     contextMenuClosedRef.current = true
 
     setIsContextMenuOpen(false)
+    setMenuOpenWorkspaceId(null)
     const isOpeningAnother = isContextMenuOpeningRef.current
     isContextMenuOpeningRef.current = false
     if (!isRenamingRef.current && !isOpeningAnother) {
@@ -494,8 +497,11 @@ export function WorkspaceHeader({
                               className={cn(
                                 'group flex cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors',
                                 workspace.id !== workspaceId &&
+                                  menuOpenWorkspaceId !== workspace.id &&
                                   'hover-hover:bg-[var(--surface-hover)]',
-                                workspace.id === workspaceId && 'bg-[var(--surface-active)]'
+                                (workspace.id === workspaceId ||
+                                  menuOpenWorkspaceId === workspace.id) &&
+                                  'bg-[var(--surface-active)]'
                               )}
                               onClick={() => onWorkspaceSwitch(workspace)}
                               onContextMenu={(e) => handleContextMenu(e, workspace)}
@@ -513,7 +519,10 @@ export function WorkspaceHeader({
                                   const rect = e.currentTarget.getBoundingClientRect()
                                   openContextMenuAt(workspace, rect.right, rect.top)
                                 }}
-                                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100'
+                                className={cn(
+                                  'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
+                                  menuOpenWorkspaceId === workspace.id && 'opacity-100'
+                                )}
                               >
                                 <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
                               </button>

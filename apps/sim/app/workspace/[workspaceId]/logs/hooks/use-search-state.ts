@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import type { ParsedFilter } from '@/lib/logs/query-parser'
+import { parseQuery } from '@/lib/logs/query-parser'
 import type {
   Suggestion,
   SuggestionGroup,
@@ -10,16 +11,21 @@ interface UseSearchStateOptions {
   onFiltersChange: (filters: ParsedFilter[], textSearch: string) => void
   getSuggestions: (input: string) => SuggestionGroup | null
   debounceMs?: number
+  initialQuery?: string
 }
 
 export function useSearchState({
   onFiltersChange,
   getSuggestions,
   debounceMs = 100,
+  initialQuery,
 }: UseSearchStateOptions) {
-  const [appliedFilters, setAppliedFilters] = useState<ParsedFilter[]>([])
+  const [initialParsed] = useState(() =>
+    initialQuery ? parseQuery(initialQuery) : { filters: [] as ParsedFilter[], textSearch: '' }
+  )
+  const [appliedFilters, setAppliedFilters] = useState<ParsedFilter[]>(initialParsed.filters)
   const [currentInput, setCurrentInput] = useState('')
-  const [textSearch, setTextSearch] = useState('')
+  const [textSearch, setTextSearch] = useState<string>(initialParsed.textSearch)
 
   const [isOpen, setIsOpen] = useState(false)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
@@ -84,7 +90,7 @@ export function useSearchState({
       }
 
       const newFilter: ParsedFilter = {
-        field: suggestion.value.split(':')[0] as any,
+        field: suggestion.value.split(':')[0],
         operator: '=',
         value: suggestion.value.includes(':')
           ? suggestion.value.split(':').slice(1).join(':').replace(/"/g, '')
