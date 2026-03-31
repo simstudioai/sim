@@ -135,6 +135,7 @@
     "s3",
     "salesforce",
     "search",
+    "secrets_manager",
     "sendgrid",
     "sentry",
     "serper",

@@ -155,6 +155,7 @@ import { S3Block } from '@/blocks/blocks/s3'
 import { SalesforceBlock } from '@/blocks/blocks/salesforce'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { SearchBlock } from '@/blocks/blocks/search'
+import { SecretsManagerBlock } from '@/blocks/blocks/secrets_manager'
 import { SendGridBlock } from '@/blocks/blocks/sendgrid'
 import { SentryBlock } from '@/blocks/blocks/sentry'
 import { SerperBlock } from '@/blocks/blocks/serper'
@@ -393,6 +394,7 @@ export const registry: Record<string, BlockConfig> = {
   slack: SlackBlock,
   smtp: SmtpBlock,
   spotify: SpotifyBlock,
+  secrets_manager: SecretsManagerBlock,
   sqs: SQSBlock,
   ssh: SSHBlock,
   stagehand: StagehandBlock,

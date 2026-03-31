@@ -1948,6 +1948,13 @@ import {
 } from '@/tools/salesforce'
 import { searchTool } from '@/tools/search'
 import {
+  secretsManagerCreateSecretTool,
+  secretsManagerDeleteSecretTool,
+  secretsManagerGetSecretTool,
+  secretsManagerListSecretsTool,
+  secretsManagerUpdateSecretTool,
+} from '@/tools/secrets_manager'
+import {
   sendGridAddContactsToListTool,
   sendGridAddContactTool,
   sendGridCreateListTool,
@@ -4033,6 +4040,11 @@ export const tools: Record<string, ToolConfig> = {
   s3_list_objects: s3ListObjectsTool,
   s3_delete_object: s3DeleteObjectTool,
   s3_copy_object: s3CopyObjectTool,
+  secrets_manager_get_secret: secretsManagerGetSecretTool,
+  secrets_manager_list_secrets: secretsManagerListSecretsTool,
+  secrets_manager_create_secret: secretsManagerCreateSecretTool,
+  secrets_manager_update_secret: secretsManagerUpdateSecretTool,
+  secrets_manager_delete_secret: secretsManagerDeleteSecretTool,
   telegram_message: telegramMessageTool,
   telegram_delete_message: telegramDeleteMessageTool,
   telegram_send_audio: telegramSendAudioTool,
