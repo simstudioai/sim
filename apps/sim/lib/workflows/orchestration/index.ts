@@ -7,7 +7,6 @@ export {
   performChatUndeploy,
 } from './chat-deploy'
 export {
-  type DeployErrorCode,
   type PerformActivateVersionParams,
   type PerformActivateVersionResult,
   type PerformFullDeployParams,
@@ -23,6 +22,7 @@ export {
   type PerformDeleteFolderResult,
   performDeleteFolder,
 } from './folder-lifecycle'
+export type { OrchestrationErrorCode } from './types'
 export {
   type PerformDeleteWorkflowParams,
   type PerformDeleteWorkflowResult,

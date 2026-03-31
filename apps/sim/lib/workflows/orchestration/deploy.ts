@@ -11,6 +11,7 @@ import {
   restorePreviousVersionWebhooks,
   saveTriggerWebhooksForDeploy,
 } from '@/lib/webhooks/deploy'
+import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 import {
   activateWorkflowVersion,
   activateWorkflowVersionById,
@@ -43,15 +44,13 @@ export interface PerformFullDeployParams {
   actorId?: string
 }
 
-export type DeployErrorCode = 'validation' | 'not_found' | 'internal'
-
 export interface PerformFullDeployResult {
   success: boolean
   deployedAt?: Date
   version?: number
   deploymentVersionId?: string
   error?: string
-  errorCode?: DeployErrorCode
+  errorCode?: OrchestrationErrorCode
   warnings?: string[]
 }
 
@@ -306,7 +305,7 @@ export interface PerformActivateVersionResult {
   success: boolean
   deployedAt?: Date
   error?: string
-  errorCode?: DeployErrorCode
+  errorCode?: OrchestrationErrorCode
   warnings?: string[]
 }
 

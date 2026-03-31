@@ -151,7 +151,9 @@ export async function DELETE(
     })
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 400 })
+      const status =
+        result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
+      return NextResponse.json({ error: result.error }, { status })
     }
 
     return NextResponse.json({

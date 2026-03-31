@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { archiveWorkflowsByIdsInWorkspace } from '@/lib/workflows/lifecycle'
+import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 
 const logger = createLogger('FolderLifecycle')
 
@@ -101,6 +102,7 @@ export interface PerformDeleteFolderParams {
 export interface PerformDeleteFolderResult {
   success: boolean
   error?: string
+  errorCode?: OrchestrationErrorCode
   deletedItems?: { folders: number; workflows: number }
 }
 
@@ -125,6 +127,7 @@ export async function performDeleteFolder(
     return {
       success: false,
       error: 'Cannot delete folder containing the only workflow(s) in the workspace',
+      errorCode: 'validation',
     }
   }
 

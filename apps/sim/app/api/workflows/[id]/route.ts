@@ -212,18 +212,17 @@ export async function DELETE(
       })
     }
 
-    const templateAction: 'delete' | 'orphan' =
-      deleteTemplatesParam === 'delete' ? 'delete' : 'orphan'
-
     const result = await performDeleteWorkflow({
       workflowId,
       userId,
       requestId,
-      templateAction,
+      templateAction: deleteTemplatesParam === 'delete' ? 'delete' : 'orphan',
     })
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 400 })
+      const status =
+        result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
+      return NextResponse.json({ error: result.error }, { status })
     }
 
     const elapsed = Date.now() - startTime

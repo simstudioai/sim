@@ -5,6 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { archiveWorkflow } from '@/lib/workflows/lifecycle'
+import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 
 const logger = createLogger('WorkflowLifecycle')
 
@@ -23,6 +24,7 @@ export interface PerformDeleteWorkflowParams {
 export interface PerformDeleteWorkflowResult {
   success: boolean
   error?: string
+  errorCode?: OrchestrationErrorCode
 }
 
 /**
@@ -45,7 +47,7 @@ export async function performDeleteWorkflow(
     .limit(1)
 
   if (!workflowRecord) {
-    return { success: false, error: 'Workflow not found' }
+    return { success: false, error: 'Workflow not found', errorCode: 'not_found' }
   }
 
   if (!skipLastWorkflowGuard && workflowRecord.workspaceId) {
@@ -58,6 +60,7 @@ export async function performDeleteWorkflow(
       return {
         success: false,
         error: 'Cannot delete the only workflow in the workspace',
+        errorCode: 'validation',
       }
     }
   }
@@ -92,7 +95,7 @@ export async function performDeleteWorkflow(
 
   const archiveResult = await archiveWorkflow(workflowId, { requestId })
   if (!archiveResult.workflow) {
-    return { success: false, error: 'Workflow not found' }
+    return { success: false, error: 'Workflow not found', errorCode: 'not_found' }
   }
 
   logger.info(`[${requestId}] Successfully archived workflow ${workflowId}`)
