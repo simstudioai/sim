@@ -51,21 +51,21 @@ export const tailscaleListAuthKeysTool: ToolConfig<
       `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/keys`,
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey.trim()}`,
     }),
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-
     if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
       return {
         success: false,
         output: { keys: [], count: 0 },
-        error: data.message ?? 'Failed to list auth keys',
+        error: (data as Record<string, string>).message ?? 'Failed to list auth keys',
       }
     }
 
+    const data = await response.json()
     const keys = (data.keys ?? []).map((key: Record<string, unknown>) => {
       const caps = (key.capabilities as Record<string, unknown>)?.devices as Record<string, unknown>
       const create = caps?.create as Record<string, unknown>

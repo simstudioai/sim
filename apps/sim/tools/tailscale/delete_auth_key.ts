@@ -48,7 +48,7 @@ export const tailscaleDeleteAuthKeyTool: ToolConfig<
       `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/keys/${encodeURIComponent(params.keyId.trim())}`,
     method: 'DELETE',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey.trim()}`,
     }),
   },
 

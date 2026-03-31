@@ -43,7 +43,7 @@ export const tailscaleSetDeviceRoutesTool: ToolConfig<
       `https://api.tailscale.com/api/v2/device/${encodeURIComponent(params.deviceId.trim())}/routes`,
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey.trim()}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => ({
@@ -55,16 +55,16 @@ export const tailscaleSetDeviceRoutesTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-
     if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
       return {
         success: false,
         output: { advertisedRoutes: [], enabledRoutes: [] },
-        error: data.message ?? 'Failed to set device routes',
+        error: (data as Record<string, string>).message ?? 'Failed to set device routes',
       }
     }
 
+    const data = await response.json()
     return {
       success: true,
       output: {

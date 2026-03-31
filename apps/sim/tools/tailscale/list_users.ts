@@ -27,21 +27,21 @@ export const tailscaleListUsersTool: ToolConfig<TailscaleBaseParams, TailscaleLi
       `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/users`,
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey.trim()}`,
     }),
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-
     if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
       return {
         success: false,
         output: { users: [], count: 0 },
-        error: data.message ?? 'Failed to list users',
+        error: (data as Record<string, string>).message ?? 'Failed to list users',
       }
     }
 
+    const data = await response.json()
     const users = (data.users ?? []).map((user: Record<string, unknown>) => ({
       id: (user.id as string) ?? null,
       displayName: (user.displayName as string) ?? null,

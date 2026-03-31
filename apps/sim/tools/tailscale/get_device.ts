@@ -34,14 +34,13 @@ export const tailscaleGetDeviceTool: ToolConfig<TailscaleDeviceParams, Tailscale
         `https://api.tailscale.com/api/v2/device/${encodeURIComponent(params.deviceId.trim())}`,
       method: 'GET',
       headers: (params) => ({
-        Authorization: `Bearer ${params.apiKey}`,
+        Authorization: `Bearer ${params.apiKey.trim()}`,
       }),
     },
 
     transformResponse: async (response) => {
-      const data = await response.json()
-
       if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
         return {
           success: false,
           output: {
@@ -62,10 +61,11 @@ export const tailscaleGetDeviceTool: ToolConfig<TailscaleDeviceParams, Tailscale
             machineKey: '',
             nodeKey: '',
           },
-          error: data.message ?? 'Failed to get device',
+          error: (data as Record<string, string>).message ?? 'Failed to get device',
         }
       }
 
+      const data = await response.json()
       return {
         success: true,
         output: {

@@ -36,21 +36,21 @@ export const tailscaleGetDeviceRoutesTool: ToolConfig<
       `https://api.tailscale.com/api/v2/device/${encodeURIComponent(params.deviceId.trim())}/routes`,
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey.trim()}`,
     }),
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-
     if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
       return {
         success: false,
         output: { advertisedRoutes: [], enabledRoutes: [] },
-        error: data.message ?? 'Failed to get device routes',
+        error: (data as Record<string, string>).message ?? 'Failed to get device routes',
       }
     }
 
+    const data = await response.json()
     return {
       success: true,
       output: {

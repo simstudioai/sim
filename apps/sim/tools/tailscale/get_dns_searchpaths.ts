@@ -36,21 +36,21 @@ export const tailscaleGetDnsSearchpathsTool: ToolConfig<
       `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/dns/searchpaths`,
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey.trim()}`,
     }),
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-
     if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
       return {
         success: false,
         output: { searchPaths: [] },
-        error: data.message ?? 'Failed to get DNS search paths',
+        error: (data as Record<string, string>).message ?? 'Failed to get DNS search paths',
       }
     }
 
+    const data = await response.json()
     return {
       success: true,
       output: {

@@ -48,7 +48,7 @@ export const tailscaleSetDnsSearchpathsTool: ToolConfig<
       `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/dns/searchpaths`,
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey.trim()}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => ({
@@ -60,16 +60,16 @@ export const tailscaleSetDnsSearchpathsTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-
     if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
       return {
         success: false,
         output: { searchPaths: [] },
-        error: data.message ?? 'Failed to set DNS search paths',
+        error: (data as Record<string, string>).message ?? 'Failed to set DNS search paths',
       }
     }
 
+    const data = await response.json()
     return {
       success: true,
       output: {

@@ -42,7 +42,7 @@ export const tailscaleAuthorizeDeviceTool: ToolConfig<
       `https://api.tailscale.com/api/v2/device/${encodeURIComponent(params.deviceId.trim())}/authorized`,
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey.trim()}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => ({

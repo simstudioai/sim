@@ -30,21 +30,21 @@ export const tailscaleListDevicesTool: ToolConfig<
       `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/devices`,
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey.trim()}`,
     }),
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-
     if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
       return {
         success: false,
         output: { devices: [], count: 0 },
-        error: data.message ?? 'Failed to list devices',
+        error: (data as Record<string, string>).message ?? 'Failed to list devices',
       }
     }
 
+    const data = await response.json()
     const devices = (data.devices ?? []).map((device: Record<string, unknown>) => ({
       id: (device.id as string) ?? null,
       name: (device.name as string) ?? null,

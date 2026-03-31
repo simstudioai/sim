@@ -70,7 +70,7 @@ export const tailscaleCreateAuthKeyTool: ToolConfig<
       `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/keys`,
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey.trim()}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
@@ -100,16 +100,16 @@ export const tailscaleCreateAuthKeyTool: ToolConfig<
       }
 
       if (params.description) body.description = params.description
-      if (params.expirySeconds) body.expirySeconds = params.expirySeconds
+      if (params.expirySeconds !== undefined && params.expirySeconds !== null)
+        body.expirySeconds = params.expirySeconds
 
       return body
     },
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-
     if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
       return {
         success: false,
         output: {
@@ -121,10 +121,11 @@ export const tailscaleCreateAuthKeyTool: ToolConfig<
           revoked: '',
           capabilities: { reusable: false, ephemeral: false, preauthorized: false, tags: [] },
         },
-        error: data.message ?? 'Failed to create auth key',
+        error: (data as Record<string, string>).message ?? 'Failed to create auth key',
       }
     }
 
+    const data = await response.json()
     const deviceCaps = data.capabilities?.devices?.create ?? {}
 
     return {

@@ -36,7 +36,7 @@ export const tailscaleDeleteDeviceTool: ToolConfig<
       `https://api.tailscale.com/api/v2/device/${encodeURIComponent(params.deviceId.trim())}`,
     method: 'DELETE',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey.trim()}`,
     }),
   },
 

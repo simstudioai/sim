@@ -57,14 +57,13 @@ export const tailscaleGetAuthKeyTool: ToolConfig<
       `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/keys/${encodeURIComponent(params.keyId.trim())}`,
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey.trim()}`,
     }),
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-
     if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
       return {
         success: false,
         output: {
@@ -75,10 +74,11 @@ export const tailscaleGetAuthKeyTool: ToolConfig<
           revoked: '',
           capabilities: { reusable: false, ephemeral: false, preauthorized: false, tags: [] },
         },
-        error: data.message ?? 'Failed to get auth key',
+        error: (data as Record<string, string>).message ?? 'Failed to get auth key',
       }
     }
 
+    const data = await response.json()
     const deviceCaps = data.capabilities?.devices?.create ?? {}
 
     return {

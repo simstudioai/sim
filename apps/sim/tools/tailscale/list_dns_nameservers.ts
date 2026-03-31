@@ -30,21 +30,21 @@ export const tailscaleListDnsNameserversTool: ToolConfig<
       `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/dns/nameservers`,
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey.trim()}`,
     }),
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-
     if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
       return {
         success: false,
         output: { dns: [], magicDNS: false },
-        error: data.message ?? 'Failed to list DNS nameservers',
+        error: (data as Record<string, string>).message ?? 'Failed to list DNS nameservers',
       }
     }
 
+    const data = await response.json()
     return {
       success: true,
       output: {

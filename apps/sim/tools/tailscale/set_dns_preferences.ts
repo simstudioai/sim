@@ -47,7 +47,7 @@ export const tailscaleSetDnsPreferencesTool: ToolConfig<
       `https://api.tailscale.com/api/v2/tailnet/${encodeURIComponent(params.tailnet.trim())}/dns/preferences`,
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey.trim()}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => ({
@@ -56,16 +56,16 @@ export const tailscaleSetDnsPreferencesTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-
     if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
       return {
         success: false,
         output: { magicDNS: false },
-        error: data.message ?? 'Failed to set DNS preferences',
+        error: (data as Record<string, string>).message ?? 'Failed to set DNS preferences',
       }
     }
 
+    const data = await response.json()
     return {
       success: true,
       output: {
