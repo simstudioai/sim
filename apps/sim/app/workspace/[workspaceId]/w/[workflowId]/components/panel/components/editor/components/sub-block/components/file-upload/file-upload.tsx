@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
@@ -10,7 +9,7 @@ import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/core/utils/cn'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import { useWorkspaceFiles, workspaceFilesKeys } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -162,12 +161,11 @@ export function FileUpload({
   const params = useParams()
   const workspaceId = params?.workspaceId as string
 
-  const queryClient = useQueryClient()
   const {
     data: workspaceFiles = [],
     isLoading: loadingWorkspaceFiles,
     refetch: refetchWorkspaceFiles,
-  } = useWorkspaceFiles(workspaceId)
+  } = useWorkspaceFiles(isPreview ? '' : workspaceId)
 
   const value = isPreview ? previewValue : storeValue
 
@@ -378,7 +376,7 @@ export function FileUpload({
         setUploadError(null)
 
         if (workspaceId) {
-          void queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+          void refetchWorkspaceFiles()
         }
 
         if (uploadedFiles.length === 1) {
