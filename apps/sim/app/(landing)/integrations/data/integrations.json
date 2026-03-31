@@ -10522,6 +10522,105 @@
     "tags": ["cloud", "data-warehouse", "vector-search"]
   },
   {
+    "type": "tailscale",
+    "slug": "tailscale",
+    "name": "Tailscale",
+    "description": "Manage devices and network settings in your Tailscale tailnet",
+    "longDescription": "Interact with the Tailscale API to manage devices, DNS, ACLs, auth keys, users, and routes across your tailnet.",
+    "bgColor": "#2E2D2D",
+    "iconName": "TailscaleIcon",
+    "docsUrl": "https://docs.sim.ai/tools/tailscale",
+    "operations": [
+      {
+        "name": "List Devices",
+        "description": "List all devices in the tailnet"
+      },
+      {
+        "name": "Get Device",
+        "description": "Get details of a specific device by ID"
+      },
+      {
+        "name": "Delete Device",
+        "description": "Remove a device from the tailnet"
+      },
+      {
+        "name": "Authorize Device",
+        "description": "Authorize or deauthorize a device on the tailnet"
+      },
+      {
+        "name": "Set Device Tags",
+        "description": "Set tags on a device in the tailnet"
+      },
+      {
+        "name": "Get Device Routes",
+        "description": "Get the subnet routes for a device"
+      },
+      {
+        "name": "Set Device Routes",
+        "description": "Set the enabled subnet routes for a device"
+      },
+      {
+        "name": "Update Device Key",
+        "description": "Enable or disable key expiry on a device"
+      },
+      {
+        "name": "List DNS Nameservers",
+        "description": "Get the DNS nameservers configured for the tailnet"
+      },
+      {
+        "name": "Set DNS Nameservers",
+        "description": "Set the DNS nameservers for the tailnet"
+      },
+      {
+        "name": "Get DNS Preferences",
+        "description": "Get the DNS preferences for the tailnet including MagicDNS status"
+      },
+      {
+        "name": "Set DNS Preferences",
+        "description": "Set DNS preferences for the tailnet (enable/disable MagicDNS)"
+      },
+      {
+        "name": "Get DNS Search Paths",
+        "description": "Get the DNS search paths configured for the tailnet"
+      },
+      {
+        "name": "Set DNS Search Paths",
+        "description": "Set the DNS search paths for the tailnet"
+      },
+      {
+        "name": "List Users",
+        "description": "List all users in the tailnet"
+      },
+      {
+        "name": "Create Auth Key",
+        "description": "Create a new auth key for the tailnet to pre-authorize devices"
+      },
+      {
+        "name": "List Auth Keys",
+        "description": "List all auth keys in the tailnet"
+      },
+      {
+        "name": "Get Auth Key",
+        "description": "Get details of a specific auth key"
+      },
+      {
+        "name": "Delete Auth Key",
+        "description": "Revoke and delete an auth key"
+      },
+      {
+        "name": "Get ACL",
+        "description": "Get the current ACL policy for the tailnet"
+      }
+    ],
+    "operationCount": 20,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "security",
+    "tags": ["monitoring"]
+  },
+  {
     "type": "tavily",
     "slug": "tavily",
     "name": "Tavily",

@@ -683,6 +683,45 @@ export function SerperIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function TailscaleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' fill='none' {...props}>
+      <path
+        fill='currentColor'
+        opacity={0.2}
+        d='M65.6 127.7c35.3 0 63.9-28.6 63.9-63.9S100.9 0 65.6 0 1.8 28.6 1.8 63.9s28.6 63.8 63.8 63.8'
+      />
+      <path
+        fill='currentColor'
+        d='M65.6 318.1c35.3 0 63.9-28.6 63.9-63.9s-28.6-63.9-63.9-63.9S1.8 219 1.8 254.2s28.6 63.9 63.8 63.9'
+      />
+      <path
+        fill='currentColor'
+        opacity={0.2}
+        d='M65.6 512c35.3 0 63.9-28.6 63.9-63.9s-28.6-63.9-63.9-63.9-63.8 28.7-63.8 63.9S30.4 512 65.6 512'
+      />
+      <path
+        fill='currentColor'
+        d='M257.2 318.1c35.3 0 63.9-28.6 63.9-63.9s-28.6-63.9-63.9-63.9-63.9 28.6-63.9 63.9 28.6 63.9 63.9 63.9m0 193.9c35.3 0 63.9-28.6 63.9-63.9s-28.6-63.9-63.9-63.9-63.9 28.6-63.9 63.9 28.6 63.9 63.9 63.9'
+      />
+      <path
+        fill='currentColor'
+        opacity={0.2}
+        d='M257.2 127.7c35.3 0 63.9-28.6 63.9-63.9S292.5 0 257.2 0s-63.9 28.6-63.9 63.9 28.6 63.8 63.9 63.8m189.2 0c35.3 0 63.9-28.6 63.9-63.9S481.6 0 446.4 0c-35.3 0-63.9 28.6-63.9 63.9s28.6 63.8 63.9 63.8'
+      />
+      <path
+        fill='currentColor'
+        d='M446.4 318.1c35.3 0 63.9-28.6 63.9-63.9s-28.6-63.9-63.9-63.9-63.9 28.6-63.9 63.9 28.6 63.9 63.9 63.9'
+      />
+      <path
+        fill='currentColor'
+        opacity={0.2}
+        d='M446.4 512c35.3 0 63.9-28.6 63.9-63.9s-28.6-63.9-63.9-63.9-63.9 28.6-63.9 63.9 28.6 63.9 63.9 63.9'
+      />
+    </svg>
+  )
+}
+
 export function TavilyIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg' {...props}>
