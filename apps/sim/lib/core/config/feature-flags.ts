@@ -22,14 +22,9 @@ export const isTest = env.NODE_ENV === 'test'
  * Is this the hosted version of the application.
  * True for sim.ai and any subdomain of sim.ai (e.g. staging.sim.ai, dev.sim.ai).
  */
-export const isHosted = (() => {
-  try {
-    const hostname = new URL(getEnv('NEXT_PUBLIC_APP_URL') || '').hostname
-    return hostname === 'sim.ai' || hostname.endsWith('.sim.ai')
-  } catch {
-    return false
-  }
-})()
+const appUrl = getEnv('NEXT_PUBLIC_APP_URL')
+const appHostname = appUrl ? new URL(appUrl).hostname : ''
+export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
 
 /**
  * Is billing enforcement enabled
