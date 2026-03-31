@@ -529,6 +529,26 @@ export interface AttioUpdateTaskResponse extends ToolResponse {
   }
 }
 
+/** Params for getting a single task */
+export interface AttioGetTaskParams {
+  accessToken: string
+  taskId: string
+}
+
+/** Response for getting a single task */
+export interface AttioGetTaskResponse extends ToolResponse {
+  output: {
+    taskId: string | null
+    content: string | null
+    deadlineAt: string | null
+    isCompleted: boolean
+    linkedRecords: Array<{ targetObjectId: string | null; targetRecordId: string | null }>
+    assignees: Array<{ type: string | null; id: string | null }>
+    createdByActor: unknown
+    createdAt: string | null
+  }
+}
+
 /** Response for deleting a task */
 export interface AttioDeleteTaskResponse extends ToolResponse {
   output: {
@@ -1093,6 +1113,7 @@ export type AttioResponse =
   | AttioListTasksResponse
   | AttioCreateTaskResponse
   | AttioUpdateTaskResponse
+  | AttioGetTaskResponse
   | AttioDeleteTaskResponse
   | AttioListObjectsResponse
   | AttioGetObjectResponse

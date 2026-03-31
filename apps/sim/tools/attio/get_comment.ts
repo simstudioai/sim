@@ -32,7 +32,7 @@ export const attioGetCommentTool: ToolConfig<AttioGetCommentParams, AttioGetComm
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/comments/${params.commentId}`,
+    url: (params) => `https://api.attio.com/v2/comments/${params.commentId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

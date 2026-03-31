@@ -58,7 +58,7 @@ export const attioUpdateListTool: ToolConfig<AttioUpdateListParams, AttioUpdateL
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/lists/${params.list}`,
+    url: (params) => `https://api.attio.com/v2/lists/${params.list.trim()}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

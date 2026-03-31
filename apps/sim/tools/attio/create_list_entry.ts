@@ -53,7 +53,7 @@ export const attioCreateListEntryTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/lists/${params.list}/entries`,
+    url: (params) => `https://api.attio.com/v2/lists/${params.list.trim()}/entries`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

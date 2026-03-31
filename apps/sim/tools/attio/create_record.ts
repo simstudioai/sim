@@ -39,7 +39,7 @@ export const attioCreateRecordTool: ToolConfig<AttioCreateRecordParams, AttioCre
     },
 
     request: {
-      url: (params) => `https://api.attio.com/v2/objects/${params.objectType}/records`,
+      url: (params) => `https://api.attio.com/v2/objects/${params.objectType.trim()}/records`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,

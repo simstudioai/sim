@@ -32,7 +32,7 @@ export const attioGetNoteTool: ToolConfig<AttioGetNoteParams, AttioGetNoteRespon
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/notes/${params.noteId}`,
+    url: (params) => `https://api.attio.com/v2/notes/${params.noteId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
