@@ -3420,6 +3420,21 @@ export function MySQLIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function FireworksIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      fill='currentColor'
+      height='1em'
+      viewBox='0 0 24 24'
+      width='1em'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path d='M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 7.37l-2.453 4.248a.5.5 0 01-.433.25h-2.516l-1.226 2.124h3.742a.5.5 0 01.433.75l-2.453 4.248a.5.5 0 01-.866 0L9.67 14.742a.5.5 0 01.433-.75h2.516l1.226-2.124H10.1a.5.5 0 01-.433-.75l2.453-4.248a.5.5 0 01.866 0l2.453 4.248a.5.5 0 01-.433.75h-.516l1.97-3.412a.5.5 0 01.866 0l.568.914z' />
+    </svg>
+  )
+}
+
 export function OpenRouterIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

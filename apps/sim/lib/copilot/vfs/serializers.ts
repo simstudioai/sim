@@ -324,7 +324,7 @@ function getStaticModelOptionsForVFS(): Array<{
   hosted: boolean
 }> {
   const hostedProviders = new Set(['openai', 'anthropic', 'google'])
-  const dynamicProviders = new Set(['ollama', 'vllm', 'openrouter'])
+  const dynamicProviders = new Set(['ollama', 'vllm', 'openrouter', 'fireworks'])
 
   const models: Array<{ id: string; provider: string; hosted: boolean }> = []
 

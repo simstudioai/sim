@@ -147,6 +147,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   mistral: buildProviderMetadata('mistral'),
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),
+  fireworks: buildProviderMetadata('fireworks'),
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
@@ -166,11 +167,20 @@ export async function updateOpenRouterProviderModels(models: string[]): Promise<
   providers.openrouter.models = getProviderModelsFromDefinitions('openrouter')
 }
 
+export async function updateFireworksProviderModels(models: string[]): Promise<void> {
+  const { updateFireworksModels } = await import('@/providers/models')
+  updateFireworksModels(models)
+  providers.fireworks.models = getProviderModelsFromDefinitions('fireworks')
+}
+
 export function getBaseModelProviders(): Record<string, ProviderId> {
   const allProviders = Object.entries(providers)
     .filter(
       ([providerId]) =>
-        providerId !== 'ollama' && providerId !== 'vllm' && providerId !== 'openrouter'
+        providerId !== 'ollama' &&
+        providerId !== 'vllm' &&
+        providerId !== 'openrouter' &&
+        providerId !== 'fireworks'
     )
     .reduce(
       (map, [providerId, config]) => {

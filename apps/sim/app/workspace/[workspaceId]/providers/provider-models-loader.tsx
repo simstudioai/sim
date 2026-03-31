@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { useProviderModels } from '@/hooks/queries/providers'
 import {
+  updateFireworksProviderModels,
   updateOllamaProviderModels,
   updateOpenRouterProviderModels,
   updateVLLMProviderModels,
@@ -35,6 +36,8 @@ function useSyncProvider(provider: ProviderName) {
         if (data.modelInfo) {
           setOpenRouterModelInfo(data.modelInfo)
         }
+      } else if (provider === 'fireworks') {
+        void updateFireworksProviderModels(data.models)
       }
     } catch (syncError) {
       logger.warn(`Failed to sync provider definitions for ${provider}`, syncError as Error)
@@ -55,5 +58,6 @@ export function ProviderModelsLoader() {
   useSyncProvider('ollama')
   useSyncProvider('vllm')
   useSyncProvider('openrouter')
+  useSyncProvider('fireworks')
   return null
 }

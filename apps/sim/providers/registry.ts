@@ -10,6 +10,7 @@ import { groqProvider } from '@/providers/groq'
 import { mistralProvider } from '@/providers/mistral'
 import { ollamaProvider } from '@/providers/ollama'
 import { openaiProvider } from '@/providers/openai'
+import { fireworksProvider } from '@/providers/fireworks'
 import { openRouterProvider } from '@/providers/openrouter'
 import type { ProviderConfig, ProviderId } from '@/providers/types'
 import { vertexProvider } from '@/providers/vertex'
@@ -32,6 +33,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   mistral: mistralProvider,
   'azure-openai': azureOpenAIProvider,
   openrouter: openRouterProvider,
+  fireworks: fireworksProvider,
   ollama: ollamaProvider,
   bedrock: bedrockProvider,
 }

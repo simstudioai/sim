@@ -9,6 +9,7 @@ const providerEndpoints: Record<ProviderName, string> = {
   ollama: '/api/providers/ollama/models',
   vllm: '/api/providers/vllm/models',
   openrouter: '/api/providers/openrouter/models',
+  fireworks: '/api/providers/fireworks/models',
 }
 
 interface ProviderModelsResponse {
