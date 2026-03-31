@@ -1,10 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { withOptimisticUpdate } from '@/lib/core/utils/optimistic-update'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
-import { getNextWorkflowColor } from '@/lib/workflows/colors'
-import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type {
   DeploymentStatus,
@@ -28,13 +27,10 @@ const initialHydration: HydrationState = {
 
 const createRequestId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
-// Track workspace transitions to prevent race conditions
 let isWorkspaceTransitioning = false
-const TRANSITION_TIMEOUT = 5000 // 5 seconds maximum for workspace transitions
+const TRANSITION_TIMEOUT = 5000
 
-// Resets workflow and subblock stores to prevent data leakage between workspaces
 function resetWorkflowStores() {
-  // Reset the workflow store to prevent data leakage between workspaces
   useWorkflowStore.setState({
     blocks: {},
     edges: [],
@@ -44,16 +40,11 @@ function resetWorkflowStores() {
     lastSaved: Date.now(),
   })
 
-  // Reset the subblock store
   useSubBlockStore.setState({
     workflowValues: {},
   })
 }
 
-/**
- * Handles workspace transition state tracking
- * @param isTransitioning Whether workspace is currently transitioning
- */
 function setWorkspaceTransitioning(isTransitioning: boolean): void {
   isWorkspaceTransitioning = isTransitioning
 
@@ -70,68 +61,12 @@ function setWorkspaceTransitioning(isTransitioning: boolean): void {
 export const useWorkflowRegistry = create<WorkflowRegistry>()(
   devtools(
     (set, get) => ({
-      workflows: {},
       activeWorkflowId: null,
       error: null,
       deploymentStatuses: {},
       hydration: initialHydration,
       clipboard: null,
       pendingSelection: null,
-
-      beginMetadataLoad: (workspaceId: string) => {
-        set((state) => ({
-          error: null,
-          hydration: {
-            phase: 'metadata-loading',
-            workspaceId,
-            workflowId: null,
-            requestId: null,
-            error: null,
-          },
-        }))
-      },
-
-      completeMetadataLoad: (workspaceId: string, workflows: WorkflowMetadata[]) => {
-        const mapped = workflows.reduce<Record<string, WorkflowMetadata>>((acc, workflow) => {
-          acc[workflow.id] = workflow
-          return acc
-        }, {})
-
-        set((state) => {
-          const shouldPreserveHydration =
-            state.hydration.phase === 'state-loading' ||
-            (state.hydration.phase === 'ready' &&
-              state.hydration.workflowId &&
-              mapped[state.hydration.workflowId])
-
-          return {
-            workflows: mapped,
-            error: null,
-            hydration: shouldPreserveHydration
-              ? state.hydration
-              : {
-                  phase: 'metadata-ready',
-                  workspaceId,
-                  workflowId: null,
-                  requestId: null,
-                  error: null,
-                },
-          }
-        })
-      },
-
-      failMetadataLoad: (workspaceId: string | null, errorMessage: string) => {
-        set((state) => ({
-          error: errorMessage,
-          hydration: {
-            phase: 'error',
-            workspaceId: workspaceId ?? state.hydration.workspaceId,
-            workflowId: state.hydration.workflowId,
-            requestId: null,
-            error: errorMessage,
-          },
-        }))
-      },
 
       switchToWorkspace: async (workspaceId: string) => {
         if (isWorkspaceTransitioning) {
@@ -148,13 +83,15 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
           resetWorkflowStores()
 
+          // Invalidate the old workspace workflow cache so a fresh fetch happens
+          getQueryClient().invalidateQueries({ queryKey: workflowKeys.lists() })
+
           set({
             activeWorkflowId: null,
-            workflows: {},
             deploymentStatuses: {},
             error: null,
             hydration: {
-              phase: 'metadata-loading',
+              phase: 'idle',
               workspaceId,
               workflowId: null,
               requestId: null,
@@ -250,9 +187,15 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       },
 
       loadWorkflowState: async (workflowId: string) => {
-        const { workflows } = get()
+        // Check if the workflow exists in the React Query cache
+        const workspaceId = get().hydration.workspaceId
+        const workflows = workspaceId
+          ? (getQueryClient().getQueryData<WorkflowMetadata[]>(
+              workflowKeys.list(workspaceId, 'active')
+            ) ?? [])
+          : []
 
-        if (!workflows[workflowId]) {
+        if (!workflows.find((w) => w.id === workflowId)) {
           const message = `Workflow not found: ${workflowId}`
           logger.error(message)
           set({ error: message })
@@ -392,10 +335,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         const workflowStoreState = useWorkflowStore.getState()
         const hasWorkflowData = Object.keys(workflowStoreState.blocks).length > 0
 
-        // Skip loading only if:
-        // - Same workflow is already active
-        // - Workflow data exists
-        // - Hydration is complete (phase is 'ready')
         const isFullyHydrated =
           activeWorkflowId === id &&
           hasWorkflowData &&
@@ -410,320 +349,16 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         await get().loadWorkflowState(id)
       },
 
-      /**
-       * Duplicates an existing workflow
-       */
-      duplicateWorkflow: async (sourceId: string) => {
-        const { workflows } = get()
-        const sourceWorkflow = workflows[sourceId]
-
-        if (!sourceWorkflow) {
-          set({ error: `Workflow ${sourceId} not found` })
-          return null
-        }
-
-        // Get the workspace ID from the source workflow (required)
-        const workspaceId = sourceWorkflow.workspaceId
-
-        // Call the server to duplicate the workflow - server generates all IDs
-        let duplicatedWorkflow
-        try {
-          const response = await fetch(`/api/workflows/${sourceId}/duplicate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: `${sourceWorkflow.name} (Copy)`,
-              description: sourceWorkflow.description,
-              color: sourceWorkflow.color,
-              workspaceId: workspaceId,
-              folderId: sourceWorkflow.folderId,
-            }),
-          })
-
-          if (!response.ok) {
-            throw new Error(`Failed to duplicate workflow: ${response.statusText}`)
-          }
-
-          duplicatedWorkflow = await response.json()
-          logger.info(
-            `Successfully duplicated workflow ${sourceId} to ${duplicatedWorkflow.id} with ${duplicatedWorkflow.blocksCount} blocks, ${duplicatedWorkflow.edgesCount} edges, ${duplicatedWorkflow.subflowsCount} subflows`
-          )
-        } catch (error) {
-          logger.error(`Failed to duplicate workflow ${sourceId}:`, error)
-          set({
-            error: `Failed to duplicate workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          })
-          return null
-        }
-
-        const id = duplicatedWorkflow.id
-
-        const newWorkflow: WorkflowMetadata = {
-          id,
-          name: `${sourceWorkflow.name} (Copy)`,
-          lastModified: new Date(),
-          createdAt: new Date(),
-          description: sourceWorkflow.description,
-          color: getNextWorkflowColor(),
-          workspaceId,
-          folderId: sourceWorkflow.folderId,
-          sortOrder: duplicatedWorkflow.sortOrder ?? 0,
-        }
-
-        // Get the current workflow state to copy from
-        const currentWorkflowState = useWorkflowStore.getState()
-
-        // If we're duplicating the active workflow, use current state
-        // Otherwise, we need to fetch it from DB or use empty state
-        let sourceState: any
-
-        if (sourceId === get().activeWorkflowId) {
-          // Source is the active workflow, copy current state
-          sourceState = {
-            blocks: currentWorkflowState.blocks || {},
-            edges: currentWorkflowState.edges || [],
-            loops: currentWorkflowState.loops || {},
-            parallels: currentWorkflowState.parallels || {},
-          }
-        } else {
-          const { workflowState } = buildDefaultWorkflowArtifacts()
-          sourceState = {
-            blocks: workflowState.blocks,
-            edges: workflowState.edges,
-            loops: workflowState.loops,
-            parallels: workflowState.parallels,
-          }
-        }
-
-        // Create the new workflow state with copied content
-        const newState = {
-          blocks: sourceState.blocks,
-          edges: sourceState.edges,
-          loops: sourceState.loops,
-          parallels: sourceState.parallels,
-          workspaceId,
-          deploymentStatuses: {},
-          lastSaved: Date.now(),
-        }
-
-        // Add workflow to registry
-        set((state) => ({
-          workflows: {
-            ...state.workflows,
-            [id]: newWorkflow,
-          },
-          error: null,
-        }))
-
-        // Copy subblock values if duplicating active workflow
-        if (sourceId === get().activeWorkflowId) {
-          const sourceSubblockValues = useSubBlockStore.getState().workflowValues[sourceId] || {}
-          useSubBlockStore.setState((state) => ({
-            workflowValues: {
-              ...state.workflowValues,
-              [id]: sourceSubblockValues,
-            },
-          }))
-        } else {
-          // Initialize subblock values for starter block
-          const subblockValues: Record<string, Record<string, any>> = {}
-          Object.entries(newState.blocks).forEach(([blockId, block]) => {
-            const blockState = block as any
-            subblockValues[blockId] = {}
-            Object.entries(blockState.subBlocks || {}).forEach(([subblockId, subblock]) => {
-              subblockValues[blockId][subblockId] = (subblock as any).value
-            })
-          })
-
-          useSubBlockStore.setState((state) => ({
-            workflowValues: {
-              ...state.workflowValues,
-              [id]: subblockValues,
-            },
-          }))
-        }
-
-        try {
-          await useVariablesStore.getState().loadForWorkflow(id)
-        } catch (error) {
-          logger.warn(`Error hydrating variables for duplicated workflow ${id}:`, error)
-        }
-
-        logger.info(
-          `Duplicated workflow ${sourceId} to ${id} in workspace ${workspaceId || 'none'}`
-        )
-
-        return id
-      },
-
-      removeWorkflow: async (id: string) => {
-        const { workflows, activeWorkflowId } = get()
-        const workflowToDelete = workflows[id]
-
-        if (!workflowToDelete) {
-          logger.warn(`Attempted to delete non-existent workflow: ${id}`)
-          return
-        }
-
-        const isDeletingActiveWorkflow = activeWorkflowId === id
-
-        await withOptimisticUpdate({
-          getCurrentState: () => ({
-            workflows: { ...get().workflows },
-            activeWorkflowId: get().activeWorkflowId,
-            subBlockValues: { ...useSubBlockStore.getState().workflowValues },
-            workflowStoreState: isDeletingActiveWorkflow
-              ? {
-                  blocks: { ...useWorkflowStore.getState().blocks },
-                  edges: [...useWorkflowStore.getState().edges],
-                  loops: { ...useWorkflowStore.getState().loops },
-                  parallels: { ...useWorkflowStore.getState().parallels },
-                  lastSaved: useWorkflowStore.getState().lastSaved,
-                }
-              : null,
-          }),
-          optimisticUpdate: () => {
-            const newWorkflows = { ...get().workflows }
-            delete newWorkflows[id]
-
-            const currentSubBlockValues = useSubBlockStore.getState().workflowValues
-            const newWorkflowValues = { ...currentSubBlockValues }
-            delete newWorkflowValues[id]
-            useSubBlockStore.setState({ workflowValues: newWorkflowValues })
-
-            let newActiveWorkflowId = get().activeWorkflowId
-            if (isDeletingActiveWorkflow) {
-              newActiveWorkflowId = null
-
-              useWorkflowStore.setState({
-                blocks: {},
-                edges: [],
-                loops: {},
-                parallels: {},
-                lastSaved: Date.now(),
-              })
-
-              logger.info(
-                `Cleared active workflow ${id} - user will need to manually select another workflow`
-              )
-            }
-
-            set({
-              workflows: newWorkflows,
-              activeWorkflowId: newActiveWorkflowId,
-              error: null,
-            })
-
-            logger.info(`Removed workflow ${id} from local state (optimistic)`)
-          },
-          apiCall: async () => {
-            const response = await fetch(`/api/workflows/${id}`, {
-              method: 'DELETE',
-            })
-
-            if (!response.ok) {
-              const error = await response.json().catch(() => ({ error: 'Unknown error' }))
-              throw new Error(error.error || 'Failed to delete workflow')
-            }
-
-            logger.info(`Successfully deleted workflow ${id} from database`)
-          },
-          rollback: (originalState) => {
-            set({
-              workflows: originalState.workflows,
-              activeWorkflowId: originalState.activeWorkflowId,
-            })
-
-            useSubBlockStore.setState({ workflowValues: originalState.subBlockValues })
-
-            if (originalState.workflowStoreState) {
-              useWorkflowStore.getState().replaceWorkflowState(originalState.workflowStoreState)
-              logger.info(`Restored workflow store state for workflow ${id}`)
-            }
-
-            logger.info(`Rolled back deletion of workflow ${id}`)
-          },
-          errorMessage: `Failed to delete workflow ${id}`,
-        })
-      },
-
-      updateWorkflow: async (id: string, metadata: Partial<WorkflowMetadata>) => {
-        const { workflows } = get()
-        const workflow = workflows[id]
-        if (!workflow) {
-          logger.warn(`Cannot update workflow ${id}: not found in registry`)
-          return
-        }
-
-        await withOptimisticUpdate({
-          getCurrentState: () => workflow,
-          optimisticUpdate: () => {
-            set((state) => ({
-              workflows: {
-                ...state.workflows,
-                [id]: {
-                  ...workflow,
-                  ...metadata,
-                  lastModified: new Date(),
-                  createdAt: workflow.createdAt, // Preserve creation date
-                },
-              },
-              error: null,
-            }))
-          },
-          apiCall: async () => {
-            const response = await fetch(`/api/workflows/${id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(metadata),
-            })
-
-            if (!response.ok) {
-              const error = await response.json()
-              throw new Error(error.error || 'Failed to update workflow')
-            }
-
-            const { workflow: updatedWorkflow } = await response.json()
-            logger.info(`Successfully updated workflow ${id} metadata`, metadata)
-
-            set((state) => ({
-              workflows: {
-                ...state.workflows,
-                [id]: {
-                  ...state.workflows[id],
-                  name: updatedWorkflow.name,
-                  description: updatedWorkflow.description,
-                  color: updatedWorkflow.color,
-                  folderId: updatedWorkflow.folderId,
-                  lastModified: new Date(updatedWorkflow.updatedAt),
-                  createdAt: updatedWorkflow.createdAt
-                    ? new Date(updatedWorkflow.createdAt)
-                    : state.workflows[id].createdAt,
-                },
-              },
-            }))
-          },
-          rollback: (originalWorkflow) => {
-            set((state) => ({
-              workflows: {
-                ...state.workflows,
-                [id]: originalWorkflow, // Revert to original state
-              },
-              error: `Failed to update workflow: ${metadata.name ? 'name' : 'metadata'}`,
-            }))
-          },
-          errorMessage: `Failed to update workflow ${id} metadata`,
-        })
-      },
-
       logout: () => {
         logger.info('Logging out - clearing all workflow data')
 
         resetWorkflowStores()
 
+        // Clear the React Query cache to remove all server state
+        getQueryClient().clear()
+
         set({
           activeWorkflowId: null,
-          workflows: {},
           deploymentStatuses: {},
           error: null,
           hydration: initialHydration,
@@ -744,7 +379,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         const copiedSubBlockValues: Record<string, Record<string, unknown>> = {}
         const blockIdSet = new Set(blockIds)
 
-        // Auto-include nested nodes from selected subflows
         blockIds.forEach((blockId) => {
           const loop = workflowStore.loops[blockId]
           if (loop?.nodes) loop.nodes.forEach((n) => blockIdSet.add(n))

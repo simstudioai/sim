@@ -3,9 +3,8 @@ import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useDuplicateFolderMutation } from '@/hooks/queries/folders'
-import { useDuplicateWorkflowMutation } from '@/hooks/queries/workflows'
+import { getWorkflows, useDuplicateWorkflowMutation } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('useDuplicateSelection')
 
@@ -62,7 +61,7 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
 
       setIsDuplicating(true)
       try {
-        const { workflows } = useWorkflowRegistry.getState()
+        const workflows = getWorkflows(workspaceIdRef.current)
         const folderStore = useFolderStore.getState()
 
         const duplicatedWorkflowIds: string[] = []
@@ -97,7 +96,7 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
         }
 
         for (const workflowId of workflowIds) {
-          const workflow = workflows[workflowId]
+          const workflow = workflows.find((w) => w.id === workflowId)
           if (!workflow) {
             logger.warn(`Workflow ${workflowId} not found, skipping`)
             continue

@@ -22,10 +22,7 @@ interface DeployProps {
 export function Deploy({ activeWorkflowId, userPermissions, className }: DeployProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
-  const isRegistryLoading =
-    hydrationPhase === 'idle' ||
-    hydrationPhase === 'metadata-loading' ||
-    hydrationPhase === 'state-loading'
+  const isRegistryLoading = hydrationPhase === 'idle' || hydrationPhase === 'state-loading'
   const { hasBlocks } = useCurrentWorkflow()
 
   const deploymentStatus = useWorkflowRegistry((state) =>

@@ -2,9 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { useReorderFolders } from '@/hooks/queries/folders'
-import { useReorderWorkflows } from '@/hooks/queries/workflows'
+import { getWorkflows, useReorderWorkflows } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('WorkflowList:DragDrop')
 
@@ -234,7 +233,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     if (cached) return cached
 
     const currentFolders = useFolderStore.getState().folders
-    const currentWorkflows = useWorkflowRegistry.getState().workflows
+    const currentWorkflows = getWorkflows(workspaceId)
     const siblings = [
       ...Object.values(currentFolders)
         .filter((f) => f.parentId === folderId)
@@ -244,7 +243,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
           sortOrder: f.sortOrder,
           createdAt: f.createdAt,
         })),
-      ...Object.values(currentWorkflows)
+      ...currentWorkflows
         .filter((w) => w.folderId === folderId)
         .map((w) => ({
           type: 'workflow' as const,
@@ -307,13 +306,13 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       destinationFolderId: string | null
     ): { fromDestination: SiblingItem[]; fromOther: SiblingItem[] } => {
       const { folders } = useFolderStore.getState()
-      const { workflows } = useWorkflowRegistry.getState()
+      const workflows = getWorkflows(workspaceId)
 
       const fromDestination: SiblingItem[] = []
       const fromOther: SiblingItem[] = []
 
       for (const id of workflowIds) {
-        const workflow = workflows[id]
+        const workflow = workflows.find((w) => w.id === id)
         if (!workflow) continue
         const item: SiblingItem = {
           type: 'workflow',

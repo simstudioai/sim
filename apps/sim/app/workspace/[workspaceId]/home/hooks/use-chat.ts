@@ -21,6 +21,7 @@ import {
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import {
@@ -35,7 +36,7 @@ import {
   useChatHistory,
 } from '@/hooks/queries/tasks'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
-import { workflowKeys } from '@/hooks/queries/workflows'
+import { getWorkflows, workflowKeys } from '@/hooks/queries/workflows'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useFolderStore } from '@/stores/folders/store'
@@ -301,31 +302,32 @@ function getPayloadData(payload: SSEPayload): SSEPayloadData | undefined {
   return typeof payload.data === 'object' ? payload.data : undefined
 }
 
-/** Adds a workflow to the registry with a top-insertion sort order if it doesn't already exist. */
+/** Adds a workflow to the React Query cache with a top-insertion sort order if it doesn't already exist. */
 function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId: string): boolean {
-  const registry = useWorkflowRegistry.getState()
-  if (registry.workflows[resourceId]) return false
+  const workflows = getWorkflows(workspaceId)
+  if (workflows.find((w) => w.id === resourceId)) return false
   const sortOrder = getTopInsertionSortOrder(
-    registry.workflows,
+    Object.fromEntries(workflows.map((w) => [w.id, w])),
     useFolderStore.getState().folders,
     workspaceId,
     null
   )
-  useWorkflowRegistry.setState((state) => ({
-    workflows: {
-      ...state.workflows,
-      [resourceId]: {
-        id: resourceId,
-        name: title,
-        lastModified: new Date(),
-        createdAt: new Date(),
-        color: getNextWorkflowColor(),
-        workspaceId,
-        folderId: null,
-        sortOrder,
-      },
-    },
-  }))
+  const newMetadata: import('@/stores/workflows/registry/types').WorkflowMetadata = {
+    id: resourceId,
+    name: title,
+    lastModified: new Date(),
+    createdAt: new Date(),
+    color: getNextWorkflowColor(),
+    workspaceId,
+    folderId: null,
+    sortOrder,
+  }
+  const queryClient = getQueryClient()
+  const key = workflowKeys.list(workspaceId, 'active')
+  const current =
+    queryClient.getQueryData<import('@/stores/workflows/registry/types').WorkflowMetadata[]>(key) ??
+    []
+  queryClient.setQueryData(key, [...current, newMetadata])
   return true
 }
 
@@ -1253,7 +1255,7 @@ export function useChat(
                       ? ((args as Record<string, unknown>).workflowId as string)
                       : useWorkflowRegistry.getState().activeWorkflowId
                   if (targetWorkflowId) {
-                    const meta = useWorkflowRegistry.getState().workflows[targetWorkflowId]
+                    const meta = getWorkflows().find((w) => w.id === targetWorkflowId)
                     const wasAdded = addResource({
                       type: 'workflow',
                       id: targetWorkflowId,

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getWorkflows } from '@/hooks/queries/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -13,11 +14,13 @@ const logger = createLogger('Workflows')
  * @returns The workflow with merged state values or null if not found/not active
  */
 export function getWorkflowWithValues(workflowId: string) {
-  const { workflows } = useWorkflowRegistry.getState()
+  const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId ?? undefined
+  const workflows = getWorkflows(workspaceId)
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
   const currentState = useWorkflowStore.getState()
 
-  if (!workflows[workflowId]) {
+  const metadata = workflows.find((w) => w.id === workflowId)
+  if (!metadata) {
     logger.warn(`Workflow ${workflowId} not found`)
     return null
   }
@@ -27,8 +30,6 @@ export function getWorkflowWithValues(workflowId: string) {
     logger.warn(`Cannot get state for non-active workflow ${workflowId} - localStorage removed`)
     return null
   }
-
-  const metadata = workflows[workflowId]
 
   // Get deployment status from registry
   const deploymentStatus = useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)
@@ -80,14 +81,18 @@ export function getBlockWithValues(blockId: string): BlockState | null {
  * @returns An object containing workflows, with state only for the active workflow
  */
 export function getAllWorkflowsWithValues() {
-  const { workflows } = useWorkflowRegistry.getState()
+  const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId ?? undefined
+  const workflows = getWorkflows(workspaceId)
   const result: Record<string, any> = {}
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
   const currentState = useWorkflowStore.getState()
 
   // Only sync the active workflow to ensure we always send valid state data
-  if (activeWorkflowId && workflows[activeWorkflowId]) {
-    const metadata = workflows[activeWorkflowId]
+  const activeMetadata = activeWorkflowId
+    ? workflows.find((w) => w.id === activeWorkflowId)
+    : undefined
+  if (activeWorkflowId && activeMetadata) {
+    const metadata = activeMetadata
 
     // Get deployment status from registry
     const deploymentStatus = useWorkflowRegistry

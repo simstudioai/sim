@@ -72,6 +72,7 @@ import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
+import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOAuthReturnForWorkflow } from '@/hooks/use-oauth-return'
@@ -277,8 +278,9 @@ const WorkflowContent = React.memo(
 
     useOAuthReturnForWorkflow(workflowIdParam)
 
+    const { data: workflows = {} } = useWorkflowMap(workspaceId)
+
     const {
-      workflows,
       activeWorkflowId,
       hydration,
       setActiveWorkflow,
@@ -291,7 +293,6 @@ const WorkflowContent = React.memo(
       clearPendingSelection,
     } = useWorkflowRegistry(
       useShallow((state) => ({
-        workflows: state.workflows,
         activeWorkflowId: state.activeWorkflowId,
         hydration: state.hydration,
         setActiveWorkflow: state.setActiveWorkflow,
@@ -2201,7 +2202,7 @@ const WorkflowContent = React.memo(
       const currentId = workflowIdParam
       const currentWorkspaceHydration = hydration.workspaceId
 
-      const isRegistryReady = hydration.phase !== 'metadata-loading' && hydration.phase !== 'idle'
+      const isRegistryReady = hydration.phase !== 'idle'
 
       // Wait for registry to be ready to prevent race conditions
       if (
@@ -2275,7 +2276,7 @@ const WorkflowContent = React.memo(
       if (embedded || sandbox) return
 
       // Wait for metadata to finish loading before making navigation decisions
-      if (hydration.phase === 'metadata-loading' || hydration.phase === 'idle') {
+      if (hydration.phase === 'idle') {
         return
       }
 

@@ -45,8 +45,8 @@ import {
   computeMentionHighlightRanges,
   extractContextTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import { getWorkflows } from '@/hooks/queries/workflows'
 import type { ChatContext } from '@/stores/panel'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -639,7 +639,7 @@ export function UserInput({
           case 'workflow':
           case 'current_workflow': {
             const wfId = (matchingCtx as { workflowId: string }).workflowId
-            const wfColor = useWorkflowRegistry.getState().workflows[wfId]?.color ?? '#888'
+            const wfColor = getWorkflows().find((w) => w.id === wfId)?.color ?? '#888'
             mentionIconNode = (
               <div
                 className='absolute inset-0 m-auto h-[12px] w-[12px] rounded-[3px] border-[2px]'

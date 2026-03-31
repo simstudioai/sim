@@ -25,6 +25,7 @@ import {
   useExportSelection,
   useExportWorkflow,
 } from '@/app/workspace/[workspaceId]/w/hooks'
+import { getWorkflows, useUpdateWorkflow } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -60,7 +61,7 @@ export function WorkflowItem({
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const selectedWorkflows = useFolderStore((state) => state.selectedWorkflows)
-  const updateWorkflow = useWorkflowRegistry((state) => state.updateWorkflow)
+  const updateWorkflowMutation = useUpdateWorkflow()
   const userPermissions = useUserPermissionsContext()
   const isSelected = selectedWorkflows.has(workflow.id)
 
@@ -166,9 +167,9 @@ export function WorkflowItem({
 
   const handleColorChange = useCallback(
     (color: string) => {
-      updateWorkflow(workflow.id, { color })
+      updateWorkflowMutation.mutate({ workspaceId, workflowId: workflow.id, metadata: { color } })
     },
-    [workflow.id, updateWorkflow]
+    [workflow.id, workspaceId]
   )
 
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -227,12 +228,12 @@ export function WorkflowItem({
     const folderIds = Array.from(finalFolderSelection)
     const isMixed = workflowIds.length > 0 && folderIds.length > 0
 
-    const { workflows } = useWorkflowRegistry.getState()
+    const workflows = getWorkflows(workspaceId)
     const { folders } = useFolderStore.getState()
 
     const names: string[] = []
     for (const id of workflowIds) {
-      const w = workflows[id]
+      const w = workflows.find((wf) => wf.id === id)
       if (w) names.push(w.name)
     }
     for (const id of folderIds) {
@@ -301,7 +302,11 @@ export function WorkflowItem({
   } = useItemRename({
     initialName: workflow.name,
     onSave: async (newName) => {
-      await updateWorkflow(workflow.id, { name: newName })
+      await updateWorkflowMutation.mutateAsync({
+        workspaceId,
+        workflowId: workflow.id,
+        metadata: { name: newName },
+      })
     },
     itemType: 'workflow',
     itemId: workflow.id,

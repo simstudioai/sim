@@ -27,10 +27,9 @@ import {
   useExportSelection,
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCreateFolder, useUpdateFolder } from '@/hooks/queries/folders'
-import { useCreateWorkflow } from '@/hooks/queries/workflows'
+import { getWorkflows, useCreateWorkflow } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
 
 const logger = createLogger('FolderItem')
@@ -246,7 +245,7 @@ export function FolderItem({
     const isMixed = folderIds.length > 0 && workflowIds.length > 0
 
     const { folders } = useFolderStore.getState()
-    const { workflows } = useWorkflowRegistry.getState()
+    const workflows = getWorkflows(workspaceId)
 
     const names: string[] = []
     for (const id of folderIds) {
@@ -254,7 +253,7 @@ export function FolderItem({
       if (f) names.push(f.name)
     }
     for (const id of workflowIds) {
-      const w = workflows[id]
+      const w = workflows.find((wf) => wf.id === id)
       if (w) names.push(w.name)
     }
 

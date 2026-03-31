@@ -47,7 +47,7 @@ export function useAvailableResources(
   workspaceId: string,
   existingKeys: Set<string>
 ): AvailableItemsByType[] {
-  const { data: workflows = [] } = useWorkflows(workspaceId, { syncRegistry: false })
+  const { data: workflows = [] } = useWorkflows(workspaceId)
   const { data: tables = [] } = useTablesList(workspaceId)
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId)

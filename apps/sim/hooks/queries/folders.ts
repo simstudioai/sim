@@ -6,10 +6,9 @@ import {
   generateTempId,
 } from '@/hooks/queries/utils/optimistic-mutation'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
-import { workflowKeys } from '@/hooks/queries/workflows'
+import { getWorkflows, workflowKeys } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('FolderQueries')
 
@@ -169,7 +168,9 @@ export function useCreateFolder() {
     queryClient,
     'CreateFolder',
     (variables, tempId, previousFolders) => {
-      const currentWorkflows = useWorkflowRegistry.getState().workflows
+      const currentWorkflows = Object.fromEntries(
+        getWorkflows(variables.workspaceId).map((w) => [w.id, w])
+      )
 
       return {
         id: tempId,
@@ -267,7 +268,9 @@ export function useDuplicateFolderMutation() {
     queryClient,
     'DuplicateFolder',
     (variables, tempId, previousFolders) => {
-      const currentWorkflows = useWorkflowRegistry.getState().workflows
+      const currentWorkflows = Object.fromEntries(
+        getWorkflows(variables.workspaceId).map((w) => [w.id, w])
+      )
 
       const sourceFolder = previousFolders[variables.id]
       const targetParentId = variables.parentId ?? sourceFolder?.parentId ?? null

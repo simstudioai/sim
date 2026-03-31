@@ -2,9 +2,8 @@ import { useCallback, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
-import { useDuplicateWorkflowMutation } from '@/hooks/queries/workflows'
+import { getWorkflows, useDuplicateWorkflowMutation } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('useDuplicateWorkflow')
 
@@ -61,10 +60,10 @@ export function useDuplicateWorkflow({ workspaceId, onSuccess }: UseDuplicateWor
       const duplicatedIds: string[] = []
 
       try {
-        const { workflows } = useWorkflowRegistry.getState()
+        const workflows = getWorkflows(workspaceIdRef.current)
 
         for (const sourceId of workflowIdsToDuplicate) {
-          const sourceWorkflow = workflows[sourceId]
+          const sourceWorkflow = workflows.find((w) => w.id === sourceId)
           if (!sourceWorkflow) {
             logger.warn(`Workflow ${sourceId} not found, skipping`)
             continue

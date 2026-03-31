@@ -88,6 +88,7 @@ import {
   useRenameTask,
   useTasks,
 } from '@/hooks/queries/tasks'
+import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -96,7 +97,6 @@ import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Sidebar')
 
@@ -438,7 +438,7 @@ export const Sidebar = memo(function Sidebar() {
   useFolders(workspaceId)
   const folders = useFolderStore((s) => s.folders)
   const getFolderTree = useFolderStore((s) => s.getFolderTree)
-  const updateWorkflow = useWorkflowRegistry((state) => state.updateWorkflow)
+  const updateWorkflowMutation = useUpdateWorkflow()
 
   const folderTree = useMemo(
     () => (isCollapsed && workspaceId ? getFolderTree(workspaceId) : []),
@@ -814,7 +814,11 @@ export const Sidebar = memo(function Sidebar() {
   const workflowFlyoutRename = useFlyoutInlineRename({
     itemType: 'workflow',
     onSave: async (workflowIdToRename, name) => {
-      await updateWorkflow(workflowIdToRename, { name })
+      await updateWorkflowMutation.mutateAsync({
+        workspaceId,
+        workflowId: workflowIdToRename,
+        metadata: { name },
+      })
     },
   })
 
