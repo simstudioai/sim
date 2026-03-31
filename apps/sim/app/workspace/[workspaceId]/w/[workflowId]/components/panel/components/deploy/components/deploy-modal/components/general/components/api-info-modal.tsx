@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
@@ -19,6 +20,7 @@ import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import { useDeploymentInfo, useUpdatePublicApi } from '@/hooks/queries/deployments'
+import { useUpdateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -33,16 +35,16 @@ interface ApiInfoModalProps {
 }
 
 export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalProps) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
   const blocks = useWorkflowStore((state) => state.blocks)
   const setValue = useSubBlockStore((state) => state.setValue)
   const subBlockValues = useSubBlockStore((state) =>
     workflowId ? (state.workflowValues[workflowId] ?? {}) : {}
   )
 
-  const workflowMetadata = useWorkflowRegistry((state) =>
-    workflowId ? state.workflows[workflowId] : undefined
-  )
-  const updateWorkflow = useWorkflowRegistry((state) => state.updateWorkflow)
+  const { data: workflows = {} } = useWorkflowMap(workspaceId)
+  const workflowMetadata = workflowId ? workflows[workflowId] : undefined
+  const updateWorkflowMutation = useUpdateWorkflow()
 
   const { data: deploymentData } = useDeploymentInfo(workflowId, { enabled: open })
   const updatePublicApiMutation = useUpdatePublicApi()
@@ -175,7 +177,11 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
       }
 
       if (description.trim() !== (workflowMetadata?.description || '')) {
-        updateWorkflow(workflowId, { description: description.trim() || 'New workflow' })
+        await updateWorkflowMutation.mutateAsync({
+          workspaceId,
+          workflowId,
+          metadata: { description: description.trim() || 'New workflow' },
+        })
       }
 
       if (starterBlockId) {
@@ -195,16 +201,15 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
     }
   }, [
     workflowId,
+    workspaceId,
     description,
     workflowMetadata,
-    updateWorkflow,
     starterBlockId,
     inputFormat,
     paramDescriptions,
     setValue,
     onOpenChange,
     accessMode,
-    updatePublicApiMutation,
   ])
 
   return (

@@ -24,7 +24,7 @@ import {
   VllmIcon,
   xAIIcon,
 } from '@/components/icons'
-import type { ModelPricing } from '@/providers/types'
+import type { ModelPricing, ProviderId } from '@/providers/types'
 
 export interface ModelCapabilities {
   temperature?: {
@@ -2282,6 +2282,45 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
 
 export function getProviderModels(providerId: string): string[] {
   return PROVIDER_DEFINITIONS[providerId]?.models.map((m) => m.id) || []
+}
+
+export function getBaseModelProviders(): Record<string, ProviderId> {
+  return Object.entries(PROVIDER_DEFINITIONS)
+    .filter(([providerId]) => !['ollama', 'vllm', 'openrouter'].includes(providerId))
+    .reduce(
+      (map, [providerId, provider]) => {
+        provider.models.forEach((model) => {
+          map[model.id.toLowerCase()] = providerId as ProviderId
+        })
+        return map
+      },
+      {} as Record<string, ProviderId>
+    )
+}
+
+export function getProviderFromModel(model: string): ProviderId {
+  const normalizedModel = model.toLowerCase()
+
+  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
+    if (
+      provider.models.some((providerModel) => providerModel.id.toLowerCase() === normalizedModel)
+    ) {
+      return providerId as ProviderId
+    }
+  }
+
+  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
+    if (provider.modelPatterns?.some((pattern) => pattern.test(normalizedModel))) {
+      return providerId as ProviderId
+    }
+  }
+
+  return 'ollama'
+}
+
+export function getProviderIcon(model: string): React.ComponentType<{ className?: string }> | null {
+  const providerId = getProviderFromModel(model)
+  return PROVIDER_DEFINITIONS[providerId]?.icon || null
 }
 
 export function getProviderDefaultModel(providerId: string): string {

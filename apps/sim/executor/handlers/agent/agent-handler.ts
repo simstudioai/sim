@@ -34,7 +34,9 @@ import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
-import { getTool, getToolAsync } from '@/tools/utils'
+import { filterSchemaForLLM } from '@/tools/params'
+import { getTool } from '@/tools/utils'
+import { getToolAsync } from '@/tools/utils.server'
 
 const logger = createLogger('AgentBlockHandler')
 
@@ -140,8 +142,13 @@ export class AgentBlockHandler implements BlockHandler {
     const serverIds = [...new Set(mcpTools.map((t) => t.params?.serverId).filter(Boolean))]
     if (serverIds.length === 0) return tools
 
+    if (!ctx.workspaceId) {
+      logger.warn('Skipping MCP availability filtering without workspace scope')
+      return tools
+    }
+
     const availableServerIds = new Set<string>()
-    if (ctx.workspaceId && serverIds.length > 0) {
+    if (serverIds.length > 0) {
       try {
         const servers = await db
           .select({ id: mcpServers.id, connectionStatus: mcpServers.connectionStatus })
@@ -245,8 +252,6 @@ export class AgentBlockHandler implements BlockHandler {
       return null
     }
 
-    const { filterSchemaForLLM } = await import('@/tools/params')
-
     const filteredSchema = filterSchemaForLLM(schema.function.parameters, userProvidedParams)
 
     const toolId = `${AGENT.CUSTOM_TOOL_PREFIX}${title}`
@@ -272,22 +277,6 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     customToolId: string
   ): Promise<{ schema: any; title: string } | null> {
-    if (typeof window !== 'undefined') {
-      try {
-        const { getCustomTool } = await import('@/hooks/queries/custom-tools')
-        const tool = getCustomTool(customToolId, ctx.workspaceId)
-        if (tool) {
-          return {
-            schema: tool.schema,
-            title: tool.title,
-          }
-        }
-        logger.warn(`Custom tool not found in cache: ${customToolId}`)
-      } catch (error) {
-        logger.error('Error accessing custom tools cache:', { error })
-      }
-    }
-
     try {
       const headers = await buildAuthHeaders(ctx.userId)
       const params: Record<string, string> = {}
@@ -572,7 +561,12 @@ export class AgentBlockHandler implements BlockHandler {
     const transformedTool = await transformBlockTool(tool, {
       selectedOperation: tool.operation,
       getAllBlocks,
-      getToolAsync: (toolId: string) => getToolAsync(toolId, ctx.workflowId),
+      getToolAsync: (toolId: string) =>
+        getToolAsync(toolId, {
+          workflowId: ctx.workflowId,
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+        }),
       getTool,
       canonicalModes,
     })

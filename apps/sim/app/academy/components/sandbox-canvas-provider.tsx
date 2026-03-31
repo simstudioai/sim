@@ -13,10 +13,12 @@ import type {
 import { validateExercise } from '@/lib/academy/validation'
 import { cn } from '@/lib/core/utils/cn'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { SandboxWorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import Workflow from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow'
 import { getBlock } from '@/blocks/registry'
+import { workflowKeys } from '@/hooks/queries/workflows'
 import { SandboxBlockConstraintsContext } from '@/hooks/use-sandbox-block-constraints'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useTerminalConsoleStore } from '@/stores/terminal/console/store'
@@ -218,8 +220,13 @@ export function SandboxCanvasProvider({
 
     useWorkflowStore.getState().replaceWorkflowState(workflowState)
     useSubBlockStore.getState().initializeFromWorkflow(workflowId, workflowState.blocks)
-    useWorkflowRegistry.setState((state) => ({
-      workflows: { ...state.workflows, [workflowId]: syntheticMetadata },
+
+    const qc = getQueryClient()
+    const cacheKey = workflowKeys.list(SANDBOX_WORKSPACE_ID, 'active')
+    const cached = qc.getQueryData<WorkflowMetadata[]>(cacheKey) ?? []
+    qc.setQueryData(cacheKey, [...cached.filter((w) => w.id !== workflowId), syntheticMetadata])
+
+    useWorkflowRegistry.setState({
       activeWorkflowId: workflowId,
       hydration: {
         phase: 'ready',
@@ -228,7 +235,7 @@ export function SandboxCanvasProvider({
         requestId: null,
         error: null,
       },
-    }))
+    })
 
     logger.info('Sandbox stores hydrated', { workflowId })
     setIsReady(true)
@@ -262,17 +269,21 @@ export function SandboxCanvasProvider({
       unsubWorkflow()
       unsubSubBlock()
       unsubExecution()
-      useWorkflowRegistry.setState((state) => {
-        const { [workflowId]: _removed, ...rest } = state.workflows
-        return {
-          workflows: rest,
-          activeWorkflowId: state.activeWorkflowId === workflowId ? null : state.activeWorkflowId,
-          hydration:
-            state.hydration.workflowId === workflowId
-              ? { phase: 'idle', workspaceId: null, workflowId: null, requestId: null, error: null }
-              : state.hydration,
-        }
-      })
+      const cleanupQc = getQueryClient()
+      const cleanupKey = workflowKeys.list(SANDBOX_WORKSPACE_ID, 'active')
+      const cleanupCached = cleanupQc.getQueryData<WorkflowMetadata[]>(cleanupKey) ?? []
+      cleanupQc.setQueryData(
+        cleanupKey,
+        cleanupCached.filter((w) => w.id !== workflowId)
+      )
+
+      useWorkflowRegistry.setState((state) => ({
+        activeWorkflowId: state.activeWorkflowId === workflowId ? null : state.activeWorkflowId,
+        hydration:
+          state.hydration.workflowId === workflowId
+            ? { phase: 'idle', workspaceId: null, workflowId: null, requestId: null, error: null }
+            : state.hydration,
+      }))
       useWorkflowStore.setState({ blocks: {}, edges: [], loops: {}, parallels: {} })
       useSubBlockStore.setState((state) => {
         const { [workflowId]: _removed, ...rest } = state.workflowValues

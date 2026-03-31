@@ -21,7 +21,6 @@ import { parseJSON } from '@/executor/utils/json'
 import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
 import { Serializer } from '@/serializer'
 import type { SerializedBlock } from '@/serializer/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('WorkflowBlockHandler')
 
@@ -74,10 +73,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       throw new Error('No workflow selected for execution')
     }
 
-    // Initialize with registry name, will be updated with loaded workflow name
-    const { workflows } = useWorkflowRegistry.getState()
-    const workflowMetadata = workflows[workflowId]
-    let childWorkflowName = workflowMetadata?.name || workflowId
+    let childWorkflowName = workflowId
 
     // Unique ID per invocation — used to correlate child block events with this specific
     // workflow block execution, preventing cross-iteration child mixing in loop contexts.
@@ -111,8 +107,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         throw new Error(`Child workflow ${workflowId} not found`)
       }
 
-      // Update with loaded workflow name (more reliable than registry)
-      childWorkflowName = workflowMetadata?.name || childWorkflow.name || 'Unknown Workflow'
+      childWorkflowName = childWorkflow.name || 'Unknown Workflow'
 
       logger.info(
         `Executing child workflow: ${childWorkflowName} (${workflowId}), call chain depth ${ctx.callChain?.length || 0}`

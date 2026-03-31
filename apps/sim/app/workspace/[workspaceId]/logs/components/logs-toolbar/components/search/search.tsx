@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
 import { Search, X } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Badge } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
@@ -14,8 +15,8 @@ import {
   type WorkflowData,
 } from '@/lib/logs/search-suggestions'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
-import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useFolderMap } from '@/hooks/queries/folders'
+import { useWorkflows } from '@/hooks/queries/workflows'
 
 function truncateFilterValue(field: string, value: string): string {
   if ((field === 'executionId' || field === 'workflowId') && value.length > 12) {
@@ -42,16 +43,17 @@ export function AutocompleteSearch({
   className,
   onOpenChange,
 }: AutocompleteSearchProps) {
-  const workflows = useWorkflowRegistry((state) => state.workflows)
-  const folders = useFolderStore((state) => state.folders)
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { data: workflowList = [] } = useWorkflows(workspaceId)
+  const { data: folders = {} } = useFolderMap(workspaceId)
 
   const workflowsData = useMemo<WorkflowData[]>(() => {
-    return Object.values(workflows).map((w) => ({
+    return workflowList.map((w) => ({
       id: w.id,
       name: w.name,
       description: w.description,
     }))
-  }, [workflows])
+  }, [workflowList])
 
   const foldersData = useMemo<FolderData[]>(() => {
     return Object.values(folders).map((f) => ({

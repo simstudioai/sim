@@ -1,12 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import type { FolderTreeNode, WorkflowFolder } from './types'
 
 const logger = createLogger('FoldersStore')
 
 interface FolderState {
-  folders: Record<string, WorkflowFolder>
   expandedFolders: Set<string>
   selectedWorkflows: Set<string>
   selectedFolders: Set<string>
@@ -14,7 +12,6 @@ interface FolderState {
   selectedTasks: Set<string>
   lastSelectedTaskId: string | null
 
-  setFolders: (folders: WorkflowFolder[]) => void
   toggleExpanded: (folderId: string) => void
   setExpanded: (folderId: string, expanded: boolean) => void
 
@@ -48,35 +45,17 @@ interface FolderState {
   hasAnySelection: () => boolean
   isMixedSelection: () => boolean
   clearAllSelection: () => void
-
-  // Computed values
-  getFolderTree: (workspaceId: string) => FolderTreeNode[]
-  getFolderById: (id: string) => WorkflowFolder | undefined
-  getChildFolders: (parentId: string | null) => WorkflowFolder[]
-  getFolderPath: (folderId: string) => WorkflowFolder[]
 }
 
 export const useFolderStore = create<FolderState>()(
   devtools(
     (set, get) => ({
-      folders: {},
       expandedFolders: new Set(),
       selectedWorkflows: new Set(),
       selectedFolders: new Set(),
       lastSelectedFolderId: null,
       selectedTasks: new Set(),
       lastSelectedTaskId: null,
-
-      setFolders: (folders) =>
-        set(() => ({
-          folders: folders.reduce(
-            (acc, folder) => {
-              acc[folder.id] = folder
-              return acc
-            },
-            {} as Record<string, WorkflowFolder>
-          ),
-        })),
 
       toggleExpanded: (folderId) =>
         set((state) => {
@@ -312,50 +291,6 @@ export const useFolderStore = create<FolderState>()(
           selectedTasks: new Set(),
           lastSelectedTaskId: null,
         }),
-
-      getFolderTree: (workspaceId) => {
-        const folders = Object.values(get().folders).filter((f) => f.workspaceId === workspaceId)
-
-        const buildTree = (parentId: string | null, level = 0): FolderTreeNode[] => {
-          return folders
-            .filter((folder) => folder.parentId === parentId)
-            .sort(
-              (a: WorkflowFolder, b: WorkflowFolder) =>
-                a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)
-            )
-            .map((folder) => ({
-              ...folder,
-              children: buildTree(folder.id, level + 1),
-              level,
-            }))
-        }
-
-        return buildTree(null)
-      },
-
-      getFolderById: (id) => get().folders[id],
-
-      getChildFolders: (parentId) =>
-        Object.values(get().folders)
-          .filter((folder) => folder.parentId === parentId)
-          .sort(
-            (a: WorkflowFolder, b: WorkflowFolder) =>
-              a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)
-          ),
-
-      getFolderPath: (folderId) => {
-        const folders = get().folders
-        const path: WorkflowFolder[] = []
-        let currentId: string | null = folderId
-
-        while (currentId && folders[currentId]) {
-          const folder: WorkflowFolder = folders[currentId]
-          path.unshift(folder)
-          currentId = folder.parentId
-        }
-
-        return path
-      },
     }),
     { name: 'folder-store' }
   )
