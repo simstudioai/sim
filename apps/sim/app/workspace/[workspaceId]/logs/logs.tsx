@@ -266,18 +266,19 @@ export default function Logs() {
     isSidebarOpen: false,
   })
   const isInitialized = useRef<boolean>(false)
-  const pendingExecutionIdRef = useRef<string | null>(null)
+  const pendingExecutionIdRef = useRef<string | null | undefined>(undefined)
+  if (pendingExecutionIdRef.current === undefined) {
+    pendingExecutionIdRef.current =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('executionId')
+        : null
+  }
 
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    return new URLSearchParams(window.location.search).get('search') ?? ''
+  })
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const urlSearch = params.get('search')
-    if (urlSearch) setSearchQuery(urlSearch)
-    const urlExecutionId = params.get('executionId')
-    if (urlExecutionId) pendingExecutionIdRef.current = urlExecutionId
-  }, [])
 
   const isLive = true
   const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)

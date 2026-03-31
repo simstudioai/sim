@@ -196,7 +196,7 @@ export function KnowledgeTagFilters({
     if (isReadOnly) return
 
     const updatedFilters = filters.map((f) => (f.id === id ? { ...f, [field]: value } : f))
-    const jsonValue = updatedFilters.length > 0 ? JSON.stringify(updatedFilters) : null
+    const jsonValue = updatedFilters.length > 0 ? JSON.stringify(updatedFilters) : ''
     emitTagSelection(jsonValue)
   }
 

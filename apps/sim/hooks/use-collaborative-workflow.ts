@@ -1281,7 +1281,7 @@ export function useCollaborativeWorkflow() {
 
   // Immediate tag selection (uses queue but processes immediately, no debouncing)
   const collaborativeSetTagSelection = useCallback(
-    (blockId: string, subblockId: string, value: any) => {
+    (blockId: string, subblockId: string, value: string) => {
       if (isApplyingRemoteChange.current) return
 
       if (isBaselineDiffView) {

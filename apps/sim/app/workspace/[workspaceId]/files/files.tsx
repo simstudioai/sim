@@ -75,6 +75,7 @@ import {
 } from '@/hooks/queries/workspace-files'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -136,6 +137,13 @@ export function Files() {
   const fileIdFromRoute =
     typeof params?.fileId === 'string' && params.fileId.length > 0 ? params.fileId : null
   const userPermissions = useUserPermissionsContext()
+  const { config: permissionConfig } = usePermissionConfig()
+
+  useEffect(() => {
+    if (permissionConfig.hideFilesTab) {
+      router.replace(`/workspace/${workspaceId}`)
+    }
+  }, [permissionConfig.hideFilesTab, router, workspaceId])
 
   const { data: files = [], isLoading, error } = useWorkspaceFiles(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)

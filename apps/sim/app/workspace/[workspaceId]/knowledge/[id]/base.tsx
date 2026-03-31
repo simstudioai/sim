@@ -62,7 +62,7 @@ import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/kb/use-knowledge-base-tag-definitions'
-import { useConnectorList } from '@/hooks/queries/kb/connectors'
+import { isConnectorSyncingOrPending, useConnectorList } from '@/hooks/queries/kb/connectors'
 import type { DocumentTagFilter } from '@/hooks/queries/kb/knowledge'
 import {
   useBulkDocumentOperation,
@@ -194,7 +194,7 @@ export function KnowledgeBase({
   const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
   const userPermissions = useUserPermissionsContext()
 
-  const { mutate: updateDocumentMutation } = useUpdateDocument()
+  const { mutate: updateDocumentMutation, mutateAsync: updateDocumentAsync } = useUpdateDocument()
   const { mutate: deleteDocumentMutation } = useDeleteDocument()
   const { mutate: deleteKnowledgeBaseMutation, isPending: isDeleting } =
     useDeleteKnowledgeBase(workspaceId)
@@ -285,7 +285,7 @@ export function KnowledgeBase({
   } = useKnowledgeBase(id)
 
   const { data: connectors = [], isLoading: isLoadingConnectors } = useConnectorList(id)
-  const hasSyncingConnectors = connectors.some((c) => c.status === 'syncing')
+  const hasSyncingConnectors = connectors.some(isConnectorSyncingOrPending)
   const hasSyncingConnectorsRef = useRef(hasSyncingConnectors)
   hasSyncingConnectorsRef.current = hasSyncingConnectors
 
@@ -455,28 +455,16 @@ export function KnowledgeBase({
 
     updateDocument(documentId, { filename: newName })
 
-    return new Promise<void>((resolve, reject) => {
-      updateDocumentMutation(
-        {
-          knowledgeBaseId: id,
-          documentId,
-          updates: { filename: newName },
-        },
-        {
-          onSuccess: () => {
-            logger.info(`Document renamed: ${documentId}`)
-            resolve()
-          },
-          onError: (err) => {
-            if (previousName !== undefined) {
-              updateDocument(documentId, { filename: previousName })
-            }
-            logger.error('Error renaming document:', err)
-            reject(err)
-          },
-        }
-      )
-    })
+    try {
+      await updateDocumentAsync({ knowledgeBaseId: id, documentId, updates: { filename: newName } })
+      logger.info(`Document renamed: ${documentId}`)
+    } catch (err) {
+      if (previousName !== undefined) {
+        updateDocument(documentId, { filename: previousName })
+      }
+      logger.error('Error renaming document:', err)
+      throw err
+    }
   }
 
   /**

@@ -103,6 +103,7 @@ export function AutocompleteSearch({
   } = useSearchState({
     onFiltersChange: handleFiltersChange,
     getSuggestions: (input) => suggestionEngine.getSuggestions(input),
+    initialQuery: value,
   })
 
   const lastExternalValue = useRef(value)
@@ -113,14 +114,6 @@ export function AutocompleteSearch({
       initializeFromQuery(parsed.textSearch, parsed.filters)
     }
   }, [value, initializeFromQuery])
-
-  useEffect(() => {
-    if (value) {
-      const parsed = parseQuery(value)
-      initializeFromQuery(parsed.textSearch, parsed.filters)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const [dropdownWidth, setDropdownWidth] = useState(400)
   useEffect(() => {
