@@ -316,26 +316,47 @@ async function dispatchToolExecution(
       }
     } else {
       toolCall.status = 'executing'
-      await upsertAsyncToolCall({
-        runId: context.runId || crypto.randomUUID(),
-        toolCallId,
-        toolName,
-        args,
-        status: MothershipStreamV1AsyncToolRecordStatus.running,
-      }).catch((err) => {
-        logger.warn(`Failed to persist async tool row for client-executable ${scopeLabel}tool`, {
+      const pendingPromise = (async () => {
+        await upsertAsyncToolCall({
+          runId: context.runId || crypto.randomUUID(),
+          toolCallId,
+          toolName,
+          args,
+          status: MothershipStreamV1AsyncToolRecordStatus.running,
+        }).catch((err) => {
+          logger.warn(`Failed to persist async tool row for client-executable ${scopeLabel}tool`, {
+            toolCallId,
+            toolName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        })
+        const completion = await waitForToolCompletion(
+          toolCallId,
+          options.timeout || STREAM_TIMEOUT_MS,
+          options.abortSignal
+        )
+        handleClientCompletion(toolCall, toolCallId, completion)
+        await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
+        return (
+          completion ?? {
+            status: MothershipStreamV1ToolOutcome.error,
+            message: 'Tool completion missing',
+            data: { error: 'Tool completion missing' },
+          }
+        )
+      })().catch((err) => {
+        logger.error(`Client-executable ${scopeLabel}tool wait failed`, {
           toolCallId,
           toolName,
           error: err instanceof Error ? err.message : String(err),
         })
+        return {
+          status: MothershipStreamV1ToolOutcome.error,
+          message: 'Tool wait failed',
+          data: { error: 'Tool wait failed' },
+        }
       })
-      const completion = await waitForToolCompletion(
-        toolCallId,
-        options.timeout || STREAM_TIMEOUT_MS,
-        options.abortSignal
-      )
-      handleClientCompletion(toolCall, toolCallId, completion)
-      await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
+      registerPendingToolPromise(context, toolCallId, pendingPromise)
     }
     return
   }

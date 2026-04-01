@@ -80,10 +80,12 @@ export function getEventUI(event: StreamEvent): {
   internal: boolean
   hidden: boolean
 } {
-  const raw = asRecord(getEventData(event)?.ui)
+  const data = getEventData(event)
+  const raw = asRecord(data?.ui)
   return {
-    requiresConfirmation: raw.requiresConfirmation === true,
-    clientExecutable: raw.clientExecutable === true,
+    requiresConfirmation: raw.requiresConfirmation === true || data?.requiresConfirmation === true,
+    clientExecutable:
+      raw.clientExecutable === true || data?.executor === MothershipStreamV1ToolExecutor.client,
     internal: raw.internal === true,
     hidden: raw.hidden === true,
   }
@@ -100,18 +102,29 @@ export function handleClientCompletion(
 ): void {
   if (completion?.status === 'background') {
     toolCall.status = MothershipStreamV1ToolOutcome.skipped
+    toolCall.result = completion?.data ? { success: true, output: completion.data } : undefined
     toolCall.endTime = Date.now()
     markToolResultSeen(toolCallId)
     return
   }
   if (completion?.status === MothershipStreamV1ToolOutcome.rejected) {
     toolCall.status = MothershipStreamV1ToolOutcome.rejected
+    toolCall.error = completion?.message || 'Tool rejected'
+    toolCall.result = {
+      success: false,
+      output: completion?.data ?? { error: toolCall.error },
+    }
     toolCall.endTime = Date.now()
     markToolResultSeen(toolCallId)
     return
   }
   if (completion?.status === MothershipStreamV1ToolOutcome.cancelled) {
     toolCall.status = MothershipStreamV1ToolOutcome.cancelled
+    toolCall.error = completion?.message || 'Tool cancelled'
+    toolCall.result = {
+      success: false,
+      output: completion?.data ?? { error: toolCall.error },
+    }
     toolCall.endTime = Date.now()
     markToolResultSeen(toolCallId)
     return
@@ -120,6 +133,11 @@ export function handleClientCompletion(
   toolCall.status = success
     ? MothershipStreamV1ToolOutcome.success
     : MothershipStreamV1ToolOutcome.error
+  toolCall.result = {
+    success,
+    output: completion?.data ?? (success ? {} : { error: completion?.message || 'Tool failed' }),
+  }
+  toolCall.error = success ? undefined : completion?.message || 'Tool failed'
   toolCall.endTime = Date.now()
   markToolResultSeen(toolCallId)
 }
