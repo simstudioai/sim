@@ -123,6 +123,14 @@ export const isInboxEnabled = isTruthy(env.INBOX_ENABLED)
 export const isE2bEnabled = isTruthy(env.E2B_ENABLED)
 
 /**
+ * Whether Azure OpenAI / Azure Anthropic credentials are pre-configured at the server level
+ * (via AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_ANTHROPIC_ENDPOINT, etc.).
+ * When true, the endpoint, API key, and API version fields are hidden in the Agent block UI.
+ * Set NEXT_PUBLIC_AZURE_CONFIGURED=true in self-hosted deployments on Azure.
+ */
+export const isAzureConfigured = isTruthy(getEnv('NEXT_PUBLIC_AZURE_CONFIGURED'))
+
+/**
  * Are invitations disabled globally
  * When true, workspace invitations are disabled for all users
  */

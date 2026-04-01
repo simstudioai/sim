@@ -327,8 +327,9 @@ export interface SubBlockConfig {
   connectionDroppable?: boolean
   hidden?: boolean
   hideFromPreview?: boolean // Hide this subblock from the workflow block preview
-  requiresFeature?: string // Environment variable name that must be truthy for this subblock to be visible
+  showWhenEnvSet?: string // Show this subblock only when the named NEXT_PUBLIC_ env var is truthy
   hideWhenHosted?: boolean // Hide this subblock when running on hosted sim
+  hideWhenEnvSet?: string // Hide this subblock when the named NEXT_PUBLIC_ env var is truthy
   description?: string
   tooltip?: string // Tooltip text displayed via info icon next to the title
   value?: (params: Record<string, any>) => string

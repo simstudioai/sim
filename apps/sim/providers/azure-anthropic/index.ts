@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@sim/logger'
+import { env } from '@/lib/core/config/env'
 import type { StreamingExecution } from '@/executor/types'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
@@ -18,14 +19,16 @@ export const azureAnthropicProvider: ProviderConfig = {
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
-    if (!request.azureEndpoint) {
+    const azureEndpoint = request.azureEndpoint || env.AZURE_ANTHROPIC_ENDPOINT
+    if (!azureEndpoint) {
       throw new Error(
-        'Azure endpoint is required for Azure Anthropic. Please provide it via the azureEndpoint parameter.'
+        'Azure endpoint is required for Azure Anthropic. Please provide it via the azureEndpoint parameter or AZURE_ANTHROPIC_ENDPOINT environment variable.'
       )
     }
 
-    if (!request.apiKey) {
-      throw new Error('API key is required for Azure Anthropic')
+    const apiKey = request.apiKey
+    if (!apiKey) {
+      throw new Error('API key is required for Azure Anthropic.')
     }
 
     // Strip the azure-anthropic/ prefix from the model name if present
@@ -33,14 +36,16 @@ export const azureAnthropicProvider: ProviderConfig = {
 
     // Azure AI Foundry hosts Anthropic models at {endpoint}/anthropic
     // The SDK appends /v1/messages automatically
-    const baseURL = `${request.azureEndpoint.replace(/\/$/, '')}/anthropic`
+    const baseURL = `${azureEndpoint.replace(/\/$/, '')}/anthropic`
 
-    const anthropicVersion = request.azureApiVersion || '2023-06-01'
+    const anthropicVersion =
+      request.azureApiVersion || env.AZURE_ANTHROPIC_API_VERSION || '2023-06-01'
 
     return executeAnthropicProviderRequest(
       {
         ...request,
         model: modelName,
+        apiKey,
       },
       {
         providerId: 'azure-anthropic',

@@ -1,4 +1,4 @@
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isAzureConfigured, isHosted } from '@/lib/core/config/feature-flags'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
 import {
   getHostedModels,
@@ -8,9 +8,12 @@ import {
 } from '@/providers/models'
 import { useProvidersStore } from '@/stores/providers/store'
 
-const VERTEX_MODELS = getProviderModels('vertex')
-const BEDROCK_MODELS = getProviderModels('bedrock')
-const AZURE_MODELS = [...getProviderModels('azure-openai'), ...getProviderModels('azure-anthropic')]
+export const VERTEX_MODELS = getProviderModels('vertex')
+export const BEDROCK_MODELS = getProviderModels('bedrock')
+export const AZURE_MODELS = [
+  ...getProviderModels('azure-openai'),
+  ...getProviderModels('azure-anthropic'),
+]
 
 /**
  * Returns model options for combobox subblocks, combining all provider sources.
@@ -102,6 +105,16 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   if (isHosted && isHostedModel) return false
 
   if (normalizedModel.startsWith('vertex/') || normalizedModel.startsWith('bedrock/')) {
+    return false
+  }
+
+  if (
+    isAzureConfigured &&
+    (normalizedModel.startsWith('azure/') ||
+      normalizedModel.startsWith('azure-openai/') ||
+      normalizedModel.startsWith('azure-anthropic/') ||
+      AZURE_MODELS.some((m) => m.toLowerCase() === normalizedModel))
+  ) {
     return false
   }
 

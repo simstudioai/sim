@@ -3,7 +3,14 @@ import { AgentIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { getApiKeyCondition, getModelOptions, RESPONSE_FORMAT_WAND_CONFIG } from '@/blocks/utils'
+import {
+  AZURE_MODELS,
+  BEDROCK_MODELS,
+  getApiKeyCondition,
+  getModelOptions,
+  RESPONSE_FORMAT_WAND_CONFIG,
+  VERTEX_MODELS,
+} from '@/blocks/utils'
 import {
   getBaseModelProviders,
   getMaxTemperature,
@@ -12,7 +19,6 @@ import {
   getModelsWithReasoningEffort,
   getModelsWithThinking,
   getModelsWithVerbosity,
-  getProviderModels,
   getReasoningEffortValuesForModel,
   getThinkingLevelsForModel,
   getVerbosityValuesForModel,
@@ -23,9 +29,6 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgentBlock')
-const VERTEX_MODELS = getProviderModels('vertex')
-const BEDROCK_MODELS = getProviderModels('bedrock')
-const AZURE_MODELS = [...getProviderModels('azure-openai'), ...getProviderModels('azure-anthropic')]
 const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 const MODELS_WITH_THINKING = getModelsWithThinking()
@@ -325,6 +328,7 @@ Return ONLY the JSON array.`,
       password: true,
       placeholder: 'https://your-resource.services.ai.azure.com',
       connectionDroppable: false,
+      hideWhenEnvSet: 'NEXT_PUBLIC_AZURE_CONFIGURED',
       condition: {
         field: 'model',
         value: AZURE_MODELS,
@@ -336,6 +340,7 @@ Return ONLY the JSON array.`,
       type: 'short-input',
       placeholder: 'Enter API version',
       connectionDroppable: false,
+      hideWhenEnvSet: 'NEXT_PUBLIC_AZURE_CONFIGURED',
       condition: {
         field: 'model',
         value: AZURE_MODELS,
@@ -373,6 +378,7 @@ Return ONLY the JSON array.`,
       placeholder: 'Optional - uses AWS default credential chain if empty',
       connectionDroppable: false,
       required: false,
+      hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
       condition: {
         field: 'model',
         value: BEDROCK_MODELS,
@@ -386,6 +392,7 @@ Return ONLY the JSON array.`,
       placeholder: 'Optional - uses AWS default credential chain if empty',
       connectionDroppable: false,
       required: false,
+      hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
       condition: {
         field: 'model',
         value: BEDROCK_MODELS,

@@ -5,7 +5,7 @@ import {
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
   isCanonicalPair,
-  isSubBlockHiddenByHostedKey,
+  isSubBlockHidden,
   resolveCanonicalMode,
   type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
@@ -320,7 +320,7 @@ export function getToolParametersConfig(
           )
 
           if (subBlock) {
-            if (isSubBlockHiddenByHostedKey(subBlock)) {
+            if (isSubBlockHidden(subBlock)) {
               toolParam.visibility = 'hidden'
             }
 
@@ -946,8 +946,8 @@ export function getSubBlocksForToolInput(
       // Skip trigger-mode-only subblocks
       if (sb.mode === 'trigger') continue
 
-      // Hide tool API key fields when running on hosted Sim
-      if (isSubBlockHiddenByHostedKey(sb)) continue
+      // Hide tool API key fields when running on hosted Sim or when env var is set
+      if (isSubBlockHidden(sb)) continue
 
       // Determine the effective param ID (canonical or subblock id)
       const effectiveParamId = sb.canonicalParamId || sb.id

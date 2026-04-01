@@ -65,7 +65,7 @@ async function executeChatCompletionsRequest(
   })
 
   const azureOpenAI = new AzureOpenAI({
-    apiKey: request.apiKey,
+    apiKey: request.apiKey!,
     apiVersion: azureApiVersion,
     endpoint: azureEndpoint,
   })
@@ -623,8 +623,9 @@ export const azureOpenAIProvider: ProviderConfig = {
       )
     }
 
-    if (!request.apiKey) {
-      throw new Error('API key is required for Azure OpenAI')
+    const apiKey = request.apiKey
+    if (!apiKey) {
+      throw new Error('API key is required for Azure OpenAI.')
     }
 
     // Check if the endpoint is a full chat completions URL
@@ -653,7 +654,12 @@ export const azureOpenAIProvider: ProviderConfig = {
         apiVersion: azureApiVersion,
       })
 
-      return executeChatCompletionsRequest(request, baseUrl, azureApiVersion, deploymentName)
+      return executeChatCompletionsRequest(
+        { ...request, apiKey },
+        baseUrl,
+        azureApiVersion,
+        deploymentName
+      )
     }
 
     // Check if the endpoint is already a full responses API URL
@@ -663,18 +669,21 @@ export const azureOpenAIProvider: ProviderConfig = {
       const deploymentName = request.model.replace('azure/', '')
 
       // Use the URL as-is since it's already complete
-      return executeResponsesProviderRequest(request, {
-        providerId: 'azure-openai',
-        providerLabel: 'Azure OpenAI',
-        modelName: deploymentName,
-        endpoint: azureEndpoint,
-        headers: {
-          'Content-Type': 'application/json',
-          'OpenAI-Beta': 'responses=v1',
-          'api-key': request.apiKey,
-        },
-        logger,
-      })
+      return executeResponsesProviderRequest(
+        { ...request, apiKey },
+        {
+          providerId: 'azure-openai',
+          providerLabel: 'Azure OpenAI',
+          modelName: deploymentName,
+          endpoint: azureEndpoint,
+          headers: {
+            'Content-Type': 'application/json',
+            'OpenAI-Beta': 'responses=v1',
+            'api-key': apiKey,
+          },
+          logger,
+        }
+      )
     }
 
     // Default: base URL provided, construct the responses API URL
@@ -684,17 +693,20 @@ export const azureOpenAIProvider: ProviderConfig = {
     const deploymentName = request.model.replace('azure/', '')
     const apiUrl = `${azureEndpoint.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
 
-    return executeResponsesProviderRequest(request, {
-      providerId: 'azure-openai',
-      providerLabel: 'Azure OpenAI',
-      modelName: deploymentName,
-      endpoint: apiUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        'OpenAI-Beta': 'responses=v1',
-        'api-key': request.apiKey,
-      },
-      logger,
-    })
+    return executeResponsesProviderRequest(
+      { ...request, apiKey },
+      {
+        providerId: 'azure-openai',
+        providerLabel: 'Azure OpenAI',
+        modelName: deploymentName,
+        endpoint: apiUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'OpenAI-Beta': 'responses=v1',
+          'api-key': apiKey,
+        },
+        logger,
+      }
+    )
   },
 }
