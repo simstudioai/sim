@@ -128,7 +128,7 @@ export class TriggerDevJobQueue implements JobQueueBackend {
  * Tags follow the `namespace:value` convention for consistent filtering.
  * Max 10 tags per run, each max 128 chars.
  */
-function buildTags(type: JobType, options?: EnqueueOptions): string[] {
+function buildTags(_type: JobType, options?: EnqueueOptions): string[] {
   const tags: string[] = []
   const meta = options?.metadata
 
