@@ -33,8 +33,9 @@ export const subAgentHandlers: Record<string, StreamHandler> = {
 export function handleSubagentRouting(event: StreamEvent, context: StreamingContext): boolean {
   if (event.scope?.lane !== 'subagent') return false
 
-  // Prefer the wire-level parentToolCallId when present; fall back to the stack.
-  if (event.scope?.parentToolCallId && !context.subAgentParentToolCallId) {
+  // Keep the latest scoped parent on hand for legacy callers, but subagent
+  // handlers should prefer the event-local scope for correctness.
+  if (event.scope?.parentToolCallId) {
     context.subAgentParentToolCallId = event.scope.parentToolCallId
   }
 

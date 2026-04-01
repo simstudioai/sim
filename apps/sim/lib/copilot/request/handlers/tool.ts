@@ -30,6 +30,7 @@ import {
   emitSyntheticToolResult,
   ensureTerminalToolCallState,
   getEventUI,
+  getScopedParentToolCallId,
   handleClientCompletion,
   inferToolSuccess,
   registerPendingToolPromise,
@@ -54,7 +55,7 @@ export async function handleToolEvent(
   scope: ToolScope
 ): Promise<void> {
   const isSubagent = scope === 'subagent'
-  const parentToolCallId = isSubagent ? context.subAgentParentToolCallId : undefined
+  const parentToolCallId = isSubagent ? getScopedParentToolCallId(event, context) : undefined
 
   if (isSubagent && !parentToolCallId) return
 

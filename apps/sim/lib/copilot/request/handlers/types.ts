@@ -38,6 +38,13 @@ export function addContentBlock(
   })
 }
 
+export function getScopedParentToolCallId(
+  event: StreamEvent,
+  context: StreamingContext
+): string | undefined {
+  return event.scope?.parentToolCallId || context.subAgentParentToolCallId
+}
+
 export function registerPendingToolPromise(
   context: StreamingContext,
   toolCallId: string,

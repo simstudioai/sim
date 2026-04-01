@@ -160,14 +160,26 @@ export async function runStreamLoop(
           (spanData?.tool_call_id as string | undefined)
         const subagentName = streamEvent.payload.agent as string | undefined
         const spanEvent = streamEvent.payload.event as string | undefined
+        const isPendingPause = spanData?.pending === true
         if (spanEvent === MothershipStreamV1SpanLifecycleEvent.start) {
+          const lastParent = context.subAgentParentStack[context.subAgentParentStack.length - 1]
+          const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
           if (toolCallId) {
-            context.subAgentParentStack.push(toolCallId)
+            if (lastParent !== toolCallId) {
+              context.subAgentParentStack.push(toolCallId)
+            }
             context.subAgentParentToolCallId = toolCallId
-            context.subAgentContent[toolCallId] = ''
-            context.subAgentToolCalls[toolCallId] = []
+            context.subAgentContent[toolCallId] ??= ''
+            context.subAgentToolCalls[toolCallId] ??= []
           }
-          if (subagentName) {
+          if (
+            subagentName &&
+            !(
+              lastParent === toolCallId &&
+              lastBlock?.type === 'subagent' &&
+              lastBlock.content === subagentName
+            )
+          ) {
             context.contentBlocks.push({
               type: 'subagent',
               content: subagentName,
@@ -177,6 +189,9 @@ export async function runStreamLoop(
           continue
         }
         if (spanEvent === MothershipStreamV1SpanLifecycleEvent.end) {
+          if (isPendingPause) {
+            continue
+          }
           if (context.subAgentParentStack.length > 0) {
             context.subAgentParentStack.pop()
           } else {

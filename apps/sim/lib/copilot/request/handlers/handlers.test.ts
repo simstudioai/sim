@@ -40,6 +40,7 @@ vi.mock('@/lib/copilot/async-runs/repository', async () => {
 
 import {
   MothershipStreamV1EventType,
+  MothershipStreamV1TextChannel,
   MothershipStreamV1ToolExecutor,
   MothershipStreamV1ToolMode,
   MothershipStreamV1ToolOutcome,
@@ -184,6 +185,66 @@ describe('sse-handlers tool lifecycle', () => {
     expect(context.subAgentToolCalls['parent-1']?.[0]?.params).toEqual({
       name: 'Example Workflow',
     })
+  })
+
+  it('routes subagent text using the event scope parent tool call id', async () => {
+    context.subAgentParentToolCallId = 'wrong-parent'
+    context.subAgentContent['parent-1'] = ''
+
+    await subAgentHandlers.text(
+      {
+        type: MothershipStreamV1EventType.text,
+        scope: { lane: 'subagent', parentToolCallId: 'parent-1', agentId: 'deploy' },
+        payload: {
+          channel: MothershipStreamV1TextChannel.assistant,
+          text: 'hello from deploy',
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    expect(context.subAgentContent['parent-1']).toBe('hello from deploy')
+    expect(context.contentBlocks.at(-1)).toEqual(
+      expect.objectContaining({
+        type: 'subagent_text',
+        content: 'hello from deploy',
+      })
+    )
+  })
+
+  it('routes subagent tool calls using the event scope parent tool call id', async () => {
+    executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
+    context.subAgentParentToolCallId = 'wrong-parent'
+    context.toolCalls.set('parent-1', {
+      id: 'parent-1',
+      name: 'deploy',
+      status: 'pending',
+      startTime: Date.now(),
+    })
+
+    await subAgentHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        scope: { lane: 'subagent', parentToolCallId: 'parent-1', agentId: 'deploy' },
+        payload: {
+          toolCallId: 'sub-tool-scope-1',
+          toolName: 'read',
+          arguments: { path: 'workflow.json' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(context.subAgentToolCalls['parent-1']?.[0]?.id).toBe('sub-tool-scope-1')
   })
 
   it('skips duplicate tool_call after result', async () => {

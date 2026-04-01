@@ -4,14 +4,14 @@ import {
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { getEventData } from '@/lib/copilot/request/sse-utils'
 import type { StreamHandler, ToolScope } from './types'
-import { addContentBlock } from './types'
+import { addContentBlock, getScopedParentToolCallId } from './types'
 
 export function handleTextEvent(scope: ToolScope): StreamHandler {
   return (event, context) => {
     const d = getEventData(event)
 
     if (scope === 'subagent') {
-      const parentToolCallId = context.subAgentParentToolCallId
+      const parentToolCallId = getScopedParentToolCallId(event, context)
       if (!parentToolCallId || d?.channel !== MothershipStreamV1TextChannel.assistant) return
       const chunk = d?.text as string | undefined
       if (!chunk) return

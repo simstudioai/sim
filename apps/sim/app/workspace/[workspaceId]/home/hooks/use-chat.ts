@@ -531,6 +531,7 @@ export function useChat(
       const toolArgsMap = new Map<string, Record<string, unknown>>()
       const clientExecutionStarted = new Set<string>()
       let activeSubagent: string | undefined
+      let activeSubagentParentToolCallId: string | undefined
       let activeCompactionId: string | undefined
       let runningText = ''
       let lastContentSource: 'main' | 'subagent' | null = null
@@ -1095,6 +1096,14 @@ export function useChat(
                   break
                 }
                 const spanEvent = typeof payload.event === 'string' ? payload.event : ''
+                const spanData = asPayloadRecord(payload.data)
+                const parentToolCallId =
+                  typeof parsed.scope?.parentToolCallId === 'string'
+                    ? parsed.scope.parentToolCallId
+                    : typeof spanData?.tool_call_id === 'string'
+                      ? spanData.tool_call_id
+                      : undefined
+                const isPendingPause = spanData?.pending === true
                 const name =
                   typeof payload.agent === 'string'
                     ? payload.agent
@@ -1102,8 +1111,15 @@ export function useChat(
                       ? parsed.scope.agentId
                       : undefined
                 if (spanEvent === MothershipStreamV1SpanLifecycleEvent.start && name) {
+                  const isSameActiveSubagent =
+                    activeSubagent === name &&
+                    activeSubagentParentToolCallId &&
+                    parentToolCallId === activeSubagentParentToolCallId
                   activeSubagent = name
-                  blocks.push({ type: 'subagent', content: name })
+                  activeSubagentParentToolCallId = parentToolCallId
+                  if (!isSameActiveSubagent) {
+                    blocks.push({ type: 'subagent', content: name })
+                  }
                   if (name === FileWrite.id) {
                     const emptyFile = { fileName: '', content: '' }
                     streamingFileRef.current = emptyFile
@@ -1111,7 +1127,11 @@ export function useChat(
                   }
                   flush()
                 } else if (spanEvent === MothershipStreamV1SpanLifecycleEvent.end) {
+                  if (isPendingPause) {
+                    break
+                  }
                   activeSubagent = undefined
+                  activeSubagentParentToolCallId = undefined
                   blocks.push({ type: 'subagent_end' })
                   flush()
                 }
