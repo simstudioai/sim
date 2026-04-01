@@ -447,7 +447,16 @@ export async function processDocumentAsync(
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
-    const kbConfig = kb[0].chunkingConfig as { maxSize: number; minSize: number; overlap: number }
+    const rawConfig = kb[0].chunkingConfig as {
+      maxSize?: number
+      minSize?: number
+      overlap?: number
+    } | null
+    const kbConfig = {
+      maxSize: rawConfig?.maxSize ?? 1024,
+      minSize: rawConfig?.minSize ?? 100,
+      overlap: rawConfig?.overlap ?? 200,
+    }
 
     await withTimeout(
       (async () => {
