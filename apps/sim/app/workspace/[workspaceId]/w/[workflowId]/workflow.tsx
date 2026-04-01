@@ -2232,6 +2232,10 @@ const WorkflowContent = React.memo(
         return
       }
 
+      if (hydration.phase === 'creating') {
+        return
+      }
+
       // If already loading (state-loading phase), skip
       if (hydration.phase === 'state-loading' && hydration.workflowId === currentId) {
         return
@@ -2296,6 +2300,10 @@ const WorkflowContent = React.memo(
         !hydration.workspaceId ||
         hydration.workspaceId !== workspaceId
       ) {
+        return
+      }
+
+      if (hydration.phase === 'creating') {
         return
       }
 

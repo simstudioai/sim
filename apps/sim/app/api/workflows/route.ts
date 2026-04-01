@@ -270,9 +270,7 @@ export async function POST(req: NextRequest) {
 
     const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
     if (!saveResult.success) {
-      logger.error(
-        `[${requestId}] Failed to persist default blocks for workflow ${workflowId}: ${saveResult.error}`
-      )
+      throw new Error(saveResult.error || 'Failed to persist default workflow blocks')
     }
 
     logger.info(`[${requestId}] Successfully created workflow ${workflowId} with default blocks`)

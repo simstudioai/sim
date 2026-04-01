@@ -247,6 +247,8 @@ export function useCreateWorkflow() {
       }
 
       logger.info(`[CreateWorkflow] Success, replaced temp entry ${tempId}`)
+
+      useWorkflowRegistry.getState().markWorkflowCreated(data.id)
     },
     onError: (_error, variables, context) => {
       if (context?.snapshot) {
@@ -256,6 +258,8 @@ export function useCreateWorkflow() {
         )
         logger.info('[CreateWorkflow] Rolled back to previous state')
       }
+
+      useWorkflowRegistry.getState().markWorkflowCreated(null)
     },
     onSettled: (_data, _error, variables) => {
       return invalidateWorkflowLists(queryClient, variables.workspaceId, ['active', 'archived'])

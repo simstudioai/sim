@@ -32,6 +32,7 @@ import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
 
 const logger = createLogger('FolderItem')
@@ -135,29 +136,23 @@ export function FolderItem({
 
   const isEditingRef = useRef(false)
 
-  const handleCreateWorkflowInFolder = useCallback(async () => {
-    try {
-      const name = generateCreativeWorkflowName()
-      const color = getNextWorkflowColor()
+  const handleCreateWorkflowInFolder = useCallback(() => {
+    const name = generateCreativeWorkflowName()
+    const color = getNextWorkflowColor()
+    const id = crypto.randomUUID()
 
-      const result = await createWorkflowMutation.mutateAsync({
-        workspaceId,
-        folderId: folder.id,
-        name,
-        color,
-        id: crypto.randomUUID(),
-      })
+    createWorkflowMutation.mutate({
+      workspaceId,
+      folderId: folder.id,
+      name,
+      color,
+      id,
+    })
 
-      if (result.id) {
-        router.push(`/workspace/${workspaceId}/w/${result.id}`)
-        expandFolder()
-        window.dispatchEvent(
-          new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: result.id } })
-        )
-      }
-    } catch (error) {
-      logger.error('Failed to create workflow in folder:', error)
-    }
+    useWorkflowRegistry.getState().markWorkflowCreating(id)
+    expandFolder()
+    router.push(`/workspace/${workspaceId}/w/${id}`)
+    window.dispatchEvent(new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: id } }))
   }, [createWorkflowMutation, workspaceId, folder.id, router, expandFolder])
 
   const handleCreateFolderInFolder = useCallback(async () => {
