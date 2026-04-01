@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { getCustomToolById, listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { AGENT, isCustomTool } from '@/executor/constants'
 import { getCustomTool } from '@/hooks/queries/custom-tools'
 import { useEnvironmentStore } from '@/stores/settings/environment'
@@ -320,7 +320,7 @@ export async function getToolAsync(
 
   // Check if it's a custom tool
   if (isCustomTool(toolId)) {
-    return fetchCustomToolFromAPI(toolId, workflowId, userId)
+    return fetchCustomToolFromDB(toolId, workflowId, userId)
   }
 
   return undefined
@@ -364,8 +364,8 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
   }
 }
 
-// Create a tool config from a custom tool definition by fetching from API
-async function fetchCustomToolFromAPI(
+// Create a tool config from a custom tool definition by querying the database directly
+async function fetchCustomToolFromDB(
   customToolId: string,
   workflowId?: string,
   userId?: string
@@ -373,50 +373,19 @@ async function fetchCustomToolFromAPI(
   const identifier = customToolId.replace('custom_', '')
 
   try {
-    const baseUrl = getInternalApiBaseUrl()
-    const url = new URL('/api/tools/custom', baseUrl)
-
-    if (workflowId) {
-      url.searchParams.append('workflowId', workflowId)
-    }
-    if (userId) {
-      url.searchParams.append('userId', userId)
-    }
-
-    // For server-side calls (during workflow execution), use internal JWT token
-    const headers: Record<string, string> = {}
-    if (typeof window === 'undefined') {
-      try {
-        const { generateInternalToken } = await import('@/lib/auth/internal')
-        const internalToken = await generateInternalToken(userId)
-        headers.Authorization = `Bearer ${internalToken}`
-      } catch (error) {
-        logger.warn('Failed to generate internal token for custom tools fetch', { error })
-        // Continue without token - will fail auth and be reported upstream
-      }
-    }
-
-    const response = await fetch(url.toString(), {
-      headers,
-    })
-
-    if (!response.ok) {
-      await response.text().catch(() => {})
-      logger.error(`Failed to fetch custom tools: ${response.statusText}`)
+    if (!userId) {
+      logger.error(`Cannot fetch custom tool without userId: ${identifier}`)
       return undefined
     }
 
-    const result = await response.json()
+    // Try to find by ID first
+    let customTool = await getCustomToolById({ toolId: identifier, userId })
 
-    if (!result.data || !Array.isArray(result.data)) {
-      logger.error(`Invalid response when fetching custom tools: ${JSON.stringify(result)}`)
-      return undefined
+    // Fall back to searching by title
+    if (!customTool) {
+      const allTools = await listCustomTools({ userId })
+      customTool = allTools.find((t) => t.title === identifier) ?? null
     }
-
-    // Try to find the tool by ID or title
-    const customTool = result.data.find(
-      (tool: any) => tool.id === identifier || tool.title === identifier
-    )
 
     if (!customTool) {
       logger.error(`Custom tool not found: ${identifier}`)
@@ -458,7 +427,7 @@ async function fetchCustomToolFromAPI(
       },
     }
   } catch (error) {
-    logger.error(`Error fetching custom tool ${identifier} from API:`, error)
+    logger.error(`Error fetching custom tool ${identifier} from DB:`, error)
     return undefined
   }
 }
