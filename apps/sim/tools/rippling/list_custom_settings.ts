@@ -54,7 +54,7 @@ export const ripplingListCustomSettingsTool: ToolConfig<RipplingListCustomSettin
           display_name: (item.display_name as string) ?? null,
           api_name: (item.api_name as string) ?? null,
           data_type: (item.data_type as string) ?? null,
-          secret_value: item.secret_value ?? null,
+          secret_value: (item.secret_value as string) ?? null,
           string_value: (item.string_value as string) ?? null,
           number_value: (item.number_value as number) ?? null,
           boolean_value: (item.boolean_value as boolean) ?? null,

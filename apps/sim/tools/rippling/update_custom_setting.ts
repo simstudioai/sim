@@ -42,11 +42,30 @@ export const ripplingUpdateCustomSettingTool: ToolConfig<RipplingUpdateCustomSet
     const data = await response.json()
     return {
       success: true,
-      output: { id: (data.id as string) ?? '', data },
+      output: {
+        id: (data.id as string) ?? '',
+        created_at: (data.created_at as string) ?? null,
+        updated_at: (data.updated_at as string) ?? null,
+        display_name: (data.display_name as string) ?? null,
+        api_name: (data.api_name as string) ?? null,
+        data_type: (data.data_type as string) ?? null,
+        secret_value: (data.secret_value as string) ?? null,
+        string_value: (data.string_value as string) ?? null,
+        number_value: data.number_value ?? null,
+        boolean_value: data.boolean_value ?? null,
+      },
     }
   },
   outputs: {
     id: { type: 'string', description: 'Setting ID' },
-    data: { type: 'json', description: 'Full setting data' },
+    created_at: { type: 'string', description: 'Created timestamp', optional: true },
+    updated_at: { type: 'string', description: 'Updated timestamp', optional: true },
+    display_name: { type: 'string', description: 'Display name', optional: true },
+    api_name: { type: 'string', description: 'API name', optional: true },
+    data_type: { type: 'string', description: 'Data type', optional: true },
+    secret_value: { type: 'string', description: 'Secret value', optional: true },
+    string_value: { type: 'string', description: 'String value', optional: true },
+    number_value: { type: 'number', description: 'Number value', optional: true },
+    boolean_value: { type: 'boolean', description: 'Boolean value', optional: true },
   },
 }

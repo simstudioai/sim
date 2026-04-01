@@ -269,6 +269,11 @@ export const CUSTOM_PAGE_OUTPUT_PROPERTIES = {
   created_at: { type: 'string', description: 'Record creation date' },
   updated_at: { type: 'string', description: 'Record update date' },
   name: { type: 'string', description: 'Page name' },
+  components: { type: 'json', description: 'Page components' },
+  actions: { type: 'json', description: 'Page actions' },
+  canvas_actions: { type: 'json', description: 'Canvas actions' },
+  variables: { type: 'json', description: 'Page variables' },
+  media: { type: 'json', description: 'Page media' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Object category output properties */

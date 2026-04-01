@@ -40,6 +40,11 @@ export const ripplingCreateCustomPageTool: ToolConfig<RipplingCreateCustomPagePa
         created_at: (data.created_at as string) ?? null,
         updated_at: (data.updated_at as string) ?? null,
         name: (data.name as string) ?? null,
+        components: data.components ?? [],
+        actions: data.actions ?? [],
+        canvas_actions: data.canvas_actions ?? [],
+        variables: data.variables ?? [],
+        media: data.media ?? null,
       },
     }
   },
@@ -48,5 +53,10 @@ export const ripplingCreateCustomPageTool: ToolConfig<RipplingCreateCustomPagePa
     created_at: { type: 'string', description: 'Creation date', optional: true },
     updated_at: { type: 'string', description: 'Update date', optional: true },
     name: { type: 'string', description: 'Name', optional: true },
+    components: { type: 'json', description: 'Page components', optional: true },
+    actions: { type: 'json', description: 'Page actions', optional: true },
+    canvas_actions: { type: 'json', description: 'Canvas actions', optional: true },
+    variables: { type: 'json', description: 'Page variables', optional: true },
+    media: { type: 'json', description: 'Page media', optional: true },
   },
 }
