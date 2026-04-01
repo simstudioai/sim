@@ -168,11 +168,10 @@ export function getApiKeyCondition() {
 export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
   return [
     {
-      id: 'vertexOauthCredential',
+      id: 'vertexCredential',
       title: 'Google Cloud Account',
       type: 'oauth-input',
       serviceId: 'vertex-ai',
-      canonicalParamId: 'vertexCredential',
       mode: 'basic',
       requiredScopes: getScopesForService('vertex-ai'),
       placeholder: 'Select Google Cloud account',
