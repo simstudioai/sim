@@ -196,6 +196,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       password: true,
       placeholder: 'https://your-resource.services.ai.azure.com',
       connectionDroppable: false,
+      hideWhenEnvSet: 'NEXT_PUBLIC_AZURE_CONFIGURED',
       condition: {
         field: 'model',
         value: AZURE_MODELS,
@@ -207,6 +208,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       type: 'short-input',
       placeholder: 'Enter API version',
       connectionDroppable: false,
+      hideWhenEnvSet: 'NEXT_PUBLIC_AZURE_CONFIGURED',
       condition: {
         field: 'model',
         value: AZURE_MODELS,
@@ -244,6 +246,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       placeholder: 'Enter your AWS Access Key ID',
       connectionDroppable: false,
       required: true,
+      hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
       condition: {
         field: 'model',
         value: BEDROCK_MODELS,
@@ -257,6 +260,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       placeholder: 'Enter your AWS Secret Access Key',
       connectionDroppable: false,
       required: true,
+      hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
       condition: {
         field: 'model',
         value: BEDROCK_MODELS,
