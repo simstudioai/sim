@@ -81,7 +81,7 @@ export async function decryptApiKey(encryptedValue: string): Promise<{ decrypted
   const authTag = Buffer.from(authTagHex, 'hex')
 
   try {
-    const decipher = createDecipheriv('aes-256-gcm', key, iv)
+    const decipher = createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 })
     decipher.setAuthTag(authTag)
 
     let decrypted = decipher.update(encrypted, 'hex', 'utf8')
