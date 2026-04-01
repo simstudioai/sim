@@ -66,7 +66,7 @@ export class TriggerDevJobQueue implements JobQueueBackend {
         ? { ...payload, ...options.metadata }
         : payload
 
-    const tags = buildTags(type, options)
+    const tags = buildTags(options)
     const handle = await tasks.trigger(taskId, enrichedPayload, tags.length > 0 ? { tags } : {})
 
     logger.debug('Enqueued job via trigger.dev', { jobId: handle.id, type, taskId, tags })
@@ -128,7 +128,7 @@ export class TriggerDevJobQueue implements JobQueueBackend {
  * Tags follow the `namespace:value` convention for consistent filtering.
  * Max 10 tags per run, each max 128 chars.
  */
-function buildTags(_type: JobType, options?: EnqueueOptions): string[] {
+function buildTags(options?: EnqueueOptions): string[] {
   const tags: string[] = []
   const meta = options?.metadata
 
