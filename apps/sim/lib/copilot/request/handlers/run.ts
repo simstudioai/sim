@@ -28,7 +28,7 @@ export const handleRunEvent: StreamHandler = (event, context) => {
     context.awaitingAsyncContinuation = {
       checkpointId: String(d?.checkpointId),
       executionId: typeof d?.executionId === 'string' ? d.executionId : context.executionId,
-      runId: typeof d?.runId === 'string' ? d.runId : context.runId,
+      runId: typeof d?.runId === 'string' && d.runId ? d.runId : context.runId,
       pendingToolCallIds: Array.isArray(d?.pendingToolCallIds)
         ? d.pendingToolCallIds.map((id) => String(id))
         : [],

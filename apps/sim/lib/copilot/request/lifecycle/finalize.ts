@@ -36,15 +36,16 @@ async function handleAborted(
   requestId: string
 ): Promise<void> {
   logger.info(`[${requestId}] Stream aborted by explicit stop`)
-  await loggedRunStatusUpdate(runId, MothershipStreamV1CompletionStatus.cancelled, requestId, {
-    completedAt: new Date(),
-  })
   if (!publisher.sawComplete) {
     await publisher.publish({
       type: MothershipStreamV1EventType.complete,
       payload: { status: MothershipStreamV1CompletionStatus.cancelled },
     })
   }
+  await publisher.flush()
+  await loggedRunStatusUpdate(runId, MothershipStreamV1CompletionStatus.cancelled, requestId, {
+    completedAt: new Date(),
+  })
 }
 
 async function handleError(
@@ -77,6 +78,7 @@ async function handleError(
       payload: { status: MothershipStreamV1CompletionStatus.error },
     })
   }
+  await publisher.flush()
   await loggedRunStatusUpdate(runId, MothershipStreamV1CompletionStatus.error, requestId, {
     completedAt: new Date(),
     error: errorMessage,
@@ -88,15 +90,16 @@ async function handleSuccess(
   runId: string,
   requestId: string
 ): Promise<void> {
-  await loggedRunStatusUpdate(runId, MothershipStreamV1CompletionStatus.complete, requestId, {
-    completedAt: new Date(),
-  })
   if (!publisher.sawComplete) {
     await publisher.publish({
       type: MothershipStreamV1EventType.complete,
       payload: { status: MothershipStreamV1CompletionStatus.complete },
     })
   }
+  await publisher.flush()
+  await loggedRunStatusUpdate(runId, MothershipStreamV1CompletionStatus.complete, requestId, {
+    completedAt: new Date(),
+  })
 }
 
 async function loggedRunStatusUpdate(

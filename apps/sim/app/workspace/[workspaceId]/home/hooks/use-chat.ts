@@ -37,6 +37,7 @@ import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
 import {
   cancelRunToolExecution,
   executeRunToolOnClient,
+  isRunToolActiveForId,
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
@@ -45,7 +46,12 @@ import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import { deploymentKeys } from '@/hooks/queries/deployments'
-import { type TaskChatHistory, taskKeys, useChatHistory } from '@/hooks/queries/tasks'
+import {
+  fetchChatHistory,
+  type TaskChatHistory,
+  taskKeys,
+  useChatHistory,
+} from '@/hooks/queries/tasks'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
@@ -98,6 +104,7 @@ const DEPLOY_TOOL_NAMES: Set<string> = new Set([
 ])
 const RECONNECT_TAIL_ERROR =
   'Live reconnect failed before the stream finished. The latest response may be incomplete.'
+const RECOVERY_RETRY_DELAYS_MS = [250, 500, 1000, 2000] as const
 
 const logger = createLogger('useChat')
 
@@ -108,6 +115,12 @@ type StreamToolUI = {
   title?: string
   phaseLabel?: string
   clientExecutable?: boolean
+}
+
+type StreamRecoveryResult = {
+  attached: boolean
+  hadStreamError: boolean
+  aborted: boolean
 }
 
 function asPayloadRecord(value: unknown): StreamPayload | undefined {
@@ -291,9 +304,19 @@ export function useChat(
     (
       reader: ReadableStreamDefaultReader<Uint8Array>,
       assistantId: string,
-      expectedGen?: number
-    ) => Promise<boolean>
-  >(async () => false)
+      expectedGen?: number,
+      options?: { preserveExistingState?: boolean }
+    ) => Promise<{ sawStreamError: boolean; sawComplete: boolean }>
+  >(async () => ({ sawStreamError: false, sawComplete: false }))
+  const reattachToStreamRef = useRef<
+    (params: {
+      assistantId: string
+      expectedGen: number
+      abortController: AbortController
+      preferredStreamId?: string
+      chatId?: string
+    }) => Promise<StreamRecoveryResult>
+  >(async () => ({ attached: false, hadStreamError: false, aborted: true }))
   const finalizeRef = useRef<(options?: { error?: boolean }) => void>(() => {})
 
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -310,6 +333,7 @@ export function useChat(
   const streamGenRef = useRef(0)
   const streamingContentRef = useRef('')
   const streamingBlocksRef = useRef<ContentBlock[]>([])
+  const clientExecutionStartedRef = useRef<Set<string>>(new Set())
   const executionStream = useExecutionStream()
   const isHomePage = pathname.endsWith('/home')
 
@@ -351,6 +375,56 @@ export function useChat(
   const reorderResources = useCallback((newOrder: MothershipResource[]) => {
     setResources(newOrder)
   }, [])
+
+  const startClientWorkflowTool = useCallback(
+    (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>) => {
+      if (!isWorkflowToolName(toolName)) {
+        return
+      }
+      if (clientExecutionStartedRef.current.has(toolCallId) && isRunToolActiveForId(toolCallId)) {
+        return
+      }
+      clientExecutionStartedRef.current.add(toolCallId)
+
+      const targetWorkflowId =
+        typeof toolArgs.workflowId === 'string'
+          ? toolArgs.workflowId
+          : useWorkflowRegistry.getState().activeWorkflowId
+      if (targetWorkflowId) {
+        const meta = useWorkflowRegistry.getState().workflows[targetWorkflowId]
+        const wasAdded = addResource({
+          type: 'workflow',
+          id: targetWorkflowId,
+          title: meta?.name ?? 'Workflow',
+        })
+        if (!wasAdded && activeResourceIdRef.current !== targetWorkflowId) {
+          setActiveResourceId(targetWorkflowId)
+        }
+        onResourceEventRef.current?.()
+      }
+
+      executeRunToolOnClient(toolCallId, toolName, toolArgs)
+    },
+    [addResource]
+  )
+
+  const recoverPendingClientWorkflowTools = useCallback(
+    (nextMessages: ChatMessage[]) => {
+      for (const message of nextMessages) {
+        for (const block of message.contentBlocks ?? []) {
+          const toolCall = block.toolCall
+          if (!toolCall || !isWorkflowToolName(toolCall.name)) {
+            continue
+          }
+          if (toolCall.status !== 'executing') {
+            continue
+          }
+          startClientWorkflowTool(toolCall.id, toolCall.name, toolCall.params ?? {})
+        }
+      }
+    },
+    [startClientWorkflowTool]
+  )
 
   useEffect(() => {
     if (sendingRef.current) {
@@ -439,6 +513,8 @@ export function useChat(
       setMessages(mappedMessages)
     }
 
+    recoverPendingClientWorkflowTools(mappedMessages)
+
     if (chatHistory.resources.some((r) => r.id === 'streaming-file')) {
       fetch('/api/copilot/chat/resources', {
         method: 'DELETE',
@@ -471,74 +547,80 @@ export function useChat(
       abortControllerRef.current = abortController
       streamIdRef.current = activeStreamId
       sendingRef.current = true
-      setIsReconnecting(true)
 
       const assistantId = crypto.randomUUID()
 
       const reconnect = async () => {
-        let reconnectFailed = false
-        try {
-          setIsSending(true)
-          setIsReconnecting(false)
-          const resumeAfter = lastCursorRef.current || '0'
-          const sseRes = await fetch(
-            `/api/copilot/chat/stream?streamId=${activeStreamId}&after=${encodeURIComponent(resumeAfter)}`,
-            { signal: abortController.signal }
+        const recovery = await reattachToStreamRef.current({
+          assistantId,
+          expectedGen: gen,
+          abortController,
+          preferredStreamId: activeStreamId,
+          chatId: chatHistory.id,
+        })
+        if (recovery.aborted) {
+          return
+        }
+        if (streamGenRef.current === gen) {
+          finalizeRef.current(
+            recovery.attached && !recovery.hadStreamError ? undefined : { error: true }
           )
-          if (!sseRes.ok || !sseRes.body) {
-            reconnectFailed = true
-            logger.warn('Recovery SSE returned no readable body', {
-              status: sseRes.status,
-              streamId: activeStreamId,
-            })
-            setError(RECONNECT_TAIL_ERROR)
-            return
-          }
-
-          const hadStreamError = await processSSEStreamRef.current(
-            sseRes.body.getReader(),
-            assistantId,
-            gen
-          )
-          if (hadStreamError) {
-            reconnectFailed = true
-          }
-        } catch (err) {
-          if (err instanceof Error && err.name === 'AbortError') return
-          reconnectFailed = true
-        } finally {
-          setIsReconnecting(false)
-          if (streamGenRef.current === gen) {
-            finalizeRef.current(reconnectFailed ? { error: true } : undefined)
-          }
         }
       }
       reconnect()
     }
-  }, [chatHistory, workspaceId, queryClient])
+  }, [chatHistory, workspaceId, queryClient, recoverPendingClientWorkflowTools])
 
   const processSSEStream = useCallback(
     async (
       reader: ReadableStreamDefaultReader<Uint8Array>,
       assistantId: string,
-      expectedGen?: number
+      expectedGen?: number,
+      options?: { preserveExistingState?: boolean }
     ) => {
       const decoder = new TextDecoder()
       streamReaderRef.current = reader
       let buffer = ''
-      const blocks: ContentBlock[] = []
+
+      const preserveState = options?.preserveExistingState === true
+      const blocks: ContentBlock[] = preserveState ? [...streamingBlocksRef.current] : []
       const toolMap = new Map<string, number>()
       const toolArgsMap = new Map<string, Record<string, unknown>>()
-      const clientExecutionStarted = new Set<string>()
+
+      if (preserveState) {
+        for (let i = 0; i < blocks.length; i++) {
+          const tc = blocks[i].toolCall
+          if (tc) {
+            toolMap.set(tc.id, i)
+            if (tc.params) toolArgsMap.set(tc.id, tc.params)
+          }
+        }
+      }
+
       let activeSubagent: string | undefined
       let activeSubagentParentToolCallId: string | undefined
       let activeCompactionId: string | undefined
-      let runningText = ''
+
+      if (preserveState) {
+        for (let i = blocks.length - 1; i >= 0; i--) {
+          if (blocks[i].type === 'subagent' && blocks[i].content) {
+            activeSubagent = blocks[i].content
+            break
+          }
+          if (blocks[i].type === 'subagent_end') {
+            break
+          }
+        }
+      }
+
+      let runningText = preserveState ? streamingContentRef.current || '' : ''
       let lastContentSource: 'main' | 'subagent' | null = null
       let streamRequestId: string | undefined
 
-      streamingContentRef.current = ''
-      streamingBlocksRef.current = []
+      if (!preserveState) {
+        streamingContentRef.current = ''
+        streamingBlocksRef.current = []
+      }
 
       const ensureTextBlock = (): ContentBlock => {
         const last = blocks[blocks.length - 1]
@@ -577,6 +659,7 @@ export function useChat(
 
       const isStale = () => expectedGen !== undefined && streamGenRef.current !== expectedGen
       let sawStreamError = false
+      let sawCompleteEvent = false
 
       const flush = () => {
         if (isStale()) return
@@ -892,6 +975,9 @@ export function useChat(
                   }
 
                   onToolResultRef.current?.(tc.name, tc.status === 'success', tc.result?.output)
+                  if (isWorkflowToolName(tc.name)) {
+                    clientExecutionStartedRef.current.delete(id)
+                  }
 
                   if (tc.name === WorkspaceFile.id) {
                     setStreamingFile(null)
@@ -966,31 +1052,8 @@ export function useChat(
                 }
                 flush()
 
-                if (
-                  ui?.clientExecutable &&
-                  isWorkflowToolName(name) &&
-                  !isPartial &&
-                  !clientExecutionStarted.has(id)
-                ) {
-                  clientExecutionStarted.add(id)
-                  const toolArgs = args ?? {}
-                  const targetWorkflowId =
-                    typeof toolArgs.workflowId === 'string'
-                      ? toolArgs.workflowId
-                      : useWorkflowRegistry.getState().activeWorkflowId
-                  if (targetWorkflowId) {
-                    const meta = useWorkflowRegistry.getState().workflows[targetWorkflowId]
-                    const wasAdded = addResource({
-                      type: 'workflow',
-                      id: targetWorkflowId,
-                      title: meta?.name ?? 'Workflow',
-                    })
-                    if (!wasAdded && activeResourceIdRef.current !== targetWorkflowId) {
-                      setActiveResourceId(targetWorkflowId)
-                    }
-                    onResourceEventRef.current?.()
-                  }
-                  executeRunToolOnClient(id, name, toolArgs)
+                if (ui?.clientExecutable && isWorkflowToolName(name) && !isPartial) {
+                  startClientWorkflowTool(id, name, args ?? {})
                 }
                 break
               }
@@ -1149,6 +1212,7 @@ export function useChat(
                 break
               }
               case MothershipStreamV1EventType.complete: {
+                sawCompleteEvent = true
                 break
               }
             }
@@ -1159,11 +1223,145 @@ export function useChat(
           streamReaderRef.current = null
         }
       }
-      return sawStreamError
+      return { sawStreamError, sawComplete: sawCompleteEvent }
     },
     [workspaceId, queryClient, addResource, removeResource]
   )
   processSSEStreamRef.current = processSSEStream
+
+  const getActiveStreamIdForChat = useCallback(
+    async (chatId: string): Promise<string | null> => {
+      const cached = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
+      if (cached?.activeStreamId) {
+        return cached.activeStreamId
+      }
+
+      try {
+        const history = await fetchChatHistory(chatId)
+        queryClient.setQueryData(taskKeys.detail(chatId), history)
+        return history.activeStreamId ?? null
+      } catch (error) {
+        logger.warn('Failed to load chat history while recovering stream', {
+          chatId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        return null
+      }
+    },
+    [queryClient]
+  )
+
+  const reattachToStream = useCallback(
+    async (params: {
+      assistantId: string
+      expectedGen: number
+      abortController: AbortController
+      preferredStreamId?: string
+      chatId?: string
+    }): Promise<StreamRecoveryResult> => {
+      const { assistantId, expectedGen, abortController, preferredStreamId, chatId } = params
+      let streamId = preferredStreamId
+      let lastError = RECONNECT_TAIL_ERROR
+
+      const isStale = () => streamGenRef.current !== expectedGen
+      const waitForRetry = async (ms: number) => {
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => {
+            abortController.signal.removeEventListener('abort', onAbort)
+            resolve()
+          }, ms)
+          const onAbort = () => {
+            clearTimeout(timeout)
+            abortController.signal.removeEventListener('abort', onAbort)
+            resolve()
+          }
+          abortController.signal.addEventListener('abort', onAbort, { once: true })
+        })
+      }
+
+      setIsSending(true)
+      setIsReconnecting(true)
+
+      try {
+        for (let attempt = 0; attempt <= RECOVERY_RETRY_DELAYS_MS.length; attempt++) {
+          if (abortController.signal.aborted || isStale()) {
+            return { attached: false, hadStreamError: false, aborted: true }
+          }
+
+          if (!streamId && chatId) {
+            streamId = (await getActiveStreamIdForChat(chatId)) ?? undefined
+          }
+
+          if (!streamId) {
+            lastError = RECONNECT_TAIL_ERROR
+          } else {
+            try {
+              streamIdRef.current = streamId
+              const resumeAfter = lastCursorRef.current || '0'
+              const response = await fetch(
+                `/api/copilot/chat/stream?streamId=${streamId}&after=${encodeURIComponent(resumeAfter)}`,
+                { signal: abortController.signal }
+              )
+
+              if (response.ok && response.body) {
+                setIsReconnecting(false)
+                const result = await processSSEStreamRef.current(
+                  response.body.getReader(),
+                  assistantId,
+                  expectedGen,
+                  { preserveExistingState: true }
+                )
+                if (
+                  !result.sawComplete &&
+                  !result.sawStreamError &&
+                  !isStale() &&
+                  !abortController.signal.aborted
+                ) {
+                  continue
+                }
+                return { attached: true, hadStreamError: result.sawStreamError, aborted: false }
+              }
+
+              const errorData = await response.json().catch(() => ({}))
+              lastError =
+                (typeof errorData.error === 'string' ? errorData.error : undefined) ||
+                `Reconnect failed: ${response.status}`
+
+              if (chatId) {
+                streamId =
+                  (typeof errorData.activeStreamId === 'string'
+                    ? errorData.activeStreamId
+                    : undefined) ||
+                  ((await getActiveStreamIdForChat(chatId)) ?? undefined)
+              }
+            } catch (error) {
+              if (error instanceof Error && error.name === 'AbortError') {
+                return { attached: false, hadStreamError: false, aborted: true }
+              }
+              lastError =
+                error instanceof Error ? error.message : 'Failed to reconnect to the active stream'
+              if (chatId) {
+                streamId = (await getActiveStreamIdForChat(chatId)) ?? streamId
+              }
+            }
+          }
+
+          if (attempt < RECOVERY_RETRY_DELAYS_MS.length) {
+            await waitForRetry(RECOVERY_RETRY_DELAYS_MS[attempt] ?? 1000)
+          }
+        }
+
+        setError(lastError)
+        return { attached: false, hadStreamError: true, aborted: false }
+      } finally {
+        if (!abortController.signal.aborted && !isStale()) {
+          setIsReconnecting(false)
+        }
+      }
+    },
+    [getActiveStreamIdForChat]
+  )
+  reattachToStreamRef.current = reattachToStream
 
   const persistPartialResponse = useCallback(async () => {
     const chatId = chatIdRef.current
@@ -1393,25 +1591,65 @@ export function useChat(
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
+          if (response.status === 409) {
+            const recovery = await reattachToStream({
+              assistantId,
+              expectedGen: gen,
+              abortController,
+              preferredStreamId:
+                typeof errorData.activeStreamId === 'string' ? errorData.activeStreamId : undefined,
+              chatId: requestChatId,
+            })
+            if (recovery.aborted) return
+            if (streamGenRef.current === gen) {
+              finalize(recovery.attached && !recovery.hadStreamError ? undefined : { error: true })
+            }
+            return
+          }
           throw new Error(errorData.error || `Request failed: ${response.status}`)
         }
 
         if (!response.body) throw new Error('No response body')
 
-        const hadStreamError = await processSSEStream(response.body.getReader(), assistantId, gen)
+        const streamResult = await processSSEStream(response.body.getReader(), assistantId, gen)
         if (streamGenRef.current === gen) {
-          finalize(hadStreamError ? { error: true } : undefined)
+          if (streamResult.sawStreamError) {
+            finalize({ error: true })
+          } else if (!streamResult.sawComplete) {
+            const recovery = await reattachToStream({
+              assistantId,
+              expectedGen: gen,
+              abortController,
+              preferredStreamId: userMessageId,
+              chatId: requestChatId,
+            })
+            if (!recovery.aborted && streamGenRef.current === gen) {
+              finalize(recovery.attached && !recovery.hadStreamError ? undefined : { error: true })
+            }
+          } else {
+            finalize()
+          }
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return
-        setError(err instanceof Error ? err.message : 'Failed to send message')
+        const recovery = await reattachToStream({
+          assistantId,
+          expectedGen: gen,
+          abortController,
+          preferredStreamId: userMessageId,
+          chatId: requestChatId,
+        })
+        if (recovery.aborted) return
+        if (!recovery.attached) {
+          setError(err instanceof Error ? err.message : 'Failed to send message')
+        }
         if (streamGenRef.current === gen) {
-          finalize({ error: true })
+          finalize(recovery.attached && !recovery.hadStreamError ? undefined : { error: true })
         }
         return
       }
     },
-    [workspaceId, queryClient, processSSEStream, finalize]
+    [workspaceId, queryClient, processSSEStream, finalize, reattachToStream]
   )
   sendMessageRef.current = sendMessage
 

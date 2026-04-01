@@ -1,9 +1,13 @@
 export {
   abortActiveStream,
+  acquirePendingChatStream,
   cleanupAbortMarker,
+  getPendingChatStreamId,
   registerActiveStream,
+  releasePendingChatStream,
   startAbortPoller,
   unregisterActiveStream,
+  waitForPendingChatStream,
 } from './abort'
 export {
   allocateCursor,

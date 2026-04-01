@@ -125,4 +125,25 @@ describe('StreamWriter', () => {
     expect(chunks[0]).toContain('"seq":1')
     expect(chunks[1]).toContain('"seq":2')
   })
+
+  it('flush waits for persistence and surfaces failures', async () => {
+    appendEvents.mockRejectedValueOnce(new Error('redis down'))
+
+    const writer = new StreamWriter({
+      streamId: 'stream-1',
+      requestId: 'req-1',
+    })
+
+    writer.attach({
+      enqueue: vi.fn(),
+      close: vi.fn(),
+    } as unknown as ReadableStreamDefaultController)
+
+    await writer.publish({
+      type: MothershipStreamV1EventType.text,
+      payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'boom' },
+    })
+
+    await expect(writer.flush()).rejects.toThrow('redis down')
+  })
 })

@@ -1,10 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
-import { MothershipStreamV1CompletionStatus } from '@/lib/copilot/generated/mothership-stream-v1'
+import {
+  MothershipStreamV1CompletionStatus,
+  MothershipStreamV1EventType,
+} from '@/lib/copilot/generated/mothership-stream-v1'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
 import {
   checkForReplayGap,
+  createEvent,
   encodeSSEEnvelope,
   readEvents,
   SSE_RESPONSE_HEADERS,
@@ -15,6 +19,61 @@ export const maxDuration = 3600
 const logger = createLogger('CopilotChatStreamAPI')
 const POLL_INTERVAL_MS = 250
 const MAX_STREAM_MS = 60 * 60 * 1000
+
+function isTerminalStatus(
+  status: string | null | undefined
+): status is MothershipStreamV1CompletionStatus {
+  return (
+    status === MothershipStreamV1CompletionStatus.complete ||
+    status === MothershipStreamV1CompletionStatus.error ||
+    status === MothershipStreamV1CompletionStatus.cancelled
+  )
+}
+
+function buildResumeTerminalEnvelopes(options: {
+  streamId: string
+  afterCursor: string
+  status: MothershipStreamV1CompletionStatus
+  message?: string
+  code: string
+  reason?: string
+}) {
+  const baseSeq = Number(options.afterCursor || '0')
+  const seq = Number.isFinite(baseSeq) ? baseSeq : 0
+  const envelopes: ReturnType<typeof createEvent>[] = []
+
+  if (options.status === MothershipStreamV1CompletionStatus.error) {
+    envelopes.push(
+      createEvent({
+        streamId: options.streamId,
+        cursor: String(seq + 1),
+        seq: seq + 1,
+        requestId: '',
+        type: MothershipStreamV1EventType.error,
+        payload: {
+          message: options.message || 'Stream recovery failed before completion.',
+          code: options.code,
+        },
+      })
+    )
+  }
+
+  envelopes.push(
+    createEvent({
+      streamId: options.streamId,
+      cursor: String(seq + envelopes.length + 1),
+      seq: seq + envelopes.length + 1,
+      requestId: '',
+      type: MothershipStreamV1EventType.complete,
+      payload: {
+        status: options.status,
+        ...(options.reason ? { reason: options.reason } : {}),
+      },
+    })
+  )
+
+  return envelopes
+}
 
 export async function GET(request: NextRequest) {
   const { userId: authenticatedUserId, isAuthenticated } =
@@ -55,6 +114,7 @@ export async function GET(request: NextRequest) {
     async start(controller) {
       let cursor = afterCursor || '0'
       let controllerClosed = false
+      let sawTerminalEvent = false
 
       const closeController = () => {
         if (controllerClosed) return
@@ -93,6 +153,34 @@ export async function GET(request: NextRequest) {
         }
         for (const envelope of events) {
           cursor = envelope.stream.cursor ?? String(envelope.seq)
+          if (envelope.type === MothershipStreamV1EventType.complete) {
+            sawTerminalEvent = true
+          }
+          if (!enqueueEvent(envelope)) {
+            break
+          }
+        }
+      }
+
+      const emitTerminalIfMissing = (
+        status: MothershipStreamV1CompletionStatus,
+        options?: { message?: string; code: string; reason?: string }
+      ) => {
+        if (controllerClosed || sawTerminalEvent) {
+          return
+        }
+        for (const envelope of buildResumeTerminalEnvelopes({
+          streamId,
+          afterCursor: cursor,
+          status,
+          message: options?.message,
+          code: options?.code ?? 'resume_terminal',
+          reason: options?.reason,
+        })) {
+          cursor = envelope.stream.cursor ?? String(envelope.seq)
+          if (envelope.type === MothershipStreamV1EventType.complete) {
+            sawTerminalEvent = true
+          }
           if (!enqueueEvent(envelope)) {
             break
           }
@@ -120,18 +208,31 @@ export async function GET(request: NextRequest) {
               return null
             }
           )
-          if (!currentRun) break
+          if (!currentRun) {
+            emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
+              message: 'The stream could not be recovered because its run metadata is unavailable.',
+              code: 'resume_run_unavailable',
+              reason: 'run_unavailable',
+            })
+            break
+          }
 
           await flushEvents()
 
           if (controllerClosed) {
             break
           }
-          if (
-            currentRun.status === MothershipStreamV1CompletionStatus.complete ||
-            currentRun.status === MothershipStreamV1CompletionStatus.error ||
-            currentRun.status === MothershipStreamV1CompletionStatus.cancelled
-          ) {
+          if (isTerminalStatus(currentRun.status)) {
+            emitTerminalIfMissing(currentRun.status, {
+              message:
+                currentRun.status === MothershipStreamV1CompletionStatus.error
+                  ? typeof currentRun.error === 'string'
+                    ? currentRun.error
+                    : 'The recovered stream ended with an error.'
+                  : undefined,
+              code: 'resume_terminal_status',
+              reason: 'terminal_status',
+            })
             break
           }
 
@@ -142,11 +243,23 @@ export async function GET(request: NextRequest) {
 
           await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
         }
+        if (!controllerClosed && Date.now() - startTime >= MAX_STREAM_MS) {
+          emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
+            message: 'The stream recovery timed out before completion.',
+            code: 'resume_timeout',
+            reason: 'timeout',
+          })
+        }
       } catch (error) {
         if (!controllerClosed && !request.signal.aborted) {
           logger.warn('Stream replay failed', {
             streamId,
             error: error instanceof Error ? error.message : String(error),
+          })
+          emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
+            message: 'The stream replay failed before completion.',
+            code: 'resume_internal',
+            reason: 'stream_replay_failed',
           })
         }
       } finally {

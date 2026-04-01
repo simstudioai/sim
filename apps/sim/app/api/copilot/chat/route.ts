@@ -22,6 +22,11 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/lifecycle/start'
+import {
+  acquirePendingChatStream,
+  getPendingChatStreamId,
+  releasePendingChatStream,
+} from '@/lib/copilot/request/session'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -105,6 +110,8 @@ const ChatMessageSchema = z.object({
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
   let actualChatId: string | undefined
+  let chatStreamLockAcquired = false
+  let userMessageIdToUse = ''
 
   try {
     // 1. Auth
@@ -167,7 +174,7 @@ export async function POST(req: NextRequest) {
       logger.warn(`[${tracker.requestId}] Failed to resolve workspaceId from workflow`)
     }
 
-    const userMessageIdToUse = userMessageId || crypto.randomUUID()
+    userMessageIdToUse = userMessageId || crypto.randomUUID()
     const selectedModel = model || 'claude-opus-4-6'
 
     logger.info(`[${tracker.requestId}] Received chat POST`, {
@@ -195,6 +202,20 @@ export async function POST(req: NextRequest) {
 
       if (chatId && !currentChat) {
         return createBadRequestResponse('Chat not found')
+      }
+    }
+
+    if (actualChatId) {
+      chatStreamLockAcquired = await acquirePendingChatStream(actualChatId, userMessageIdToUse)
+      if (!chatStreamLockAcquired) {
+        const activeStreamId = await getPendingChatStreamId(actualChatId)
+        return NextResponse.json(
+          {
+            error: 'A response is already in progress for this chat.',
+            ...(activeStreamId ? { activeStreamId } : {}),
+          },
+          { status: 409 }
+        )
       }
     }
 
@@ -360,6 +381,9 @@ export async function POST(req: NextRequest) {
 
     return new Response(sseStream, { headers: SSE_RESPONSE_HEADERS })
   } catch (error) {
+    if (chatStreamLockAcquired && actualChatId && userMessageIdToUse) {
+      await releasePendingChatStream(actualChatId, userMessageIdToUse)
+    }
     const duration = tracker.getDuration()
 
     if (error instanceof z.ZodError) {

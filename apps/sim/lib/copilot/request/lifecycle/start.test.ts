@@ -14,6 +14,7 @@ const {
   appendEvent,
   cleanupAbortMarker,
   hasAbortMarker,
+  releasePendingChatStream,
 } = vi.hoisted(() => ({
   runCopilotLifecycle: vi.fn(),
   createRunSegment: vi.fn(),
@@ -23,6 +24,7 @@ const {
   appendEvent: vi.fn(),
   cleanupAbortMarker: vi.fn(),
   hasAbortMarker: vi.fn(),
+  releasePendingChatStream: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/request/lifecycle/continue', () => ({
@@ -42,6 +44,7 @@ vi.mock('@/lib/copilot/request/session', () => ({
   appendEvent,
   cleanupAbortMarker,
   hasAbortMarker,
+  releasePendingChatStream,
   registerActiveStream: vi.fn(),
   unregisterActiveStream: vi.fn(),
   startAbortPoller: vi.fn().mockReturnValue(setInterval(() => {}, 999999)),
@@ -52,6 +55,7 @@ vi.mock('@/lib/copilot/request/session', () => ({
     }),
     startKeepalive: vi.fn(),
     stopKeepalive: vi.fn(),
+    flush: vi.fn(),
     close: vi.fn().mockImplementation(() => {
       try {
         mockPublisherController?.close()
@@ -110,6 +114,7 @@ describe('createSSEStream terminal error handling', () => {
     appendEvent.mockImplementation(async (event: unknown) => event)
     cleanupAbortMarker.mockResolvedValue(undefined)
     hasAbortMarker.mockResolvedValue(false)
+    releasePendingChatStream.mockResolvedValue(undefined)
     createRunSegment.mockResolvedValue(null)
     updateRunStatus.mockResolvedValue(null)
   })

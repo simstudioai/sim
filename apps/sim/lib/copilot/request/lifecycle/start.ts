@@ -15,6 +15,7 @@ import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 import {
   cleanupAbortMarker,
   registerActiveStream,
+  releasePendingChatStream,
   resetBuffer,
   StreamWriter,
   startAbortPoller,
@@ -192,8 +193,17 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         )
 
         clearInterval(abortPoller)
-        await publisher.close()
+        try {
+          await publisher.close()
+        } catch (error) {
+          logger.warn(`[${requestId}] Failed to flush stream persistence during close`, {
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
         unregisterActiveStream(streamId)
+        if (chatId) {
+          await releasePendingChatStream(chatId, streamId)
+        }
         await cleanupAbortMarker(streamId)
 
         const trace = collector.build({

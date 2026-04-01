@@ -35,6 +35,7 @@ export class StreamWriter {
   private nextSeq = 0
   private pendingEnvelopes: MothershipStreamV1EventEnvelope[] = []
   private persistenceTail: Promise<void> = Promise.resolve()
+  private lastPersistenceError: Error | null = null
 
   constructor(options: StreamWriterOptions) {
     this.streamId = options.streamId
@@ -94,11 +95,20 @@ export class StreamWriter {
     this._clientDisconnected = true
   }
 
+  async flush(): Promise<void> {
+    this.flushPendingPersistence()
+    await this.persistenceTail
+    if (this.lastPersistenceError) {
+      const error = this.lastPersistenceError
+      this.lastPersistenceError = null
+      throw error
+    }
+  }
+
   async close(): Promise<void> {
     this.stopKeepalive()
     this.clearFlushTimer()
-    this.flushPendingPersistence()
-    await this.persistenceTail
+    await this.flush()
     if (!this.controller) return
     try {
       this.controller.close()
@@ -162,8 +172,11 @@ export class StreamWriter {
     this.persistenceTail = this.persistenceTail
       .catch(() => undefined)
       .then(() => appendEvents(batch))
-      .then(() => undefined)
+      .then(() => {
+        this.lastPersistenceError = null
+      })
       .catch((error) => {
+        this.lastPersistenceError = error instanceof Error ? error : new Error(String(error))
         logger.warn('Failed to persist stream envelope batch', {
           streamId: this.streamId,
           requestId: this.requestId,

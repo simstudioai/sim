@@ -56,6 +56,13 @@ export function markRunToolManuallyStopped(workflowId: string): string | null {
   return toolCallId
 }
 
+export function isRunToolActiveForId(toolCallId: string): boolean {
+  for (const activeId of activeRunToolByWorkflowId.values()) {
+    if (activeId === toolCallId) return true
+  }
+  return false
+}
+
 export function cancelRunToolExecution(workflowId: string): void {
   const controller = activeRunAbortByWorkflowId.get(workflowId)
   if (!controller) return

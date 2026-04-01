@@ -18,6 +18,11 @@ import {
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/request/http'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/lifecycle/start'
+import {
+  acquirePendingChatStream,
+  getPendingChatStreamId,
+  releasePendingChatStream,
+} from '@/lib/copilot/request/session'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import {
@@ -89,6 +94,9 @@ const MothershipMessageSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
+  let lockChatId: string | undefined
+  let lockStreamId = ''
+  let chatStreamLockAcquired = false
 
   try {
     const session = await getSession()
@@ -111,6 +119,7 @@ export async function POST(req: NextRequest) {
     } = MothershipMessageSchema.parse(body)
 
     const userMessageId = providedMessageId || crypto.randomUUID()
+    lockStreamId = userMessageId
 
     try {
       await assertActiveWorkspaceAccess(workspaceId, authenticatedUserId)
@@ -139,6 +148,21 @@ export async function POST(req: NextRequest) {
       if (chatId && !currentChat) {
         return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
       }
+    }
+
+    if (actualChatId) {
+      chatStreamLockAcquired = await acquirePendingChatStream(actualChatId, userMessageId)
+      if (!chatStreamLockAcquired) {
+        const activeStreamId = await getPendingChatStreamId(actualChatId)
+        return NextResponse.json(
+          {
+            error: 'A response is already in progress for this chat.',
+            ...(activeStreamId ? { activeStreamId } : {}),
+          },
+          { status: 409 }
+        )
+      }
+      lockChatId = actualChatId
     }
 
     let agentContexts: Array<{ type: string; content: string }> = []
@@ -305,6 +329,9 @@ export async function POST(req: NextRequest) {
 
     return new Response(stream, { headers: SSE_RESPONSE_HEADERS })
   } catch (error) {
+    if (chatStreamLockAcquired && lockChatId && lockStreamId) {
+      await releasePendingChatStream(lockChatId, lockStreamId)
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Invalid request data', details: error.errors },
