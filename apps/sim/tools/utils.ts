@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import { getCustomToolById, listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { AGENT, isCustomTool } from '@/executor/constants'
 import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
 import { useEnvironmentStore } from '@/stores/settings/environment'
@@ -295,24 +294,6 @@ export function getTool(toolId: string, _workspaceId?: string): ToolConfig | und
   return undefined
 }
 
-// Get a tool by its ID asynchronously (supports server-side)
-export async function getToolAsync(
-  toolId: string,
-  workflowId?: string,
-  userId?: string
-): Promise<ToolConfig | undefined> {
-  // Check for built-in tools
-  const builtInTool = tools[toolId]
-  if (builtInTool) return builtInTool
-
-  // Check if it's a custom tool
-  if (isCustomTool(toolId)) {
-    return fetchCustomToolFromDB(toolId, workflowId, userId)
-  }
-
-  return undefined
-}
-
 // Helper function to create a tool config from a custom tool
 export function createToolConfig(
   customTool: CustomToolDefinition,
@@ -354,69 +335,4 @@ export function createToolConfig(
   }
 }
 
-// Create a tool config from a custom tool definition by querying the database directly
-async function fetchCustomToolFromDB(
-  customToolId: string,
-  workflowId?: string,
-  userId?: string
-): Promise<ToolConfig | undefined> {
-  const identifier = customToolId.replace('custom_', '')
-
-  try {
-    if (!userId) {
-      logger.error(`Cannot fetch custom tool without userId: ${identifier}`)
-      return undefined
-    }
-
-    // Try to find by ID first, fall back to searching by title
-    const customTool =
-      (await getCustomToolById({ toolId: identifier, userId })) ??
-      (await listCustomTools({ userId })).find((t) => t.title === identifier)
-
-    if (!customTool) {
-      logger.error(`Custom tool not found: ${identifier}`)
-      return undefined
-    }
-
-    const schema = customTool.schema as Record<string, any>
-
-    // Create a parameter schema
-    const params = createParamSchema(customTool)
-
-    // Create a tool config for the custom tool
-    return {
-      id: customToolId,
-      name: customTool.title,
-      description: schema.function?.description || '',
-      version: '1.0.0',
-      params,
-
-      // Request configuration - for custom tools we'll use the execute endpoint
-      request: {
-        url: '/api/function/execute',
-        method: 'POST',
-        headers: () => ({ 'Content-Type': 'application/json' }),
-        body: createCustomToolRequestBody(customTool, false, workflowId),
-      },
-
-      // Same response handling as client-side
-      transformResponse: async (response: Response) => {
-        const data = await response.json()
-
-        if (!data.success) {
-          throw new Error(data.error || 'Custom tool execution failed')
-        }
-
-        return {
-          success: true,
-          output: data.output.result || data.output,
-          error: undefined,
-        }
-      },
-    }
-  } catch (error) {
-    logger.error(`Error fetching custom tool ${identifier} from DB:`, error)
-    return undefined
-  }
-}
 
