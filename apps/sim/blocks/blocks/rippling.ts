@@ -346,6 +346,20 @@ export const RipplingBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'Enter the resource name',
       condition: { field: 'operation', value: [...NAME_OPS] },
+      required: {
+        field: 'operation',
+        value: [
+          'create_department',
+          'create_title',
+          'create_work_location',
+          'create_business_partner_group',
+          'create_custom_object',
+          'create_custom_object_field',
+          'create_custom_app',
+          'create_custom_page',
+          'create_object_category',
+        ],
+      },
     },
     {
       id: 'parentId',
@@ -375,6 +389,18 @@ export const RipplingBlock: BlockConfig = {
       type: 'long-input',
       placeholder: '{ "key": "value" }',
       condition: { field: 'operation', value: [...DATA_OPS] },
+      required: {
+        field: 'operation',
+        value: [
+          'create_custom_object_record',
+          'update_custom_object_record',
+          'create_custom_setting',
+          'update_custom_setting',
+          'create_draft_hires',
+          'update_supergroup_inclusion_members',
+          'update_supergroup_exclusion_members',
+        ],
+      },
     },
     {
       id: 'records',
