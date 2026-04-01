@@ -9,7 +9,6 @@ import {
 } from '@/lib/workflows/dynamic-handle-topology'
 import type { SubBlockConfig } from '@/blocks/types'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
   filterNewEdges,
@@ -102,6 +101,7 @@ function resolveInitialSubblockValue(config: SubBlockConfig): unknown {
 }
 
 const initialState = {
+  currentWorkflowId: null,
   blocks: {},
   edges: [],
   loops: {},
@@ -118,6 +118,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
       setNeedsRedeploymentFlag: (needsRedeployment: boolean) => {
         set({ needsRedeployment })
+      },
+
+      setCurrentWorkflowId: (currentWorkflowId) => {
+        set({ currentWorkflowId })
       },
 
       updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => {
@@ -289,7 +293,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
         })
 
         if (subBlockValues && Object.keys(subBlockValues).length > 0) {
-          const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+          const activeWorkflowId = get().currentWorkflowId
           if (activeWorkflowId) {
             const subBlockStore = useSubBlockStore.getState()
             const updatedWorkflowValues = {
@@ -343,7 +347,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           delete newBlocks[blockId]
         })
 
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        const activeWorkflowId = get().currentWorkflowId
         if (activeWorkflowId) {
           const subBlockStore = useSubBlockStore.getState()
           if (subBlockStore.workflowValues[activeWorkflowId]) {
@@ -485,6 +489,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
       clear: () => {
         const newState = {
+          currentWorkflowId: get().currentWorkflowId,
           blocks: {},
           edges: [],
           loops: {},
@@ -502,6 +507,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
       getWorkflowState: (): WorkflowState => {
         const state = get()
         return {
+          currentWorkflowId: state.currentWorkflowId,
           blocks: state.blocks,
           edges: state.edges,
           loops: state.loops,
@@ -539,6 +545,10 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
           return {
             ...state,
+            currentWorkflowId:
+              nextState.currentWorkflowId !== undefined
+                ? nextState.currentWorkflowId
+                : state.currentWorkflowId,
             blocks: nextBlocks,
             edges: nextEdges,
             loops: nextLoops,
@@ -613,7 +623,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         const newName = getUniqueBlockName(block.name, get().blocks)
 
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        const activeWorkflowId = get().currentWorkflowId
         const mergedBlock = mergeSubblockState(get().blocks, activeWorkflowId || undefined, id)[id]
 
         const newSubBlocks = Object.entries(mergedBlock.subBlocks).reduce(
@@ -739,7 +749,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
 
         // Update references in subblock store
         const subBlockStore = useSubBlockStore.getState()
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        const activeWorkflowId = get().currentWorkflowId
         const changedSubblocks: Array<{ blockId: string; subBlockId: string; newValue: any }> = []
 
         if (activeWorkflowId) {
@@ -1105,16 +1115,14 @@ export const useWorkflowStore = create<WorkflowStore>()(
       },
 
       revertToDeployedState: async (deployedState: WorkflowState) => {
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        const activeWorkflowId = get().currentWorkflowId
 
         if (!activeWorkflowId) {
           logger.error('Cannot revert: no active workflow ID')
           return
         }
 
-        const deploymentStatus = useWorkflowRegistry
-          .getState()
-          .getWorkflowDeploymentStatus(activeWorkflowId)
+        const deploymentStatus = get().deploymentStatuses?.[activeWorkflowId]
 
         get().replaceWorkflowState({
           ...deployedState,

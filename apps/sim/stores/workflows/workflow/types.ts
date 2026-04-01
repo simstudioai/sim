@@ -160,6 +160,7 @@ export interface DragStartPosition {
 }
 
 export interface WorkflowState {
+  currentWorkflowId?: string | null
   blocks: Record<string, BlockState>
   edges: Edge[]
   lastSaved?: number
@@ -239,6 +240,7 @@ export interface WorkflowActions {
   ) => void
   setBlockLocked: (id: string, locked: boolean) => void
   batchToggleLocked: (ids: string[]) => void
+  setCurrentWorkflowId: (workflowId: string | null) => void
 }
 
 export type WorkflowStore = WorkflowState & WorkflowActions

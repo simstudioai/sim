@@ -70,7 +70,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
     title: 'All workflows',
     dataKey: 'workflows',
     loadingKey: 'isLoadingWorkflows',
-    // No ensureLoadedKey - workflows auto-load from registry store
     getLabel: (item) => item.name || 'Untitled Workflow',
     getId: (item) => item.id,
     emptyMessage: 'No workflows',

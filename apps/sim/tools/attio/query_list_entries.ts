@@ -60,7 +60,7 @@ export const attioQueryListEntriesTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/lists/${params.list}/entries/query`,
+    url: (params) => `https://api.attio.com/v2/lists/${params.list.trim()}/entries/query`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

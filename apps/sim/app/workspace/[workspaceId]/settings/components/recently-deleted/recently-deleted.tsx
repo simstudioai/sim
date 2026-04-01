@@ -119,7 +119,7 @@ export function RecentlyDeleted() {
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set())
   const [restoredItems, setRestoredItems] = useState<Map<string, DeletedResource>>(new Map())
 
-  const workflowsQuery = useWorkflows(workspaceId, { syncRegistry: false, scope: 'archived' })
+  const workflowsQuery = useWorkflows(workspaceId, { scope: 'archived' })
   const tablesQuery = useTablesList(workspaceId, 'archived')
   const knowledgeQuery = useKnowledgeBasesQuery(workspaceId, { scope: 'archived' })
   const filesQuery = useWorkspaceFiles(workspaceId, 'archived')
@@ -245,7 +245,10 @@ export function RecentlyDeleted() {
 
     switch (resource.type) {
       case 'workflow':
-        restoreWorkflow.mutate(resource.id, { onSettled, onSuccess })
+        restoreWorkflow.mutate(
+          { workflowId: resource.id, workspaceId: resource.workspaceId },
+          { onSettled, onSuccess }
+        )
         break
       case 'table':
         restoreTable.mutate(resource.id, { onSettled, onSuccess })

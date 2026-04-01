@@ -5,6 +5,7 @@ import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
 import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
 import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { WorkspaceScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
@@ -16,6 +17,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
         <div className='flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
           <ImpersonationBanner />
           <WorkspacePermissionsProvider>
+            <WorkspaceScopeSync />
             <div className='flex min-h-0 flex-1'>
               <div className='shrink-0' suppressHydrationWarning>
                 <Sidebar />

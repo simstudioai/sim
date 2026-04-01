@@ -1311,6 +1311,8 @@ export async function formatWebhookInput(
       extractAttioCommentData,
       extractAttioListEntryData,
       extractAttioListEntryUpdatedData,
+      extractAttioListData,
+      extractAttioWorkspaceMemberData,
       extractAttioGenericData,
     } = await import('@/triggers/attio/utils')
 
@@ -1340,6 +1342,16 @@ export async function formatWebhookInput(
     }
     if (triggerId === 'attio_list_entry_created' || triggerId === 'attio_list_entry_deleted') {
       return extractAttioListEntryData(body)
+    }
+    if (
+      triggerId === 'attio_list_created' ||
+      triggerId === 'attio_list_updated' ||
+      triggerId === 'attio_list_deleted'
+    ) {
+      return extractAttioListData(body)
+    }
+    if (triggerId === 'attio_workspace_member_created') {
+      return extractAttioWorkspaceMemberData(body)
     }
     return extractAttioGenericData(body)
   }

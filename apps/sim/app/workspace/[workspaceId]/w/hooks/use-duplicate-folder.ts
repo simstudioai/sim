@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getChildFolders, getFolderById } from '@/lib/folders/tree'
 import { useDuplicateFolderMutation } from '@/hooks/queries/folders'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { useFolderStore } from '@/stores/folders/store'
 
 const logger = createLogger('useDuplicateFolder')
@@ -54,10 +56,10 @@ export function useDuplicateFolder({ workspaceId, folderIds, onSuccess }: UseDup
       const folderIdsToDuplicate = Array.isArray(folderIds) ? folderIds : [folderIds]
 
       const duplicatedIds: string[] = []
-      const folderStore = useFolderStore.getState()
+      const folderMap = getFolderMap(workspaceId)
 
       for (const folderId of folderIdsToDuplicate) {
-        const folder = folderStore.getFolderById(folderId)
+        const folder = getFolderById(folderMap, folderId)
 
         if (!folder) {
           logger.warn('Attempted to duplicate folder that no longer exists', { folderId })
@@ -65,7 +67,7 @@ export function useDuplicateFolder({ workspaceId, folderIds, onSuccess }: UseDup
         }
 
         const siblingNames = new Set(
-          folderStore.getChildFolders(folder.parentId).map((sibling) => sibling.name)
+          getChildFolders(folderMap, folder.parentId).map((sibling) => sibling.name)
         )
         siblingNames.add(folder.name)
 

@@ -53,7 +53,7 @@ const PREVIEW_MODE_LABELS: Record<PreviewMode, string> = {
  * tabs always reflect the latest name even after a rename.
  */
 function useResourceNameLookup(workspaceId: string): Map<string, string> {
-  const { data: workflows = [] } = useWorkflows(workspaceId, { syncRegistry: false })
+  const { data: workflows = [] } = useWorkflows(workspaceId)
   const { data: tables = [] } = useTablesList(workspaceId)
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId)

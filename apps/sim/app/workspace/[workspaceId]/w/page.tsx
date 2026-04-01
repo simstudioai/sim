@@ -12,47 +12,41 @@ const logger = createLogger('WorkflowsPage')
 
 export default function WorkflowsPage() {
   const router = useRouter()
-  const workflows = useWorkflowRegistry((s) => s.workflows)
   const setActiveWorkflow = useWorkflowRegistry((s) => s.setActiveWorkflow)
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [isMounted, setIsMounted] = useState(false)
 
-  // Fetch workflows using React Query
-  const { isLoading, isError } = useWorkflows(workspaceId)
+  const { data: workflows = [], isLoading, isError, isPlaceholderData } = useWorkflows(workspaceId)
 
-  // Track when component is mounted to avoid hydration issues
   useEffect(() => {
     setIsMounted(true)
   }, [])
 
-  // Handle redirection once workflows are loaded and component is mounted
   useEffect(() => {
-    // Wait for component to be mounted to avoid hydration mismatches
     if (!isMounted) return
-
-    // Only proceed if workflows are done loading
-    if (isLoading) return
+    if (isLoading || isPlaceholderData) return
 
     if (isError) {
       logger.error('Failed to load workflows for workspace')
       return
     }
 
-    const workflowIds = Object.keys(workflows)
+    const workspaceWorkflows = workflows.filter((w) => w.workspaceId === workspaceId)
 
-    // Validate that workflows belong to the current workspace
-    const workspaceWorkflows = workflowIds.filter((id) => {
-      const workflow = workflows[id]
-      return workflow.workspaceId === workspaceId
-    })
-
-    // If we have valid workspace workflows, redirect to the first one
     if (workspaceWorkflows.length > 0) {
-      const firstWorkflowId = workspaceWorkflows[0]
-      router.replace(`/workspace/${workspaceId}/w/${firstWorkflowId}`)
+      router.replace(`/workspace/${workspaceId}/w/${workspaceWorkflows[0].id}`)
     }
-  }, [isMounted, isLoading, workflows, workspaceId, router, setActiveWorkflow, isError])
+  }, [
+    isMounted,
+    isLoading,
+    isPlaceholderData,
+    workflows,
+    workspaceId,
+    router,
+    setActiveWorkflow,
+    isError,
+  ])
 
   // Always show loading state until redirect happens
   // There should always be a default workflow, so we never show "no workflows found"

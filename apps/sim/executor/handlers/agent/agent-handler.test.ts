@@ -21,6 +21,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isEmailVerificationEnabled: false,
   isBillingEnabled: false,
   isOrganizationsEnabled: false,
+  isAccessControlEnabled: false,
 }))
 
 vi.mock('@/providers/utils', () => ({
@@ -1988,6 +1989,7 @@ describe('AgentBlockHandler', () => {
           configurable: true,
         })
         mockGetCustomToolById.mockReset()
+        mockContext.userId = 'test-user'
       })
 
       it('should always fetch latest schema from DB when customToolId is present', async () => {

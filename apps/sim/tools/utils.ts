@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getCustomToolById, listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { AGENT, isCustomTool } from '@/executor/constants'
-import { getCustomTool } from '@/hooks/queries/custom-tools'
+import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
 import { useEnvironmentStore } from '@/stores/settings/environment'
 import { tools } from '@/tools/registry'
 import type { ToolConfig } from '@/tools/types'
@@ -286,23 +286,10 @@ export function createCustomToolRequestBody(
 }
 
 // Get a tool by its ID
-export function getTool(toolId: string): ToolConfig | undefined {
+export function getTool(toolId: string, _workspaceId?: string): ToolConfig | undefined {
   // Check for built-in tools
   const builtInTool = tools[toolId]
   if (builtInTool) return builtInTool
-
-  // Check if it's a custom tool
-  if (isCustomTool(toolId) && typeof window !== 'undefined') {
-    // Only try to use the sync version on the client
-    const identifier = toolId.slice(AGENT.CUSTOM_TOOL_PREFIX.length)
-
-    // Try to find the tool from query cache (extracts workspaceId from URL)
-    const customTool = getCustomTool(identifier)
-
-    if (customTool) {
-      return createToolConfig(customTool, toolId)
-    }
-  }
 
   // If not found or running on the server, return undefined
   return undefined
@@ -327,7 +314,10 @@ export async function getToolAsync(
 }
 
 // Helper function to create a tool config from a custom tool
-function createToolConfig(customTool: any, customToolId: string): ToolConfig {
+export function createToolConfig(
+  customTool: CustomToolDefinition,
+  customToolId: string
+): ToolConfig {
   // Create a parameter schema from the custom tool schema
   const params = createParamSchema(customTool)
 
@@ -378,19 +368,17 @@ async function fetchCustomToolFromDB(
       return undefined
     }
 
-    // Try to find by ID first
-    let customTool = await getCustomToolById({ toolId: identifier, userId })
-
-    // Fall back to searching by title
-    if (!customTool) {
-      const allTools = await listCustomTools({ userId })
-      customTool = allTools.find((t) => t.title === identifier) ?? null
-    }
+    // Try to find by ID first, fall back to searching by title
+    const customTool =
+      (await getCustomToolById({ toolId: identifier, userId })) ??
+      (await listCustomTools({ userId })).find((t) => t.title === identifier)
 
     if (!customTool) {
       logger.error(`Custom tool not found: ${identifier}`)
       return undefined
     }
+
+    const schema = customTool.schema as Record<string, any>
 
     // Create a parameter schema
     const params = createParamSchema(customTool)
@@ -399,7 +387,7 @@ async function fetchCustomToolFromDB(
     return {
       id: customToolId,
       name: customTool.title,
-      description: customTool.schema.function?.description || '',
+      description: schema.function?.description || '',
       version: '1.0.0',
       params,
 
@@ -431,3 +419,4 @@ async function fetchCustomToolFromDB(
     return undefined
   }
 }
+
