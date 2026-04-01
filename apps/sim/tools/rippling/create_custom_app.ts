@@ -51,6 +51,8 @@ export const ripplingCreateCustomAppTool: ToolConfig<RipplingCreateCustomAppPara
         name: (data.name as string) ?? null,
         api_name: (data.api_name as string) ?? null,
         description: (data.description as string) ?? null,
+        icon: (data.icon as string) ?? null,
+        pages: (data.pages as unknown[]) ?? [],
       },
     }
   },
@@ -61,5 +63,7 @@ export const ripplingCreateCustomAppTool: ToolConfig<RipplingCreateCustomAppPara
     name: { type: 'string', description: 'Name', optional: true },
     api_name: { type: 'string', description: 'API name', optional: true },
     description: { type: 'string', description: 'Description', optional: true },
+    icon: { type: 'string', description: 'Icon URL', optional: true },
+    pages: { type: 'json', description: 'Array of page summaries', optional: true },
   },
 }

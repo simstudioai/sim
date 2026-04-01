@@ -53,6 +53,7 @@ export const ripplingGetCustomObjectFieldTool: ToolConfig<RipplingGetCustomObjec
         is_immutable: (data.is_immutable as boolean) ?? null,
         is_standard: (data.is_standard as boolean) ?? null,
         enable_history: (data.enable_history as boolean) ?? null,
+        managed_package_install_id: (data.managed_package_install_id as string) ?? null,
       },
     }
   },
@@ -69,5 +70,10 @@ export const ripplingGetCustomObjectFieldTool: ToolConfig<RipplingGetCustomObjec
     is_immutable: { type: 'boolean', description: 'Is immutable', optional: true },
     is_standard: { type: 'boolean', description: 'Is standard', optional: true },
     enable_history: { type: 'boolean', description: 'History enabled', optional: true },
+    managed_package_install_id: {
+      type: 'string',
+      description: 'Package install ID',
+      optional: true,
+    },
   },
 }

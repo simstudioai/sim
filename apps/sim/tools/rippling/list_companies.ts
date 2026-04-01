@@ -66,6 +66,7 @@ export const ripplingListCompaniesTool: ToolConfig<RipplingListCompaniesParams> 
           primary_email: (item.primary_email as string) ?? null,
           parent_legal_entity_id: (item.parent_legal_entity_id as string) ?? null,
           legal_entities_id: (item.legal_entities_id as unknown[]) ?? [],
+          physical_address: item.physical_address ?? null,
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,

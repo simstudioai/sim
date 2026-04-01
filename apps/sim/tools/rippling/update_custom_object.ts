@@ -82,6 +82,9 @@ export const ripplingUpdateCustomObjectTool: ToolConfig<RipplingUpdateCustomObje
         plural_label: (data.plural_label as string) ?? null,
         category_id: (data.category_id as string) ?? null,
         enable_history: (data.enable_history as boolean) ?? null,
+        native_category_id: (data.native_category_id as string) ?? null,
+        managed_package_install_id: (data.managed_package_install_id as string) ?? null,
+        owner_id: (data.owner_id as string) ?? null,
       },
     }
   },
@@ -95,5 +98,12 @@ export const ripplingUpdateCustomObjectTool: ToolConfig<RipplingUpdateCustomObje
     plural_label: { type: 'string', description: 'Plural label', optional: true },
     category_id: { type: 'string', description: 'Category ID', optional: true },
     enable_history: { type: 'boolean', description: 'History enabled', optional: true },
+    native_category_id: { type: 'string', description: 'Native category ID', optional: true },
+    managed_package_install_id: {
+      type: 'string',
+      description: 'Package install ID',
+      optional: true,
+    },
+    owner_id: { type: 'string', description: 'Owner ID', optional: true },
   },
 }

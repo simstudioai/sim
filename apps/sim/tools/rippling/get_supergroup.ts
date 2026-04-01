@@ -38,6 +38,12 @@ export const ripplingGetSupergroupTool: ToolConfig<RipplingGetSupergroupParams> 
         app_owner_id: (data.app_owner_id as string) ?? null,
         group_type: (data.group_type as string) ?? null,
         name: (data.name as string) ?? null,
+        sub_group_type: (data.sub_group_type as string) ?? null,
+        read_only: (data.read_only as boolean) ?? null,
+        parent: (data.parent as string) ?? null,
+        mutually_exclusive_key: (data.mutually_exclusive_key as string) ?? null,
+        cumulatively_exhaustive_default: (data.cumulatively_exhaustive_default as boolean) ?? null,
+        include_terminated: (data.include_terminated as boolean) ?? null,
       },
     }
   },
@@ -50,5 +56,23 @@ export const ripplingGetSupergroupTool: ToolConfig<RipplingGetSupergroupParams> 
     app_owner_id: { type: 'string', description: 'App owner ID', optional: true },
     group_type: { type: 'string', description: 'Group type', optional: true },
     name: { type: 'string', description: 'Name', optional: true },
+    sub_group_type: { type: 'string', description: 'Sub group type', optional: true },
+    read_only: { type: 'boolean', description: 'Whether the group is read only', optional: true },
+    parent: { type: 'string', description: 'Parent group ID', optional: true },
+    mutually_exclusive_key: {
+      type: 'string',
+      description: 'Mutually exclusive key',
+      optional: true,
+    },
+    cumulatively_exhaustive_default: {
+      type: 'boolean',
+      description: 'Cumulatively exhaustive default',
+      optional: true,
+    },
+    include_terminated: {
+      type: 'boolean',
+      description: 'Whether the group includes terminated roles',
+      optional: true,
+    },
   },
 }

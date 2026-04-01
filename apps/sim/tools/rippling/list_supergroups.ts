@@ -57,6 +57,13 @@ export const ripplingListSupergroupsTool: ToolConfig<RipplingListSupergroupsPara
           app_owner_id: (item.app_owner_id as string) ?? null,
           group_type: (item.group_type as string) ?? null,
           name: (item.name as string) ?? null,
+          sub_group_type: (item.sub_group_type as string) ?? null,
+          read_only: (item.read_only as boolean) ?? null,
+          parent: (item.parent as string) ?? null,
+          mutually_exclusive_key: (item.mutually_exclusive_key as string) ?? null,
+          cumulatively_exhaustive_default:
+            (item.cumulatively_exhaustive_default as boolean) ?? null,
+          include_terminated: (item.include_terminated as boolean) ?? null,
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,

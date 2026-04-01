@@ -54,6 +54,7 @@ export const ripplingListCustomObjectFieldsTool: ToolConfig<RipplingListCustomOb
             is_immutable: (item.is_immutable as boolean) ?? null,
             is_standard: (item.is_standard as boolean) ?? null,
             enable_history: (item.enable_history as boolean) ?? null,
+            managed_package_install_id: (item.managed_package_install_id as string) ?? null,
           })),
           totalCount: results.length,
           nextLink: (data.next_link as string) ?? null,

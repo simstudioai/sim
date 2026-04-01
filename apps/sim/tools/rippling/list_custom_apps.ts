@@ -37,6 +37,8 @@ export const ripplingListCustomAppsTool: ToolConfig<RipplingListCustomAppsParams
           name: (item.name as string) ?? null,
           api_name: (item.api_name as string) ?? null,
           description: (item.description as string) ?? null,
+          icon: (item.icon as string) ?? null,
+          pages: (item.pages as unknown[]) ?? [],
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,
