@@ -50,7 +50,7 @@ export const ripplingGetCurrentUserTool: ToolConfig<RipplingGetCurrentUserParams
     id: { type: 'string', description: 'User ID' },
     created_at: { type: 'string', description: 'Creation date', optional: true },
     updated_at: { type: 'string', description: 'Update date', optional: true },
-    work_email: { type: 'string', description: 'Work email' },
-    company_id: { type: 'string', description: 'Company ID' },
+    work_email: { type: 'string', description: 'Work email', optional: true },
+    company_id: { type: 'string', description: 'Company ID', optional: true },
   },
 }
