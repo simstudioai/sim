@@ -1,0 +1,98 @@
+import type { RipplingQueryCustomObjectRecordsParams } from '@/tools/rippling/types'
+import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import type { ToolConfig } from '@/tools/types'
+
+export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCustomObjectRecordsParams> =
+  {
+    id: 'rippling_query_custom_object_records',
+    name: 'Rippling Query Custom Object Records',
+    description: 'Query custom object records with filters',
+    version: '1.0.0',
+    params: {
+      apiKey: {
+        type: 'string',
+        required: true,
+        visibility: 'user-only',
+        description: 'Rippling API key',
+      },
+      customObjectApiName: {
+        type: 'string',
+        required: true,
+        visibility: 'user-or-llm',
+        description: 'Custom object API name',
+      },
+      query: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Query expression',
+      },
+      limit: {
+        type: 'number',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Max results to return',
+      },
+      cursor: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Pagination cursor',
+      },
+    },
+    request: {
+      url: (params) =>
+        `https://rest.ripplingapis.com/custom-objects/${encodeURIComponent(params.customObjectApiName.trim())}/records/query/`,
+      method: 'POST',
+      headers: (params) => ({
+        Authorization: `Bearer ${params.apiKey}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      }),
+      body: (params) => {
+        const body: Record<string, unknown> = {}
+        if (params.query) body.query = params.query
+        if (params.limit != null) body.limit = Number(params.limit)
+        if (params.cursor) body.cursor = params.cursor
+        return body
+      },
+    },
+    transformResponse: async (response: Response) => {
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Rippling API error (${response.status}): ${errorText}`)
+      }
+      const data = await response.json()
+      const results = data.results ?? []
+      return {
+        success: true,
+        output: {
+          records: results.map((item: Record<string, unknown>) => ({
+            id: (item.id as string) ?? '',
+            created_at: (item.created_at as string) ?? null,
+            updated_at: (item.updated_at as string) ?? null,
+            name: (item.name as string) ?? null,
+            external_id: (item.external_id as string) ?? null,
+            data: item,
+          })),
+          totalCount: results.length,
+          cursor: (data.cursor as string) ?? null,
+        },
+      }
+    },
+    outputs: {
+      records: {
+        type: 'array',
+        description: 'Matching records',
+        items: {
+          type: 'object',
+          properties: {
+            ...CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES,
+            data: { type: 'json', description: 'Full record data' },
+          },
+        },
+      },
+      totalCount: { type: 'number', description: 'Number of records returned' },
+      cursor: { type: 'string', description: 'Pagination cursor for next page', optional: true },
+    },
+  }

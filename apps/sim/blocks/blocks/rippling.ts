@@ -2,12 +2,190 @@ import { RipplingIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
+/** Operations that support the filter query parameter */
+const FILTER_OPS = ['list_workers', 'list_business_partners', 'list_supergroups'] as const
+
+/** Operations that support the expand query parameter */
+const EXPAND_OPS = [
+  'list_workers',
+  'list_business_partners',
+  'list_business_partner_groups',
+  'list_companies',
+  'list_departments',
+  'list_teams',
+  'list_supergroup_members',
+  'list_supergroup_inclusion_members',
+  'list_supergroup_exclusion_members',
+  'get_worker',
+  'get_business_partner',
+  'get_business_partner_group',
+  'get_current_user',
+  'get_department',
+  'get_team',
+] as const
+
+/** Operations that support the order_by query parameter */
+const ORDER_BY_OPS = [
+  'list_workers',
+  'list_business_partners',
+  'list_business_partner_groups',
+  'list_companies',
+  'list_custom_fields',
+  'list_custom_settings',
+  'list_departments',
+  'list_employment_types',
+  'list_job_functions',
+  'list_supergroups',
+  'list_teams',
+  'list_titles',
+  'list_users',
+  'list_work_locations',
+  'list_supergroup_members',
+  'list_supergroup_inclusion_members',
+  'list_supergroup_exclusion_members',
+] as const
+
+/** Operations that support cursor pagination */
+const CURSOR_OPS = [
+  'list_workers',
+  'list_business_partners',
+  'list_business_partner_groups',
+  'list_companies',
+  'list_custom_fields',
+  'list_custom_settings',
+  'list_departments',
+  'list_employment_types',
+  'list_job_functions',
+  'list_teams',
+  'list_titles',
+  'list_users',
+  'list_work_locations',
+  'query_custom_object_records',
+] as const
+
+/** Operations that require a resource ID */
+const ID_OPS = [
+  'get_worker',
+  'get_user',
+  'get_department',
+  'update_department',
+  'get_team',
+  'get_employment_type',
+  'get_title',
+  'update_title',
+  'delete_title',
+  'get_job_function',
+  'get_work_location',
+  'update_work_location',
+  'delete_work_location',
+  'get_business_partner',
+  'delete_business_partner',
+  'get_business_partner_group',
+  'delete_business_partner_group',
+  'get_supergroup',
+  'list_supergroup_members',
+  'list_supergroup_inclusion_members',
+  'list_supergroup_exclusion_members',
+  'update_supergroup_inclusion_members',
+  'update_supergroup_exclusion_members',
+  'get_custom_object',
+  'update_custom_object',
+  'delete_custom_object',
+  'get_custom_object_field',
+  'update_custom_object_field',
+  'delete_custom_object_field',
+  'get_custom_object_record',
+  'update_custom_object_record',
+  'delete_custom_object_record',
+  'get_custom_app',
+  'update_custom_app',
+  'delete_custom_app',
+  'get_custom_page',
+  'update_custom_page',
+  'delete_custom_page',
+  'get_custom_setting',
+  'update_custom_setting',
+  'delete_custom_setting',
+  'get_object_category',
+  'update_object_category',
+  'delete_object_category',
+  'get_report_run',
+  'trigger_report_run',
+] as const
+
+/** Operations that accept a name field */
+const NAME_OPS = [
+  'create_department',
+  'update_department',
+  'create_title',
+  'update_title',
+  'create_work_location',
+  'update_work_location',
+  'create_business_partner_group',
+  'create_custom_object',
+  'update_custom_object',
+  'create_custom_object_field',
+  'update_custom_object_field',
+  'create_custom_app',
+  'update_custom_app',
+  'create_custom_page',
+  'update_custom_page',
+  'create_object_category',
+  'update_object_category',
+] as const
+
+/** Operations that require customObjectId */
+const CUSTOM_OBJECT_ID_OPS = [
+  'list_custom_object_fields',
+  'get_custom_object_field',
+  'create_custom_object_field',
+  'update_custom_object_field',
+  'delete_custom_object_field',
+  'list_custom_object_records',
+  'get_custom_object_record',
+  'get_custom_object_record_by_external_id',
+  'query_custom_object_records',
+  'create_custom_object_record',
+  'update_custom_object_record',
+  'delete_custom_object_record',
+  'bulk_create_custom_object_records',
+  'bulk_update_custom_object_records',
+  'bulk_delete_custom_object_records',
+] as const
+
+/** Operations that accept a JSON data body */
+const DATA_OPS = [
+  'create_department',
+  'update_department',
+  'create_title',
+  'update_title',
+  'create_work_location',
+  'update_work_location',
+  'create_business_partner',
+  'create_business_partner_group',
+  'create_custom_object',
+  'update_custom_object',
+  'create_custom_object_field',
+  'update_custom_object_field',
+  'create_custom_object_record',
+  'update_custom_object_record',
+  'create_custom_app',
+  'update_custom_app',
+  'create_custom_setting',
+  'update_custom_setting',
+  'create_object_category',
+  'update_object_category',
+  'update_supergroup_inclusion_members',
+  'update_supergroup_exclusion_members',
+  'create_draft_hires',
+] as const
+
 export const RipplingBlock: BlockConfig = {
   type: 'rippling',
   name: 'Rippling',
-  description: 'Manage employees, leave, departments, and company data in Rippling',
+  description: 'Manage workers, departments, custom objects, and company data in Rippling',
   longDescription:
-    'Integrate Rippling into your workflow. Manage employees, departments, teams, leave requests, work locations, groups, candidates, and company information.',
+    'Integrate Rippling Platform into your workflow. Manage workers, users, departments, teams, titles, work locations, business partners, supergroups, custom objects, custom apps, custom pages, custom settings, object categories, reports, and draft hires.',
   docsLink: 'https://docs.sim.ai/tools/rippling',
   category: 'tools',
   integrationType: IntegrationType.HR,
@@ -22,266 +200,250 @@ export const RipplingBlock: BlockConfig = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        { label: 'List Employees', id: 'list_employees' },
-        { label: 'Get Employee', id: 'get_employee' },
-        { label: 'List Employees (Including Terminated)', id: 'list_employees_with_terminated' },
-        { label: 'List Departments', id: 'list_departments' },
-        { label: 'List Teams', id: 'list_teams' },
-        { label: 'List Levels', id: 'list_levels' },
-        { label: 'List Work Locations', id: 'list_work_locations' },
-        { label: 'Get Company', id: 'get_company' },
-        { label: 'Get Company Activity', id: 'get_company_activity' },
-        { label: 'List Custom Fields', id: 'list_custom_fields' },
+        // Workers
+        { label: 'List Workers', id: 'list_workers' },
+        { label: 'Get Worker', id: 'get_worker' },
+        // Users
+        { label: 'List Users', id: 'list_users' },
+        { label: 'Get User', id: 'get_user' },
+        // Companies
+        { label: 'List Companies', id: 'list_companies' },
+        // Current User
         { label: 'Get Current User', id: 'get_current_user' },
-        { label: 'List Leave Requests', id: 'list_leave_requests' },
-        { label: 'Approve/Decline Leave Request', id: 'process_leave_request' },
-        { label: 'List Leave Balances', id: 'list_leave_balances' },
-        { label: 'Get Leave Balance', id: 'get_leave_balance' },
-        { label: 'List Leave Types', id: 'list_leave_types' },
-        { label: 'Create Group', id: 'create_group' },
-        { label: 'Update Group', id: 'update_group' },
-        { label: 'Push Candidate', id: 'push_candidate' },
+        // Entitlements
+        { label: 'List Entitlements', id: 'list_entitlements' },
+        // Departments
+        { label: 'List Departments', id: 'list_departments' },
+        { label: 'Get Department', id: 'get_department' },
+        { label: 'Create Department', id: 'create_department' },
+        { label: 'Update Department', id: 'update_department' },
+        // Teams
+        { label: 'List Teams', id: 'list_teams' },
+        { label: 'Get Team', id: 'get_team' },
+        // Employment Types
+        { label: 'List Employment Types', id: 'list_employment_types' },
+        { label: 'Get Employment Type', id: 'get_employment_type' },
+        // Titles
+        { label: 'List Titles', id: 'list_titles' },
+        { label: 'Get Title', id: 'get_title' },
+        { label: 'Create Title', id: 'create_title' },
+        { label: 'Update Title', id: 'update_title' },
+        { label: 'Delete Title', id: 'delete_title' },
+        // Custom Fields
+        { label: 'List Custom Fields', id: 'list_custom_fields' },
+        // Job Functions
+        { label: 'List Job Functions', id: 'list_job_functions' },
+        { label: 'Get Job Function', id: 'get_job_function' },
+        // Work Locations
+        { label: 'List Work Locations', id: 'list_work_locations' },
+        { label: 'Get Work Location', id: 'get_work_location' },
+        { label: 'Create Work Location', id: 'create_work_location' },
+        { label: 'Update Work Location', id: 'update_work_location' },
+        { label: 'Delete Work Location', id: 'delete_work_location' },
+        // Business Partners
+        { label: 'List Business Partners', id: 'list_business_partners' },
+        { label: 'Get Business Partner', id: 'get_business_partner' },
+        { label: 'Create Business Partner', id: 'create_business_partner' },
+        { label: 'Delete Business Partner', id: 'delete_business_partner' },
+        // Business Partner Groups
+        { label: 'List Business Partner Groups', id: 'list_business_partner_groups' },
+        { label: 'Get Business Partner Group', id: 'get_business_partner_group' },
+        { label: 'Create Business Partner Group', id: 'create_business_partner_group' },
+        { label: 'Delete Business Partner Group', id: 'delete_business_partner_group' },
+        // Supergroups
+        { label: 'List Supergroups', id: 'list_supergroups' },
+        { label: 'Get Supergroup', id: 'get_supergroup' },
+        { label: 'List Supergroup Members', id: 'list_supergroup_members' },
+        { label: 'List Supergroup Inclusion Members', id: 'list_supergroup_inclusion_members' },
+        { label: 'List Supergroup Exclusion Members', id: 'list_supergroup_exclusion_members' },
+        { label: 'Update Supergroup Inclusion Members', id: 'update_supergroup_inclusion_members' },
+        { label: 'Update Supergroup Exclusion Members', id: 'update_supergroup_exclusion_members' },
+        // Custom Objects
+        { label: 'List Custom Objects', id: 'list_custom_objects' },
+        { label: 'Get Custom Object', id: 'get_custom_object' },
+        { label: 'Create Custom Object', id: 'create_custom_object' },
+        { label: 'Update Custom Object', id: 'update_custom_object' },
+        { label: 'Delete Custom Object', id: 'delete_custom_object' },
+        // Custom Object Fields
+        { label: 'List Custom Object Fields', id: 'list_custom_object_fields' },
+        { label: 'Get Custom Object Field', id: 'get_custom_object_field' },
+        { label: 'Create Custom Object Field', id: 'create_custom_object_field' },
+        { label: 'Update Custom Object Field', id: 'update_custom_object_field' },
+        { label: 'Delete Custom Object Field', id: 'delete_custom_object_field' },
+        // Custom Object Records
+        { label: 'List Custom Object Records', id: 'list_custom_object_records' },
+        { label: 'Get Custom Object Record', id: 'get_custom_object_record' },
+        {
+          label: 'Get Custom Object Record by External ID',
+          id: 'get_custom_object_record_by_external_id',
+        },
+        { label: 'Query Custom Object Records', id: 'query_custom_object_records' },
+        { label: 'Create Custom Object Record', id: 'create_custom_object_record' },
+        { label: 'Update Custom Object Record', id: 'update_custom_object_record' },
+        { label: 'Delete Custom Object Record', id: 'delete_custom_object_record' },
+        { label: 'Bulk Create Custom Object Records', id: 'bulk_create_custom_object_records' },
+        { label: 'Bulk Update Custom Object Records', id: 'bulk_update_custom_object_records' },
+        { label: 'Bulk Delete Custom Object Records', id: 'bulk_delete_custom_object_records' },
+        // Custom Apps
+        { label: 'List Custom Apps', id: 'list_custom_apps' },
+        { label: 'Get Custom App', id: 'get_custom_app' },
+        { label: 'Create Custom App', id: 'create_custom_app' },
+        { label: 'Update Custom App', id: 'update_custom_app' },
+        { label: 'Delete Custom App', id: 'delete_custom_app' },
+        // Custom Pages
+        { label: 'List Custom Pages', id: 'list_custom_pages' },
+        { label: 'Get Custom Page', id: 'get_custom_page' },
+        { label: 'Create Custom Page', id: 'create_custom_page' },
+        { label: 'Update Custom Page', id: 'update_custom_page' },
+        { label: 'Delete Custom Page', id: 'delete_custom_page' },
+        // Custom Settings
+        { label: 'List Custom Settings', id: 'list_custom_settings' },
+        { label: 'Get Custom Setting', id: 'get_custom_setting' },
+        { label: 'Create Custom Setting', id: 'create_custom_setting' },
+        { label: 'Update Custom Setting', id: 'update_custom_setting' },
+        { label: 'Delete Custom Setting', id: 'delete_custom_setting' },
+        // Object Categories
+        { label: 'List Object Categories', id: 'list_object_categories' },
+        { label: 'Get Object Category', id: 'get_object_category' },
+        { label: 'Create Object Category', id: 'create_object_category' },
+        { label: 'Update Object Category', id: 'update_object_category' },
+        { label: 'Delete Object Category', id: 'delete_object_category' },
+        // Report Runs
+        { label: 'Get Report Run', id: 'get_report_run' },
+        { label: 'Trigger Report Run', id: 'trigger_report_run' },
+        // Draft Hires
+        { label: 'Create Draft Hires', id: 'create_draft_hires' },
       ],
-      value: () => 'list_employees',
+      value: () => 'list_workers',
     },
-    // Employee ID - for get_employee
     {
-      id: 'employeeId',
-      title: 'Employee ID',
+      id: 'id',
+      title: 'Resource ID',
       type: 'short-input',
-      placeholder: 'Enter the employee ID',
-      required: { field: 'operation', value: 'get_employee' },
-      condition: { field: 'operation', value: 'get_employee' },
+      placeholder: 'Enter the resource ID',
+      condition: { field: 'operation', value: [...ID_OPS] },
+      required: { field: 'operation', value: [...ID_OPS] },
     },
-    // Leave Request fields
     {
-      id: 'leaveRequestId',
-      title: 'Leave Request ID',
+      id: 'customObjectId',
+      title: 'Custom Object ID',
       type: 'short-input',
-      placeholder: 'Enter the leave request ID',
-      required: { field: 'operation', value: 'process_leave_request' },
-      condition: { field: 'operation', value: 'process_leave_request' },
+      placeholder: 'Enter the custom object ID',
+      condition: { field: 'operation', value: [...CUSTOM_OBJECT_ID_OPS] },
+      required: { field: 'operation', value: [...CUSTOM_OBJECT_ID_OPS] },
     },
     {
-      id: 'action',
-      title: 'Action',
-      type: 'dropdown',
-      options: [
-        { label: 'Approve', id: 'approve' },
-        { label: 'Decline', id: 'decline' },
-      ],
-      value: () => 'approve',
-      required: { field: 'operation', value: 'process_leave_request' },
-      condition: { field: 'operation', value: 'process_leave_request' },
-    },
-    // Leave balance - role ID
-    {
-      id: 'roleId',
-      title: 'Employee/Role ID',
+      id: 'externalId',
+      title: 'External ID',
       type: 'short-input',
-      placeholder: 'Enter the employee or role ID',
-      required: { field: 'operation', value: 'get_leave_balance' },
-      condition: { field: 'operation', value: 'get_leave_balance' },
+      placeholder: 'Enter the external ID',
+      condition: { field: 'operation', value: 'get_custom_object_record_by_external_id' },
+      required: { field: 'operation', value: 'get_custom_object_record_by_external_id' },
     },
-    // Group fields
     {
-      id: 'groupName',
-      title: 'Group Name',
+      id: 'name',
+      title: 'Name',
       type: 'short-input',
-      placeholder: 'Enter group name',
-      required: { field: 'operation', value: 'create_group' },
-      condition: { field: 'operation', value: ['create_group', 'update_group'] },
+      placeholder: 'Enter the resource name',
+      condition: { field: 'operation', value: [...NAME_OPS] },
     },
     {
-      id: 'spokeId',
-      title: 'Spoke ID',
+      id: 'parentId',
+      title: 'Parent ID',
       type: 'short-input',
-      placeholder: 'Third-party app identifier',
-      required: { field: 'operation', value: 'create_group' },
-      condition: { field: 'operation', value: ['create_group', 'update_group'] },
+      placeholder: 'Enter the parent resource ID',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['create_department', 'update_department'],
+      },
     },
     {
-      id: 'groupId',
-      title: 'Group ID',
+      id: 'referenceCode',
+      title: 'Reference Code',
       type: 'short-input',
-      placeholder: 'Enter the group ID to update',
-      required: { field: 'operation', value: 'update_group' },
-      condition: { field: 'operation', value: 'update_group' },
+      placeholder: 'Enter reference code',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['create_department', 'update_department'],
+      },
     },
     {
-      id: 'users',
-      title: 'User IDs',
+      id: 'data',
+      title: 'Data (JSON)',
       type: 'long-input',
-      placeholder: '["user-id-1", "user-id-2"]',
-      mode: 'advanced',
-      condition: { field: 'operation', value: ['create_group', 'update_group'] },
+      placeholder: '{ "key": "value" }',
+      condition: { field: 'operation', value: [...DATA_OPS] },
     },
     {
-      id: 'groupVersion',
-      title: 'Version',
-      type: 'short-input',
-      placeholder: 'Group version number',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'update_group' },
-    },
-    // Candidate fields
-    {
-      id: 'firstName',
-      title: 'First Name',
-      type: 'short-input',
-      placeholder: 'Candidate first name',
-      required: { field: 'operation', value: 'push_candidate' },
-      condition: { field: 'operation', value: 'push_candidate' },
-    },
-    {
-      id: 'lastName',
-      title: 'Last Name',
-      type: 'short-input',
-      placeholder: 'Candidate last name',
-      required: { field: 'operation', value: 'push_candidate' },
-      condition: { field: 'operation', value: 'push_candidate' },
-    },
-    {
-      id: 'email',
-      title: 'Email',
-      type: 'short-input',
-      placeholder: 'Candidate email address',
-      required: { field: 'operation', value: 'push_candidate' },
-      condition: { field: 'operation', value: 'push_candidate' },
-    },
-    {
-      id: 'candidatePhone',
-      title: 'Phone',
-      type: 'short-input',
-      placeholder: 'Candidate phone number',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'push_candidate' },
-    },
-    {
-      id: 'jobTitle',
-      title: 'Job Title',
-      type: 'short-input',
-      placeholder: 'Job title for the candidate',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'push_candidate' },
-    },
-    {
-      id: 'candidateDepartment',
-      title: 'Department',
-      type: 'short-input',
-      placeholder: 'Department for the candidate',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'push_candidate' },
-    },
-    {
-      id: 'candidateStartDate',
-      title: 'Start Date',
-      type: 'short-input',
-      placeholder: 'YYYY-MM-DD',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'push_candidate' },
-      wandConfig: {
-        enabled: true,
-        prompt:
-          'Generate a date in YYYY-MM-DD format for a candidate start date. Return ONLY the date string - no explanations, no extra text.',
-        generationType: 'timestamp',
+      id: 'records',
+      title: 'Records (JSON)',
+      type: 'long-input',
+      placeholder: '[{ "fields": { ... } }, ...]',
+      condition: {
+        field: 'operation',
+        value: [
+          'bulk_create_custom_object_records',
+          'bulk_update_custom_object_records',
+          'bulk_delete_custom_object_records',
+        ],
       },
-    },
-    // Date filters for leave requests and company activity
-    {
-      id: 'startDate',
-      title: 'Start Date',
-      type: 'short-input',
-      placeholder: 'YYYY-MM-DD',
-      mode: 'advanced',
-      condition: { field: 'operation', value: ['list_leave_requests', 'get_company_activity'] },
-      wandConfig: {
-        enabled: true,
-        prompt:
-          'Generate a date in YYYY-MM-DD format for filtering by start date. Return ONLY the date string - no explanations, no extra text.',
-        generationType: 'timestamp',
+      required: {
+        field: 'operation',
+        value: [
+          'bulk_create_custom_object_records',
+          'bulk_update_custom_object_records',
+          'bulk_delete_custom_object_records',
+        ],
       },
     },
     {
-      id: 'endDate',
-      title: 'End Date',
-      type: 'short-input',
-      placeholder: 'YYYY-MM-DD',
-      mode: 'advanced',
-      condition: { field: 'operation', value: ['list_leave_requests', 'get_company_activity'] },
-      wandConfig: {
-        enabled: true,
-        prompt:
-          'Generate a date in YYYY-MM-DD format for filtering by end date. Return ONLY the date string - no explanations, no extra text.',
-        generationType: 'timestamp',
-      },
+      id: 'query',
+      title: 'Query',
+      type: 'long-input',
+      placeholder: 'Enter query expression',
+      condition: { field: 'operation', value: 'query_custom_object_records' },
     },
-    {
-      id: 'status',
-      title: 'Status Filter',
-      type: 'short-input',
-      placeholder: 'e.g., pending, approved, declined',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'list_leave_requests' },
-    },
-    {
-      id: 'managedBy',
-      title: 'Managed By',
-      type: 'short-input',
-      placeholder: 'Filter by manager',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'list_leave_types' },
-    },
-    // Pagination - shared across list operations (offset-based)
     {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: '100',
+      placeholder: 'Max results to return',
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: [
-          'list_employees',
-          'list_employees_with_terminated',
-          'list_departments',
-          'list_teams',
-          'list_levels',
-          'list_work_locations',
-          'list_custom_fields',
-          'list_leave_balances',
-          'get_company_activity',
-        ],
-      },
+      condition: { field: 'operation', value: 'query_custom_object_records' },
     },
     {
-      id: 'offset',
-      title: 'Offset',
+      id: 'filter',
+      title: 'Filter',
       type: 'short-input',
-      placeholder: '0',
+      placeholder: 'OData filter expression',
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: [
-          'list_employees',
-          'list_employees_with_terminated',
-          'list_departments',
-          'list_teams',
-          'list_levels',
-          'list_work_locations',
-          'list_custom_fields',
-          'list_leave_balances',
-        ],
-      },
+      condition: { field: 'operation', value: [...FILTER_OPS] },
     },
-    // Cursor-based pagination for company activity
     {
-      id: 'nextCursor',
-      title: 'Next Page Cursor',
+      id: 'expand',
+      title: 'Expand',
       type: 'short-input',
-      placeholder: 'Cursor from previous response',
+      placeholder: 'Fields to expand',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'get_company_activity' },
+      condition: { field: 'operation', value: [...EXPAND_OPS] },
+    },
+    {
+      id: 'orderBy',
+      title: 'Order By',
+      type: 'short-input',
+      placeholder: 'e.g., name asc',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...ORDER_BY_OPS] },
+    },
+    {
+      id: 'cursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'Pagination cursor from previous response',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...CURSOR_OPS] },
     },
     {
       id: 'apiKey',
@@ -295,25 +457,116 @@ export const RipplingBlock: BlockConfig = {
 
   tools: {
     access: [
-      'rippling_list_employees',
-      'rippling_get_employee',
-      'rippling_list_employees_with_terminated',
-      'rippling_list_departments',
-      'rippling_list_teams',
-      'rippling_list_levels',
-      'rippling_list_work_locations',
-      'rippling_get_company',
-      'rippling_get_company_activity',
-      'rippling_list_custom_fields',
+      // Workers
+      'rippling_list_workers',
+      'rippling_get_worker',
+      // Users
+      'rippling_list_users',
+      'rippling_get_user',
+      // Companies
+      'rippling_list_companies',
+      // Current User
       'rippling_get_current_user',
-      'rippling_list_leave_requests',
-      'rippling_process_leave_request',
-      'rippling_list_leave_balances',
-      'rippling_get_leave_balance',
-      'rippling_list_leave_types',
-      'rippling_create_group',
-      'rippling_update_group',
-      'rippling_push_candidate',
+      // Entitlements
+      'rippling_list_entitlements',
+      // Departments
+      'rippling_list_departments',
+      'rippling_get_department',
+      'rippling_create_department',
+      'rippling_update_department',
+      // Teams
+      'rippling_list_teams',
+      'rippling_get_team',
+      // Employment Types
+      'rippling_list_employment_types',
+      'rippling_get_employment_type',
+      // Titles
+      'rippling_list_titles',
+      'rippling_get_title',
+      'rippling_create_title',
+      'rippling_update_title',
+      'rippling_delete_title',
+      // Custom Fields
+      'rippling_list_custom_fields',
+      // Job Functions
+      'rippling_list_job_functions',
+      'rippling_get_job_function',
+      // Work Locations
+      'rippling_list_work_locations',
+      'rippling_get_work_location',
+      'rippling_create_work_location',
+      'rippling_update_work_location',
+      'rippling_delete_work_location',
+      // Business Partners
+      'rippling_list_business_partners',
+      'rippling_get_business_partner',
+      'rippling_create_business_partner',
+      'rippling_delete_business_partner',
+      // Business Partner Groups
+      'rippling_list_business_partner_groups',
+      'rippling_get_business_partner_group',
+      'rippling_create_business_partner_group',
+      'rippling_delete_business_partner_group',
+      // Supergroups
+      'rippling_list_supergroups',
+      'rippling_get_supergroup',
+      'rippling_list_supergroup_members',
+      'rippling_list_supergroup_inclusion_members',
+      'rippling_list_supergroup_exclusion_members',
+      'rippling_update_supergroup_inclusion_members',
+      'rippling_update_supergroup_exclusion_members',
+      // Custom Objects
+      'rippling_list_custom_objects',
+      'rippling_get_custom_object',
+      'rippling_create_custom_object',
+      'rippling_update_custom_object',
+      'rippling_delete_custom_object',
+      // Custom Object Fields
+      'rippling_list_custom_object_fields',
+      'rippling_get_custom_object_field',
+      'rippling_create_custom_object_field',
+      'rippling_update_custom_object_field',
+      'rippling_delete_custom_object_field',
+      // Custom Object Records
+      'rippling_list_custom_object_records',
+      'rippling_get_custom_object_record',
+      'rippling_get_custom_object_record_by_external_id',
+      'rippling_query_custom_object_records',
+      'rippling_create_custom_object_record',
+      'rippling_update_custom_object_record',
+      'rippling_delete_custom_object_record',
+      'rippling_bulk_create_custom_object_records',
+      'rippling_bulk_update_custom_object_records',
+      'rippling_bulk_delete_custom_object_records',
+      // Custom Apps
+      'rippling_list_custom_apps',
+      'rippling_get_custom_app',
+      'rippling_create_custom_app',
+      'rippling_update_custom_app',
+      'rippling_delete_custom_app',
+      // Custom Pages
+      'rippling_list_custom_pages',
+      'rippling_get_custom_page',
+      'rippling_create_custom_page',
+      'rippling_update_custom_page',
+      'rippling_delete_custom_page',
+      // Custom Settings
+      'rippling_list_custom_settings',
+      'rippling_get_custom_setting',
+      'rippling_create_custom_setting',
+      'rippling_update_custom_setting',
+      'rippling_delete_custom_setting',
+      // Object Categories
+      'rippling_list_object_categories',
+      'rippling_get_object_category',
+      'rippling_create_object_category',
+      'rippling_update_object_category',
+      'rippling_delete_object_category',
+      // Report Runs
+      'rippling_get_report_run',
+      'rippling_trigger_report_run',
+      // Draft Hires
+      'rippling_create_draft_hires',
     ],
     config: {
       tool: (params) => `rippling_${params.operation}`,
@@ -322,41 +575,173 @@ export const RipplingBlock: BlockConfig = {
           apiKey: params.apiKey,
         }
 
-        if (params.employeeId) mapped.employeeId = params.employeeId
-        if (params.leaveRequestId) mapped.leaveRequestId = params.leaveRequestId
-        if (params.action) mapped.action = params.action
-        if (params.roleId) mapped.roleId = params.roleId
-        if (params.spokeId) mapped.spokeId = params.spokeId
-        if (params.groupId) mapped.groupId = params.groupId
-        if (params.firstName) mapped.firstName = params.firstName
-        if (params.lastName) mapped.lastName = params.lastName
-        if (params.email) mapped.email = params.email
-        if (params.jobTitle) mapped.jobTitle = params.jobTitle
-        if (params.startDate && params.operation !== 'push_candidate')
-          mapped.startDate = params.startDate
-        if (params.endDate && params.operation !== 'push_candidate') mapped.endDate = params.endDate
-        if (params.status) mapped.status = params.status
-        if (params.managedBy) mapped.managedBy = params.managedBy
+        if (params.id) mapped.id = params.id
+        if (params.customObjectId) mapped.customObjectId = params.customObjectId
+        if (params.externalId) mapped.externalId = params.externalId
+        if (params.name) mapped.name = params.name
+        if (params.parentId) mapped.parentId = params.parentId
+        if (params.referenceCode) mapped.referenceCode = params.referenceCode
+        if (params.filter) mapped.filter = params.filter
+        if (params.expand) mapped.expand = params.expand
+        if (params.orderBy) mapped.orderBy = params.orderBy
+        if (params.cursor) mapped.cursor = params.cursor
+        if (params.limit) mapped.limit = Number(params.limit)
 
-        if (params.limit != null && params.limit !== '') mapped.limit = Number(params.limit)
-        if (params.offset != null && params.offset !== '') mapped.offset = Number(params.offset)
-        if (params.groupVersion != null && params.groupVersion !== '')
-          mapped.version = Number(params.groupVersion)
-        if (params.groupName) mapped.name = params.groupName
-        if (params.candidatePhone) mapped.phone = params.candidatePhone
-        if (params.candidateDepartment) mapped.department = params.candidateDepartment
-        if (params.candidateStartDate && params.operation === 'push_candidate')
-          mapped.startDate = params.candidateStartDate
-        if (params.nextCursor) mapped.next = params.nextCursor
-
-        if (params.users) {
+        if (params.data) {
           try {
-            mapped.users =
-              typeof params.users === 'string' ? JSON.parse(params.users) : params.users
+            mapped.data = typeof params.data === 'string' ? JSON.parse(params.data) : params.data
           } catch {
-            throw new Error(
-              'Invalid JSON for "User IDs" field. Expected an array like ["user-id-1", "user-id-2"].'
-            )
+            throw new Error('Invalid JSON in "Data (JSON)" field. Expected a valid JSON object.')
+          }
+        }
+
+        if (params.records) {
+          try {
+            mapped.records =
+              typeof params.records === 'string' ? JSON.parse(params.records) : params.records
+          } catch {
+            throw new Error('Invalid JSON in "Records (JSON)" field. Expected a valid JSON array.')
+          }
+        }
+
+        if (params.query) {
+          mapped.query = params.query
+        }
+
+        const op = params.operation as string
+
+        // Custom object tools expect customObjectApiName, not customObjectId
+        if (mapped.customObjectId) {
+          mapped.customObjectApiName = mapped.customObjectId
+          mapped.customObjectId = undefined
+        }
+
+        // Supergroup member tools expect groupId, not id
+        if (
+          [
+            'list_supergroup_members',
+            'list_supergroup_inclusion_members',
+            'list_supergroup_exclusion_members',
+            'update_supergroup_inclusion_members',
+            'update_supergroup_exclusion_members',
+          ].includes(op)
+        ) {
+          if (mapped.id) {
+            mapped.groupId = mapped.id
+            mapped.id = undefined
+          }
+        }
+
+        // Custom object get/update/delete expect customObjectApiName for the object itself
+        if (['get_custom_object', 'update_custom_object', 'delete_custom_object'].includes(op)) {
+          if (mapped.id) {
+            mapped.customObjectApiName = mapped.id
+            mapped.id = undefined
+          }
+        }
+
+        // Custom object field tools expect fieldApiName, not id
+        if (
+          [
+            'get_custom_object_field',
+            'update_custom_object_field',
+            'delete_custom_object_field',
+          ].includes(op)
+        ) {
+          if (mapped.id) {
+            mapped.fieldApiName = mapped.id
+            mapped.id = undefined
+          }
+        }
+
+        // Custom object record tools expect codrId, not id
+        if (
+          [
+            'get_custom_object_record',
+            'update_custom_object_record',
+            'delete_custom_object_record',
+          ].includes(op)
+        ) {
+          if (mapped.id) {
+            mapped.codrId = mapped.id
+            mapped.id = undefined
+          }
+        }
+
+        // Report run tools
+        if (op === 'get_report_run') {
+          if (mapped.id) {
+            mapped.runId = mapped.id
+            mapped.id = undefined
+          }
+        }
+        if (op === 'trigger_report_run') {
+          if (mapped.id) {
+            mapped.reportId = mapped.id
+            mapped.id = undefined
+          }
+        }
+
+        // Bulk operations: map records to specific param names
+        if (op === 'bulk_create_custom_object_records' && mapped.records) {
+          mapped.rowsToWrite = mapped.records
+          mapped.records = undefined
+        }
+        if (op === 'bulk_update_custom_object_records' && mapped.records) {
+          mapped.rowsToUpdate = mapped.records
+          mapped.records = undefined
+        }
+        if (op === 'bulk_delete_custom_object_records' && mapped.records) {
+          mapped.rowsToDelete = mapped.records
+          mapped.records = undefined
+        }
+
+        // Draft hires: map data to draftHires
+        if (op === 'create_draft_hires' && mapped.data) {
+          mapped.draftHires = mapped.data
+          mapped.data = undefined
+        }
+
+        // Supergroup member updates: map data to operations
+        if (
+          ['update_supergroup_inclusion_members', 'update_supergroup_exclusion_members'].includes(
+            op
+          ) &&
+          mapped.data
+        ) {
+          mapped.operations = mapped.data
+          mapped.data = undefined
+        }
+
+        // For create/update operations that accept data JSON:
+        // Spread data fields directly into mapped params so tools receive them as individual params
+        if (mapped.data && typeof mapped.data === 'object') {
+          const spreadOps = [
+            'create_department',
+            'update_department',
+            'create_title',
+            'update_title',
+            'create_work_location',
+            'update_work_location',
+            'create_business_partner',
+            'create_business_partner_group',
+            'create_custom_object',
+            'update_custom_object',
+            'create_custom_object_field',
+            'update_custom_object_field',
+            'create_custom_app',
+            'update_custom_app',
+            'create_object_category',
+            'update_object_category',
+          ]
+          if (spreadOps.includes(op)) {
+            const dataFields = mapped.data as Record<string, unknown>
+            for (const [key, value] of Object.entries(dataFields)) {
+              if (!(key in mapped)) {
+                mapped[key] = value
+              }
+            }
+            mapped.data = undefined
           }
         }
 
@@ -367,71 +752,37 @@ export const RipplingBlock: BlockConfig = {
 
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    employeeId: { type: 'string', description: 'Employee ID' },
-    leaveRequestId: { type: 'string', description: 'Leave request ID' },
-    action: { type: 'string', description: 'Action to take (approve or decline)' },
-    roleId: { type: 'string', description: 'Employee/role ID for leave balance' },
-    groupName: { type: 'string', description: 'Group name' },
-    spokeId: { type: 'string', description: 'Third-party app identifier' },
-    groupId: { type: 'string', description: 'Group ID to update' },
-    users: { type: 'json', description: 'Array of user IDs' },
-    firstName: { type: 'string', description: 'Candidate first name' },
-    lastName: { type: 'string', description: 'Candidate last name' },
-    email: { type: 'string', description: 'Candidate email' },
-    candidatePhone: { type: 'string', description: 'Candidate phone number' },
-    jobTitle: { type: 'string', description: 'Job title' },
-    candidateDepartment: { type: 'string', description: 'Department' },
-    candidateStartDate: { type: 'string', description: 'Start date (ISO format)' },
-    startDate: { type: 'string', description: 'Filter start date' },
-    endDate: { type: 'string', description: 'Filter end date' },
-    status: { type: 'string', description: 'Leave request status filter' },
-    managedBy: { type: 'string', description: 'Filter leave types by manager' },
-    limit: { type: 'number', description: 'Maximum number of results' },
-    offset: { type: 'number', description: 'Pagination offset' },
-    nextCursor: { type: 'string', description: 'Cursor for next page (company activity)' },
+    id: { type: 'string', description: 'Resource ID' },
+    customObjectId: { type: 'string', description: 'Custom object ID' },
+    externalId: { type: 'string', description: 'External ID for custom object record lookup' },
+    name: { type: 'string', description: 'Resource name' },
+    parentId: { type: 'string', description: 'Parent resource ID' },
+    referenceCode: { type: 'string', description: 'Reference code' },
+    data: { type: 'json', description: 'JSON data body for create/update operations' },
+    records: { type: 'json', description: 'JSON array of records for bulk operations' },
+    query: { type: 'string', description: 'Query expression for custom object record queries' },
+    limit: { type: 'number', description: 'Max results to return' },
+    filter: { type: 'string', description: 'OData filter expression' },
+    expand: { type: 'string', description: 'Fields to expand in the response' },
+    orderBy: { type: 'string', description: 'Ordering expression' },
+    cursor: { type: 'string', description: 'Pagination cursor' },
     apiKey: { type: 'string', description: 'Rippling API key' },
   },
 
   outputs: {
-    employees: {
-      type: 'array',
-      description:
-        'List of employees (id, firstName, lastName, workEmail, roleState, department, title)',
-    },
-    departments: { type: 'array', description: 'List of departments (id, name, parent)' },
-    teams: { type: 'array', description: 'List of teams (id, name, parent)' },
-    levels: { type: 'array', description: 'List of position levels (id, name, parent)' },
-    workLocations: {
-      type: 'array',
-      description: 'List of work locations (id, nickname, street, city, state, zip, country)',
-    },
-    customFields: {
-      type: 'array',
-      description: 'List of custom fields (id, type, title, mandatory)',
-    },
-    events: {
-      type: 'array',
-      description: 'List of company activity events (id, type, description, createdAt, actor)',
-    },
-    leaveRequests: {
-      type: 'array',
-      description: 'List of leave requests (id, requestedBy, status, startDate, endDate)',
-    },
-    leaveBalances: { type: 'array', description: 'List of leave balances (employeeId, balances)' },
-    leaveTypes: { type: 'array', description: 'List of leave types (id, name, managedBy)' },
-    totalCount: { type: 'number', description: 'Total number of items returned' },
     id: { type: 'string', description: 'Resource ID' },
     name: { type: 'string', description: 'Resource name' },
-    workEmail: { type: 'string', description: 'Work email address' },
-    company: { type: 'string', description: 'Company ID' },
-    status: { type: 'string', description: 'Status of the resource' },
-    users: { type: 'array', description: 'Array of user IDs in a group' },
-    version: { type: 'number', description: 'Group version number' },
-    address: { type: 'json', description: 'Company address (street, city, state, zip, country)' },
-    email: { type: 'string', description: 'Email address' },
-    phone: { type: 'string', description: 'Phone number' },
-    balances: { type: 'array', description: 'Leave balance entries (leaveType, minutesRemaining)' },
-    employeeId: { type: 'string', description: 'Employee ID' },
-    nextCursor: { type: 'string', description: 'Cursor for fetching the next page of results' },
+    status: { type: 'string', description: 'Resource status' },
+    created_at: { type: 'string', description: 'Creation timestamp' },
+    updated_at: { type: 'string', description: 'Last update timestamp' },
+    workers: { type: 'array', description: 'List of workers' },
+    users: { type: 'array', description: 'List of users' },
+    companies: { type: 'array', description: 'List of companies' },
+    departments: { type: 'array', description: 'List of departments' },
+    teams: { type: 'array', description: 'List of teams' },
+    items: { type: 'array', description: 'List of returned items' },
+    totalCount: { type: 'number', description: 'Total number of items returned' },
+    nextLink: { type: 'string', description: 'URL or cursor for the next page of results' },
+    success: { type: 'boolean', description: 'Whether the operation succeeded' },
   },
 }
