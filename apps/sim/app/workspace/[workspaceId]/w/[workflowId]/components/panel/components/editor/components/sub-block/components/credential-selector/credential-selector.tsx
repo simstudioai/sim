@@ -16,8 +16,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
-import { ConnectCredentialModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/connect-credential-modal'
-import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -378,7 +377,8 @@ export function CredentialSelector({
       )}
 
       {showConnectModal && (
-        <ConnectCredentialModal
+        <OAuthModal
+          mode='connect'
           isOpen={showConnectModal}
           onClose={() => setShowConnectModal(false)}
           provider={provider}
@@ -390,7 +390,8 @@ export function CredentialSelector({
       )}
 
       {showOAuthModal && (
-        <OAuthRequiredModal
+        <OAuthModal
+          mode='reauthorize'
           isOpen={showOAuthModal}
           onClose={() => {
             consumeOAuthReturnContext()

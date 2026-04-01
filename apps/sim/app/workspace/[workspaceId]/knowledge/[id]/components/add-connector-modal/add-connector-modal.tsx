@@ -21,8 +21,8 @@ import {
 } from '@/components/emcn'
 import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
+import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/components/connector-selector-field'
-import { ConnectCredentialModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/connect-credential-modal'
 import { getDependsOnFields } from '@/blocks/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfig, ConnectorConfigField } from '@/connectors/types'
@@ -553,7 +553,8 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
         connectorConfig &&
         connectorConfig.auth.mode === 'oauth' &&
         connectorProviderId && (
-          <ConnectCredentialModal
+          <OAuthModal
+            mode='connect'
             isOpen={showOAuthModal}
             onClose={() => {
               consumeOAuthReturnContext()
