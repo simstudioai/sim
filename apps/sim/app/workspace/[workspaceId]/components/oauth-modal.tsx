@@ -217,7 +217,7 @@ export function OAuthModal(props: OAuthModalProps) {
   const isConnectDisabled = isConnect ? !displayName.trim() || Boolean(isPending) : false
 
   const subtitle = isConnect
-    ? `Grant access to use ${providerName} in your workflow`
+    ? `Grant access to use ${providerName} in your ${knowledgeBaseId ? 'knowledge base' : 'workflow'}`
     : `The "${toolName}" tool requires access to your account`
 
   return (
