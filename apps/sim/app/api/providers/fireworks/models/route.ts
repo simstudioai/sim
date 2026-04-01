@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getBYOKKey } from '@/lib/api-key/byok'
+import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
@@ -17,15 +19,31 @@ interface FireworksModelsResponse {
   object?: string
 }
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   if (isProviderBlacklisted('fireworks')) {
     logger.info('Fireworks provider is blacklisted, returning empty models')
     return NextResponse.json({ models: [] })
   }
 
-  const apiKey = env.FIREWORKS_API_KEY
+  let apiKey: string | undefined
+
+  const workspaceId = request.nextUrl.searchParams.get('workspaceId')
+  if (workspaceId) {
+    const session = await getSession()
+    if (session?.user?.id) {
+      const byokResult = await getBYOKKey(workspaceId, 'fireworks')
+      if (byokResult) {
+        apiKey = byokResult.apiKey
+      }
+    }
+  }
+
   if (!apiKey) {
-    logger.info('No FIREWORKS_API_KEY configured, returning empty models')
+    apiKey = env.FIREWORKS_API_KEY
+  }
+
+  if (!apiKey) {
+    logger.info('No Fireworks API key available, returning empty models')
     return NextResponse.json({ models: [] })
   }
 

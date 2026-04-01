@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
 import { useProviderModels } from '@/hooks/queries/providers'
 import {
   updateFireworksProviderModels,
@@ -13,11 +14,11 @@ import { type ProviderName, useProvidersStore } from '@/stores/providers'
 
 const logger = createLogger('ProviderModelsLoader')
 
-function useSyncProvider(provider: ProviderName) {
+function useSyncProvider(provider: ProviderName, workspaceId?: string) {
   const setProviderModels = useProvidersStore((state) => state.setProviderModels)
   const setProviderLoading = useProvidersStore((state) => state.setProviderLoading)
   const setOpenRouterModelInfo = useProvidersStore((state) => state.setOpenRouterModelInfo)
-  const { data, isLoading, isFetching, error } = useProviderModels(provider)
+  const { data, isLoading, isFetching, error } = useProviderModels(provider, workspaceId)
 
   useEffect(() => {
     setProviderLoading(provider, isLoading || isFetching)
@@ -54,10 +55,13 @@ function useSyncProvider(provider: ProviderName) {
 }
 
 export function ProviderModelsLoader() {
+  const params = useParams()
+  const workspaceId = params?.workspaceId as string | undefined
+
   useSyncProvider('base')
   useSyncProvider('ollama')
   useSyncProvider('vllm')
   useSyncProvider('openrouter')
-  useSyncProvider('fireworks')
+  useSyncProvider('fireworks', workspaceId)
   return null
 }

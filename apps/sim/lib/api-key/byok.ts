@@ -73,6 +73,26 @@ export async function getApiKeyWithBYOK(
     return { apiKey: userProvidedKey || env.VLLM_API_KEY || 'empty', isBYOK: false }
   }
 
+  const isFireworksModel =
+    provider === 'fireworks' ||
+    useProvidersStore.getState().providers.fireworks.models.includes(model)
+  if (isFireworksModel) {
+    if (workspaceId) {
+      const byokResult = await getBYOKKey(workspaceId, 'fireworks')
+      if (byokResult) {
+        logger.info('Using BYOK key for Fireworks', { model, workspaceId })
+        return byokResult
+      }
+    }
+    if (userProvidedKey) {
+      return { apiKey: userProvidedKey, isBYOK: false }
+    }
+    if (env.FIREWORKS_API_KEY) {
+      return { apiKey: env.FIREWORKS_API_KEY, isBYOK: false }
+    }
+    throw new Error(`API key is required for Fireworks ${model}`)
+  }
+
   const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
   if (isBedrockModel) {
     return { apiKey: 'bedrock-uses-own-credentials', isBYOK: false }
