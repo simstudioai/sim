@@ -88,6 +88,15 @@ List all workers with optional filtering and pagination
 |   ↳ `overtime_exemption` | string | Overtime exemption status \(EXEMPT, NON_EXEMPT\) |
 |   ↳ `title_effective_date` | string | Title effective date |
 |   ↳ `business_partners_id` | json | Array of business partner IDs |
+|   ↳ `location` | json | Worker location \(type, work_location_id\) |
+|   ↳ `gender` | string | Gender |
+|   ↳ `date_of_birth` | string | Date of birth |
+|   ↳ `race` | string | Race |
+|   ↳ `ethnicity` | string | Ethnicity |
+|   ↳ `citizenship` | string | Citizenship country code |
+|   ↳ `termination_details` | json | Termination details |
+|   ↳ `custom_fields` | json | Custom fields \(expandable\) |
+|   ↳ `country_fields` | json | Country-specific fields |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
 
@@ -130,6 +139,15 @@ Get a specific worker by ID
 | `overtime_exemption` | string | Overtime exemption |
 | `title_effective_date` | string | Title effective date |
 | `business_partners_id` | json | Business partner IDs |
+| `location` | json | Worker location |
+| `gender` | string | Gender |
+| `date_of_birth` | string | Date of birth |
+| `race` | string | Race |
+| `ethnicity` | string | Ethnicity |
+| `citizenship` | string | Citizenship |
+| `termination_details` | json | Termination details |
+| `custom_fields` | json | Custom fields |
+| `country_fields` | json | Country-specific fields |
 
 ### `rippling_list_users`
 
@@ -158,6 +176,11 @@ List all users with optional pagination
 |   ↳ `locale` | string | Locale |
 |   ↳ `timezone` | string | Timezone \(IANA format\) |
 |   ↳ `number` | string | Permanent profile number |
+|   ↳ `name` | json | User name object \(given_name, family_name, etc.\) |
+|   ↳ `emails` | json | Array of email objects |
+|   ↳ `phone_numbers` | json | Array of phone number objects |
+|   ↳ `addresses` | json | Array of address objects |
+|   ↳ `photos` | json | Array of photo objects |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
 
@@ -186,6 +209,11 @@ Get a specific user by ID
 | `locale` | string | Locale |
 | `timezone` | string | Timezone |
 | `number` | string | Profile number |
+| `name` | json | User name object |
+| `emails` | json | Email addresses |
+| `phone_numbers` | json | Phone numbers |
+| `addresses` | json | Addresses |
+| `photos` | json | Photos |
 
 ### `rippling_list_companies`
 
@@ -215,6 +243,7 @@ List all companies
 |   ↳ `primary_email` | string | Primary email |
 |   ↳ `parent_legal_entity_id` | string | Parent legal entity ID |
 |   ↳ `legal_entities_id` | json | Array of legal entity IDs |
+|   ↳ `physical_address` | json | Physical address of the holding entity |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
 
@@ -962,6 +991,17 @@ List all supergroups
 |   ↳ `app_owner_id` | string | App owner ID |
 |   ↳ `group_type` | string | Group type |
 |   ↳ `name` | string | Name |
+|   ↳ `sub_group_type` | string | Sub group type |
+|   ↳ `read_only` | boolean | Whether the group is read only |
+|   ↳ `parent` | string | Parent group ID |
+|   ↳ `mutually_exclusive_key` | string | Mutually exclusive key |
+|   ↳ `cumulatively_exhaustive_default` | boolean | Whether the group is the cumulatively exhaustive default |
+|   ↳ `include_terminated` | boolean | Whether the group includes terminated roles |
+|   ↳ `allow_non_employees` | boolean | Whether the group allows non-employees |
+|   ↳ `can_override_role_states` | boolean | Whether the group can override role states |
+|   ↳ `priority` | number | Group priority |
+|   ↳ `is_invisible` | boolean | Whether the group is invisible |
+|   ↳ `ignore_prov_group_matching` | boolean | Whether to ignore provisioning group matching |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
 
@@ -988,6 +1028,17 @@ Get a specific supergroup by ID
 | `app_owner_id` | string | App owner ID |
 | `group_type` | string | Group type |
 | `name` | string | Name |
+| `sub_group_type` | string | Sub group type |
+| `read_only` | boolean | Whether the group is read only |
+| `parent` | string | Parent group ID |
+| `mutually_exclusive_key` | string | Mutually exclusive key |
+| `cumulatively_exhaustive_default` | boolean | Cumulatively exhaustive default |
+| `include_terminated` | boolean | Whether the group includes terminated roles |
+| `allow_non_employees` | boolean | Whether the group allows non-employees |
+| `can_override_role_states` | boolean | Whether the group can override role states |
+| `priority` | number | Group priority |
+| `is_invisible` | boolean | Whether the group is invisible |
+| `ignore_prov_group_matching` | boolean | Whether to ignore provisioning group matching |
 
 ### `rippling_list_supergroup_members`
 
@@ -1013,6 +1064,7 @@ List members of a supergroup
 |   ↳ `full_name` | string | Full name |
 |   ↳ `work_email` | string | Work email |
 |   ↳ `worker_id` | string | Worker ID |
+|   ↳ `worker` | json | Expanded worker object |
 | `totalCount` | number | Number of members returned |
 | `nextLink` | string | Next page link |
 
@@ -1040,6 +1092,7 @@ List inclusion members of a supergroup
 |   ↳ `full_name` | string | Full name |
 |   ↳ `work_email` | string | Work email |
 |   ↳ `worker_id` | string | Worker ID |
+|   ↳ `worker` | json | Expanded worker object |
 | `totalCount` | number | Number of members returned |
 | `nextLink` | string | Next page link |
 
@@ -1067,6 +1120,7 @@ List exclusion members of a supergroup
 |   ↳ `full_name` | string | Full name |
 |   ↳ `work_email` | string | Work email |
 |   ↳ `worker_id` | string | Worker ID |
+|   ↳ `worker` | json | Expanded worker object |
 | `totalCount` | number | Number of members returned |
 | `nextLink` | string | Next page link |
 
@@ -1129,6 +1183,9 @@ List all custom objects
 |   ↳ `api_name` | string | API name |
 |   ↳ `plural_label` | string | Plural label |
 |   ↳ `category_id` | string | Category ID |
+|   ↳ `native_category_id` | string | Native category ID |
+|   ↳ `managed_package_install_id` | string | Package install ID |
+|   ↳ `owner_id` | string | Owner ID |
 |   ↳ `enable_history` | boolean | Whether history is enabled |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
@@ -1157,6 +1214,9 @@ Get a custom object by API name
 | `plural_label` | string | Plural label |
 | `category_id` | string | Category ID |
 | `enable_history` | boolean | History enabled |
+| `native_category_id` | string | Native category ID |
+| `managed_package_install_id` | string | Package install ID |
+| `owner_id` | string | Owner ID |
 
 ### `rippling_create_custom_object`
 
@@ -1184,6 +1244,9 @@ Create a new custom object
 | `plural_label` | string | Plural label |
 | `category_id` | string | Category ID |
 | `enable_history` | boolean | History enabled |
+| `native_category_id` | string | Native category ID |
+| `managed_package_install_id` | string | Package install ID |
+| `owner_id` | string | Owner ID |
 
 ### `rippling_update_custom_object`
 
@@ -1214,6 +1277,9 @@ Update a custom object
 | `plural_label` | string | Plural label |
 | `category_id` | string | Category ID |
 | `enable_history` | boolean | History enabled |
+| `native_category_id` | string | Native category ID |
+| `managed_package_install_id` | string | Package install ID |
+| `owner_id` | string | Owner ID |
 
 ### `rippling_delete_custom_object`
 
@@ -1260,6 +1326,7 @@ List all fields for a custom object
 |   ↳ `is_immutable` | boolean | Whether the field is immutable |
 |   ↳ `is_standard` | boolean | Whether the field is standard |
 |   ↳ `enable_history` | boolean | Whether history is enabled |
+|   ↳ `managed_package_install_id` | string | Package install ID |
 | `totalCount` | number | Number of fields returned |
 | `nextLink` | string | Next page link |
 
@@ -1291,6 +1358,7 @@ Get a specific field of a custom object
 | `is_immutable` | boolean | Is immutable |
 | `is_standard` | boolean | Is standard |
 | `enable_history` | boolean | History enabled |
+| `managed_package_install_id` | string | Package install ID |
 
 ### `rippling_create_custom_object_field`
 
@@ -1324,6 +1392,7 @@ Create a field on a custom object
 | `is_immutable` | boolean | Is immutable |
 | `is_standard` | boolean | Is standard |
 | `enable_history` | boolean | History enabled |
+| `managed_package_install_id` | string | Package install ID |
 
 ### `rippling_update_custom_object_field`
 
@@ -1358,6 +1427,7 @@ Update a field on a custom object
 | `is_immutable` | boolean | Is immutable |
 | `is_standard` | boolean | Is standard |
 | `enable_history` | boolean | History enabled |
+| `managed_package_install_id` | string | Package install ID |
 
 ### `rippling_delete_custom_object_field`
 
@@ -1621,6 +1691,8 @@ List all custom apps
 |   ↳ `name` | string | App name |
 |   ↳ `api_name` | string | API name |
 |   ↳ `description` | string | Description |
+|   ↳ `icon` | string | Icon URL |
+|   ↳ `pages` | json | Array of page summaries |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
 
@@ -1645,6 +1717,8 @@ Get a specific custom app
 | `name` | string | Name |
 | `api_name` | string | API name |
 | `description` | string | Description |
+| `icon` | string | Icon URL |
+| `pages` | json | Array of page summaries |
 
 ### `rippling_create_custom_app`
 
@@ -1669,6 +1743,8 @@ Create a new custom app
 | `name` | string | Name |
 | `api_name` | string | API name |
 | `description` | string | Description |
+| `icon` | string | Icon URL |
+| `pages` | json | Array of page summaries |
 
 ### `rippling_update_custom_app`
 
@@ -1694,6 +1770,8 @@ Update a custom app
 | `name` | string | Name |
 | `api_name` | string | API name |
 | `description` | string | Description |
+| `icon` | string | Icon URL |
+| `pages` | json | Array of page summaries |
 
 ### `rippling_delete_custom_app`
 
@@ -1731,6 +1809,11 @@ List all custom pages
 |   ↳ `created_at` | string | Record creation date |
 |   ↳ `updated_at` | string | Record update date |
 |   ↳ `name` | string | Page name |
+|   ↳ `components` | json | Page components |
+|   ↳ `actions` | json | Page actions |
+|   ↳ `canvas_actions` | json | Canvas actions |
+|   ↳ `variables` | json | Page variables |
+|   ↳ `media` | json | Page media |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
 
@@ -1753,6 +1836,11 @@ Get a specific custom page
 | `created_at` | string | Creation date |
 | `updated_at` | string | Update date |
 | `name` | string | Name |
+| `components` | json | Page components |
+| `actions` | json | Page actions |
+| `canvas_actions` | json | Canvas actions |
+| `variables` | json | Page variables |
+| `media` | json | Page media |
 
 ### `rippling_create_custom_page`
 
@@ -1773,6 +1861,11 @@ Create a new custom page
 | `created_at` | string | Creation date |
 | `updated_at` | string | Update date |
 | `name` | string | Name |
+| `components` | json | Page components |
+| `actions` | json | Page actions |
+| `canvas_actions` | json | Canvas actions |
+| `variables` | json | Page variables |
+| `media` | json | Page media |
 
 ### `rippling_update_custom_page`
 
@@ -1794,6 +1887,11 @@ Update a custom page
 | `created_at` | string | Creation date |
 | `updated_at` | string | Update date |
 | `name` | string | Name |
+| `components` | json | Page components |
+| `actions` | json | Page actions |
+| `canvas_actions` | json | Canvas actions |
+| `variables` | json | Page variables |
+| `media` | json | Page media |
 
 ### `rippling_delete_custom_page`
 
@@ -1884,7 +1982,15 @@ Create a new custom setting
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Setting ID |
-| `data` | json | Full setting data |
+| `created_at` | string | Created timestamp |
+| `updated_at` | string | Updated timestamp |
+| `display_name` | string | Display name |
+| `api_name` | string | API name |
+| `data_type` | string | Data type |
+| `secret_value` | string | Secret value |
+| `string_value` | string | String value |
+| `number_value` | number | Number value |
+| `boolean_value` | boolean | Boolean value |
 
 ### `rippling_update_custom_setting`
 
@@ -1903,7 +2009,15 @@ Update a custom setting
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Setting ID |
-| `data` | json | Full setting data |
+| `created_at` | string | Created timestamp |
+| `updated_at` | string | Updated timestamp |
+| `display_name` | string | Display name |
+| `api_name` | string | API name |
+| `data_type` | string | Data type |
+| `secret_value` | string | Secret value |
+| `string_value` | string | String value |
+| `number_value` | number | Number value |
+| `boolean_value` | boolean | Boolean value |
 
 ### `rippling_delete_custom_setting`
 
@@ -2058,6 +2172,11 @@ Trigger a new report run
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
 | `reportId` | string | Yes | Report ID to run |
+| `includeObjectIds` | boolean | No | Include object IDs in the report |
+| `includeTotalRows` | boolean | No | Include total row count |
+| `formatDateFields` | json | No | Date field formatting configuration |
+| `formatCurrencyFields` | json | No | Currency field formatting configuration |
+| `outputType` | string | No | Output type \(JSON or CSV\) |
 
 #### Output
 
