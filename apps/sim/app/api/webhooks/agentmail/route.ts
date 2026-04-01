@@ -162,7 +162,13 @@ export async function POST(req: Request) {
 
     if (isTriggerDevEnabled) {
       try {
-        const handle = await tasks.trigger('mothership-inbox-execution', { taskId })
+        const handle = await tasks.trigger(
+          'mothership-inbox-execution',
+          { taskId },
+          {
+            tags: [`workspaceId:${result.id}`, `taskId:${taskId}`],
+          }
+        )
         await db
           .update(mothershipInboxTask)
           .set({ triggerJobId: handle.id })
