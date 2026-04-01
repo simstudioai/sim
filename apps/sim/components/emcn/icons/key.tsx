@@ -16,6 +16,7 @@ export function Key(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <circle cx='6.75' cy='10.25' r='3.5' />

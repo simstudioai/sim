@@ -1,10 +1,30 @@
+import dns from 'dns/promises'
+import { createLogger } from '@sim/logger'
+import * as ipaddr from 'ipaddr.js'
 import { getAllowedMcpDomainsFromEnv } from '@/lib/core/config/feature-flags'
+import { isPrivateOrReservedIP } from '@/lib/core/security/input-validation.server'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
+
+const logger = createLogger('McpDomainCheck')
 
 export class McpDomainNotAllowedError extends Error {
   constructor(domain: string) {
     super(`MCP server domain "${domain}" is not allowed by the server's ALLOWED_MCP_DOMAINS policy`)
     this.name = 'McpDomainNotAllowedError'
+  }
+}
+
+export class McpSsrfError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'McpSsrfError'
+  }
+}
+
+export class McpDnsResolutionError extends Error {
+  constructor(hostname: string) {
+    super(`MCP server URL hostname "${hostname}" could not be resolved`)
+    this.name = 'McpDnsResolutionError'
   }
 }
 
@@ -74,5 +94,87 @@ export function validateMcpDomain(url: string | undefined): void {
   const rejected = checkMcpDomain(url)
   if (rejected !== null) {
     throw new McpDomainNotAllowedError(rejected)
+  }
+}
+
+/**
+ * Returns true if the IP is a loopback address (full 127.0.0.0/8 range, or ::1).
+ */
+function isLoopbackIP(ip: string): boolean {
+  try {
+    if (!ipaddr.isValid(ip)) return false
+    return ipaddr.process(ip).range() === 'loopback'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Returns true if the hostname is localhost or a loopback IP literal.
+ * Expects IPv6 brackets to already be stripped.
+ */
+function isLocalhostHostname(hostname: string): boolean {
+  const clean = hostname.toLowerCase()
+  if (clean === 'localhost') return true
+  return ipaddr.isValid(clean) && isLoopbackIP(clean)
+}
+
+/**
+ * Validates an MCP server URL against SSRF attacks by resolving DNS and
+ * rejecting private/reserved IP ranges (RFC-1918, link-local, cloud metadata).
+ *
+ * Only active when ALLOWED_MCP_DOMAINS is **not configured**. When an admin
+ * has set an explicit domain allowlist, they control which domains are
+ * reachable and private-network MCP servers are legitimate. Applying SSRF
+ * blocking on top of an admin-curated list would break self-hosted
+ * deployments where MCP servers run on internal networks.
+ *
+ * Does NOT enforce protocol (HTTP is allowed) or block service ports — MCP
+ * servers legitimately run on HTTP and on arbitrary ports.
+ *
+ * Localhost/loopback is always allowed for local dev MCP servers.
+ * URLs with env var references in the hostname are skipped — they will be
+ * validated after resolution at execution time.
+ *
+ * @throws McpSsrfError if the URL resolves to a blocked IP address
+ */
+export async function validateMcpServerSsrf(url: string | undefined): Promise<void> {
+  if (!url) return
+  if (getAllowedMcpDomainsFromEnv() !== null) return
+  if (hasEnvVarInHostname(url)) return
+
+  let hostname: string
+  try {
+    hostname = new URL(url).hostname
+  } catch {
+    throw new McpSsrfError('MCP server URL is not a valid URL')
+  }
+
+  const cleanHostname =
+    hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+
+  if (isLocalhostHostname(cleanHostname)) return
+
+  if (ipaddr.isValid(cleanHostname) && isPrivateOrReservedIP(cleanHostname)) {
+    throw new McpSsrfError('MCP server URL cannot point to a private or reserved IP address')
+  }
+
+  try {
+    const { address } = await dns.lookup(cleanHostname, { verbatim: true })
+
+    if (isPrivateOrReservedIP(address) && !isLoopbackIP(address)) {
+      logger.warn('MCP server URL resolves to blocked IP address', {
+        hostname,
+        resolvedIP: address,
+      })
+      throw new McpSsrfError('MCP server URL resolves to a blocked IP address')
+    }
+  } catch (error) {
+    if (error instanceof McpSsrfError) throw error
+    logger.warn('DNS lookup failed for MCP server URL', {
+      hostname,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    throw new McpDnsResolutionError(cleanHostname)
   }
 }

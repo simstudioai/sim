@@ -7,6 +7,7 @@ import { Button, Combobox } from '@/components/emcn/components'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { getPollingProviderFromOAuth } from '@/lib/credential-sets/providers'
+import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -346,19 +347,30 @@ export function CredentialSelector({
         filterOptions={true}
         isLoading={credentialsLoading}
         overlayContent={overlayContent}
-        className={overlayContent ? 'pl-[28px]' : ''}
+        className={overlayContent ? 'pl-7' : ''}
       />
 
       {needsUpdate && (
-        <div className='mt-[8px] flex flex-col gap-[4px] rounded-[4px] border bg-[var(--surface-2)] px-[8px] py-[6px]'>
-          <div className='flex items-center font-medium text-[12px]'>
-            <span className='mr-[6px] inline-block h-[6px] w-[6px] rounded-[2px] bg-amber-500' />
+        <div className='mt-2 flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
+          <div className='flex items-center font-medium text-caption'>
+            <span className='mr-1.5 inline-block h-[6px] w-[6px] rounded-xs bg-amber-500' />
             Additional permissions required
           </div>
           <Button
             variant='active'
-            onClick={() => setShowOAuthModal(true)}
-            className='w-full px-[8px] py-[4px] font-medium text-[12px]'
+            onClick={() => {
+              writeOAuthReturnContext({
+                origin: 'workflow',
+                workflowId: activeWorkflowId || '',
+                displayName: selectedCredential?.name ?? getProviderName(provider),
+                providerId: effectiveProviderId,
+                preCount: credentials.length,
+                workspaceId,
+                requestedAt: Date.now(),
+              })
+              setShowOAuthModal(true)
+            }}
+            className='w-full px-2 py-1 font-medium text-caption'
           >
             Update access
           </Button>
@@ -380,7 +392,10 @@ export function CredentialSelector({
       {showOAuthModal && (
         <OAuthRequiredModal
           isOpen={showOAuthModal}
-          onClose={() => setShowOAuthModal(false)}
+          onClose={() => {
+            consumeOAuthReturnContext()
+            setShowOAuthModal(false)
+          }}
           provider={provider}
           toolName={getProviderName(provider)}
           requiredScopes={getCanonicalScopesForProvider(effectiveProviderId)}

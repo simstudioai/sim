@@ -12,17 +12,11 @@ const FADE_OUT_MS = 80
 interface UseTourOptions {
   /** Tour step definitions */
   steps: Step[]
-  /** localStorage key for completion persistence */
-  storageKey: string
-  /** Delay before auto-starting the tour (ms) */
-  autoStartDelay?: number
-  /** Whether this tour can be reset/retriggered */
-  resettable?: boolean
   /** Custom event name to listen for manual triggers */
   triggerEvent?: string
   /** Identifier for logging */
   tourName?: string
-  /** When true, suppresses auto-start (e.g. to avoid overlapping with another active tour) */
+  /** When true, stops a running tour (e.g. navigating away from the relevant page) */
   disabled?: boolean
 }
 
@@ -41,49 +35,14 @@ interface UseTourReturn {
   handleCallback: (data: CallBackProps) => void
 }
 
-function isTourCompleted(storageKey: string): boolean {
-  try {
-    return localStorage.getItem(storageKey) === 'true'
-  } catch {
-    return false
-  }
-}
-
-function markTourCompleted(storageKey: string): void {
-  try {
-    localStorage.setItem(storageKey, 'true')
-  } catch {
-    logger.warn('Failed to persist tour completion', { storageKey })
-  }
-}
-
-function clearTourCompletion(storageKey: string): void {
-  try {
-    localStorage.removeItem(storageKey)
-  } catch {
-    logger.warn('Failed to clear tour completion', { storageKey })
-  }
-}
-
-/**
- * Tracks which tours have already attempted auto-start in this page session.
- * Module-level so it survives component remounts (e.g. navigating between
- * workflows remounts WorkflowTour), while still resetting on full page reload.
- */
-const autoStartAttempted = new Set<string>()
-
 /**
  * Shared hook for managing product tour state with smooth transitions.
  *
- * Handles auto-start on first visit, localStorage persistence,
- * manual triggering via custom events, and coordinated fade
+ * Handles manual triggering via custom events and coordinated fade
  * transitions between steps to prevent layout shift.
  */
 export function useTour({
   steps,
-  storageKey,
-  autoStartDelay = 1200,
-  resettable = false,
   triggerEvent,
   tourName = 'tour',
   disabled = false,
@@ -94,14 +53,9 @@ export function useTour({
   const [isTooltipVisible, setIsTooltipVisible] = useState(true)
   const [isEntrance, setIsEntrance] = useState(true)
 
-  const disabledRef = useRef(disabled)
   const retriggerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rafRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    disabledRef.current = disabled
-  }, [disabled])
 
   /**
    * Schedules a two-frame rAF to reveal the tooltip after the browser
@@ -137,8 +91,7 @@ export function useTour({
     setRun(false)
     setIsTooltipVisible(true)
     setIsEntrance(true)
-    markTourCompleted(storageKey)
-  }, [storageKey, cancelPendingTransitions])
+  }, [cancelPendingTransitions])
 
   /** Transition to a new step with a coordinated fade-out/fade-in */
   const transitionToStep = useCallback(
@@ -161,43 +114,30 @@ export function useTour({
     [steps.length, stopTour, cancelPendingTransitions, scheduleReveal]
   )
 
+  useEffect(() => {
+    if (!run) return
+    const html = document.documentElement
+    const prev = html.style.scrollbarGutter
+    html.style.scrollbarGutter = 'stable'
+    return () => {
+      html.style.scrollbarGutter = prev
+    }
+  }, [run])
+
   /** Stop the tour when disabled becomes true (e.g. navigating away from the relevant page) */
   useEffect(() => {
     if (disabled && run) {
-      cancelPendingTransitions()
-      setRun(false)
-      setIsTooltipVisible(true)
-      setIsEntrance(true)
+      stopTour()
       logger.info(`${tourName} paused — disabled became true`)
     }
-  }, [disabled, run, tourName, cancelPendingTransitions])
-
-  /** Auto-start on first visit (once per page session per tour) */
-  useEffect(() => {
-    if (disabled || autoStartAttempted.has(storageKey) || isTourCompleted(storageKey)) return
-
-    const timer = setTimeout(() => {
-      if (disabledRef.current) return
-
-      autoStartAttempted.add(storageKey)
-      setStepIndex(0)
-      setIsEntrance(true)
-      setIsTooltipVisible(false)
-      setRun(true)
-      logger.info(`Auto-starting ${tourName}`)
-      scheduleReveal()
-    }, autoStartDelay)
-
-    return () => clearTimeout(timer)
-  }, [disabled, storageKey, autoStartDelay, tourName, scheduleReveal])
+  }, [disabled, run, tourName, stopTour])
 
   /** Listen for manual trigger events */
   useEffect(() => {
-    if (!triggerEvent || !resettable) return
+    if (!triggerEvent) return
 
     const handleTrigger = () => {
       setRun(false)
-      clearTourCompletion(storageKey)
       setTourKey((k) => k + 1)
 
       if (retriggerTimerRef.current) {
@@ -222,7 +162,7 @@ export function useTour({
         clearTimeout(retriggerTimerRef.current)
       }
     }
-  }, [triggerEvent, resettable, storageKey, tourName, scheduleReveal])
+  }, [triggerEvent, tourName, scheduleReveal])
 
   /** Clean up all pending async work on unmount */
   useEffect(() => {

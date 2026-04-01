@@ -1,3 +1,4 @@
+import dns from 'dns/promises'
 import type {
   Item,
   ItemCategory,
@@ -8,6 +9,9 @@ import type {
   VaultOverview,
   Website,
 } from '@1password/sdk'
+import { createLogger } from '@sim/logger'
+import * as ipaddr from 'ipaddr.js'
+import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
 
 /** Connect-format field type strings returned by normalization. */
 type ConnectFieldType =
@@ -238,6 +242,63 @@ export async function createOnePasswordClient(serviceAccountToken: string) {
   })
 }
 
+const connectLogger = createLogger('OnePasswordConnect')
+
+/**
+ * Validates that a Connect server URL does not target cloud metadata endpoints.
+ * Allows private IPs and localhost since 1Password Connect is designed to be self-hosted.
+ * Returns the resolved IP for DNS pinning to prevent TOCTOU rebinding.
+ * @throws Error if the URL is invalid, points to a link-local address, or DNS fails.
+ */
+async function validateConnectServerUrl(serverUrl: string): Promise<string> {
+  let hostname: string
+  try {
+    hostname = new URL(serverUrl).hostname
+  } catch {
+    throw new Error('1Password server URL is not a valid URL')
+  }
+
+  const clean =
+    hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+
+  if (ipaddr.isValid(clean)) {
+    const addr = ipaddr.process(clean)
+    if (addr.range() === 'linkLocal') {
+      throw new Error('1Password server URL cannot point to a link-local address')
+    }
+    return clean
+  }
+
+  try {
+    const { address } = await dns.lookup(clean, { verbatim: true })
+    if (ipaddr.isValid(address) && ipaddr.process(address).range() === 'linkLocal') {
+      connectLogger.warn('1Password Connect server URL resolves to link-local IP', {
+        hostname: clean,
+        resolvedIP: address,
+      })
+      throw new Error('1Password server URL resolves to a link-local address')
+    }
+    return address
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('1Password')) throw error
+    connectLogger.warn('DNS lookup failed for 1Password Connect server URL', {
+      hostname: clean,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    throw new Error('1Password server URL hostname could not be resolved')
+  }
+}
+
+/** Minimal response shape used by all connectRequest callers. */
+export interface ConnectResponse {
+  ok: boolean
+  status: number
+  statusText: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  json: () => Promise<any>
+  text: () => Promise<string>
+}
+
 /** Proxy a request to the 1Password Connect Server. */
 export async function connectRequest(options: {
   serverUrl: string
@@ -246,7 +307,9 @@ export async function connectRequest(options: {
   method: string
   body?: unknown
   query?: string
-}): Promise<Response> {
+}): Promise<ConnectResponse> {
+  const resolvedIP = await validateConnectServerUrl(options.serverUrl)
+
   const base = options.serverUrl.replace(/\/$/, '')
   const queryStr = options.query ? `?${options.query}` : ''
   const url = `${base}${options.path}${queryStr}`
@@ -259,10 +322,11 @@ export async function connectRequest(options: {
     headers['Content-Type'] = 'application/json'
   }
 
-  return fetch(url, {
+  return secureFetchWithPinnedIP(url, resolvedIP, {
     method: options.method,
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
+    allowHttp: true,
   })
 }
 

@@ -27,10 +27,11 @@ import {
   useExportSelection,
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCreateFolder, useUpdateFolder } from '@/hooks/queries/folders'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
 
 const logger = createLogger('FolderItem')
@@ -245,16 +246,16 @@ export function FolderItem({
     const workflowIds = Array.from(finalWorkflowSelection)
     const isMixed = folderIds.length > 0 && workflowIds.length > 0
 
-    const { folders } = useFolderStore.getState()
-    const { workflows } = useWorkflowRegistry.getState()
+    const folderMap = getFolderMap(workspaceId)
+    const workflows = getWorkflows(workspaceId)
 
     const names: string[] = []
     for (const id of folderIds) {
-      const f = folders[id]
+      const f = folderMap[id]
       if (f) names.push(f.name)
     }
     for (const id of workflowIds) {
-      const w = workflows[id]
+      const w = workflows.find((wf) => wf.id === id)
       if (w) names.push(w.name)
     }
 
@@ -447,9 +448,12 @@ export function FolderItem({
         aria-expanded={isExpanded}
         aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
         className={clsx(
-          'group mx-[2px] flex h-[30px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[8px] text-[14px]',
-          !isAnyDragActive && 'hover:bg-[var(--surface-active)]',
-          isSelected ? 'bg-[var(--surface-active)]' : '',
+          'group mx-0.5 flex h-[30px] cursor-pointer items-center gap-2 rounded-lg px-2 text-sm',
+          !isSelected &&
+            !isContextMenuOpen &&
+            !isAnyDragActive &&
+            'hover-hover:bg-[var(--surface-hover)]',
+          (isSelected || isContextMenuOpen) && 'bg-[var(--surface-active)]',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         onClick={handleClick}
@@ -485,7 +489,7 @@ export function FolderItem({
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleRenameKeyDown}
             onBlur={handleInputBlur}
-            className='min-w-0 flex-1 border-0 bg-transparent p-0 font-base text-[14px] text-[var(--text-body)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='min-w-0 flex-1 border-0 bg-transparent p-0 font-base text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
             maxLength={50}
             disabled={isRenaming}
             onClick={(e) => {
@@ -498,7 +502,7 @@ export function FolderItem({
             spellCheck='false'
           />
         ) : (
-          <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
+          <div className='flex min-w-0 flex-1 items-center gap-2'>
             <span
               className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'
               onDoubleClick={handleDoubleClick}
@@ -511,8 +515,9 @@ export function FolderItem({
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
               className={clsx(
-                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)]',
-                !isAnyDragActive && 'group-hover:opacity-100'
+                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity',
+                !isAnyDragActive && 'group-hover:opacity-100',
+                isContextMenuOpen && 'opacity-100'
               )}
             >
               <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />

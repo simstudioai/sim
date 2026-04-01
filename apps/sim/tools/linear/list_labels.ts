@@ -80,7 +80,7 @@ export const linearListLabelsTool: ToolConfig<LinearListLabelsParams, LinearList
         variables: {
           filter: Object.keys(filter).length > 0 ? filter : undefined,
           first: params.first ? Number(params.first) : 50,
-          after: params.after,
+          after: params.after?.trim() || undefined,
         },
       }
     },

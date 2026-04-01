@@ -26,6 +26,11 @@ export const AuditAction = {
   CHAT_UPDATED: 'chat.updated',
   CHAT_DELETED: 'chat.deleted',
 
+  // Custom Tools
+  CUSTOM_TOOL_CREATED: 'custom_tool.created',
+  CUSTOM_TOOL_UPDATED: 'custom_tool.updated',
+  CUSTOM_TOOL_DELETED: 'custom_tool.deleted',
+
   // Billing
   CREDIT_PURCHASED: 'credit.purchased',
 
@@ -99,8 +104,10 @@ export const AuditAction = {
   NOTIFICATION_UPDATED: 'notification.updated',
   NOTIFICATION_DELETED: 'notification.deleted',
 
-  // OAuth
+  // OAuth / Credentials
   OAUTH_DISCONNECTED: 'oauth.disconnected',
+  CREDENTIAL_RENAMED: 'credential.renamed',
+  CREDENTIAL_DELETED: 'credential.deleted',
 
   // Password
   PASSWORD_RESET: 'password.reset',
@@ -123,6 +130,11 @@ export const AuditAction = {
   PERMISSION_GROUP_DELETED: 'permission_group.deleted',
   PERMISSION_GROUP_MEMBER_ADDED: 'permission_group_member.added',
   PERMISSION_GROUP_MEMBER_REMOVED: 'permission_group_member.removed',
+
+  // Skills
+  SKILL_CREATED: 'skill.created',
+  SKILL_UPDATED: 'skill.updated',
+  SKILL_DELETED: 'skill.deleted',
 
   // Schedules
   SCHEDULE_UPDATED: 'schedule.updated',
@@ -173,6 +185,7 @@ export const AuditResourceType = {
   CHAT: 'chat',
   CONNECTOR: 'connector',
   CREDENTIAL_SET: 'credential_set',
+  CUSTOM_TOOL: 'custom_tool',
   DOCUMENT: 'document',
   ENVIRONMENT: 'environment',
   FILE: 'file',
@@ -186,6 +199,7 @@ export const AuditResourceType = {
   PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',
   SCHEDULE: 'schedule',
+  SKILL: 'skill',
   TABLE: 'table',
   TEMPLATE: 'template',
   WEBHOOK: 'webhook',

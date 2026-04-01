@@ -249,7 +249,9 @@ export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
   }
 }
 
-export const workflowHasResponseBlock = (executionResult: ExecutionResult): boolean => {
+export const workflowHasResponseBlock = (
+  executionResult: Pick<ExecutionResult, 'success' | 'logs'>
+): boolean => {
   if (!executionResult?.logs || !Array.isArray(executionResult.logs) || !executionResult.success) {
     return false
   }
@@ -261,7 +263,9 @@ export const workflowHasResponseBlock = (executionResult: ExecutionResult): bool
   return responseBlock !== undefined
 }
 
-export const createHttpResponseFromBlock = (executionResult: ExecutionResult): NextResponse => {
+export const createHttpResponseFromBlock = (
+  executionResult: Pick<ExecutionResult, 'output'>
+): NextResponse => {
   const { data = {}, status = 200, headers = {} } = executionResult.output
 
   const responseHeaders = new Headers({
@@ -610,6 +614,36 @@ export async function deleteFolderRecord(folderId: string): Promise<boolean> {
   await db.delete(workflowFolder).where(eq(workflowFolder.id, folderId))
 
   return true
+}
+
+/**
+ * Checks whether setting `parentId` as the parent of `folderId` would
+ * create a circular reference in the folder tree.
+ */
+export async function checkForCircularReference(
+  folderId: string,
+  parentId: string
+): Promise<boolean> {
+  let currentParentId: string | null = parentId
+  const visited = new Set<string>()
+
+  while (currentParentId) {
+    if (visited.has(currentParentId) || currentParentId === folderId) {
+      return true
+    }
+
+    visited.add(currentParentId)
+
+    const [parent] = await db
+      .select({ parentId: workflowFolder.parentId })
+      .from(workflowFolder)
+      .where(eq(workflowFolder.id, currentParentId))
+      .limit(1)
+
+    currentParentId = parent?.parentId || null
+  }
+
+  return false
 }
 
 export async function listFolders(workspaceId: string) {

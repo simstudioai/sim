@@ -16,6 +16,7 @@ export function ClipboardList(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path d='M3.75 4.25C3.75 2.86929 4.86929 1.75 6.25 1.75H14.25C15.6307 1.75 16.75 2.86929 16.75 4.25V17.25C16.75 18.6307 15.6307 19.75 14.25 19.75H6.25C4.86929 19.75 3.75 18.6307 3.75 17.25V4.25Z' />

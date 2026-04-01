@@ -4,7 +4,13 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
-import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-check'
+import {
+  McpDnsResolutionError,
+  McpDomainNotAllowedError,
+  McpSsrfError,
+  validateMcpDomain,
+  validateMcpServerSsrf,
+} from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -40,6 +46,18 @@ export const PATCH = withMcpAuth<{ id: string }>('write')(
           validateMcpDomain(updateData.url)
         } catch (e) {
           if (e instanceof McpDomainNotAllowedError) {
+            return createMcpErrorResponse(e, e.message, 403)
+          }
+          throw e
+        }
+
+        try {
+          await validateMcpServerSsrf(updateData.url)
+        } catch (e) {
+          if (e instanceof McpDnsResolutionError) {
+            return createMcpErrorResponse(e, e.message, 502)
+          }
+          if (e instanceof McpSsrfError) {
             return createMcpErrorResponse(e, e.message, 403)
           }
           throw e

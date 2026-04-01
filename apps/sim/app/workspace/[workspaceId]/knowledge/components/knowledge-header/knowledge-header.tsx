@@ -27,10 +27,10 @@ interface BreadcrumbItem {
 }
 
 const HEADER_STYLES = {
-  container: 'flex items-center justify-between px-6 pt-[14px] pb-6',
+  container: 'flex items-center justify-between px-6 pt-3.5 pb-6',
   breadcrumbs: 'flex items-center gap-2',
   icon: 'h-[18px] w-[18px] text-[var(--text-icon)] transition-colors',
-  link: 'group flex items-center gap-2 font-medium text-sm text-[var(--text-body)] transition-colors hover:text-[var(--text-secondary)]',
+  link: 'group flex items-center gap-2 font-medium text-sm text-[var(--text-body)] transition-colors hover-hover:text-[var(--text-secondary)]',
   label: 'font-medium text-sm text-[var(--text-body)]',
   separator: 'text-[var(--text-icon)]',
   actionsContainer: 'flex items-center gap-2',

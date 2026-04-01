@@ -4,6 +4,7 @@ import { createElement, useCallback, useMemo, useRef, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
+import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -18,6 +19,7 @@ import { ConnectCredentialModal } from '@/app/workspace/[workspaceId]/w/[workflo
 import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -77,9 +79,10 @@ export function ToolCredentialSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [editingInputValue, setEditingInputValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
-  const { activeWorkflowId, workflows } = useWorkflowRegistry()
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const { data: workflowMap = {} } = useWorkflowMap(workspaceId)
   const effectiveWorkflowId =
-    activeWorkflowId && workflows[activeWorkflowId] ? activeWorkflowId : undefined
+    activeWorkflowId && workflowMap[activeWorkflowId] ? activeWorkflowId : undefined
 
   const selectedId = value || ''
   const effectiveLabel = label || `Select ${getProviderName(provider)} account`
@@ -211,19 +214,30 @@ export function ToolCredentialSelector({
         filterOptions={true}
         isLoading={credentialsLoading}
         overlayContent={overlayContent}
-        className={selectedId ? 'pl-[28px]' : ''}
+        className={selectedId ? 'pl-7' : ''}
       />
 
       {needsUpdate && (
-        <div className='mt-[8px] flex flex-col gap-[4px] rounded-[4px] border bg-[var(--surface-2)] px-[8px] py-[6px]'>
-          <div className='flex items-center font-medium text-[12px]'>
-            <span className='mr-[6px] inline-block h-[6px] w-[6px] rounded-[2px] bg-amber-500' />
+        <div className='mt-2 flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
+          <div className='flex items-center font-medium text-caption'>
+            <span className='mr-1.5 inline-block h-[6px] w-[6px] rounded-xs bg-amber-500' />
             Additional permissions required
           </div>
           <Button
             variant='active'
-            onClick={() => setShowOAuthModal(true)}
-            className='w-full px-[8px] py-[4px] font-medium text-[12px]'
+            onClick={() => {
+              writeOAuthReturnContext({
+                origin: 'workflow',
+                workflowId: effectiveWorkflowId || '',
+                displayName: selectedCredential?.name ?? getProviderName(provider),
+                providerId: effectiveProviderId,
+                preCount: credentials.length,
+                workspaceId,
+                requestedAt: Date.now(),
+              })
+              setShowOAuthModal(true)
+            }}
+            className='w-full px-2 py-1 font-medium text-caption'
           >
             Update access
           </Button>
@@ -245,7 +259,10 @@ export function ToolCredentialSelector({
       {showOAuthModal && (
         <OAuthRequiredModal
           isOpen={showOAuthModal}
-          onClose={() => setShowOAuthModal(false)}
+          onClose={() => {
+            consumeOAuthReturnContext()
+            setShowOAuthModal(false)
+          }}
           provider={provider}
           toolName={getProviderName(provider)}
           requiredScopes={getCanonicalScopesForProvider(effectiveProviderId)}

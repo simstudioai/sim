@@ -6,7 +6,6 @@ import {
   updateApiKeyLastUsed,
 } from '@/lib/api-key/service'
 import { type AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
-import { env } from '@/lib/core/config/env'
 import { authorizeWorkflowByWorkspacePermission, getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowMiddleware')
@@ -79,11 +78,6 @@ export async function validateWorkflowAccess(
             status: 403,
           },
         }
-      }
-
-      const internalSecret = request.headers.get('X-Internal-Secret')
-      if (env.INTERNAL_API_SECRET && internalSecret === env.INTERNAL_API_SECRET) {
-        return { workflow }
       }
 
       let apiKeyHeader = null

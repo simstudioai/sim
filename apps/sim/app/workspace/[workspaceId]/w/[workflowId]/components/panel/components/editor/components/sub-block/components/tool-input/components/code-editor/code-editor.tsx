@@ -118,7 +118,7 @@ export function CodeEditor({
             className={cn(
               'text-xs tabular-nums',
               `leading-[${CODE_LINE_HEIGHT_PX}px]`,
-              i > 0 ? 'invisible' : 'text-[#a8a8a8]'
+              i > 0 ? 'invisible' : 'text-[var(--code-line-number)]'
             )}
           >
             {lineNumber}
@@ -194,7 +194,7 @@ export function CodeEditor({
           onClick={onWandClick}
           disabled={wandButtonDisabled}
           aria-label='Generate with AI'
-          className='absolute top-2 right-3 z-10 h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground opacity-0 shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-foreground hover:shadow group-hover:opacity-100'
+          className='absolute top-2 right-3 z-10 h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground opacity-0 shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow group-hover:opacity-100'
         >
           <Wand2 className='h-4 w-4' />
         </Button>

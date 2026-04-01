@@ -32,7 +32,7 @@ export const attioGetThreadTool: ToolConfig<AttioGetThreadParams, AttioGetThread
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/threads/${params.threadId}`,
+    url: (params) => `https://api.attio.com/v2/threads/${params.threadId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

@@ -1,0 +1,149 @@
+---
+title: Ketch
+description: Manage privacy consent, subscriptions, and data subject rights
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ketch"
+  color="#9B5CFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Ketch](https://www.ketch.com/) is an AI-powered privacy, consent, and data governance platform that helps organizations automate compliance with global privacy regulations. It provides tools for managing consent preferences, handling data subject rights requests, and controlling subscription communications.
+
+With Ketch, you can:
+
+- **Retrieve consent status**: Query the current consent preferences for any data subject across configured purposes and legal bases
+- **Update consent preferences**: Set or modify consent for specific purposes (e.g., analytics, marketing) with the appropriate legal basis (opt-in, opt-out, disclosure)
+- **Manage subscriptions**: Get and update subscription topic preferences and global controls across contact methods like email and SMS
+- **Invoke data subject rights**: Submit privacy rights requests including data access, deletion, correction, and processing restriction under regulations like GDPR and CCPA
+
+To use Ketch, drop the Ketch block into your workflow and provide your organization code, property code, and environment code. The Ketch Web API is a public API — no API key or OAuth credentials are required. Identity is determined by the organization and property codes along with the data subject's identity (e.g., email address).
+
+These capabilities let you automate privacy compliance workflows, respond to user consent changes in real time, and manage data subject rights requests as part of your broader automation pipelines.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Ketch into the workflow. Retrieve and update consent preferences, manage subscription topics and controls, and submit data subject rights requests for access, deletion, correction, or processing restriction.
+
+
+
+## Tools
+
+### `ketch_get_consent`
+
+Retrieve consent status for a data subject. Returns the current consent preferences for each configured purpose.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organizationCode` | string | Yes | Ketch organization code |
+| `propertyCode` | string | Yes | Digital property code defined in Ketch |
+| `environmentCode` | string | Yes | Environment code defined in Ketch \(e.g., "production"\) |
+| `jurisdictionCode` | string | No | Jurisdiction code \(e.g., "gdpr", "ccpa"\) |
+| `identities` | json | Yes | Identity map \(e.g., \{"email": "user@example.com"\}\) |
+| `purposes` | json | No | Optional purposes to filter the consent query |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `purposes` | object | Map of purpose codes to consent status and legal basis |
+|   ↳ `allowed` | string | Consent status for the purpose: "granted" or "denied" |
+|   ↳ `legalBasisCode` | string | Legal basis code \(e.g., "consent_optin", "consent_optout", "disclosure", "other"\) |
+| `vendors` | object | Map of vendor consent statuses |
+
+### `ketch_set_consent`
+
+Update consent preferences for a data subject. Sets the consent status for specified purposes with the appropriate legal basis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organizationCode` | string | Yes | Ketch organization code |
+| `propertyCode` | string | Yes | Digital property code defined in Ketch |
+| `environmentCode` | string | Yes | Environment code defined in Ketch \(e.g., "production"\) |
+| `jurisdictionCode` | string | No | Jurisdiction code \(e.g., "gdpr", "ccpa"\) |
+| `identities` | json | Yes | Identity map \(e.g., \{"email": "user@example.com"\}\) |
+| `purposes` | json | Yes | Map of purpose codes to consent settings \(e.g., \{"analytics": \{"allowed": "granted", "legalBasisCode": "consent_optin"\}\}\) |
+| `collectedAt` | number | No | UNIX timestamp when consent was collected \(defaults to current time\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `purposes` | object | Updated consent status map of purpose codes to consent settings |
+|   ↳ `allowed` | string | Consent status for the purpose: "granted" or "denied" |
+|   ↳ `legalBasisCode` | string | Legal basis code \(e.g., "consent_optin", "consent_optout", "disclosure", "other"\) |
+
+### `ketch_get_subscriptions`
+
+Retrieve subscription preferences for a data subject. Returns the current subscription topic and control statuses.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organizationCode` | string | Yes | Ketch organization code |
+| `propertyCode` | string | Yes | Digital property code defined in Ketch |
+| `environmentCode` | string | Yes | Environment code defined in Ketch \(e.g., "production"\) |
+| `identities` | json | Yes | Identity map \(e.g., \{"email": "user@example.com"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `topics` | object | Map of topic codes to contact method settings \(e.g., \{"newsletter": \{"email": \{"status": "granted"\}\}\}\) |
+| `controls` | object | Map of control codes to settings \(e.g., \{"global_unsubscribe": \{"status": "denied"\}\}\) |
+
+### `ketch_set_subscriptions`
+
+Update subscription preferences for a data subject. Sets topic and control statuses for email, SMS, and other contact methods.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organizationCode` | string | Yes | Ketch organization code |
+| `propertyCode` | string | Yes | Digital property code defined in Ketch |
+| `environmentCode` | string | Yes | Environment code defined in Ketch \(e.g., "production"\) |
+| `identities` | json | Yes | Identity map \(e.g., \{"email": "user@example.com"\}\) |
+| `topics` | json | No | Map of topic codes to contact method settings \(e.g., \{"newsletter": \{"email": \{"status": "granted"\}, "sms": \{"status": "denied"\}\}\}\) |
+| `controls` | json | No | Map of control codes to settings \(e.g., \{"global_unsubscribe": \{"status": "denied"\}\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the subscription preferences were updated |
+
+### `ketch_invoke_right`
+
+Submit a data subject rights request (e.g., access, delete, correct, restrict processing). Initiates a privacy rights workflow in Ketch.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organizationCode` | string | Yes | Ketch organization code |
+| `propertyCode` | string | Yes | Digital property code defined in Ketch |
+| `environmentCode` | string | Yes | Environment code defined in Ketch \(e.g., "production"\) |
+| `jurisdictionCode` | string | Yes | Jurisdiction code \(e.g., "gdpr", "ccpa"\) |
+| `rightCode` | string | Yes | Privacy right code to invoke \(e.g., "access", "delete", "correct", "restrict_processing"\) |
+| `identities` | json | Yes | Identity map \(e.g., \{"email": "user@example.com"\}\) |
+| `userData` | json | No | Optional data subject information \(e.g., \{"email": "user@example.com", "firstName": "John", "lastName": "Doe"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the rights request was submitted |
+| `message` | string | Response message from Ketch |
+
+

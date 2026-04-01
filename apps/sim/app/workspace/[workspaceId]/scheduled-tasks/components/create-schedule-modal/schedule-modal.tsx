@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -151,48 +151,45 @@ function buildCronExpression(
   }
 }
 
+/**
+ * Modal for creating and editing scheduled tasks.
+ *
+ * All `useState` initializers read from the `schedule` prop at mount time only.
+ * When editing an existing task, the call-site **must** supply a `key` prop equal to the
+ * task's ID so React remounts the component when the selected task changes — otherwise
+ * the form will display stale values from the previously selected task.
+ */
 export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: ScheduleModalProps) {
   const createScheduleMutation = useCreateSchedule()
   const updateScheduleMutation = useUpdateSchedule()
 
   const isEditing = Boolean(schedule)
 
-  const [title, setTitle] = useState('')
-  const [prompt, setPrompt] = useState('')
-  const [scheduleType, setScheduleType] = useState<ScheduleType>('daily')
-  const [minutesInterval, setMinutesInterval] = useState('15')
-  const [hourlyMinute, setHourlyMinute] = useState('0')
-  const [dailyTime, setDailyTime] = useState('09:00')
-  const [weeklyDay, setWeeklyDay] = useState('MON')
-  const [weeklyDayTime, setWeeklyDayTime] = useState('09:00')
-  const [monthlyDay, setMonthlyDay] = useState('1')
-  const [monthlyTime, setMonthlyTime] = useState('09:00')
-  const [cronExpression, setCronExpression] = useState('')
-  const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE)
-  const [startDate, setStartDate] = useState('')
-  const [lifecycle, setLifecycle] = useState<'persistent' | 'until_complete'>('persistent')
-  const [maxRuns, setMaxRuns] = useState('')
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const initialCronState = useMemo(
+    () => (schedule ? parseCronToScheduleType(schedule.cronExpression) : null),
+    [schedule]
+  )
 
-  useEffect(() => {
-    if (!open || !schedule) return
-    const cronState = parseCronToScheduleType(schedule.cronExpression)
-    setTitle(schedule.jobTitle || '')
-    setPrompt(schedule.prompt || '')
-    setScheduleType(cronState.scheduleType)
-    setMinutesInterval(cronState.minutesInterval)
-    setHourlyMinute(cronState.hourlyMinute)
-    setDailyTime(cronState.dailyTime)
-    setWeeklyDay(cronState.weeklyDay)
-    setWeeklyDayTime(cronState.weeklyDayTime)
-    setMonthlyDay(cronState.monthlyDay)
-    setMonthlyTime(cronState.monthlyTime)
-    setCronExpression(cronState.cronExpression)
-    setTimezone(schedule.timezone || DEFAULT_TIMEZONE)
-    setLifecycle(schedule.lifecycle === 'until_complete' ? 'until_complete' : 'persistent')
-    setMaxRuns(schedule.maxRuns ? String(schedule.maxRuns) : '')
-    setStartDate('')
-  }, [open, schedule])
+  const [title, setTitle] = useState(schedule?.jobTitle ?? '')
+  const [prompt, setPrompt] = useState(schedule?.prompt ?? '')
+  const [scheduleType, setScheduleType] = useState<ScheduleType>(
+    initialCronState?.scheduleType ?? 'daily'
+  )
+  const [minutesInterval, setMinutesInterval] = useState(initialCronState?.minutesInterval ?? '15')
+  const [hourlyMinute, setHourlyMinute] = useState(initialCronState?.hourlyMinute ?? '0')
+  const [dailyTime, setDailyTime] = useState(initialCronState?.dailyTime ?? '09:00')
+  const [weeklyDay, setWeeklyDay] = useState(initialCronState?.weeklyDay ?? 'MON')
+  const [weeklyDayTime, setWeeklyDayTime] = useState(initialCronState?.weeklyDayTime ?? '09:00')
+  const [monthlyDay, setMonthlyDay] = useState(initialCronState?.monthlyDay ?? '1')
+  const [monthlyTime, setMonthlyTime] = useState(initialCronState?.monthlyTime ?? '09:00')
+  const [cronExpression, setCronExpression] = useState(initialCronState?.cronExpression ?? '')
+  const [timezone, setTimezone] = useState(schedule?.timezone ?? DEFAULT_TIMEZONE)
+  const [startDate, setStartDate] = useState('')
+  const [lifecycle, setLifecycle] = useState<'persistent' | 'until_complete'>(
+    schedule?.lifecycle === 'until_complete' ? 'until_complete' : 'persistent'
+  )
+  const [maxRuns, setMaxRuns] = useState(schedule?.maxRuns ? String(schedule.maxRuns) : '')
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const computedCron = useMemo(
     () =>
@@ -316,9 +313,9 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
       <ModalContent size='lg'>
         <ModalHeader>{isEditing ? 'Edit scheduled task' : 'Create new scheduled task'}</ModalHeader>
         <ModalBody>
-          <div className='flex flex-col gap-[18px]'>
-            <div className='flex flex-col gap-[8px]'>
-              <p className='font-medium text-[14px] text-[var(--text-secondary)]'>Title</p>
+          <div className='flex flex-col gap-4.5'>
+            <div className='flex flex-col gap-2'>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>Title</p>
               <EmcnInput
                 value={title}
                 onChange={(e) => {
@@ -332,10 +329,8 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
               />
             </div>
 
-            <div className='flex flex-col gap-[8px]'>
-              <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                Task description
-              </p>
+            <div className='flex flex-col gap-2'>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>Task description</p>
               <Textarea
                 value={prompt}
                 onChange={(e) => {
@@ -347,8 +342,8 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
               />
             </div>
 
-            <div className='flex flex-col gap-[8px]'>
-              <p className='font-medium text-[14px] text-[var(--text-secondary)]'>Run frequency</p>
+            <div className='flex flex-col gap-2'>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>Run frequency</p>
               <Combobox
                 options={SCHEDULE_TYPE_OPTIONS}
                 value={scheduleType}
@@ -358,8 +353,8 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             </div>
 
             {scheduleType === 'minutes' && (
-              <div className='flex flex-col gap-[8px]'>
-                <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>
                   Interval (minutes)
                 </p>
                 <EmcnInput
@@ -375,10 +370,8 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             )}
 
             {scheduleType === 'hourly' && (
-              <div className='flex flex-col gap-[8px]'>
-                <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                  Minute of hour
-                </p>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Minute of hour</p>
                 <EmcnInput
                   type='number'
                   value={hourlyMinute}
@@ -392,33 +385,29 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             )}
 
             {scheduleType === 'daily' && (
-              <div className='flex flex-col gap-[8px]'>
-                <p className='font-medium text-[14px] text-[var(--text-secondary)]'>Time</p>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
                 <TimePicker value={dailyTime} onChange={setDailyTime} />
               </div>
             )}
 
             {scheduleType === 'weekly' && (
-              <div className='flex gap-[12px]'>
-                <div className='flex flex-1 flex-col gap-[8px]'>
-                  <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                    Day of week
-                  </p>
+              <div className='flex gap-3'>
+                <div className='flex flex-1 flex-col gap-2'>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Day of week</p>
                   <Combobox options={WEEKDAY_OPTIONS} value={weeklyDay} onChange={setWeeklyDay} />
                 </div>
-                <div className='flex flex-1 flex-col gap-[8px]'>
-                  <p className='font-medium text-[14px] text-[var(--text-secondary)]'>Time</p>
+                <div className='flex flex-1 flex-col gap-2'>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
                   <TimePicker value={weeklyDayTime} onChange={setWeeklyDayTime} />
                 </div>
               </div>
             )}
 
             {scheduleType === 'monthly' && (
-              <div className='flex gap-[12px]'>
-                <div className='flex flex-1 flex-col gap-[8px]'>
-                  <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                    Day of month
-                  </p>
+              <div className='flex gap-3'>
+                <div className='flex flex-1 flex-col gap-2'>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Day of month</p>
                   <EmcnInput
                     type='number'
                     value={monthlyDay}
@@ -429,18 +418,16 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
                     className='h-9'
                   />
                 </div>
-                <div className='flex flex-1 flex-col gap-[8px]'>
-                  <p className='font-medium text-[14px] text-[var(--text-secondary)]'>Time</p>
+                <div className='flex flex-1 flex-col gap-2'>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Time</p>
                   <TimePicker value={monthlyTime} onChange={setMonthlyTime} />
                 </div>
               </div>
             )}
 
             {scheduleType === 'custom' && (
-              <div className='flex flex-col gap-[8px]'>
-                <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
-                  Cron expression
-                </p>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Cron expression</p>
                 <EmcnInput
                   value={cronExpression}
                   onChange={(e) => setCronExpression(e.target.value)}
@@ -452,8 +439,8 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             )}
 
             {showTimezone && (
-              <div className='flex flex-col gap-[8px]'>
-                <p className='font-medium text-[14px] text-[var(--text-secondary)]'>Timezone</p>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>Timezone</p>
                 <Combobox
                   options={TIMEZONE_OPTIONS}
                   value={timezone}
@@ -466,10 +453,10 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             )}
 
             {!isEditing && (
-              <div className='flex flex-col gap-[8px]'>
-                <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>
                   Start date
-                  <span className='ml-[4px] font-normal text-[var(--text-muted)]'>(optional)</span>
+                  <span className='ml-1 font-normal text-[var(--text-muted)]'>(optional)</span>
                 </p>
                 <DatePicker
                   value={startDate}
@@ -479,8 +466,8 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
               </div>
             )}
 
-            <div className='flex flex-col gap-[8px]'>
-              <p className='font-medium text-[14px] text-[var(--text-secondary)]'>Lifecycle</p>
+            <div className='flex flex-col gap-2'>
+              <p className='font-medium text-[var(--text-secondary)] text-sm'>Lifecycle</p>
               <ButtonGroup
                 value={lifecycle}
                 onValueChange={(value) => setLifecycle(value as 'persistent' | 'until_complete')}
@@ -491,10 +478,10 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             </div>
 
             {lifecycle === 'until_complete' && (
-              <div className='flex flex-col gap-[8px]'>
-                <p className='font-medium text-[14px] text-[var(--text-secondary)]'>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>
                   Max runs
-                  <span className='ml-[4px] font-normal text-[var(--text-muted)]'>(optional)</span>
+                  <span className='ml-1 font-normal text-[var(--text-muted)]'>(optional)</span>
                 </p>
                 <EmcnInput
                   type='number'
@@ -510,14 +497,14 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             {computedCron && schedulePreview && (
               <div>
                 {'error' in schedulePreview ? (
-                  <p className='text-[13px] text-[var(--text-error)]'>{schedulePreview.error}</p>
+                  <p className='text-[var(--text-error)] text-small'>{schedulePreview.error}</p>
                 ) : (
-                  <div className='flex flex-col gap-[4px]'>
-                    <p className='text-[13px] text-[var(--text-secondary)]'>
+                  <div className='flex flex-col gap-1'>
+                    <p className='text-[var(--text-secondary)] text-small'>
                       {schedulePreview.humanReadable}
                     </p>
                     {schedulePreview.nextRun && (
-                      <p className='text-[12px] text-[var(--text-muted)]'>
+                      <p className='text-[var(--text-muted)] text-caption'>
                         Next run:{' '}
                         {schedulePreview.nextRun.toLocaleString(undefined, {
                           dateStyle: 'medium',
@@ -531,7 +518,7 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
             )}
 
             {submitError && (
-              <p className='text-[13px] text-[var(--text-error)] leading-tight'>{submitError}</p>
+              <p className='text-[var(--text-error)] text-small leading-tight'>{submitError}</p>
             )}
           </div>
         </ModalBody>

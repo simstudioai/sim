@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { StatusPageLayout } from '@/app/(auth)/components/status-page-layout'
 
 interface FormErrorStateProps {
@@ -13,7 +13,9 @@ export function FormErrorState({ error }: FormErrorStateProps) {
 
   return (
     <StatusPageLayout title='Form Unavailable' description={error}>
-      <BrandedButton onClick={() => router.push('/workspace')}>Return to Workspace</BrandedButton>
+      <button onClick={() => router.push('/workspace')} className={AUTH_SUBMIT_BTN}>
+        Return to Workspace
+      </button>
     </StatusPageLayout>
   )
 }

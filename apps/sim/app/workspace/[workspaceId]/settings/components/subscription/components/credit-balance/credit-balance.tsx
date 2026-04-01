@@ -127,9 +127,9 @@ export function CreditBalance({
 
   return (
     <div className='flex items-center justify-between'>
-      <div className='flex items-center gap-[8px]'>
+      <div className='flex items-center gap-2'>
         <Label>Additional Credits Balance:</Label>
-        <span className='text-[13px] text-[var(--text-secondary)]'>
+        <span className='text-[var(--text-secondary)] text-small tabular-nums'>
           {isLoading ? '...' : `${formatCredits(balance)} credits`}
         </span>
       </div>
@@ -143,15 +143,15 @@ export function CreditBalance({
             <ModalHeader>Add Credits</ModalHeader>
             <ModalBody>
               {purchaseCredits.isSuccess ? (
-                <p className='text-center text-[13px] text-[var(--text-primary)]'>
+                <p className='text-center text-[var(--text-primary)] text-small'>
                   Credits added successfully!
                 </p>
               ) : (
-                <div className='space-y-[12px]'>
-                  <div className='flex flex-col gap-[8px]'>
+                <div className='space-y-3'>
+                  <div className='flex flex-col gap-2'>
                     <Label htmlFor='credit-amount'>Amount (USD)</Label>
                     <div className='relative'>
-                      <span className='-translate-y-1/2 absolute top-1/2 left-[12px] text-[13px] text-[var(--text-muted)]'>
+                      <span className='-translate-y-1/2 absolute top-1/2 left-[12px] text-[var(--text-muted)] text-small'>
                         $
                       </span>
                       <Input
@@ -161,21 +161,21 @@ export function CreditBalance({
                         value={amount}
                         onChange={(e) => handleAmountChange(e.target.value)}
                         placeholder='50'
-                        className='pl-[28px]'
+                        className='pl-7'
                         disabled={purchaseCredits.isPending}
                       />
                     </div>
                     {dollarAmount > 0 && !displayError && (
-                      <span className='text-[12px] text-[var(--text-secondary)]'>
+                      <span className='text-[var(--text-secondary)] text-caption tabular-nums'>
                         You'll receive {creditPreview.toLocaleString()} credits
                       </span>
                     )}
                     {displayError && (
-                      <span className='text-[13px] text-[var(--text-error)]'>{displayError}</span>
+                      <span className='text-[var(--text-error)] text-small'>{displayError}</span>
                     )}
                   </div>
 
-                  <div className='rounded-[6px] bg-[var(--surface-4)] p-[12px]'>
+                  <div className='rounded-md bg-[var(--surface-4)] p-3'>
                     <p className='text-[var(--text-secondary)]'>
                       Credits are non-refundable and don't expire. They'll be applied automatically
                       to your {entityType === 'organization' ? 'team' : ''} usage.

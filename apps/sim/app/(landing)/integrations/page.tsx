@@ -105,11 +105,11 @@ export default function IntegrationsPage() {
         <section aria-labelledby='integrations-heading' className='mb-16'>
           <h1
             id='integrations-heading'
-            className='mb-4 font-[500] text-[#ECECEC] text-[40px] leading-tight sm:text-[56px]'
+            className='mb-4 text-balance font-[500] text-[40px] text-[var(--landing-text)] leading-tight sm:text-[56px]'
           >
             Integrations
           </h1>
-          <p className='max-w-[640px] text-[#999] text-[18px] leading-relaxed'>
+          <p className='max-w-[640px] text-[18px] text-[var(--landing-text-muted)] leading-relaxed'>
             Connect every tool your team uses. Build AI-powered workflows that automate tasks across{' '}
             {TOP_NAMES.slice(0, 4).map((name, i, arr) => {
               const integration = allIntegrations.find((int) => int.name === name)
@@ -136,16 +136,19 @@ export default function IntegrationsPage() {
 
         {/* Searchable grid — client component */}
         <section aria-labelledby='all-integrations-heading'>
-          <h2 id='all-integrations-heading' className='mb-8 font-[500] text-[#ECECEC] text-[24px]'>
+          <h2
+            id='all-integrations-heading'
+            className='mb-8 font-[500] text-[24px] text-[var(--landing-text)]'
+          >
             All Integrations
           </h2>
           <IntegrationGrid integrations={allIntegrations} />
         </section>
 
         {/* Integration request */}
-        <div className='mt-16 flex flex-col items-start gap-3 border-[#2A2A2A] border-t pt-10 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='mt-16 flex flex-col items-start gap-3 border-[var(--landing-border)] border-t pt-10 sm:flex-row sm:items-center sm:justify-between'>
           <div>
-            <p className='font-[500] text-[#ECECEC] text-[15px]'>
+            <p className='font-[500] text-[15px] text-[var(--landing-text)]'>
               Don&apos;t see the integration you need?
             </p>
             <p className='mt-0.5 text-[#555] text-[13px]'>

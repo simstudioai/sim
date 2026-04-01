@@ -14,6 +14,20 @@ export const AuthType = {
 
 export type AuthTypeValue = (typeof AuthType)[keyof typeof AuthType]
 
+const API_KEY_HEADER = 'x-api-key'
+const BEARER_PREFIX = 'Bearer '
+
+/**
+ * Lightweight header-only check for whether a request carries external API credentials.
+ * Does NOT validate the credentials — only inspects headers to classify the request
+ * as programmatic API traffic vs interactive session traffic.
+ */
+export function hasExternalApiCredentials(headers: Headers): boolean {
+  if (headers.has(API_KEY_HEADER)) return true
+  const auth = headers.get('authorization')
+  return auth?.startsWith(BEARER_PREFIX) ?? false
+}
+
 export interface AuthResult {
   success: boolean
   userId?: string
@@ -27,39 +41,18 @@ export interface AuthResult {
 
 /**
  * Resolves userId from a verified internal JWT token.
- * Extracts userId from the JWT payload, URL search params, or POST body.
+ * Only trusts the userId embedded in the JWT payload — never from user-controlled sources.
  */
-async function resolveUserFromJwt(
-  request: NextRequest,
+function resolveUserFromJwt(
   verificationUserId: string | null,
   options: { requireWorkflowId?: boolean }
-): Promise<AuthResult> {
-  let userId: string | null = verificationUserId
-
-  if (!userId) {
-    const { searchParams } = new URL(request.url)
-    userId = searchParams.get('userId')
-  }
-
-  if (!userId && request.method === 'POST') {
-    try {
-      const clonedRequest = request.clone()
-      const bodyText = await clonedRequest.text()
-      if (bodyText) {
-        const body = JSON.parse(bodyText)
-        userId = body.userId || body._context?.userId || null
-      }
-    } catch {
-      // Ignore JSON parse errors
-    }
-  }
-
-  if (userId) {
-    return { success: true, userId, authType: AuthType.INTERNAL_JWT }
+): AuthResult {
+  if (verificationUserId) {
+    return { success: true, userId: verificationUserId, authType: AuthType.INTERNAL_JWT }
   }
 
   if (options.requireWorkflowId !== false) {
-    return { success: false, error: 'userId required for internal JWT calls' }
+    return { success: false, error: 'userId required but not present in JWT' }
   }
 
   return { success: true, authType: AuthType.INTERNAL_JWT }
@@ -103,7 +96,7 @@ export async function checkInternalAuth(
       return { success: false, error: 'Invalid internal token' }
     }
 
-    return resolveUserFromJwt(request, verification.userId || null, options)
+    return resolveUserFromJwt(verification.userId || null, options)
   } catch (error) {
     logger.error('Error in internal authentication:', error)
     return {
@@ -143,7 +136,7 @@ export async function checkSessionOrInternalAuth(
       const verification = await verifyInternalToken(token)
 
       if (verification.valid) {
-        return resolveUserFromJwt(request, verification.userId || null, options)
+        return resolveUserFromJwt(verification.userId || null, options)
       }
     }
 
@@ -161,7 +154,7 @@ export async function checkSessionOrInternalAuth(
 
     return {
       success: false,
-      error: 'Authentication required - provide session or internal JWT',
+      error: 'Unauthorized',
     }
   } catch (error) {
     logger.error('Error in session/internal authentication:', error)
@@ -192,7 +185,7 @@ export async function checkHybridAuth(
       const verification = await verifyInternalToken(token)
 
       if (verification.valid) {
-        return resolveUserFromJwt(request, verification.userId || null, options)
+        return resolveUserFromJwt(verification.userId || null, options)
       }
     }
 
@@ -232,7 +225,7 @@ export async function checkHybridAuth(
     // No authentication found
     return {
       success: false,
-      error: 'Authentication required - provide session, API key, or internal JWT',
+      error: 'Unauthorized',
     }
   } catch (error) {
     logger.error('Error in hybrid authentication:', error)

@@ -36,8 +36,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_REGION || secrets.STAGING_AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -70,6 +70,8 @@ jobs:
           # ECR tags (always build for ECR)
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             ECR_TAG="latest"
+          elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            ECR_TAG="dev"
           else
             ECR_TAG="staging"
           fi

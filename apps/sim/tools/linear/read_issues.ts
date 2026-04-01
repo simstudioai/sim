@@ -135,8 +135,8 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
       if (params.first != null) {
         variables.first = Math.min(Number(params.first), 250)
       }
-      if (params.after != null && params.after !== '') {
-        variables.after = params.after
+      if (params.after?.trim()) {
+        variables.after = params.after.trim()
       }
       if (params.includeArchived != null) {
         variables.includeArchived = params.includeArchived

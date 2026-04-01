@@ -12,6 +12,7 @@ export function Play(props: SVGProps<SVGSVGElement>) {
       viewBox='0 0 10 10'
       fill='none'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path
@@ -38,6 +39,7 @@ export function PlayOutline(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <path d='M7.5 3.5C7.5 2.672 8.452 2.18 9.128 2.66L18.128 9.16C18.72 9.58 18.72 10.46 18.128 10.88L9.128 17.38C8.452 17.86 7.5 17.368 7.5 16.54V3.5Z' />

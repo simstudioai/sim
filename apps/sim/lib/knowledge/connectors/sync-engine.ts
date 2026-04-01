@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   document,
+  embedding,
   knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorSyncLog,
@@ -8,7 +9,9 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
+import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import {
   hardDeleteDocuments,
@@ -140,8 +143,7 @@ export function resolveTagMapping(
 }
 
 /**
- * Dispatch a connector sync — uses Trigger.dev when available,
- * otherwise falls back to direct executeSync.
+ * Dispatch a connector sync using the configured background execution backend.
  */
 export async function dispatchSync(
   connectorId: string,
@@ -150,15 +152,64 @@ export async function dispatchSync(
   const requestId = options?.requestId ?? crypto.randomUUID()
 
   if (isTriggerAvailable()) {
+    const connectorRows = await db
+      .select({
+        knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
+        workspaceId: knowledgeBase.workspaceId,
+        userId: knowledgeBase.userId,
+      })
+      .from(knowledgeConnector)
+      .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
+      .where(eq(knowledgeConnector.id, connectorId))
+      .limit(1)
+
+    const row = connectorRows[0]
+    const tags = [`connectorId:${connectorId}`]
+    if (row?.knowledgeBaseId) tags.push(`knowledgeBaseId:${row.knowledgeBaseId}`)
+    if (row?.workspaceId) tags.push(`workspaceId:${row.workspaceId}`)
+    if (row?.userId) tags.push(`userId:${row.userId}`)
+
     await knowledgeConnectorSync.trigger(
       {
         connectorId,
         fullSync: options?.fullSync,
         requestId,
       },
-      { tags: [`connector:${connectorId}`] }
+      { tags }
     )
     logger.info(`Dispatched connector sync to Trigger.dev`, { connectorId, requestId })
+  } else if (isBullMQEnabled()) {
+    const connectorRows = await db
+      .select({
+        workspaceId: knowledgeBase.workspaceId,
+        userId: knowledgeBase.userId,
+      })
+      .from(knowledgeConnector)
+      .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
+      .where(eq(knowledgeConnector.id, connectorId))
+      .limit(1)
+
+    const workspaceId = connectorRows[0]?.workspaceId
+    const userId = connectorRows[0]?.userId
+    if (!workspaceId || !userId) {
+      throw new Error(`No workspace found for connector ${connectorId}`)
+    }
+
+    await enqueueWorkspaceDispatch({
+      workspaceId,
+      lane: 'knowledge',
+      queueName: 'knowledge-connector-sync',
+      bullmqJobName: 'knowledge-connector-sync',
+      bullmqPayload: createBullMQJobData({
+        connectorId,
+        fullSync: options?.fullSync,
+        requestId,
+      }),
+      metadata: {
+        userId,
+      },
+    })
+    logger.info(`Dispatched connector sync to BullMQ`, { connectorId, requestId })
   } else {
     executeSync(connectorId, { fullSync: options?.fullSync }).catch((error) => {
       logger.error(`Sync failed for connector ${connectorId}`, {
@@ -292,7 +343,7 @@ export async function executeSync(
     const externalDocs: ExternalDocument[] = []
     let cursor: string | undefined
     let hasMore = true
-    const syncContext: Record<string, unknown> = {}
+    const syncContext: Record<string, unknown> = { syncRunId: crypto.randomUUID() }
 
     // Determine if this sync should be incremental
     const isIncremental =
@@ -401,10 +452,9 @@ export async function executeSync(
 
     const seenExternalIds = new Set<string>()
 
-    const pendingProcessing: DocumentData[] = []
-
     const pendingOps: DocOp[] = []
     for (const extDoc of externalDocs) {
+      if (seenExternalIds.has(extDoc.externalId)) continue
       seenExternalIds.add(extDoc.externalId)
 
       if (excludedExternalIds.has(extDoc.externalId)) {
@@ -458,13 +508,24 @@ export async function executeSync(
               syncContext
             )
             if (!fullDoc?.content.trim()) return null
+            const hydratedHash = fullDoc.contentHash ?? op.extDoc.contentHash
+            if (
+              op.type === 'update' &&
+              existingByExternalId.get(op.extDoc.externalId)?.contentHash === hydratedHash
+            ) {
+              result.docsUnchanged++
+              return null
+            }
             return {
               ...op,
               extDoc: {
                 ...op.extDoc,
+                title: fullDoc.title || op.extDoc.title,
                 content: fullDoc.content,
-                contentHash: fullDoc.contentHash ?? op.extDoc.contentHash,
+                contentHash: hydratedHash,
                 contentDeferred: false,
+                sourceUrl: fullDoc.sourceUrl ?? op.extDoc.sourceUrl,
+                metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
               },
             }
           })
@@ -508,10 +569,11 @@ export async function executeSync(
         })
       )
 
+      const batchDocs: DocumentData[] = []
       for (let j = 0; j < settled.length; j++) {
         const outcome = settled[j]
         if (outcome.status === 'fulfilled') {
-          pendingProcessing.push(outcome.value)
+          batchDocs.push(outcome.value)
           if (batch[j].type === 'add') result.docsAdded++
           else result.docsUpdated++
         } else {
@@ -524,17 +586,44 @@ export async function executeSync(
           })
         }
       }
+
+      if (batchDocs.length > 0) {
+        try {
+          await processDocumentsWithQueue(
+            batchDocs,
+            connector.knowledgeBaseId,
+            {},
+            crypto.randomUUID()
+          )
+        } catch (error) {
+          logger.warn('Failed to enqueue batch for processing — will retry on next sync', {
+            connectorId,
+            count: batchDocs.length,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
     }
 
-    // Skip deletion reconciliation during incremental syncs — results only contain changed docs
-    if (!isIncremental && (options?.fullSync || connector.syncMode === 'full')) {
+    // Reconcile deletions for non-incremental syncs that returned ALL docs.
+    // Skip when listing was capped (maxFiles/maxThreads) — unseen docs may still exist in the source.
+    if (!isIncremental && (!syncContext?.listingCapped || options?.fullSync)) {
       const removedIds = existingDocs
         .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
         .map((d) => d.id)
 
       if (removedIds.length > 0) {
-        await hardDeleteDocuments(removedIds, syncLogId)
-        result.docsDeleted += removedIds.length
+        const deletionRatio = existingDocs.length > 0 ? removedIds.length / existingDocs.length : 0
+
+        if (deletionRatio > 0.5 && removedIds.length > 5 && !options?.fullSync) {
+          logger.warn(
+            `Skipping deletion of ${removedIds.length}/${existingDocs.length} docs — exceeds safety threshold. Trigger a full sync to force cleanup.`,
+            { connectorId, deletionRatio: Math.round(deletionRatio * 100) }
+          )
+        } else {
+          await hardDeleteDocuments(removedIds, syncLogId)
+          result.docsDeleted += removedIds.length
+        }
       }
     }
 
@@ -587,6 +676,23 @@ export async function executeSync(
     if (stuckDocs.length > 0) {
       logger.info(`Retrying ${stuckDocs.length} stuck documents`, { connectorId })
       try {
+        const stuckDocIds = stuckDocs.map((doc) => doc.id)
+
+        await db.delete(embedding).where(inArray(embedding.documentId, stuckDocIds))
+
+        await db
+          .update(document)
+          .set({
+            processingStatus: 'pending',
+            processingStartedAt: null,
+            processingCompletedAt: null,
+            processingError: null,
+            chunkCount: 0,
+            tokenCount: 0,
+            characterCount: 0,
+          })
+          .where(inArray(document.id, stuckDocIds))
+
         await processDocumentsWithQueue(
           stuckDocs.map((doc) => ({
             documentId: doc.id,
@@ -603,24 +709,6 @@ export async function executeSync(
         logger.warn('Failed to enqueue stuck documents for reprocessing', {
           connectorId,
           count: stuckDocs.length,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    }
-
-    // Enqueue all added/updated documents for processing in a single batch
-    if (pendingProcessing.length > 0) {
-      try {
-        await processDocumentsWithQueue(
-          pendingProcessing,
-          connector.knowledgeBaseId,
-          {},
-          crypto.randomUUID()
-        )
-      } catch (error) {
-        logger.warn('Failed to enqueue documents for processing — will retry on next sync', {
-          connectorId,
-          count: pendingProcessing.length,
           error: error instanceof Error ? error.message : String(error),
         })
       }

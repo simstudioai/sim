@@ -7,9 +7,9 @@ import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/core/utils/cn'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -124,7 +124,7 @@ function SingleFileSelector({
         {isDeleting ? (
           <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
         ) : (
-          <X className='h-4 w-4 opacity-50 hover:opacity-100' />
+          <X className='h-4 w-4 opacity-50 hover-hover:opacity-100' />
         )}
       </Button>
     </div>
@@ -150,8 +150,6 @@ export function FileUpload({
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileRecord[]>([])
-  const [loadingWorkspaceFiles, setLoadingWorkspaceFiles] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [inputValue, setInputValue] = useState('')
 
@@ -163,25 +161,13 @@ export function FileUpload({
   const params = useParams()
   const workspaceId = params?.workspaceId as string
 
+  const {
+    data: workspaceFiles = [],
+    isLoading: loadingWorkspaceFiles,
+    refetch: refetchWorkspaceFiles,
+  } = useWorkspaceFiles(isPreview ? '' : workspaceId)
+
   const value = isPreview ? previewValue : storeValue
-
-  const loadWorkspaceFiles = async () => {
-    if (!workspaceId || isPreview) return
-
-    try {
-      setLoadingWorkspaceFiles(true)
-      const response = await fetch(`/api/workspaces/${workspaceId}/files`)
-      const data = await response.json()
-
-      if (data.success) {
-        setWorkspaceFiles(data.files || [])
-      }
-    } catch (error) {
-      logger.error('Error loading workspace files:', error)
-    } finally {
-      setLoadingWorkspaceFiles(false)
-    }
-  }
 
   /**
    * Checks if a file's MIME type matches the accepted types
@@ -225,10 +211,6 @@ export function FileUpload({
 
     return !isAlreadySelected
   })
-
-  useEffect(() => {
-    void loadWorkspaceFiles()
-  }, [workspaceId])
 
   /**
    * Opens file dialog
@@ -394,7 +376,7 @@ export function FileUpload({
         setUploadError(null)
 
         if (workspaceId) {
-          void loadWorkspaceFiles()
+          void refetchWorkspaceFiles()
         }
 
         if (uploadedFiles.length === 1) {
@@ -553,9 +535,9 @@ export function FileUpload({
     return (
       <div
         key={fileKey}
-        className='relative rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] hover:border-[var(--surface-7)] hover:bg-[var(--surface-5)] dark:bg-[var(--surface-5)] dark:hover:bg-[var(--border-1)]'
+        className='relative rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 hover-hover:bg-[var(--surface-active)] dark:bg-[var(--surface-5)]'
       >
-        <div className='truncate pr-[24px] text-sm' title={file.name}>
+        <div className='truncate pr-6 text-sm' title={file.name}>
           <span className='text-[var(--text-primary)]'>{truncateMiddle(file.name)}</span>
           <span className='ml-2 text-[var(--text-muted)]'>({formatFileSize(file.size)})</span>
         </div>
@@ -580,7 +562,7 @@ export function FileUpload({
     return (
       <div
         key={file.id}
-        className='flex items-center justify-between rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] dark:bg-[var(--surface-5)]'
+        className='flex items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 dark:bg-[var(--surface-5)]'
       >
         <div className='flex-1 truncate pr-2 text-sm'>
           <span className='text-[var(--text-primary)]'>{file.name}</span>
@@ -726,7 +708,7 @@ export function FileUpload({
           value={inputValue}
           onChange={handleComboboxChange}
           onOpenChange={(open) => {
-            if (open) void loadWorkspaceFiles()
+            if (open) void refetchWorkspaceFiles()
           }}
           placeholder={loadingWorkspaceFiles ? 'Loading files...' : '+ Add More'}
           disabled={disabled || loadingWorkspaceFiles}
@@ -746,7 +728,7 @@ export function FileUpload({
           onInputChange={handleComboboxChange}
           onClear={(e) => handleRemoveFile(filesArray[0], e)}
           onOpenChange={(open) => {
-            if (open) void loadWorkspaceFiles()
+            if (open) void refetchWorkspaceFiles()
           }}
           disabled={disabled}
           isLoading={loadingWorkspaceFiles}
@@ -763,7 +745,7 @@ export function FileUpload({
           value={inputValue}
           onChange={handleComboboxChange}
           onOpenChange={(open) => {
-            if (open) void loadWorkspaceFiles()
+            if (open) void refetchWorkspaceFiles()
           }}
           placeholder={loadingWorkspaceFiles ? 'Loading files...' : 'Select or upload file'}
           disabled={disabled || loadingWorkspaceFiles}

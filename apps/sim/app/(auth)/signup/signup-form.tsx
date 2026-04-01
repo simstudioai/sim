@@ -3,7 +3,7 @@
 import { Suspense, useMemo, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Input, Label } from '@/components/emcn'
@@ -11,10 +11,9 @@ import { client, useSession } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
-import { useBrandedButtonClass } from '@/hooks/use-branded-button-class'
 
 const logger = createLogger('SignupForm')
 
@@ -96,8 +95,6 @@ function SignupFormContent({
   const captchaResolveRef = useRef<((token: string) => void) | null>(null)
   const captchaRejectRef = useRef<((reason: Error) => void) | null>(null)
   const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
-  const buttonClass = useBrandedButtonClass()
-
   const redirectUrl = useMemo(
     () => searchParams.get('redirect') || searchParams.get('callbackUrl') || '',
     [searchParams]
@@ -363,10 +360,10 @@ function SignupFormContent({
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className='font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
+        <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           Create an account
         </h1>
-        <p className='font-[430] font-season text-[#F6F6F6]/60 text-[18px] leading-[125%] tracking-[0.02em]'>
+        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
           Create an account or log in
         </p>
       </div>
@@ -380,115 +377,150 @@ function SignupFormContent({
         return hasOnlySSO
       })() && (
         <div className='mt-8'>
-          <SSOLoginButton
-            callbackURL={redirectUrl || '/workspace'}
-            variant='primary'
-            primaryClassName={buttonClass}
-          />
+          <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='primary' />
         </div>
       )}
 
       {/* Email/Password Form - show unless explicitly disabled */}
       {!isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && (
-        <form onSubmit={onSubmit} className='mt-8 space-y-8'>
+        <form onSubmit={onSubmit} className='mt-8 space-y-10'>
           <div className='space-y-6'>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
                 <Label htmlFor='name'>Full name</Label>
               </div>
-              <Input
-                id='name'
-                name='name'
-                placeholder='Enter your name'
-                type='text'
-                autoCapitalize='words'
-                autoComplete='name'
-                title='Name can only contain letters, spaces, hyphens, and apostrophes'
-                value={name}
-                onChange={handleNameChange}
-                className={cn(
-                  showNameValidationError &&
-                    nameErrors.length > 0 &&
-                    'border-red-500 focus:border-red-500'
-                )}
-              />
-              {showNameValidationError && nameErrors.length > 0 && (
-                <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                  {nameErrors.map((error, index) => (
-                    <p key={index}>{error}</p>
-                  ))}
+              <div className='relative'>
+                <Input
+                  id='name'
+                  name='name'
+                  placeholder='Enter your name'
+                  type='text'
+                  autoCapitalize='words'
+                  autoComplete='name'
+                  title='Name can only contain letters, spaces, hyphens, and apostrophes'
+                  value={name}
+                  onChange={handleNameChange}
+                  className={cn(
+                    showNameValidationError &&
+                      nameErrors.length > 0 &&
+                      'border-red-500 focus:border-red-500'
+                  )}
+                />
+                <div
+                  className={cn(
+                    'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',
+                    showNameValidationError && nameErrors.length > 0
+                      ? 'grid-rows-[1fr]'
+                      : 'grid-rows-[0fr]'
+                  )}
+                  aria-live={showNameValidationError && nameErrors.length > 0 ? 'polite' : 'off'}
+                >
+                  <div className='overflow-hidden'>
+                    <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                      {nameErrors.map((error, index) => (
+                        <p key={index}>{error}</p>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
                 <Label htmlFor='email'>Email</Label>
               </div>
-              <Input
-                id='email'
-                name='email'
-                placeholder='Enter your email'
-                autoCapitalize='none'
-                autoComplete='email'
-                autoCorrect='off'
-                value={email}
-                onChange={handleEmailChange}
-                className={cn(
-                  (emailError || (showEmailValidationError && emailErrors.length > 0)) &&
-                    'border-red-500 focus:border-red-500'
-                )}
-              />
-              {showEmailValidationError && emailErrors.length > 0 && (
-                <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                  {emailErrors.map((error, index) => (
-                    <p key={index}>{error}</p>
-                  ))}
+              <div className='relative'>
+                <Input
+                  id='email'
+                  name='email'
+                  placeholder='Enter your email'
+                  autoCapitalize='none'
+                  autoComplete='email'
+                  autoCorrect='off'
+                  value={email}
+                  onChange={handleEmailChange}
+                  className={cn(
+                    (emailError || (showEmailValidationError && emailErrors.length > 0)) &&
+                      'border-red-500 focus:border-red-500'
+                  )}
+                />
+                <div
+                  className={cn(
+                    'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',
+                    (showEmailValidationError && emailErrors.length > 0) ||
+                      (emailError && !showEmailValidationError)
+                      ? 'grid-rows-[1fr]'
+                      : 'grid-rows-[0fr]'
+                  )}
+                  aria-live={
+                    (showEmailValidationError && emailErrors.length > 0) ||
+                    (emailError && !showEmailValidationError)
+                      ? 'polite'
+                      : 'off'
+                  }
+                >
+                  <div className='overflow-hidden'>
+                    <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                      {showEmailValidationError && emailErrors.length > 0 ? (
+                        emailErrors.map((error, index) => <p key={index}>{error}</p>)
+                      ) : emailError && !showEmailValidationError ? (
+                        <p>{emailError}</p>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
-              )}
-              {emailError && !showEmailValidationError && (
-                <div className='mt-1 text-red-400 text-xs'>
-                  <p>{emailError}</p>
-                </div>
-              )}
+              </div>
             </div>
             <div className='space-y-2'>
               <div className='flex items-center justify-between'>
                 <Label htmlFor='password'>Password</Label>
               </div>
               <div className='relative'>
-                <Input
-                  id='password'
-                  name='password'
-                  type={showPassword ? 'text' : 'password'}
-                  autoCapitalize='none'
-                  autoComplete='new-password'
-                  placeholder='Enter your password'
-                  autoCorrect='off'
-                  value={password}
-                  onChange={handlePasswordChange}
-                  className={cn(
-                    'pr-10',
-                    showValidationError &&
-                      passwordErrors.length > 0 &&
-                      'border-red-500 focus:border-red-500'
-                  )}
-                />
-                <button
-                  type='button'
-                  onClick={() => setShowPassword(!showPassword)}
-                  className='-translate-y-1/2 absolute top-1/2 right-3 text-[#999] transition hover:text-[#ECECEC]'
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              {showValidationError && passwordErrors.length > 0 && (
-                <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                  {passwordErrors.map((error, index) => (
-                    <p key={index}>{error}</p>
-                  ))}
+                <div className='relative'>
+                  <Input
+                    id='password'
+                    name='password'
+                    type={showPassword ? 'text' : 'password'}
+                    autoCapitalize='none'
+                    autoComplete='new-password'
+                    placeholder='Enter your password'
+                    autoCorrect='off'
+                    value={password}
+                    onChange={handlePasswordChange}
+                    className={cn(
+                      'pr-10',
+                      showValidationError &&
+                        passwordErrors.length > 0 &&
+                        'border-red-500 focus:border-red-500'
+                    )}
+                  />
+                  <button
+                    type='button'
+                    onClick={() => setShowPassword(!showPassword)}
+                    className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--landing-text-muted)] transition hover:text-[var(--landing-text)]'
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
-              )}
+                <div
+                  className={cn(
+                    'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',
+                    showValidationError && passwordErrors.length > 0
+                      ? 'grid-rows-[1fr]'
+                      : 'grid-rows-[0fr]'
+                  )}
+                  aria-live={showValidationError && passwordErrors.length > 0 ? 'polite' : 'off'}
+                >
+                  <div className='overflow-hidden'>
+                    <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                      {passwordErrors.map((error, index) => (
+                        <p key={index}>{error}</p>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -509,14 +541,16 @@ function SignupFormContent({
             </div>
           )}
 
-          <BrandedButton
-            type='submit'
-            disabled={isLoading}
-            loading={isLoading}
-            loadingText='Creating account'
-          >
-            Create account
-          </BrandedButton>
+          <button type='submit' disabled={isLoading} className={cn('!mt-6', AUTH_SUBMIT_BTN)}>
+            {isLoading ? (
+              <span className='flex items-center gap-2'>
+                <Loader2 className='h-4 w-4 animate-spin' />
+                Creating account...
+              </span>
+            ) : (
+              'Create account'
+            )}
+          </button>
         </form>
       )}
 
@@ -532,10 +566,12 @@ function SignupFormContent({
       })() && (
         <div className='relative my-6 font-light'>
           <div className='absolute inset-0 flex items-center'>
-            <div className='w-full border-[#2A2A2A] border-t' />
+            <div className='w-full border-[var(--landing-bg-elevated)] border-t' />
           </div>
           <div className='relative flex justify-center text-sm'>
-            <span className='bg-[#1C1C1C] px-4 font-[340] text-[#999]'>Or continue with</span>
+            <span className='bg-[var(--landing-bg)] px-4 font-[340] text-[var(--landing-text-muted)]'>
+              Or continue with
+            </span>
           </div>
         </div>
       )}
@@ -560,33 +596,29 @@ function SignupFormContent({
             isProduction={isProduction}
           >
             {isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')) && (
-              <SSOLoginButton
-                callbackURL={redirectUrl || '/workspace'}
-                variant='outline'
-                primaryClassName={buttonClass}
-              />
+              <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='outline' />
             )}
           </SocialLoginButtons>
         </div>
       )}
 
-      <div className='pt-6 text-center font-light text-[14px]'>
+      <div className='pt-6 text-center font-light text-sm'>
         <span className='font-normal'>Already have an account? </span>
         <Link
           href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
-          className='font-medium text-[#ECECEC] underline-offset-4 transition hover:text-white hover:underline'
+          className='font-medium text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
         >
           Sign in
         </Link>
       </div>
 
-      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[#999] text-[13px] leading-relaxed sm:px-8 md:px-[44px]'>
+      <div className='absolute right-0 bottom-0 left-0 px-8 pb-8 text-center font-[340] text-[var(--landing-text-muted)] text-small leading-relaxed sm:px-8 md:px-11'>
         By creating an account, you agree to our{' '}
         <Link
           href='/terms'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[#999] underline-offset-4 transition hover:text-[#ECECEC] hover:underline'
+          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
         >
           Terms of Service
         </Link>{' '}
@@ -595,7 +627,7 @@ function SignupFormContent({
           href='/privacy'
           target='_blank'
           rel='noopener noreferrer'
-          className='text-[#999] underline-offset-4 transition hover:text-[#ECECEC] hover:underline'
+          className='text-[var(--landing-text-muted)] underline-offset-4 transition hover:text-[var(--landing-text)] hover:underline'
         >
           Privacy Policy
         </Link>

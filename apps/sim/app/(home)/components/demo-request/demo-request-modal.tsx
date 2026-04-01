@@ -16,8 +16,8 @@ import {
 } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
 import {
+  DEMO_REQUEST_COMPANY_SIZE_OPTIONS,
   DEMO_REQUEST_REGION_OPTIONS,
-  DEMO_REQUEST_USER_COUNT_OPTIONS,
   type DemoRequestPayload,
   demoRequestSchema,
 } from '@/app/(home)/components/demo-request/consts'
@@ -36,13 +36,13 @@ interface DemoRequestFormState {
   companyEmail: string
   phoneNumber: string
   region: DemoRequestPayload['region'] | ''
-  userCount: DemoRequestPayload['userCount'] | ''
+  companySize: DemoRequestPayload['companySize'] | ''
   details: string
 }
 
 const SUBMIT_SUCCESS_MESSAGE = "We'll be in touch soon!"
 const COMBOBOX_REGIONS = [...DEMO_REQUEST_REGION_OPTIONS]
-const COMBOBOX_USER_COUNTS = [...DEMO_REQUEST_USER_COUNT_OPTIONS]
+const COMBOBOX_COMPANY_SIZES = [...DEMO_REQUEST_COMPANY_SIZE_OPTIONS]
 
 const INITIAL_FORM_STATE: DemoRequestFormState = {
   firstName: '',
@@ -50,7 +50,7 @@ const INITIAL_FORM_STATE: DemoRequestFormState = {
   companyEmail: '',
   phoneNumber: '',
   region: '',
-  userCount: '',
+  companySize: '',
   details: '',
 }
 
@@ -118,7 +118,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
           companyEmail: fieldErrors.companyEmail?.[0],
           phoneNumber: fieldErrors.phoneNumber?.[0],
           region: fieldErrors.region?.[0],
-          userCount: fieldErrors.userCount?.[0],
+          companySize: fieldErrors.companySize?.[0],
           details: fieldErrors.details?.[0],
         })
         return
@@ -235,13 +235,13 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                       filterOptions={false}
                     />
                   </FormField>
-                  <FormField htmlFor='userCount' label='Number of users' error={errors.userCount}>
+                  <FormField htmlFor='companySize' label='Company size' error={errors.companySize}>
                     <Combobox
-                      options={COMBOBOX_USER_COUNTS}
-                      value={form.userCount}
-                      selectedValue={form.userCount}
+                      options={COMBOBOX_COMPANY_SIZES}
+                      value={form.companySize}
+                      selectedValue={form.companySize}
                       onChange={(value) =>
-                        updateField('userCount', value as DemoRequestPayload['userCount'])
+                        updateField('companySize', value as DemoRequestPayload['companySize'])
                       }
                       placeholder='Select'
                       editable={false}

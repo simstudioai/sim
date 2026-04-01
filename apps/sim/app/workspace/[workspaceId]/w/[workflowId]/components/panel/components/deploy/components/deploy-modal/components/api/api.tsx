@@ -408,28 +408,28 @@ console.log(limits);`
 
   if (isLoading || !info) {
     return (
-      <div className='space-y-[16px]'>
+      <div className='space-y-4'>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[62px]' />
-          <Skeleton className='h-[28px] w-[260px] rounded-[4px]' />
+          <Skeleton className='h-[28px] w-[260px] rounded-sm' />
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[90px]' />
-          <Skeleton className='h-[120px] w-full rounded-[4px]' />
+          <Skeleton className='h-[120px] w-full rounded-sm' />
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[180px]' />
-          <Skeleton className='h-[160px] w-full rounded-[4px]' />
+          <Skeleton className='h-[160px] w-full rounded-sm' />
         </div>
       </div>
     )
   }
 
   return (
-    <div className='space-y-[16px]'>
+    <div className='space-y-4'>
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Language
           </Label>
         </div>
@@ -444,7 +444,7 @@ console.log(limits);`
 
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Run workflow
           </Label>
           <Tooltip.Root>
@@ -467,16 +467,16 @@ console.log(limits);`
           code={getSyncCommand()}
           language={LANGUAGE_SYNTAX[language]}
           wrapText
-          className='!min-h-0 rounded-[4px] border border-[var(--border-1)]'
+          className='!min-h-0 rounded-sm border border-[var(--border-1)]'
         />
       </div>
 
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Run workflow (stream response)
           </Label>
-          <div className='flex items-center gap-[6px]'>
+          <div className='flex items-center gap-1.5'>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button
@@ -510,16 +510,16 @@ console.log(limits);`
           code={getStreamCommand()}
           language={LANGUAGE_SYNTAX[language]}
           wrapText
-          className='!min-h-0 rounded-[4px] border border-[var(--border-1)]'
+          className='!min-h-0 rounded-sm border border-[var(--border-1)]'
         />
       </div>
 
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          <Label className='block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Run workflow (async)
           </Label>
-          <div className='flex items-center gap-[6px]'>
+          <div className='flex items-center gap-1.5'>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button
@@ -537,7 +537,7 @@ console.log(limits);`
             </Tooltip.Root>
             <Combobox
               size='sm'
-              className='!w-fit !py-[2px] min-w-[100px] rounded-[6px] px-[9px]'
+              className='!w-fit !py-0.5 min-w-[100px] rounded-md px-[9px]'
               options={[
                 { label: 'Execute Job', value: 'execute' },
                 { label: 'Check Status', value: 'status' },
@@ -554,7 +554,7 @@ console.log(limits);`
           code={getAsyncCommand()}
           language={LANGUAGE_SYNTAX[language]}
           wrapText
-          className='!min-h-0 rounded-[4px] border border-[var(--border-1)]'
+          className='!min-h-0 rounded-sm border border-[var(--border-1)]'
         />
       </div>
     </div>

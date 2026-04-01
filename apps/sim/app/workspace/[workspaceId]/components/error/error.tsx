@@ -37,12 +37,12 @@ export function ErrorState({
 
   return (
     <div className='flex h-full flex-1 items-center justify-center'>
-      <div className='flex flex-col items-center gap-[16px] text-center'>
-        <div className='flex flex-col gap-[8px]'>
-          <h2 className='font-semibold text-[16px] text-[var(--text-primary)]'>{title}</h2>
-          <p className='max-w-[300px] text-[13px] text-[var(--text-tertiary)]'>{description}</p>
+      <div className='flex flex-col items-center gap-4 text-center'>
+        <div className='flex flex-col gap-2'>
+          <h2 className='font-semibold text-[var(--text-primary)] text-md'>{title}</h2>
+          <p className='max-w-[300px] text-[var(--text-tertiary)] text-small'>{description}</p>
         </div>
-        <div className='flex items-center gap-[8px]'>
+        <div className='flex items-center gap-2'>
           {secondaryAction && (
             <Button
               variant={secondaryAction.variant ?? 'ghost'}
@@ -54,7 +54,7 @@ export function ErrorState({
             </Button>
           )}
           <Button variant='default' size='sm' onClick={reset}>
-            <RefreshCw className='mr-[6px] h-[14px] w-[14px]' />
+            <RefreshCw className='mr-1.5 h-[14px] w-[14px]' />
             Try again
           </Button>
         </div>

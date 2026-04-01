@@ -1,15 +1,22 @@
 'use client'
 
 import { createLogger } from '@sim/logger'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { useParams } from 'next/navigation'
+import { useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
 
 const logger = createLogger('FileViewer')
 
-interface FileViewerProps {
-  file: WorkspaceFileRecord
-}
+export function FileViewer() {
+  const params = useParams()
+  const workspaceId = params?.workspaceId as string
+  const fileId = params?.fileId as string
 
-export function FileViewer({ file }: FileViewerProps) {
+  const { data: file, isLoading } = useWorkspaceFileRecord(workspaceId, fileId)
+
+  if (isLoading || !file) {
+    return null
+  }
+
   const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
 
   return (
@@ -18,7 +25,7 @@ export function FileViewer({ file }: FileViewerProps) {
         src={serveUrl}
         className='h-full w-full border-0'
         title={file.name}
-        onError={(e) => {
+        onError={() => {
           logger.error(`Failed to load file: ${file.name}`)
         }}
       />

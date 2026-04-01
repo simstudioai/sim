@@ -1,12 +1,14 @@
 'use client'
 
+import { useMemo } from 'react'
+import { useParams } from 'next/navigation'
 import { Database, Table as TableIcon } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflows } from '@/hooks/queries/workflows'
 
 const USER_MESSAGE_CLASSES =
-  'whitespace-pre-wrap break-all font-[430] font-[family-name:var(--font-inter)] text-[15px] text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
+  'whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-[430] font-[family-name:var(--font-inter)] text-base text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
 
 interface UserMessageContentProps {
   content: string
@@ -20,7 +22,6 @@ function escapeRegex(str: string): string {
 interface MentionRange {
   start: number
   end: number
-  token: string
   context: ChatMessageContext
 }
 
@@ -36,7 +37,7 @@ function computeMentionRanges(text: string, contexts: ChatMessageContext[]): Men
       const leadingSpace = match[1]
       const tokenStart = match.index + leadingSpace.length
       const tokenEnd = tokenStart + token.length
-      ranges.push({ start: tokenStart, end: tokenEnd, token, context: ctx })
+      ranges.push({ start: tokenStart, end: tokenEnd, context: ctx })
     }
   }
 
@@ -45,12 +46,12 @@ function computeMentionRanges(text: string, contexts: ChatMessageContext[]): Men
 }
 
 function MentionHighlight({ context }: { context: ChatMessageContext }) {
-  const workflowColor = useWorkflowRegistry((state) => {
-    if (context.kind === 'workflow' || context.kind === 'current_workflow') {
-      return state.workflows[context.workflowId || '']?.color ?? null
-    }
-    return null
-  })
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { data: workflowList } = useWorkflows(workspaceId)
+  const workflowColor = useMemo(() => {
+    if (context.kind !== 'workflow' && context.kind !== 'current_workflow') return null
+    return (workflowList ?? []).find((w) => w.id === context.workflowId)?.color ?? null
+  }, [workflowList, context.kind, context.workflowId])
 
   let icon: React.ReactNode = null
   const iconClasses = 'h-[12px] w-[12px] flex-shrink-0 text-[var(--text-icon)]'
@@ -83,8 +84,8 @@ function MentionHighlight({ context }: { context: ChatMessageContext }) {
   }
 
   return (
-    <span className='inline-flex items-baseline gap-[4px] rounded-[5px] bg-[var(--surface-5)] px-[5px]'>
-      {icon && <span className='relative top-[2px] flex-shrink-0'>{icon}</span>}
+    <span className='inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px]'>
+      {icon && <span className='relative top-0.5 flex-shrink-0'>{icon}</span>}
       {context.label}
     </span>
   )

@@ -13,7 +13,7 @@ import {
   isPro,
   isTeam,
 } from '@/lib/billing/plan-helpers'
-import type { EnterpriseSubscriptionMetadata } from '@/lib/billing/types'
+import { parseEnterpriseSubscriptionMetadata } from '@/lib/billing/types'
 import { env } from '@/lib/core/config/env'
 
 export const ENTITLED_SUBSCRIPTION_STATUSES = ['active', 'past_due'] as const
@@ -80,27 +80,15 @@ export function checkEnterprisePlan(subscription: any): boolean {
   return isEnterprise(subscription?.plan) && hasPaidSubscriptionStatus(subscription?.status)
 }
 
-/**
- * Type guard to check if metadata is valid EnterpriseSubscriptionMetadata
- */
-function isEnterpriseMetadata(metadata: unknown): metadata is EnterpriseSubscriptionMetadata {
-  return (
-    !!metadata &&
-    typeof metadata === 'object' &&
-    'seats' in metadata &&
-    typeof (metadata as EnterpriseSubscriptionMetadata).seats === 'string'
-  )
-}
-
 export function getEffectiveSeats(subscription: any): number {
   if (!subscription) {
     return 0
   }
 
   if (isEnterprise(subscription.plan)) {
-    const metadata = subscription.metadata as EnterpriseSubscriptionMetadata | null
-    if (isEnterpriseMetadata(metadata)) {
-      return Number.parseInt(metadata.seats, 10)
+    const metadata = parseEnterpriseSubscriptionMetadata(subscription.metadata)
+    if (metadata) {
+      return metadata.seats
     }
     return 0
   }

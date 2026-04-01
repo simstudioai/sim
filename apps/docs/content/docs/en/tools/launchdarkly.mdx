@@ -1,0 +1,388 @@
+---
+title: LaunchDarkly
+description: Manage feature flags with LaunchDarkly.
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="launchdarkly"
+  color="#191919"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[LaunchDarkly](https://launchdarkly.com/) is a feature management platform that enables teams to safely deploy, control, and measure their software features at scale.
+
+With the LaunchDarkly integration in Sim, you can:
+
+- **Feature flag management** — List, create, update, toggle, and delete feature flags programmatically. Toggle flags on or off in specific environments using LaunchDarkly's semantic patch API.
+- **Flag status monitoring** — Check whether a flag is active, inactive, new, or launched in a given environment. Track the last time a flag was evaluated.
+- **Project and environment management** — List all projects and their environments to understand your LaunchDarkly organization structure.
+- **User segments** — List user segments within a project and environment to understand how your audience is organized for targeting.
+- **Team visibility** — List account members and their roles for auditing and access management workflows.
+- **Audit log** — Retrieve recent audit log entries to track who changed what, when. Filter entries by resource type for targeted monitoring.
+
+In Sim, the LaunchDarkly integration enables your agents to automate feature flag operations as part of their workflows. This allows for automation scenarios such as toggling flags on/off based on deployment pipeline events, monitoring flag status and alerting on stale or unused flags, auditing flag changes by querying the audit log after deployments, syncing flag metadata with your project management tools, and listing all feature flags across projects for governance.
+
+## Authentication
+
+This integration uses a LaunchDarkly API key. You can create personal access tokens or service tokens in the LaunchDarkly dashboard under **Account Settings > Authorization**. The API key is passed directly in the `Authorization` header (no `Bearer` prefix).
+
+## Need Help?
+
+If you encounter issues with the LaunchDarkly integration, contact us at [help@sim.ai](mailto:help@sim.ai)
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate LaunchDarkly into your workflow. List, create, update, toggle, and delete feature flags. Manage projects, environments, segments, members, and audit logs. Requires API Key.
+
+
+
+## Tools
+
+### `launchdarkly_create_flag`
+
+Create a new feature flag in a LaunchDarkly project.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LaunchDarkly API key |
+| `projectKey` | string | Yes | The project key to create the flag in |
+| `name` | string | Yes | Human-readable name for the feature flag |
+| `key` | string | Yes | Unique key for the feature flag \(used in code\) |
+| `description` | string | No | Description of the feature flag |
+| `tags` | string | No | Comma-separated list of tags |
+| `temporary` | boolean | No | Whether the flag is temporary \(default true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The unique key of the feature flag |
+| `name` | string | The human-readable name of the feature flag |
+| `kind` | string | The type of flag \(boolean or multivariate\) |
+| `description` | string | Description of the feature flag |
+| `temporary` | boolean | Whether the flag is temporary |
+| `archived` | boolean | Whether the flag is archived |
+| `deprecated` | boolean | Whether the flag is deprecated |
+| `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
+| `tags` | array | Tags applied to the flag |
+| `variations` | array | The variations for this feature flag |
+|   ↳ `value` | string | The variation value |
+|   ↳ `name` | string | The variation name |
+|   ↳ `description` | string | The variation description |
+| `maintainerId` | string | The ID of the member who maintains this flag |
+
+### `launchdarkly_delete_flag`
+
+Delete a feature flag from a LaunchDarkly project.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LaunchDarkly API key |
+| `projectKey` | string | Yes | The project key |
+| `flagKey` | string | Yes | The feature flag key to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the flag was successfully deleted |
+
+### `launchdarkly_get_audit_log`
+
+List audit log entries from your LaunchDarkly account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LaunchDarkly API key |
+| `limit` | number | No | Maximum number of entries to return \(default 10, max 20\) |
+| `spec` | string | No | Filter expression \(e.g., "resourceType:flag"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entries` | array | List of audit log entries |
+|   ↳ `id` | string | The audit log entry ID |
+|   ↳ `date` | number | Unix timestamp in milliseconds |
+|   ↳ `kind` | string | The type of action performed |
+|   ↳ `name` | string | The name of the resource acted on |
+|   ↳ `description` | string | Full description of the action |
+|   ↳ `shortDescription` | string | Short description of the action |
+|   ↳ `memberEmail` | string | Email of the member who performed the action |
+|   ↳ `targetName` | string | Name of the target resource |
+|   ↳ `targetKind` | string | Kind of the target resource |
+| `totalCount` | number | Total number of audit log entries |
+
+### `launchdarkly_get_flag`
+
+Get a single feature flag by key from a LaunchDarkly project.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LaunchDarkly API key |
+| `projectKey` | string | Yes | The project key |
+| `flagKey` | string | Yes | The feature flag key |
+| `environmentKey` | string | No | Filter flag configuration to a specific environment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The unique key of the feature flag |
+| `name` | string | The human-readable name of the feature flag |
+| `kind` | string | The type of flag \(boolean or multivariate\) |
+| `description` | string | Description of the feature flag |
+| `temporary` | boolean | Whether the flag is temporary |
+| `archived` | boolean | Whether the flag is archived |
+| `deprecated` | boolean | Whether the flag is deprecated |
+| `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
+| `tags` | array | Tags applied to the flag |
+| `variations` | array | The variations for this feature flag |
+|   ↳ `value` | string | The variation value |
+|   ↳ `name` | string | The variation name |
+|   ↳ `description` | string | The variation description |
+| `maintainerId` | string | The ID of the member who maintains this flag |
+| `on` | boolean | Whether the flag is on in the requested environment \(null if no single environment was specified\) |
+
+### `launchdarkly_get_flag_status`
+
+Get the status of a feature flag across environments (active, inactive, launched, etc.).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LaunchDarkly API key |
+| `projectKey` | string | Yes | The project key |
+| `flagKey` | string | Yes | The feature flag key |
+| `environmentKey` | string | Yes | The environment key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | The flag status \(new, active, inactive, launched\) |
+| `lastRequested` | string | Timestamp of the last evaluation |
+| `defaultVal` | string | The default variation value |
+
+### `launchdarkly_list_environments`
+
+List environments in a LaunchDarkly project.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LaunchDarkly API key |
+| `projectKey` | string | Yes | The project key to list environments for |
+| `limit` | number | No | Maximum number of environments to return \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `environments` | array | List of environments |
+|   ↳ `id` | string | The environment ID |
+|   ↳ `key` | string | The unique environment key |
+|   ↳ `name` | string | The environment name |
+|   ↳ `color` | string | The color assigned to this environment |
+|   ↳ `apiKey` | string | The server-side SDK key for this environment |
+|   ↳ `mobileKey` | string | The mobile SDK key for this environment |
+|   ↳ `tags` | array | Tags applied to the environment |
+| `totalCount` | number | Total number of environments |
+
+### `launchdarkly_list_flags`
+
+List feature flags in a LaunchDarkly project.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LaunchDarkly API key |
+| `projectKey` | string | Yes | The project key to list flags for |
+| `environmentKey` | string | No | Filter flag configurations to a specific environment |
+| `tag` | string | No | Filter flags by tag name |
+| `limit` | number | No | Maximum number of flags to return \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `flags` | array | List of feature flags |
+|   ↳ `key` | string | The unique key of the feature flag |
+|   ↳ `name` | string | The human-readable name of the feature flag |
+|   ↳ `kind` | string | The type of flag \(boolean or multivariate\) |
+|   ↳ `description` | string | Description of the feature flag |
+|   ↳ `temporary` | boolean | Whether the flag is temporary |
+|   ↳ `archived` | boolean | Whether the flag is archived |
+|   ↳ `deprecated` | boolean | Whether the flag is deprecated |
+|   ↳ `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
+|   ↳ `tags` | array | Tags applied to the flag |
+|   ↳ `variations` | array | The variations for this feature flag |
+|     ↳ `value` | string | The variation value |
+|     ↳ `name` | string | The variation name |
+|     ↳ `description` | string | The variation description |
+|   ↳ `maintainerId` | string | The ID of the member who maintains this flag |
+| `totalCount` | number | Total number of flags |
+
+### `launchdarkly_list_members`
+
+List account members in your LaunchDarkly organization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LaunchDarkly API key |
+| `limit` | number | No | Maximum number of members to return \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | List of account members |
+|   ↳ `id` | string | The member ID |
+|   ↳ `email` | string | The member email address |
+|   ↳ `firstName` | string | The member first name |
+|   ↳ `lastName` | string | The member last name |
+|   ↳ `role` | string | The member role \(reader, writer, admin, owner\) |
+|   ↳ `lastSeen` | number | Unix timestamp of last activity |
+|   ↳ `creationDate` | number | Unix timestamp when the member was created |
+|   ↳ `verified` | boolean | Whether the member email is verified |
+| `totalCount` | number | Total number of members |
+
+### `launchdarkly_list_projects`
+
+List all projects in your LaunchDarkly account.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LaunchDarkly API key |
+| `limit` | number | No | Maximum number of projects to return \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `projects` | array | List of projects |
+|   ↳ `id` | string | The project ID |
+|   ↳ `key` | string | The unique project key |
+|   ↳ `name` | string | The project name |
+|   ↳ `tags` | array | Tags applied to the project |
+| `totalCount` | number | Total number of projects |
+
+### `launchdarkly_list_segments`
+
+List user segments in a LaunchDarkly project and environment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LaunchDarkly API key |
+| `projectKey` | string | Yes | The project key |
+| `environmentKey` | string | Yes | The environment key |
+| `limit` | number | No | Maximum number of segments to return \(default 20\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `segments` | array | List of user segments |
+|   ↳ `key` | string | The unique segment key |
+|   ↳ `name` | string | The segment name |
+|   ↳ `description` | string | The segment description |
+|   ↳ `tags` | array | Tags applied to the segment |
+|   ↳ `creationDate` | number | Unix timestamp in milliseconds when the segment was created |
+|   ↳ `unbounded` | boolean | Whether this is an unbounded \(big\) segment |
+|   ↳ `included` | array | User keys explicitly included in the segment |
+|   ↳ `excluded` | array | User keys explicitly excluded from the segment |
+| `totalCount` | number | Total number of segments |
+
+### `launchdarkly_toggle_flag`
+
+Toggle a feature flag on or off in a specific LaunchDarkly environment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LaunchDarkly API key |
+| `projectKey` | string | Yes | The project key |
+| `flagKey` | string | Yes | The feature flag key to toggle |
+| `environmentKey` | string | Yes | The environment key to toggle the flag in |
+| `enabled` | boolean | Yes | Whether to turn the flag on \(true\) or off \(false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The unique key of the feature flag |
+| `name` | string | The human-readable name of the feature flag |
+| `kind` | string | The type of flag \(boolean or multivariate\) |
+| `description` | string | Description of the feature flag |
+| `temporary` | boolean | Whether the flag is temporary |
+| `archived` | boolean | Whether the flag is archived |
+| `deprecated` | boolean | Whether the flag is deprecated |
+| `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
+| `tags` | array | Tags applied to the flag |
+| `variations` | array | The variations for this feature flag |
+|   ↳ `value` | string | The variation value |
+|   ↳ `name` | string | The variation name |
+|   ↳ `description` | string | The variation description |
+| `maintainerId` | string | The ID of the member who maintains this flag |
+| `on` | boolean | Whether the flag is now on in the target environment |
+
+### `launchdarkly_update_flag`
+
+Update a feature flag metadata (name, description, tags, temporary, archived) using semantic patch.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | LaunchDarkly API key |
+| `projectKey` | string | Yes | The project key |
+| `flagKey` | string | Yes | The feature flag key to update |
+| `updateName` | string | No | New name for the flag |
+| `updateDescription` | string | No | New description for the flag |
+| `addTags` | string | No | Comma-separated tags to add |
+| `removeTags` | string | No | Comma-separated tags to remove |
+| `archive` | boolean | No | Set to true to archive, false to restore |
+| `comment` | string | No | Optional comment explaining the update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | string | The unique key of the feature flag |
+| `name` | string | The human-readable name of the feature flag |
+| `kind` | string | The type of flag \(boolean or multivariate\) |
+| `description` | string | Description of the feature flag |
+| `temporary` | boolean | Whether the flag is temporary |
+| `archived` | boolean | Whether the flag is archived |
+| `deprecated` | boolean | Whether the flag is deprecated |
+| `creationDate` | number | Unix timestamp in milliseconds when the flag was created |
+| `tags` | array | Tags applied to the flag |
+| `variations` | array | The variations for this feature flag |
+|   ↳ `value` | string | The variation value |
+|   ↳ `name` | string | The variation name |
+|   ↳ `description` | string | The variation description |
+| `maintainerId` | string | The ID of the member who maintains this flag |
+
+

@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 
 interface DeleteKnowledgeBaseModalProps {
@@ -29,7 +30,7 @@ interface DeleteKnowledgeBaseModalProps {
  * Delete confirmation modal for knowledge base items.
  * Displays a warning message and confirmation buttons.
  */
-export function DeleteKnowledgeBaseModal({
+export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
   isOpen,
   onClose,
   onConfirm,
@@ -46,10 +47,17 @@ export function DeleteKnowledgeBaseModal({
               <>
                 Are you sure you want to delete{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
-                All associated documents, chunks, and embeddings will be removed.
+                <span className='text-[var(--text-error)]'>
+                  All associated documents, chunks, and embeddings will be removed.
+                </span>
               </>
             ) : (
-              'Are you sure you want to delete this knowledge base? All associated documents, chunks, and embeddings will be removed.'
+              <>
+                Are you sure you want to delete this knowledge base?{' '}
+                <span className='text-[var(--text-error)]'>
+                  All associated documents, chunks, and embeddings will be removed.
+                </span>
+              </>
             )}{' '}
             <span className='text-[var(--text-tertiary)]'>
               You can restore it from Recently Deleted in Settings.
@@ -67,4 +75,4 @@ export function DeleteKnowledgeBaseModal({
       </ModalContent>
     </Modal>
   )
-}
+})

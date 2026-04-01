@@ -63,6 +63,10 @@ export async function processSSEStream(
         try {
           const event = JSON.parse(data) as ExecutionEvent
 
+          if (event.eventId != null) {
+            callbacks.onEventId?.(event.eventId)
+          }
+
           switch (event.type) {
             case 'execution:started':
               callbacks.onExecutionStarted?.(event.data)
@@ -118,6 +122,7 @@ export interface ExecutionStreamCallbacks {
   onBlockChildWorkflowStarted?: (data: BlockChildWorkflowStartedData) => void
   onStreamChunk?: (data: StreamChunkData) => void
   onStreamDone?: (data: StreamDoneData) => void
+  onEventId?: (eventId: number) => void
 }
 
 export interface ExecuteStreamOptions {

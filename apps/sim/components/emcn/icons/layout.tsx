@@ -1,5 +1,6 @@
 import type { SVGProps } from 'react'
 import styles from '@/components/emcn/icons/animate/layout.module.css'
+import { cn } from '@/lib/core/utils/cn'
 
 export type LayoutAnimationVariant = 'clockwise' | 'counterclockwise'
 
@@ -28,9 +29,11 @@ export function Layout({
   className,
   ...props
 }: LayoutProps) {
-  const svgClassName = animate
-    ? `${styles['animated-layout-svg']} ${variant === 'clockwise' ? styles.clockwise : ''} ${className || ''}`.trim()
-    : className
+  const svgClassName = cn(
+    animate && styles['animated-layout-svg'],
+    animate && variant === 'clockwise' && styles.clockwise,
+    className
+  )
 
   return (
     <svg
@@ -44,6 +47,7 @@ export function Layout({
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
       className={svgClassName}
+      aria-hidden='true'
       {...props}
     >
       <rect

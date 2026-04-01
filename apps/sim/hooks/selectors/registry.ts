@@ -1,4 +1,8 @@
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { fetchJson, fetchOAuthToken } from '@/hooks/selectors/helpers'
+import { selectorKeys } from '@/hooks/selectors/query-keys'
 import type {
   SelectorContext,
   SelectorDefinition,
@@ -6,7 +10,6 @@ import type {
   SelectorOption,
   SelectorQueryArgs,
 } from '@/hooks/selectors/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const SELECTOR_STALE = 60 * 1000
 
@@ -1685,27 +1688,28 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
   },
   'sim.workflows': {
     key: 'sim.workflows',
-    staleTime: 0, // Always fetch fresh from store
-    getQueryKey: ({ context }: SelectorQueryArgs) => [
-      'selectors',
-      'sim.workflows',
-      context.excludeWorkflowId ?? 'none',
-    ],
-    enabled: () => true,
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) =>
+      context.workspaceId
+        ? selectorKeys.simWorkflows(context.workspaceId, context.excludeWorkflowId)
+        : [...selectorKeys.all, 'sim.workflows', 'none', context.excludeWorkflowId ?? 'none'],
+    enabled: ({ context }) => Boolean(context.workspaceId),
     fetchList: async ({ context }: SelectorQueryArgs): Promise<SelectorOption[]> => {
-      const { workflows } = useWorkflowRegistry.getState()
-      return Object.entries(workflows)
-        .filter(([id]) => id !== context.excludeWorkflowId)
-        .map(([id, workflow]) => ({
-          id,
-          label: workflow.name || `Workflow ${id.slice(0, 8)}`,
+      if (!context.workspaceId) return []
+      await getQueryClient().ensureQueryData(getWorkflowListQueryOptions(context.workspaceId))
+      const workflows = getWorkflows(context.workspaceId)
+      return workflows
+        .filter((w) => w.id !== context.excludeWorkflowId)
+        .map((w) => ({
+          id: w.id,
+          label: w.name || `Workflow ${w.id.slice(0, 8)}`,
         }))
         .sort((a, b) => a.label.localeCompare(b.label))
     },
-    fetchById: async ({ detailId }: SelectorQueryArgs): Promise<SelectorOption | null> => {
-      if (!detailId) return null
-      const { workflows } = useWorkflowRegistry.getState()
-      const workflow = workflows[detailId]
+    fetchById: async ({ context, detailId }: SelectorQueryArgs): Promise<SelectorOption | null> => {
+      if (!detailId || !context.workspaceId) return null
+      await getQueryClient().ensureQueryData(getWorkflowListQueryOptions(context.workspaceId))
+      const workflow = getWorkflowById(context.workspaceId, detailId)
       if (!workflow) return null
       return {
         id: detailId,

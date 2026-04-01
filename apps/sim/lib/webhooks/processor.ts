@@ -7,8 +7,10 @@ import { v4 as uuidv4 } from 'uuid'
 import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
+import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { isProd } from '@/lib/core/config/feature-flags'
 import { safeCompare } from '@/lib/core/security/encryption'
+import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import {
@@ -1264,53 +1266,93 @@ export async function queueWebhookExecution(
     const isPolling = isPollingWebhookProvider(payload.provider)
 
     if (isPolling && !shouldExecuteInline()) {
-      const jobQueue = await getJobQueue()
-      const jobId = await jobQueue.enqueue('webhook-execution', payload, {
-        metadata: {
-          workflowId: foundWorkflow.id,
-          userId: actorUserId,
-          correlation,
-        },
-      })
+      const jobId = isBullMQEnabled()
+        ? await enqueueWorkspaceDispatch({
+            id: executionId,
+            workspaceId: foundWorkflow.workspaceId,
+            lane: 'runtime',
+            queueName: 'webhook-execution',
+            bullmqJobName: 'webhook-execution',
+            bullmqPayload: createBullMQJobData(payload, {
+              workflowId: foundWorkflow.id,
+              userId: actorUserId,
+              correlation,
+            }),
+            metadata: {
+              workflowId: foundWorkflow.id,
+              userId: actorUserId,
+              correlation,
+            },
+          })
+        : await (await getJobQueue()).enqueue('webhook-execution', payload, {
+            metadata: {
+              workflowId: foundWorkflow.id,
+              workspaceId: foundWorkflow.workspaceId,
+              userId: actorUserId,
+              correlation,
+            },
+          })
       logger.info(
         `[${options.requestId}] Queued polling webhook execution task ${jobId} for ${foundWebhook.provider} webhook via job queue`
       )
     } else {
       const jobQueue = await getInlineJobQueue()
-      const jobId = await jobQueue.enqueue('webhook-execution', payload, {
-        metadata: {
-          workflowId: foundWorkflow.id,
-          userId: actorUserId,
-          correlation,
-        },
-      })
-      logger.info(
-        `[${options.requestId}] Executing ${foundWebhook.provider} webhook ${jobId} inline`
-      )
-      void (async () => {
-        try {
-          await jobQueue.startJob(jobId)
-          const output = await executeWebhookJob(payload)
-          await jobQueue.completeJob(jobId, output)
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
-          logger.error(`[${options.requestId}] Webhook execution failed`, {
-            jobId,
-            error: errorMessage,
+      const jobId = isBullMQEnabled()
+        ? await enqueueWorkspaceDispatch({
+            id: executionId,
+            workspaceId: foundWorkflow.workspaceId,
+            lane: 'runtime',
+            queueName: 'webhook-execution',
+            bullmqJobName: 'webhook-execution',
+            bullmqPayload: createBullMQJobData(payload, {
+              workflowId: foundWorkflow.id,
+              userId: actorUserId,
+              correlation,
+            }),
+            metadata: {
+              workflowId: foundWorkflow.id,
+              userId: actorUserId,
+              correlation,
+            },
           })
+        : await jobQueue.enqueue('webhook-execution', payload, {
+            metadata: {
+              workflowId: foundWorkflow.id,
+              workspaceId: foundWorkflow.workspaceId,
+              userId: actorUserId,
+              correlation,
+            },
+          })
+      logger.info(
+        `[${options.requestId}] Queued ${foundWebhook.provider} webhook execution ${jobId} via inline backend`
+      )
+
+      if (!isBullMQEnabled()) {
+        void (async () => {
           try {
-            await jobQueue.markJobFailed(jobId, errorMessage)
-          } catch (markFailedError) {
-            logger.error(`[${options.requestId}] Failed to mark job as failed`, {
+            await jobQueue.startJob(jobId)
+            const output = await executeWebhookJob(payload)
+            await jobQueue.completeJob(jobId, output)
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            logger.error(`[${options.requestId}] Webhook execution failed`, {
               jobId,
-              error:
-                markFailedError instanceof Error
-                  ? markFailedError.message
-                  : String(markFailedError),
+              error: errorMessage,
             })
+            try {
+              await jobQueue.markJobFailed(jobId, errorMessage)
+            } catch (markFailedError) {
+              logger.error(`[${options.requestId}] Failed to mark job as failed`, {
+                jobId,
+                error:
+                  markFailedError instanceof Error
+                    ? markFailedError.message
+                    : String(markFailedError),
+              })
+            }
           }
-        }
-      })()
+        })()
+      }
     }
 
     if (foundWebhook.provider === 'microsoft-teams') {

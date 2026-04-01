@@ -13,14 +13,12 @@ import {
   incrementStorageUsage,
 } from '@/lib/billing/storage'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
-import {
-  downloadFile,
-  hasCloudStorage,
-  uploadFile,
-} from '@/lib/uploads/core/storage-service'
-import { getFileMetadataByKey, insertFileMetadata } from '@/lib/uploads/server/metadata'
 import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { getServePathPrefix } from '@/lib/uploads'
+import { downloadFile, hasCloudStorage, uploadFile } from '@/lib/uploads/core/storage-service'
+import { getFileMetadataByKey, insertFileMetadata } from '@/lib/uploads/server/metadata'
+import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
@@ -225,7 +223,6 @@ export async function uploadWorkspaceFile(
         logger.error(`Failed to update storage tracking:`, storageError)
       }
 
-      const { getServePathPrefix } = await import('@/lib/uploads')
       const pathPrefix = getServePathPrefix()
       const serveUrl = `${pathPrefix}${encodeURIComponent(uploadResult.key)}?context=workspace`
 
@@ -256,7 +253,10 @@ export async function uploadWorkspaceFile(
     }
   }
 
-  logger.error(`Failed to upload workspace file after ${MAX_UPLOAD_UNIQUE_RETRIES} attempts`, lastError)
+  logger.error(
+    `Failed to upload workspace file after ${MAX_UPLOAD_UNIQUE_RETRIES} attempts`,
+    lastError
+  )
   throw new FileConflictError(fileName)
 }
 
@@ -278,7 +278,13 @@ export async function trackChatUpload(
   const updated = await db
     .update(workspaceFiles)
     .set({ chatId, context: 'mothership' })
-    .where(and(eq(workspaceFiles.key, s3Key), eq(workspaceFiles.workspaceId, workspaceId), isNull(workspaceFiles.deletedAt)))
+    .where(
+      and(
+        eq(workspaceFiles.key, s3Key),
+        eq(workspaceFiles.workspaceId, workspaceId),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
     .returning({ id: workspaceFiles.id })
 
   if (updated.length > 0) {
@@ -332,6 +338,47 @@ export async function fileExistsInWorkspace(
 }
 
 /**
+ * Look up a single active workspace file by its original name.
+ * Returns the record if found, or null if no matching file exists.
+ * Throws on DB errors so callers can distinguish "not found" from "lookup failed."
+ */
+export async function getWorkspaceFileByName(
+  workspaceId: string,
+  fileName: string
+): Promise<WorkspaceFileRecord | null> {
+  const files = await db
+    .select()
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.workspaceId, workspaceId),
+        eq(workspaceFiles.originalName, fileName),
+        eq(workspaceFiles.context, 'workspace'),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
+    .limit(1)
+
+  if (files.length === 0) return null
+
+  const pathPrefix = getServePathPrefix()
+
+  const file = files[0]
+  return {
+    id: file.id,
+    workspaceId: file.workspaceId || workspaceId,
+    name: file.originalName,
+    key: file.key,
+    path: `${pathPrefix}${encodeURIComponent(file.key)}?context=workspace`,
+    size: file.size,
+    type: file.contentType,
+    uploadedBy: file.userId,
+    deletedAt: file.deletedAt,
+    uploadedAt: file.uploadedAt,
+  }
+}
+
+/**
  * List all files for a workspace
  */
 export async function listWorkspaceFiles(
@@ -345,7 +392,10 @@ export async function listWorkspaceFiles(
       .from(workspaceFiles)
       .where(
         scope === 'all'
-          ? and(eq(workspaceFiles.workspaceId, workspaceId), eq(workspaceFiles.context, 'workspace'))
+          ? and(
+              eq(workspaceFiles.workspaceId, workspaceId),
+              eq(workspaceFiles.context, 'workspace')
+            )
           : scope === 'archived'
             ? and(
                 eq(workspaceFiles.workspaceId, workspaceId),
@@ -360,7 +410,6 @@ export async function listWorkspaceFiles(
       )
       .orderBy(workspaceFiles.uploadedAt)
 
-    const { getServePathPrefix } = await import('@/lib/uploads')
     const pathPrefix = getServePathPrefix()
 
     return files.map((file) => ({
@@ -414,7 +463,9 @@ export function normalizeWorkspaceFileReference(fileReference: string): string {
 /**
  * Canonical sandbox mount path for an existing workspace file.
  */
-export function getSandboxWorkspaceFilePath(file: Pick<WorkspaceFileRecord, 'id' | 'name'>): string {
+export function getSandboxWorkspaceFilePath(
+  file: Pick<WorkspaceFileRecord, 'id' | 'name'>
+): string {
   return `/home/user/files/${file.id}/${file.name}`
 }
 
@@ -483,7 +534,6 @@ export async function getWorkspaceFile(
 
     if (files.length === 0) return null
 
-    const { getServePathPrefix } = await import('@/lib/uploads')
     const pathPrefix = getServePathPrefix()
 
     const file = files[0]
@@ -721,7 +771,6 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
     throw new Error('File is not archived')
   }
 
-  const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
   const ws = await getWorkspaceWithOwner(workspaceId)
   if (!ws || ws.archivedAt) {
     throw new Error('Cannot restore file into an archived workspace')

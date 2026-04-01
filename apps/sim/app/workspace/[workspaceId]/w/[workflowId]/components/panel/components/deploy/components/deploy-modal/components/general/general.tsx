@@ -125,18 +125,18 @@ export function GeneralDeploy({
 
   if (showLoadingSkeleton) {
     return (
-      <div className='space-y-[12px]'>
+      <div className='space-y-3'>
         <div>
           <div className='relative mb-[6.5px]'>
             <Skeleton className='h-[16px] w-[90px]' />
           </div>
-          <div className='h-[260px] w-full overflow-hidden rounded-[4px] border border-[var(--border)]'>
+          <div className='h-[260px] w-full overflow-hidden rounded-sm border border-[var(--border)]'>
             <Skeleton className='h-full w-full rounded-none' />
           </div>
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[60px]' />
-          <div className='h-[120px] w-full overflow-hidden rounded-[4px] border border-[var(--border)]'>
+          <div className='h-[120px] w-full overflow-hidden rounded-sm border border-[var(--border)]'>
             <Skeleton className='h-full w-full rounded-none' />
           </div>
         </div>
@@ -146,10 +146,10 @@ export function GeneralDeploy({
 
   return (
     <>
-      <div className='space-y-[12px]'>
+      <div className='space-y-3'>
         <div>
           <div className='relative mb-[6.5px]'>
-            <Label className='block truncate pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+            <Label className='block truncate pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               {previewMode === 'selected' && selectedVersionInfo
                 ? selectedVersionInfo.name || `v${selectedVersion}`
                 : 'Live Workflow'}
@@ -173,7 +173,7 @@ export function GeneralDeploy({
           </div>
 
           <div
-            className='relative h-[260px] w-full overflow-hidden rounded-[4px] border border-[var(--border)]'
+            className='relative h-[260px] w-full overflow-hidden rounded-sm border border-[var(--border)]'
             onWheelCapture={(e) => {
               if (e.ctrlKey || e.metaKey) return
               e.stopPropagation()
@@ -197,7 +197,7 @@ export function GeneralDeploy({
                       type='button'
                       variant='default'
                       onClick={() => setShowExpandedPreview(true)}
-                      className='absolute right-[8px] bottom-[8px] z-10 h-[28px] w-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
+                      className='absolute right-[8px] bottom-2 z-10 h-[28px] w-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                     >
                       <Expand className='h-[14px] w-[14px]' />
                     </Button>
@@ -206,7 +206,7 @@ export function GeneralDeploy({
                 </Tooltip.Root>
               </>
             ) : (
-              <div className='flex h-full items-center justify-center text-[#8D8D8D] text-[13px]'>
+              <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
                 Deploy your workflow to see a preview
               </div>
             )}
@@ -214,7 +214,7 @@ export function GeneralDeploy({
         </div>
 
         <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Versions
           </Label>
           <Versions

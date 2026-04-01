@@ -16,6 +16,7 @@ export function DatabaseX(props: SVGProps<SVGSVGElement>) {
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
       {...props}
     >
       <ellipse cx='10.25' cy='3.75' rx='8.5' ry='3' />

@@ -1,10 +1,8 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { workflowKeys } from '@/hooks/queries/workflows'
+import { useDeleteWorkflowMutation, useWorkflows } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('useDeleteWorkflow')
 
@@ -41,9 +39,8 @@ export function useDeleteWorkflow({
   onSuccess,
 }: UseDeleteWorkflowProps) {
   const router = useRouter()
-  const queryClient = useQueryClient()
-  const workflows = useWorkflowRegistry((s) => s.workflows)
-  const removeWorkflow = useWorkflowRegistry((s) => s.removeWorkflow)
+  const { data: workflowList = [] } = useWorkflows(workspaceId)
+  const deleteWorkflowMutation = useDeleteWorkflowMutation()
   const [isDeleting, setIsDeleting] = useState(false)
 
   /**
@@ -65,7 +62,7 @@ export function useDeleteWorkflow({
       const isActiveWorkflowBeingDeleted =
         typeof isActive === 'function' ? isActive(workflowIdsToDelete) : isActive
 
-      const sidebarWorkflows = Object.values(workflows).filter((w) => w.workspaceId === workspaceId)
+      const sidebarWorkflows = workflowList.filter((w) => w.workspaceId === workspaceId)
 
       let activeWorkflowId: string | null = null
       if (isActiveWorkflowBeingDeleted && typeof isActive === 'function') {
@@ -105,8 +102,11 @@ export function useDeleteWorkflow({
         }
       }
 
-      await Promise.all(workflowIdsToDelete.map((id) => removeWorkflow(id)))
-      await queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
+      await Promise.all(
+        workflowIdsToDelete.map((id) =>
+          deleteWorkflowMutation.mutateAsync({ workspaceId, workflowId: id })
+        )
+      )
 
       const { clearSelection } = useFolderStore.getState()
       clearSelection()
@@ -122,13 +122,12 @@ export function useDeleteWorkflow({
   }, [
     workflowIds,
     isDeleting,
-    workflows,
+    workflowList,
     workspaceId,
     isActive,
     router,
-    removeWorkflow,
+    deleteWorkflowMutation,
     onSuccess,
-    queryClient,
   ])
 
   return {

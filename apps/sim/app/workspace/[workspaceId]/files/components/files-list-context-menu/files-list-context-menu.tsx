@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +19,7 @@ interface FilesListContextMenuProps {
   disableUpload?: boolean
 }
 
-export function FilesListContextMenu({
+export const FilesListContextMenu = memo(function FilesListContextMenu({
   isOpen,
   position,
   onClose,
@@ -64,4 +65,4 @@ export function FilesListContextMenu({
       </DropdownMenuContent>
     </DropdownMenu>
   )
-}
+})

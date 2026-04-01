@@ -359,6 +359,35 @@ List tasks in Attio, optionally filtered by record, assignee, or completion stat
 |   ↳ `createdAt` | string | When the task was created |
 | `count` | number | Number of tasks returned |
 
+### `attio_get_task`
+
+Get a single task by ID from Attio
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `taskId` | string | Yes | The ID of the task to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskId` | string | The task ID |
+| `content` | string | The task content |
+| `deadlineAt` | string | The task deadline |
+| `isCompleted` | boolean | Whether the task is completed |
+| `linkedRecords` | array | Records linked to this task |
+|   ↳ `targetObjectId` | string | The linked object ID |
+|   ↳ `targetRecordId` | string | The linked record ID |
+| `assignees` | array | Task assignees |
+|   ↳ `type` | string | The assignee actor type \(e.g. workspace-member\) |
+|   ↳ `id` | string | The assignee actor ID |
+| `createdByActor` | object | The actor who created this task |
+|   ↳ `type` | string | The actor type \(e.g. workspace-member, api-token, system\) |
+|   ↳ `id` | string | The actor ID |
+| `createdAt` | string | When the task was created |
+
 ### `attio_create_task`
 
 Create a task in Attio
@@ -1012,8 +1041,8 @@ Update a webhook in Attio (target URL and/or subscriptions)
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `webhookId` | string | Yes | The webhook ID to update |
-| `targetUrl` | string | Yes | HTTPS target URL for webhook delivery |
-| `subscriptions` | string | Yes | JSON array of subscriptions, e.g. \[\{"event_type":"note.created"\}\] |
+| `targetUrl` | string | No | HTTPS target URL for webhook delivery |
+| `subscriptions` | string | No | JSON array of subscriptions, e.g. \[\{"event_type":"note.created"\}\] |
 
 #### Output
 

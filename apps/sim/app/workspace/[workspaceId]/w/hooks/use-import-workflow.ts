@@ -8,8 +8,10 @@ import {
   persistImportedWorkflow,
   sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
-import { folderKeys, useCreateFolder } from '@/hooks/queries/folders'
-import { useCreateWorkflow, workflowKeys } from '@/hooks/queries/workflows'
+import { useCreateFolder } from '@/hooks/queries/folders'
+import { folderKeys } from '@/hooks/queries/utils/folder-keys'
+import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 
 const logger = createLogger('useImportWorkflow')
@@ -56,6 +58,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
             workspaceId,
             folderId,
             sortOrder,
+            deduplicate: true,
           }),
       })
 
@@ -195,7 +198,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
           }
         }
 
-        await queryClient.invalidateQueries({ queryKey: workflowKeys.lists() })
+        await invalidateWorkflowLists(queryClient, workspaceId)
         await queryClient.invalidateQueries({ queryKey: folderKeys.list(workspaceId) })
 
         logger.info(`Import complete. Imported ${importedWorkflowIds.length} workflow(s)`)

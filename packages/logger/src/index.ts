@@ -33,6 +33,12 @@ export interface LoggerConfig {
   enabled?: boolean
 }
 
+/**
+ * Metadata key-value pairs attached to a logger instance.
+ * Included automatically in every log line produced by that logger.
+ */
+export type LoggerMetadata = Record<string, string | number | boolean | undefined>
+
 const getNodeEnv = (): string => {
   if (typeof process !== 'undefined' && process.env) {
     return process.env.NODE_ENV || 'development'
@@ -141,6 +147,7 @@ export class Logger {
   private module: string
   private config: ReturnType<typeof getLogConfig>
   private isDev: boolean
+  private metadata: LoggerMetadata = {}
 
   /**
    * Create a new logger for a specific module
@@ -170,6 +177,20 @@ export class Logger {
         this.config.enabled = overrideConfig.enabled
       }
     }
+  }
+
+  /**
+   * Creates a child logger with additional metadata merged in.
+   * The child inherits this logger's module name, config, and existing metadata.
+   * New metadata keys override existing ones with the same name.
+   */
+  withMetadata(metadata: LoggerMetadata): Logger {
+    const child = Object.create(Logger.prototype) as Logger
+    child.module = this.module
+    child.config = this.config
+    child.isDev = this.isDev
+    child.metadata = { ...this.metadata, ...metadata }
+    return child
   }
 
   /**
@@ -209,6 +230,12 @@ export class Logger {
     const timestamp = new Date().toISOString()
     const formattedArgs = this.formatArgs(args)
 
+    const metadataEntries = Object.entries(this.metadata).filter(([_, v]) => v !== undefined)
+    const metadataStr =
+      metadataEntries.length > 0
+        ? ` {${metadataEntries.map(([k, v]) => `${k}=${v}`).join(' ')}}`
+        : ''
+
     if (this.config.colorize) {
       let levelColor: (text: string) => string
       const moduleColor = chalk.cyan
@@ -229,7 +256,8 @@ export class Logger {
           break
       }
 
-      const coloredPrefix = `${timestampColor(`[${timestamp}]`)} ${levelColor(`[${level}]`)} ${moduleColor(`[${this.module}]`)}`
+      const coloredMeta = metadataStr ? ` ${chalk.magenta(metadataStr.trim())}` : ''
+      const coloredPrefix = `${timestampColor(`[${timestamp}]`)} ${levelColor(`[${level}]`)} ${moduleColor(`[${this.module}]`)}${coloredMeta}`
 
       if (level === LogLevel.ERROR) {
         console.error(coloredPrefix, message, ...formattedArgs)
@@ -237,7 +265,7 @@ export class Logger {
         console.log(coloredPrefix, message, ...formattedArgs)
       }
     } else {
-      const prefix = `[${timestamp}] [${level}] [${this.module}]`
+      const prefix = `[${timestamp}] [${level}] [${this.module}]${metadataStr}`
 
       if (level === LogLevel.ERROR) {
         console.error(prefix, message, ...formattedArgs)

@@ -7,8 +7,18 @@ import { databaseMock, loggerMock } from '@sim/testing'
 import type { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDecryptSecret } = vi.hoisted(() => ({
+const {
+  mockDecryptSecret,
+  mockValidateAuthToken,
+  mockSetDeploymentAuthCookie,
+  mockAddCorsHeaders,
+  mockIsEmailAllowed,
+} = vi.hoisted(() => ({
   mockDecryptSecret: vi.fn(),
+  mockValidateAuthToken: vi.fn().mockReturnValue(false),
+  mockSetDeploymentAuthCookie: vi.fn(),
+  mockAddCorsHeaders: vi.fn((response: unknown) => response),
+  mockIsEmailAllowed: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => databaseMock)
@@ -16,6 +26,13 @@ vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: mockDecryptSecret,
+}))
+
+vi.mock('@/lib/core/security/deployment', () => ({
+  validateAuthToken: mockValidateAuthToken,
+  setDeploymentAuthCookie: mockSetDeploymentAuthCookie,
+  addCorsHeaders: mockAddCorsHeaders,
+  isEmailAllowed: mockIsEmailAllowed,
 }))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
@@ -28,8 +45,6 @@ vi.mock('@/lib/workflows/utils', () => ({
   authorizeWorkflowByWorkspacePermission: vi.fn(),
 }))
 
-import crypto from 'crypto'
-import { addCorsHeaders, validateAuthToken } from '@/lib/core/security/deployment'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import {
   DEFAULT_FORM_CUSTOMIZATIONS,
@@ -43,126 +58,67 @@ describe('Form API Utils', () => {
   })
 
   describe('Auth token utils', () => {
-    it.concurrent('should validate auth tokens', () => {
-      const formId = 'test-form-id'
-      const type = 'password'
+    it('should accept valid auth cookie via validateFormAuth', async () => {
+      mockValidateAuthToken.mockReturnValue(true)
 
-      const token = Buffer.from(`${formId}:${type}:${Date.now()}`).toString('base64')
-      expect(typeof token).toBe('string')
-      expect(token.length).toBeGreaterThan(0)
+      const deployment = {
+        id: 'form-id',
+        authType: 'password',
+        password: 'encrypted-password',
+      }
 
-      const isValid = validateAuthToken(token, formId)
-      expect(isValid).toBe(true)
+      const mockRequest = {
+        method: 'POST',
+        cookies: {
+          get: vi.fn().mockReturnValue({ value: 'valid-token' }),
+        },
+      } as any
 
-      const isInvalidForm = validateAuthToken(token, 'wrong-form-id')
-      expect(isInvalidForm).toBe(false)
+      const result = await validateFormAuth('request-id', deployment, mockRequest)
+      expect(mockValidateAuthToken).toHaveBeenCalledWith(
+        'valid-token',
+        'form-id',
+        'encrypted-password'
+      )
+      expect(result.authorized).toBe(true)
     })
 
-    it.concurrent('should reject expired tokens', () => {
-      const formId = 'test-form-id'
-      const expiredToken = Buffer.from(
-        `${formId}:password:${Date.now() - 25 * 60 * 60 * 1000}`
-      ).toString('base64')
+    it('should reject invalid auth cookie via validateFormAuth', async () => {
+      mockValidateAuthToken.mockReturnValue(false)
 
-      const isValid = validateAuthToken(expiredToken, formId)
-      expect(isValid).toBe(false)
-    })
+      const deployment = {
+        id: 'form-id',
+        authType: 'password',
+        password: 'encrypted-password',
+      }
 
-    it.concurrent('should validate tokens with password hash', () => {
-      const formId = 'test-form-id'
-      const encryptedPassword = 'encrypted-password-value'
-      const pwHash = crypto
-        .createHash('sha256')
-        .update(encryptedPassword)
-        .digest('hex')
-        .substring(0, 8)
+      const mockRequest = {
+        method: 'GET',
+        cookies: {
+          get: vi.fn().mockReturnValue({ value: 'invalid-token' }),
+        },
+      } as any
 
-      const token = Buffer.from(`${formId}:password:${Date.now()}:${pwHash}`).toString('base64')
-
-      const isValid = validateAuthToken(token, formId, encryptedPassword)
-      expect(isValid).toBe(true)
-
-      const isInvalidPassword = validateAuthToken(token, formId, 'different-password')
-      expect(isInvalidPassword).toBe(false)
+      const result = await validateFormAuth('request-id', deployment, mockRequest)
+      expect(result.authorized).toBe(false)
     })
   })
 
   describe('Cookie handling', () => {
-    it('should set auth cookie correctly', () => {
-      const mockSet = vi.fn()
+    it('should delegate to setDeploymentAuthCookie', () => {
       const mockResponse = {
-        cookies: {
-          set: mockSet,
-        },
+        cookies: { set: vi.fn() },
       } as unknown as NextResponse
 
-      const formId = 'test-form-id'
-      const type = 'password'
+      setFormAuthCookie(mockResponse, 'test-form-id', 'password')
 
-      setFormAuthCookie(mockResponse, formId, type)
-
-      expect(mockSet).toHaveBeenCalledWith({
-        name: `form_auth_${formId}`,
-        value: expect.any(String),
-        httpOnly: true,
-        secure: false, // Development mode
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 60 * 60 * 24,
-      })
-    })
-  })
-
-  describe('CORS handling', () => {
-    it.concurrent('should add CORS headers for any origin', () => {
-      const mockRequest = {
-        headers: {
-          get: vi.fn().mockReturnValue('http://localhost:3000'),
-        },
-      } as any
-
-      const mockResponse = {
-        headers: {
-          set: vi.fn(),
-        },
-      } as unknown as NextResponse
-
-      addCorsHeaders(mockResponse, mockRequest)
-
-      expect(mockResponse.headers.set).toHaveBeenCalledWith(
-        'Access-Control-Allow-Origin',
-        'http://localhost:3000'
+      expect(mockSetDeploymentAuthCookie).toHaveBeenCalledWith(
+        mockResponse,
+        'form',
+        'test-form-id',
+        'password',
+        undefined
       )
-      expect(mockResponse.headers.set).toHaveBeenCalledWith(
-        'Access-Control-Allow-Credentials',
-        'true'
-      )
-      expect(mockResponse.headers.set).toHaveBeenCalledWith(
-        'Access-Control-Allow-Methods',
-        'GET, POST, OPTIONS'
-      )
-      expect(mockResponse.headers.set).toHaveBeenCalledWith(
-        'Access-Control-Allow-Headers',
-        'Content-Type, X-Requested-With'
-      )
-    })
-
-    it.concurrent('should not set CORS headers when no origin', () => {
-      const mockRequest = {
-        headers: {
-          get: vi.fn().mockReturnValue(''),
-        },
-      } as any
-
-      const mockResponse = {
-        headers: {
-          set: vi.fn(),
-        },
-      } as unknown as NextResponse
-
-      addCorsHeaders(mockResponse, mockRequest)
-
-      expect(mockResponse.headers.set).not.toHaveBeenCalled()
     })
   })
 
@@ -291,6 +247,7 @@ describe('Form API Utils', () => {
       } as any
 
       // Exact email match should authorize
+      mockIsEmailAllowed.mockReturnValue(true)
       const result1 = await validateFormAuth('request-id', deployment, mockRequest, {
         email: 'user@example.com',
       })
@@ -303,6 +260,7 @@ describe('Form API Utils', () => {
       expect(result2.authorized).toBe(true)
 
       // Unknown email should not authorize
+      mockIsEmailAllowed.mockReturnValue(false)
       const result3 = await validateFormAuth('request-id', deployment, mockRequest, {
         email: 'user@unknown.com',
       })

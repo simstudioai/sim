@@ -10,15 +10,18 @@ const {
   mockAuthorizeWorkflowByWorkspacePermission,
   mockPreprocessExecution,
   mockEnqueue,
+  mockEnqueueWorkspaceDispatch,
 } = vi.hoisted(() => ({
   mockCheckHybridAuth: vi.fn(),
   mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
   mockPreprocessExecution: vi.fn(),
   mockEnqueue: vi.fn().mockResolvedValue('job-123'),
+  mockEnqueueWorkspaceDispatch: vi.fn().mockResolvedValue('job-123'),
 }))
 
 vi.mock('@/lib/auth/hybrid', () => ({
   checkHybridAuth: mockCheckHybridAuth,
+  hasExternalApiCredentials: vi.fn().mockReturnValue(true),
   AuthType: {
     SESSION: 'session',
     API_KEY: 'api_key',
@@ -44,6 +47,16 @@ vi.mock('@/lib/core/async-jobs', () => ({
     markJobFailed: vi.fn(),
   }),
   shouldExecuteInline: vi.fn().mockReturnValue(false),
+  shouldUseBullMQ: vi.fn().mockReturnValue(true),
+}))
+
+vi.mock('@/lib/core/bullmq', () => ({
+  createBullMQJobData: vi.fn((payload: unknown, metadata?: unknown) => ({ payload, metadata })),
+}))
+
+vi.mock('@/lib/core/workspace-dispatch', () => ({
+  enqueueWorkspaceDispatch: mockEnqueueWorkspaceDispatch,
+  waitForDispatchJob: vi.fn(),
 }))
 
 vi.mock('@/lib/core/utils/request', () => ({
@@ -69,14 +82,16 @@ vi.mock('@/background/workflow-execution', () => ({
   executeWorkflowJob: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
+vi.mock('@sim/logger', () => {
+  const createMockLogger = (): Record<string, any> => ({
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
-  }),
-}))
+    withMetadata: vi.fn(() => createMockLogger()),
+  })
+  return { createLogger: vi.fn(() => createMockLogger()) }
+})
 
 vi.mock('uuid', () => ({
   validate: vi.fn().mockReturnValue(true),
@@ -132,22 +147,13 @@ describe('workflow execute async route', () => {
     expect(response.status).toBe(202)
     expect(body.executionId).toBe('execution-123')
     expect(body.jobId).toBe('job-123')
-    expect(mockEnqueue).toHaveBeenCalledWith(
-      'workflow-execution',
+    expect(mockEnqueueWorkspaceDispatch).toHaveBeenCalledWith(
       expect.objectContaining({
-        workflowId: 'workflow-1',
-        userId: 'actor-1',
-        executionId: 'execution-123',
-        requestId: 'req-12345678',
-        correlation: {
-          executionId: 'execution-123',
-          requestId: 'req-12345678',
-          source: 'workflow',
-          workflowId: 'workflow-1',
-          triggerType: 'manual',
-        },
-      }),
-      {
+        id: 'execution-123',
+        workspaceId: 'workspace-1',
+        lane: 'runtime',
+        queueName: 'workflow-execution',
+        bullmqJobName: 'workflow-execution',
         metadata: {
           workflowId: 'workflow-1',
           userId: 'actor-1',
@@ -159,7 +165,7 @@ describe('workflow execute async route', () => {
             triggerType: 'manual',
           },
         },
-      }
+      })
     )
   })
 })

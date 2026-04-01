@@ -1,5 +1,6 @@
 import type { SVGProps } from 'react'
 import styles from '@/components/emcn/icons/animate/download.module.css'
+import { cn } from '@/lib/core/utils/cn'
 
 export interface DownloadProps extends SVGProps<SVGSVGElement> {
   /**
@@ -17,9 +18,7 @@ export interface DownloadProps extends SVGProps<SVGSVGElement> {
  * @param props - SVG properties including className, animate, etc.
  */
 export function Download({ animate = false, className, ...props }: DownloadProps) {
-  const svgClassName = animate
-    ? `${styles['animated-download-svg']} ${className || ''}`.trim()
-    : className
+  const svgClassName = cn(animate && styles['animated-download-svg'], className)
 
   return (
     <svg
@@ -33,6 +32,7 @@ export function Download({ animate = false, className, ...props }: DownloadProps
       strokeLinecap='round'
       strokeLinejoin='round'
       className={svgClassName}
+      aria-hidden='true'
       {...props}
     >
       <path d='M12 5v14' />

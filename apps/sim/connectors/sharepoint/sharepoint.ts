@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { MicrosoftSharepointIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('SharePointConnector')
 
@@ -133,8 +133,12 @@ async function downloadFileContent(
   }
 
   const text = await response.text()
-  if (text.length > MAX_DOWNLOAD_SIZE) {
-    return text.slice(0, MAX_DOWNLOAD_SIZE)
+  if (Buffer.byteLength(text, 'utf8') > MAX_DOWNLOAD_SIZE) {
+    logger.warn(`File "${fileName}" exceeds ${MAX_DOWNLOAD_SIZE} bytes, truncating`)
+    const buf = Buffer.from(text, 'utf8')
+    let end = MAX_DOWNLOAD_SIZE
+    while (end > 0 && (buf[end] & 0xc0) === 0x80) end--
+    return buf.subarray(0, end).toString('utf8')
   }
   return text
 }
@@ -156,44 +160,25 @@ async function fetchFileContent(
 }
 
 /**
- * Converts a DriveItem to an ExternalDocument by downloading its content.
+ * Converts a DriveItem to a lightweight metadata stub (no content download).
  */
-async function itemToDocument(
-  accessToken: string,
-  siteId: string,
-  item: DriveItem,
-  siteName: string
-): Promise<ExternalDocument | null> {
-  try {
-    const content = await fetchFileContent(accessToken, siteId, item.id, item.name)
-    if (!content.trim()) {
-      logger.info(`Skipping empty file: ${item.name} (${item.id})`)
-      return null
-    }
-
-    const contentHash = await computeContentHash(content)
-
-    return {
-      externalId: item.id,
-      title: item.name || 'Untitled',
-      content,
-      mimeType: 'text/plain',
-      sourceUrl: item.webUrl,
-      contentHash,
-      metadata: {
-        lastModifiedDateTime: item.lastModifiedDateTime,
-        createdDateTime: item.createdDateTime,
-        createdBy: item.createdBy?.user?.displayName,
-        fileSize: item.size,
-        path: item.parentReference?.path,
-        siteName,
-      },
-    }
-  } catch (error) {
-    logger.warn(`Failed to extract content from file: ${item.name} (${item.id})`, {
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return null
+function itemToStub(item: DriveItem, siteName: string): ExternalDocument {
+  return {
+    externalId: item.id,
+    title: item.name || 'Untitled',
+    content: '',
+    contentDeferred: true,
+    mimeType: 'text/plain',
+    sourceUrl: item.webUrl,
+    contentHash: `sharepoint:${item.id}:${item.lastModifiedDateTime ?? ''}`,
+    metadata: {
+      lastModifiedDateTime: item.lastModifiedDateTime,
+      createdDateTime: item.createdDateTime,
+      createdBy: item.createdBy?.user?.displayName,
+      fileSize: item.size,
+      path: item.parentReference?.path,
+      siteName,
+    },
   }
 }
 
@@ -397,31 +382,19 @@ export const sharepointConnector: ConnectorConfig = {
     // Push subfolders onto the stack for depth-first traversal
     state.folderStack.push(...subfolders)
 
-    // Convert files to documents in batches
-    const CONCURRENCY = 5
+    // Convert files to lightweight stubs (no content download)
     const previouslyFetched = totalFetched
-    for (let i = 0; i < files.length; i += CONCURRENCY) {
+    for (const file of files) {
       if (maxFiles > 0 && previouslyFetched + documents.length >= maxFiles) break
-      const batch = files.slice(i, i + CONCURRENCY)
-      const results = await Promise.all(
-        batch.map((file) => itemToDocument(accessToken, siteId, file, siteName))
-      )
-      documents.push(...(results.filter(Boolean) as ExternalDocument[]))
+      documents.push(itemToStub(file, siteName))
     }
 
     totalFetched += documents.length
-    if (maxFiles > 0) {
-      const remaining = maxFiles - previouslyFetched
-      if (documents.length > remaining) {
-        documents.splice(remaining)
-        totalFetched = maxFiles
-      }
-    }
 
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxFiles > 0 && totalFetched >= maxFiles
+    if (hitLimit && syncContext) syncContext.listingCapped = true
 
-    // Determine next cursor
     if (hitLimit) {
       return { documents, hasMore: false }
     }
@@ -492,7 +465,18 @@ export const sharepointConnector: ConnectorConfig = {
       return null
     }
 
-    return itemToDocument(accessToken, siteId, item, siteName ?? siteUrl)
+    try {
+      const content = await fetchFileContent(accessToken, siteId, item.id, item.name)
+      if (!content.trim()) return null
+
+      const stub = itemToStub(item, siteName ?? siteUrl)
+      return { ...stub, content, contentDeferred: false }
+    } catch (error) {
+      logger.warn(`Failed to fetch content for file: ${item.name} (${item.id})`, {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return null
+    }
   },
 
   validateConfig: async (

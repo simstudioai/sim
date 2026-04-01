@@ -44,15 +44,6 @@ export const imapPollingTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
     },
-    {
-      id: 'rejectUnauthorized',
-      title: 'Verify TLS Certificate',
-      type: 'switch',
-      defaultValue: true,
-      description: 'Verify server TLS certificate. Disable for self-signed certificates.',
-      required: false,
-      mode: 'trigger',
-    },
     // Authentication
     {
       id: 'username',
@@ -89,7 +80,6 @@ export const imapPollingTrigger: TriggerConfig = {
         const host = store.getValue(blockId, 'host') as string | null
         const port = store.getValue(blockId, 'port') as string | null
         const secure = store.getValue(blockId, 'secure') as boolean | null
-        const rejectUnauthorized = store.getValue(blockId, 'rejectUnauthorized') as boolean | null
         const username = store.getValue(blockId, 'username') as string | null
         const password = store.getValue(blockId, 'password') as string | null
 
@@ -105,7 +95,6 @@ export const imapPollingTrigger: TriggerConfig = {
               host,
               port: port ? Number.parseInt(port, 10) : 993,
               secure: secure ?? true,
-              rejectUnauthorized: rejectUnauthorized ?? true,
               username,
               password,
             }),
@@ -129,7 +118,7 @@ export const imapPollingTrigger: TriggerConfig = {
           throw error
         }
       },
-      dependsOn: ['host', 'port', 'secure', 'rejectUnauthorized', 'username', 'password'],
+      dependsOn: ['host', 'port', 'secure', 'username', 'password'],
       mode: 'trigger',
     },
     // Email filtering

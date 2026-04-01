@@ -2,8 +2,8 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
-import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
 import {
@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
 
     const effectiveChatId = chatId || crypto.randomUUID()
     messageId = crypto.randomUUID()
+    const reqLogger = logger.withMetadata({ messageId })
     const [workspaceContext, integrationTools, userPermission] = await Promise.all([
       generateWorkspaceContext(workspaceId, userId),
       buildIntegrationToolSchemas(userId, messageId),
@@ -71,17 +72,31 @@ export async function POST(req: NextRequest) {
       ...(userPermission ? { userPermission } : {}),
     }
 
+    const executionId = crypto.randomUUID()
+    const runId = crypto.randomUUID()
+
+    await createRunSegment({
+      id: runId,
+      executionId,
+      chatId: effectiveChatId,
+      userId,
+      workspaceId,
+      streamId: messageId,
+    }).catch(() => {})
+
     const result = await orchestrateCopilotStream(requestPayload, {
       userId,
       workspaceId,
       chatId: effectiveChatId,
+      executionId,
+      runId,
       goRoute: '/api/mothership/execute',
       autoExecuteTools: true,
       interactive: false,
     })
 
     if (!result.success) {
-      logger.error(appendCopilotLogContext('Mothership execute failed', { messageId }), {
+      reqLogger.error('Mothership execute failed', {
         error: result.error,
         errors: result.errors,
       })
@@ -120,7 +135,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    logger.error(appendCopilotLogContext('Mothership execute error', { messageId }), {
+    logger.withMetadata({ messageId }).error('Mothership execute error', {
       error: error instanceof Error ? error.message : 'Unknown error',
     })
 

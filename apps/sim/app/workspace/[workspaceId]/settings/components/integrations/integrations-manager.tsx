@@ -643,8 +643,8 @@ export function IntegrationsManager() {
           <>
             <ModalHeader>Connect Integration</ModalHeader>
             <ModalBody>
-              <div className='flex flex-col gap-[12px]'>
-                <div className='flex items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px]'>
+              <div className='flex flex-col gap-3'>
+                <div className='flex items-center gap-2 rounded-[8px] border border-[var(--border)] bg-transparent px-2 py-[5px]'>
                   <Search
                     className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
                     strokeWidth={2}
@@ -669,7 +669,7 @@ export function IntegrationsManager() {
                           setCreateStep(2)
                           setServiceSearch('')
                         }}
-                        className='flex items-center gap-[10px] rounded-[6px] px-[8px] py-[8px] text-left hover:bg-[var(--surface-5)]'
+                        className='flex items-center gap-2.5 rounded-[6px] px-2 py-2 text-left hover:bg-[var(--surface-5)]'
                       >
                         <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
                           {config ? (
@@ -687,7 +687,7 @@ export function IntegrationsManager() {
                     )
                   })}
                   {filteredServices.length === 0 && (
-                    <div className='py-[24px] text-center text-[13px] text-[var(--text-muted)]'>
+                    <div className='py-6 text-center text-[13px] text-[var(--text-muted)]'>
                       No services found
                     </div>
                   )}
@@ -703,7 +703,7 @@ export function IntegrationsManager() {
         ) : (
           <>
             <ModalHeader>
-              <div className='flex items-center gap-[10px]'>
+              <div className='flex items-center gap-2.5'>
                 <button
                   type='button'
                   onClick={() => {
@@ -736,8 +736,8 @@ export function IntegrationsManager() {
                   )}
                 </div>
               )}
-              <div className='flex flex-col gap-[16px]'>
-                <div className='flex items-center gap-[12px]'>
+              <div className='flex flex-col gap-4'>
+                <div className='flex items-center gap-3'>
                   <div className='flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[var(--surface-5)]'>
                     {selectedOAuthService &&
                       createElement(selectedOAuthService.icon, { className: 'h-[18px] w-[18px]' })}
@@ -754,15 +754,15 @@ export function IntegrationsManager() {
 
                 {createDisplayScopes.length > 0 && (
                   <div className='rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-5)]'>
-                    <div className='border-[var(--border-1)] border-b px-[14px] py-[10px]'>
+                    <div className='border-[var(--border-1)] border-b px-3.5 py-2.5'>
                       <h4 className='font-medium text-[12px] text-[var(--text-primary)]'>
                         Permissions requested
                       </h4>
                     </div>
-                    <ul className='max-h-[200px] space-y-[10px] overflow-y-auto px-[14px] py-[12px]'>
+                    <ul className='max-h-[200px] space-y-2.5 overflow-y-auto px-3.5 py-3'>
                       {createDisplayScopes.map((scope) => (
-                        <li key={scope} className='flex items-start gap-[10px]'>
-                          <div className='mt-[2px] flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+                        <li key={scope} className='flex items-start gap-2.5'>
+                          <div className='mt-0.5 flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
                             <Check className='h-[10px] w-[10px] text-[var(--text-primary)]' />
                           </div>
                           <span className='text-[12px] text-[var(--text-primary)]'>
@@ -784,7 +784,7 @@ export function IntegrationsManager() {
                     placeholder='Integration name'
                     autoComplete='off'
                     data-lpignore='true'
-                    className='mt-[6px]'
+                    className='mt-1.5'
                     autoFocus
                   />
                 </div>
@@ -797,7 +797,7 @@ export function IntegrationsManager() {
                     maxLength={500}
                     autoComplete='off'
                     data-lpignore='true'
-                    className='mt-[6px] min-h-[80px] resize-none'
+                    className='mt-1.5 min-h-[80px] resize-none'
                   />
                 </div>
               </div>
@@ -854,10 +854,10 @@ export function IntegrationsManager() {
             ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
           </p>
           {deleteError && (
-            <div className='mt-[12px] rounded-[8px] border border-red-500/50 bg-red-50 p-[12px] dark:bg-red-950/30'>
-              <div className='flex items-start gap-[10px]'>
+            <div className='mt-3 rounded-lg border border-red-500/50 bg-red-50 p-3 dark:bg-red-950/30'>
+              <div className='flex items-start gap-2.5'>
                 <AlertTriangle className='mt-[1px] h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400' />
-                <p className='text-[13px] text-red-700 dark:text-red-300'>{deleteError}</p>
+                <p className='text-red-700 text-small dark:text-red-300'>{deleteError}</p>
               </div>
             </div>
           )}
@@ -902,24 +902,24 @@ export function IntegrationsManager() {
   if (selectedCredential) {
     return (
       <>
-        <div className='flex h-full flex-col gap-[18px]'>
+        <div className='flex h-full flex-col gap-4.5'>
           <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='flex flex-col gap-[18px]'>
-              <div className='flex items-center gap-[10px] border-[var(--border)] border-b pb-[12px]'>
-                <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-[var(--surface-5)]'>
+            <div className='flex flex-col gap-4.5'>
+              <div className='flex items-center gap-2.5 border-[var(--border)] border-b pb-3'>
+                <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-5)]'>
                   {selectedOAuthServiceConfig ? (
                     createElement(selectedOAuthServiceConfig.icon, {
                       className: 'h-[18px] w-[18px]',
                     })
                   ) : (
-                    <span className='font-medium text-[13px] text-[var(--text-tertiary)]'>
+                    <span className='font-medium text-[var(--text-tertiary)] text-small'>
                       {resolveProviderLabel(selectedCredential.providerId).slice(0, 1)}
                     </span>
                   )}
                 </div>
                 <div className='min-w-0 flex-1'>
-                  <div className='flex items-center gap-[8px]'>
-                    <p className='truncate font-medium text-[15px] text-[var(--text-primary)]'>
+                  <div className='flex items-center gap-2'>
+                    <p className='truncate font-medium text-[var(--text-primary)] text-base'>
                       {resolveProviderLabel(selectedCredential.providerId) || 'Unknown service'}
                     </p>
                     <Badge variant='gray-secondary' size='sm'>
@@ -931,12 +931,12 @@ export function IntegrationsManager() {
                       </Badge>
                     )}
                   </div>
-                  <p className='text-[13px] text-[var(--text-muted)]'>Connected service</p>
+                  <p className='text-[var(--text-muted)] text-small'>Connected service</p>
                 </div>
               </div>
 
-              <div className='flex flex-col gap-[6px]'>
-                <Label className='flex items-center gap-[6px]'>
+              <div className='flex flex-col gap-1.5'>
+                <Label className='flex items-center gap-1.5'>
                   Display Name
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
@@ -972,7 +972,7 @@ export function IntegrationsManager() {
                 />
               </div>
 
-              <div className='flex flex-col gap-[6px]'>
+              <div className='flex flex-col gap-1.5'>
                 <Label>Description</Label>
                 <Textarea
                   id='credential-description'
@@ -988,42 +988,42 @@ export function IntegrationsManager() {
               </div>
 
               {detailsError && (
-                <div className='rounded-[8px] border border-[var(--status-red)]/40 bg-[var(--status-red)]/10 px-[10px] py-[8px] text-[13px] text-[var(--status-red)]'>
+                <div className='rounded-lg border border-[color-mix(in_srgb,var(--status-red)_40%,transparent)] bg-[color-mix(in_srgb,var(--status-red)_10%,transparent)] px-2.5 py-2 text-[var(--status-red)] text-small'>
                   {detailsError}
                 </div>
               )}
 
-              <div className='flex flex-col gap-[6px] border-[var(--border)] border-t pt-[16px]'>
+              <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
                 <Label>Members ({activeMembers.length})</Label>
 
                 {membersLoading ? (
-                  <div className='flex flex-col gap-[8px]'>
-                    <Skeleton className='h-[44px] w-full rounded-[8px]' />
-                    <Skeleton className='h-[44px] w-full rounded-[8px]' />
+                  <div className='flex flex-col gap-2'>
+                    <Skeleton className='h-[44px] w-full rounded-lg' />
+                    <Skeleton className='h-[44px] w-full rounded-lg' />
                   </div>
                 ) : (
-                  <div className='flex flex-col gap-[8px]'>
+                  <div className='flex flex-col gap-2'>
                     {activeMembers.map((member) => (
                       <div
                         key={member.id}
-                        className='grid grid-cols-[1fr_120px_72px] items-center gap-[8px]'
+                        className='grid grid-cols-[1fr_120px_72px] items-center gap-2'
                       >
-                        <div className='flex min-w-0 items-center gap-[10px]'>
+                        <div className='flex min-w-0 items-center gap-2.5'>
                           <Avatar className='h-8 w-8 flex-shrink-0'>
                             <AvatarFallback
                               style={{
                                 background: getUserColor(member.userId || member.userEmail || ''),
                               }}
-                              className='border-0 text-[13px] text-white'
+                              className='border-0 text-small text-white'
                             >
                               {(member.userName || member.userEmail || '?').charAt(0).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <div className='min-w-0'>
-                            <p className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                            <p className='truncate font-medium text-[var(--text-primary)] text-sm'>
                               {member.userName || member.userEmail || member.userId}
                             </p>
-                            <p className='truncate text-[12px] text-[var(--text-tertiary)]'>
+                            <p className='truncate text-[var(--text-tertiary)] text-caption'>
                               {member.userEmail || member.userId}
                             </p>
                           </div>
@@ -1069,7 +1069,7 @@ export function IntegrationsManager() {
                       </div>
                     ))}
                     {isSelectedAdmin && (
-                      <div className='grid grid-cols-[1fr_120px_72px] items-center gap-[8px] border-[var(--border)] border-t pt-[8px]'>
+                      <div className='grid grid-cols-[1fr_120px_72px] items-center gap-2 border-[var(--border)] border-t pt-2'>
                         <Combobox
                           options={workspaceUserOptions}
                           value={
@@ -1112,8 +1112,8 @@ export function IntegrationsManager() {
             </div>
           </div>
 
-          <div className='mt-auto flex items-center justify-between border-[var(--border)] border-t pt-[10px]'>
-            <div className='flex items-center gap-[8px]'>
+          <div className='mt-auto flex items-center justify-between border-[var(--border)] border-t pt-2.5'>
+            <div className='flex items-center gap-2'>
               {isSelectedAdmin && (
                 <>
                   <Button
@@ -1131,7 +1131,7 @@ export function IntegrationsManager() {
                       onClick={handleShareWithWorkspace}
                       disabled={isShareingWithWorkspace || workspaceUserOptions.length === 0}
                     >
-                      <Share2 className='mr-[6px] h-[13px] w-[13px]' />
+                      <Share2 className='mr-1.5 h-[13px] w-[13px]' />
                       {isShareingWithWorkspace ? 'Sharing...' : 'Share'}
                     </Button>
                   )}
@@ -1145,7 +1145,7 @@ export function IntegrationsManager() {
                 </>
               )}
             </div>
-            <div className='flex items-center gap-[8px]'>
+            <div className='flex items-center gap-2'>
               <Button onClick={handleBackAttempt} variant='default'>
                 Back
               </Button>
@@ -1171,9 +1171,9 @@ export function IntegrationsManager() {
 
   return (
     <>
-      <div className='flex h-full flex-col gap-[18px]'>
-        <div className='flex items-center gap-[8px]'>
-          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
+      <div className='flex h-full flex-col gap-4.5'>
+        <div className='flex items-center gap-2'>
+          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
@@ -1191,42 +1191,42 @@ export function IntegrationsManager() {
             disabled={credentialsLoading}
             variant='primary'
           >
-            <Plus className='mr-[6px] h-[13px] w-[13px]' />
+            <Plus className='mr-1.5 h-[13px] w-[13px]' />
             Connect
           </Button>
         </div>
 
         <div className='min-h-0 flex-1 overflow-y-auto'>
           {credentialsLoading ? (
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               <CredentialSkeleton />
               <CredentialSkeleton />
               <CredentialSkeleton />
             </div>
           ) : (
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               {sortedCredentials.map((credential) => {
                 const serviceConfig = credential.providerId
                   ? getServiceConfigByProviderId(credential.providerId)
                   : null
                 return (
-                  <div key={credential.id} className='flex items-center justify-between gap-[12px]'>
-                    <div className='flex min-w-0 items-center gap-[10px]'>
+                  <div key={credential.id} className='flex items-center justify-between gap-3'>
+                    <div className='flex min-w-0 items-center gap-2.5'>
                       {serviceConfig && (
-                        <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
+                        <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-5)]'>
                           {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}
                         </div>
                       )}
                       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-                        <span className='truncate font-medium text-[15px]'>
+                        <span className='truncate font-medium text-base'>
                           {credential.displayName}
                         </span>
-                        <p className='truncate text-[14px] text-[var(--text-muted)]'>
+                        <p className='truncate text-[var(--text-muted)] text-sm'>
                           {credential.description || resolveProviderLabel(credential.providerId)}
                         </p>
                       </div>
                     </div>
-                    <div className='flex flex-shrink-0 items-center gap-[4px]'>
+                    <div className='flex flex-shrink-0 items-center gap-1'>
                       <Button variant='default' onClick={() => handleSelectCredential(credential)}>
                         Details
                       </Button>
@@ -1245,16 +1245,16 @@ export function IntegrationsManager() {
               })}
 
               {showNoResults && (
-                <div className='py-[16px] text-center text-[14px] text-[var(--text-muted)]'>
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                   No integrations found matching &ldquo;{searchTerm}&rdquo;
                 </div>
               )}
 
               {filteredAvailableIntegrations.length > 0 && (
                 <div
-                  className={`flex flex-col gap-[8px]${hasCredentials || showNoResults ? ' mt-[8px] border-[var(--border)] border-t pt-[16px]' : ''}`}
+                  className={`flex flex-col gap-2${hasCredentials || showNoResults ? ' mt-2 border-[var(--border)] border-t pt-4' : ''}`}
                 >
-                  <p className='mb-[4px] font-medium text-[12px] text-[var(--text-muted)]'>
+                  <p className='mb-1 font-medium text-[12px] text-[var(--text-muted)]'>
                     Available integrations
                   </p>
                   {filteredAvailableIntegrations.map((service) => {
@@ -1263,9 +1263,9 @@ export function IntegrationsManager() {
                     return (
                       <div
                         key={service.providerId}
-                        className='flex items-center justify-between gap-[12px]'
+                        className='flex items-center justify-between gap-3'
                       >
-                        <div className='flex min-w-0 items-center gap-[10px]'>
+                        <div className='flex min-w-0 items-center gap-2.5'>
                           {serviceConfig && (
                             <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--surface-5)]'>
                               {createElement(serviceConfig.icon, { className: 'h-4 w-4' })}

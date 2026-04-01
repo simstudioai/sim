@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
-import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useFolderMap } from '@/hooks/queries/folders'
+import { useWorkflows } from '@/hooks/queries/workflows'
 
 interface UseCanDeleteProps {
   /**
@@ -36,17 +36,15 @@ interface UseCanDeleteReturn {
  * @returns Functions to check deletion eligibility
  */
 export function useCanDelete({ workspaceId }: UseCanDeleteProps): UseCanDeleteReturn {
-  const workflows = useWorkflowRegistry((s) => s.workflows)
-  const folders = useFolderStore((s) => s.folders)
+  const { data: workflowList = [] } = useWorkflows(workspaceId)
+  const { data: folders = {} } = useFolderMap(workspaceId)
 
   /**
    * Pre-computed data structures for efficient lookups
    */
   const { totalWorkflows, workflowIdSet, workflowsByFolderId, childFoldersByParentId } =
     useMemo(() => {
-      const workspaceWorkflows = Object.values(workflows).filter(
-        (w) => w.workspaceId === workspaceId
-      )
+      const workspaceWorkflows = workflowList.filter((w) => w.workspaceId === workspaceId)
 
       const idSet = new Set(workspaceWorkflows.map((w) => w.id))
 
@@ -72,7 +70,7 @@ export function useCanDelete({ workspaceId }: UseCanDeleteProps): UseCanDeleteRe
         workflowsByFolderId: byFolderId,
         childFoldersByParentId: childrenByParent,
       }
-    }, [workflows, folders, workspaceId])
+    }, [workflowList, folders, workspaceId])
 
   /**
    * Count workflows in a folder and all its subfolders recursively.

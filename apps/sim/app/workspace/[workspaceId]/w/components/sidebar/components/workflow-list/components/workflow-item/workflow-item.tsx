@@ -25,6 +25,9 @@ import {
   useExportSelection,
   useExportWorkflow,
 } from '@/app/workspace/[workspaceId]/w/hooks'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -35,7 +38,7 @@ interface WorkflowItemProps {
   active: boolean
   level: number
   dragDisabled?: boolean
-  onWorkflowClick: (workflowId: string, shiftKey: boolean, metaKey: boolean) => void
+  onWorkflowClick: (workflowId: string, shiftKey: boolean) => void
   onDragStart?: () => void
   onDragEnd?: () => void
 }
@@ -60,7 +63,7 @@ export function WorkflowItem({
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const selectedWorkflows = useFolderStore((state) => state.selectedWorkflows)
-  const updateWorkflow = useWorkflowRegistry((state) => state.updateWorkflow)
+  const updateWorkflowMutation = useUpdateWorkflow()
   const userPermissions = useUserPermissionsContext()
   const isSelected = selectedWorkflows.has(workflow.id)
 
@@ -166,9 +169,9 @@ export function WorkflowItem({
 
   const handleColorChange = useCallback(
     (color: string) => {
-      updateWorkflow(workflow.id, { color })
+      updateWorkflowMutation.mutate({ workspaceId, workflowId: workflow.id, metadata: { color } })
     },
-    [workflow.id, updateWorkflow]
+    [workflow.id, workspaceId]
   )
 
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -227,16 +230,16 @@ export function WorkflowItem({
     const folderIds = Array.from(finalFolderSelection)
     const isMixed = workflowIds.length > 0 && folderIds.length > 0
 
-    const { workflows } = useWorkflowRegistry.getState()
-    const { folders } = useFolderStore.getState()
+    const workflows = getWorkflows(workspaceId)
+    const folderMap = getFolderMap(workspaceId)
 
     const names: string[] = []
     for (const id of workflowIds) {
-      const w = workflows[id]
+      const w = workflows.find((wf) => wf.id === id)
       if (w) names.push(w.name)
     }
     for (const id of folderIds) {
-      const f = folders[id]
+      const f = folderMap[id]
       if (f) names.push(f.name)
     }
 
@@ -301,7 +304,11 @@ export function WorkflowItem({
   } = useItemRename({
     initialName: workflow.name,
     onSave: async (newName) => {
-      await updateWorkflow(workflow.id, { name: newName })
+      await updateWorkflowMutation.mutateAsync({
+        workspaceId,
+        workflowId: workflow.id,
+        metadata: { name: newName },
+      })
     },
     itemType: 'workflow',
     itemId: workflow.id,
@@ -368,13 +375,15 @@ export function WorkflowItem({
         return
       }
 
-      const isModifierClick = e.shiftKey || e.metaKey || e.ctrlKey
+      if (e.metaKey || e.ctrlKey) {
+        return
+      }
 
-      if (isModifierClick) {
+      if (e.shiftKey) {
         e.preventDefault()
       }
 
-      onWorkflowClick(workflow.id, e.shiftKey, e.metaKey || e.ctrlKey)
+      onWorkflowClick(workflow.id, e.shiftKey)
     },
     [shouldPreventClickRef, workflow.id, onWorkflowClick, isEditing]
   )
@@ -385,10 +394,14 @@ export function WorkflowItem({
         href={`/workspace/${workspaceId}/w/${workflow.id}`}
         data-item-id={workflow.id}
         className={clsx(
-          'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px]',
-          active && 'bg-[var(--surface-active)]',
-          !active && !isAnyDragActive && 'hover:bg-[var(--surface-active)]',
-          isSelected && selectedWorkflows.size > 1 && !active && 'bg-[var(--surface-active)]',
+          'group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm',
+          (active || isContextMenuOpen || (isSelected && selectedWorkflows.size > 1)) &&
+            'bg-[var(--surface-active)]',
+          !active &&
+            !isContextMenuOpen &&
+            !(isSelected && selectedWorkflows.size > 1) &&
+            !isAnyDragActive &&
+            'hover-hover:bg-[var(--surface-hover)]',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         draggable={!isEditing && !dragDisabled}
@@ -398,7 +411,7 @@ export function WorkflowItem({
         onContextMenu={handleContextMenu}
       >
         <div
-          className='h-[16px] w-[16px] flex-shrink-0 rounded-[4px] border-[2.5px]'
+          className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
           style={{
             backgroundColor: workflow.color,
             borderColor: `${workflow.color}60`,
@@ -406,7 +419,7 @@ export function WorkflowItem({
           }}
         />
         <div className='min-w-0 flex-1'>
-          <div className='flex min-w-0 items-center gap-[8px]'>
+          <div className='flex min-w-0 items-center gap-2'>
             {isEditing ? (
               <input
                 ref={inputRef}
@@ -414,7 +427,7 @@ export function WorkflowItem({
                 onChange={(e) => setEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleInputBlur}
-                className='w-full min-w-0 border-0 bg-transparent p-0 font-base text-[14px] text-[var(--text-body)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                className='w-full min-w-0 border-0 bg-transparent p-0 font-base text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
                 maxLength={100}
                 disabled={isRenaming}
                 onClick={(e) => {
@@ -445,8 +458,9 @@ export function WorkflowItem({
               onPointerDown={handleMorePointerDown}
               onClick={handleMoreClick}
               className={clsx(
-                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] opacity-0 transition-opacity hover:bg-[var(--surface-7)]',
-                !isAnyDragActive && 'group-hover:opacity-100'
+                'flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity',
+                !isAnyDragActive && 'group-hover:opacity-100',
+                isContextMenuOpen && 'opacity-100'
               )}
             >
               <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />

@@ -28,7 +28,6 @@ export const ImapBlock: BlockConfig = {
     host: { type: 'string', description: 'IMAP server hostname' },
     port: { type: 'string', description: 'IMAP server port' },
     secure: { type: 'boolean', description: 'Use SSL/TLS encryption' },
-    rejectUnauthorized: { type: 'boolean', description: 'Verify TLS certificate' },
     username: { type: 'string', description: 'Email username' },
     password: { type: 'string', description: 'Email password' },
     mailbox: { type: 'string', description: 'Mailbox to monitor' },

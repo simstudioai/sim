@@ -153,8 +153,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
       workflowState,
       deploymentVersionId,
     } = params
+    const execLog = logger.withMetadata({ workflowId, workspaceId, executionId })
 
-    logger.debug(`Starting workflow execution ${executionId} for workflow ${workflowId}`)
+    execLog.debug('Starting workflow execution')
 
     // Check if execution log already exists (idempotency check)
     const existingLog = await db
@@ -164,9 +165,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       .limit(1)
 
     if (existingLog.length > 0) {
-      logger.debug(
-        `Execution log already exists for ${executionId}, skipping duplicate INSERT (idempotent)`
-      )
+      execLog.debug('Execution log already exists, skipping duplicate INSERT (idempotent)')
       const snapshot = await snapshotService.getSnapshot(existingLog[0].stateSnapshotId)
       if (!snapshot) {
         throw new Error(`Snapshot ${existingLog[0].stateSnapshotId} not found for existing log`)
@@ -228,7 +227,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       })
       .returning()
 
-    logger.debug(`Created workflow log ${workflowLog.id} for execution ${executionId}`)
+    execLog.debug('Created workflow log', { logId: workflowLog.id })
 
     return {
       workflowLog: {
@@ -298,13 +297,20 @@ export class ExecutionLogger implements IExecutionLoggerService {
       status: statusOverride,
     } = params
 
-    logger.debug(`Completing workflow execution ${executionId}`, { isResume })
+    let execLog = logger.withMetadata({ executionId })
+    execLog.debug('Completing workflow execution', { isResume })
 
     const [existingLog] = await db
       .select()
       .from(workflowExecutionLogs)
       .where(eq(workflowExecutionLogs.executionId, executionId))
       .limit(1)
+    if (existingLog) {
+      execLog = execLog.withMetadata({
+        workflowId: existingLog.workflowId ?? undefined,
+        workspaceId: existingLog.workspaceId ?? undefined,
+      })
+    }
     const billingUserId = this.extractBillingUserId(existingLog?.executionData)
     const existingExecutionData = existingLog?.executionData as
       | WorkflowExecutionLog['executionData']
@@ -507,10 +513,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
           billingUserId
         )
       } catch {}
-      logger.warn('Usage threshold notification check failed (non-fatal)', { error: e })
+      execLog.warn('Usage threshold notification check failed (non-fatal)', { error: e })
     }
 
-    logger.debug(`Completed workflow execution ${executionId}`)
+    execLog.debug('Completed workflow execution')
 
     const completedLog: WorkflowExecutionLog = {
       id: updatedLog.id,
@@ -528,10 +534,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
 
     emitWorkflowExecutionCompleted(completedLog).catch((error) => {
-      logger.error('Failed to emit workflow execution completed event', {
-        error,
-        executionId,
-      })
+      execLog.error('Failed to emit workflow execution completed event', { error })
     })
 
     return completedLog
@@ -608,18 +611,20 @@ export class ExecutionLogger implements IExecutionLoggerService {
     executionId?: string,
     billingUserId?: string | null
   ): Promise<void> {
+    const statsLog = logger.withMetadata({ workflowId: workflowId ?? undefined, executionId })
+
     if (!isBillingEnabled) {
-      logger.debug('Billing is disabled, skipping user stats cost update')
+      statsLog.debug('Billing is disabled, skipping user stats cost update')
       return
     }
 
     if (costSummary.totalCost <= 0) {
-      logger.debug('No cost to update in user stats')
+      statsLog.debug('No cost to update in user stats')
       return
     }
 
     if (!workflowId) {
-      logger.debug('Workflow was deleted, skipping user stats update')
+      statsLog.debug('Workflow was deleted, skipping user stats update')
       return
     }
 
@@ -631,16 +636,14 @@ export class ExecutionLogger implements IExecutionLoggerService {
         .limit(1)
 
       if (!workflowRecord) {
-        logger.error(`Workflow ${workflowId} not found for user stats update`)
+        statsLog.error('Workflow not found for user stats update')
         return
       }
 
       const userId = billingUserId?.trim() || null
       if (!userId) {
-        logger.error('Missing billing actor in execution context; skipping stats update', {
-          workflowId,
+        statsLog.error('Missing billing actor in execution context; skipping stats update', {
           trigger,
-          executionId,
         })
         return
       }
@@ -702,8 +705,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       // Check if user has hit overage threshold and bill incrementally
       await checkAndBillOverageThreshold(userId)
     } catch (error) {
-      logger.error('Error updating user stats with cost information', {
-        workflowId,
+      statsLog.error('Error updating user stats with cost information', {
         error,
         costSummary,
       })

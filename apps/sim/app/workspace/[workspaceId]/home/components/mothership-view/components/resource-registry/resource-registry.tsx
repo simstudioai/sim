@@ -1,8 +1,14 @@
 'use client'
 
-import type { ElementType, ReactNode } from 'react'
+import { type ElementType, type ReactNode, useMemo } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
-import { Database, File as FileIcon, Table as TableIcon } from '@/components/emcn/icons'
+import { useParams } from 'next/navigation'
+import {
+  Database,
+  File as FileIcon,
+  Table as TableIcon,
+  TerminalWindow,
+} from '@/components/emcn/icons'
 import { WorkflowIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -12,9 +18,9 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { tableKeys } from '@/hooks/queries/tables'
-import { workflowKeys } from '@/hooks/queries/workflows'
+import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { useWorkflows } from '@/hooks/queries/workflows'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface DropdownItemRenderProps {
   item: { id: string; name: string; [key: string]: unknown }
@@ -29,7 +35,12 @@ export interface ResourceTypeConfig {
 }
 
 function WorkflowTabSquare({ workflowId, className }: { workflowId: string; className?: string }) {
-  const color = useWorkflowRegistry((state) => state.workflows[workflowId]?.color ?? '#888')
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { data: workflowList } = useWorkflows(workspaceId)
+  const color = useMemo(() => {
+    const wf = (workflowList ?? []).find((w) => w.id === workflowId)
+    return wf?.color ?? '#888'
+  }, [workflowList, workflowId])
   return (
     <div
       className={cn('flex-shrink-0 rounded-[3px] border-[2px]', className)}
@@ -47,7 +58,7 @@ function WorkflowDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
       <div
-        className='mr-[0px] h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+        className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
           borderColor: `${color}60`,
@@ -67,13 +78,31 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
   const DocIcon = getDocumentIcon('', item.name)
   return (
     <>
-      <DocIcon className='mr-[8px] h-[14px] w-[14px] text-[var(--text-icon)]' />
+      <DocIcon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <span className='truncate'>{item.name}</span>
+    </>
+  )
+}
+
+function IconDropdownItem({ item, icon: Icon }: DropdownItemRenderProps & { icon: ElementType }) {
+  return (
+    <>
+      <Icon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-icon)]' />
       <span className='truncate'>{item.name}</span>
     </>
   )
 }
 
 export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfig> = {
+  generic: {
+    type: 'generic',
+    label: 'Results',
+    icon: TerminalWindow,
+    renderTabIcon: (_resource, className) => (
+      <TerminalWindow className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
+  },
   workflow: {
     type: 'workflow',
     label: 'Workflows',
@@ -90,7 +119,7 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     renderTabIcon: (_resource, className) => (
       <TableIcon className={cn(className, 'text-[var(--text-icon)]')} />
     ),
-    renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TableIcon} />,
   },
   file: {
     type: 'file',
@@ -109,7 +138,7 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     renderTabIcon: (_resource, className) => (
       <Database className={cn(className, 'text-[var(--text-icon)]')} />
     ),
-    renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Database} />,
   },
 } as const
 
@@ -119,8 +148,10 @@ export function getResourceConfig(type: MothershipResourceType): ResourceTypeCon
   return RESOURCE_REGISTRY[type]
 }
 
+type CacheableResourceType = Exclude<MothershipResourceType, 'generic'>
+
 const RESOURCE_INVALIDATORS: Record<
-  MothershipResourceType,
+  CacheableResourceType,
   (qc: QueryClient, workspaceId: string, resourceId: string) => void
 > = {
   table: (qc, _wId, id) => {
@@ -132,8 +163,8 @@ const RESOURCE_INVALIDATORS: Record<
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.contentFile(wId, id) })
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
   },
-  workflow: (qc, _wId) => {
-    qc.invalidateQueries({ queryKey: workflowKeys.lists() })
+  workflow: (qc, wId) => {
+    void invalidateWorkflowLists(qc, wId)
   },
   knowledgebase: (qc, _wId, id) => {
     qc.invalidateQueries({ queryKey: knowledgeKeys.lists() })
@@ -153,5 +184,6 @@ export function invalidateResourceQueries(
   resourceType: MothershipResourceType,
   resourceId: string
 ): void {
+  if (resourceType === 'generic') return
   RESOURCE_INVALIDATORS[resourceType](queryClient, workspaceId, resourceId)
 }

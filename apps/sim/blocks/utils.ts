@@ -4,9 +4,13 @@ import {
   getHostedModels,
   getProviderFromModel,
   getProviderIcon,
-  providers,
-} from '@/providers/utils'
+  getProviderModels,
+} from '@/providers/models'
 import { useProvidersStore } from '@/stores/providers/store'
+
+const VERTEX_MODELS = getProviderModels('vertex')
+const BEDROCK_MODELS = getProviderModels('bedrock')
+const AZURE_MODELS = [...getProviderModels('azure-openai'), ...getProviderModels('azure-anthropic')]
 
 /**
  * Returns model options for combobox subblocks, combining all provider sources.
@@ -17,8 +21,15 @@ export function getModelOptions() {
   const ollamaModels = providersState.providers.ollama.models
   const vllmModels = providersState.providers.vllm.models
   const openrouterModels = providersState.providers.openrouter.models
+  const fireworksModels = providersState.providers.fireworks.models
   const allModels = Array.from(
-    new Set([...baseModels, ...ollamaModels, ...vllmModels, ...openrouterModels])
+    new Set([
+      ...baseModels,
+      ...ollamaModels,
+      ...vllmModels,
+      ...openrouterModels,
+      ...fireworksModels,
+    ])
   )
 
   return allModels.map((model) => {
@@ -152,7 +163,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       required: true,
       condition: {
         field: 'model',
-        value: providers.vertex.models,
+        value: VERTEX_MODELS,
       },
     },
     {
@@ -174,7 +185,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       connectionDroppable: false,
       condition: {
         field: 'model',
-        value: [...providers['azure-openai'].models, ...providers['azure-anthropic'].models],
+        value: AZURE_MODELS,
       },
     },
     {
@@ -185,7 +196,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       connectionDroppable: false,
       condition: {
         field: 'model',
-        value: [...providers['azure-openai'].models, ...providers['azure-anthropic'].models],
+        value: AZURE_MODELS,
       },
     },
     {
@@ -197,7 +208,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       required: true,
       condition: {
         field: 'model',
-        value: providers.vertex.models,
+        value: VERTEX_MODELS,
       },
     },
     {
@@ -209,7 +220,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       required: true,
       condition: {
         field: 'model',
-        value: providers.vertex.models,
+        value: VERTEX_MODELS,
       },
     },
     {
@@ -222,7 +233,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       required: true,
       condition: {
         field: 'model',
-        value: providers.bedrock.models,
+        value: BEDROCK_MODELS,
       },
     },
     {
@@ -235,7 +246,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       required: true,
       condition: {
         field: 'model',
-        value: providers.bedrock.models,
+        value: BEDROCK_MODELS,
       },
     },
     {
@@ -246,7 +257,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       connectionDroppable: false,
       condition: {
         field: 'model',
-        value: providers.bedrock.models,
+        value: BEDROCK_MODELS,
       },
     },
   ]

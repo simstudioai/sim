@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
+import { useParams } from 'next/navigation'
 import { v4 as uuidv4 } from 'uuid'
 import { useShallow } from 'zustand/react/shallow'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -30,13 +31,20 @@ import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { coerceValue } from '@/executor/utils/start-block'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
 import { useCurrentWorkflowExecution, useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
 import { useVariablesStore } from '@/stores/panel'
 import { useEnvironmentStore } from '@/stores/settings/environment'
-import { useTerminalConsoleStore } from '@/stores/terminal'
+import {
+  clearExecutionPointer,
+  consolePersistence,
+  loadExecutionPointer,
+  saveExecutionPointer,
+  useTerminalConsoleStore,
+} from '@/stores/terminal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -96,11 +104,11 @@ function normalizeErrorMessage(error: unknown): string {
 }
 
 export function useWorkflowExecution() {
+  const { workspaceId: routeWorkspaceId } = useParams<{ workspaceId: string }>()
+  const hydrationWorkspaceId = useWorkflowRegistry((s) => s.hydration.workspaceId)
   const queryClient = useQueryClient()
   const currentWorkflow = useCurrentWorkflow()
-  const { activeWorkflowId, workflows } = useWorkflowRegistry(
-    useShallow((s) => ({ activeWorkflowId: s.activeWorkflowId, workflows: s.workflows }))
-  )
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
   const { toggleConsole, addConsole, updateConsole, cancelRunningEntries, clearExecutionEntries } =
     useTerminalConsoleStore(
       useShallow((s) => ({
@@ -123,7 +131,20 @@ export function useWorkflowExecution() {
     useCurrentWorkflowExecution()
   const setCurrentExecutionId = useExecutionStore((s) => s.setCurrentExecutionId)
   const getCurrentExecutionId = useExecutionStore((s) => s.getCurrentExecutionId)
-  const setIsExecuting = useExecutionStore((s) => s.setIsExecuting)
+  const rawSetIsExecuting = useExecutionStore((s) => s.setIsExecuting)
+
+  const setIsExecuting = useCallback(
+    (workflowId: string, executing: boolean) => {
+      if (executing) {
+        consolePersistence.executionStarted()
+      } else {
+        consolePersistence.executionEnded()
+        clearExecutionPointer(workflowId)
+      }
+      rawSetIsExecuting(workflowId, executing)
+    },
+    [rawSetIsExecuting]
+  )
   const setIsDebugging = useExecutionStore((s) => s.setIsDebugging)
   const setPendingBlocks = useExecutionStore((s) => s.setPendingBlocks)
   const setExecutor = useExecutionStore((s) => s.setExecutor)
@@ -137,6 +158,7 @@ export function useWorkflowExecution() {
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
   const executionStream = useExecutionStream()
   const currentChatExecutionIdRef = useRef<string | null>(null)
+  const lastSeenEventIdRef = useRef<number>(0)
   const isViewingDiff = useWorkflowDiffStore((state) => state.isShowingDiff)
   const addNotification = useNotificationStore((state) => state.addNotification)
 
@@ -360,8 +382,17 @@ export function useWorkflowExecution() {
     async (workflowInput?: any, enableDebug = false) => {
       if (!activeWorkflowId) return
 
-      // Get workspaceId from workflow metadata
-      const workspaceId = workflows[activeWorkflowId]?.workspaceId
+      // Sandbox exercises have no real workflow — signal the SandboxCanvasProvider
+      // to run mock execution by setting isExecuting, then bail out immediately.
+      const scopedWorkspaceId = routeWorkspaceId ?? hydrationWorkspaceId ?? undefined
+      const cachedWorkflows = scopedWorkspaceId ? getWorkflows(scopedWorkspaceId) : []
+      const activeWorkflow = cachedWorkflows.find((w) => w.id === activeWorkflowId)
+      if (activeWorkflow?.isSandbox) {
+        setIsExecuting(activeWorkflowId, true)
+        return
+      }
+
+      const workspaceId = scopedWorkspaceId ?? activeWorkflow?.workspaceId
 
       if (!workspaceId) {
         logger.error('Cannot execute workflow without workspaceId')
@@ -721,7 +752,6 @@ export function useWorkflowExecution() {
       setExecutor,
       setPendingBlocks,
       setActiveBlocks,
-      workflows,
       queryClient,
     ]
   )
@@ -1010,8 +1040,17 @@ export function useWorkflowExecution() {
           onExecutionId: (id) => {
             executionIdRef.current = id
             setCurrentExecutionId(activeWorkflowId, id)
+            saveExecutionPointer({
+              workflowId: activeWorkflowId,
+              executionId: id,
+              lastEventId: 0,
+            })
           },
           callbacks: {
+            onEventId: (eventId) => {
+              lastSeenEventIdRef.current = eventId
+            },
+
             onExecutionStarted: (data) => {
               logger.info('Server execution started:', data)
             },
@@ -1780,192 +1819,198 @@ export function useWorkflowExecution() {
 
   useEffect(() => {
     if (!activeWorkflowId || !hasHydrated) return
-
-    const entries = useTerminalConsoleStore.getState().entries
-    const runningEntries = entries.filter(
-      (e) => e.isRunning && e.workflowId === activeWorkflowId && e.executionId
-    )
-    if (runningEntries.length === 0) return
-
     if (activeReconnections.has(activeWorkflowId)) return
-    activeReconnections.add(activeWorkflowId)
 
-    executionStream.cancel(activeWorkflowId)
-
-    const sorted = [...runningEntries].sort((a, b) => {
-      const aTime = a.startedAt ? new Date(a.startedAt).getTime() : 0
-      const bTime = b.startedAt ? new Date(b.startedAt).getTime() : 0
-      return bTime - aTime
-    })
-    const executionId = sorted[0].executionId!
-
-    const otherExecutionIds = new Set(
-      sorted.filter((e) => e.executionId !== executionId).map((e) => e.executionId!)
-    )
-    if (otherExecutionIds.size > 0) {
-      cancelRunningEntries(activeWorkflowId)
-    }
-
-    setCurrentExecutionId(activeWorkflowId, executionId)
-    setIsExecuting(activeWorkflowId, true)
-
-    const workflowEdges = useWorkflowStore.getState().edges
-    const activeBlocksSet = new Set<string>()
-    const activeBlockRefCounts = new Map<string, number>()
-    const accumulatedBlockLogs: BlockLog[] = []
-    const accumulatedBlockStates = new Map<string, BlockState>()
-    const executedBlockIds = new Set<string>()
-
-    const executionIdRef = { current: executionId }
-
-    const handlers = buildBlockEventHandlers({
-      workflowId: activeWorkflowId,
-      executionIdRef,
-      workflowEdges,
-      activeBlocksSet,
-      activeBlockRefCounts,
-      accumulatedBlockLogs,
-      accumulatedBlockStates,
-      executedBlockIds,
-      consoleMode: 'update',
-      includeStartConsoleEntry: true,
-    })
-
-    const originalEntries = entries
-      .filter((e) => e.executionId === executionId)
-      .map((e) => ({ ...e }))
-
-    let cleared = false
-    let reconnectionComplete = false
     let cleanupRan = false
-    const clearOnce = () => {
-      if (!cleared) {
-        cleared = true
-        clearExecutionEntries(executionId)
-      }
-    }
-
+    let reconnectionComplete = false
     const reconnectWorkflowId = activeWorkflowId
 
-    executionStream
-      .reconnect({
-        workflowId: reconnectWorkflowId,
-        executionId,
-        callbacks: {
-          onBlockStarted: (data) => {
-            clearOnce()
-            handlers.onBlockStarted(data)
-          },
-          onBlockCompleted: (data) => {
-            clearOnce()
-            handlers.onBlockCompleted(data)
-          },
-          onBlockError: (data) => {
-            clearOnce()
-            handlers.onBlockError(data)
-          },
-          onBlockChildWorkflowStarted: (data) => {
-            clearOnce()
-            handlers.onBlockChildWorkflowStarted(data)
-          },
-          onExecutionCompleted: () => {
-            const currentId = useExecutionStore
-              .getState()
-              .getCurrentExecutionId(reconnectWorkflowId)
-            if (currentId !== executionId) {
-              reconnectionComplete = true
-              activeReconnections.delete(reconnectWorkflowId)
-              return
-            }
-            clearOnce()
-            reconnectionComplete = true
-            activeReconnections.delete(reconnectWorkflowId)
-            setCurrentExecutionId(reconnectWorkflowId, null)
-            setIsExecuting(reconnectWorkflowId, false)
-            setActiveBlocks(reconnectWorkflowId, new Set())
-          },
-          onExecutionError: (data) => {
-            const currentId = useExecutionStore
-              .getState()
-              .getCurrentExecutionId(reconnectWorkflowId)
-            if (currentId !== executionId) {
-              reconnectionComplete = true
-              activeReconnections.delete(reconnectWorkflowId)
-              return
-            }
-            clearOnce()
-            reconnectionComplete = true
-            activeReconnections.delete(reconnectWorkflowId)
-            setCurrentExecutionId(reconnectWorkflowId, null)
-            setIsExecuting(reconnectWorkflowId, false)
-            setActiveBlocks(reconnectWorkflowId, new Set())
-            handleExecutionErrorConsole({
-              workflowId: reconnectWorkflowId,
-              executionId,
-              error: data.error,
-              blockLogs: accumulatedBlockLogs,
-            })
-          },
-          onExecutionCancelled: () => {
-            const currentId = useExecutionStore
-              .getState()
-              .getCurrentExecutionId(reconnectWorkflowId)
-            if (currentId !== executionId) {
-              reconnectionComplete = true
-              activeReconnections.delete(reconnectWorkflowId)
-              return
-            }
-            clearOnce()
-            reconnectionComplete = true
-            activeReconnections.delete(reconnectWorkflowId)
-            setCurrentExecutionId(reconnectWorkflowId, null)
-            setIsExecuting(reconnectWorkflowId, false)
-            setActiveBlocks(reconnectWorkflowId, new Set())
-            handleExecutionCancelledConsole({
-              workflowId: reconnectWorkflowId,
-              executionId,
-            })
-          },
-        },
-      })
-      .catch((error) => {
-        logger.warn('Execution reconnection failed', { executionId, error })
-      })
-      .finally(() => {
-        if (reconnectionComplete || cleanupRan) return
-        const currentId = useExecutionStore.getState().getCurrentExecutionId(reconnectWorkflowId)
-        if (currentId !== executionId) return
-        reconnectionComplete = true
-        activeReconnections.delete(reconnectWorkflowId)
-        clearExecutionEntries(executionId)
-        for (const entry of originalEntries) {
-          addConsole({
-            workflowId: entry.workflowId,
-            blockId: entry.blockId,
-            blockName: entry.blockName,
-            blockType: entry.blockType,
-            executionId: entry.executionId,
-            executionOrder: entry.executionOrder,
-            isRunning: false,
-            warning: 'Execution result unavailable — check the logs page',
-          })
+    const runReconnect = async () => {
+      let executionId: string | undefined
+      let fromEventId = 0
+
+      try {
+        const pointer = await loadExecutionPointer(reconnectWorkflowId)
+        if (cleanupRan) return
+        if (pointer?.executionId) {
+          executionId = pointer.executionId
+          fromEventId = pointer.lastEventId
         }
-        setCurrentExecutionId(reconnectWorkflowId, null)
-        setIsExecuting(reconnectWorkflowId, false)
-        setActiveBlocks(reconnectWorkflowId, new Set())
+      } catch {
+        // fall through to console entries
+      }
+
+      if (!executionId) {
+        const entries = useTerminalConsoleStore.getState().getWorkflowEntries(reconnectWorkflowId)
+        const runningEntries = entries.filter(
+          (e) => e.isRunning && e.workflowId === reconnectWorkflowId && e.executionId
+        )
+        if (runningEntries.length === 0) return
+
+        const sorted = [...runningEntries].sort((a, b) => {
+          const aTime = a.startedAt ? new Date(a.startedAt).getTime() : 0
+          const bTime = b.startedAt ? new Date(b.startedAt).getTime() : 0
+          return bTime - aTime
+        })
+        executionId = sorted[0].executionId!
+
+        const otherExecutionIds = new Set(
+          sorted.filter((e) => e.executionId !== executionId).map((e) => e.executionId!)
+        )
+        if (otherExecutionIds.size > 0) {
+          cancelRunningEntries(reconnectWorkflowId)
+          consolePersistence.persist()
+        }
+      }
+
+      if (!executionId || cleanupRan) return
+      if (activeReconnections.has(reconnectWorkflowId)) return
+      activeReconnections.add(reconnectWorkflowId)
+
+      executionStream.cancel(reconnectWorkflowId)
+      setCurrentExecutionId(reconnectWorkflowId, executionId)
+      setIsExecuting(reconnectWorkflowId, true)
+
+      const workflowEdges = useWorkflowStore.getState().edges
+      const activeBlocksSet = new Set<string>()
+      const activeBlockRefCounts = new Map<string, number>()
+      const accumulatedBlockLogs: BlockLog[] = []
+      const accumulatedBlockStates = new Map<string, BlockState>()
+      const executedBlockIds = new Set<string>()
+      const executionIdRef = { current: executionId }
+
+      const handlers = buildBlockEventHandlers({
+        workflowId: reconnectWorkflowId,
+        executionIdRef,
+        workflowEdges,
+        activeBlocksSet,
+        activeBlockRefCounts,
+        accumulatedBlockLogs,
+        accumulatedBlockStates,
+        executedBlockIds,
+        consoleMode: 'update',
+        includeStartConsoleEntry: true,
       })
+
+      clearExecutionEntries(executionId)
+
+      const capturedExecutionId = executionId
+      const MAX_ATTEMPTS = 5
+      const BASE_DELAY_MS = 1000
+      const MAX_DELAY_MS = 15000
+
+      const attemptReconnect = async (attempt: number): Promise<void> => {
+        if (cleanupRan || reconnectionComplete) return
+
+        if (attempt > 0) {
+          const delay = Math.min(BASE_DELAY_MS * 2 ** (attempt - 1), MAX_DELAY_MS)
+          await new Promise((resolve) => setTimeout(resolve, delay))
+          if (cleanupRan || reconnectionComplete) return
+        }
+
+        try {
+          await executionStream.reconnect({
+            workflowId: reconnectWorkflowId,
+            executionId: capturedExecutionId,
+            fromEventId,
+            callbacks: {
+              onEventId: (eid) => {
+                fromEventId = eid
+              },
+              onBlockStarted: handlers.onBlockStarted,
+              onBlockCompleted: handlers.onBlockCompleted,
+              onBlockError: handlers.onBlockError,
+              onBlockChildWorkflowStarted: handlers.onBlockChildWorkflowStarted,
+              onExecutionCompleted: () => {
+                const currentId = useExecutionStore
+                  .getState()
+                  .getCurrentExecutionId(reconnectWorkflowId)
+                if (currentId !== capturedExecutionId) {
+                  reconnectionComplete = true
+                  activeReconnections.delete(reconnectWorkflowId)
+                  return
+                }
+                reconnectionComplete = true
+                activeReconnections.delete(reconnectWorkflowId)
+                setCurrentExecutionId(reconnectWorkflowId, null)
+                setIsExecuting(reconnectWorkflowId, false)
+                setActiveBlocks(reconnectWorkflowId, new Set())
+              },
+              onExecutionError: (data) => {
+                const currentId = useExecutionStore
+                  .getState()
+                  .getCurrentExecutionId(reconnectWorkflowId)
+                if (currentId !== capturedExecutionId) {
+                  reconnectionComplete = true
+                  activeReconnections.delete(reconnectWorkflowId)
+                  return
+                }
+                reconnectionComplete = true
+                activeReconnections.delete(reconnectWorkflowId)
+                setCurrentExecutionId(reconnectWorkflowId, null)
+                setIsExecuting(reconnectWorkflowId, false)
+                setActiveBlocks(reconnectWorkflowId, new Set())
+                handleExecutionErrorConsole({
+                  workflowId: reconnectWorkflowId,
+                  executionId: capturedExecutionId,
+                  error: data.error,
+                  blockLogs: accumulatedBlockLogs,
+                })
+              },
+              onExecutionCancelled: () => {
+                const currentId = useExecutionStore
+                  .getState()
+                  .getCurrentExecutionId(reconnectWorkflowId)
+                if (currentId !== capturedExecutionId) {
+                  reconnectionComplete = true
+                  activeReconnections.delete(reconnectWorkflowId)
+                  return
+                }
+                reconnectionComplete = true
+                activeReconnections.delete(reconnectWorkflowId)
+                setCurrentExecutionId(reconnectWorkflowId, null)
+                setIsExecuting(reconnectWorkflowId, false)
+                setActiveBlocks(reconnectWorkflowId, new Set())
+                handleExecutionCancelledConsole({
+                  workflowId: reconnectWorkflowId,
+                  executionId: capturedExecutionId,
+                })
+              },
+            },
+          })
+        } catch (error) {
+          logger.warn('Execution reconnection attempt failed', {
+            executionId: capturedExecutionId,
+            attempt,
+            error,
+          })
+          if (!cleanupRan && !reconnectionComplete && attempt < MAX_ATTEMPTS) {
+            return attemptReconnect(attempt + 1)
+          }
+        }
+
+        if (!reconnectionComplete && !cleanupRan) {
+          reconnectionComplete = true
+          activeReconnections.delete(reconnectWorkflowId)
+          const currentId = useExecutionStore.getState().getCurrentExecutionId(reconnectWorkflowId)
+          if (currentId === capturedExecutionId) {
+            cancelRunningEntries(reconnectWorkflowId)
+            setCurrentExecutionId(reconnectWorkflowId, null)
+            setIsExecuting(reconnectWorkflowId, false)
+            setActiveBlocks(reconnectWorkflowId, new Set())
+          }
+        }
+      }
+
+      await attemptReconnect(0)
+    }
+
+    runReconnect()
 
     return () => {
       cleanupRan = true
       executionStream.cancel(reconnectWorkflowId)
       activeReconnections.delete(reconnectWorkflowId)
-
-      if (cleared && !reconnectionComplete) {
-        clearExecutionEntries(executionId)
-        for (const entry of originalEntries) {
-          addConsole(entry)
-        }
-      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWorkflowId, hasHydrated])

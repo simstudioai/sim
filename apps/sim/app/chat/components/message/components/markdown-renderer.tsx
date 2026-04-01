@@ -208,7 +208,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
   const processedContent = content.trim()
 
   return (
-    <div className='space-y-4 break-words font-sans text-[#0D0D0D] text-base leading-relaxed dark:text-gray-100'>
+    <div className='space-y-4 break-words font-sans text-[var(--landing-text)] text-base leading-relaxed'>
       <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
         {processedContent}
       </ReactMarkdown>

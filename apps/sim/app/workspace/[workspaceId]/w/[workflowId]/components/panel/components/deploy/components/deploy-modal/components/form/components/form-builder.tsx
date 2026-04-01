@@ -29,7 +29,7 @@ function CharacterCounter({ current, max, className }: CharacterCounterProps) {
   return (
     <span
       className={cn(
-        'text-[10px] tabular-nums transition-colors',
+        'text-micro tabular-nums transition-colors',
         isAtLimit
           ? 'text-[var(--text-error)]'
           : isNearLimit
@@ -189,10 +189,10 @@ export function FormBuilder({
   )
 
   return (
-    <div className='overflow-hidden rounded-[4px] border border-[var(--border-1)]'>
+    <div className='overflow-hidden rounded-sm border border-[var(--border-1)]'>
       {/* Header */}
-      <div className='border-[var(--border-1)] border-b px-[10px] py-[8px]'>
-        <div className='flex items-center gap-[6px]'>
+      <div className='border-[var(--border-1)] border-b px-2.5 py-2'>
+        <div className='flex items-center gap-1.5'>
           <input
             type='text'
             value={title}
@@ -206,7 +206,7 @@ export function FormBuilder({
             placeholder='Form Title'
             maxLength={MAX_LENGTHS.FORM_TITLE}
             className={cn(
-              'min-w-0 flex-1 bg-transparent font-medium text-[14px] text-[var(--text-primary)] outline-none',
+              'min-w-0 flex-1 bg-transparent font-medium text-[var(--text-primary)] text-sm outline-none',
               'placeholder:text-[var(--text-muted)]',
               titleError && 'text-[var(--text-error)]'
             )}
@@ -215,10 +215,8 @@ export function FormBuilder({
             <CharacterCounter current={title.length} max={MAX_LENGTHS.FORM_TITLE} />
           )}
         </div>
-        {titleError && (
-          <p className='mt-[4px] text-[12px] text-[var(--text-error)]'>{titleError}</p>
-        )}
-        <div className='mt-[4px] flex items-center gap-[6px]'>
+        {titleError && <p className='mt-1 text-[var(--text-error)] text-caption'>{titleError}</p>}
+        <div className='mt-1 flex items-center gap-1.5'>
           <input
             type='text'
             value={description}
@@ -231,7 +229,7 @@ export function FormBuilder({
             onBlur={() => setFocusedInput(null)}
             placeholder='Description'
             maxLength={MAX_LENGTHS.FORM_DESCRIPTION}
-            className='min-w-0 flex-1 bg-transparent text-[12px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-muted)]'
+            className='min-w-0 flex-1 bg-transparent text-[var(--text-secondary)] text-caption outline-none placeholder:text-[var(--text-muted)]'
           />
           {focusedInput === 'description' && (
             <CharacterCounter current={description.length} max={MAX_LENGTHS.FORM_DESCRIPTION} />
@@ -257,26 +255,26 @@ export function FormBuilder({
                 itemRefs.current[index] = el
               }}
               className={cn(
-                'relative border-[var(--border-1)] border-b px-[10px] py-[8px] last:border-b-0',
+                'relative border-[var(--border-1)] border-b px-2.5 py-2 last:border-b-0',
                 draggedIndex === index && 'opacity-40'
               )}
             >
               {/* Drop indicator line - shown above this item */}
               {showIndicatorAbove && (
-                <div className='-translate-y-1/2 pointer-events-none absolute top-0 right-0 left-0 z-20 h-[2px] bg-[var(--brand-tertiary-2)]'>
-                  <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-[6px] w-[6px] rounded-full bg-[var(--brand-tertiary-2)]' />
-                  <div className='-translate-y-1/2 absolute top-1/2 right-0 h-[6px] w-[6px] translate-x-1/2 rounded-full bg-[var(--brand-tertiary-2)]' />
+                <div className='-translate-y-1/2 pointer-events-none absolute top-0 right-0 left-0 z-20 h-[2px] bg-[var(--brand-accent)]'>
+                  <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-[6px] w-[6px] rounded-full bg-[var(--brand-accent)]' />
+                  <div className='-translate-y-1/2 absolute top-1/2 right-0 h-[6px] w-[6px] translate-x-1/2 rounded-full bg-[var(--brand-accent)]' />
                 </div>
               )}
 
               {/* Label row */}
-              <div className='flex items-center gap-[6px]'>
+              <div className='flex items-center gap-1.5'>
                 {/* Grip handle - larger hit area with negative margins */}
                 <div
                   draggable
                   onDragStart={(e) => handleDragStart(e, index)}
                   onDragEnd={handleDragEnd}
-                  className='-my-[6px] -ml-[6px] flex cursor-grab items-center py-[6px] pl-[6px] text-[var(--text-muted)] hover:text-[var(--text-tertiary)] active:cursor-grabbing'
+                  className='-my-1.5 -ml-1.5 flex cursor-grab items-center py-1.5 pl-1.5 text-[var(--text-muted)] hover-hover:text-[var(--text-tertiary)] active:cursor-grabbing'
                 >
                   <GripVertical className='h-[12px] w-[12px]' />
                 </div>
@@ -292,13 +290,13 @@ export function FormBuilder({
                   onBlur={() => setFocusedInput(null)}
                   placeholder='Label'
                   maxLength={MAX_LENGTHS.FIELD_LABEL}
-                  className='min-w-0 flex-1 bg-transparent font-medium text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]'
+                  className='min-w-0 flex-1 bg-transparent font-medium text-[var(--text-primary)] text-small outline-none placeholder:text-[var(--text-muted)]'
                 />
                 {focusedInput === `field-label-${index}` && (
                   <CharacterCounter current={config.label.length} max={MAX_LENGTHS.FIELD_LABEL} />
                 )}
-                <div className='flex items-center gap-[6px]'>
-                  <span className='text-[11px] text-[var(--text-tertiary)]'>Required</span>
+                <div className='flex items-center gap-1.5'>
+                  <span className='text-[var(--text-tertiary)] text-xs'>Required</span>
                   <Switch
                     checked={config.required ?? false}
                     onCheckedChange={(checked) => updateFieldConfig(index, { required: checked })}
@@ -307,7 +305,7 @@ export function FormBuilder({
               </div>
 
               {/* Help text */}
-              <div className='mt-[4px] flex items-center gap-[6px] pl-[18px]'>
+              <div className='mt-1 flex items-center gap-1.5 pl-4.5'>
                 <input
                   type='text'
                   value={config.description || ''}
@@ -320,7 +318,7 @@ export function FormBuilder({
                   onBlur={() => setFocusedInput(null)}
                   placeholder='Description...'
                   maxLength={MAX_LENGTHS.FIELD_DESCRIPTION}
-                  className='min-w-0 flex-1 bg-transparent text-[11px] text-[var(--text-secondary)] outline-none placeholder:text-[var(--text-muted)]'
+                  className='min-w-0 flex-1 bg-transparent text-[var(--text-secondary)] text-xs outline-none placeholder:text-[var(--text-muted)]'
                 />
                 {focusedInput === `field-desc-${index}` && (
                   <CharacterCounter
@@ -331,15 +329,15 @@ export function FormBuilder({
               </div>
 
               {/* Field mapping */}
-              <div className='mt-[6px] ml-[18px] flex items-center justify-between border-[var(--border-1)] border-t border-dashed pt-[6px]'>
-                <span className='text-[10px] text-[var(--text-muted)]'>
+              <div className='mt-1.5 ml-4.5 flex items-center justify-between border-[var(--border-1)] border-t border-dashed pt-1.5'>
+                <span className='text-[var(--text-muted)] text-micro'>
                   {config.name ? (
                     <>
                       maps to <code>{config.name}</code>
                     </>
                   ) : null}
                 </span>
-                <span className='text-[10px] text-[var(--text-muted)]'>{config.type}</span>
+                <span className='text-[var(--text-muted)] text-micro'>{config.type}</span>
               </div>
             </div>
           )
@@ -347,9 +345,9 @@ export function FormBuilder({
 
         {/* Drop indicator at the end */}
         {dropTargetIndex === fieldConfigs.length && draggedIndex !== null && (
-          <div className='pointer-events-none absolute right-0 bottom-0 left-0 z-20 h-[2px] translate-y-1/2 bg-[var(--brand-tertiary-2)]'>
-            <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-[6px] w-[6px] rounded-full bg-[var(--brand-tertiary-2)]' />
-            <div className='-translate-y-1/2 absolute top-1/2 right-0 h-[6px] w-[6px] translate-x-1/2 rounded-full bg-[var(--brand-tertiary-2)]' />
+          <div className='pointer-events-none absolute right-0 bottom-0 left-0 z-20 h-[2px] translate-y-1/2 bg-[var(--brand-accent)]'>
+            <div className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-[6px] w-[6px] rounded-full bg-[var(--brand-accent)]' />
+            <div className='-translate-y-1/2 absolute top-1/2 right-0 h-[6px] w-[6px] translate-x-1/2 rounded-full bg-[var(--brand-accent)]' />
           </div>
         )}
       </div>

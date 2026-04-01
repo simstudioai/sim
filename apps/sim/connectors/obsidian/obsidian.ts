@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { ObsidianIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('ObsidianConnector')
 
@@ -24,7 +24,7 @@ interface NoteJson {
  * Normalizes the vault URL by removing trailing slashes.
  */
 function normalizeVaultUrl(url: string): string {
-  return url.replace(/\/+$/, '')
+  return url.trim().replace(/\/+$/, '')
 }
 
 /**
@@ -198,51 +198,20 @@ export const obsidianConnector: ConnectorConfig = {
     const offset = cursor ? Number(cursor) : 0
     const pageFiles = allFiles.slice(offset, offset + DOCS_PER_PAGE)
 
-    const documents: ExternalDocument[] = []
+    const syncRunId = (syncContext?.syncRunId as string) ?? ''
 
-    const BATCH_SIZE = 5
-    for (let i = 0; i < pageFiles.length; i += BATCH_SIZE) {
-      const batch = pageFiles.slice(i, i + BATCH_SIZE)
-      const results = await Promise.all(
-        batch.map(async (filePath) => {
-          try {
-            const note = await fetchNote(baseUrl, accessToken, filePath)
-            const content = note.content || ''
-            const contentHash = await computeContentHash(content)
-
-            return {
-              externalId: filePath,
-              title: titleFromPath(filePath),
-              content,
-              mimeType: 'text/plain' as const,
-              sourceUrl: `${baseUrl}/vault/${filePath.split('/').map(encodeURIComponent).join('/')}`,
-              contentHash,
-              metadata: {
-                tags: note.tags,
-                frontmatter: note.frontmatter,
-                createdAt: note.stat?.ctime ? new Date(note.stat.ctime).toISOString() : undefined,
-                modifiedAt: note.stat?.mtime ? new Date(note.stat.mtime).toISOString() : undefined,
-                size: note.stat?.size,
-                folder: filePath.includes('/')
-                  ? filePath.substring(0, filePath.lastIndexOf('/'))
-                  : '',
-              },
-            }
-          } catch (error) {
-            logger.warn('Failed to fetch note', {
-              filePath,
-              error: error instanceof Error ? error.message : String(error),
-            })
-            return null
-          }
-        })
-      )
-      for (const doc of results) {
-        if (doc) {
-          documents.push(doc)
-        }
-      }
-    }
+    const documents: ExternalDocument[] = pageFiles.map((filePath) => ({
+      externalId: filePath,
+      title: titleFromPath(filePath),
+      content: '',
+      contentDeferred: true,
+      mimeType: 'text/plain' as const,
+      sourceUrl: `${baseUrl}/vault/${filePath.split('/').map(encodeURIComponent).join('/')}`,
+      contentHash: `obsidian:stub:${filePath}:${syncRunId}`,
+      metadata: {
+        folder: filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : '',
+      },
+    }))
 
     const nextOffset = offset + pageFiles.length
     const hasMore = nextOffset < allFiles.length
@@ -257,7 +226,8 @@ export const obsidianConnector: ConnectorConfig = {
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
-    externalId: string
+    externalId: string,
+    _syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const baseUrl = normalizeVaultUrl(
       (sourceConfig.vaultUrl as string) || 'https://127.0.0.1:27124'
@@ -266,15 +236,15 @@ export const obsidianConnector: ConnectorConfig = {
     try {
       const note = await fetchNote(baseUrl, accessToken, externalId)
       const content = note.content || ''
-      const contentHash = await computeContentHash(content)
 
       return {
         externalId,
         title: titleFromPath(externalId),
         content,
+        contentDeferred: false,
         mimeType: 'text/plain',
         sourceUrl: `${baseUrl}/vault/${externalId.split('/').map(encodeURIComponent).join('/')}`,
-        contentHash,
+        contentHash: `obsidian:${externalId}:${note.stat?.mtime ?? ''}`,
         metadata: {
           tags: note.tags,
           frontmatter: note.frontmatter,
@@ -329,14 +299,14 @@ export const obsidianConnector: ConnectorConfig = {
 
       const folderPath = (sourceConfig.folderPath as string) || ''
       if (folderPath.trim()) {
-        const files = await listVaultFiles(
+        const entries = await listDirectory(
           baseUrl,
           accessToken,
           folderPath.trim(),
           VALIDATE_RETRY_OPTIONS
         )
-        if (files.length === 0) {
-          logger.info('Folder path returned no markdown files', { folderPath })
+        if (entries.length === 0) {
+          logger.info('Folder path returned no entries', { folderPath })
         }
       }
 

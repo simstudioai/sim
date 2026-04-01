@@ -174,7 +174,7 @@ function WorkspaceVariableRow({
         variant='default'
         onClick={() => onViewDetails(envKey)}
         disabled={!hasCredential}
-        className={`ml-[8px] h-9 ${!hasCredential ? 'opacity-40' : ''}`}
+        className={`ml-2 h-9 ${!hasCredential ? 'opacity-40' : ''}`}
       >
         Details
       </Button>
@@ -246,7 +246,7 @@ function NewWorkspaceVariableRow({ envVar, index, onUpdate }: NewWorkspaceVariab
       </Tooltip.Root>
       {keyError && (
         <div
-          className={`${COL_SPAN_ALL} mt-[-4px] text-[12px] text-[var(--text-error)] leading-tight`}
+          className={`${COL_SPAN_ALL} mt-[-4px] text-[var(--text-error)] text-caption leading-tight`}
         >
           {keyError}
         </div>
@@ -1046,7 +1046,7 @@ export function CredentialsManager() {
               variant='default'
               onClick={() => handleViewDetails(envVar.key, 'env_personal')}
               disabled={!hasCredential}
-              className={`ml-[8px] h-9 ${!hasCredential ? 'opacity-40' : ''}`}
+              className={`ml-2 h-9 ${!hasCredential ? 'opacity-40' : ''}`}
             >
               Details
             </Button>
@@ -1066,14 +1066,14 @@ export function CredentialsManager() {
           </Tooltip.Root>
           {keyError && (
             <div
-              className={`${COL_SPAN_ALL} mt-[-4px] text-[12px] text-[var(--text-error)] leading-tight`}
+              className={`${COL_SPAN_ALL} mt-[-4px] text-[var(--text-error)] text-caption leading-tight`}
             >
               {keyError}
             </div>
           )}
           {isConflict && !keyError && (
             <div
-              className={`${COL_SPAN_ALL} mt-[-4px] text-[12px] text-[var(--text-error)] leading-tight`}
+              className={`${COL_SPAN_ALL} mt-[-4px] text-[var(--text-error)] text-caption leading-tight`}
             >
               Workspace variable with the same name overrides this. Rename your personal key to use
               it.
@@ -1101,16 +1101,16 @@ export function CredentialsManager() {
   if (selectedCredential) {
     return (
       <>
-        <div className='flex h-full flex-col gap-[18px]'>
+        <div className='flex h-full flex-col gap-4.5'>
           <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='flex flex-col gap-[18px]'>
-              <div className='flex items-center gap-[10px] border-[var(--border)] border-b pb-[12px]'>
-                <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-[var(--surface-5)]'>
+            <div className='flex flex-col gap-4.5'>
+              <div className='flex items-center gap-2.5 border-[var(--border)] border-b pb-3'>
+                <div className='flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-5)]'>
                   <Key className='h-[18px] w-[18px] text-[var(--text-tertiary)]' />
                 </div>
                 <div className='min-w-0 flex-1'>
-                  <div className='flex items-center gap-[8px]'>
-                    <p className='truncate font-medium text-[15px] text-[var(--text-primary)]'>
+                  <div className='flex items-center gap-2'>
+                    <p className='truncate font-medium text-[var(--text-primary)] text-base'>
                       {selectedCredential.envKey || selectedCredential.displayName}
                     </p>
                     <Badge variant='gray-secondary' size='sm'>
@@ -1122,7 +1122,7 @@ export function CredentialsManager() {
                       </Badge>
                     )}
                   </div>
-                  <p className='text-[13px] text-[var(--text-muted)]'>
+                  <p className='text-[var(--text-muted)] text-small'>
                     {selectedCredential.type === 'env_personal'
                       ? 'Personal secret'
                       : 'Workspace secret'}
@@ -1130,8 +1130,8 @@ export function CredentialsManager() {
                 </div>
               </div>
 
-              <div className='flex flex-col gap-[6px]'>
-                <Label className='flex items-center gap-[6px]'>
+              <div className='flex flex-col gap-1.5'>
+                <Label className='flex items-center gap-1.5'>
                   Display Name
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
@@ -1167,7 +1167,7 @@ export function CredentialsManager() {
                 />
               </div>
 
-              <div className='flex flex-col gap-[6px]'>
+              <div className='flex flex-col gap-1.5'>
                 <Label>Description</Label>
                 <Textarea
                   id='credential-description'
@@ -1183,42 +1183,42 @@ export function CredentialsManager() {
               </div>
 
               {detailsError && (
-                <div className='rounded-[8px] border border-[var(--status-red)]/40 bg-[var(--status-red)]/10 px-[10px] py-[8px] text-[13px] text-[var(--status-red)]'>
+                <div className='rounded-lg border border-[color-mix(in_srgb,var(--status-red)_40%,transparent)] bg-[color-mix(in_srgb,var(--status-red)_10%,transparent)] px-2.5 py-2 text-[var(--status-red)] text-small'>
                   {detailsError}
                 </div>
               )}
 
-              <div className='flex flex-col gap-[6px] border-[var(--border)] border-t pt-[16px]'>
+              <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
                 <Label>Members ({activeMembers.length})</Label>
 
                 {membersLoading ? (
-                  <div className='flex flex-col gap-[8px]'>
-                    <Skeleton className='h-[44px] w-full rounded-[8px]' />
-                    <Skeleton className='h-[44px] w-full rounded-[8px]' />
+                  <div className='flex flex-col gap-2'>
+                    <Skeleton className='h-[44px] w-full rounded-lg' />
+                    <Skeleton className='h-[44px] w-full rounded-lg' />
                   </div>
                 ) : (
-                  <div className='flex flex-col gap-[8px]'>
+                  <div className='flex flex-col gap-2'>
                     {activeMembers.map((member) => (
                       <div
                         key={member.id}
-                        className='grid grid-cols-[1fr_120px_72px] items-center gap-[8px]'
+                        className='grid grid-cols-[1fr_120px_72px] items-center gap-2'
                       >
-                        <div className='flex min-w-0 items-center gap-[10px]'>
+                        <div className='flex min-w-0 items-center gap-2.5'>
                           <Avatar className='h-8 w-8 flex-shrink-0'>
                             <AvatarFallback
                               style={{
                                 background: getUserColor(member.userId || member.userEmail || ''),
                               }}
-                              className='border-0 text-[13px] text-white'
+                              className='border-0 text-small text-white'
                             >
                               {(member.userName || member.userEmail || '?').charAt(0).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <div className='min-w-0'>
-                            <p className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                            <p className='truncate font-medium text-[var(--text-primary)] text-sm'>
                               {member.userName || member.userEmail || member.userId}
                             </p>
-                            <p className='truncate text-[12px] text-[var(--text-tertiary)]'>
+                            <p className='truncate text-[var(--text-tertiary)] text-caption'>
                               {member.userEmail || member.userId}
                             </p>
                           </div>
@@ -1264,7 +1264,7 @@ export function CredentialsManager() {
                       </div>
                     ))}
                     {isSelectedAdmin && (
-                      <div className='grid grid-cols-[1fr_120px_72px] items-center gap-[8px] border-[var(--border)] border-t pt-[8px]'>
+                      <div className='grid grid-cols-[1fr_120px_72px] items-center gap-2 border-[var(--border)] border-t pt-2'>
                         <Combobox
                           options={workspaceUserOptions}
                           value={
@@ -1307,8 +1307,8 @@ export function CredentialsManager() {
             </div>
           </div>
 
-          <div className='mt-auto flex items-center justify-end border-[var(--border)] border-t pt-[10px]'>
-            <div className='flex items-center gap-[8px]'>
+          <div className='mt-auto flex items-center justify-end border-[var(--border)] border-t pt-2.5'>
+            <div className='flex items-center gap-2'>
               <Button onClick={handleBackAttempt} variant='default'>
                 Back
               </Button>
@@ -1369,7 +1369,7 @@ export function CredentialsManager() {
   // List view
   return (
     <>
-      <div className='flex h-full flex-col gap-[16px]'>
+      <div className='flex h-full flex-col gap-4'>
         <div className='hidden'>
           <input
             type='text'
@@ -1393,8 +1393,8 @@ export function CredentialsManager() {
             readOnly
           />
         </div>
-        <div className='flex items-center gap-[8px]'>
-          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
+        <div className='flex items-center gap-2'>
+          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
@@ -1431,36 +1431,36 @@ export function CredentialsManager() {
         </div>
 
         <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
-          <div className='flex flex-col gap-[16px]'>
+          <div className='flex flex-col gap-4'>
             {isLoading ? (
               <>
-                <div className='flex flex-col gap-[8px]'>
+                <div className='flex flex-col gap-2'>
                   <Skeleton className='h-5 w-[70px]' />
-                  <div className='text-[13px] text-[var(--text-muted)]'>
+                  <div className='text-[var(--text-muted)] text-small'>
                     <Skeleton className='h-5 w-[160px]' />
                   </div>
                 </div>
-                <div className={`${GRID_COLS} gap-y-[8px]`}>
+                <div className={`${GRID_COLS} gap-y-2`}>
                   <Skeleton className={`${COL_SPAN_ALL} h-5 w-[55px]`} />
                   {Array.from({ length: 2 }, (_, i) => (
                     <div key={`personal-${i}`} className='contents'>
-                      <Skeleton className='h-9 rounded-[6px]' />
+                      <Skeleton className='h-9 rounded-md' />
                       <div />
-                      <Skeleton className='h-9 rounded-[6px]' />
-                      <Skeleton className='ml-[8px] h-9 w-[60px] rounded-[6px]' />
-                      <Skeleton className='h-9 w-9 rounded-[6px]' />
+                      <Skeleton className='h-9 rounded-md' />
+                      <Skeleton className='ml-2 h-9 w-[60px] rounded-md' />
+                      <Skeleton className='h-9 w-9 rounded-md' />
                     </div>
                   ))}
                 </div>
               </>
             ) : (
-              <div className={`${GRID_COLS} gap-y-[8px]`}>
+              <div className={`${GRID_COLS} gap-y-2`}>
                 {(!searchTerm.trim() ||
                   filteredWorkspaceEntries.length > 0 ||
                   filteredNewWorkspaceRows.length > 0) && (
                   <>
                     <div
-                      className={`${COL_SPAN_ALL} font-medium text-[13px] text-[var(--text-secondary)]`}
+                      className={`${COL_SPAN_ALL} font-medium text-[var(--text-secondary)] text-small`}
                     >
                       Workspace
                     </div>
@@ -1500,7 +1500,7 @@ export function CredentialsManager() {
                 {(!searchTerm.trim() || filteredEnvVars.length > 0) && (
                   <>
                     <div
-                      className={`${COL_SPAN_ALL} font-medium text-[13px] text-[var(--text-secondary)]`}
+                      className={`${COL_SPAN_ALL} font-medium text-[var(--text-secondary)] text-small`}
                     >
                       Personal
                     </div>
@@ -1519,7 +1519,7 @@ export function CredentialsManager() {
                     Object.keys(workspaceVars).length > 0 ||
                     newWorkspaceRows.length > 0) && (
                     <div
-                      className={`${COL_SPAN_ALL} py-[16px] text-center text-[13px] text-[var(--text-muted)]`}
+                      className={`${COL_SPAN_ALL} py-4 text-center text-[var(--text-muted)] text-small`}
                     >
                       No secrets found matching &ldquo;{searchTerm}&rdquo;
                     </div>

@@ -74,7 +74,7 @@ export const FilterPopover = memo(function FilterPopover({
           onClick={() => toggleStatus('error')}
         >
           <div
-            className='h-[6px] w-[6px] rounded-[2px]'
+            className='h-[6px] w-[6px] rounded-xs'
             style={{ backgroundColor: 'var(--text-error)' }}
           />
           <span className='flex-1'>Error</span>
@@ -85,7 +85,7 @@ export const FilterPopover = memo(function FilterPopover({
           onClick={() => toggleStatus('info')}
         >
           <div
-            className='h-[6px] w-[6px] rounded-[2px]'
+            className='h-[6px] w-[6px] rounded-xs'
             style={{ backgroundColor: 'var(--terminal-status-info-color)' }}
           />
           <span className='flex-1'>Info</span>
@@ -93,7 +93,7 @@ export const FilterPopover = memo(function FilterPopover({
 
         {uniqueBlocks.length > 0 && (
           <>
-            <PopoverDivider className='my-[4px]' />
+            <PopoverDivider className='my-1' />
             <PopoverSection className='!mt-0'>Blocks</PopoverSection>
             <PopoverScrollArea className='max-h-[100px]'>
               {uniqueBlocks.map((block) => {

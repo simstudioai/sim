@@ -59,7 +59,7 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
 
   return (
     <div
-      className='relative select-none rounded-[8px] border border-[var(--border-1)]'
+      className='relative select-none rounded-lg border border-[var(--border-1)]'
       style={{
         width,
         height,
@@ -67,15 +67,15 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
     >
       {/* Selection ring overlay (takes priority over execution rings) */}
       {isPreviewSelected && (
-        <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-[1.75px] ring-[var(--brand-secondary)]' />
+        <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[1.75px] ring-[var(--brand-secondary)]' />
       )}
       {/* Success ring overlay (only shown if not selected) */}
       {!isPreviewSelected && hasSuccess && (
-        <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-[1.75px] ring-[var(--brand-tertiary-2)]' />
+        <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[1.75px] ring-[var(--brand-accent)]' />
       )}
       {/* Error ring overlay (only shown if not selected) */}
       {!isPreviewSelected && hasError && (
-        <div className='pointer-events-none absolute inset-0 z-40 rounded-[8px] ring-[1.75px] ring-[var(--text-error)]' />
+        <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[1.75px] ring-[var(--text-error)]' />
       )}
 
       {/* Target handle on left (input to the subflow) */}
@@ -92,19 +92,16 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
       />
 
       {/* Header - matches actual subflow header structure */}
-      <div className='flex items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-[8px] pr-[12px] pl-[8px]'>
-        <div className='flex min-w-0 flex-1 items-center gap-[10px]'>
+      <div className='flex items-center justify-between rounded-t-[8px] border-[var(--border)] border-b bg-[var(--surface-2)] py-2 pr-3 pl-2'>
+        <div className='flex min-w-0 flex-1 items-center gap-2.5'>
           <div
-            className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-[6px]'
+            className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-md'
             style={{ backgroundColor: enabled ? blockIconBg : 'var(--surface-4)' }}
           >
             <BlockIcon className='h-[16px] w-[16px] text-white' />
           </div>
           <span
-            className={cn(
-              'truncate font-medium text-[16px]',
-              !enabled && 'text-[var(--text-muted)]'
-            )}
+            className={cn('truncate font-medium text-md', !enabled && 'text-[var(--text-muted)]')}
             title={blockName}
           >
             {blockName}
@@ -115,12 +112,12 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
 
       {/* Content area - matches workflow structure */}
       <div
-        className='h-[calc(100%-50px)] pt-[16px] pr-[80px] pb-[16px] pl-[16px]'
+        className='h-[calc(100%-50px)] pt-4 pr-[80px] pb-4 pl-4'
         style={{ position: 'relative' }}
       >
         {/* Subflow Start - connects to first block in subflow */}
-        <div className='absolute top-[16px] left-[16px] flex items-center justify-center rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] px-[12px] py-[6px]'>
-          <span className='font-medium text-[14px] text-[var(--text-primary)]'>Start</span>
+        <div className='absolute top-4 left-[16px] flex items-center justify-center rounded-lg border border-[var(--border-1)] bg-[var(--surface-2)] px-3 py-1.5'>
+          <span className='font-medium text-[var(--text-primary)] text-sm'>Start</span>
           <Handle
             type='source'
             position={Position.Right}

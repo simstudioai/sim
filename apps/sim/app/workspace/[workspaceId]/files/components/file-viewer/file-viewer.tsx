@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { ZoomIn, ZoomOut } from 'lucide-react'
 import { Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -183,6 +184,8 @@ function TextEditor({
   } = useWorkspaceFileContent(workspaceId, file.id, file.key, file.type === 'text/x-pptxgenjs')
 
   const updateContent = useUpdateWorkspaceFileContent()
+  const updateContentRef = useRef(updateContent)
+  updateContentRef.current = updateContent
 
   const [content, setContent] = useState('')
   const [savedContent, setSavedContent] = useState('')
@@ -230,14 +233,14 @@ function TextEditor({
     const currentContent = contentRef.current
     if (currentContent === savedContentRef.current) return
 
-    await updateContent.mutateAsync({
+    await updateContentRef.current.mutateAsync({
       workspaceId,
       fileId: file.id,
       content: currentContent,
     })
     setSavedContent(currentContent)
     savedContentRef.current = currentContent
-  }, [workspaceId, file.id, updateContent])
+  }, [workspaceId, file.id])
 
   const { saveStatus, saveImmediately, isDirty } = useAutosave({
     content,
@@ -287,6 +290,16 @@ function TextEditor({
       document.body.style.userSelect = ''
     }
   }, [isResizing])
+
+  const handleCheckboxToggle = useCallback(
+    (checkboxIndex: number, checked: boolean) => {
+      const toggled = toggleMarkdownCheckbox(contentRef.current, checkboxIndex, checked)
+      if (toggled !== contentRef.current) {
+        handleContentChange(toggled)
+      }
+    },
+    [handleContentChange]
+  )
 
   const isStreaming = streamingContent !== undefined
   const revealedContent = useStreamingText(content, isStreaming)
@@ -390,10 +403,11 @@ function TextEditor({
             className={cn('min-w-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}
           >
             <PreviewPanel
-              content={revealedContent}
+              content={isStreaming ? revealedContent : content}
               mimeType={file.type}
               filename={file.name}
               isStreaming={isStreaming}
+              onCheckboxToggle={canEdit && !isStreaming ? handleCheckboxToggle : undefined}
             />
           </div>
         </>
@@ -402,7 +416,7 @@ function TextEditor({
   )
 }
 
-function IframePreview({ file }: { file: WorkspaceFileRecord }) {
+const IframePreview = memo(function IframePreview({ file }: { file: WorkspaceFileRecord }) {
   const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
 
   return (
@@ -417,22 +431,125 @@ function IframePreview({ file }: { file: WorkspaceFileRecord }) {
       />
     </div>
   )
-}
+})
 
-function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
+const ZOOM_MIN = 0.25
+const ZOOM_MAX = 4
+const ZOOM_WHEEL_SENSITIVITY = 0.005
+const ZOOM_BUTTON_FACTOR = 1.2
+
+const clampZoom = (z: number) => Math.min(Math.max(z, ZOOM_MIN), ZOOM_MAX)
+
+const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
   const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
+  const [zoom, setZoom] = useState(1)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const isDragging = useRef(false)
+  const dragStart = useRef({ x: 0, y: 0 })
+  const offsetAtDragStart = useRef({ x: 0, y: 0 })
+  const offsetRef = useRef(offset)
+  offsetRef.current = offset
+
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const zoomIn = useCallback(() => setZoom((z) => clampZoom(z * ZOOM_BUTTON_FACTOR)), [])
+  const zoomOut = useCallback(() => setZoom((z) => clampZoom(z / ZOOM_BUTTON_FACTOR)), [])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      if (e.ctrlKey || e.metaKey) {
+        setZoom((z) => clampZoom(z * Math.exp(-e.deltaY * ZOOM_WHEEL_SENSITIVITY)))
+      } else {
+        setOffset((o) => ({ x: o.x - e.deltaX, y: o.y - e.deltaY }))
+      }
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return
+    isDragging.current = true
+    dragStart.current = { x: e.clientX, y: e.clientY }
+    offsetAtDragStart.current = offsetRef.current
+    if (containerRef.current) containerRef.current.style.cursor = 'grabbing'
+    e.preventDefault()
+  }, [])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging.current) return
+    setOffset({
+      x: offsetAtDragStart.current.x + (e.clientX - dragStart.current.x),
+      y: offsetAtDragStart.current.y + (e.clientY - dragStart.current.y),
+    })
+  }, [])
+
+  const handleMouseUp = useCallback(() => {
+    isDragging.current = false
+    if (containerRef.current) containerRef.current.style.cursor = 'grab'
+  }, [])
+
+  useEffect(() => {
+    setZoom(1)
+    setOffset({ x: 0, y: 0 })
+  }, [file.key])
 
   return (
-    <div className='flex flex-1 items-center justify-center overflow-auto bg-[var(--surface-1)] p-6'>
-      <img
-        src={serveUrl}
-        alt={file.name}
-        className='max-h-full max-w-full rounded-md object-contain'
-        loading='eager'
-      />
+    <div
+      ref={containerRef}
+      className='relative flex flex-1 cursor-grab overflow-hidden bg-[var(--surface-1)]'
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+    >
+      <div
+        className='pointer-events-none absolute inset-0 flex items-center justify-center'
+        style={{
+          transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+          transformOrigin: 'center center',
+        }}
+      >
+        <img
+          src={serveUrl}
+          alt={file.name}
+          className='max-h-full max-w-full select-none rounded-md object-contain'
+          draggable={false}
+          loading='eager'
+        />
+      </div>
+      <div
+        className='absolute right-4 bottom-4 flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 shadow-sm'
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <button
+          type='button'
+          onClick={zoomOut}
+          disabled={zoom <= ZOOM_MIN}
+          className='flex h-6 w-6 items-center justify-center rounded text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40'
+          aria-label='Zoom out'
+        >
+          <ZoomOut className='h-3.5 w-3.5' />
+        </button>
+        <span className='min-w-[3rem] text-center text-[11px] text-[var(--text-secondary)]'>
+          {Math.round(zoom * 100)}%
+        </span>
+        <button
+          type='button'
+          onClick={zoomIn}
+          disabled={zoom >= ZOOM_MAX}
+          className='flex h-6 w-6 items-center justify-center rounded text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40'
+          aria-label='Zoom in'
+        >
+          <ZoomIn className='h-3.5 w-3.5' />
+        </button>
+      </div>
     </div>
   )
-}
+})
 
 const pptxSlideCache = new Map<string, string[]>()
 
@@ -701,7 +818,19 @@ function PptxPreview({
   )
 }
 
-function UnsupportedPreview({ file }: { file: WorkspaceFileRecord }) {
+function toggleMarkdownCheckbox(markdown: string, targetIndex: number, checked: boolean): string {
+  let currentIndex = 0
+  return markdown.replace(/^(\s*(?:[-*+]|\d+[.)]) +)\[([ xX])\]/gm, (match, prefix: string) => {
+    if (currentIndex++ !== targetIndex) return match
+    return `${prefix}[${checked ? 'x' : ' '}]`
+  })
+}
+
+const UnsupportedPreview = memo(function UnsupportedPreview({
+  file,
+}: {
+  file: WorkspaceFileRecord
+}) {
   const ext = getFileExtension(file.name)
 
   return (
@@ -714,4 +843,4 @@ function UnsupportedPreview({ file }: { file: WorkspaceFileRecord }) {
       </p>
     </div>
   )
-}
+})

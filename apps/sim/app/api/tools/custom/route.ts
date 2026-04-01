@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
@@ -166,6 +167,18 @@ export async function POST(req: NextRequest) {
         requestId,
       })
 
+      for (const tool of resultTools) {
+        recordAudit({
+          workspaceId,
+          actorId: userId,
+          action: AuditAction.CUSTOM_TOOL_CREATED,
+          resourceType: AuditResourceType.CUSTOM_TOOL,
+          resourceId: tool.id,
+          resourceName: tool.title,
+          description: `Created/updated custom tool "${tool.title}"`,
+        })
+      }
+
       return NextResponse.json({ success: true, data: resultTools })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
@@ -264,6 +277,15 @@ export async function DELETE(request: NextRequest) {
 
     // Delete the tool
     await db.delete(customTools).where(eq(customTools.id, toolId))
+
+    recordAudit({
+      workspaceId: tool.workspaceId || undefined,
+      actorId: userId,
+      action: AuditAction.CUSTOM_TOOL_DELETED,
+      resourceType: AuditResourceType.CUSTOM_TOOL,
+      resourceId: toolId,
+      description: `Deleted custom tool`,
+    })
 
     logger.info(`[${requestId}] Deleted tool: ${toolId}`)
     return NextResponse.json({ success: true })

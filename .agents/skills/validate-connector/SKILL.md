@@ -141,12 +141,24 @@ For each API endpoint the connector calls:
 
 ## Step 6: Validate Data Transformation
 
+### Content Deferral (CRITICAL)
+Connectors that require per-document API calls to fetch content (file download, export, blocks fetch) MUST use `contentDeferred: true`. This is the standard pattern for reliability — without it, content downloads during listing can exhaust the sync task's time budget before any documents are saved.
+
+- [ ] If the connector downloads content per-doc during `listDocuments`, it MUST use `contentDeferred: true` instead
+- [ ] `listDocuments` returns lightweight stubs with `content: ''` and `contentDeferred: true`
+- [ ] `getDocument` fetches actual content and returns the full document with `contentDeferred: false`
+- [ ] A shared stub function (e.g., `fileToStub`) is used by both `listDocuments` and `getDocument` to guarantee `contentHash` consistency
+- [ ] `contentHash` is metadata-based (e.g., `service:{id}:{modifiedTime}`), NOT content-based — it must be derivable from list metadata alone
+- [ ] The `contentHash` is identical whether produced by `listDocuments` or `getDocument`
+
+Connectors where the list API already returns content inline (e.g., Slack messages, Reddit posts) do NOT need `contentDeferred`.
+
 ### ExternalDocument Construction
 - [ ] `externalId` is a stable, unique identifier from the source API
 - [ ] `title` is extracted from the correct field and has a sensible fallback (e.g., `'Untitled'`)
 - [ ] `content` is plain text — HTML content is stripped using `htmlToPlainText` from `@/connectors/utils`
 - [ ] `mimeType` is `'text/plain'`
-- [ ] `contentHash` is computed using `computeContentHash` from `@/connectors/utils`
+- [ ] `contentHash` uses a metadata-based format (e.g., `service:{id}:{modifiedTime}`) for connectors with `contentDeferred: true`, or `computeContentHash` from `@/connectors/utils` for inline-content connectors
 - [ ] `sourceUrl` is a valid, complete URL back to the original resource (not relative)
 - [ ] `metadata` contains all fields referenced by `mapTags` and `tagDefinitions`
 
@@ -200,6 +212,8 @@ For each API endpoint the connector calls:
 - [ ] Fetches a single document by `externalId`
 - [ ] Returns `null` for 404 / not found (does not throw)
 - [ ] Returns the same `ExternalDocument` shape as `listDocuments`
+- [ ] If `listDocuments` uses `contentDeferred: true`, `getDocument` MUST fetch actual content and return `contentDeferred: false`
+- [ ] If `listDocuments` uses `contentDeferred: true`, `getDocument` MUST use the same stub function to ensure `contentHash` is identical
 - [ ] Handles all content types that `listDocuments` can produce (e.g., if `listDocuments` returns both pages and blogposts, `getDocument` must handle both — not hardcode one endpoint)
 - [ ] Forwards `syncContext` if it needs cached state (user names, field maps, etc.)
 - [ ] Error handling is graceful (catches, logs, returns null or throws with context)
@@ -253,6 +267,8 @@ Group findings by severity:
 - Missing error handling that would crash the sync
 - `requiredScopes` not a subset of OAuth provider scopes
 - Query/filter injection: user-controlled values interpolated into OData `$filter`, SOQL, or query strings without escaping
+- Per-document content download in `listDocuments` without `contentDeferred: true` — causes sync timeouts for large document sets
+- `contentHash` mismatch between `listDocuments` stub and `getDocument` return — causes unnecessary re-processing every sync
 
 **Warning** (incorrect behavior, data quality issues, or convention violations):
 - HTML content not stripped via `htmlToPlainText`
@@ -300,6 +316,7 @@ After fixing, confirm:
 - [ ] Validated scopes are sufficient for all API endpoints the connector calls
 - [ ] Validated token refresh config (`useBasicAuth`, `supportsRefreshTokenRotation`)
 - [ ] Validated pagination: cursor names, page sizes, hasMore logic, no silent caps
+- [ ] Validated content deferral: `contentDeferred: true` used when per-doc content fetch required, metadata-based `contentHash` consistent between stub and `getDocument`
 - [ ] Validated data transformation: plain text extraction, HTML stripping, content hashing
 - [ ] Validated tag definitions match mapTags output, correct fieldTypes
 - [ ] Validated config fields: canonical pairs, selector keys, required flags

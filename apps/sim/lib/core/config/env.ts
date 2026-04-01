@@ -105,6 +105,7 @@ export const env = createEnv({
     OLLAMA_URL:                            z.string().url().optional(),            // Ollama local LLM server URL
     VLLM_BASE_URL:                         z.string().url().optional(),            // vLLM self-hosted base URL (OpenAI-compatible)
     VLLM_API_KEY:                          z.string().optional(),                  // Optional bearer token for vLLM
+    FIREWORKS_API_KEY:                     z.string().optional(),                  // Optional Fireworks AI API key for model listing
     ELEVENLABS_API_KEY:                    z.string().min(1).optional(),           // ElevenLabs API key for text-to-speech in deployed chat
     SERPER_API_KEY:                        z.string().min(1).optional(),           // Serper API key for online search
     EXA_API_KEY:                           z.string().min(1).optional(),           // Exa AI API key for enhanced online search
@@ -135,6 +136,8 @@ export const env = createEnv({
     COST_MULTIPLIER:                       z.number().optional(),                  // Multiplier for cost calculations
     LOG_LEVEL:                             z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).optional(), // Minimum log level to display (defaults to ERROR in production, DEBUG in development)
     DRIZZLE_ODS_API_KEY:                   z.string().min(1).optional(),           // OneDollarStats API key for analytics tracking
+    PROFOUND_API_KEY:                      z.string().min(1).optional(),           // Profound analytics API key
+    PROFOUND_ENDPOINT:                     z.string().url().optional(),            // Profound analytics endpoint
 
     // External Services
     BROWSERBASE_API_KEY:                   z.string().min(1).optional(),           // Browserbase API key for browser automation
@@ -183,6 +186,12 @@ export const env = createEnv({
     // Data Retention
     FREE_PLAN_LOG_RETENTION_DAYS:          z.string().optional(),                  // Log retention days for free plan users
 
+    // Admission & Burst Protection
+    CONCURRENCY_CONTROL_ENABLED:           z.string().optional().default('false'),  // Set to 'true' to enable BullMQ-based concurrency control (default: inline execution)
+    ADMISSION_GATE_MAX_INFLIGHT:           z.string().optional().default('500'),   // Max concurrent in-flight execution requests per pod
+    DISPATCH_MAX_QUEUE_PER_WORKSPACE:      z.string().optional().default('1000'),  // Max queued dispatch jobs per workspace
+    DISPATCH_MAX_QUEUE_GLOBAL:             z.string().optional().default('50000'), // Max queued dispatch jobs globally
+
     // Rate Limiting Configuration
     RATE_LIMIT_WINDOW_MS:                  z.string().optional().default('60000'), // Rate limit window duration in milliseconds (default: 1 minute)
     MANUAL_EXECUTION_LIMIT:                z.string().optional().default('999999'),// Manual execution bypass value (effectively unlimited)
@@ -194,6 +203,10 @@ export const env = createEnv({
     RATE_LIMIT_TEAM_ASYNC:                 z.string().optional().default('2500'),  // Team tier async API executions per minute
     RATE_LIMIT_ENTERPRISE_SYNC:            z.string().optional().default('600'),   // Enterprise tier sync API executions per minute
     RATE_LIMIT_ENTERPRISE_ASYNC:           z.string().optional().default('5000'),  // Enterprise tier async API executions per minute
+    WORKSPACE_CONCURRENCY_FREE:            z.string().optional().default('5'),     // Free tier concurrent workspace executions
+    WORKSPACE_CONCURRENCY_PRO:             z.string().optional().default('50'),    // Pro tier concurrent workspace executions
+    WORKSPACE_CONCURRENCY_TEAM:            z.string().optional().default('200'),   // Team/Max tier concurrent workspace executions
+    WORKSPACE_CONCURRENCY_ENTERPRISE:      z.string().optional().default('200'),   // Enterprise default concurrent workspace executions
 
     // Timeout Configuration
     EXECUTION_TIMEOUT_FREE:                z.string().optional().default('300'),   // 5 minutes

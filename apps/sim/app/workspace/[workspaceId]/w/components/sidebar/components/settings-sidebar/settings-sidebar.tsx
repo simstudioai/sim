@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { ChevronDown, Skeleton, Tooltip } from '@/components/emcn'
+import { ChevronDown, Skeleton } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -15,6 +15,7 @@ import {
   isBillingEnabled,
   sectionConfig,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
 import { prefetchWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { prefetchGeneralSettings, useGeneralSettings } from '@/hooks/queries/general-settings'
@@ -185,32 +186,25 @@ export function SettingsSidebar({
   return (
     <>
       {/* Back button */}
-      <div className='mt-[10px] flex flex-shrink-0 flex-col gap-[2px] px-[8px]'>
-        <Tooltip.Root key={`back-${isCollapsed}`}>
-          <Tooltip.Trigger asChild>
-            <button
-              type='button'
-              onClick={handleBack}
-              className='group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
-            >
-              <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
-                <ChevronDown className='h-[10px] w-[10px] rotate-90' />
-              </div>
-              <span className='truncate font-base text-[var(--text-body)]'>Back</span>
-            </button>
-          </Tooltip.Trigger>
-          {showCollapsedTooltips && (
-            <Tooltip.Content side='right'>
-              <p>Back</p>
-            </Tooltip.Content>
-          )}
-        </Tooltip.Root>
+      <div className='mt-2.5 flex flex-shrink-0 flex-col gap-0.5 px-2'>
+        <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
+          <button
+            type='button'
+            onClick={handleBack}
+            className='group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm hover-hover:bg-[var(--surface-hover)]'
+          >
+            <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
+              <ChevronDown className='h-[10px] w-[10px] rotate-90' />
+            </div>
+            <span className='truncate font-base text-[var(--text-body)]'>Back</span>
+          </button>
+        </SidebarTooltip>
       </div>
 
       {/* Settings sections */}
       <div
         className={cn(
-          'mt-[14px] flex flex-1 flex-col gap-[14px]',
+          'mt-3.5 flex flex-1 flex-col gap-3.5 pb-2',
           !isCollapsed && 'overflow-y-auto overflow-x-hidden'
         )}
       >
@@ -218,10 +212,10 @@ export function SettingsSidebar({
           isCollapsed ? (
             <>
               {SKELETON_SECTIONS.map((count, sectionIdx) => (
-                <div key={sectionIdx} className='flex flex-col gap-[2px] px-[8px]'>
+                <div key={sectionIdx} className='flex flex-col gap-0.5 px-2'>
                   {Array.from({ length: count }, (_, i) => (
-                    <div key={i} className='mx-[2px] flex h-[30px] items-center px-[8px]'>
-                      <Skeleton className='h-[16px] w-[16px] rounded-[4px]' />
+                    <div key={i} className='mx-0.5 flex h-[30px] items-center px-2'>
+                      <Skeleton className='h-[16px] w-[16px] rounded-sm' />
                     </div>
                   ))}
                 </div>
@@ -230,13 +224,13 @@ export function SettingsSidebar({
           ) : (
             Array.from({ length: 3 }, (_, i) => (
               <div key={i} className='sidebar-collapse-hide flex flex-shrink-0 flex-col'>
-                <div className='px-[16px] pb-[6px]'>
-                  <Skeleton className='h-[14px] w-[64px] rounded-[4px]' />
+                <div className='px-4 pb-1.5'>
+                  <Skeleton className='h-[14px] w-[64px] rounded-sm' />
                 </div>
-                <div className='flex flex-col gap-[2px] px-[8px]'>
+                <div className='flex flex-col gap-0.5 px-2'>
                   {Array.from({ length: i === 0 ? 3 : 2 }, (_, j) => (
-                    <div key={j} className='mx-[2px] flex h-[30px] items-center px-[8px]'>
-                      <Skeleton className='h-[24px] w-full rounded-[4px]' />
+                    <div key={j} className='mx-0.5 flex h-[30px] items-center px-2'>
+                      <Skeleton className='h-[24px] w-full rounded-sm' />
                     </div>
                   ))}
                 </div>
@@ -250,16 +244,17 @@ export function SettingsSidebar({
 
             return (
               <div key={key} className='flex flex-shrink-0 flex-col'>
-                <div className='px-[16px] pb-[6px]'>
+                <div className='px-4 pb-1.5'>
                   <div className='font-base text-[var(--text-icon)] text-small'>{title}</div>
                 </div>
-                <div className='flex flex-col gap-[2px] px-[8px]'>
+                <div className='flex flex-col gap-0.5 px-2'>
                   {sectionItems.map((item) => {
                     const Icon = item.icon
                     const active = activeSection === item.id
                     const isLocked = item.requiresMax && !subscriptionAccess.hasUsableMaxAccess
                     const itemClassName = cn(
-                      'group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]',
+                      'group mx-0.5 flex h-[30px] items-center gap-2 rounded-[8px] px-2 text-[14px]',
+                      !active && 'hover-hover:bg-[var(--surface-hover)]',
                       active && 'bg-[var(--surface-active)]'
                     )
                     const content = (
@@ -269,7 +264,7 @@ export function SettingsSidebar({
                           {item.label}
                         </span>
                         {isLocked && (
-                          <span className='ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-[4px] py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
+                          <span className='ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
                             Max
                           </span>
                         )}
@@ -302,14 +297,13 @@ export function SettingsSidebar({
                     )
 
                     return (
-                      <Tooltip.Root key={`${item.id}-${isCollapsed}`}>
-                        <Tooltip.Trigger asChild>{element}</Tooltip.Trigger>
-                        {showCollapsedTooltips && (
-                          <Tooltip.Content side='right'>
-                            <p>{item.label}</p>
-                          </Tooltip.Content>
-                        )}
-                      </Tooltip.Root>
+                      <SidebarTooltip
+                        key={`${item.id}-${isCollapsed}`}
+                        label={item.label}
+                        enabled={showCollapsedTooltips}
+                      >
+                        {element}
+                      </SidebarTooltip>
                     )
                   })}
                 </div>

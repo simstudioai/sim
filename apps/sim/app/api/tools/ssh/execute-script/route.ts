@@ -55,9 +55,10 @@ export async function POST(request: NextRequest) {
       const escapedScriptPath = escapeShellArg(scriptPath)
       const escapedInterpreter = escapeShellArg(params.interpreter)
 
-      let command = `cat > '${escapedScriptPath}' << 'SIMEOF'
+      const heredocDelimiter = `SIMEOF_${randomUUID().replace(/-/g, '')}`
+      let command = `cat > '${escapedScriptPath}' << '${heredocDelimiter}'
 ${params.script}
-SIMEOF
+${heredocDelimiter}
 chmod +x '${escapedScriptPath}'`
 
       if (params.workingDirectory) {

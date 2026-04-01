@@ -111,16 +111,16 @@ function ServerListItem({
   const isError = server.connectionStatus === 'error'
 
   return (
-    <div className='flex items-center justify-between gap-[12px]'>
+    <div className='flex items-center justify-between gap-3'>
       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-        <div className='flex items-center gap-[6px]'>
-          <span className='max-w-[200px] truncate font-medium text-[15px]'>
+        <div className='flex items-center gap-1.5'>
+          <span className='max-w-[200px] truncate font-medium text-base'>
             {server.name || 'Unnamed Server'}
           </span>
-          <span className='text-[14px] text-[var(--text-secondary)]'>({transportLabel})</span>
+          <span className='text-[var(--text-secondary)] text-sm'>({transportLabel})</span>
         </div>
         <p
-          className={`truncate text-[14px] ${isError ? 'text-red-500 dark:text-red-400' : 'text-[var(--text-muted)]'}`}
+          className={`truncate text-sm ${isError ? 'text-red-500 dark:text-red-400' : 'text-[var(--text-muted)]'}`}
         >
           {isRefreshing
             ? 'Refreshing...'
@@ -129,7 +129,7 @@ function ServerListItem({
               : toolsLabel}
         </p>
       </div>
-      <div className='flex flex-shrink-0 items-center gap-[4px]'>
+      <div className='flex flex-shrink-0 items-center gap-1'>
         <Button variant='default' onClick={onViewDetails}>
           Details
         </Button>
@@ -413,47 +413,45 @@ export function MCP({ initialServerId }: MCPProps) {
     const transportLabel = formatTransportLabel(server.transport || 'http')
 
     return (
-      <div className='flex h-full flex-col gap-[18px]'>
+      <div className='flex h-full flex-col gap-4.5'>
         <div className='min-h-0 flex-1 overflow-y-auto'>
-          <div className='flex flex-col gap-[18px]'>
-            <div className='flex flex-col gap-[8px]'>
-              <span className='font-medium text-[14px] text-[var(--text-primary)]'>
-                Server Name
-              </span>
-              <p className='text-[15px] text-[var(--text-secondary)]'>
+          <div className='flex flex-col gap-4.5'>
+            <div className='flex flex-col gap-2'>
+              <span className='font-medium text-[var(--text-primary)] text-sm'>Server Name</span>
+              <p className='text-[var(--text-secondary)] text-base'>
                 {server.name || 'Unnamed Server'}
               </p>
             </div>
 
-            <div className='flex flex-col gap-[8px]'>
-              <span className='font-medium text-[14px] text-[var(--text-primary)]'>Transport</span>
-              <p className='text-[15px] text-[var(--text-secondary)]'>{transportLabel}</p>
+            <div className='flex flex-col gap-2'>
+              <span className='font-medium text-[var(--text-primary)] text-sm'>Transport</span>
+              <p className='text-[var(--text-secondary)] text-base'>{transportLabel}</p>
             </div>
 
             {server.url && (
-              <div className='flex flex-col gap-[8px]'>
-                <span className='font-medium text-[14px] text-[var(--text-primary)]'>URL</span>
-                <p className='break-all text-[15px] text-[var(--text-secondary)]'>{server.url}</p>
+              <div className='flex flex-col gap-2'>
+                <span className='font-medium text-[var(--text-primary)] text-sm'>URL</span>
+                <p className='break-all text-[var(--text-secondary)] text-base'>{server.url}</p>
               </div>
             )}
 
             {server.connectionStatus === 'error' && (
-              <div className='flex flex-col gap-[8px]'>
-                <span className='font-medium text-[14px] text-[var(--text-primary)]'>Status</span>
-                <p className='text-[15px] text-red-500 dark:text-red-400'>
+              <div className='flex flex-col gap-2'>
+                <span className='font-medium text-[var(--text-primary)] text-sm'>Status</span>
+                <p className='text-base text-red-500 dark:text-red-400'>
                   {server.lastError || 'Unable to connect'}
                 </p>
               </div>
             )}
 
-            <div className='flex flex-col gap-[8px]'>
-              <span className='font-medium text-[14px] text-[var(--text-primary)]'>
+            <div className='flex flex-col gap-2'>
+              <span className='font-medium text-[var(--text-primary)] text-sm'>
                 Tools ({tools.length})
               </span>
               {tools.length === 0 ? (
-                <p className='text-[14px] text-[var(--text-muted)]'>No tools available</p>
+                <p className='text-[var(--text-muted)] text-sm'>No tools available</p>
               ) : (
-                <div className='flex flex-col gap-[8px]'>
+                <div className='flex flex-col gap-2'>
                   {tools.map((tool) => {
                     const issues = getStoredToolIssues(server.id, tool.name)
                     const affectedWorkflows = issues.map((i) => i.workflowName)
@@ -466,20 +464,20 @@ export function MCP({ initialServerId }: MCPProps) {
                     return (
                       <div
                         key={tool.name}
-                        className='overflow-hidden rounded-[6px] border bg-[var(--surface-3)]'
+                        className='overflow-hidden rounded-md border bg-[var(--surface-3)]'
                       >
                         <button
                           type='button'
                           onClick={() => hasParams && toggleToolExpanded(tool.name)}
                           className={cn(
-                            'flex w-full items-start justify-between px-[10px] py-[8px] text-left',
-                            hasParams && 'cursor-pointer hover:bg-[var(--surface-4)]'
+                            'flex w-full items-start justify-between px-2.5 py-2 text-left',
+                            hasParams && 'cursor-pointer hover-hover:bg-[var(--surface-4)]'
                           )}
                           disabled={!hasParams}
                         >
                           <div className='flex-1'>
-                            <div className='flex h-[16px] items-center gap-[6px]'>
-                              <p className='font-medium text-[14px] text-[var(--text-primary)] leading-none'>
+                            <div className='flex h-[16px] items-center gap-1.5'>
+                              <p className='font-medium text-[var(--text-primary)] text-sm leading-none'>
                                 {tool.name}
                               </p>
                               {issues.length > 0 && (
@@ -501,7 +499,7 @@ export function MCP({ initialServerId }: MCPProps) {
                               )}
                             </div>
                             {tool.description && (
-                              <p className='mt-[4px] text-[14px] text-[var(--text-tertiary)]'>
+                              <p className='mt-1 text-[var(--text-tertiary)] text-sm'>
                                 {tool.description}
                               </p>
                             )}
@@ -509,7 +507,7 @@ export function MCP({ initialServerId }: MCPProps) {
                           {hasParams && (
                             <ChevronDown
                               className={cn(
-                                'mt-[2px] h-[14px] w-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
+                                'mt-0.5 h-[14px] w-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
                                 isExpanded && 'rotate-180'
                               )}
                             />
@@ -517,11 +515,11 @@ export function MCP({ initialServerId }: MCPProps) {
                         </button>
 
                         {isExpanded && hasParams && (
-                          <div className='border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[10px] py-[8px]'>
-                            <p className='mb-[6px] font-medium text-[11px] text-[var(--text-muted)] uppercase tracking-wide'>
+                          <div className='border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 py-2'>
+                            <p className='mb-1.5 font-medium text-[var(--text-muted)] text-xs uppercase tracking-wide'>
                               Parameters
                             </p>
-                            <div className='flex flex-col gap-[6px]'>
+                            <div className='flex flex-col gap-1.5'>
                               {Object.entries(tool.inputSchema!.properties!).map(
                                 ([paramName, param]) => {
                                   const isRequired = requiredParams.includes(paramName)
@@ -537,10 +535,10 @@ export function MCP({ initialServerId }: MCPProps) {
                                   return (
                                     <div
                                       key={paramName}
-                                      className='rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-3)] px-[8px] py-[6px]'
+                                      className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-3)] px-2 py-1.5'
                                     >
-                                      <div className='flex items-center gap-[6px]'>
-                                        <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+                                      <div className='flex items-center gap-1.5'>
+                                        <span className='font-medium text-[var(--text-primary)] text-small'>
                                           {paramName}
                                         </span>
                                         <Badge variant='outline' size='sm'>
@@ -553,7 +551,7 @@ export function MCP({ initialServerId }: MCPProps) {
                                         )}
                                       </div>
                                       {paramDesc && (
-                                        <p className='mt-[3px] text-[11px] text-[var(--text-tertiary)] leading-relaxed'>
+                                        <p className='mt-[3px] text-[var(--text-tertiary)] text-xs leading-relaxed'>
                                           {paramDesc}
                                         </p>
                                       )}
@@ -577,7 +575,7 @@ export function MCP({ initialServerId }: MCPProps) {
           <Button onClick={handleBackToList} variant='default'>
             Back
           </Button>
-          <div className='flex items-center gap-[8px]'>
+          <div className='flex items-center gap-2'>
             <Button
               onClick={() => handleRefreshServer(server.id)}
               variant='default'
@@ -623,9 +621,9 @@ export function MCP({ initialServerId }: MCPProps) {
 
   return (
     <>
-      <div className='flex h-full flex-col gap-[18px]'>
-        <div className='flex items-center gap-[8px]'>
-          <div className='flex flex-1 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'>
+      <div className='flex h-full flex-col gap-4.5'>
+        <div className='flex items-center gap-2'>
+          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
             <Search
               className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
               strokeWidth={2}
@@ -638,32 +636,30 @@ export function MCP({ initialServerId }: MCPProps) {
             />
           </div>
           <Button onClick={() => setShowAddModal(true)} variant='primary' disabled={serversLoading}>
-            <Plus className='mr-[6px] h-[13px] w-[13px]' />
+            <Plus className='mr-1.5 h-[13px] w-[13px]' />
             Add
           </Button>
         </div>
 
         <div className='min-h-0 flex-1 overflow-y-auto'>
           {error ? (
-            <div className='flex h-full flex-col items-center justify-center gap-[8px]'>
-              <p className='text-[#DC2626] text-[11px] leading-tight dark:text-[#F87171]'>
+            <div className='flex h-full flex-col items-center justify-center gap-2'>
+              <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
                 {error instanceof Error ? error.message : 'Failed to load MCP servers'}
               </p>
             </div>
           ) : serversLoading ? (
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               <McpServerSkeleton />
               <McpServerSkeleton />
               <McpServerSkeleton />
             </div>
           ) : !hasServers ? (
             <div className='flex h-full items-center justify-center'>
-              <p className='text-[14px] text-[var(--text-muted)]'>
-                Click "Add" above to get started
-              </p>
+              <p className='text-[var(--text-muted)] text-sm'>Click "Add" above to get started</p>
             </div>
           ) : (
-            <div className='flex flex-col gap-[8px]'>
+            <div className='flex flex-col gap-2'>
               {filteredServers.map((server) => {
                 if (!server?.id) return null
                 const tools = toolsByServer[server.id] || []
@@ -683,7 +679,7 @@ export function MCP({ initialServerId }: MCPProps) {
                 )
               })}
               {showNoResults && (
-                <div className='py-[16px] text-center text-[14px] text-[var(--text-muted)]'>
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                   No servers found matching "{searchTerm}"
                 </div>
               )}
