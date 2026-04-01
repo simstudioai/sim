@@ -1,8 +1,8 @@
 import type { ConnectionOptions } from 'bullmq'
-import { env, isTruthy } from '@/lib/core/config/env'
+import { env } from '@/lib/core/config/env'
 
 export function isBullMQEnabled(): boolean {
-  return isTruthy(env.CONCURRENCY_CONTROL_ENABLED) && Boolean(env.REDIS_URL)
+  return Boolean(env.REDIS_URL)
 }
 
 export function getBullMQConnectionOptions(): ConnectionOptions {
