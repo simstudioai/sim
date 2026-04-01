@@ -234,6 +234,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       id: 'vertexProject',
       title: 'Vertex AI Project',
       type: 'short-input',
+      password: true,
       placeholder: 'your-gcp-project-id',
       connectionDroppable: false,
       required: true,
