@@ -19,6 +19,7 @@ import {
   formatTokenCount,
   formatUpdatedAt,
   getModelBySlug,
+  getPricingBounds,
   getProviderBySlug,
   getRelatedModels,
 } from '../../utils'
@@ -100,6 +101,7 @@ export default async function ModelPage({
 
   const faqs = buildModelFaqs(provider, model)
   const capabilityFacts = buildModelCapabilityFacts(model)
+  const pricingBounds = getPricingBounds(model.pricing)
   const relatedModels = getRelatedModels(model, 6)
 
   const breadcrumbJsonLd = {
@@ -129,8 +131,8 @@ export default async function ModelPage({
     offers: {
       '@type': 'AggregateOffer',
       priceCurrency: 'USD',
-      lowPrice: Math.min(model.pricing.input, model.pricing.output).toString(),
-      highPrice: Math.max(model.pricing.input, model.pricing.output).toString(),
+      lowPrice: pricingBounds.lowPrice.toString(),
+      highPrice: pricingBounds.highPrice.toString(),
     },
   }
 

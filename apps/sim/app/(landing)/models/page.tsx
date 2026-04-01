@@ -5,6 +5,7 @@ import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { ModelDirectory } from './components/model-directory'
 import { ModelCard, ProviderCard } from './components/model-primitives'
 import {
+  getPricingBounds,
   MODEL_CATALOG_PROVIDERS,
   MODEL_PROVIDERS_WITH_CATALOGS,
   TOP_MODEL_PROVIDERS,
@@ -120,8 +121,8 @@ export default function ModelsPage() {
         offers: {
           '@type': 'AggregateOffer',
           priceCurrency: 'USD',
-          lowPrice: Math.min(model.pricing.input, model.pricing.output).toString(),
-          highPrice: Math.max(model.pricing.input, model.pricing.output).toString(),
+          lowPrice: getPricingBounds(model.pricing).lowPrice.toString(),
+          highPrice: getPricingBounds(model.pricing).highPrice.toString(),
         },
       },
     })),

@@ -19,19 +19,27 @@ function getTitleFontSize(title: string): number {
   return TITLE_FONT_SIZE.large
 }
 
-async function loadGoogleFont(font: string, weights: string, text: string): Promise<ArrayBuffer> {
-  const url = `https://fonts.googleapis.com/css2?family=${font}:wght@${weights}&text=${encodeURIComponent(text)}`
-  const css = await (await fetch(url)).text()
-  const resource = css.match(/src: url\((.+)\) format\('(opentype|truetype)'\)/)
+async function loadGoogleFont(
+  font: string,
+  weights: string,
+  text: string
+): Promise<ArrayBuffer | null> {
+  try {
+    const url = `https://fonts.googleapis.com/css2?family=${font}:wght@${weights}&text=${encodeURIComponent(text)}`
+    const css = await (await fetch(url)).text()
+    const resource = css.match(/src: url\(([^)]+)\) format\('(opentype|truetype|woff2?)'\)/)
 
-  if (resource) {
-    const response = await fetch(resource[1])
-    if (response.status === 200) {
-      return await response.arrayBuffer()
+    if (resource) {
+      const response = await fetch(resource[1])
+      if (response.status === 200) {
+        return await response.arrayBuffer()
+      }
     }
+  } catch {
+    return null
   }
 
-  throw new Error('Failed to load font data')
+  return null
 }
 
 function SimLogoFull() {
@@ -71,7 +79,10 @@ export async function createModelsOgImage({
   domainLabel = 'sim.ai/models',
 }: ModelsOgImageProps) {
   const text = `${eyebrow}${title}${subtitle}${pills.join('')}${domainLabel}`
-  const fontData = await loadGoogleFont('Geist', '400;500;600', text)
+  const [regularFontData, mediumFontData] = await Promise.all([
+    loadGoogleFont('Geist', '400', text),
+    loadGoogleFont('Geist', '500', text),
+  ])
 
   return new ImageResponse(
     <div
@@ -170,11 +181,26 @@ export async function createModelsOgImage({
     {
       ...size,
       fonts: [
-        {
-          name: 'Geist',
-          data: fontData,
-          style: 'normal',
-        },
+        ...(regularFontData
+          ? [
+              {
+                name: 'Geist',
+                data: regularFontData,
+                style: 'normal' as const,
+                weight: 400,
+              },
+            ]
+          : []),
+        ...(mediumFontData
+          ? [
+              {
+                name: 'Geist',
+                data: mediumFontData,
+                style: 'normal' as const,
+                weight: 500,
+              },
+            ]
+          : []),
       ],
     }
   )

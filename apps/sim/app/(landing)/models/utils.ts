@@ -155,10 +155,12 @@ export function formatPrice(price?: number | null): string {
     return 'N/A'
   }
 
+  const maximumFractionDigits = price > 0 && price < 0.001 ? 4 : 3
+
   return `$${trimTrailingZeros(
     new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 0,
-      maximumFractionDigits: 3,
+      maximumFractionDigits,
     }).format(price)
   )}`
 }
@@ -310,10 +312,7 @@ function formatModelDisplayName(providerId: string, modelId: string): string {
     )
     .join(' ')
 
-  return displayName
-    .replace(/^GPT (\d[\w.]*)/i, 'GPT-$1')
-    .replace(/^GPT (\d[\w.]*) (Mini|Nano|Pro|Chat)/i, 'GPT-$1 $2')
-    .replace(/\bGpt\b/g, 'GPT')
+  return displayName.replace(/^GPT (\d[\w.]*)/i, 'GPT-$1').replace(/\bGpt\b/g, 'GPT')
 }
 
 function buildCapabilityTags(capabilities: ModelCapabilities): string[] {
@@ -565,12 +564,20 @@ export const TOTAL_MODELS = ALL_CATALOG_MODELS.length
 export const MAX_CONTEXT_WINDOW = Math.max(
   ...ALL_CATALOG_MODELS.map((model) => model.contextWindow ?? 0)
 )
-export const MODELS_WITH_REASONING = ALL_CATALOG_MODELS.filter(
-  (model) => model.capabilities.reasoningEffort || model.capabilities.thinking
-).length
 export const TOP_MODEL_PROVIDERS = MODEL_PROVIDERS_WITH_CATALOGS.slice(0, 8).map(
   (provider) => provider.name
 )
+
+export function getPricingBounds(pricing: PricingInfo): { lowPrice: number; highPrice: number } {
+  return {
+    lowPrice: Math.min(
+      pricing.input,
+      pricing.output,
+      ...(pricing.cachedInput !== undefined ? [pricing.cachedInput] : [])
+    ),
+    highPrice: Math.max(pricing.input, pricing.output),
+  }
+}
 
 export function getProviderBySlug(providerSlug: string): CatalogProvider | null {
   return MODEL_CATALOG_PROVIDERS.find((provider) => provider.slug === providerSlug) ?? null
