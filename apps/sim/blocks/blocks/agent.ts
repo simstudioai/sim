@@ -1,13 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { AgentIcon } from '@/components/icons'
-import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
   getModelOptions,
   getProviderCredentialSubBlocks,
   RESPONSE_FORMAT_WAND_CONFIG,
-  VERTEX_MODELS,
 } from '@/blocks/utils'
 import {
   getBaseModelProviders,
@@ -134,34 +132,6 @@ Return ONLY the JSON array.`,
       required: true,
       defaultValue: 'claude-sonnet-4-5',
       options: getModelOptions,
-    },
-    {
-      id: 'vertexCredential',
-      title: 'Google Cloud Account',
-      type: 'oauth-input',
-      serviceId: 'vertex-ai',
-      canonicalParamId: 'oauthCredential',
-      mode: 'basic',
-      requiredScopes: getScopesForService('vertex-ai'),
-      placeholder: 'Select Google Cloud account',
-      required: true,
-      condition: {
-        field: 'model',
-        value: VERTEX_MODELS,
-      },
-    },
-    {
-      id: 'manualCredential',
-      title: 'Google Cloud Account',
-      type: 'short-input',
-      canonicalParamId: 'oauthCredential',
-      mode: 'advanced',
-      placeholder: 'Enter credential ID',
-      required: true,
-      condition: {
-        field: 'model',
-        value: VERTEX_MODELS,
-      },
     },
     {
       id: 'reasoningEffort',
@@ -319,9 +289,7 @@ Return ONLY the JSON array.`,
       },
     },
 
-    // Agent has its own vertexCredential/manualCredential above (with canonicalParamId + basic/advanced mode).
-    // Spread the rest of the shared credential subblocks, skipping the simple vertexCredential.
-    ...getProviderCredentialSubBlocks().filter((s) => s.id !== 'vertexCredential'),
+    ...getProviderCredentialSubBlocks(),
     {
       id: 'tools',
       title: 'Tools',
@@ -571,7 +539,7 @@ Return ONLY the JSON array.`,
     apiKey: { type: 'string', description: 'Provider API key' },
     azureEndpoint: { type: 'string', description: 'Azure endpoint URL' },
     azureApiVersion: { type: 'string', description: 'Azure API version' },
-    oauthCredential: { type: 'string', description: 'OAuth credential for Vertex AI' },
+    vertexCredential: { type: 'string', description: 'OAuth credential for Vertex AI' },
     vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },
     vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
     bedrockAccessKeyId: { type: 'string', description: 'AWS Access Key ID for Bedrock' },

@@ -1,4 +1,5 @@
 import { isAzureConfigured, isHosted } from '@/lib/core/config/feature-flags'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
 import {
   getHostedModels,
@@ -167,12 +168,27 @@ export function getApiKeyCondition() {
 export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
   return [
     {
-      id: 'vertexCredential',
+      id: 'vertexOauthCredential',
       title: 'Google Cloud Account',
       type: 'oauth-input',
       serviceId: 'vertex-ai',
-      requiredScopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      canonicalParamId: 'vertexCredential',
+      mode: 'basic',
+      requiredScopes: getScopesForService('vertex-ai'),
       placeholder: 'Select Google Cloud account',
+      required: true,
+      condition: {
+        field: 'model',
+        value: VERTEX_MODELS,
+      },
+    },
+    {
+      id: 'vertexManualCredential',
+      title: 'Google Cloud Account',
+      type: 'short-input',
+      canonicalParamId: 'vertexCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
       condition: {
         field: 'model',
