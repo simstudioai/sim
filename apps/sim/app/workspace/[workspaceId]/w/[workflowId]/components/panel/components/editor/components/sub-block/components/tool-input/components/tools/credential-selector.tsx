@@ -15,8 +15,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
-import { ConnectCredentialModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/connect-credential-modal'
-import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
@@ -245,7 +244,8 @@ export function ToolCredentialSelector({
       )}
 
       {showConnectModal && (
-        <ConnectCredentialModal
+        <OAuthModal
+          mode='connect'
           isOpen={showConnectModal}
           onClose={() => setShowConnectModal(false)}
           provider={provider}
@@ -257,7 +257,8 @@ export function ToolCredentialSelector({
       )}
 
       {showOAuthModal && (
-        <OAuthRequiredModal
+        <OAuthModal
+          mode='reauthorize'
           isOpen={showOAuthModal}
           onClose={() => {
             consumeOAuthReturnContext()

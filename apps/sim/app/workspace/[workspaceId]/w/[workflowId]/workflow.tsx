@@ -23,6 +23,7 @@ import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/creden
 import type { OAuthProvider } from '@/lib/oauth'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
+import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   CommandList,
@@ -96,11 +97,6 @@ const LazyChat = lazy(() =>
   import('@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/chat').then((mod) => ({
     default: mod.Chat,
   }))
-)
-const LazyOAuthRequiredModal = lazy(() =>
-  import(
-    '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
-  ).then((mod) => ({ default: mod.OAuthRequiredModal }))
 )
 
 const logger = createLogger('Workflow')
@@ -4127,20 +4123,19 @@ const WorkflowContent = React.memo(
         {(!embedded || sandbox) && <Panel workspaceId={sandbox ? workspaceId : undefined} />}
 
         {!embedded && !sandbox && oauthModal && (
-          <Suspense fallback={null}>
-            <LazyOAuthRequiredModal
-              isOpen={true}
-              onClose={() => {
-                consumeOAuthReturnContext()
-                setOauthModal(null)
-              }}
-              provider={oauthModal.provider}
-              toolName={oauthModal.providerName}
-              serviceId={oauthModal.serviceId}
-              requiredScopes={oauthModal.requiredScopes}
-              newScopes={oauthModal.newScopes}
-            />
-          </Suspense>
+          <OAuthModal
+            mode='reauthorize'
+            isOpen={true}
+            onClose={() => {
+              consumeOAuthReturnContext()
+              setOauthModal(null)
+            }}
+            provider={oauthModal.provider}
+            toolName={oauthModal.providerName}
+            serviceId={oauthModal.serviceId}
+            requiredScopes={oauthModal.requiredScopes}
+            newScopes={oauthModal.newScopes}
+          />
         )}
       </div>
     )
