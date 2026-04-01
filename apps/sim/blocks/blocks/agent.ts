@@ -7,20 +7,30 @@ import { getApiKeyCondition, getModelOptions, RESPONSE_FORMAT_WAND_CONFIG } from
 import {
   getBaseModelProviders,
   getMaxTemperature,
+  getModelsWithDeepResearch,
+  getModelsWithoutMemory,
+  getModelsWithReasoningEffort,
+  getModelsWithThinking,
+  getModelsWithVerbosity,
+  getProviderModels,
   getReasoningEffortValuesForModel,
   getThinkingLevelsForModel,
   getVerbosityValuesForModel,
-  MODELS_WITH_DEEP_RESEARCH,
-  MODELS_WITH_REASONING_EFFORT,
-  MODELS_WITH_THINKING,
-  MODELS_WITH_VERBOSITY,
-  MODELS_WITHOUT_MEMORY,
-  providers,
   supportsTemperature,
-} from '@/providers/utils'
+} from '@/providers/models'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgentBlock')
+const VERTEX_MODELS = getProviderModels('vertex')
+const BEDROCK_MODELS = getProviderModels('bedrock')
+const AZURE_MODELS = [...getProviderModels('azure-openai'), ...getProviderModels('azure-anthropic')]
+const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
+const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
+const MODELS_WITH_THINKING = getModelsWithThinking()
+const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
+const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 
 interface AgentResponse extends ToolResponse {
   output: {
@@ -136,7 +146,7 @@ Return ONLY the JSON array.`,
       required: true,
       condition: {
         field: 'model',
-        value: providers.vertex.models,
+        value: VERTEX_MODELS,
       },
     },
     {
@@ -149,7 +159,7 @@ Return ONLY the JSON array.`,
       required: true,
       condition: {
         field: 'model',
-        value: providers.vertex.models,
+        value: VERTEX_MODELS,
       },
     },
     {
@@ -165,9 +175,6 @@ Return ONLY the JSON array.`,
       ],
       dependsOn: ['model'],
       fetchOptions: async (blockId: string) => {
-        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
         const autoOption = { label: 'auto', id: 'auto' }
 
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -224,9 +231,6 @@ Return ONLY the JSON array.`,
       ],
       dependsOn: ['model'],
       fetchOptions: async (blockId: string) => {
-        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
         const autoOption = { label: 'auto', id: 'auto' }
 
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -285,9 +289,6 @@ Return ONLY the JSON array.`,
       ],
       dependsOn: ['model'],
       fetchOptions: async (blockId: string) => {
-        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
         const noneOption = { label: 'none', id: 'none' }
 
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -326,7 +327,7 @@ Return ONLY the JSON array.`,
       connectionDroppable: false,
       condition: {
         field: 'model',
-        value: [...providers['azure-openai'].models, ...providers['azure-anthropic'].models],
+        value: AZURE_MODELS,
       },
     },
     {
@@ -337,7 +338,7 @@ Return ONLY the JSON array.`,
       connectionDroppable: false,
       condition: {
         field: 'model',
-        value: [...providers['azure-openai'].models, ...providers['azure-anthropic'].models],
+        value: AZURE_MODELS,
       },
     },
     {
@@ -349,7 +350,7 @@ Return ONLY the JSON array.`,
       required: true,
       condition: {
         field: 'model',
-        value: providers.vertex.models,
+        value: VERTEX_MODELS,
       },
     },
     {
@@ -361,7 +362,7 @@ Return ONLY the JSON array.`,
       required: true,
       condition: {
         field: 'model',
-        value: providers.vertex.models,
+        value: VERTEX_MODELS,
       },
     },
     {
@@ -374,7 +375,7 @@ Return ONLY the JSON array.`,
       required: true,
       condition: {
         field: 'model',
-        value: providers.bedrock.models,
+        value: BEDROCK_MODELS,
       },
     },
     {
@@ -387,7 +388,7 @@ Return ONLY the JSON array.`,
       required: true,
       condition: {
         field: 'model',
-        value: providers.bedrock.models,
+        value: BEDROCK_MODELS,
       },
     },
     {
@@ -398,7 +399,7 @@ Return ONLY the JSON array.`,
       connectionDroppable: false,
       condition: {
         field: 'model',
-        value: providers.bedrock.models,
+        value: BEDROCK_MODELS,
       },
     },
     {

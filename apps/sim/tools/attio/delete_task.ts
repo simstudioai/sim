@@ -31,7 +31,7 @@ export const attioDeleteTaskTool: ToolConfig<AttioDeleteTaskParams, AttioDeleteT
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/tasks/${params.taskId}`,
+    url: (params) => `https://api.attio.com/v2/tasks/${params.taskId.trim()}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

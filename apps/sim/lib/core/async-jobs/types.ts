@@ -54,6 +54,7 @@ export interface Job<TPayload = unknown, TOutput = unknown> {
 
 export interface JobMetadata {
   workflowId?: string
+  workspaceId?: string
   userId?: string
   correlation?: AsyncExecutionCorrelation
   [key: string]: unknown
@@ -66,6 +67,7 @@ export interface EnqueueOptions {
   priority?: number
   name?: string
   delayMs?: number
+  tags?: string[]
 }
 
 /**

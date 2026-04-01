@@ -32,7 +32,7 @@ export const attioGetListTool: ToolConfig<AttioGetListParams, AttioGetListRespon
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/lists/${params.list}`,
+    url: (params) => `https://api.attio.com/v2/lists/${params.list.trim()}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

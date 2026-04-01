@@ -1,6 +1,6 @@
 'use client'
 
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -47,6 +47,7 @@ import {
   useUpdateChunk,
   useUpdateDocument,
 } from '@/hooks/queries/kb/knowledge'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 
 const logger = createLogger('Document')
@@ -152,7 +153,7 @@ export function Document({
   const [showTagsModal, setShowTagsModal] = useState(false)
 
   const [searchQuery, setSearchQuery] = useState('')
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+  const debouncedSearchQuery = useDebounce(searchQuery, 200)
   const [enabledFilter, setEnabledFilter] = useState<string[]>([])
   const [activeSort, setActiveSort] = useState<{
     column: string
@@ -168,11 +169,8 @@ export function Document({
     chunks: initialChunks,
     currentPage: initialPage,
     totalPages: initialTotalPages,
-    hasNextPage: initialHasNextPage,
-    hasPrevPage: initialHasPrevPage,
     goToPage: initialGoToPage,
     error: initialError,
-    refreshChunks: initialRefreshChunks,
     updateChunk: initialUpdateChunk,
     isFetching: isFetchingChunks,
   } = useDocumentChunks(
@@ -207,7 +205,9 @@ export function Document({
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(() => new Set())
 
   // Inline editor state
-  const [selectedChunkId, setSelectedChunkId] = useState<string | null>(null)
+  const [selectedChunkId, setSelectedChunkId] = useState<string | null>(() =>
+    searchParams.get('chunk')
+  )
   const [isCreatingNewChunk, setIsCreatingNewChunk] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
@@ -216,27 +216,6 @@ export function Document({
   const saveRef = useRef<(() => Promise<void>) | null>(null)
   const saveStatusRef = useRef<SaveStatus>('idle')
   saveStatusRef.current = saveStatus
-
-  // Auto-select chunk from URL param on mount
-  const initialChunkParam = useRef(searchParams.get('chunk'))
-  useEffect(() => {
-    if (initialChunkParam.current) {
-      setSelectedChunkId(initialChunkParam.current)
-      initialChunkParam.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      startTransition(() => {
-        setDebouncedSearchQuery(searchQuery)
-      })
-    }, 200)
-
-    return () => {
-      clearTimeout(handler)
-    }
-  }, [searchQuery])
 
   const isSearching = debouncedSearchQuery.trim().length > 0
   const showingSearch = isSearching && searchQuery.trim().length > 0 && searchResults.length > 0
@@ -259,8 +238,6 @@ export function Document({
 
   const currentPage = showingSearch ? searchCurrentPage : initialPage
   const totalPages = showingSearch ? searchTotalPages : initialTotalPages
-  const hasNextPage = showingSearch ? searchCurrentPage < searchTotalPages : initialHasNextPage
-  const hasPrevPage = showingSearch ? searchCurrentPage > 1 : initialHasPrevPage
 
   // Keep refs to displayChunks and totalPages so polling callbacks can read fresh data
   const displayChunksRef = useRef(displayChunks)
@@ -281,12 +258,11 @@ export function Document({
       if (showingSearch) {
         return
       }
-      return await initialGoToPage(page)
+      return initialGoToPage(page)
     },
     [showingSearch, initialGoToPage]
   )
 
-  const refreshChunks = showingSearch ? async () => {} : initialRefreshChunks
   const updateChunk = showingSearch
     ? (_id: string, _updates: Record<string, unknown>) => {}
     : initialUpdateChunk
@@ -309,7 +285,6 @@ export function Document({
   const {
     isOpen: isContextMenuOpen,
     position: contextMenuPosition,
-    menuRef,
     handleContextMenu: baseHandleContextMenu,
     closeMenu: closeContextMenu,
   } = useContextMenu()
@@ -661,18 +636,11 @@ export function Document({
       const chunk = displayChunks.find((c) => c.id === chunkId)
       if (!chunk) return
 
+      const newEnabled = !chunk.enabled
+      updateChunk(chunkId, { enabled: newEnabled })
       updateChunkMutation(
-        {
-          knowledgeBaseId,
-          documentId,
-          chunkId,
-          enabled: !chunk.enabled,
-        },
-        {
-          onSuccess: () => {
-            updateChunk(chunkId, { enabled: !chunk.enabled })
-          },
-        }
+        { knowledgeBaseId, documentId, chunkId, enabled: newEnabled },
+        { onError: () => updateChunk(chunkId, { enabled: chunk.enabled }) }
       )
     },
     [displayChunks, knowledgeBaseId, documentId, updateChunk]

@@ -25,6 +25,9 @@ import {
   useExportSelection,
   useExportWorkflow,
 } from '@/app/workspace/[workspaceId]/w/hooks'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -60,7 +63,7 @@ export function WorkflowItem({
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const selectedWorkflows = useFolderStore((state) => state.selectedWorkflows)
-  const updateWorkflow = useWorkflowRegistry((state) => state.updateWorkflow)
+  const updateWorkflowMutation = useUpdateWorkflow()
   const userPermissions = useUserPermissionsContext()
   const isSelected = selectedWorkflows.has(workflow.id)
 
@@ -166,9 +169,9 @@ export function WorkflowItem({
 
   const handleColorChange = useCallback(
     (color: string) => {
-      updateWorkflow(workflow.id, { color })
+      updateWorkflowMutation.mutate({ workspaceId, workflowId: workflow.id, metadata: { color } })
     },
-    [workflow.id, updateWorkflow]
+    [workflow.id, workspaceId]
   )
 
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -227,16 +230,16 @@ export function WorkflowItem({
     const folderIds = Array.from(finalFolderSelection)
     const isMixed = workflowIds.length > 0 && folderIds.length > 0
 
-    const { workflows } = useWorkflowRegistry.getState()
-    const { folders } = useFolderStore.getState()
+    const workflows = getWorkflows(workspaceId)
+    const folderMap = getFolderMap(workspaceId)
 
     const names: string[] = []
     for (const id of workflowIds) {
-      const w = workflows[id]
+      const w = workflows.find((wf) => wf.id === id)
       if (w) names.push(w.name)
     }
     for (const id of folderIds) {
-      const f = folders[id]
+      const f = folderMap[id]
       if (f) names.push(f.name)
     }
 
@@ -301,7 +304,11 @@ export function WorkflowItem({
   } = useItemRename({
     initialName: workflow.name,
     onSave: async (newName) => {
-      await updateWorkflow(workflow.id, { name: newName })
+      await updateWorkflowMutation.mutateAsync({
+        workspaceId,
+        workflowId: workflow.id,
+        metadata: { name: newName },
+      })
     },
     itemType: 'workflow',
     itemId: workflow.id,
@@ -388,12 +395,13 @@ export function WorkflowItem({
         data-item-id={workflow.id}
         className={clsx(
           'group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm',
-          (active || isContextMenuOpen) && 'bg-[var(--surface-active)]',
+          (active || isContextMenuOpen || (isSelected && selectedWorkflows.size > 1)) &&
+            'bg-[var(--surface-active)]',
           !active &&
             !isContextMenuOpen &&
+            !(isSelected && selectedWorkflows.size > 1) &&
             !isAnyDragActive &&
             'hover-hover:bg-[var(--surface-hover)]',
-          isSelected && selectedWorkflows.size > 1 && !active && 'bg-[var(--surface-active)]',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         draggable={!isEditing && !dragDisabled}

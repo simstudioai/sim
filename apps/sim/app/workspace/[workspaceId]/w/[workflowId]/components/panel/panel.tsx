@@ -56,6 +56,7 @@ import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useDuplicateWorkflowMutation, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -126,18 +127,15 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const userPermissions = useUserPermissionsContext()
   const { config: permissionConfig } = usePermissionConfig()
   const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
-  const { workflows, activeWorkflowId, duplicateWorkflow, hydration } = useWorkflowRegistry(
+  const duplicateWorkflowMutation = useDuplicateWorkflowMutation()
+  const { data: workflows = {} } = useWorkflowMap(workspaceId)
+  const { activeWorkflowId, hydration } = useWorkflowRegistry(
     useShallow((state) => ({
-      workflows: state.workflows,
       activeWorkflowId: state.activeWorkflowId,
-      duplicateWorkflow: state.duplicateWorkflow,
       hydration: state.hydration,
     }))
   )
-  const isRegistryLoading =
-    hydration.phase === 'idle' ||
-    hydration.phase === 'metadata-loading' ||
-    hydration.phase === 'state-loading'
+  const isRegistryLoading = hydration.phase === 'idle' || hydration.phase === 'state-loading'
   const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
 
   // Check for locked blocks (disables auto-layout)
@@ -478,7 +476,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
     setIsExporting(true)
     try {
-      const workflow = getWorkflowWithValues(activeWorkflowId)
+      const workflow = getWorkflowWithValues(activeWorkflowId, workspaceId)
 
       if (!workflow || !workflow.state) {
         throw new Error('No workflow state found')
@@ -519,11 +517,21 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       return
     }
 
+    const sourceWorkflow = workflows[activeWorkflowId]
+    if (!sourceWorkflow) return
+
     setIsDuplicating(true)
     try {
-      const newWorkflow = await duplicateWorkflow(activeWorkflowId)
-      if (newWorkflow) {
-        router.push(`/workspace/${workspaceId}/w/${newWorkflow}`)
+      const result = await duplicateWorkflowMutation.mutateAsync({
+        workspaceId,
+        sourceId: activeWorkflowId,
+        name: `${sourceWorkflow.name} (Copy)`,
+        description: sourceWorkflow.description,
+        color: sourceWorkflow.color ?? '',
+        folderId: sourceWorkflow.folderId,
+      })
+      if (result?.id) {
+        router.push(`/workspace/${workspaceId}/w/${result.id}`)
       }
     } catch (error) {
       logger.error('Error duplicating workflow:', error)
@@ -531,14 +539,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       setIsDuplicating(false)
       setIsMenuOpen(false)
     }
-  }, [
-    activeWorkflowId,
-    userPermissions.canEdit,
-    isDuplicating,
-    duplicateWorkflow,
-    router,
-    workspaceId,
-  ])
+  }, [activeWorkflowId, userPermissions.canEdit, isDuplicating, workflows, router, workspaceId])
 
   /**
    * Toggles the locked state of all blocks in the workflow

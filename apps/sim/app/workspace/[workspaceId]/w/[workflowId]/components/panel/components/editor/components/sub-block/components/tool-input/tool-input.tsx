@@ -500,7 +500,7 @@ export const ToolInput = memo(function ToolInput({
   const availableEnvVars = useAvailableEnvVarKeys(workspaceId)
   const mcpDataLoading = mcpLoading || mcpServersLoading
 
-  const { data: workflowsList = [] } = useWorkflows(workspaceId, { syncRegistry: false })
+  const { data: workflowsList = [] } = useWorkflows(workspaceId)
   const availableWorkflows = useMemo(
     () => workflowsList.filter((w) => w.id !== workflowId),
     [workflowsList, workflowId]

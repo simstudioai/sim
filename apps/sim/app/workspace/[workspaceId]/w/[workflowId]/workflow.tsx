@@ -73,6 +73,7 @@ import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
+import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOAuthReturnForWorkflow } from '@/hooks/use-oauth-return'
@@ -279,7 +280,12 @@ const WorkflowContent = React.memo(
     useOAuthReturnForWorkflow(workflowIdParam)
 
     const {
-      workflows,
+      data: workflows = {},
+      isLoading: isWorkflowMapLoading,
+      isPlaceholderData: isWorkflowMapPlaceholderData,
+    } = useWorkflowMap(workspaceId)
+
+    const {
       activeWorkflowId,
       hydration,
       setActiveWorkflow,
@@ -292,7 +298,6 @@ const WorkflowContent = React.memo(
       clearPendingSelection,
     } = useWorkflowRegistry(
       useShallow((state) => ({
-        workflows: state.workflows,
         activeWorkflowId: state.activeWorkflowId,
         hydration: state.hydration,
         setActiveWorkflow: state.setActiveWorkflow,
@@ -357,12 +362,14 @@ const WorkflowContent = React.memo(
 
     const isWorkflowReady = useMemo(
       () =>
+        !isWorkflowMapPlaceholderData &&
         hydration.phase === 'ready' &&
         hydration.workflowId === workflowIdParam &&
         activeWorkflowId === workflowIdParam &&
         Boolean(workflows[workflowIdParam]) &&
         lastSaved !== undefined,
       [
+        isWorkflowMapPlaceholderData,
         hydration.phase,
         hydration.workflowId,
         workflowIdParam,
@@ -2204,23 +2211,22 @@ const WorkflowContent = React.memo(
     )
 
     const loadingWorkflowRef = useRef<string | null>(null)
-    const currentWorkflowExists = Boolean(workflows[workflowIdParam])
+    const currentWorkflowExists =
+      !isWorkflowMapPlaceholderData && Boolean(workflows[workflowIdParam])
 
     useEffect(() => {
       // In sandbox mode the stores are pre-hydrated externally; skip the API load.
       if (sandbox) return
 
       const currentId = workflowIdParam
-      const currentWorkspaceHydration = hydration.workspaceId
-
-      const isRegistryReady = hydration.phase !== 'metadata-loading' && hydration.phase !== 'idle'
-
-      // Wait for registry to be ready to prevent race conditions
+      // Wait for workflow data to be available before attempting to load
       if (
+        isWorkflowMapLoading ||
+        isWorkflowMapPlaceholderData ||
         !currentId ||
         !currentWorkflowExists ||
-        !isRegistryReady ||
-        (currentWorkspaceHydration && currentWorkspaceHydration !== workspaceId)
+        !hydration.workspaceId ||
+        hydration.workspaceId !== workspaceId
       ) {
         return
       }
@@ -2269,6 +2275,8 @@ const WorkflowContent = React.memo(
       }
     }, [
       workflowIdParam,
+      isWorkflowMapLoading,
+      isWorkflowMapPlaceholderData,
       currentWorkflowExists,
       activeWorkflowId,
       setActiveWorkflow,
@@ -2286,8 +2294,12 @@ const WorkflowContent = React.memo(
     useEffect(() => {
       if (embedded || sandbox) return
 
-      // Wait for metadata to finish loading before making navigation decisions
-      if (hydration.phase === 'metadata-loading' || hydration.phase === 'idle') {
+      if (
+        isWorkflowMapLoading ||
+        isWorkflowMapPlaceholderData ||
+        !hydration.workspaceId ||
+        hydration.workspaceId !== workspaceId
+      ) {
         return
       }
 
@@ -2330,9 +2342,12 @@ const WorkflowContent = React.memo(
     }, [
       embedded,
       workflowIdParam,
+      isWorkflowMapLoading,
+      isWorkflowMapPlaceholderData,
       currentWorkflowExists,
       workflowCount,
       hydration.phase,
+      hydration.workspaceId,
       workspaceId,
       router,
       workflows,

@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo } from 'react'
 import clsx from 'clsx'
 import { useShallow } from 'zustand/react/shallow'
+import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
 import { EmptyAreaContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/empty-area-context-menu'
 import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/folder-item/folder-item'
 import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/workflow-item'
@@ -18,7 +19,7 @@ import {
   compareByOrder,
   groupWorkflowsByFolder,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
-import { useFolders } from '@/hooks/queries/folders'
+import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -78,12 +79,10 @@ export const WorkflowList = memo(function WorkflowList({
   disableCreate = false,
 }: WorkflowListProps) {
   const { isLoading: foldersLoading } = useFolders(workspaceId)
-  const folders = useFolderStore((state) => state.folders)
-  const { getFolderTree, expandedFolders, getFolderPath, setExpanded } = useFolderStore(
+  const { data: folderMap = {} } = useFolderMap(workspaceId)
+  const { expandedFolders, setExpanded } = useFolderStore(
     useShallow((s) => ({
-      getFolderTree: s.getFolderTree,
       expandedFolders: s.expandedFolders,
-      getFolderPath: s.getFolderPath,
       setExpanded: s.setExpanded,
     }))
   )
@@ -120,8 +119,8 @@ export const WorkflowList = memo(function WorkflowList({
   }, [scrollContainerRef, setScrollContainer])
 
   const folderTree = useMemo(
-    () => (workspaceId ? getFolderTree(workspaceId) : []),
-    [workspaceId, folders, getFolderTree]
+    () => (workspaceId ? buildFolderTree(folderMap, workspaceId) : []),
+    [workspaceId, folderMap]
   )
 
   const activeWorkflowFolderId = useMemo(() => {
@@ -354,7 +353,7 @@ export const WorkflowList = memo(function WorkflowList({
     if (!workflowId || isLoading || foldersLoading) return
 
     if (activeWorkflowFolderId) {
-      const folderPath = getFolderPath(activeWorkflowFolderId)
+      const folderPath = getFolderPath(folderMap, activeWorkflowFolderId)
       folderPath.forEach((folder) => setExpanded(folder.id, true))
     }
 
@@ -362,7 +361,7 @@ export const WorkflowList = memo(function WorkflowList({
     if (!selectedWorkflows.has(workflowId)) {
       selectOnly(workflowId)
     }
-  }, [workflowId, activeWorkflowFolderId, isLoading, foldersLoading, getFolderPath, setExpanded])
+  }, [workflowId, activeWorkflowFolderId, isLoading, foldersLoading, folderMap, setExpanded])
 
   const renderWorkflowItem = useCallback(
     (workflow: WorkflowMetadata, level: number, folderId: string | null = null) => {

@@ -146,7 +146,11 @@ export async function GET(request: NextRequest) {
           })
         } else {
           jobId = await jobQueue.enqueue('schedule-execution', payload, {
-            metadata: { workflowId: schedule.workflowId ?? undefined, correlation },
+            metadata: {
+              workflowId: schedule.workflowId ?? undefined,
+              workspaceId: resolvedWorkspaceId ?? undefined,
+              correlation,
+            },
           })
         }
         logger.info(

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import type { ComboboxOption } from '@/components/emcn'
@@ -33,6 +33,7 @@ import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('Knowledge')
 
@@ -90,6 +91,13 @@ export function Knowledge() {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
+
+  const { config: permissionConfig } = usePermissionConfig()
+  useEffect(() => {
+    if (permissionConfig.hideKnowledgeBaseTab) {
+      router.replace(`/workspace/${workspaceId}`)
+    }
+  }, [permissionConfig.hideKnowledgeBaseTab, router, workspaceId])
 
   const { knowledgeBases, isLoading, error } = useKnowledgeBasesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
@@ -594,6 +602,7 @@ export function Knowledge() {
           knowledgeBaseId={activeKnowledgeBase.id}
           initialName={activeKnowledgeBase.name}
           initialDescription={activeKnowledgeBase.description || ''}
+          chunkingConfig={activeKnowledgeBase.chunkingConfig}
           onSave={handleUpdateKnowledgeBase}
         />
       )}

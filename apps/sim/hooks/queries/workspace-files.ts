@@ -34,6 +34,23 @@ export interface StorageInfo {
 }
 
 /**
+ * Hook to fetch a single workspace file record by ID.
+ * Shares the `list(workspaceId, 'active')` query key with {@link useWorkspaceFiles} so no extra
+ * network request is made when the list is already cached (warm path).
+ * On a cold path (e.g. direct navigation to a file URL), this fetches the full active file list
+ * for the workspace and selects the matching record via `select`.
+ */
+export function useWorkspaceFileRecord(workspaceId: string, fileId: string) {
+  return useQuery({
+    queryKey: workspaceFilesKeys.list(workspaceId, 'active'),
+    queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, 'active', signal),
+    enabled: !!workspaceId && !!fileId,
+    staleTime: 30 * 1000,
+    select: (files) => files.find((f) => f.id === fileId) ?? null,
+  })
+}
+
+/**
  * Fetch workspace files from API
  */
 async function fetchWorkspaceFiles(

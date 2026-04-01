@@ -21,27 +21,8 @@ import {
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import { deploymentKeys } from '@/hooks/queries/deployments'
-import {
-  fetchChatHistory,
-  type StreamSnapshot,
-  type TaskChatHistory,
-  type TaskStoredContentBlock,
-  type TaskStoredFileAttachment,
-  type TaskStoredMessage,
-  type TaskStoredToolCall,
-  taskKeys,
-  useChatHistory,
-} from '@/hooks/queries/tasks'
-import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
-import { workflowKeys } from '@/hooks/queries/workflows'
-import { useExecutionStream } from '@/hooks/use-execution-stream'
-import { useExecutionStore } from '@/stores/execution/store'
-import { useFolderStore } from '@/stores/folders/store'
-import type { ChatContext } from '@/stores/panel'
-import { consolePersistence, useTerminalConsoleStore } from '@/stores/terminal'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type {
   ChatMessage,
   ChatMessageAttachment,
@@ -56,7 +37,30 @@ import type {
   SSEPayload,
   SSEPayloadData,
   ToolCallStatus,
-} from '../types'
+} from '@/app/workspace/[workspaceId]/home/types'
+import { deploymentKeys } from '@/hooks/queries/deployments'
+import {
+  fetchChatHistory,
+  type StreamSnapshot,
+  type TaskChatHistory,
+  type TaskStoredContentBlock,
+  type TaskStoredFileAttachment,
+  type TaskStoredMessage,
+  type TaskStoredToolCall,
+  taskKeys,
+  useChatHistory,
+} from '@/hooks/queries/tasks'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { invalidateWorkflowSelectors } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
+import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { workflowKeys } from '@/hooks/queries/workflows'
+import { useExecutionStream } from '@/hooks/use-execution-stream'
+import { useExecutionStore } from '@/stores/execution/store'
+import type { ChatContext } from '@/stores/panel'
+import { consolePersistence, useTerminalConsoleStore } from '@/stores/terminal'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 export interface UseChatReturn {
   messages: ChatMessage[]
@@ -301,31 +305,37 @@ function getPayloadData(payload: SSEPayload): SSEPayloadData | undefined {
   return typeof payload.data === 'object' ? payload.data : undefined
 }
 
-/** Adds a workflow to the registry with a top-insertion sort order if it doesn't already exist. */
+/** Adds a workflow to the React Query cache with a top-insertion sort order if it doesn't already exist. */
 function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId: string): boolean {
-  const registry = useWorkflowRegistry.getState()
-  if (registry.workflows[resourceId]) return false
+  const workflows = getWorkflows(workspaceId)
+  if (workflows.some((w) => w.id === resourceId)) return false
   const sortOrder = getTopInsertionSortOrder(
-    registry.workflows,
-    useFolderStore.getState().folders,
+    Object.fromEntries(workflows.map((w) => [w.id, w])),
+    getFolderMap(workspaceId),
     workspaceId,
     null
   )
-  useWorkflowRegistry.setState((state) => ({
-    workflows: {
-      ...state.workflows,
-      [resourceId]: {
-        id: resourceId,
-        name: title,
-        lastModified: new Date(),
-        createdAt: new Date(),
-        color: getNextWorkflowColor(),
-        workspaceId,
-        folderId: null,
-        sortOrder,
-      },
-    },
-  }))
+  const newMetadata: WorkflowMetadata = {
+    id: resourceId,
+    name: title,
+    lastModified: new Date(),
+    createdAt: new Date(),
+    color: getNextWorkflowColor(),
+    workspaceId,
+    folderId: null,
+    sortOrder,
+  }
+  const queryClient = getQueryClient()
+  const key = workflowKeys.list(workspaceId, 'active')
+  queryClient.setQueryData<WorkflowMetadata[]>(key, (current) => {
+    const next = current ?? workflows
+    if (next.some((workflow) => workflow.id === resourceId)) {
+      return next
+    }
+
+    return [...next, newMetadata]
+  })
+  void invalidateWorkflowSelectors(queryClient, workspaceId)
   return true
 }
 
@@ -1253,7 +1263,7 @@ export function useChat(
                       ? ((args as Record<string, unknown>).workflowId as string)
                       : useWorkflowRegistry.getState().activeWorkflowId
                   if (targetWorkflowId) {
-                    const meta = useWorkflowRegistry.getState().workflows[targetWorkflowId]
+                    const meta = getWorkflowById(workspaceId, targetWorkflowId)
                     const wasAdded = addResource({
                       type: 'workflow',
                       id: targetWorkflowId,

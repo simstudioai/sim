@@ -51,7 +51,7 @@ export const attioUpdateObjectTool: ToolConfig<AttioUpdateObjectParams, AttioUpd
     },
 
     request: {
-      url: (params) => `https://api.attio.com/v2/objects/${params.object}`,
+      url: (params) => `https://api.attio.com/v2/objects/${params.object.trim()}`,
       method: 'PATCH',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,

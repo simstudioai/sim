@@ -34,7 +34,7 @@ export const attioDeleteWebhookTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/webhooks/${params.webhookId}`,
+    url: (params) => `https://api.attio.com/v2/webhooks/${params.webhookId.trim()}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

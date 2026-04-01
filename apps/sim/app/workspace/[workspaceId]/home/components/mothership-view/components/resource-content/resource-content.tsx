@@ -37,6 +37,7 @@ import {
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
+import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -375,15 +376,16 @@ interface EmbeddedWorkflowProps {
 }
 
 function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
-  const workflowExists = useWorkflowRegistry((state) => Boolean(state.workflows[workflowId]))
-  const isMetadataLoaded = useWorkflowRegistry(
-    (state) => state.hydration.phase !== 'idle' && state.hydration.phase !== 'metadata-loading'
+  const { data: workflowList, isPending: isWorkflowsPending } = useWorkflows(workspaceId)
+  const workflowExists = useMemo(
+    () => (workflowList ?? []).some((w) => w.id === workflowId),
+    [workflowList, workflowId]
   )
   const hasLoadError = useWorkflowRegistry(
     (state) => state.hydration.phase === 'error' && state.hydration.workflowId === workflowId
   )
 
-  if (!isMetadataLoaded) return LOADING_SKELETON
+  if (isWorkflowsPending) return LOADING_SKELETON
 
   if (!workflowExists || hasLoadError) {
     return (

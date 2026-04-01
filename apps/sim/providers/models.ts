@@ -14,6 +14,7 @@ import {
   BedrockIcon,
   CerebrasIcon,
   DeepseekIcon,
+  FireworksIcon,
   GeminiIcon,
   GroqIcon,
   MistralIcon,
@@ -24,7 +25,7 @@ import {
   VllmIcon,
   xAIIcon,
 } from '@/components/icons'
-import type { ModelPricing } from '@/providers/types'
+import type { ModelPricing, ProviderId } from '@/providers/types'
 
 export interface ModelCapabilities {
   temperature?: {
@@ -71,6 +72,20 @@ export interface ProviderDefinition {
 }
 
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
+  fireworks: {
+    id: 'fireworks',
+    name: 'Fireworks',
+    description: 'Fast inference for open-source models via Fireworks AI',
+    defaultModel: '',
+    modelPatterns: [/^fireworks\//],
+    icon: FireworksIcon,
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    contextInformationAvailable: false,
+    models: [],
+  },
   openrouter: {
     id: 'openrouter',
     name: 'OpenRouter',
@@ -155,6 +170,44 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           maxOutputTokens: 128000,
         },
         contextWindow: 1050000,
+      },
+      {
+        id: 'gpt-5.4-mini',
+        pricing: {
+          input: 0.75,
+          cachedInput: 0.075,
+          output: 4.5,
+          updatedAt: '2026-03-17',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 400000,
+      },
+      {
+        id: 'gpt-5.4-nano',
+        pricing: {
+          input: 0.2,
+          cachedInput: 0.02,
+          output: 1.25,
+          updatedAt: '2026-03-17',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 400000,
       },
       {
         id: 'gpt-5.2',
@@ -545,6 +598,44 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           maxOutputTokens: 128000,
         },
         contextWindow: 1050000,
+      },
+      {
+        id: 'azure/gpt-5.4-mini',
+        pricing: {
+          input: 0.75,
+          cachedInput: 0.075,
+          output: 4.5,
+          updatedAt: '2026-03-17',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 400000,
+      },
+      {
+        id: 'azure/gpt-5.4-nano',
+        pricing: {
+          input: 0.2,
+          cachedInput: 0.02,
+          output: 1.25,
+          updatedAt: '2026-03-17',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['none', 'low', 'medium', 'high', 'xhigh'],
+          },
+          verbosity: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 400000,
       },
       {
         id: 'azure/gpt-5.2',
@@ -2284,6 +2375,45 @@ export function getProviderModels(providerId: string): string[] {
   return PROVIDER_DEFINITIONS[providerId]?.models.map((m) => m.id) || []
 }
 
+export function getBaseModelProviders(): Record<string, ProviderId> {
+  return Object.entries(PROVIDER_DEFINITIONS)
+    .filter(([providerId]) => !['ollama', 'vllm', 'openrouter'].includes(providerId))
+    .reduce(
+      (map, [providerId, provider]) => {
+        provider.models.forEach((model) => {
+          map[model.id.toLowerCase()] = providerId as ProviderId
+        })
+        return map
+      },
+      {} as Record<string, ProviderId>
+    )
+}
+
+export function getProviderFromModel(model: string): ProviderId {
+  const normalizedModel = model.toLowerCase()
+
+  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
+    if (
+      provider.models.some((providerModel) => providerModel.id.toLowerCase() === normalizedModel)
+    ) {
+      return providerId as ProviderId
+    }
+  }
+
+  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
+    if (provider.modelPatterns?.some((pattern) => pattern.test(normalizedModel))) {
+      return providerId as ProviderId
+    }
+  }
+
+  return 'ollama'
+}
+
+export function getProviderIcon(model: string): React.ComponentType<{ className?: string }> | null {
+  const providerId = getProviderFromModel(model)
+  return PROVIDER_DEFINITIONS[providerId]?.icon || null
+}
+
 export function getProviderDefaultModel(providerId: string): string {
   return PROVIDER_DEFINITIONS[providerId]?.defaultModel || ''
 }
@@ -2414,6 +2544,18 @@ export function updateOllamaModels(models: string[]): void {
 
 export function updateVLLMModels(models: string[]): void {
   PROVIDER_DEFINITIONS.vllm.models = models.map((modelId) => ({
+    id: modelId,
+    pricing: {
+      input: 0,
+      output: 0,
+      updatedAt: new Date().toISOString().split('T')[0],
+    },
+    capabilities: {},
+  }))
+}
+
+export function updateFireworksModels(models: string[]): void {
+  PROVIDER_DEFINITIONS.fireworks.models = models.map((modelId) => ({
     id: modelId,
     pricing: {
       input: 0,
