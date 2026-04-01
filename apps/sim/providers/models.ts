@@ -14,6 +14,7 @@ import {
   BedrockIcon,
   CerebrasIcon,
   DeepseekIcon,
+  FireworksIcon,
   GeminiIcon,
   GroqIcon,
   MistralIcon,
@@ -71,6 +72,20 @@ export interface ProviderDefinition {
 }
 
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
+  fireworks: {
+    id: 'fireworks',
+    name: 'Fireworks',
+    description: 'Fast inference for open-source models via Fireworks AI',
+    defaultModel: '',
+    modelPatterns: [/^fireworks\//],
+    icon: FireworksIcon,
+    capabilities: {
+      temperature: { min: 0, max: 2 },
+      toolUsageControl: true,
+    },
+    contextInformationAvailable: false,
+    models: [],
+  },
   openrouter: {
     id: 'openrouter',
     name: 'OpenRouter',
@@ -2529,6 +2544,18 @@ export function updateOllamaModels(models: string[]): void {
 
 export function updateVLLMModels(models: string[]): void {
   PROVIDER_DEFINITIONS.vllm.models = models.map((modelId) => ({
+    id: modelId,
+    pricing: {
+      input: 0,
+      output: 0,
+      updatedAt: new Date().toISOString().split('T')[0],
+    },
+    capabilities: {},
+  }))
+}
+
+export function updateFireworksModels(models: string[]): void {
+  PROVIDER_DEFINITIONS.fireworks.models = models.map((modelId) => ({
     id: modelId,
     pricing: {
       input: 0,

@@ -21,8 +21,15 @@ export function getModelOptions() {
   const ollamaModels = providersState.providers.ollama.models
   const vllmModels = providersState.providers.vllm.models
   const openrouterModels = providersState.providers.openrouter.models
+  const fireworksModels = providersState.providers.fireworks.models
   const allModels = Array.from(
-    new Set([...baseModels, ...ollamaModels, ...vllmModels, ...openrouterModels])
+    new Set([
+      ...baseModels,
+      ...ollamaModels,
+      ...vllmModels,
+      ...openrouterModels,
+      ...fireworksModels,
+    ])
   )
 
   return allModels.map((model) => {
