@@ -391,10 +391,12 @@ describe('LoggingSession completion retries', () => {
 
     await session.onBlockComplete('block-2', 'Transform', 'function', {
       endedAt: '2025-01-01T00:00:01.000Z',
-      output: { value: true },
-      cost: { total: 1, input: 1, output: 0 },
-      tokens: { input: 1, output: 0, total: 1 },
-      model: 'test-model',
+      output: {
+        value: true,
+        cost: { total: 1, input: 1, output: 0 },
+        tokens: { input: 1, output: 0, total: 1 },
+        model: 'test-model',
+      },
     })
 
     const completionPromise = session.safeComplete({ finalOutput: { ok: true } })
