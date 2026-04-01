@@ -377,7 +377,13 @@ export async function POST(request: NextRequest) {
       ),
     })
 
-    const registration = await auth.api.registerSSOProvider({
+    const api = auth.api as typeof auth.api & {
+      registerSSOProvider: (ctx: {
+        body: unknown
+        headers: Headers
+      }) => Promise<{ providerId: string }>
+    }
+    const registration = await api.registerSSOProvider({
       body: providerConfig,
       headers,
     })

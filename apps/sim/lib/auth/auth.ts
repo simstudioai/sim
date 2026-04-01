@@ -19,6 +19,7 @@ import {
   oneTimeToken,
   organization,
 } from 'better-auth/plugins'
+import type { BetterAuthPlugin } from 'better-auth/types'
 import { emailHarmony } from 'better-auth-harmony'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
@@ -559,12 +560,12 @@ export const auth = betterAuth({
     github: {
       clientId: env.GITHUB_CLIENT_ID as string,
       clientSecret: env.GITHUB_CLIENT_SECRET as string,
-      scopes: ['user:email', 'repo'],
+      scope: ['user:email', 'repo'],
     },
     google: {
       clientId: env.GOOGLE_CLIENT_ID as string,
       clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      scopes: [
+      scope: [
         'https://www.googleapis.com/auth/userinfo.email',
         'https://www.googleapis.com/auth/userinfo.profile',
       ],
@@ -602,7 +603,6 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: isEmailVerificationEnabled,
-    sendVerificationOnSignUp: isEmailVerificationEnabled, // Auto-send verification OTP on signup when verification is required
     throwOnMissingCredentials: true,
     throwOnInvalidCredentials: true,
     sendResetPassword: async ({ user, url, token }, request) => {
@@ -712,7 +712,7 @@ export const auth = betterAuth({
   },
   plugins: [
     nextCookies(),
-    ...(isSignupEmailValidationEnabled ? [emailHarmony()] : []),
+    ...(isSignupEmailValidationEnabled ? [emailHarmony() as BetterAuthPlugin] : []),
     ...(env.TURNSTILE_SECRET_KEY
       ? [
           captcha({
