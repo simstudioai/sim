@@ -56,9 +56,7 @@ export async function authenticateSocket(socket: AuthenticatedSocket, next: (err
       })
 
       const api = auth.api as typeof auth.api & {
-        verifyOneTimeToken: (ctx: {
-          body: { token: string }
-        }) => Promise<{
+        verifyOneTimeToken: (ctx: { body: { token: string } }) => Promise<{
           user: { id: string; name: string; email: string; image?: string | null }
           session: { activeOrganizationId?: string | null }
         }>
