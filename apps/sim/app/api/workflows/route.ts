@@ -8,6 +8,8 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
+import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName, listWorkflows, type WorkflowScope } from '@/lib/workflows/utils'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
@@ -247,6 +249,8 @@ export async function POST(req: NextRequest) {
         // Silently fail
       })
 
+    const { workflowState, subBlockValues, startBlockId } = buildDefaultWorkflowArtifacts()
+
     await db.insert(workflow).values({
       id: workflowId,
       userId,
@@ -264,7 +268,14 @@ export async function POST(req: NextRequest) {
       variables: {},
     })
 
-    logger.info(`[${requestId}] Successfully created empty workflow ${workflowId}`)
+    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
+    if (!saveResult.success) {
+      logger.error(
+        `[${requestId}] Failed to persist default blocks for workflow ${workflowId}: ${saveResult.error}`
+      )
+    }
+
+    logger.info(`[${requestId}] Successfully created workflow ${workflowId} with default blocks`)
 
     recordAudit({
       workspaceId,
@@ -290,6 +301,8 @@ export async function POST(req: NextRequest) {
       sortOrder,
       createdAt: now,
       updatedAt: now,
+      startBlockId,
+      subBlockValues,
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
