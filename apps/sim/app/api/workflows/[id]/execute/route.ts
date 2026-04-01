@@ -237,7 +237,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
           },
         })
       : await jobQueue!.enqueue('workflow-execution', payload, {
-          metadata: { workflowId, userId, correlation },
+          metadata: { workflowId, workspaceId, userId, correlation },
         })
 
     asyncLogger.info('Queued async workflow execution', { jobId })

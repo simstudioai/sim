@@ -120,7 +120,9 @@ export interface DocumentJobData {
 
 export async function dispatchDocumentProcessingJob(payload: DocumentJobData): Promise<void> {
   if (isTriggerAvailable()) {
-    await tasks.trigger('knowledge-process-document', payload)
+    await tasks.trigger('knowledge-process-document', payload, {
+      tags: [`knowledgeBaseId:${payload.knowledgeBaseId}`, `documentId:${payload.documentId}`],
+    })
     return
   }
 
@@ -692,7 +694,7 @@ export async function processDocumentsWithTrigger(
           payload: doc,
           options: {
             idempotencyKey: `doc-process-${doc.documentId}-${requestId}`,
-            tags: [`kb:${doc.knowledgeBaseId}`, `doc:${doc.documentId}`],
+            tags: [`knowledgeBaseId:${doc.knowledgeBaseId}`, `documentId:${doc.documentId}`],
           },
         }))
       )

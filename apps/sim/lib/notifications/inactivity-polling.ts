@@ -189,7 +189,13 @@ async function checkWorkflowInactivity(
   }
 
   if (isTriggerDevEnabled) {
-    await workspaceNotificationDeliveryTask.trigger(payload)
+    await workspaceNotificationDeliveryTask.trigger(payload, {
+      tags: [
+        `workspaceId:${workflowData.workspaceId}`,
+        `workflowId:${workflowId}`,
+        `notificationType:${subscription.notificationType}`,
+      ],
+    })
   } else if (await enqueueNotificationDeliveryDispatch(payload)) {
   } else {
     void executeNotificationDelivery(payload).catch((error) => {

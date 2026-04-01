@@ -146,34 +146,34 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
                   <Label>Chunking Configuration</Label>
                   <div className='grid grid-cols-3 gap-2'>
                     <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                      <p className='text-[var(--text-tertiary)] text-[11px] leading-tight'>
+                      <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
                         Max Size
                       </p>
                       <p className='font-medium text-[var(--text-primary)] text-sm'>
                         {chunkingConfig.maxSize.toLocaleString()}
-                        <span className='ml-0.5 font-normal text-[var(--text-tertiary)] text-[11px]'>
+                        <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
                           tokens
                         </span>
                       </p>
                     </div>
                     <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                      <p className='text-[var(--text-tertiary)] text-[11px] leading-tight'>
+                      <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
                         Min Size
                       </p>
                       <p className='font-medium text-[var(--text-primary)] text-sm'>
                         {chunkingConfig.minSize.toLocaleString()}
-                        <span className='ml-0.5 font-normal text-[var(--text-tertiary)] text-[11px]'>
+                        <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
                           chars
                         </span>
                       </p>
                     </div>
                     <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                      <p className='text-[var(--text-tertiary)] text-[11px] leading-tight'>
+                      <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
                         Overlap
                       </p>
                       <p className='font-medium text-[var(--text-primary)] text-sm'>
                         {chunkingConfig.overlap.toLocaleString()}
-                        <span className='ml-0.5 font-normal text-[var(--text-tertiary)] text-[11px]'>
+                        <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
                           tokens
                         </span>
                       </p>

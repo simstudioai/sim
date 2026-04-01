@@ -139,7 +139,13 @@ export async function emitWorkflowExecutionCompleted(log: WorkflowExecutionLog):
       }
 
       if (isTriggerDevEnabled) {
-        await workspaceNotificationDeliveryTask.trigger(payload)
+        await workspaceNotificationDeliveryTask.trigger(payload, {
+          tags: [
+            `workspaceId:${workspaceId}`,
+            `workflowId:${log.workflowId}`,
+            `notificationType:${subscription.notificationType}`,
+          ],
+        })
         logger.info(
           `Enqueued ${subscription.notificationType} notification ${deliveryId} via Trigger.dev`
         )
