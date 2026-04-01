@@ -36,7 +36,7 @@ export async function encryptApiKey(apiKey: string): Promise<{ encrypted: string
   }
 
   const iv = randomBytes(16)
-  const cipher = createCipheriv('aes-256-gcm', key, iv)
+  const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 })
   let encrypted = cipher.update(apiKey, 'utf8', 'hex')
   encrypted += cipher.final('hex')
 
