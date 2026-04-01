@@ -1011,10 +1011,14 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           ...file,
         })),
         processingOptions: {
-          chunkSize: processingOptions.chunkSize || 1024,
-          minCharactersPerChunk: processingOptions.minCharactersPerChunk || 1,
-          chunkOverlap: processingOptions.chunkOverlap || 200,
-          recipe: processingOptions.recipe || 'default',
+          ...(processingOptions.chunkSize != null && { chunkSize: processingOptions.chunkSize }),
+          ...(processingOptions.minCharactersPerChunk != null && {
+            minCharactersPerChunk: processingOptions.minCharactersPerChunk,
+          }),
+          ...(processingOptions.chunkOverlap != null && {
+            chunkOverlap: processingOptions.chunkOverlap,
+          }),
+          recipe: processingOptions.recipe ?? 'default',
           lang: 'en',
         },
         bulk: true,

@@ -464,9 +464,9 @@ export async function processDocumentAsync(
           docData.fileUrl,
           docData.filename,
           docData.mimeType,
-          processingOptions.chunkSize ?? kbConfig.maxSize,
-          processingOptions.chunkOverlap ?? kbConfig.overlap,
-          processingOptions.minCharactersPerChunk ?? kbConfig.minSize,
+          kbConfig.maxSize,
+          kbConfig.overlap,
+          kbConfig.minSize,
           kb[0].userId,
           kb[0].workspaceId
         )

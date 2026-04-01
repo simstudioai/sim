@@ -26,11 +26,11 @@ const UpsertDocumentSchema = z.object({
   mimeType: z.string().min(1, 'MIME type is required'),
   documentTagsData: z.string().optional(),
   processingOptions: z.object({
-    chunkSize: z.number().min(100).max(4000),
-    minCharactersPerChunk: z.number().min(1).max(2000),
-    recipe: z.string(),
-    lang: z.string(),
-    chunkOverlap: z.number().min(0).max(500),
+    chunkSize: z.number().min(100).max(4000).optional(),
+    minCharactersPerChunk: z.number().min(1).max(2000).optional(),
+    recipe: z.string().optional(),
+    lang: z.string().optional(),
+    chunkOverlap: z.number().min(0).max(500).optional(),
   }),
   workflowId: z.string().optional(),
 })
