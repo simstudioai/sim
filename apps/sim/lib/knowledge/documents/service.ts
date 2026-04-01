@@ -101,11 +101,8 @@ export interface DocumentData {
 }
 
 export interface ProcessingOptions {
-  chunkSize?: number
-  minCharactersPerChunk?: number
   recipe?: string
   lang?: string
-  chunkOverlap?: number
 }
 
 export interface DocumentJobData {
@@ -416,13 +413,7 @@ export async function processDocumentAsync(
     fileSize: number
     mimeType: string
   },
-  processingOptions: {
-    chunkSize?: number
-    minCharactersPerChunk?: number
-    recipe?: string
-    lang?: string
-    chunkOverlap?: number
-  }
+  processingOptions: ProcessingOptions = {}
 ): Promise<void> {
   const startTime = Date.now()
   try {
@@ -1573,16 +1564,6 @@ export async function retryDocumentProcessing(
   },
   requestId: string
 ): Promise<{ success: boolean; status: string; message: string }> {
-  const kb = await db
-    .select({
-      chunkingConfig: knowledgeBase.chunkingConfig,
-    })
-    .from(knowledgeBase)
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
-    .limit(1)
-
-  const kbConfig = kb[0].chunkingConfig as { maxSize: number; minSize: number; overlap: number }
-
   await db.transaction(async (tx) => {
     await tx.delete(embedding).where(eq(embedding.documentId, documentId))
 
@@ -1600,14 +1581,6 @@ export async function retryDocumentProcessing(
       .where(eq(document.id, documentId))
   })
 
-  const processingOptions = {
-    chunkSize: kbConfig.maxSize,
-    minCharactersPerChunk: kbConfig.minSize,
-    recipe: 'default',
-    lang: 'en',
-    chunkOverlap: kbConfig.overlap,
-  }
-
   await processDocumentsWithQueue(
     [
       {
@@ -1619,7 +1592,7 @@ export async function retryDocumentProcessing(
       },
     ],
     knowledgeBaseId,
-    processingOptions,
+    {},
     requestId
   )
 

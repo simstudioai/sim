@@ -269,9 +269,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
       if (files.length > 0) {
         try {
           const uploadedFiles = await uploadFiles(files, newKnowledgeBase.id, {
-            chunkSize: data.maxChunkSize,
-            minCharactersPerChunk: data.minChunkSize,
-            chunkOverlap: data.overlapSize,
             recipe: 'default',
           })
 
