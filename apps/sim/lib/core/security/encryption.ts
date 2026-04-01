@@ -26,11 +26,12 @@ export async function encryptSecret(secret: string): Promise<{ encrypted: string
   encrypted += cipher.final('hex')
 
   const authTag = cipher.getAuthTag()
+  const ivHex = iv.toString('hex')
 
   // Format: iv:encrypted:authTag
   return {
-    encrypted: `${iv.toString('hex')}:${encrypted}:${authTag.toString('hex')}`,
-    iv: iv.toString('hex'),
+    encrypted: `${ivHex}:${encrypted}:${authTag.toString('hex')}`,
+    iv: ivHex,
   }
 }
 
@@ -61,8 +62,10 @@ export async function decryptSecret(encryptedValue: string): Promise<{ decrypted
     decrypted += decipher.final('utf8')
 
     return { decrypted }
-  } catch (error: any) {
-    logger.error('Decryption error:', { error: error.message })
+  } catch (error: unknown) {
+    logger.error('Decryption error:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
     throw error
   }
 }

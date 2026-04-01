@@ -41,11 +41,12 @@ export async function encryptApiKey(apiKey: string): Promise<{ encrypted: string
   encrypted += cipher.final('hex')
 
   const authTag = cipher.getAuthTag()
+  const ivHex = iv.toString('hex')
 
   // Format: iv:encrypted:authTag
   return {
-    encrypted: `${iv.toString('hex')}:${encrypted}:${authTag.toString('hex')}`,
-    iv: iv.toString('hex'),
+    encrypted: `${ivHex}:${encrypted}:${authTag.toString('hex')}`,
+    iv: ivHex,
   }
 }
 
@@ -55,8 +56,10 @@ export async function encryptApiKey(apiKey: string): Promise<{ encrypted: string
  * @returns A promise that resolves to an object containing the decrypted API key
  */
 export async function decryptApiKey(encryptedValue: string): Promise<{ decrypted: string }> {
+  const parts = encryptedValue.split(':')
+
   // Check if this is actually encrypted (contains colons)
-  if (!encryptedValue.includes(':') || encryptedValue.split(':').length !== 3) {
+  if (parts.length !== 3) {
     // This is a plain text key, return as-is
     return { decrypted: encryptedValue }
   }
@@ -68,10 +71,9 @@ export async function decryptApiKey(encryptedValue: string): Promise<{ decrypted
     return { decrypted: encryptedValue }
   }
 
-  const parts = encryptedValue.split(':')
   const ivHex = parts[0]
-  const authTagHex = parts[parts.length - 1]
-  const encrypted = parts.slice(1, -1).join(':')
+  const authTagHex = parts[2]
+  const encrypted = parts[1]
 
   if (!ivHex || !encrypted || !authTagHex) {
     throw new Error('Invalid encrypted API key format. Expected "iv:encrypted:authTag"')
