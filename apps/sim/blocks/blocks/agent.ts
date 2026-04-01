@@ -4,10 +4,8 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
-  AZURE_MODELS,
-  BEDROCK_MODELS,
-  getApiKeyCondition,
   getModelOptions,
+  getProviderCredentialSubBlocks,
   RESPONSE_FORMAT_WAND_CONFIG,
   VERTEX_MODELS,
 } from '@/blocks/utils'
@@ -321,104 +319,9 @@ Return ONLY the JSON array.`,
       },
     },
 
-    {
-      id: 'azureEndpoint',
-      title: 'Azure Endpoint',
-      type: 'short-input',
-      password: true,
-      placeholder: 'https://your-resource.services.ai.azure.com',
-      connectionDroppable: false,
-      hideWhenEnvSet: 'NEXT_PUBLIC_AZURE_CONFIGURED',
-      condition: {
-        field: 'model',
-        value: AZURE_MODELS,
-      },
-    },
-    {
-      id: 'azureApiVersion',
-      title: 'Azure API Version',
-      type: 'short-input',
-      placeholder: 'Enter API version',
-      connectionDroppable: false,
-      hideWhenEnvSet: 'NEXT_PUBLIC_AZURE_CONFIGURED',
-      condition: {
-        field: 'model',
-        value: AZURE_MODELS,
-      },
-    },
-    {
-      id: 'vertexProject',
-      title: 'Vertex AI Project',
-      type: 'short-input',
-      placeholder: 'your-gcp-project-id',
-      connectionDroppable: false,
-      required: true,
-      condition: {
-        field: 'model',
-        value: VERTEX_MODELS,
-      },
-    },
-    {
-      id: 'vertexLocation',
-      title: 'Vertex AI Location',
-      type: 'short-input',
-      placeholder: 'us-central1',
-      connectionDroppable: false,
-      required: true,
-      condition: {
-        field: 'model',
-        value: VERTEX_MODELS,
-      },
-    },
-    {
-      id: 'bedrockAccessKeyId',
-      title: 'AWS Access Key ID',
-      type: 'short-input',
-      password: true,
-      placeholder: 'Enter your AWS Access Key ID',
-      connectionDroppable: false,
-      required: true,
-      hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
-      condition: {
-        field: 'model',
-        value: BEDROCK_MODELS,
-      },
-    },
-    {
-      id: 'bedrockSecretKey',
-      title: 'AWS Secret Access Key',
-      type: 'short-input',
-      password: true,
-      placeholder: 'Enter your AWS Secret Access Key',
-      connectionDroppable: false,
-      required: true,
-      hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
-      condition: {
-        field: 'model',
-        value: BEDROCK_MODELS,
-      },
-    },
-    {
-      id: 'bedrockRegion',
-      title: 'AWS Region',
-      type: 'short-input',
-      placeholder: 'us-east-1',
-      connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: BEDROCK_MODELS,
-      },
-    },
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      placeholder: 'Enter your API key',
-      password: true,
-      connectionDroppable: false,
-      required: true,
-      condition: getApiKeyCondition(),
-    },
+    // Agent has its own vertexCredential/manualCredential above (with canonicalParamId + basic/advanced mode).
+    // Spread the rest of the shared credential subblocks, skipping the simple vertexCredential.
+    ...getProviderCredentialSubBlocks().filter((s) => s.id !== 'vertexCredential'),
     {
       id: 'tools',
       title: 'Tools',
