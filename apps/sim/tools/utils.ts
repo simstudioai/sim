@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
-import { AGENT, isCustomTool } from '@/executor/constants'
 import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
 import { useEnvironmentStore } from '@/stores/settings/environment'
 import { tools } from '@/tools/registry'
@@ -334,5 +333,3 @@ export function createToolConfig(
     },
   }
 }
-
-
