@@ -17,6 +17,7 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import type { ChunkingConfig } from '@/lib/knowledge/types'
 
 const logger = createLogger('EditKnowledgeBaseModal')
 
@@ -26,6 +27,7 @@ interface EditKnowledgeBaseModalProps {
   knowledgeBaseId: string
   initialName: string
   initialDescription: string
+  chunkingConfig?: ChunkingConfig
   onSave: (id: string, name: string, description: string) => Promise<void>
 }
 
@@ -49,6 +51,7 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
   knowledgeBaseId,
   initialName,
   initialDescription,
+  chunkingConfig,
   onSave,
 }: EditKnowledgeBaseModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -137,6 +140,47 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
                   </p>
                 )}
               </div>
+
+              {chunkingConfig && (
+                <div className='flex flex-col gap-2'>
+                  <Label>Chunking Configuration</Label>
+                  <div className='grid grid-cols-3 gap-2'>
+                    <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
+                      <p className='text-[var(--text-tertiary)] text-[11px] leading-tight'>
+                        Max Size
+                      </p>
+                      <p className='font-medium text-[var(--text-primary)] text-sm'>
+                        {chunkingConfig.maxSize.toLocaleString()}
+                        <span className='ml-0.5 font-normal text-[var(--text-tertiary)] text-[11px]'>
+                          tokens
+                        </span>
+                      </p>
+                    </div>
+                    <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
+                      <p className='text-[var(--text-tertiary)] text-[11px] leading-tight'>
+                        Min Size
+                      </p>
+                      <p className='font-medium text-[var(--text-primary)] text-sm'>
+                        {chunkingConfig.minSize.toLocaleString()}
+                        <span className='ml-0.5 font-normal text-[var(--text-tertiary)] text-[11px]'>
+                          chars
+                        </span>
+                      </p>
+                    </div>
+                    <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
+                      <p className='text-[var(--text-tertiary)] text-[11px] leading-tight'>
+                        Overlap
+                      </p>
+                      <p className='font-medium text-[var(--text-primary)] text-sm'>
+                        {chunkingConfig.overlap.toLocaleString()}
+                        <span className='ml-0.5 font-normal text-[var(--text-tertiary)] text-[11px]'>
+                          tokens
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </ModalBody>
 

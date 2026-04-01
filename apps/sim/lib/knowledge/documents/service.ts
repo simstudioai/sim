@@ -101,11 +101,8 @@ export interface DocumentData {
 }
 
 export interface ProcessingOptions {
-  chunkSize?: number
-  minCharactersPerChunk?: number
   recipe?: string
   lang?: string
-  chunkOverlap?: number
 }
 
 export interface DocumentJobData {
@@ -416,13 +413,7 @@ export async function processDocumentAsync(
     fileSize: number
     mimeType: string
   },
-  processingOptions: {
-    chunkSize?: number
-    minCharactersPerChunk?: number
-    recipe?: string
-    lang?: string
-    chunkOverlap?: number
-  }
+  processingOptions: ProcessingOptions = {}
 ): Promise<void> {
   const startTime = Date.now()
   try {
@@ -456,7 +447,16 @@ export async function processDocumentAsync(
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
-    const kbConfig = kb[0].chunkingConfig as { maxSize: number; minSize: number; overlap: number }
+    const rawConfig = kb[0].chunkingConfig as {
+      maxSize?: number
+      minSize?: number
+      overlap?: number
+    } | null
+    const kbConfig = {
+      maxSize: rawConfig?.maxSize ?? 1024,
+      minSize: rawConfig?.minSize ?? 100,
+      overlap: rawConfig?.overlap ?? 200,
+    }
 
     await withTimeout(
       (async () => {
@@ -464,9 +464,9 @@ export async function processDocumentAsync(
           docData.fileUrl,
           docData.filename,
           docData.mimeType,
-          processingOptions.chunkSize ?? kbConfig.maxSize,
-          processingOptions.chunkOverlap ?? kbConfig.overlap,
-          processingOptions.minCharactersPerChunk ?? kbConfig.minSize,
+          kbConfig.maxSize,
+          kbConfig.overlap,
+          kbConfig.minSize,
           kb[0].userId,
           kb[0].workspaceId
         )
@@ -1573,16 +1573,6 @@ export async function retryDocumentProcessing(
   },
   requestId: string
 ): Promise<{ success: boolean; status: string; message: string }> {
-  const kb = await db
-    .select({
-      chunkingConfig: knowledgeBase.chunkingConfig,
-    })
-    .from(knowledgeBase)
-    .where(eq(knowledgeBase.id, knowledgeBaseId))
-    .limit(1)
-
-  const kbConfig = kb[0].chunkingConfig as { maxSize: number; minSize: number; overlap: number }
-
   await db.transaction(async (tx) => {
     await tx.delete(embedding).where(eq(embedding.documentId, documentId))
 
@@ -1600,14 +1590,6 @@ export async function retryDocumentProcessing(
       .where(eq(document.id, documentId))
   })
 
-  const processingOptions = {
-    chunkSize: kbConfig.maxSize,
-    minCharactersPerChunk: kbConfig.minSize,
-    recipe: 'default',
-    lang: 'en',
-    chunkOverlap: kbConfig.overlap,
-  }
-
   await processDocumentsWithQueue(
     [
       {
@@ -1619,7 +1601,7 @@ export async function retryDocumentProcessing(
       },
     ],
     knowledgeBaseId,
-    processingOptions,
+    {},
     requestId
   )
 

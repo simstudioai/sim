@@ -602,6 +602,7 @@ export function Knowledge() {
           knowledgeBaseId={activeKnowledgeBase.id}
           initialName={activeKnowledgeBase.name}
           initialDescription={activeKnowledgeBase.description || ''}
+          chunkingConfig={activeKnowledgeBase.chunkingConfig}
           onSave={handleUpdateKnowledgeBase}
         />
       )}
