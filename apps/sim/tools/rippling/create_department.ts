@@ -42,8 +42,8 @@ export const ripplingCreateDepartmentTool: ToolConfig<RipplingCreateDepartmentPa
     }),
     body: (params) => {
       const body: Record<string, unknown> = { name: params.name }
-      if (params.parentId) body.parent_id = params.parentId
-      if (params.referenceCode) body.reference_code = params.referenceCode
+      if (params.parentId != null) body.parent_id = params.parentId
+      if (params.referenceCode != null) body.reference_code = params.referenceCode
       return body
     },
   },

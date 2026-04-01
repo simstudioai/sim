@@ -31,6 +31,15 @@ export const WORKER_OUTPUT_PROPERTIES = {
   },
   title_effective_date: { type: 'string', description: 'Title effective date' },
   business_partners_id: { type: 'json', description: 'Array of business partner IDs' },
+  location: { type: 'json', description: 'Worker location (type, work_location_id)' },
+  gender: { type: 'string', description: 'Gender' },
+  date_of_birth: { type: 'string', description: 'Date of birth' },
+  race: { type: 'string', description: 'Race' },
+  ethnicity: { type: 'string', description: 'Ethnicity' },
+  citizenship: { type: 'string', description: 'Citizenship country code' },
+  termination_details: { type: 'json', description: 'Termination details' },
+  custom_fields: { type: 'json', description: 'Custom fields (expandable)' },
+  country_fields: { type: 'json', description: 'Country-specific fields' },
 } as const satisfies Record<string, OutputProperty>
 
 /** User output properties */
@@ -45,6 +54,11 @@ export const USER_OUTPUT_PROPERTIES = {
   locale: { type: 'string', description: 'Locale' },
   timezone: { type: 'string', description: 'Timezone (IANA format)' },
   number: { type: 'string', description: 'Permanent profile number' },
+  name: { type: 'json', description: 'User name object (given_name, family_name, etc.)' },
+  emails: { type: 'json', description: 'Array of email objects' },
+  phone_numbers: { type: 'json', description: 'Array of phone number objects' },
+  addresses: { type: 'json', description: 'Array of address objects' },
+  photos: { type: 'json', description: 'Array of photo objects' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Company output properties */
@@ -207,6 +221,7 @@ export const GROUP_MEMBER_OUTPUT_PROPERTIES = {
   full_name: { type: 'string', description: 'Full name' },
   work_email: { type: 'string', description: 'Work email' },
   worker_id: { type: 'string', description: 'Worker ID' },
+  worker: { type: 'json', description: 'Expanded worker object' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Custom object output properties */
@@ -764,6 +779,11 @@ export interface RipplingGetReportRunParams {
 export interface RipplingTriggerReportRunParams {
   apiKey: string
   reportId: string
+  includeObjectIds?: boolean
+  includeTotalRows?: boolean
+  formatDateFields?: unknown
+  formatCurrencyFields?: unknown
+  outputType?: string
 }
 
 /** Draft Hires */

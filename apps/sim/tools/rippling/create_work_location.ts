@@ -56,11 +56,11 @@ export const ripplingCreateWorkLocationTool: ToolConfig<RipplingCreateWorkLocati
     body: (params) => {
       const body: Record<string, unknown> = { name: params.name }
       const address: Record<string, string> = {}
-      if (params.streetAddress) address.street_address = params.streetAddress
-      if (params.locality) address.locality = params.locality
-      if (params.region) address.region = params.region
-      if (params.postalCode) address.postal_code = params.postalCode
-      if (params.country) address.country = params.country
+      if (params.streetAddress != null) address.street_address = params.streetAddress
+      if (params.locality != null) address.locality = params.locality
+      if (params.region != null) address.region = params.region
+      if (params.postalCode != null) address.postal_code = params.postalCode
+      if (params.country != null) address.country = params.country
       if (Object.keys(address).length > 0) body.address = address
       return body
     },

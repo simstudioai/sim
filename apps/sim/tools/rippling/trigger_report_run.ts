@@ -19,6 +19,36 @@ export const ripplingTriggerReportRunTool: ToolConfig<RipplingTriggerReportRunPa
       visibility: 'user-or-llm',
       description: 'Report ID to run',
     },
+    includeObjectIds: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Include object IDs in the report',
+    },
+    includeTotalRows: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Include total row count',
+    },
+    formatDateFields: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Date field formatting configuration',
+    },
+    formatCurrencyFields: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Currency field formatting configuration',
+    },
+    outputType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Output type (JSON or CSV)',
+    },
   },
   request: {
     url: `https://rest.ripplingapis.com/report-runs/`,
@@ -29,7 +59,14 @@ export const ripplingTriggerReportRunTool: ToolConfig<RipplingTriggerReportRunPa
       Accept: 'application/json',
     }),
     body: (params) => {
-      return { report_id: params.reportId }
+      const body: Record<string, unknown> = { report_id: params.reportId }
+      if (params.includeObjectIds != null) body.include_object_ids = params.includeObjectIds
+      if (params.includeTotalRows != null) body.include_total_rows = params.includeTotalRows
+      if (params.formatDateFields != null) body.format_date_fields = params.formatDateFields
+      if (params.formatCurrencyFields != null)
+        body.format_currency_fields = params.formatCurrencyFields
+      if (params.outputType != null) body.output_type = params.outputType
+      return body
     },
   },
   transformResponse: async (response: Response) => {

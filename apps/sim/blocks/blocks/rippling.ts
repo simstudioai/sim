@@ -326,9 +326,9 @@ export const RipplingBlock: BlockConfig = {
     },
     {
       id: 'customObjectId',
-      title: 'Custom Object ID',
+      title: 'Custom Object API Name',
       type: 'short-input',
-      placeholder: 'Enter the custom object ID',
+      placeholder: 'Enter the custom object API name (e.g. my_object__c)',
       condition: { field: 'operation', value: [...CUSTOM_OBJECT_ID_OPS] },
       required: { field: 'operation', value: [...CUSTOM_OBJECT_ID_OPS] },
     },

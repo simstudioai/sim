@@ -39,6 +39,11 @@ export const ripplingGetUserTool: ToolConfig<RipplingGetUserParams> = {
         locale: (data.locale as string) ?? null,
         timezone: (data.timezone as string) ?? null,
         number: (data.number as string) ?? null,
+        name: data.name ?? null,
+        emails: data.emails ?? [],
+        phone_numbers: data.phone_numbers ?? [],
+        addresses: data.addresses ?? [],
+        photos: data.photos ?? [],
       },
     }
   },
@@ -53,5 +58,10 @@ export const ripplingGetUserTool: ToolConfig<RipplingGetUserParams> = {
     locale: { type: 'string', description: 'Locale', optional: true },
     timezone: { type: 'string', description: 'Timezone', optional: true },
     number: { type: 'string', description: 'Profile number', optional: true },
+    name: { type: 'json', description: 'User name object', optional: true },
+    emails: { type: 'json', description: 'Email addresses', optional: true },
+    phone_numbers: { type: 'json', description: 'Phone numbers', optional: true },
+    addresses: { type: 'json', description: 'Addresses', optional: true },
+    photos: { type: 'json', description: 'Photos', optional: true },
   },
 }

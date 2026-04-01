@@ -61,6 +61,7 @@ export const ripplingListSupergroupMembersTool: ToolConfig<RipplingListSupergrou
           full_name: (item.full_name as string) ?? null,
           work_email: (item.work_email as string) ?? null,
           worker_id: (item.worker_id as string) ?? null,
+          worker: item.worker ?? null,
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,
