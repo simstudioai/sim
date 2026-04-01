@@ -954,10 +954,10 @@ async function generateOAuthLink(
   const { headers: getHeaders } = await import('next/headers')
   const reqHeaders = await getHeaders()
 
-  const data = (await auth.api.oAuth2LinkAccount({
+  const data = await auth.api.oAuth2LinkAccount({
     body: { providerId, callbackURL },
     headers: reqHeaders,
-  })) as { url?: string; redirect?: boolean }
+  })
 
   if (!data?.url) {
     throw new Error('oAuth2LinkAccount did not return an authorization URL')

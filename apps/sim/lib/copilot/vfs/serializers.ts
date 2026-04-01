@@ -1,6 +1,6 @@
 import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { isSubBlockHiddenByHostedKey } from '@/lib/workflows/subblocks/visibility'
+import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import type { ToolConfig } from '@/tools/types'
@@ -369,7 +369,7 @@ function serializeSubBlock(sb: SubBlockConfig): Record<string, unknown> {
  * Serialize a block schema for VFS components/blocks/{type}.json
  */
 export function serializeBlockSchema(block: BlockConfig): string {
-  const hiddenIds = new Set(block.subBlocks.filter(isSubBlockHiddenByHostedKey).map((sb) => sb.id))
+  const hiddenIds = new Set(block.subBlocks.filter(isSubBlockHidden).map((sb) => sb.id))
 
   const subBlocks = block.subBlocks
     .filter((sb) => !hiddenIds.has(sb.id))

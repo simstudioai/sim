@@ -403,6 +403,8 @@ export const env = createEnv({
     NEXT_PUBLIC_SUPPORT_EMAIL:             z.string().email().optional(),          // Custom support email
 
     NEXT_PUBLIC_E2B_ENABLED:               z.string().optional(),
+    NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS: z.string().optional(),              // Hide Bedrock credential fields when deployment uses AWS default credential chain (IAM roles, instance profiles, ECS task roles, IRSA)
+    NEXT_PUBLIC_AZURE_CONFIGURED:          z.string().optional(),              // Hide Azure credential fields when endpoint/key/version are pre-configured server-side
     NEXT_PUBLIC_COPILOT_TRAINING_ENABLED:  z.string().optional(),
     NEXT_PUBLIC_ENABLE_PLAYGROUND:         z.string().optional(),                  // Enable component playground at /playground
     NEXT_PUBLIC_DOCUMENTATION_URL:         z.string().url().optional(),            // Custom documentation URL
@@ -461,6 +463,8 @@ export const env = createEnv({
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: process.env.NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_E2B_ENABLED: process.env.NEXT_PUBLIC_E2B_ENABLED,
+    NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS: process.env.NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS,
+    NEXT_PUBLIC_AZURE_CONFIGURED: process.env.NEXT_PUBLIC_AZURE_CONFIGURED,
     NEXT_PUBLIC_COPILOT_TRAINING_ENABLED: process.env.NEXT_PUBLIC_COPILOT_TRAINING_ENABLED,
     NEXT_PUBLIC_ENABLE_PLAYGROUND: process.env.NEXT_PUBLIC_ENABLE_PLAYGROUND,
     NEXT_PUBLIC_POSTHOG_ENABLED: process.env.NEXT_PUBLIC_POSTHOG_ENABLED,

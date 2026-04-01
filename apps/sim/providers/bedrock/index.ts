@@ -1,6 +1,7 @@
 import {
   type Message as BedrockMessage,
   BedrockRuntimeClient,
+  type BedrockRuntimeClientConfig,
   type ContentBlock,
   type ConversationRole,
   ConverseCommand,
@@ -50,14 +51,6 @@ export const bedrockProvider: ProviderConfig = {
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
-    if (!request.bedrockAccessKeyId) {
-      throw new Error('AWS Access Key ID is required for Bedrock')
-    }
-
-    if (!request.bedrockSecretKey) {
-      throw new Error('AWS Secret Access Key is required for Bedrock')
-    }
-
     const region = request.bedrockRegion || 'us-east-1'
     const bedrockModelId = getBedrockInferenceProfileId(request.model, region)
 
@@ -67,13 +60,24 @@ export const bedrockProvider: ProviderConfig = {
       region,
     })
 
-    const client = new BedrockRuntimeClient({
-      region,
-      credentials: {
-        accessKeyId: request.bedrockAccessKeyId || '',
-        secretAccessKey: request.bedrockSecretKey || '',
-      },
-    })
+    const hasAccessKey = Boolean(request.bedrockAccessKeyId)
+    const hasSecretKey = Boolean(request.bedrockSecretKey)
+    if (hasAccessKey !== hasSecretKey) {
+      throw new Error(
+        'Both bedrockAccessKeyId and bedrockSecretKey must be provided together. ' +
+          'Provide both for explicit credentials, or omit both to use the AWS default credential chain.'
+      )
+    }
+
+    const clientConfig: BedrockRuntimeClientConfig = { region }
+    if (request.bedrockAccessKeyId && request.bedrockSecretKey) {
+      clientConfig.credentials = {
+        accessKeyId: request.bedrockAccessKeyId,
+        secretAccessKey: request.bedrockSecretKey,
+      }
+    }
+
+    const client = new BedrockRuntimeClient(clientConfig)
 
     const messages: BedrockMessage[] = []
     const systemContent: SystemContentBlock[] = []

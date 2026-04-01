@@ -285,15 +285,19 @@ export function resolveDependencyValue(
  * Check if a subblock is gated by a feature flag.
  */
 export function isSubBlockFeatureEnabled(subBlock: SubBlockConfig): boolean {
-  if (!subBlock.requiresFeature) return true
-  return isTruthy(getEnv(subBlock.requiresFeature))
+  if (!subBlock.showWhenEnvSet) return true
+  return isTruthy(getEnv(subBlock.showWhenEnvSet))
 }
 
 /**
- * Check if a subblock should be hidden because we're running on hosted Sim.
- * Used for tool API key fields that should be hidden when Sim provides hosted keys.
+ * Check if a subblock should be hidden based on environment conditions.
+ * Covers two cases:
+ * - `hideWhenHosted`: hidden when running on hosted Sim (tool API key fields)
+ * - `hideWhenEnvSet`: hidden when a specific NEXT_PUBLIC_ env var is truthy
+ *   (credential fields hidden when the deployment provides them server-side)
  */
-export function isSubBlockHiddenByHostedKey(subBlock: SubBlockConfig): boolean {
-  if (!subBlock.hideWhenHosted) return false
-  return isHosted
+export function isSubBlockHidden(subBlock: SubBlockConfig): boolean {
+  if (subBlock.hideWhenHosted && isHosted) return true
+  if (subBlock.hideWhenEnvSet && isTruthy(getEnv(subBlock.hideWhenEnvSet))) return true
+  return false
 }

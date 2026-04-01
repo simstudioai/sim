@@ -1,3 +1,4 @@
+import type { SecretListEntry, Tag } from '@aws-sdk/client-secrets-manager'
 import {
   CreateSecretCommand,
   DeleteSecretCommand,
@@ -61,7 +62,7 @@ export async function listSecrets(
   })
 
   const response = await client.send(command)
-  const secrets = (response.SecretList ?? []).map((secret) => ({
+  const secrets = (response.SecretList ?? []).map((secret: SecretListEntry) => ({
     name: secret.Name ?? '',
     arn: secret.ARN ?? '',
     description: secret.Description ?? null,
@@ -69,7 +70,7 @@ export async function listSecrets(
     lastChangedDate: secret.LastChangedDate?.toISOString() ?? null,
     lastAccessedDate: secret.LastAccessedDate?.toISOString() ?? null,
     rotationEnabled: secret.RotationEnabled ?? false,
-    tags: secret.Tags?.map((t) => ({ key: t.Key ?? '', value: t.Value ?? '' })) ?? [],
+    tags: secret.Tags?.map((t: Tag) => ({ key: t.Key ?? '', value: t.Value ?? '' })) ?? [],
   }))
 
   return {

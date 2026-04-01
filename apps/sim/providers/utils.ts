@@ -719,6 +719,13 @@ export function shouldBillModelUsage(model: string): boolean {
 }
 
 /**
+ * Placeholder returned for providers that use their own credential mechanism
+ * rather than a user-supplied API key (e.g. AWS Bedrock via IAM/instance profiles).
+ * Must be truthy so upstream key-presence checks don't reject it.
+ */
+export const PROVIDER_PLACEHOLDER_KEY = 'provider-uses-own-credentials'
+
+/**
  * Get an API key for a specific provider, handling rotation and fallbacks
  * For use server-side only
  */
@@ -740,7 +747,7 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   // Bedrock uses its own credentials (bedrockAccessKeyId/bedrockSecretKey), not apiKey
   const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
   if (isBedrockModel) {
-    return 'bedrock-uses-own-credentials'
+    return PROVIDER_PLACEHOLDER_KEY
   }
 
   const isOpenAIModel = provider === 'openai'
