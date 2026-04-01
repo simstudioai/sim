@@ -44,6 +44,11 @@ export const ripplingGetSupergroupTool: ToolConfig<RipplingGetSupergroupParams> 
         mutually_exclusive_key: (data.mutually_exclusive_key as string) ?? null,
         cumulatively_exhaustive_default: (data.cumulatively_exhaustive_default as boolean) ?? null,
         include_terminated: (data.include_terminated as boolean) ?? null,
+        allow_non_employees: (data.allow_non_employees as boolean) ?? null,
+        can_override_role_states: (data.can_override_role_states as boolean) ?? null,
+        priority: (data.priority as number) ?? null,
+        is_invisible: (data.is_invisible as boolean) ?? null,
+        ignore_prov_group_matching: (data.ignore_prov_group_matching as boolean) ?? null,
       },
     }
   },
@@ -72,6 +77,27 @@ export const ripplingGetSupergroupTool: ToolConfig<RipplingGetSupergroupParams> 
     include_terminated: {
       type: 'boolean',
       description: 'Whether the group includes terminated roles',
+      optional: true,
+    },
+    allow_non_employees: {
+      type: 'boolean',
+      description: 'Whether the group allows non-employees',
+      optional: true,
+    },
+    can_override_role_states: {
+      type: 'boolean',
+      description: 'Whether the group can override role states',
+      optional: true,
+    },
+    priority: { type: 'number', description: 'Group priority', optional: true },
+    is_invisible: {
+      type: 'boolean',
+      description: 'Whether the group is invisible',
+      optional: true,
+    },
+    ignore_prov_group_matching: {
+      type: 'boolean',
+      description: 'Whether to ignore provisioning group matching',
       optional: true,
     },
   },

@@ -44,7 +44,7 @@ export const ripplingUpdateSupergroupInclusionMembersTool: ToolConfig<RipplingUp
         throw new Error(`Rippling API error (${response.status}): ${errorText}`)
       }
       const data = await response.json()
-      return { success: true, output: { ok: data.ok ?? true } }
+      return { success: true, output: { ok: data.ok ?? false } }
     },
     outputs: {
       ok: { type: 'boolean', description: 'Whether the operation succeeded' },

@@ -59,6 +59,7 @@ export const COMPANY_OUTPUT_PROPERTIES = {
   primary_email: { type: 'string', description: 'Primary email' },
   parent_legal_entity_id: { type: 'string', description: 'Parent legal entity ID' },
   legal_entities_id: { type: 'json', description: 'Array of legal entity IDs' },
+  physical_address: { type: 'json', description: 'Physical address of the holding entity' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Department output properties */
@@ -170,6 +171,32 @@ export const SUPERGROUP_OUTPUT_PROPERTIES = {
   app_owner_id: { type: 'string', description: 'App owner ID' },
   group_type: { type: 'string', description: 'Group type' },
   name: { type: 'string', description: 'Name' },
+  sub_group_type: { type: 'string', description: 'Sub group type' },
+  read_only: { type: 'boolean', description: 'Whether the group is read only' },
+  parent: { type: 'string', description: 'Parent group ID' },
+  mutually_exclusive_key: { type: 'string', description: 'Mutually exclusive key' },
+  cumulatively_exhaustive_default: {
+    type: 'boolean',
+    description: 'Whether the group is the cumulatively exhaustive default',
+  },
+  include_terminated: {
+    type: 'boolean',
+    description: 'Whether the group includes terminated roles',
+  },
+  allow_non_employees: {
+    type: 'boolean',
+    description: 'Whether the group allows non-employees',
+  },
+  can_override_role_states: {
+    type: 'boolean',
+    description: 'Whether the group can override role states',
+  },
+  priority: { type: 'number', description: 'Group priority' },
+  is_invisible: { type: 'boolean', description: 'Whether the group is invisible' },
+  ignore_prov_group_matching: {
+    type: 'boolean',
+    description: 'Whether to ignore provisioning group matching',
+  },
 } as const satisfies Record<string, OutputProperty>
 
 /** Group member output properties */
@@ -192,6 +219,9 @@ export const CUSTOM_OBJECT_OUTPUT_PROPERTIES = {
   api_name: { type: 'string', description: 'API name' },
   plural_label: { type: 'string', description: 'Plural label' },
   category_id: { type: 'string', description: 'Category ID' },
+  native_category_id: { type: 'string', description: 'Native category ID' },
+  managed_package_install_id: { type: 'string', description: 'Package install ID' },
+  owner_id: { type: 'string', description: 'Owner ID' },
   enable_history: { type: 'boolean', description: 'Whether history is enabled' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -209,6 +239,7 @@ export const CUSTOM_OBJECT_FIELD_OUTPUT_PROPERTIES = {
   is_immutable: { type: 'boolean', description: 'Whether the field is immutable' },
   is_standard: { type: 'boolean', description: 'Whether the field is standard' },
   enable_history: { type: 'boolean', description: 'Whether history is enabled' },
+  managed_package_install_id: { type: 'string', description: 'Package install ID' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Custom object record output properties */
@@ -228,6 +259,8 @@ export const CUSTOM_APP_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'App name' },
   api_name: { type: 'string', description: 'API name' },
   description: { type: 'string', description: 'Description' },
+  icon: { type: 'string', description: 'Icon URL' },
+  pages: { type: 'json', description: 'Array of page summaries' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Custom page output properties */

@@ -64,6 +64,11 @@ export const ripplingListSupergroupsTool: ToolConfig<RipplingListSupergroupsPara
           cumulatively_exhaustive_default:
             (item.cumulatively_exhaustive_default as boolean) ?? null,
           include_terminated: (item.include_terminated as boolean) ?? null,
+          allow_non_employees: (item.allow_non_employees as boolean) ?? null,
+          can_override_role_states: (item.can_override_role_states as boolean) ?? null,
+          priority: (item.priority as number) ?? null,
+          is_invisible: (item.is_invisible as boolean) ?? null,
+          ignore_prov_group_matching: (item.ignore_prov_group_matching as boolean) ?? null,
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,

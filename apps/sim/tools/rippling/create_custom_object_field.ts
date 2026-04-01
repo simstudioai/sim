@@ -62,7 +62,7 @@ export const ripplingCreateCustomObjectFieldTool: ToolConfig<RipplingCreateCusto
       }),
       body: (params) => {
         const body: Record<string, unknown> = { name: params.name, data_type: params.dataType }
-        if (params.description) body.description = params.description
+        if (params.description != null) body.description = params.description
         if (params.isUnique != null) body.is_unique = params.isUnique
         if (params.enableHistory != null) body.enable_history = params.enableHistory
         return body
