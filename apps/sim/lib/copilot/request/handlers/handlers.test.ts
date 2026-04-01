@@ -46,7 +46,7 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
-import { sseHandlers } from '@/lib/copilot/request/handlers'
+import { sseHandlers, subAgentHandlers } from '@/lib/copilot/request/handlers'
 import type { ExecutionContext, StreamEvent, StreamingContext } from '@/lib/copilot/request/types'
 
 describe('sse-handlers tool lifecycle', () => {
@@ -123,6 +123,67 @@ describe('sse-handlers tool lifecycle', () => {
     const updated = context.toolCalls.get('tool-1')
     expect(updated?.status).toBe(MothershipStreamV1ToolOutcome.success)
     expect(updated?.result?.output).toEqual({ ok: true })
+  })
+
+  it('updates stored params when a subagent generating event is followed by the final tool call', async () => {
+    executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
+    context.subAgentParentToolCallId = 'parent-1'
+    context.subAgentParentStack = ['parent-1']
+    context.toolCalls.set('parent-1', {
+      id: 'parent-1',
+      name: 'build',
+      status: 'pending',
+      startTime: Date.now(),
+    })
+
+    await subAgentHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        scope: { lane: 'subagent', parentToolCallId: 'parent-1', agentId: 'build' },
+        payload: {
+          toolCallId: 'sub-tool-1',
+          toolName: 'create_workflow',
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+          status: 'generating',
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await subAgentHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        scope: { lane: 'subagent', parentToolCallId: 'parent-1', agentId: 'build' },
+        payload: {
+          toolCallId: 'sub-tool-1',
+          toolName: 'create_workflow',
+          arguments: { name: 'Example Workflow' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+          status: 'executing',
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(executeTool).toHaveBeenCalledWith(
+      'create_workflow',
+      { name: 'Example Workflow' },
+      expect.any(Object)
+    )
+    expect(context.toolCalls.get('sub-tool-1')?.params).toEqual({ name: 'Example Workflow' })
+    expect(context.subAgentToolCalls['parent-1']?.[0]?.params).toEqual({
+      name: 'Example Workflow',
+    })
   })
 
   it('skips duplicate tool_call after result', async () => {

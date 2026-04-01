@@ -65,9 +65,7 @@ export function shouldSkipToolCallEvent(event: StreamEvent): boolean {
   const toolCallId = getToolCallIdFromEvent(event)
   if (!toolCallId) return false
   if (eventData?.partial === true) return false
-  if (wasToolResultSeen(toolCallId) || wasToolCallSeen(toolCallId)) {
-    return true
-  }
+  if (wasToolResultSeen(toolCallId) || wasToolCallSeen(toolCallId)) return true
   markToolCallSeen(toolCallId)
   return false
 }

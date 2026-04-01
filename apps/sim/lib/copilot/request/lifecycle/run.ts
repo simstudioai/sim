@@ -14,6 +14,7 @@ import {
   runStreamLoop,
 } from '@/lib/copilot/request/go/stream'
 import { handleBillingLimitResponse } from '@/lib/copilot/request/tools/billing'
+import { executeToolAndReport } from '@/lib/copilot/request/tools/executor'
 import type { TraceCollector } from '@/lib/copilot/request/trace'
 import { RequestTraceV1SpanStatus } from '@/lib/copilot/request/trace'
 import type {
@@ -238,22 +239,62 @@ async function runCheckpointLoop(
       break
     }
 
-    const results = continuation.pendingToolCallIds.map((toolCallId) => {
+    const undispatchedToolIds = continuation.pendingToolCallIds.filter((toolCallId) => {
       const tool = context.toolCalls.get(toolCallId)
-      return {
-        callId: toolCallId,
-        name: tool?.name || '',
-        data:
-          tool?.result?.output ??
-          (tool?.error ? { error: tool.error } : { message: 'Tool completed' }),
-        success: tool?.result?.success ?? false,
-      }
+      return (
+        !!tool &&
+        !tool.result &&
+        !tool.error &&
+        !context.pendingToolPromises.has(toolCallId) &&
+        tool.status !== 'executing'
+      )
     })
+
+    if (undispatchedToolIds.length > 0) {
+      logger.warn('Checkpointed tools were never dispatched; executing before resume', {
+        checkpointId: continuation.checkpointId,
+        toolCallIds: undispatchedToolIds,
+      })
+      await Promise.allSettled(
+        undispatchedToolIds.map((toolCallId) =>
+          executeToolAndReport(toolCallId, context, execContext, options)
+        )
+      )
+    }
+
+    const results: Array<{
+      callId: string
+      name: string
+      data: unknown
+      success: boolean
+    }> = []
+    for (const toolCallId of continuation.pendingToolCallIds) {
+      const tool = context.toolCalls.get(toolCallId)
+      if (!tool || (!tool.result && !tool.error)) {
+        logger.error('Missing tool result for pending tool call', {
+          toolCallId,
+          checkpointId: continuation.checkpointId,
+          hasToolEntry: !!tool,
+          toolName: tool?.name,
+          toolStatus: tool?.status,
+          hasPendingPromise: context.pendingToolPromises.has(toolCallId),
+        })
+        throw new Error(`Cannot resume: missing result for pending tool call ${toolCallId}`)
+      }
+      results.push({
+        callId: toolCallId,
+        name: tool.name || '',
+        data: tool.result?.output ?? (tool.error ? { error: tool.error } : { error: 'unknown' }),
+        success: tool.result?.success ?? false,
+      })
+    }
 
     logger.info('Resuming with tool results', {
       checkpointId: continuation.checkpointId,
       runId: continuation.runId,
       toolCount: results.length,
+      pendingToolCallIds: continuation.pendingToolCallIds,
+      frameCount: continuation.frames?.length ?? 0,
     })
 
     context.awaitingAsyncContinuation = undefined
@@ -263,6 +304,12 @@ async function runCheckpointLoop(
       checkpointId: continuation.checkpointId,
       results,
     }
+    logger.info('Prepared resume request payload', {
+      route,
+      streamId: context.messageId,
+      checkpointId: continuation.checkpointId,
+      resultCount: results.length,
+    })
   }
 }
 

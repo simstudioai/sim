@@ -7,8 +7,8 @@ export {
 } from './abort'
 export {
   allocateCursor,
-  appendEvents,
   appendEvent,
+  appendEvents,
   clearAbortMarker,
   getLatestSeq,
   getOldestSeq,

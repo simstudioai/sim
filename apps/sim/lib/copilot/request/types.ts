@@ -66,6 +66,11 @@ export interface StreamingContext {
     executionId?: string
     runId?: string
     pendingToolCallIds: string[]
+    frames?: Array<{
+      parentToolCallId: string
+      parentToolName: string
+      pendingToolIds: string[]
+    }>
   }
   currentThinkingBlock: ContentBlock | null
   isInThinkingBlock: boolean

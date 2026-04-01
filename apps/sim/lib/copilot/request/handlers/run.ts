@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import {
   MothershipStreamV1RunKind,
   MothershipStreamV1ToolOutcome,
@@ -6,6 +7,8 @@ import { getEventData } from '@/lib/copilot/request/sse-utils'
 import type { StreamHandler } from './types'
 import { addContentBlock } from './types'
 
+const logger = createLogger('CopilotRunHandler')
+
 export const handleRunEvent: StreamHandler = (event, context) => {
   const d = getEventData(event)
   if (!d) return
@@ -13,6 +16,15 @@ export const handleRunEvent: StreamHandler = (event, context) => {
   const kind = d?.kind as string | undefined
 
   if (kind === MothershipStreamV1RunKind.checkpoint_pause) {
+    const rawFrames = Array.isArray(d?.frames) ? d.frames : []
+    const frames = rawFrames.map((f: Record<string, unknown>) => ({
+      parentToolCallId: String(f.parentToolCallId),
+      parentToolName: String(f.parentToolName ?? ''),
+      pendingToolIds: Array.isArray(f.pendingToolIds)
+        ? f.pendingToolIds.map((id: unknown) => String(id))
+        : [],
+    }))
+
     context.awaitingAsyncContinuation = {
       checkpointId: String(d?.checkpointId),
       executionId: typeof d?.executionId === 'string' ? d.executionId : context.executionId,
@@ -20,7 +32,15 @@ export const handleRunEvent: StreamHandler = (event, context) => {
       pendingToolCallIds: Array.isArray(d?.pendingToolCallIds)
         ? d.pendingToolCallIds.map((id) => String(id))
         : [],
+      frames: frames.length > 0 ? frames : undefined,
     }
+    logger.info('Received checkpoint pause', {
+      checkpointId: context.awaitingAsyncContinuation.checkpointId,
+      executionId: context.awaitingAsyncContinuation.executionId,
+      runId: context.awaitingAsyncContinuation.runId,
+      pendingToolCallIds: context.awaitingAsyncContinuation.pendingToolCallIds,
+      frameCount: frames.length,
+    })
     context.streamComplete = true
     return
   }

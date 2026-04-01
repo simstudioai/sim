@@ -207,21 +207,21 @@ function registerSubagentToolCall(
   args: Record<string, unknown> | undefined,
   parentToolCallId: string
 ): void {
-  const toolCall: ToolCallState = {
-    id: toolCallId,
-    name: toolName,
-    status: 'pending',
-    params: args,
-    startTime: Date.now(),
-  }
-
   if (!context.subAgentToolCalls[parentToolCallId]) {
     context.subAgentToolCalls[parentToolCallId] = []
   }
-  if (!context.subAgentToolCalls[parentToolCallId].some((tc) => tc.id === toolCallId)) {
-    context.subAgentToolCalls[parentToolCallId].push(toolCall)
-  }
-  if (!context.toolCalls.has(toolCallId)) {
+  let toolCall = context.toolCalls.get(toolCallId)
+  if (toolCall) {
+    if (!toolCall.name && toolName) toolCall.name = toolName
+    if (args && !toolCall.params) toolCall.params = args
+  } else {
+    toolCall = {
+      id: toolCallId,
+      name: toolName,
+      status: 'pending',
+      params: args,
+      startTime: Date.now(),
+    }
     context.toolCalls.set(toolCallId, toolCall)
     const parentToolCall = context.toolCalls.get(parentToolCallId)
     addContentBlock(context, {
@@ -229,6 +229,15 @@ function registerSubagentToolCall(
       toolCall,
       calledBy: parentToolCall?.name,
     })
+  }
+
+  const subagentToolCalls = context.subAgentToolCalls[parentToolCallId]
+  const existingSubagentToolCall = subagentToolCalls.find((tc) => tc.id === toolCallId)
+  if (existingSubagentToolCall) {
+    if (!existingSubagentToolCall.name && toolName) existingSubagentToolCall.name = toolName
+    if (args && !existingSubagentToolCall.params) existingSubagentToolCall.params = args
+  } else {
+    subagentToolCalls.push(toolCall)
   }
 }
 

@@ -13,6 +13,7 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { CreateWorkflow } from '@/lib/copilot/generated/tool-catalog-v1'
+import { publishToolConfirmation } from '@/lib/copilot/persistence/tool-confirm'
 import { asRecord, markToolResultSeen } from '@/lib/copilot/request/sse-utils'
 import { maybeWriteOutputToFile } from '@/lib/copilot/request/tools/files'
 import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources'
@@ -37,6 +38,21 @@ export interface AsyncToolCompletion {
   status: string
   message?: string
   data?: Record<string, unknown>
+}
+
+function publishTerminalToolConfirmation(input: {
+  toolCallId: string
+  status: string
+  message?: string
+  data?: Record<string, unknown>
+}): void {
+  publishToolConfirmation({
+    toolCallId: input.toolCallId,
+    status: input.status,
+    message: input.message,
+    data: input.data,
+    timestamp: new Date().toISOString(),
+  })
 }
 
 function abortRequested(
@@ -137,6 +153,12 @@ export async function executeToolAndReport(
         error: err instanceof Error ? err.message : String(err),
       })
     })
+    publishTerminalToolConfirmation({
+      toolCallId: toolCall.id,
+      status: MothershipStreamV1ToolOutcome.cancelled,
+      message: 'Request aborted before tool execution',
+      data: { cancelled: true },
+    })
     return cancelledCompletion('Request aborted before tool execution')
   }
 
@@ -196,6 +218,12 @@ export async function executeToolAndReport(
           error: err instanceof Error ? err.message : String(err),
         })
       })
+      publishTerminalToolConfirmation({
+        toolCallId: toolCall.id,
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        message: 'Request aborted during tool execution',
+        data: { cancelled: true },
+      })
       return cancelledCompletion('Request aborted during tool execution')
     }
     result = await maybeWriteOutputToFile(toolCall.name, toolCall.params, result, execContext)
@@ -213,6 +241,12 @@ export async function executeToolAndReport(
           toolCallId: toolCall.id,
           error: err instanceof Error ? err.message : String(err),
         })
+      })
+      publishTerminalToolConfirmation({
+        toolCallId: toolCall.id,
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        message: 'Request aborted during tool post-processing',
+        data: { cancelled: true },
       })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
@@ -232,6 +266,12 @@ export async function executeToolAndReport(
           error: err instanceof Error ? err.message : String(err),
         })
       })
+      publishTerminalToolConfirmation({
+        toolCallId: toolCall.id,
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        message: 'Request aborted during tool post-processing',
+        data: { cancelled: true },
+      })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
     result = await maybeWriteReadCsvToTable(toolCall.name, toolCall.params, result, execContext)
@@ -249,6 +289,12 @@ export async function executeToolAndReport(
           toolCallId: toolCall.id,
           error: err instanceof Error ? err.message : String(err),
         })
+      })
+      publishTerminalToolConfirmation({
+        toolCallId: toolCall.id,
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        message: 'Request aborted during tool post-processing',
+        data: { cancelled: true },
       })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
@@ -309,6 +355,14 @@ export async function executeToolAndReport(
         toolCallId: toolCall.id,
         error: err instanceof Error ? err.message : String(err),
       })
+    })
+    publishTerminalToolConfirmation({
+      toolCallId: toolCall.id,
+      status: result.success
+        ? MothershipStreamV1ToolOutcome.success
+        : MothershipStreamV1ToolOutcome.error,
+      message: result.error || (result.success ? 'Tool completed' : 'Tool failed'),
+      data: asRecord(result.output),
     })
 
     if (abortRequested(context, execContext, options)) {
@@ -375,6 +429,12 @@ export async function executeToolAndReport(
           error: err instanceof Error ? err.message : String(err),
         })
       })
+      publishTerminalToolConfirmation({
+        toolCallId: toolCall.id,
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        message: 'Request aborted during tool execution',
+        data: { cancelled: true },
+      })
       return cancelledCompletion('Request aborted during tool execution')
     }
     toolCall.status = MothershipStreamV1ToolOutcome.error
@@ -399,6 +459,12 @@ export async function executeToolAndReport(
         toolCallId: toolCall.id,
         error: err instanceof Error ? err.message : String(err),
       })
+    })
+    publishTerminalToolConfirmation({
+      toolCallId: toolCall.id,
+      status: MothershipStreamV1ToolOutcome.error,
+      message: toolCall.error,
+      data: { error: toolCall.error },
     })
 
     const errorEvent: StreamEvent = {
