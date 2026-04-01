@@ -10,10 +10,7 @@ export async function POST() {
 
   try {
     const hdrs = await headers()
-    const api = auth.api as typeof auth.api & {
-      generateOneTimeToken: (ctx: { headers: Headers }) => Promise<{ token: string }>
-    }
-    const response = await api.generateOneTimeToken({
+    const response = await auth.api.generateOneTimeToken({
       headers: hdrs,
     })
 

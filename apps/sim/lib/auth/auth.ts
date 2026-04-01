@@ -19,7 +19,6 @@ import {
   oneTimeToken,
   organization,
 } from 'better-auth/plugins'
-import type { BetterAuthPlugin } from 'better-auth/types'
 import { emailHarmony } from 'better-auth-harmony'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
@@ -712,7 +711,7 @@ export const auth = betterAuth({
   },
   plugins: [
     nextCookies(),
-    ...(isSignupEmailValidationEnabled ? [emailHarmony() as BetterAuthPlugin] : []),
+    ...(isSignupEmailValidationEnabled ? [emailHarmony()] : []),
     ...(env.TURNSTILE_SECRET_KEY
       ? [
           captcha({
