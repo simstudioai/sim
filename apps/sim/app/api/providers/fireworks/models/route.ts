@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
 
 const logger = createLogger('FireworksModelsAPI')
@@ -31,9 +32,12 @@ export async function GET(request: NextRequest) {
   if (workspaceId) {
     const session = await getSession()
     if (session?.user?.id) {
-      const byokResult = await getBYOKKey(workspaceId, 'fireworks')
-      if (byokResult) {
-        apiKey = byokResult.apiKey
+      const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+      if (permission) {
+        const byokResult = await getBYOKKey(workspaceId, 'fireworks')
+        if (byokResult) {
+          apiKey = byokResult.apiKey
+        }
       }
     }
   }
@@ -53,7 +57,7 @@ export async function GET(request: NextRequest) {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      next: { revalidate: 300 },
+      cache: 'no-store',
     })
 
     if (!response.ok) {
