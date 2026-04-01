@@ -1,7 +1,7 @@
 import { Skeleton } from '@/components/emcn'
 
 const SKELETON_ROW_COUNT = 5
-const COLUMN_COUNT = 6
+const COLUMN_COUNT = 7
 
 export default function KnowledgeLoading() {
   return (

@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext } from 'react'
 import type { TooltipRenderProps } from 'react-joyride'
 import { TourTooltip } from '@/components/emcn'
 
@@ -59,18 +59,14 @@ export function TourTooltipAdapter({
   closeProps,
 }: TooltipRenderProps) {
   const { isTooltipVisible, isEntrance, totalSteps } = useContext(TourStateContext)
-  const [targetEl, setTargetEl] = useState<HTMLElement | null>(null)
 
-  useEffect(() => {
-    const { target } = step
-    if (typeof target === 'string') {
-      setTargetEl(document.querySelector<HTMLElement>(target))
-    } else if (target instanceof HTMLElement) {
-      setTargetEl(target)
-    } else {
-      setTargetEl(null)
-    }
-  }, [step])
+  const { target } = step
+  const targetEl =
+    typeof target === 'string'
+      ? document.querySelector<HTMLElement>(target)
+      : target instanceof HTMLElement
+        ? target
+        : null
 
   /**
    * Forwards the Joyride tooltip ref safely, handling both

@@ -50,19 +50,18 @@ import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-sea
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks/registry'
-import { useFolders } from '@/hooks/queries/folders'
+import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import {
   prefetchLogDetail,
   useDashboardStats,
   useLogDetail,
   useLogsList,
 } from '@/hooks/queries/logs'
+import { useWorkflowMap, useWorkflows } from '@/hooks/queries/workflows'
 import { useDebounce } from '@/hooks/use-debounce'
-import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import {
   Dashboard,
   ExecutionSnapshot,
@@ -266,17 +265,19 @@ export default function Logs() {
     isSidebarOpen: false,
   })
   const isInitialized = useRef<boolean>(false)
+  const pendingExecutionIdRef = useRef<string | null | undefined>(undefined)
+  if (pendingExecutionIdRef.current === undefined) {
+    pendingExecutionIdRef.current =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('executionId')
+        : null
+  }
 
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    return new URLSearchParams(window.location.search).get('search') ?? ''
+  })
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
-
-  useEffect(() => {
-    const urlSearch = new URLSearchParams(window.location.search).get('search') || ''
-    if (urlSearch && urlSearch !== searchQuery) {
-      setSearchQuery(urlSearch)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const isLive = true
   const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
@@ -298,7 +299,6 @@ export default function Logs() {
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
   const [contextMenuLog, setContextMenuLog] = useState<WorkflowLog | null>(null)
-  const contextMenuRef = useRef<HTMLDivElement>(null)
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [previewLogId, setPreviewLogId] = useState<string | null>(null)
@@ -417,28 +417,30 @@ export default function Logs() {
 
   useFolders(workspaceId)
 
+  logsRef.current = sortedLogs
+  selectedLogIndexRef.current = selectedLogIndex
+  selectedLogIdRef.current = selectedLogId
+  logsRefetchRef.current = logsQuery.refetch
+  activeLogRefetchRef.current = activeLogQuery.refetch
+  logsQueryRef.current = {
+    isFetching: logsQuery.isFetching,
+    hasNextPage: logsQuery.hasNextPage ?? false,
+    fetchNextPage: logsQuery.fetchNextPage,
+  }
+
   useEffect(() => {
-    logsRef.current = sortedLogs
-  }, [sortedLogs])
-  useEffect(() => {
-    selectedLogIndexRef.current = selectedLogIndex
-  }, [selectedLogIndex])
-  useEffect(() => {
-    selectedLogIdRef.current = selectedLogId
-  }, [selectedLogId])
-  useEffect(() => {
-    logsRefetchRef.current = logsQuery.refetch
-  }, [logsQuery.refetch])
-  useEffect(() => {
-    activeLogRefetchRef.current = activeLogQuery.refetch
-  }, [activeLogQuery.refetch])
-  useEffect(() => {
-    logsQueryRef.current = {
-      isFetching: logsQuery.isFetching,
-      hasNextPage: logsQuery.hasNextPage ?? false,
-      fetchNextPage: logsQuery.fetchNextPage,
+    if (!pendingExecutionIdRef.current) return
+    const targetExecutionId = pendingExecutionIdRef.current
+    const found = sortedLogs.find((l) => l.executionId === targetExecutionId)
+    if (found) {
+      pendingExecutionIdRef.current = null
+      dispatch({ type: 'TOGGLE_LOG', logId: found.id })
+    } else if (!logsQuery.hasNextPage && logsQuery.status === 'success') {
+      pendingExecutionIdRef.current = null
+    } else if (!logsQuery.isFetching && logsQuery.status === 'success') {
+      logsQueryRef.current.fetchNextPage()
     }
-  }, [logsQuery.isFetching, logsQuery.hasNextPage, logsQuery.fetchNextPage])
+  }, [sortedLogs, logsQuery.hasNextPage, logsQuery.isFetching, logsQuery.status])
 
   useEffect(() => {
     const timers = refreshTimersRef.current
@@ -490,9 +492,16 @@ export default function Logs() {
 
   const handleCopyExecutionId = useCallback(() => {
     if (contextMenuLog?.executionId) {
-      navigator.clipboard.writeText(contextMenuLog.executionId)
+      navigator.clipboard.writeText(contextMenuLog.executionId).catch(() => {})
     }
   }, [contextMenuLog])
+
+  const handleCopyLink = useCallback(() => {
+    if (contextMenuLog?.executionId) {
+      const url = `${window.location.origin}/workspace/${workspaceId}/logs?executionId=${contextMenuLog.executionId}`
+      navigator.clipboard.writeText(url).catch(() => {})
+    }
+  }, [contextMenuLog, workspaceId])
 
   const handleOpenWorkflow = useCallback(() => {
     const wfId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
@@ -774,8 +783,8 @@ export default function Logs() {
     ]
   )
 
-  const allWorkflows = useWorkflowRegistry((state) => state.workflows)
-  const folders = useFolderStore((state) => state.folders)
+  const { data: allWorkflows = {} } = useWorkflowMap(workspaceId)
+  const { data: folders = {} } = useFolderMap(workspaceId)
 
   const filterTags = useMemo<FilterTag[]>(() => {
     const tags: FilterTag[] = []
@@ -1165,6 +1174,7 @@ export default function Logs() {
         onClose={handleCloseContextMenu}
         log={contextMenuLog}
         onCopyExecutionId={handleCopyExecutionId}
+        onCopyLink={handleCopyLink}
         onOpenWorkflow={handleOpenWorkflow}
         onOpenPreview={handleOpenPreview}
         onToggleWorkflowFilter={handleToggleWorkflowFilter}
@@ -1233,12 +1243,12 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [previousTimeRange, setPreviousTimeRange] = useState(timeRange)
-  const folders = useFolderStore((state) => state.folders)
-  const allWorkflows = useWorkflowRegistry((state) => state.workflows)
+  const { data: folders = {} } = useFolderMap(workspaceId)
+  const { data: allWorkflowList = [] } = useWorkflows(workspaceId)
 
   const workflows = useMemo(
-    () => Object.values(allWorkflows).map((w) => ({ id: w.id, name: w.name, color: w.color })),
-    [allWorkflows]
+    () => allWorkflowList.map((w) => ({ id: w.id, name: w.name, color: w.color })),
+    [allWorkflowList]
   )
 
   const folderList = useMemo(

@@ -114,7 +114,12 @@ export async function notifyTaskStateChange(taskId: string, state: TaskState): P
       const { a2aPushNotificationTask } = await import(
         '@/background/a2a-push-notification-delivery'
       )
-      await a2aPushNotificationTask.trigger({ taskId, state })
+      await a2aPushNotificationTask.trigger(
+        { taskId, state },
+        {
+          tags: [`taskId:${taskId}`],
+        }
+      )
       logger.info('Push notification queued to trigger.dev', { taskId, state })
     } catch (error) {
       logger.warn('Failed to queue push notification, falling back to inline delivery', {

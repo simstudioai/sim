@@ -56,7 +56,7 @@ export const attioUpdateTaskTool: ToolConfig<AttioUpdateTaskParams, AttioUpdateT
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/tasks/${params.taskId}`,
+    url: (params) => `https://api.attio.com/v2/tasks/${params.taskId.trim()}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

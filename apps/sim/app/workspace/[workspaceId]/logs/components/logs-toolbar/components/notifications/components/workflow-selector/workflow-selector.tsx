@@ -25,9 +25,7 @@ export function WorkflowSelector({
   onChange,
   error,
 }: WorkflowSelectorProps) {
-  const { data: workflows = [], isPending: isLoading } = useWorkflows(workspaceId, {
-    syncRegistry: false,
-  })
+  const { data: workflows = [], isPending: isLoading } = useWorkflows(workspaceId)
 
   const options: ComboboxOption[] = useMemo(() => {
     return workflows.map((w) => ({

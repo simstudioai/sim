@@ -32,7 +32,7 @@ export const attioGetMemberTool: ToolConfig<AttioGetMemberParams, AttioGetMember
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/workspace_members/${params.memberId}`,
+    url: (params) => `https://api.attio.com/v2/workspace_members/${params.memberId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

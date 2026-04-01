@@ -38,15 +38,23 @@ interface SyncResult {
   updatedWorkflowIds: string[]
 }
 
+interface ServerMetadata {
+  url?: string
+  name?: string
+}
+
 /**
- * Syncs tool schemas from discovered MCP tools to all workflow blocks using those tools.
- * Returns the count and IDs of updated workflows.
+ * Syncs tool schemas and server metadata from discovered MCP tools to all
+ * workflow blocks using those tools. Updates stored serverUrl/serverName
+ * when the server's details have changed, preventing stale badges after
+ * a server URL edit.
  */
 async function syncToolSchemasToWorkflows(
   workspaceId: string,
   serverId: string,
   tools: McpTool[],
-  requestId: string
+  requestId: string,
+  serverMeta?: ServerMetadata
 ): Promise<SyncResult> {
   const toolsByName = new Map(tools.map((t) => [t.name, t]))
 
@@ -94,7 +102,10 @@ async function syncToolSchemasToWorkflows(
 
       const schemasMatch = JSON.stringify(tool.schema) === JSON.stringify(newSchema)
 
-      if (!schemasMatch) {
+      const urlChanged = serverMeta?.url != null && tool.params.serverUrl !== serverMeta.url
+      const nameChanged = serverMeta?.name != null && tool.params.serverName !== serverMeta.name
+
+      if (!schemasMatch || urlChanged || nameChanged) {
         hasUpdates = true
 
         const validParamKeys = new Set(Object.keys(newSchema.properties || {}))
@@ -105,6 +116,9 @@ async function syncToolSchemasToWorkflows(
             cleanedParams[key] = value
           }
         }
+
+        if (urlChanged) cleanedParams.serverUrl = serverMeta.url
+        if (nameChanged) cleanedParams.serverName = serverMeta.name
 
         return { ...tool, schema: newSchema, params: cleanedParams }
       }
@@ -188,7 +202,8 @@ export const POST = withMcpAuth<{ id: string }>('read')(
           workspaceId,
           serverId,
           discoveredTools,
-          requestId
+          requestId,
+          { url: server.url ?? undefined, name: server.name ?? undefined }
         )
       } catch (error) {
         connectionStatus = 'error'

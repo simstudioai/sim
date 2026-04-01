@@ -30,8 +30,8 @@ interface AllowedIntegrationsResponse {
 function useAllowedIntegrationsFromEnv() {
   return useQuery<AllowedIntegrationsResponse>({
     queryKey: ['allowedIntegrations', 'env'],
-    queryFn: async () => {
-      const response = await fetch('/api/settings/allowed-integrations')
+    queryFn: async ({ signal }) => {
+      const response = await fetch('/api/settings/allowed-integrations', { signal })
       if (!response.ok) return { allowedIntegrations: null }
       return response.json()
     },

@@ -31,7 +31,7 @@ export const attioDeleteNoteTool: ToolConfig<AttioDeleteNoteParams, AttioDeleteN
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/notes/${params.noteId}`,
+    url: (params) => `https://api.attio.com/v2/notes/${params.noteId.trim()}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

@@ -21,7 +21,7 @@ export function useSelectorOptions(key: SelectorKey, args: SelectorHookArgs) {
   const isEnabled = args.enabled ?? (definition.enabled ? definition.enabled(queryArgs) : true)
   return useQuery<SelectorOption[]>({
     queryKey: definition.getQueryKey(queryArgs),
-    queryFn: () => definition.fetchList(queryArgs),
+    queryFn: ({ signal }) => definition.fetchList({ ...queryArgs, signal }),
     enabled: isEnabled,
     staleTime: definition.staleTime ?? 30_000,
   })
@@ -60,7 +60,7 @@ export function useSelectorOptionDetail(
 
   const query = useQuery<SelectorOption | null>({
     queryKey: [...definition.getQueryKey(queryArgs), 'detail', resolvedDetailId ?? 'none'],
-    queryFn: () => definition.fetchById!(queryArgs),
+    queryFn: ({ signal }) => definition.fetchById!({ ...queryArgs, signal }),
     enabled,
     staleTime: definition.staleTime ?? 300_000,
   })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import type { ComboboxOption } from '@/components/emcn'
@@ -38,6 +38,7 @@ import {
 } from '@/hooks/queries/tables'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('Tables')
 
@@ -54,6 +55,14 @@ export function Tables() {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
+
+  const { config: permissionConfig } = usePermissionConfig()
+  useEffect(() => {
+    if (permissionConfig.hideTablesTab) {
+      router.replace(`/workspace/${workspaceId}`)
+    }
+  }, [permissionConfig.hideTablesTab, router, workspaceId])
+
   const userPermissions = useUserPermissionsContext()
 
   const { data: tables = [], isLoading, error } = useTablesList(workspaceId)

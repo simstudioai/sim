@@ -21,16 +21,17 @@ export async function encryptSecret(secret: string): Promise<{ encrypted: string
   const iv = randomBytes(16)
   const key = getEncryptionKey()
 
-  const cipher = createCipheriv('aes-256-gcm', key, iv)
+  const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 })
   let encrypted = cipher.update(secret, 'utf8', 'hex')
   encrypted += cipher.final('hex')
 
   const authTag = cipher.getAuthTag()
+  const ivHex = iv.toString('hex')
 
   // Format: iv:encrypted:authTag
   return {
-    encrypted: `${iv.toString('hex')}:${encrypted}:${authTag.toString('hex')}`,
-    iv: iv.toString('hex'),
+    encrypted: `${ivHex}:${encrypted}:${authTag.toString('hex')}`,
+    iv: ivHex,
   }
 }
 
@@ -54,15 +55,17 @@ export async function decryptSecret(encryptedValue: string): Promise<{ decrypted
   const authTag = Buffer.from(authTagHex, 'hex')
 
   try {
-    const decipher = createDecipheriv('aes-256-gcm', key, iv)
+    const decipher = createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 })
     decipher.setAuthTag(authTag)
 
     let decrypted = decipher.update(encrypted, 'hex', 'utf8')
     decrypted += decipher.final('utf8')
 
     return { decrypted }
-  } catch (error: any) {
-    logger.error('Decryption error:', { error: error.message })
+  } catch (error: unknown) {
+    logger.error('Decryption error:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
     throw error
   }
 }

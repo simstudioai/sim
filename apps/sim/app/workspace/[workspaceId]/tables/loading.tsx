@@ -27,9 +27,6 @@ export default function TablesLoading() {
         <table className='w-full'>
           <thead>
             <tr className='border-[var(--border)] border-b'>
-              <th className='w-[40px] px-[12px] py-[8px]'>
-                <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
-              </th>
               {Array.from({ length: COLUMN_COUNT }).map((_, i) => (
                 <th key={i} className='px-[12px] py-[8px] text-left'>
                   <Skeleton className='h-[12px] w-[56px] rounded-[4px]' />
@@ -40,9 +37,6 @@ export default function TablesLoading() {
           <tbody>
             {Array.from({ length: SKELETON_ROW_COUNT }).map((_, rowIndex) => (
               <tr key={rowIndex} className='border-[var(--border)] border-b'>
-                <td className='w-[40px] px-[12px] py-[10px]'>
-                  <Skeleton className='h-[14px] w-[14px] rounded-[2px]' />
-                </td>
                 {Array.from({ length: COLUMN_COUNT }).map((_, colIndex) => (
                   <td key={colIndex} className='px-[12px] py-[10px]'>
                     <Skeleton

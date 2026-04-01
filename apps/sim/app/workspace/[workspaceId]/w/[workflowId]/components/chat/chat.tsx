@@ -1143,13 +1143,15 @@ export function Chat() {
                 {isStreaming ? (
                   <Button
                     onClick={handleStopStreaming}
-                    className='h-[22px] w-[22px] rounded-full border-0 bg-[var(--text-primary)] p-0 transition-colors hover-hover:bg-[var(--text-secondary)] dark:bg-[var(--border-1)] dark:hover-hover:bg-[var(--text-body)]'
+                    variant='ghost'
+                    className='h-[22px] w-[22px] rounded-full bg-[#383838] p-0 transition-colors hover-hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover-hover:bg-[#CFCFCF]'
                   >
                     <Square className='h-2.5 w-2.5 fill-white text-white dark:fill-black dark:text-black' />
                   </Button>
                 ) : (
                   <Button
                     onClick={handleSendMessage}
+                    variant='ghost'
                     disabled={
                       (!chatMessage.trim() && chatFiles.length === 0) ||
                       !activeWorkflowId ||
@@ -1157,10 +1159,10 @@ export function Chat() {
                       isStreaming
                     }
                     className={cn(
-                      'h-[22px] w-[22px] rounded-full border-0 p-0 transition-colors',
+                      'h-[22px] w-[22px] rounded-full p-0 transition-colors',
                       chatMessage.trim() || chatFiles.length > 0
-                        ? 'bg-[var(--text-primary)] hover-hover:bg-[var(--text-secondary)] dark:bg-[var(--border-1)] dark:hover-hover:bg-[var(--text-body)]'
-                        : 'bg-[var(--text-subtle)] dark:bg-[var(--text-subtle)]'
+                        ? 'bg-[#383838] hover-hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover-hover:bg-[#CFCFCF]'
+                        : 'bg-[#808080] dark:bg-[#808080]'
                     )}
                   >
                     <ArrowUp

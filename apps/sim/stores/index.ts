@@ -201,7 +201,6 @@ export {
 export const resetAllStores = () => {
   // Reset all stores to initial state
   useWorkflowRegistry.setState({
-    workflows: {},
     activeWorkflowId: null,
     error: null,
     deploymentStatuses: {},

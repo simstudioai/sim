@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -123,7 +122,7 @@ export async function routeExecution(
     throw new Error(`Unknown server tool: ${toolName}`)
   }
 
-  logger.debug(appendCopilotLogContext('Routing to tool', { messageId: context?.messageId }), {
+  logger.withMetadata({ messageId: context?.messageId }).debug('Routing to tool', {
     toolName,
   })
 

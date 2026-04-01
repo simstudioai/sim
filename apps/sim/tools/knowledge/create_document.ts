@@ -103,9 +103,6 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
       const requestBody = {
         documents: documents,
         processingOptions: {
-          chunkSize: 1024,
-          minCharactersPerChunk: 1,
-          chunkOverlap: 200,
           recipe: 'default',
           lang: 'en',
         },

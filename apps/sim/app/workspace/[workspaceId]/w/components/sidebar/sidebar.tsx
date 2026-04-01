@@ -38,6 +38,7 @@ import {
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { isMacPlatform } from '@/lib/core/utils/platform'
+import { buildFolderTree } from '@/lib/folders/tree'
 import {
   START_NAV_TOUR_EVENT,
   START_WORKFLOW_TOUR_EVENT,
@@ -77,7 +78,7 @@ import {
   useImportWorkspace,
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { getBrandConfig } from '@/ee/whitelabeling'
-import { useFolders } from '@/hooks/queries/folders'
+import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import {
@@ -88,6 +89,7 @@ import {
   useRenameTask,
   useTasks,
 } from '@/hooks/queries/tasks'
+import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -96,7 +98,6 @@ import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Sidebar')
 
@@ -151,7 +152,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   isUnread: boolean
   isMenuOpen: boolean
   showCollapsedTooltips: boolean
-  onMultiSelectClick: (taskId: string, shiftKey: boolean, metaKey: boolean) => void
+  onMultiSelectClick: (taskId: string, shiftKey: boolean) => void
   onContextMenu: (e: React.MouseEvent, taskId: string) => void
   onMorePointerDown: () => void
   onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, taskId: string) => void
@@ -167,9 +168,10 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
         )}
         onClick={(e) => {
           if (task.id === 'new') return
-          if (e.shiftKey || e.metaKey || e.ctrlKey) {
+          if (e.metaKey || e.ctrlKey) return
+          if (e.shiftKey) {
             e.preventDefault()
-            onMultiSelectClick(task.id, e.shiftKey, e.metaKey || e.ctrlKey)
+            onMultiSelectClick(task.id, true)
           } else {
             useFolderStore.setState({
               selectedTasks: new Set<string>(),
@@ -202,7 +204,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
                 onMoreClick(e, task.id)
               }}
               className={cn(
-                'flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 group-hover:opacity-100',
+                'flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
                 isMenuOpen && 'opacity-100'
               )}
             >
@@ -435,13 +437,12 @@ export const Sidebar = memo(function Sidebar() {
   })
 
   useFolders(workspaceId)
-  const folders = useFolderStore((s) => s.folders)
-  const getFolderTree = useFolderStore((s) => s.getFolderTree)
-  const updateWorkflow = useWorkflowRegistry((state) => state.updateWorkflow)
+  const { data: folderMap = {} } = useFolderMap(workspaceId)
+  const updateWorkflowMutation = useUpdateWorkflow()
 
   const folderTree = useMemo(
-    () => (isCollapsed && workspaceId ? getFolderTree(workspaceId) : []),
-    [isCollapsed, workspaceId, folders, getFolderTree]
+    () => (isCollapsed && workspaceId ? buildFolderTree(folderMap, workspaceId) : []),
+    [isCollapsed, workspaceId, folderMap]
   )
 
   const workflowsByFolder = useMemo(
@@ -813,7 +814,11 @@ export const Sidebar = memo(function Sidebar() {
   const workflowFlyoutRename = useFlyoutInlineRename({
     itemType: 'workflow',
     onSave: async (workflowIdToRename, name) => {
-      await updateWorkflow(workflowIdToRename, { name })
+      await updateWorkflowMutation.mutateAsync({
+        workspaceId,
+        workflowId: workflowIdToRename,
+        metadata: { name },
+      })
     },
   })
 
@@ -1057,8 +1062,6 @@ export const Sidebar = memo(function Sidebar() {
     }),
     [handleCreateWorkflow]
   )
-
-  const noop = useCallback(() => {}, [])
 
   const handleExpandSidebar = useCallback(
     (e: React.MouseEvent) => {
