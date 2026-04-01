@@ -1,41 +1,14 @@
 'use client'
 
-import { type ComponentType, memo, type SVGProps } from 'react'
+import { type ComponentType, memo, type SVGProps, useCallback, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import { AgentIcon, ScheduleIcon, StartIcon } from '@/components/icons'
+import { cn } from '@/lib/core/utils/cn'
 import type { Category, ModuleTag } from './consts'
+import { IntegrationIconStack } from './components/integration-icon-stack'
 import { CATEGORY_META, TEMPLATES } from './consts'
 
-const FEATURED_TEMPLATES = TEMPLATES.filter((t) => t.featured)
-const EXTRA_TEMPLATES = TEMPLATES.filter((t) => !t.featured)
-
-function getGroupedExtras() {
-  const groups: { category: Category; label: string; templates: typeof TEMPLATES }[] = []
-  const byCategory = new Map<Category, typeof TEMPLATES>()
-
-  for (const t of EXTRA_TEMPLATES) {
-    const existing = byCategory.get(t.category)
-    if (existing) {
-      existing.push(t)
-    } else {
-      const arr = [t]
-      byCategory.set(t.category, arr)
-    }
-  }
-
-  for (const [key, meta] of Object.entries(CATEGORY_META)) {
-    const cat = key as Category
-    if (cat === 'popular') continue
-    const items = byCategory.get(cat)
-    if (items?.length) {
-      groups.push({ category: cat, label: meta.label, templates: items })
-    }
-  }
-
-  return groups
-}
-
-const GROUPED_EXTRAS = getGroupedExtras()
+const CATEGORIES = Object.entries(CATEGORY_META) as [Category, (typeof CATEGORY_META)[Category]][]
 
 const MINI_TABLE_DATA = [
   ['Sarah Chen', 'sarah@acme.co', 'Acme Inc', 'Qualified'],
@@ -316,28 +289,75 @@ interface TemplatePromptsProps {
 }
 
 export function TemplatePrompts({ onSelect }: TemplatePromptsProps) {
+  const [activeCategory, setActiveCategory] = useState<Category>('popular')
+  const navRef = useRef<HTMLElement>(null)
+  const [showLeftFade, setShowLeftFade] = useState(false)
+  const [showRightFade, setShowRightFade] = useState(true)
+
+  const handleNavScroll = useCallback(() => {
+    const el = navRef.current
+    if (!el) return
+    setShowLeftFade(el.scrollLeft > 2)
+    setShowRightFade(el.scrollLeft < el.scrollWidth - el.clientWidth - 2)
+  }, [])
+
+  const visibleTemplates = useMemo(
+    () =>
+      activeCategory === 'popular'
+        ? TEMPLATES.filter((t) => t.featured)
+        : TEMPLATES.filter((t) => t.category === activeCategory),
+    [activeCategory]
+  )
+
   return (
-    <div className='flex flex-col gap-6 lg:gap-8'>
+    <div className='flex flex-col gap-4 lg:gap-5'>
+      <div className='flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-4'>
+        <h3 className='shrink-0 font-medium text-[var(--text-secondary)] text-large'>
+          Start with a template
+        </h3>
+        <div className='relative md:contents'>
+          {showLeftFade && (
+            <div aria-hidden='true' className='pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-8 bg-gradient-to-r from-[var(--bg)] to-transparent md:hidden' />
+          )}
+          <nav
+            ref={navRef}
+            onScroll={handleNavScroll}
+            className='flex flex-nowrap gap-1.5 overflow-x-auto [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden md:flex-wrap md:justify-end md:overflow-x-visible'
+            aria-label='Template categories'
+          >
+            {CATEGORIES.map(([key, meta]) => {
+              const Icon = meta.icon
+              const isActive = activeCategory === key
+              return (
+                <button
+                  key={key}
+                  type='button'
+                  onClick={() => setActiveCategory(key)}
+                  aria-pressed={isActive}
+                  className={cn(
+                    'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-[40px] border px-3 py-1 text-xs font-medium transition-colors duration-150 ease-out',
+                    isActive
+                      ? 'border-[var(--border-1)] bg-[var(--surface-active)] text-[var(--text-primary)] hover-hover:bg-[var(--surface-hover)]'
+                      : 'border-[var(--border-1)] text-[var(--text-secondary)] hover-hover:bg-[var(--surface-hover)] hover-hover:text-[var(--text-primary)]'
+                  )}
+                >
+                  <Icon className='h-3 w-3' />
+                  {meta.label}
+                </button>
+              )
+            })}
+          </nav>
+          {showRightFade && (
+            <div aria-hidden='true' className='pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-8 bg-gradient-to-l from-[var(--bg)] to-transparent md:hidden' />
+          )}
+        </div>
+      </div>
+
       <div className='grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3'>
-        {FEATURED_TEMPLATES.map((template) => (
+        {visibleTemplates.map((template) => (
           <TemplateCard key={template.title} template={template} onSelect={onSelect} />
         ))}
       </div>
-
-      {GROUPED_EXTRAS.map((group) => (
-        <div
-          key={group.category}
-          className='flex flex-col gap-3'
-          style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 200px' }}
-        >
-          <h3 className='font-medium text-[var(--text-secondary)] text-small'>{group.label}</h3>
-          <div className='grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3'>
-            {group.templates.map((template) => (
-              <TemplateCard key={template.title} template={template} onSelect={onSelect} />
-            ))}
-          </div>
-        </div>
-      ))}
     </div>
   )
 }
@@ -357,7 +377,7 @@ const TemplateCard = memo(function TemplateCard({ template, onSelect }: Template
       aria-label={`Select template: ${template.title}`}
       className='group flex cursor-pointer flex-col text-left'
     >
-      <div className='overflow-hidden rounded-lg border border-[var(--border-1)] transition-colors group-hover:bg-[var(--surface-2)]'>
+      <div className='overflow-hidden rounded-lg border border-[var(--border-1)] transition-colors group-hover:bg-[var(--surface-hover)]'>
         <div className='relative h-[120px] w-full overflow-hidden'>
           {template.image ? (
             <Image
@@ -365,15 +385,16 @@ const TemplateCard = memo(function TemplateCard({ template, onSelect }: Template
               alt={template.title}
               fill
               unoptimized
-              className='object-cover transition-transform duration-200 group-hover:scale-[1.02]'
+              className='object-cover object-left-top transition-transform duration-200 group-hover:scale-[1.02]'
             />
           ) : (
             <TemplatePreview modules={template.modules} template={template} />
           )}
         </div>
-        <div className='flex items-center gap-1.5 border-[var(--border-1)] border-t bg-[var(--white)] px-3 py-2 transition-colors group-hover:bg-[var(--surface-2)] dark:bg-[var(--surface-4)]'>
+        <div className='flex items-center gap-1.5 border-[var(--border-1)] border-t bg-[var(--white)] px-3 py-2 transition-colors group-hover:bg-[var(--surface-hover)] dark:bg-[var(--surface-4)]'>
           <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-          <span className='text-[var(--text-body)] text-small'>{template.title}</span>
+          <span className='truncate text-[var(--text-body)] text-small'>{template.title}</span>
+          <IntegrationIconStack blockTypes={template.integrationBlockTypes} />
         </div>
       </div>
     </button>

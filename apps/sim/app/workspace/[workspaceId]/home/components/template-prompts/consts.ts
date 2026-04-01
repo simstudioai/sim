@@ -1,6 +1,7 @@
 import type { ComponentType, SVGProps } from 'react'
 import {
   BookOpen,
+  BubbleChatPreview,
   Bug,
   Calendar,
   Card,
@@ -9,55 +10,22 @@ import {
   File,
   FolderCode,
   Hammer,
+  HelpCircle,
   Integration,
   Layout,
+  Library,
   Mail,
   Pencil,
   Rocket,
   Search,
   Send,
+  Server,
+  Settings,
   ShieldCheck,
   Table,
   Users,
   Wrench,
 } from '@/components/emcn/icons'
-import {
-  AirtableIcon,
-  AmplitudeIcon,
-  ApolloIcon,
-  CalendlyIcon,
-  ConfluenceIcon,
-  DatadogIcon,
-  DiscordIcon,
-  FirecrawlIcon,
-  GithubIcon,
-  GmailIcon,
-  GongIcon,
-  GoogleCalendarIcon,
-  GoogleDriveIcon,
-  GoogleSheetsIcon,
-  GreenhouseIcon,
-  HubspotIcon,
-  IntercomIcon,
-  JiraIcon,
-  LemlistIcon,
-  LinearIcon,
-  LinkedInIcon,
-  MicrosoftTeamsIcon,
-  NotionIcon,
-  PagerDutyIcon,
-  RedditIcon,
-  SalesforceIcon,
-  ShopifyIcon,
-  SlackIcon,
-  StripeIcon,
-  TwilioIcon,
-  TypeformIcon,
-  WebflowIcon,
-  WordpressIcon,
-  YouTubeIcon,
-  ZendeskIcon,
-} from '@/components/icons'
 import { MarkdownIcon } from '@/components/icons/document-icons'
 
 /**
@@ -79,13 +47,13 @@ export type ModuleTag = keyof typeof MODULE_META
  * Categories for grouping templates in the UI.
  */
 export const CATEGORY_META = {
-  popular: { label: 'Popular' },
-  sales: { label: 'Sales & CRM' },
-  support: { label: 'Support' },
-  engineering: { label: 'Engineering' },
-  marketing: { label: 'Marketing & Content' },
-  productivity: { label: 'Productivity' },
-  operations: { label: 'Operations' },
+  popular: { label: 'Popular', icon: Rocket },
+  sales: { label: 'Sales & CRM', icon: Users },
+  support: { label: 'Support', icon: HelpCircle },
+  engineering: { label: 'Engineering', icon: FolderCode },
+  marketing: { label: 'Marketing & Content', icon: BookOpen },
+  productivity: { label: 'Productivity', icon: Calendar },
+  operations: { label: 'Operations', icon: Settings },
 } as const
 
 export type Category = keyof typeof CATEGORY_META
@@ -135,7 +103,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     featured: true,
   },
   {
-    icon: GoogleCalendarIcon,
+    icon: Calendar,
     title: 'Meeting prep agent',
     prompt:
       'Create an agent that checks my Google Calendar each morning, researches every attendee and topic on the web, and prepares a brief for each meeting so I walk in fully prepared. Schedule it to run every weekday morning.',
@@ -171,7 +139,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     featured: true,
   },
   {
-    icon: GmailIcon,
+    icon: Mail,
     title: 'Auto-reply agent',
     prompt:
       'Create a workflow that reads my Gmail inbox, identifies emails that need a response, and drafts contextual replies for each one. Schedule it to run every hour.',
@@ -227,7 +195,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['sales', 'support', 'reporting'],
   },
   {
-    icon: SalesforceIcon,
+    icon: Search,
     title: 'CRM knowledge search',
     prompt:
       'Create a knowledge base connected to my Salesforce account so all deals, contacts, notes, and activities are automatically synced and searchable. Then build an agent I can ask things like "what\'s the history with Acme Corp?" or "who was involved in the last enterprise deal?" and get instant answers with CRM record citations.',
@@ -237,7 +205,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['sales', 'crm', 'research'],
   },
   {
-    icon: HubspotIcon,
+    icon: Search,
     title: 'HubSpot deal search',
     prompt:
       'Create a knowledge base connected to my HubSpot account so all deals, contacts, and activity history are automatically synced and searchable. Then build an agent I can ask things like "what happened with the Stripe integration deal?" or "which deals closed last quarter over $50k?" and get answers with HubSpot record links.',
@@ -257,7 +225,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['sales', 'crm', 'automation', 'research'],
   },
   {
-    icon: ApolloIcon,
+    icon: Users,
     title: 'Prospect researcher',
     prompt:
       'Create an agent that takes a company name, deep-researches them across the web, finds key decision-makers, recent news, funding rounds, and pain points, then compiles a prospect brief I can review before outreach.',
@@ -267,7 +235,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['sales', 'research'],
   },
   {
-    icon: LemlistIcon,
+    icon: Send,
     title: 'Outbound sequence builder',
     prompt:
       'Build a workflow that reads leads from my table, researches each prospect and their company on the web, writes a personalized cold email tailored to their role and pain points, and sends it via Gmail. Schedule it to run daily to process new leads automatically.',
@@ -277,7 +245,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['sales', 'communication', 'automation'],
   },
   {
-    icon: SalesforceIcon,
+    icon: Table,
     title: 'Deal pipeline tracker',
     prompt:
       'Create a table with columns for deal name, stage, amount, close date, and next steps. Build a workflow that syncs open deals from Salesforce into this table daily, and sends me a Slack summary each morning of deals that need attention or are at risk of slipping.',
@@ -287,7 +255,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['sales', 'crm', 'monitoring', 'reporting'],
   },
   {
-    icon: HubspotIcon,
+    icon: ClipboardList,
     title: 'Win/loss analyzer',
     prompt:
       'Build a workflow that pulls closed deals from HubSpot each week, analyzes patterns in wins vs losses — deal size, industry, sales cycle length, objections — and generates a report file with actionable insights on what to change. Schedule it to run every Monday.',
@@ -297,7 +265,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['sales', 'crm', 'analysis', 'reporting'],
   },
   {
-    icon: GongIcon,
+    icon: BubbleChatPreview,
     title: 'Sales call analyzer',
     prompt:
       'Build a workflow that pulls call transcripts from Gong after each sales call, identifies key objections raised, action items promised, and competitor mentions, updates the deal record in my CRM, and posts a call summary with next steps to the Slack deal channel.',
@@ -307,7 +275,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['sales', 'analysis', 'communication'],
   },
   {
-    icon: WebflowIcon,
+    icon: Integration,
     title: 'Webflow lead capture pipeline',
     prompt:
       'Create a workflow that monitors new Webflow form submissions, enriches each lead with company and contact data using Apollo and web search, adds them to a tracking table with a lead score, and sends a Slack notification to the sales team for high-potential leads.',
@@ -329,17 +297,17 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['support', 'communication', 'automation'],
   },
   {
-    icon: SlackIcon,
+    icon: HelpCircle,
     title: 'Slack Q&A bot',
     prompt:
       'Create a knowledge base connected to my Notion workspace so it stays synced with my company wiki. Then build a workflow that monitors Slack channels for questions and answers them using the knowledge base with source citations.',
-    integrationBlockTypes: ['notion', 'slack'],
+    integrationBlockTypes: ['slack', 'notion'],
     modules: ['knowledge-base', 'agent', 'workflows'],
     category: 'support',
     tags: ['support', 'communication', 'team'],
   },
   {
-    icon: IntercomIcon,
+    icon: BubbleChatPreview,
     title: 'Customer feedback analyzer',
     prompt:
       'Build a scheduled workflow that pulls support tickets and conversations from Intercom daily, categorizes them by theme and sentiment, tracks trends in a table, and sends a weekly Slack report highlighting the top feature requests and pain points.',
@@ -359,7 +327,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['support', 'sales', 'monitoring', 'analysis'],
   },
   {
-    icon: DiscordIcon,
+    icon: Users,
     title: 'Discord community manager',
     prompt:
       'Create a knowledge base connected to my Google Docs or Notion with product documentation. Then build a workflow that monitors my Discord server for unanswered questions, answers them using the knowledge base, tracks common questions in a table, and sends a weekly community summary to Slack.',
@@ -369,7 +337,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['community', 'support', 'communication'],
   },
   {
-    icon: TypeformIcon,
+    icon: ClipboardList,
     title: 'Survey response analyzer',
     prompt:
       'Create a workflow that pulls new Typeform responses daily, categorizes feedback by theme and sentiment, logs structured results to a table, and sends a Slack digest when a new batch of responses comes in with the key takeaways.',
@@ -379,7 +347,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['product', 'analysis', 'reporting'],
   },
   {
-    icon: GmailIcon,
+    icon: Search,
     title: 'Email knowledge search',
     prompt:
       'Create a knowledge base connected to my Gmail so all my emails are automatically synced, chunked, and searchable. Then build an agent I can ask things like "what did Sarah say about the pricing proposal?" or "find the contract John sent last month" and get instant answers with the original email cited.',
@@ -389,7 +357,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['individual', 'research', 'communication'],
   },
   {
-    icon: ZendeskIcon,
+    icon: Search,
     title: 'Support ticket knowledge search',
     prompt:
       'Create a knowledge base connected to my Zendesk account so all past tickets, resolutions, and agent notes are automatically synced and searchable. Then build an agent my support team can ask things like "how do we usually resolve the SSO login issue?" or "has anyone reported this billing bug before?" to find past solutions instantly.',
@@ -411,7 +379,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['product', 'engineering', 'research', 'content'],
   },
   {
-    icon: JiraIcon,
+    icon: Search,
     title: 'Jira knowledge search',
     prompt:
       'Create a knowledge base connected to my Jira project so all tickets, comments, and resolutions are automatically synced and searchable. Then build an agent I can ask things like "how did we fix the auth timeout issue?" or "what was decided about the API redesign?" and get answers with ticket citations.',
@@ -421,7 +389,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['engineering', 'research'],
   },
   {
-    icon: LinearIcon,
+    icon: Search,
     title: 'Linear knowledge search',
     prompt:
       'Create a knowledge base connected to my Linear workspace so all issues, comments, project updates, and decisions are automatically synced and searchable. Then build an agent I can ask things like "why did we deprioritize the mobile app?" or "what was the root cause of the checkout bug?" and get answers traced back to specific issues.',
@@ -441,7 +409,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['engineering', 'devops', 'automation'],
   },
   {
-    icon: GithubIcon,
+    icon: FolderCode,
     title: 'PR review assistant',
     prompt:
       'Create a knowledge base connected to my GitHub repo so it stays synced with my style guide and coding standards. Then build a workflow that reviews new pull requests against it, checks for common issues and security vulnerabilities, and posts a review comment with specific suggestions.',
@@ -451,7 +419,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['engineering', 'automation'],
   },
   {
-    icon: GithubIcon,
+    icon: File,
     title: 'Changelog generator',
     prompt:
       'Build a scheduled workflow that runs every Friday, pulls all merged PRs from GitHub for the week, categorizes changes as features, fixes, or improvements, and generates a user-facing changelog document with clear descriptions.',
@@ -461,7 +429,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['engineering', 'product', 'reporting', 'content'],
   },
   {
-    icon: LinearIcon,
+    icon: File,
     title: 'Incident postmortem writer',
     prompt:
       'Create a workflow that when triggered after an incident, pulls the Slack thread from the incident channel, gathers relevant Sentry errors and deployment logs, and drafts a structured postmortem with timeline, root cause, and action items.',
@@ -471,7 +439,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['engineering', 'devops', 'analysis'],
   },
   {
-    icon: NotionIcon,
+    icon: BookOpen,
     title: 'Documentation auto-updater',
     prompt:
       'Create a knowledge base connected to my GitHub repository so code and docs stay synced. Then build a scheduled weekly workflow that detects API changes, compares them against the knowledge base to find outdated documentation, and either updates Notion pages directly or creates Linear tickets for the needed changes.',
@@ -481,7 +449,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['engineering', 'sync', 'automation'],
   },
   {
-    icon: PagerDutyIcon,
+    icon: ShieldCheck,
     title: 'Incident response coordinator',
     prompt:
       'Create a knowledge base connected to my Confluence or Notion with runbooks and incident procedures. Then build a workflow triggered by PagerDuty incidents that searches the runbooks, gathers related Datadog alerts, identifies the on-call rotation, and posts a comprehensive incident brief to Slack.',
@@ -491,7 +459,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['devops', 'engineering', 'automation'],
   },
   {
-    icon: JiraIcon,
+    icon: ClipboardList,
     title: 'Sprint report generator',
     prompt:
       'Create a scheduled workflow that runs at the end of each sprint, pulls all completed, in-progress, and blocked Jira tickets, calculates velocity and carry-over, and generates a sprint summary document with charts and trends to share with the team.',
@@ -501,7 +469,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['engineering', 'reporting', 'team'],
   },
   {
-    icon: ConfluenceIcon,
+    icon: Library,
     title: 'Knowledge base sync',
     prompt:
       'Create a knowledge base connected to my Confluence workspace so all wiki pages are automatically synced and searchable. Then build a scheduled workflow that identifies stale pages not updated in 90 days and sends a Slack reminder to page owners to review them.',
@@ -553,7 +521,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['content', 'enterprise', 'automation'],
   },
   {
-    icon: YouTubeIcon,
+    icon: Layout,
     title: 'Content repurposer',
     prompt:
       'Build a workflow that takes a YouTube video URL, pulls the video details and description, researches the topic on the web for additional context, and generates a Twitter thread, LinkedIn post, and blog summary optimized for each platform.',
@@ -563,7 +531,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['marketing', 'content', 'automation'],
   },
   {
-    icon: RedditIcon,
+    icon: Search,
     title: 'Social mention tracker',
     prompt:
       'Create a scheduled workflow that monitors Reddit and X for mentions of my brand and competitors, scores each mention by sentiment and reach, logs them to a table, and sends a daily Slack digest of notable mentions.',
@@ -573,7 +541,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['marketing', 'monitoring', 'analysis'],
   },
   {
-    icon: FirecrawlIcon,
+    icon: Search,
     title: 'SEO content brief generator',
     prompt:
       'Build a workflow that takes a target keyword, scrapes the top 10 ranking pages, analyzes their content structure and subtopics, then generates a detailed content brief with outline, word count target, questions to answer, and internal linking suggestions.',
@@ -593,7 +561,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['marketing', 'content', 'communication'],
   },
   {
-    icon: LinkedInIcon,
+    icon: Pencil,
     title: 'LinkedIn content engine',
     prompt:
       'Build a workflow that scrapes my company blog for new posts, generates LinkedIn posts with hooks, insights, and calls-to-action optimized for engagement, and saves drafts as files for my review before posting to LinkedIn.',
@@ -603,7 +571,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['marketing', 'content', 'automation'],
   },
   {
-    icon: WordpressIcon,
+    icon: Pencil,
     title: 'Blog auto-publisher',
     prompt:
       'Build a workflow that takes a draft document, optimizes it for SEO by researching target keywords, formats it for WordPress with proper headings and meta description, and publishes it as a draft post for final review.',
@@ -625,7 +593,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['individual', 'research', 'team'],
   },
   {
-    icon: SlackIcon,
+    icon: Search,
     title: 'Slack knowledge search',
     prompt:
       'Create a knowledge base connected to my Slack workspace so all channel conversations and threads are automatically synced and searchable. Then build an agent I can ask things like "what did the team decide about the launch date?" or "what was the outcome of the design review?" and get answers with links to the original messages.',
@@ -635,7 +603,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['team', 'research', 'communication'],
   },
   {
-    icon: NotionIcon,
+    icon: Search,
     title: 'Notion knowledge search',
     prompt:
       'Create a knowledge base connected to my Notion workspace so all pages, databases, meeting notes, and wikis are automatically synced and searchable. Then build an agent I can ask things like "what\'s our refund policy?" or "what was decided in the Q3 planning doc?" and get instant answers with page links.',
@@ -645,7 +613,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['team', 'research'],
   },
   {
-    icon: GoogleDriveIcon,
+    icon: Search,
     title: 'Google Drive knowledge search',
     prompt:
       'Create a knowledge base connected to my Google Drive so all documents, spreadsheets, and presentations are automatically synced and searchable. Then build an agent I can ask things like "find the board deck from last quarter" or "what were the KPIs in the marketing plan?" and get answers with doc links.',
@@ -735,7 +703,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['team', 'reporting', 'communication'],
   },
   {
-    icon: GmailIcon,
+    icon: Mail,
     title: 'Email triage assistant',
     prompt:
       'Build a workflow that scans my Gmail inbox every hour, categorizes emails by urgency and type (action needed, FYI, follow-up), drafts replies for routine messages, and sends me a prioritized summary in Slack so I only open what matters. Schedule it to run hourly.',
@@ -745,7 +713,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['individual', 'communication', 'automation'],
   },
   {
-    icon: SlackIcon,
+    icon: ClipboardList,
     title: 'Meeting notes to action items',
     prompt:
       'Create a workflow that takes meeting notes or a transcript, extracts action items with owners and due dates, creates tasks in Linear or Asana for each one, and posts a summary to the relevant Slack channel.',
@@ -755,7 +723,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['team', 'automation'],
   },
   {
-    icon: GoogleSheetsIcon,
+    icon: Table,
     title: 'Weekly metrics report',
     prompt:
       'Build a scheduled workflow that pulls data from Stripe and my database every Monday, calculates key metrics like MRR, churn, new subscriptions, and failed payments, populates a Google Sheet, and Slacks the team a summary with week-over-week trends.',
@@ -765,7 +733,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['founder', 'finance', 'reporting'],
   },
   {
-    icon: AmplitudeIcon,
+    icon: Table,
     title: 'Product analytics digest',
     prompt:
       'Create a scheduled weekly workflow that pulls key product metrics from Amplitude — active users, feature adoption rates, retention cohorts, and top events — generates an executive summary with week-over-week trends, and posts it to Slack.',
@@ -775,7 +743,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['product', 'reporting', 'analysis'],
   },
   {
-    icon: CalendlyIcon,
+    icon: Calendar,
     title: 'Scheduling follow-up automator',
     prompt:
       'Build a workflow that monitors new Calendly bookings, researches each attendee and their company, prepares a pre-meeting brief with relevant context, and sends a personalized confirmation email with an agenda and any prep materials.',
@@ -785,7 +753,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['sales', 'research', 'automation'],
   },
   {
-    icon: TwilioIcon,
+    icon: Send,
     title: 'SMS appointment reminders',
     prompt:
       'Create a scheduled workflow that checks Google Calendar each morning for appointments in the next 24 hours, and sends an SMS reminder to each attendee via Twilio with the meeting time, location, and any prep notes.',
@@ -795,7 +763,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['individual', 'communication', 'automation'],
   },
   {
-    icon: MicrosoftTeamsIcon,
+    icon: Calendar,
     title: 'Microsoft Teams daily brief',
     prompt:
       'Build a scheduled workflow that pulls updates from your project tools — GitHub commits, Jira ticket status changes, and calendar events — and posts a formatted daily brief to your Microsoft Teams channel each morning.',
@@ -857,7 +825,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['legal', 'analysis'],
   },
   {
-    icon: FirecrawlIcon,
+    icon: Search,
     title: 'Competitive intel monitor',
     prompt:
       'Build a scheduled workflow that scrapes competitor websites, pricing pages, and changelog pages weekly using Firecrawl, compares against previous snapshots, summarizes any changes, logs them to a tracking table, and sends a Slack alert for major updates.',
@@ -867,7 +835,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['founder', 'product', 'monitoring', 'research'],
   },
   {
-    icon: StripeIcon,
+    icon: Table,
     title: 'Revenue operations dashboard',
     prompt:
       'Create a scheduled daily workflow that pulls payment data from Stripe, calculates MRR, net revenue, failed payments, and new subscriptions, logs everything to a table with historical tracking, and sends a daily Slack summary with trends and anomalies.',
@@ -877,7 +845,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['finance', 'founder', 'reporting', 'monitoring'],
   },
   {
-    icon: ShopifyIcon,
+    icon: Table,
     title: 'E-commerce order monitor',
     prompt:
       'Build a workflow that monitors Shopify orders, flags high-value or unusual orders for review, tracks fulfillment status in a table, and sends daily inventory and sales summaries to Slack with restock alerts when items run low.',
@@ -917,7 +885,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['hr', 'recruiting', 'analysis'],
   },
   {
-    icon: GreenhouseIcon,
+    icon: Users,
     title: 'Recruiting pipeline automator',
     prompt:
       'Build a scheduled workflow that syncs open jobs and candidates from Greenhouse to a tracking table daily, flags candidates who have been in the same stage for more than 5 days, and sends a Slack summary to hiring managers with pipeline stats and bottlenecks.',
@@ -927,7 +895,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['hr', 'recruiting', 'monitoring', 'reporting'],
   },
   {
-    icon: DatadogIcon,
+    icon: Server,
     title: 'Infrastructure health report',
     prompt:
       'Create a scheduled daily workflow that queries Datadog for key infrastructure metrics — error rates, latency percentiles, CPU and memory usage — logs them to a table for trend tracking, and sends a morning Slack report highlighting any anomalies or degradations.',
@@ -937,7 +905,7 @@ export const TEMPLATES: TemplatePrompt[] = [
     tags: ['devops', 'infrastructure', 'monitoring', 'reporting'],
   },
   {
-    icon: AirtableIcon,
+    icon: Table,
     title: 'Airtable data sync',
     prompt:
       'Create a scheduled workflow that syncs records from my Airtable base into a Sim table every hour, keeping both in sync. Use an agent to detect changes, resolve conflicts, and flag any discrepancies for review in Slack.',
