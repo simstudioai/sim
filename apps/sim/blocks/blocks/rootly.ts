@@ -53,7 +53,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       value: () => 'rootly_create_incident',
     },
 
-    // Create Incident fields
     {
       id: 'title',
       title: 'Title',
@@ -183,7 +182,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // Get Incident fields
     {
       id: 'getIncidentId',
       title: 'Incident ID',
@@ -193,7 +191,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       required: { field: 'operation', value: 'rootly_get_incident' },
     },
 
-    // Update Incident fields
     {
       id: 'updateIncidentId',
       title: 'Incident ID',
@@ -354,7 +351,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Incidents fields
     {
       id: 'listIncidentsStatus',
       title: 'Status Filter',
@@ -447,7 +443,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // Create Alert fields
     {
       id: 'alertSummary',
       title: 'Summary',
@@ -533,7 +528,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Alerts fields
     {
       id: 'listAlertsStatus',
       title: 'Status Filter',
@@ -598,7 +592,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // Add Incident Event fields
     {
       id: 'eventIncidentId',
       title: 'Incident ID',
@@ -629,7 +622,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Services fields
     {
       id: 'servicesSearch',
       title: 'Search',
@@ -654,7 +646,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Severities fields
     {
       id: 'severitiesSearch',
       title: 'Search',
@@ -679,7 +670,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Teams fields
     {
       id: 'teamsSearch',
       title: 'Search',
@@ -704,7 +694,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Environments fields
     {
       id: 'environmentsSearch',
       title: 'Search',
@@ -729,7 +718,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Incident Types fields
     {
       id: 'incidentTypesSearch',
       title: 'Name Filter',
@@ -754,7 +742,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Functionalities fields
     {
       id: 'functionalitiesSearch',
       title: 'Search',
@@ -779,7 +766,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Retrospectives fields
     {
       id: 'retrospectivesStatus',
       title: 'Status Filter',
@@ -816,7 +802,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // Delete Incident fields
     {
       id: 'deleteIncidentId',
       title: 'Incident ID',
@@ -826,7 +811,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       required: { field: 'operation', value: 'rootly_delete_incident' },
     },
 
-    // Get Alert fields
     {
       id: 'getAlertId',
       title: 'Alert ID',
@@ -836,7 +820,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       required: { field: 'operation', value: 'rootly_get_alert' },
     },
 
-    // Update Alert fields
     {
       id: 'updateAlertId',
       title: 'Alert ID',
@@ -916,7 +899,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // Acknowledge Alert fields
     {
       id: 'ackAlertId',
       title: 'Alert ID',
@@ -926,7 +908,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       required: { field: 'operation', value: 'rootly_acknowledge_alert' },
     },
 
-    // Resolve Alert fields
     {
       id: 'resolveAlertId',
       title: 'Alert ID',
@@ -955,7 +936,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // Create Action Item fields
     {
       id: 'actionItemIncidentId',
       title: 'Incident ID',
@@ -1043,7 +1023,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       },
     },
 
-    // List Action Items fields
     {
       id: 'listActionItemsIncidentId',
       title: 'Incident ID',
@@ -1069,7 +1048,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Users fields
     {
       id: 'usersSearch',
       title: 'Search',
@@ -1102,7 +1080,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List On-Calls fields
     {
       id: 'onCallsScheduleIds',
       title: 'Schedule IDs',
@@ -1134,7 +1111,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Schedules fields
     {
       id: 'schedulesSearch',
       title: 'Search',
@@ -1159,7 +1135,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Escalation Policies fields
     {
       id: 'escalationPoliciesSearch',
       title: 'Search',
@@ -1184,7 +1159,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Causes fields
     {
       id: 'causesSearch',
       title: 'Search',
@@ -1209,7 +1183,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Playbooks fields
     {
       id: 'playbooksPageSize',
       title: 'Page Size',

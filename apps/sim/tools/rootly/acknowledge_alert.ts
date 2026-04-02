@@ -35,6 +35,7 @@ export const rootlyAcknowledgeAlertTool: ToolConfig<
       'Content-Type': 'application/vnd.api+json',
       Authorization: `Bearer ${params.apiKey}`,
     }),
+    body: () => ({ data: {} }),
   },
 
   transformResponse: async (response: Response) => {
