@@ -102,6 +102,18 @@ interface StartResumeExecutionArgs {
 }
 
 export class PauseResumeManager {
+  /**
+   * Maximum number of retry attempts when a resume request arrives before
+   * the pause state has been persisted to the database.
+   */
+  private static readonly RESUME_RETRY_MAX_ATTEMPTS = 5
+
+  /**
+   * Base delay in milliseconds between retry attempts. Each retry doubles
+   * the delay (exponential backoff): 50ms, 100ms, 200ms, 400ms, 800ms.
+   */
+  private static readonly RESUME_RETRY_BASE_DELAY_MS = 50
+
   static async persistPauseResult(args: PersistPauseResultArgs): Promise<void> {
     const { workflowId, executionId, pausePoints, snapshotSeed, executorUserId } = args
 
@@ -122,28 +134,18 @@ export class PauseResumeManager {
 
     const now = new Date()
 
-    await db
-      .insert(pausedExecutions)
-      .values({
-        id: randomUUID(),
-        workflowId,
-        executionId,
-        executionSnapshot: snapshotSeed,
-        pausePoints: pausePointsRecord,
-        totalPauseCount: pausePoints.length,
-        resumedCount: 0,
-        status: 'paused',
-        metadata: {
-          pauseScope: 'execution',
-          triggerIds: snapshotSeed.triggerIds,
-          executorUserId: executorUserId ?? null,
-        },
-        pausedAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: pausedExecutions.executionId,
-        set: {
+    // Use a transaction to ensure the pause state is atomically visible
+    // to concurrent resume requests. The SELECT FOR UPDATE in
+    // enqueueOrStartResume will block until this transaction commits,
+    // eliminating the race window where a resume request could arrive
+    // before the pause record exists.
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(pausedExecutions)
+        .values({
+          id: randomUUID(),
+          workflowId,
+          executionId,
           executionSnapshot: snapshotSeed,
           pausePoints: pausePointsRecord,
           totalPauseCount: pausePoints.length,
@@ -154,14 +156,105 @@ export class PauseResumeManager {
             triggerIds: snapshotSeed.triggerIds,
             executorUserId: executorUserId ?? null,
           },
+          pausedAt: now,
           updatedAt: now,
-        },
-      })
+        })
+        .onConflictDoUpdate({
+          target: pausedExecutions.executionId,
+          set: {
+            executionSnapshot: snapshotSeed,
+            pausePoints: pausePointsRecord,
+            totalPauseCount: pausePoints.length,
+            resumedCount: 0,
+            status: 'paused',
+            metadata: {
+              pauseScope: 'execution',
+              triggerIds: snapshotSeed.triggerIds,
+              executorUserId: executorUserId ?? null,
+            },
+            updatedAt: now,
+          },
+        })
 
+      // Process any resume requests that were queued while the execution
+      // was being persisted — within the same transaction so the row lock
+      // held by enqueueOrStartResume is released only after both the
+      // insert and the queue drain are complete.
+      const pendingEntry = await tx
+        .select()
+        .from(resumeQueue)
+        .where(
+          and(
+            eq(resumeQueue.parentExecutionId, executionId),
+            eq(resumeQueue.status, 'pending')
+          )
+        )
+        .orderBy(asc(resumeQueue.queuedAt))
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (pendingEntry) {
+        await tx
+          .update(resumeQueue)
+          .set({ status: 'claimed', claimedAt: new Date() })
+          .where(eq(resumeQueue.id, pendingEntry.id))
+
+        await tx
+          .update(pausedExecutions)
+          .set({
+            pausePoints: sql`jsonb_set(pause_points, ARRAY[${pendingEntry.contextId}, 'resumeStatus'], '"resuming"'::jsonb)`,
+          })
+          .where(eq(pausedExecutions.executionId, executionId))
+      }
+    })
+
+    // After the transaction commits (pause record is visible), process
+    // any queued resumes. This also handles the case where no pending
+    // entries existed inside the transaction but arrived right after.
     await PauseResumeManager.processQueuedResumes(executionId)
   }
 
   static async enqueueOrStartResume(args: EnqueueResumeArgs): Promise<EnqueueResumeResult> {
+    const { executionId, contextId, resumeInput, userId } = args
+
+    // Retry with exponential backoff to handle the race condition where
+    // a resume request arrives before persistPauseResult has committed
+    // the pause record to the database. The SELECT FOR UPDATE in the
+    // transaction will block if a concurrent persistPauseResult holds
+    // the row lock, but if the row doesn't exist yet we need to retry.
+    for (
+      let attempt = 0;
+      attempt < PauseResumeManager.RESUME_RETRY_MAX_ATTEMPTS;
+      attempt++
+    ) {
+      try {
+        return await PauseResumeManager.tryEnqueueOrStartResume(args)
+      } catch (error: unknown) {
+        const isPausedNotFound =
+          error instanceof Error &&
+          error.message === 'Paused execution not found or already resumed'
+
+        if (!isPausedNotFound || attempt >= PauseResumeManager.RESUME_RETRY_MAX_ATTEMPTS - 1) {
+          throw error
+        }
+
+        const delay =
+          PauseResumeManager.RESUME_RETRY_BASE_DELAY_MS * Math.pow(2, attempt)
+        logger.info(
+          `Paused execution not found yet, retrying in ${delay}ms (attempt ${attempt + 1}/${PauseResumeManager.RESUME_RETRY_MAX_ATTEMPTS})`,
+          { executionId, contextId }
+        )
+        await new Promise((resolve) => setTimeout(resolve, delay))
+      }
+    }
+
+    // This is unreachable but satisfies TypeScript
+    throw new Error('Paused execution not found or already resumed')
+  }
+
+  private static async tryEnqueueOrStartResume(
+    args: EnqueueResumeArgs
+  ): Promise<EnqueueResumeResult> {
     const { executionId, contextId, resumeInput, userId } = args
 
     return await db.transaction(async (tx) => {
