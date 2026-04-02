@@ -1,5 +1,5 @@
 {
-  "id": "7f097b1f-1207-472e-b1bc-e237bab9528c",
+  "id": "1a38a6e2-09e2-4215-baa2-662f78824768",
   "prevId": "1114a957-9e5b-49fe-b82d-ef3612189345",
   "version": "7",
   "dialect": "postgresql",
@@ -2927,40 +2927,6 @@
           ],
           "isUnique": true,
           "where": "type = 'env_personal'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "credential_workspace_service_account_unique": {
-          "name": "credential_workspace_service_account_unique",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "provider_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "display_name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "type = 'service_account'",
           "concurrently": false,
           "method": "btree",
           "with": {}

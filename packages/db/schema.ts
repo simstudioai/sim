@@ -2350,9 +2350,6 @@ export const credential = pgTable(
     workspacePersonalEnvUnique: uniqueIndex('credential_workspace_personal_env_unique')
       .on(table.workspaceId, table.type, table.envKey, table.envOwnerUserId)
       .where(sql`type = 'env_personal'`),
-    workspaceServiceAccountUnique: uniqueIndex('credential_workspace_service_account_unique')
-      .on(table.workspaceId, table.type, table.providerId, table.displayName)
-      .where(sql`type = 'service_account'`),
     oauthSourceConstraint: check(
       'credential_oauth_source_check',
       sql`(type <> 'oauth') OR (account_id IS NOT NULL AND provider_id IS NOT NULL)`
