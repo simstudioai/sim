@@ -4,11 +4,11 @@
  * SEO:
  * - `<section id="enterprise" aria-labelledby="enterprise-heading">`.
  * - `<h2 id="enterprise-heading">` for the section title.
- * - Compliance certs (SOC 2, HIPAA) as visible `<strong>` text.
+ * - Compliance cert (SOC 2) as visible `<strong>` text.
  * - Enterprise CTA links to contact form via `<a>` with `rel="noopener noreferrer"`.
  *
  * GEO:
- * - Entity-rich: "Sim is SOC 2 and HIPAA compliant" — not "We are compliant."
+ * - Entity-rich: "Sim is SOC 2 compliant" — not "We are compliant."
  * - `<ul>` checklist of features (SSO, RBAC, audit logs, SLA, on-premise deployment)
  *   as an atomic answer block for "What enterprise features does Sim offer?".
  */
@@ -66,7 +66,7 @@ const FEATURE_TAGS = [
 function TrustStrip() {
   return (
     <div className='mx-6 mt-4 grid grid-cols-1 overflow-hidden rounded-lg border border-[var(--landing-bg-elevated)] sm:grid-cols-3 md:mx-8'>
-      {/* SOC 2 + HIPAA combined */}
+      {/* SOC 2 */}
       <Link
         href='https://app.vanta.com/sim.ai/trust/v35ia0jil4l7dteqjgaktn'
         target='_blank'
@@ -83,10 +83,10 @@ function TrustStrip() {
         />
         <div className='flex flex-col gap-[3px]'>
           <strong className='font-[430] font-season text-small text-white leading-none'>
-            SOC 2 & HIPAA
+            SOC 2
           </strong>
           <span className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_55%,transparent)] text-xs leading-none tracking-[0.02em] transition-colors group-hover:text-[color-mix(in_srgb,var(--landing-text-subtle)_75%,transparent)]'>
-            Type II · PHI protected →
+            Type II →
           </span>
         </div>
       </Link>
