@@ -5,6 +5,7 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { getCustomToolByIdOrTitle } from '@/lib/workflows/custom-tools/operations'
 import { isCustomTool } from '@/executor/constants'
+import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import { tools } from '@/tools/registry'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
@@ -125,7 +126,7 @@ async function fetchCustomToolFromDB(
       return undefined
     }
 
-    const toolConfig = createToolConfig(customTool, customToolId)
+    const toolConfig = createToolConfig(customTool as unknown as CustomToolDefinition, customToolId)
 
     return {
       ...toolConfig,

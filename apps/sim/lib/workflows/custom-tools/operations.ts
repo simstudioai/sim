@@ -165,9 +165,7 @@ export async function getCustomToolByIdOrTitle(params: {
 }) {
   const { identifier, userId, workspaceId } = params
 
-  const conditions = [
-    or(eq(customTools.id, identifier), eq(customTools.title, identifier)),
-  ]
+  const conditions = [or(eq(customTools.id, identifier), eq(customTools.title, identifier))]
 
   if (workspaceId) {
     const workspaceTool = await db
@@ -181,9 +179,7 @@ export async function getCustomToolByIdOrTitle(params: {
   const legacyTool = await db
     .select()
     .from(customTools)
-    .where(
-      and(isNull(customTools.workspaceId), eq(customTools.userId, userId), ...conditions)
-    )
+    .where(and(isNull(customTools.workspaceId), eq(customTools.userId, userId), ...conditions))
     .limit(1)
   return legacyTool[0] || null
 }
