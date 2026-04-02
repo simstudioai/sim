@@ -228,13 +228,13 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
             {tools && tools.length > 0 && (
               <div className='flex items-center gap-2'>
                 <span className='flex-shrink-0 font-normal text-[#b3b3b3] text-[14px]'>Tools</span>
-                <div className='flex flex-1 flex-wrap items-center justify-end gap-2'>
+                <div className='flex flex-1 flex-wrap items-center justify-end gap-[5px]'>
                   {tools.map((tool) => {
                     const ToolIcon = BLOCK_ICONS[tool.type]
                     return (
                       <div
                         key={tool.type}
-                        className='flex items-center gap-2 rounded-[5px] border border-[#3d3d3d] bg-[#2a2a2a] px-2 py-1'
+                        className='flex items-center gap-[5px] rounded-[5px] border border-[#3d3d3d] bg-[#2a2a2a] px-[6px] py-[3px]'
                       >
                         <div
                           className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'

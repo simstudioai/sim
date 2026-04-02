@@ -32,7 +32,7 @@ export interface WorkflowMetadata {
   isSandbox?: boolean
 }
 
-export type HydrationPhase = 'idle' | 'state-loading' | 'ready' | 'error'
+export type HydrationPhase = 'idle' | 'creating' | 'state-loading' | 'ready' | 'error'
 
 export interface HydrationState {
   phase: HydrationPhase
@@ -55,6 +55,8 @@ export interface WorkflowRegistryActions {
   setActiveWorkflow: (id: string) => Promise<void>
   loadWorkflowState: (workflowId: string) => Promise<void>
   switchToWorkspace: (id: string) => void
+  markWorkflowCreating: (workflowId: string) => void
+  markWorkflowCreated: (workflowId: string | null) => void
   getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
   setDeploymentStatus: (
     workflowId: string | null,

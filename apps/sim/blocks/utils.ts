@@ -1,4 +1,5 @@
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isAzureConfigured, isHosted } from '@/lib/core/config/feature-flags'
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
 import {
   getHostedModels,
@@ -8,9 +9,32 @@ import {
 } from '@/providers/models'
 import { useProvidersStore } from '@/stores/providers/store'
 
-const VERTEX_MODELS = getProviderModels('vertex')
-const BEDROCK_MODELS = getProviderModels('bedrock')
-const AZURE_MODELS = [...getProviderModels('azure-openai'), ...getProviderModels('azure-anthropic')]
+export const VERTEX_MODELS = getProviderModels('vertex')
+export const BEDROCK_MODELS = getProviderModels('bedrock')
+export const AZURE_MODELS = [
+  ...getProviderModels('azure-openai'),
+  ...getProviderModels('azure-anthropic'),
+]
+
+/**
+ * Standard subblocks for Google service account impersonation.
+ * Uses a reactive condition that fetches the credential by ID to check if it's
+ * a service account — works in both block editor and agent tool-input contexts.
+ */
+export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
+  {
+    id: 'impersonateUserEmail',
+    title: 'Impersonated Account',
+    type: 'short-input',
+    placeholder: 'Email to impersonate (for service accounts)',
+    paramVisibility: 'user-only',
+    reactiveCondition: {
+      watchFields: ['oauthCredential'],
+      requiredType: 'service_account',
+    },
+    mode: 'both',
+  },
+]
 
 /**
  * Returns model options for combobox subblocks, combining all provider sources.
@@ -105,6 +129,16 @@ function shouldRequireApiKeyForModel(model: string): boolean {
     return false
   }
 
+  if (
+    isAzureConfigured &&
+    (normalizedModel.startsWith('azure/') ||
+      normalizedModel.startsWith('azure-openai/') ||
+      normalizedModel.startsWith('azure-anthropic/') ||
+      AZURE_MODELS.some((m) => m.toLowerCase() === normalizedModel))
+  ) {
+    return false
+  }
+
   if (normalizedModel.startsWith('vllm/')) {
     return false
   }
@@ -158,8 +192,23 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       title: 'Google Cloud Account',
       type: 'oauth-input',
       serviceId: 'vertex-ai',
-      requiredScopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      canonicalParamId: 'vertexCredential',
+      mode: 'basic',
+      requiredScopes: getScopesForService('vertex-ai'),
       placeholder: 'Select Google Cloud account',
+      required: true,
+      condition: {
+        field: 'model',
+        value: VERTEX_MODELS,
+      },
+    },
+    {
+      id: 'vertexManualCredential',
+      title: 'Google Cloud Account',
+      type: 'short-input',
+      canonicalParamId: 'vertexCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
       condition: {
         field: 'model',
@@ -183,6 +232,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       password: true,
       placeholder: 'https://your-resource.services.ai.azure.com',
       connectionDroppable: false,
+      hideWhenEnvSet: 'NEXT_PUBLIC_AZURE_CONFIGURED',
       condition: {
         field: 'model',
         value: AZURE_MODELS,
@@ -194,6 +244,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       type: 'short-input',
       placeholder: 'Enter API version',
       connectionDroppable: false,
+      hideWhenEnvSet: 'NEXT_PUBLIC_AZURE_CONFIGURED',
       condition: {
         field: 'model',
         value: AZURE_MODELS,
@@ -203,6 +254,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       id: 'vertexProject',
       title: 'Vertex AI Project',
       type: 'short-input',
+      password: true,
       placeholder: 'your-gcp-project-id',
       connectionDroppable: false,
       required: true,
@@ -231,6 +283,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       placeholder: 'Enter your AWS Access Key ID',
       connectionDroppable: false,
       required: true,
+      hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
       condition: {
         field: 'model',
         value: BEDROCK_MODELS,
@@ -244,6 +297,7 @@ export function getProviderCredentialSubBlocks(): SubBlockConfig[] {
       placeholder: 'Enter your AWS Secret Access Key',
       connectionDroppable: false,
       required: true,
+      hideWhenEnvSet: 'NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS',
       condition: {
         field: 'model',
         value: BEDROCK_MODELS,

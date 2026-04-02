@@ -342,7 +342,7 @@ describe('Function Execute API Route', () => {
         code: 'return "Email sent to user"',
         params: {
           email: {
-            from: 'Waleed Latif <waleed@sim.ai>',
+            from: 'Dr. Shaw <shaw@high-flying.ai>',
             to: 'User <user@example.com>',
           },
         },
@@ -378,7 +378,7 @@ describe('Function Execute API Route', () => {
       async () => {
         const emailData = {
           id: '123',
-          from: 'Waleed Latif <waleed@sim.ai>',
+          from: 'Dr. Shaw <shaw@high-flying.ai>',
           to: 'User <user@example.com>',
           subject: 'Test Email',
           bodyText: 'Hello world',

@@ -65,6 +65,54 @@ export async function authorizeCredentialUse(
     .limit(1)
 
   if (platformCredential) {
+    if (platformCredential.type === 'service_account') {
+      if (workflowContext && workflowContext.workspaceId !== platformCredential.workspaceId) {
+        return { ok: false, error: 'Credential is not accessible from this workflow workspace' }
+      }
+
+      if (actingUserId) {
+        const requesterPerm = await getUserEntityPermissions(
+          actingUserId,
+          'workspace',
+          platformCredential.workspaceId
+        )
+
+        const [membership] = await db
+          .select({ id: credentialMember.id })
+          .from(credentialMember)
+          .where(
+            and(
+              eq(credentialMember.credentialId, platformCredential.id),
+              eq(credentialMember.userId, actingUserId),
+              eq(credentialMember.status, 'active')
+            )
+          )
+          .limit(1)
+
+        if (!membership) {
+          return {
+            ok: false,
+            error:
+              'You do not have access to this credential. Ask the credential admin to add you as a member.',
+          }
+        }
+        if (requesterPerm === null) {
+          return { ok: false, error: 'You do not have access to this workspace.' }
+        }
+      } else if (!workflowContext) {
+        return { ok: false, error: 'workflowId is required' }
+      }
+
+      return {
+        ok: true,
+        authType: auth.authType as CredentialAccessResult['authType'],
+        requesterUserId: auth.userId,
+        credentialOwnerUserId: actingUserId || auth.userId,
+        workspaceId: platformCredential.workspaceId,
+        resolvedCredentialId: platformCredential.id,
+      }
+    }
+
     if (platformCredential.type !== 'oauth' || !platformCredential.accountId) {
       return { ok: false, error: 'Unsupported credential type for OAuth access' }
     }

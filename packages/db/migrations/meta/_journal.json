@@ -1282,6 +1282,13 @@
       "when": 1774724904239,
       "tag": "0183_workable_apocalypse",
       "breakpoints": true
+    },
+    {
+      "idx": 184,
+      "version": "7",
+      "when": 1775149654511,
+      "tag": "0184_hard_thaddeus_ross",
+      "breakpoints": true
     }
   ]
 }

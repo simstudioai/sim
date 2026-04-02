@@ -190,7 +190,7 @@ export const HTTP = {
 } as const
 
 export const AGENT = {
-  DEFAULT_MODEL: 'claude-sonnet-4-5',
+  DEFAULT_MODEL: 'claude-sonnet-4-6',
   get DEFAULT_FUNCTION_TIMEOUT() {
     return getMaxExecutionTimeout()
   },
@@ -225,13 +225,13 @@ export const MEMORY = {
 } as const
 
 export const ROUTER = {
-  DEFAULT_MODEL: 'claude-sonnet-4-5',
+  DEFAULT_MODEL: 'claude-sonnet-4-6',
   DEFAULT_TEMPERATURE: 0,
   INFERENCE_TEMPERATURE: 0.1,
 } as const
 
 export const EVALUATOR = {
-  DEFAULT_MODEL: 'claude-sonnet-4-5',
+  DEFAULT_MODEL: 'claude-sonnet-4-6',
   DEFAULT_TEMPERATURE: 0.1,
   RESPONSE_SCHEMA_NAME: 'evaluation_response',
   JSON_INDENT: 2,

@@ -93,7 +93,7 @@ export default function StructuredData() {
         url: 'https://sim.ai',
         name: 'Sim — Build AI Agents & Run Your Agentic Workforce',
         description:
-          'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Trusted by over 100,000 builders. SOC2 and HIPAA compliant.',
+          'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Trusted by over 100,000 builders. SOC2 compliant.',
         applicationCategory: 'DeveloperApplication',
         operatingSystem: 'Web',
         browserRequirements: 'Requires a modern browser with JavaScript enabled',
@@ -179,7 +179,7 @@ export default function StructuredData() {
             name: 'What is Sim?',
             acceptedAnswer: {
               '@type': 'Answer',
-              text: 'Sim is the open-source platform to build AI agents and run your agentic workforce. Teams connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Trusted by over 100,000 builders. SOC2 and HIPAA compliant.',
+              text: 'Sim is the open-source platform to build AI agents and run your agentic workforce. Teams connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Trusted by over 100,000 builders. SOC2 compliant.',
             },
           },
           {
@@ -211,7 +211,7 @@ export default function StructuredData() {
             name: 'What enterprise features does Sim offer?',
             acceptedAnswer: {
               '@type': 'Answer',
-              text: 'Sim offers SOC2 and HIPAA compliance, SSO/SAML authentication, role-based access control, audit logs, dedicated support, custom SLAs, and on-premise deployment options for enterprise customers.',
+              text: 'Sim offers SOC2 compliance, SSO/SAML authentication, role-based access control, audit logs, dedicated support, custom SLAs, and on-premise deployment options for enterprise customers.',
             },
           },
         ],

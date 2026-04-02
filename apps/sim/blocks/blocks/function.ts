@@ -29,7 +29,7 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
       ],
       placeholder: 'Select language',
       value: () => CodeLanguage.JavaScript,
-      requiresFeature: 'NEXT_PUBLIC_E2B_ENABLED',
+      showWhenEnvSet: 'NEXT_PUBLIC_E2B_ENABLED',
     },
     {
       id: 'code',

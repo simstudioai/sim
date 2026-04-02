@@ -2,7 +2,7 @@ import { GoogleCalendarIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleCalendarResponse } from '@/tools/google_calendar/types'
 
 export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
@@ -58,6 +58,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
+    ...SERVICE_ACCOUNT_SUBBLOCKS,
     // Calendar selector (basic mode) - not needed for list_calendars
     {
       id: 'calendarId',

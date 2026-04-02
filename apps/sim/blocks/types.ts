@@ -327,8 +327,9 @@ export interface SubBlockConfig {
   connectionDroppable?: boolean
   hidden?: boolean
   hideFromPreview?: boolean // Hide this subblock from the workflow block preview
-  requiresFeature?: string // Environment variable name that must be truthy for this subblock to be visible
+  showWhenEnvSet?: string // Show this subblock only when the named NEXT_PUBLIC_ env var is truthy
   hideWhenHosted?: boolean // Hide this subblock when running on hosted sim
+  hideWhenEnvSet?: string // Hide this subblock when the named NEXT_PUBLIC_ env var is truthy
   description?: string
   tooltip?: string // Tooltip text displayed via info icon next to the title
   value?: (params: Record<string, any>) => string
@@ -357,6 +358,18 @@ export interface SubBlockConfig {
           not?: boolean
         }
       })
+  /**
+   * Credential-type visibility gate. The first non-empty string value from
+   * `watchFields` is treated as a credential ID and fetched via the credentials
+   * API. The subblock is hidden unless `credential.type` matches `requiredType`.
+   *
+   * Only one subblock per block may use this. The serializer ignores it —
+   * the field is always serialized when it has a value.
+   */
+  reactiveCondition?: {
+    watchFields: string[]
+    requiredType: 'oauth' | 'service_account'
+  }
   // Props specific to 'code' sub-block type
   language?: 'javascript' | 'json' | 'python'
   generationType?: GenerationType

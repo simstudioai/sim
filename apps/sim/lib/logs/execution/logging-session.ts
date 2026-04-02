@@ -294,11 +294,16 @@ export class LoggingSession {
       })
     )
 
-    if (!output?.cost || typeof output.cost.total !== 'number' || output.cost.total <= 0) {
+    const blockOutput = output?.output
+    if (
+      !blockOutput?.cost ||
+      typeof blockOutput.cost.total !== 'number' ||
+      blockOutput.cost.total <= 0
+    ) {
       return
     }
 
-    const { cost, tokens, model } = output
+    const { cost, tokens, model } = blockOutput
 
     this.accumulatedCost.total += cost.total || 0
     this.accumulatedCost.input += cost.input || 0

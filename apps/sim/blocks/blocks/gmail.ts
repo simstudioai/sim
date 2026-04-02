@@ -2,7 +2,11 @@ import { GmailIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
+import {
+  createVersionedToolSelector,
+  normalizeFileInput,
+  SERVICE_ACCOUNT_SUBBLOCKS,
+} from '@/blocks/utils'
 import type { GmailToolResponse } from '@/tools/gmail/types'
 import { getTrigger } from '@/triggers'
 
@@ -95,6 +99,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
+    ...SERVICE_ACCOUNT_SUBBLOCKS,
     // Send Email Fields
     {
       id: 'to',

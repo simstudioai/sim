@@ -4,7 +4,13 @@ import { z } from 'zod'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getCredential, getOAuthToken, refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import {
+  getCredential,
+  getOAuthToken,
+  getServiceAccountToken,
+  refreshTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +24,8 @@ const tokenRequestSchema = z
     credentialAccountUserId: z.string().min(1).optional(),
     providerId: z.string().min(1).optional(),
     workflowId: z.string().min(1).nullish(),
+    scopes: z.array(z.string()).optional(),
+    impersonateEmail: z.string().email().optional(),
   })
   .refine(
     (data) => data.credentialId || (data.credentialAccountUserId && data.providerId),
@@ -63,7 +71,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { credentialId, credentialAccountUserId, providerId, workflowId } = parseResult.data
+    const {
+      credentialId,
+      credentialAccountUserId,
+      providerId,
+      workflowId,
+      scopes,
+      impersonateEmail,
+    } = parseResult.data
 
     if (credentialAccountUserId && providerId) {
       logger.info(`[${requestId}] Fetching token by credentialAccountUserId + providerId`, {
@@ -111,6 +126,31 @@ export async function POST(request: NextRequest) {
     }
 
     const callerUserId = new URL(request.url).searchParams.get('userId') || undefined
+
+    const resolved = await resolveOAuthAccountId(credentialId)
+    if (resolved?.credentialType === 'service_account' && resolved.credentialId) {
+      const authz = await authorizeCredentialUse(request, {
+        credentialId,
+        workflowId: workflowId ?? undefined,
+        requireWorkflowIdForInternal: false,
+        callerUserId,
+      })
+      if (!authz.ok) {
+        return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
+      }
+
+      try {
+        const accessToken = await getServiceAccountToken(
+          resolved.credentialId,
+          scopes ?? [],
+          impersonateEmail
+        )
+        return NextResponse.json({ accessToken }, { status: 200 })
+      } catch (error) {
+        logger.error(`[${requestId}] Service account token error:`, error)
+        return NextResponse.json({ error: 'Failed to get service account token' }, { status: 401 })
+      }
+    }
 
     const authz = await authorizeCredentialUse(request, {
       credentialId,

@@ -10,14 +10,25 @@ import {
   Settings,
   Table,
 } from '@/components/emcn/icons'
+import { cn } from '@/lib/core/utils/cn'
 import type { PreviewWorkflow } from '@/app/(home)/components/landing-preview/components/landing-preview-workflow/workflow-data'
+
+export type SidebarView =
+  | 'home'
+  | 'workflow'
+  | 'tables'
+  | 'files'
+  | 'knowledge'
+  | 'logs'
+  | 'scheduled-tasks'
 
 interface LandingPreviewSidebarProps {
   workflows: PreviewWorkflow[]
   activeWorkflowId: string
-  activeView: 'home' | 'workflow'
+  activeView: SidebarView
   onSelectWorkflow: (id: string) => void
   onSelectHome: () => void
+  onSelectNav: (id: SidebarView) => void
 }
 
 /**
@@ -39,7 +50,7 @@ const C = {
 const WORKSPACE_NAV = [
   { id: 'tables', label: 'Tables', icon: Table },
   { id: 'files', label: 'Files', icon: File },
-  { id: 'knowledge-base', label: 'Knowledge Base', icon: Database },
+  { id: 'knowledge', label: 'Knowledge Base', icon: Database },
   { id: 'scheduled-tasks', label: 'Scheduled Tasks', icon: Calendar },
   { id: 'logs', label: 'Logs', icon: Library },
 ] as const
@@ -49,20 +60,42 @@ const FOOTER_NAV = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ] as const
 
-function StaticNavItem({
+function NavItem({
   icon: Icon,
   label,
+  isActive,
+  onClick,
 }: {
   icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
   label: string
+  isActive?: boolean
+  onClick?: () => void
 }) {
+  if (!onClick) {
+    return (
+      <div className='pointer-events-none mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2'>
+        <Icon className='h-[14px] w-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
+        <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
+          {label}
+        </span>
+      </div>
+    )
+  }
+
   return (
-    <div className='pointer-events-none mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2'>
+    <button
+      type='button'
+      onClick={onClick}
+      className={cn(
+        'mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2 transition-colors hover-hover:bg-[var(--c-active)]',
+        isActive && 'bg-[var(--c-active)]'
+      )}
+    >
       <Icon className='h-[14px] w-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
       <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
         {label}
       </span>
-    </div>
+    </button>
   )
 }
 
@@ -77,13 +110,16 @@ export function LandingPreviewSidebar({
   activeView,
   onSelectWorkflow,
   onSelectHome,
+  onSelectNav,
 }: LandingPreviewSidebarProps) {
   const isHomeActive = activeView === 'home'
 
   return (
     <div
       className='flex h-full w-[248px] flex-shrink-0 flex-col pt-3'
-      style={{ backgroundColor: C.SURFACE_1 }}
+      style={
+        { backgroundColor: C.SURFACE_1, '--c-active': C.SURFACE_ACTIVE } as React.CSSProperties
+      }
     >
       {/* Workspace Header */}
       <div className='flex-shrink-0 px-2.5'>
@@ -116,21 +152,17 @@ export function LandingPreviewSidebar({
         <button
           type='button'
           onClick={onSelectHome}
-          className='mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2 transition-colors'
-          style={{ backgroundColor: isHomeActive ? C.SURFACE_ACTIVE : 'transparent' }}
-          onMouseEnter={(e) => {
-            if (!isHomeActive) e.currentTarget.style.backgroundColor = C.SURFACE_ACTIVE
-          }}
-          onMouseLeave={(e) => {
-            if (!isHomeActive) e.currentTarget.style.backgroundColor = 'transparent'
-          }}
+          className={cn(
+            'mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2 transition-colors hover-hover:bg-[var(--c-active)]',
+            isHomeActive && 'bg-[var(--c-active)]'
+          )}
         >
           <Home className='h-[14px] w-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
           <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
             Home
           </span>
         </button>
-        <StaticNavItem icon={Search} label='Search' />
+        <NavItem icon={Search} label='Search' />
       </div>
 
       {/* Workspace */}
@@ -142,7 +174,13 @@ export function LandingPreviewSidebar({
         </div>
         <div className='flex flex-col gap-0.5 px-2'>
           {WORKSPACE_NAV.map((item) => (
-            <StaticNavItem key={item.id} icon={item.icon} label={item.label} />
+            <NavItem
+              key={item.id}
+              icon={item.icon}
+              label={item.label}
+              isActive={activeView === item.id}
+              onClick={() => onSelectNav(item.id)}
+            />
           ))}
         </div>
       </div>
@@ -164,14 +202,10 @@ export function LandingPreviewSidebar({
                   key={workflow.id}
                   type='button'
                   onClick={() => onSelectWorkflow(workflow.id)}
-                  className='group mx-0.5 flex h-[28px] w-full items-center gap-2 rounded-[8px] px-2 transition-colors'
-                  style={{ backgroundColor: isActive ? C.SURFACE_ACTIVE : 'transparent' }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) e.currentTarget.style.backgroundColor = C.SURFACE_ACTIVE
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'
-                  }}
+                  className={cn(
+                    'mx-0.5 flex h-[28px] w-full items-center gap-2 rounded-[8px] px-2 transition-colors hover-hover:bg-[#363636]',
+                    isActive && 'bg-[#363636]'
+                  )}
                 >
                   <div
                     className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px] border-[2.5px]'
@@ -197,7 +231,7 @@ export function LandingPreviewSidebar({
       {/* Footer */}
       <div className='flex flex-shrink-0 flex-col gap-0.5 px-2 pt-[9px] pb-2'>
         {FOOTER_NAV.map((item) => (
-          <StaticNavItem key={item.id} icon={item.icon} label={item.label} />
+          <NavItem key={item.id} icon={item.icon} label={item.label} />
         ))}
       </div>
     </div>

@@ -267,6 +267,16 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               ? error.message
               : `Failed to load workflow ${workflowId}: Unknown error`
           logger.error(message)
+
+          const currentHydration = get().hydration
+          if (
+            currentHydration.requestId !== requestId ||
+            currentHydration.workflowId !== workflowId
+          ) {
+            logger.info('Discarding stale workflow error', { workflowId, requestId })
+            return
+          }
+
           set((state) => ({
             error: message,
             hydration: {
@@ -299,6 +309,52 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         }
 
         await get().loadWorkflowState(id)
+      },
+
+      markWorkflowCreating: (workflowId: string) => {
+        set((state) => ({
+          error: null,
+          hydration: {
+            phase: 'creating' as const,
+            workspaceId: state.hydration.workspaceId,
+            workflowId,
+            requestId: null,
+            error: null,
+          },
+        }))
+        logger.info(`Marked workflow ${workflowId} as creating`)
+      },
+
+      markWorkflowCreated: (workflowId: string | null) => {
+        const { hydration } = get()
+
+        if (!workflowId) {
+          if (hydration.phase === 'creating') {
+            set((state) => ({
+              hydration: {
+                ...state.hydration,
+                phase: 'idle' as const,
+                workflowId: null,
+                error: null,
+              },
+            }))
+          }
+          return
+        }
+
+        if (hydration.phase !== 'creating' || hydration.workflowId !== workflowId) {
+          logger.info(
+            `Ignoring markWorkflowCreated for ${workflowId} — hydration is ${hydration.phase}/${hydration.workflowId}`
+          )
+          return
+        }
+
+        logger.info(`Workflow ${workflowId} created, loading state`)
+        get()
+          .loadWorkflowState(workflowId)
+          .catch((error) => {
+            logger.error(`Failed to load newly created workflow ${workflowId}:`, error)
+          })
       },
 
       logout: () => {

@@ -1,12 +1,10 @@
 import { useCallback, useMemo } from 'react'
-import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useCreateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { generateCreativeWorkflowName } from '@/stores/workflows/registry/utils'
-
-const logger = createLogger('useWorkflowOperations')
 
 interface UseWorkflowOperationsProps {
   workspaceId: string
@@ -25,30 +23,24 @@ export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProp
     [workflows, workspaceId]
   )
 
-  const handleCreateWorkflow = useCallback(async (): Promise<string | null> => {
-    try {
-      const { clearDiff } = useWorkflowDiffStore.getState()
-      clearDiff()
+  const handleCreateWorkflow = useCallback((): Promise<string | null> => {
+    const { clearDiff } = useWorkflowDiffStore.getState()
+    clearDiff()
 
-      const name = generateCreativeWorkflowName()
-      const color = getNextWorkflowColor()
+    const name = generateCreativeWorkflowName()
+    const color = getNextWorkflowColor()
+    const id = crypto.randomUUID()
 
-      const result = await createWorkflowMutation.mutateAsync({
-        workspaceId,
-        name,
-        color,
-        id: crypto.randomUUID(),
-      })
+    createWorkflowMutation.mutate({
+      workspaceId,
+      name,
+      color,
+      id,
+    })
 
-      if (result.id) {
-        router.push(`/workspace/${workspaceId}/w/${result.id}`)
-        return result.id
-      }
-      return null
-    } catch (error) {
-      logger.error('Error creating workflow:', error)
-      return null
-    }
+    useWorkflowRegistry.getState().markWorkflowCreating(id)
+    router.push(`/workspace/${workspaceId}/w/${id}`)
+    return Promise.resolve(id)
   }, [createWorkflowMutation, workspaceId, router])
 
   return {

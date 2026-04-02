@@ -15,6 +15,7 @@ import { useParams } from 'next/navigation'
 import type { Socket } from 'socket.io-client'
 import { getEnv } from '@/lib/core/config/env'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
+import { useWorkflowRegistry as useWorkflowRegistryStore } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('SocketContext')
 
@@ -387,13 +388,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             { useWorkflowRegistry },
             { useWorkflowStore },
             { useSubBlockStore },
-            { useWorkflowDiffStore },
           ] = await Promise.all([
             import('@/stores/operation-queue/store'),
             import('@/stores/workflows/registry/store'),
             import('@/stores/workflows/workflow/store'),
             import('@/stores/workflows/subblock/store'),
-            import('@/stores/workflow-diff/store'),
           ])
 
           const { activeWorkflowId } = useWorkflowRegistry.getState()
@@ -542,8 +541,12 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     }
   }, [user?.id, authFailed])
 
+  const hydrationPhase = useWorkflowRegistryStore((s) => s.hydration.phase)
+
   useEffect(() => {
     if (!socket || !isConnected || !urlWorkflowId) return
+
+    if (hydrationPhase === 'creating') return
 
     // Skip if already in the correct room
     if (currentWorkflowId === urlWorkflowId) return
@@ -562,7 +565,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       workflowId: urlWorkflowId,
       tabSessionId: getTabSessionId(),
     })
-  }, [socket, isConnected, urlWorkflowId, currentWorkflowId])
+  }, [socket, isConnected, urlWorkflowId, currentWorkflowId, hydrationPhase])
 
   const joinWorkflow = useCallback(
     (workflowId: string) => {

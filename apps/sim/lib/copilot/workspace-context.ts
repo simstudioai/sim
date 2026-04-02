@@ -25,6 +25,7 @@ const logger = createLogger('WorkspaceContext')
 
 const PROVIDER_SERVICES: Record<string, string[]> = {
   google: ['Gmail', 'Sheets', 'Calendar', 'Drive'],
+  'google-service-account': ['Gmail', 'Sheets', 'Calendar', 'Drive'],
   slack: ['Slack'],
   github: ['GitHub'],
   microsoft: ['Outlook', 'OneDrive'],

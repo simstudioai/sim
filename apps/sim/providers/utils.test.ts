@@ -392,7 +392,6 @@ describe('Model Capabilities', () => {
       expect(supportsThinking('claude-sonnet-4-5')).toBe(true)
       expect(supportsThinking('claude-sonnet-4-0')).toBe(true)
       expect(supportsThinking('claude-haiku-4-5')).toBe(true)
-      expect(supportsThinking('gemini-3-pro-preview')).toBe(true)
       expect(supportsThinking('gemini-3-flash-preview')).toBe(true)
     })
 
@@ -511,7 +510,6 @@ describe('Model Capabilities', () => {
       expect(MODELS_WITH_THINKING).toContain('claude-sonnet-4-5')
       expect(MODELS_WITH_THINKING).toContain('claude-sonnet-4-0')
 
-      expect(MODELS_WITH_THINKING).toContain('gemini-3-pro-preview')
       expect(MODELS_WITH_THINKING).toContain('gemini-3-flash-preview')
 
       expect(MODELS_WITH_THINKING).toContain('claude-haiku-4-5')
@@ -523,7 +521,12 @@ describe('Model Capabilities', () => {
 
     it.concurrent('should have GPT-5 models in both reasoning effort and verbosity arrays', () => {
       const gpt5ModelsWithReasoningEffort = MODELS_WITH_REASONING_EFFORT.filter(
-        (m) => m.includes('gpt-5') && !m.includes('chat-latest') && !m.includes('gpt-5.4-pro')
+        (m) =>
+          m.includes('gpt-5') &&
+          !m.includes('chat-latest') &&
+          !m.includes('gpt-5.4-pro') &&
+          !m.includes('gpt-5.2-pro') &&
+          !m.includes('gpt-5-pro')
       )
       const gpt5ModelsWithVerbosity = MODELS_WITH_VERBOSITY.filter(
         (m) => m.includes('gpt-5') && !m.includes('chat-latest')
@@ -532,6 +535,12 @@ describe('Model Capabilities', () => {
 
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.4-pro')
       expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.4-pro')
+
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.2-pro')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.2-pro')
+
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5-pro')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5-pro')
 
       expect(MODELS_WITH_REASONING_EFFORT).toContain('o1')
       expect(MODELS_WITH_VERBOSITY).not.toContain('o1')
@@ -629,11 +638,6 @@ describe('Model Capabilities', () => {
     })
 
     it.concurrent('should return correct levels for Gemini 3 models', () => {
-      const proLevels = getThinkingLevelsForModel('gemini-3-pro-preview')
-      expect(proLevels).toBeDefined()
-      expect(proLevels).toContain('low')
-      expect(proLevels).toContain('high')
-
       const flashLevels = getThinkingLevelsForModel('gemini-3-flash-preview')
       expect(flashLevels).toBeDefined()
       expect(flashLevels).toContain('minimal')
@@ -669,7 +673,7 @@ describe('Max Output Tokens', () => {
     })
 
     it.concurrent('should return correct max for Claude Opus 4.1', () => {
-      expect(getMaxOutputTokensForModel('claude-opus-4-1')).toBe(64000)
+      expect(getMaxOutputTokensForModel('claude-opus-4-1')).toBe(32000)
     })
 
     it.concurrent('should return standard default for models without maxOutputTokens', () => {

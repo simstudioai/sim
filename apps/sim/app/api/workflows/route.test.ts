@@ -28,6 +28,13 @@ vi.mock('@sim/db', () => ({
   db: {
     select: (...args: unknown[]) => mockDbSelect(...args),
     insert: (...args: unknown[]) => mockDbInsert(...args),
+    transaction: vi.fn(async (fn: (tx: Record<string, unknown>) => Promise<void>) => {
+      const tx = {
+        select: (...args: unknown[]) => mockDbSelect(...args),
+        insert: (...args: unknown[]) => mockDbInsert(...args),
+      }
+      await fn(tx)
+    }),
   },
 }))
 
@@ -85,6 +92,18 @@ vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: {
     workflowCreated: (...args: unknown[]) => mockWorkflowCreated(...args),
   },
+}))
+
+vi.mock('@/lib/workflows/defaults', () => ({
+  buildDefaultWorkflowArtifacts: vi.fn().mockReturnValue({
+    workflowState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+    subBlockValues: {},
+    startBlockId: 'start-block-id',
+  }),
+}))
+
+vi.mock('@/lib/workflows/persistence/utils', () => ({
+  saveWorkflowToNormalizedTables: vi.fn().mockResolvedValue({ success: true }),
 }))
 
 import { POST } from '@/app/api/workflows/route'
