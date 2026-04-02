@@ -11,6 +11,8 @@ const {
   mockGetCredential,
   mockRefreshTokenIfNeeded,
   mockGetOAuthToken,
+  mockResolveOAuthAccountId,
+  mockGetServiceAccountToken,
   mockAuthorizeCredentialUse,
   mockCheckSessionOrInternalAuth,
   mockLogger,
@@ -29,6 +31,8 @@ const {
     mockGetCredential: vi.fn(),
     mockRefreshTokenIfNeeded: vi.fn(),
     mockGetOAuthToken: vi.fn(),
+    mockResolveOAuthAccountId: vi.fn(),
+    mockGetServiceAccountToken: vi.fn(),
     mockAuthorizeCredentialUse: vi.fn(),
     mockCheckSessionOrInternalAuth: vi.fn(),
     mockLogger: logger,
@@ -40,6 +44,8 @@ vi.mock('@/app/api/auth/oauth/utils', () => ({
   getCredential: mockGetCredential,
   refreshTokenIfNeeded: mockRefreshTokenIfNeeded,
   getOAuthToken: mockGetOAuthToken,
+  resolveOAuthAccountId: mockResolveOAuthAccountId,
+  getServiceAccountToken: mockGetServiceAccountToken,
 }))
 
 vi.mock('@sim/logger', () => ({
@@ -48,6 +54,10 @@ vi.mock('@sim/logger', () => ({
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUse: mockAuthorizeCredentialUse,
+}))
+
+vi.mock('@/lib/core/utils/request', () => ({
+  generateRequestId: vi.fn().mockReturnValue('test-request-id'),
 }))
 
 vi.mock('@/lib/auth/hybrid', () => ({
@@ -62,6 +72,7 @@ import { GET, POST } from '@/app/api/auth/oauth/token/route'
 describe('OAuth Token API Routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockResolveOAuthAccountId.mockResolvedValue(null)
   })
 
   /**

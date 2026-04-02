@@ -989,8 +989,7 @@ export function getSubBlocksForToolInput(
       // Filter by visibility: exclude hidden and llm-only
       if (visibility === 'hidden' || visibility === 'llm-only') continue
 
-      // Evaluate condition against current values
-      if (sb.condition) {
+      if (sb.condition && !sb.reactiveCondition) {
         const conditionMet = evaluateSubBlockCondition(
           sb.condition as SubBlockCondition,
           valuesWithOperation

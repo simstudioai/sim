@@ -712,6 +712,16 @@ export async function executeTool(
         if (workflowId) {
           tokenPayload.workflowId = workflowId
         }
+        if (contextParams.impersonateUserEmail) {
+          tokenPayload.impersonateEmail = contextParams.impersonateUserEmail as string
+        }
+        if (tool?.oauth?.provider) {
+          const { getCanonicalScopesForProvider } = await import('@/lib/oauth/utils')
+          const providerScopes = getCanonicalScopesForProvider(tool.oauth.provider)
+          if (providerScopes.length > 0) {
+            tokenPayload.scopes = providerScopes
+          }
+        }
 
         logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
 
@@ -778,6 +788,7 @@ export async function executeTool(
         }
         // Clean up params we don't need to pass to the actual tool
         contextParams.credential = undefined
+        contextParams.impersonateUserEmail = undefined
         if (contextParams.workflowId) contextParams.workflowId = undefined
       } catch (error: any) {
         logger.error(`[${requestId}] Error fetching access token for ${toolId}:`, {

@@ -255,6 +255,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       'bigquery.datasets',
       context.oauthCredential ?? 'none',
       context.projectId ?? 'none',
+      context.impersonateUserEmail ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.projectId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
@@ -264,6 +265,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         credential: credentialId,
         workflowId: context.workflowId,
         projectId: context.projectId,
+        impersonateEmail: context.impersonateUserEmail,
       })
       const data = await fetchJson<{ datasets: BigQueryDataset[] }>(
         '/api/tools/google_bigquery/datasets',
@@ -281,6 +283,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         credential: credentialId,
         workflowId: context.workflowId,
         projectId: context.projectId,
+        impersonateEmail: context.impersonateUserEmail,
       })
       const data = await fetchJson<{ datasets: BigQueryDataset[] }>(
         '/api/tools/google_bigquery/datasets',
@@ -304,6 +307,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       context.oauthCredential ?? 'none',
       context.projectId ?? 'none',
       context.datasetId ?? 'none',
+      context.impersonateUserEmail ?? 'none',
     ],
     enabled: ({ context }) =>
       Boolean(context.oauthCredential && context.projectId && context.datasetId),
@@ -316,6 +320,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         workflowId: context.workflowId,
         projectId: context.projectId,
         datasetId: context.datasetId,
+        impersonateEmail: context.impersonateUserEmail,
       })
       const data = await fetchJson<{ tables: BigQueryTable[] }>(
         '/api/tools/google_bigquery/tables',
@@ -334,6 +339,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         workflowId: context.workflowId,
         projectId: context.projectId,
         datasetId: context.datasetId,
+        impersonateEmail: context.impersonateUserEmail,
       })
       const data = await fetchJson<{ tables: BigQueryTable[] }>(
         '/api/tools/google_bigquery/tables',
@@ -560,11 +566,16 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       'selectors',
       'google.tasks.lists',
       context.oauthCredential ?? 'none',
+      context.impersonateUserEmail ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'google.tasks.lists')
-      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        impersonateEmail: context.impersonateUserEmail,
+      })
       const data = await fetchJson<{ taskLists: GoogleTaskList[] }>(
         '/api/tools/google_tasks/task-lists',
         { method: 'POST', body }
@@ -574,7 +585,11 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'google.tasks.lists')
-      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        impersonateEmail: context.impersonateUserEmail,
+      })
       const data = await fetchJson<{ taskLists: GoogleTaskList[] }>(
         '/api/tools/google_tasks/task-lists',
         { method: 'POST', body }
@@ -880,11 +895,15 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       'selectors',
       'gmail.labels',
       context.oauthCredential ?? 'none',
+      context.impersonateUserEmail ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const data = await fetchJson<{ labels: FolderResponse[] }>('/api/tools/gmail/labels', {
-        searchParams: { credentialId: context.oauthCredential },
+        searchParams: {
+          credentialId: context.oauthCredential,
+          impersonateEmail: context.impersonateUserEmail,
+        },
       })
       return (data.labels || []).map((label) => ({
         id: label.id,
@@ -918,12 +937,18 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       'selectors',
       'google.calendar',
       context.oauthCredential ?? 'none',
+      context.impersonateUserEmail ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const data = await fetchJson<{ calendars: { id: string; summary: string }[] }>(
         '/api/tools/google_calendar/calendars',
-        { searchParams: { credentialId: context.oauthCredential } }
+        {
+          searchParams: {
+            credentialId: context.oauthCredential,
+            impersonateEmail: context.impersonateUserEmail,
+          },
+        }
       )
       return (data.calendars || []).map((calendar) => ({
         id: calendar.id,
@@ -1396,6 +1421,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       context.mimeType ?? 'any',
       context.fileId ?? 'root',
       search ?? '',
+      context.impersonateUserEmail ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
@@ -1409,6 +1435,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
             parentId: context.fileId,
             query: search,
             workflowId: context.workflowId,
+            impersonateEmail: context.impersonateUserEmail,
           },
         }
       )
@@ -1427,6 +1454,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
             credentialId,
             fileId: detailId,
             workflowId: context.workflowId,
+            impersonateEmail: context.impersonateUserEmail,
           },
         }
       )
@@ -1443,6 +1471,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       'google.sheets',
       context.oauthCredential ?? 'none',
       context.spreadsheetId ?? 'none',
+      context.impersonateUserEmail ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.spreadsheetId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
@@ -1457,6 +1486,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
             credentialId,
             spreadsheetId: context.spreadsheetId,
             workflowId: context.workflowId,
+            impersonateEmail: context.impersonateUserEmail,
           },
         }
       )

@@ -97,8 +97,10 @@ export function CredentialSelector({
   )
   const provider = effectiveProviderId
 
+  const isTriggerMode = subBlock.mode === 'trigger'
+
   const {
-    data: credentials = [],
+    data: rawCredentials = [],
     isFetching: credentialsLoading,
     refetch: refetchCredentials,
   } = useOAuthCredentials(effectiveProviderId, {
@@ -107,9 +109,22 @@ export function CredentialSelector({
     workflowId: activeWorkflowId || undefined,
   })
 
+  const credentials = useMemo(
+    () =>
+      isTriggerMode
+        ? rawCredentials.filter((cred) => cred.type !== 'service_account')
+        : rawCredentials,
+    [rawCredentials, isTriggerMode]
+  )
+
   const selectedCredential = useMemo(
     () => credentials.find((cred) => cred.id === selectedId),
     [credentials, selectedId]
+  )
+
+  const isServiceAccount = useMemo(
+    () => selectedCredential?.type === 'service_account',
+    [selectedCredential]
   )
 
   const selectedCredentialSet = useMemo(
@@ -150,6 +165,7 @@ export function CredentialSelector({
 
   const needsUpdate =
     hasSelection &&
+    !isServiceAccount &&
     missingRequiredScopes.length > 0 &&
     !effectiveDisabled &&
     !isPreview &&
@@ -229,6 +245,7 @@ export function CredentialSelector({
       const credentialItems = credentials.map((cred) => ({
         label: cred.name,
         value: cred.id,
+        iconElement: getProviderIcon((cred.provider ?? provider) as OAuthProvider),
       }))
       credentialItems.push({
         label:
@@ -236,6 +253,7 @@ export function CredentialSelector({
             ? `Connect another ${getProviderName(provider)} account`
             : `Connect ${getProviderName(provider)} account`,
         value: '__connect_account__',
+        iconElement: <ExternalLink className='h-3 w-3' />,
       })
 
       groups.push({
@@ -249,6 +267,7 @@ export function CredentialSelector({
     const options = credentials.map((cred) => ({
       label: cred.name,
       value: cred.id,
+      iconElement: getProviderIcon((cred.provider ?? provider) as OAuthProvider),
     }))
 
     options.push({
@@ -257,6 +276,7 @@ export function CredentialSelector({
           ? `Connect another ${getProviderName(provider)} account`
           : `Connect ${getProviderName(provider)} account`,
       value: '__connect_account__',
+      iconElement: <ExternalLink className='h-3 w-3' />,
     })
 
     return { comboboxOptions: options, comboboxGroups: undefined }
@@ -264,6 +284,7 @@ export function CredentialSelector({
     credentials,
     provider,
     effectiveProviderId,
+    getProviderIcon,
     getProviderName,
     canUseCredentialSets,
     credentialSets,
@@ -299,6 +320,7 @@ export function CredentialSelector({
     selectedCredentialProvider,
     isCredentialSetSelected,
     selectedCredentialSet,
+    isServiceAccount,
   ])
 
   const handleComboboxChange = useCallback(

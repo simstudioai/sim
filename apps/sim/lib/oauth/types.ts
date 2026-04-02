@@ -109,6 +109,8 @@ export interface OAuthProviderConfig {
   defaultService: string
 }
 
+export type OAuthAuthType = 'oauth' | 'service_account'
+
 export interface OAuthServiceConfig {
   name: string
   description: string
@@ -116,6 +118,8 @@ export interface OAuthServiceConfig {
   icon: (props: { className?: string }) => ReactNode
   baseProviderIcon: (props: { className?: string }) => ReactNode
   scopes: string[]
+  authType?: OAuthAuthType
+  serviceAccountProviderId?: string
 }
 
 /**
@@ -132,6 +136,7 @@ export interface Credential {
   id: string
   name: string
   provider: OAuthProvider
+  type?: 'oauth' | 'service_account'
   serviceId?: string
   lastUsed?: string
   isDefault?: boolean

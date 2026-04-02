@@ -358,6 +358,18 @@ export interface SubBlockConfig {
           not?: boolean
         }
       })
+  /**
+   * Credential-type visibility gate. The first non-empty string value from
+   * `watchFields` is treated as a credential ID and fetched via the credentials
+   * API. The subblock is hidden unless `credential.type` matches `requiredType`.
+   *
+   * Only one subblock per block may use this. The serializer ignores it —
+   * the field is always serialized when it has a value.
+   */
+  reactiveCondition?: {
+    watchFields: string[]
+    requiredType: 'oauth' | 'service_account'
+  }
   // Props specific to 'code' sub-block type
   language?: 'javascript' | 'json' | 'python'
   generationType?: GenerationType

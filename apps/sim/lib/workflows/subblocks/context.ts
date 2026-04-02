@@ -21,6 +21,7 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
   'baseId',
   'datasetId',
   'serviceDeskId',
+  'impersonateUserEmail',
 ])
 
 /**

@@ -2311,6 +2311,7 @@ export const credentialTypeEnum = pgEnum('credential_type', [
   'oauth',
   'env_workspace',
   'env_personal',
+  'service_account',
 ])
 
 export const credential = pgTable(
@@ -2327,6 +2328,7 @@ export const credential = pgTable(
     accountId: text('account_id').references(() => account.id, { onDelete: 'cascade' }),
     envKey: text('env_key'),
     envOwnerUserId: text('env_owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
+    encryptedServiceAccountKey: text('encrypted_service_account_key'),
     createdBy: text('created_by')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -2348,6 +2350,9 @@ export const credential = pgTable(
     workspacePersonalEnvUnique: uniqueIndex('credential_workspace_personal_env_unique')
       .on(table.workspaceId, table.type, table.envKey, table.envOwnerUserId)
       .where(sql`type = 'env_personal'`),
+    workspaceServiceAccountUnique: uniqueIndex('credential_workspace_service_account_unique')
+      .on(table.workspaceId, table.type, table.providerId, table.displayName)
+      .where(sql`type = 'service_account'`),
     oauthSourceConstraint: check(
       'credential_oauth_source_check',
       sql`(type <> 'oauth') OR (account_id IS NOT NULL AND provider_id IS NOT NULL)`
@@ -2359,6 +2364,10 @@ export const credential = pgTable(
     personalEnvSourceConstraint: check(
       'credential_personal_env_source_check',
       sql`(type <> 'env_personal') OR (env_key IS NOT NULL AND env_owner_user_id IS NOT NULL)`
+    ),
+    serviceAccountSourceConstraint: check(
+      'credential_service_account_source_check',
+      sql`(type <> 'service_account') OR (encrypted_service_account_key IS NOT NULL AND provider_id IS NOT NULL)`
     ),
   })
 )

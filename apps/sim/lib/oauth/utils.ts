@@ -488,6 +488,11 @@ export function getServiceConfigByProviderId(providerId: string): OAuthServiceCo
   return null
 }
 
+export function getServiceAccountProviderForProviderId(providerId: string): string | undefined {
+  const serviceConfig = getServiceConfigByProviderId(providerId)
+  return serviceConfig?.serviceAccountProviderId
+}
+
 export function getCanonicalScopesForProvider(providerId: string): string[] {
   const service = getServiceConfigByProviderId(providerId)
   return service?.scopes ? [...service.scopes] : []

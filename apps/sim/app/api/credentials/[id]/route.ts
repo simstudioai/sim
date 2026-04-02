@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import {
   syncPersonalEnvCredentialsForUser,
@@ -17,12 +18,19 @@ const updateCredentialSchema = z
   .object({
     displayName: z.string().trim().min(1).max(255).optional(),
     description: z.string().trim().max(500).nullish(),
+    serviceAccountJson: z.string().min(1).optional(),
   })
   .strict()
-  .refine((data) => data.displayName !== undefined || data.description !== undefined, {
-    message: 'At least one field must be provided',
-    path: ['displayName'],
-  })
+  .refine(
+    (data) =>
+      data.displayName !== undefined ||
+      data.description !== undefined ||
+      data.serviceAccountJson !== undefined,
+    {
+      message: 'At least one field must be provided',
+      path: ['displayName'],
+    }
+  )
 
 async function getCredentialResponse(credentialId: string, userId: string) {
   const [row] = await db
@@ -106,12 +114,37 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       updates.description = parseResult.data.description ?? null
     }
 
-    if (parseResult.data.displayName !== undefined && access.credential.type === 'oauth') {
+    if (
+      parseResult.data.displayName !== undefined &&
+      (access.credential.type === 'oauth' || access.credential.type === 'service_account')
+    ) {
       updates.displayName = parseResult.data.displayName
     }
 
+    if (
+      parseResult.data.serviceAccountJson !== undefined &&
+      access.credential.type === 'service_account'
+    ) {
+      let parsed: Record<string, unknown>
+      try {
+        parsed = JSON.parse(parseResult.data.serviceAccountJson)
+      } catch {
+        return NextResponse.json({ error: 'Invalid JSON format' }, { status: 400 })
+      }
+      if (
+        parsed.type !== 'service_account' ||
+        typeof parsed.client_email !== 'string' ||
+        typeof parsed.private_key !== 'string' ||
+        typeof parsed.project_id !== 'string'
+      ) {
+        return NextResponse.json({ error: 'Invalid service account JSON key' }, { status: 400 })
+      }
+      const { encrypted } = await encryptSecret(parseResult.data.serviceAccountJson)
+      updates.encryptedServiceAccountKey = encrypted
+    }
+
     if (Object.keys(updates).length === 0) {
-      if (access.credential.type === 'oauth') {
+      if (access.credential.type === 'oauth' || access.credential.type === 'service_account') {
         return NextResponse.json(
           {
             error: 'No updatable fields provided.',
@@ -134,6 +167,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const row = await getCredentialResponse(id, session.user.id)
     return NextResponse.json({ credential: row }, { status: 200 })
   } catch (error) {
+    if (error instanceof Error && error.message.includes('unique')) {
+      return NextResponse.json(
+        { error: 'A service account credential with this name already exists in the workspace' },
+        { status: 409 }
+      )
+    }
     logger.error('Failed to update credential', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

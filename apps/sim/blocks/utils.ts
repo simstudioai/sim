@@ -17,6 +17,26 @@ export const AZURE_MODELS = [
 ]
 
 /**
+ * Standard subblocks for Google service account impersonation.
+ * Uses a reactive condition that fetches the credential by ID to check if it's
+ * a service account — works in both block editor and agent tool-input contexts.
+ */
+export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
+  {
+    id: 'impersonateUserEmail',
+    title: 'Impersonated Account',
+    type: 'short-input',
+    placeholder: 'Email to impersonate (for service accounts)',
+    paramVisibility: 'user-only',
+    reactiveCondition: {
+      watchFields: ['oauthCredential'],
+      requiredType: 'service_account',
+    },
+    mode: 'both',
+  },
+]
+
+/**
  * Returns model options for combobox subblocks, combining all provider sources.
  */
 export function getModelOptions() {
