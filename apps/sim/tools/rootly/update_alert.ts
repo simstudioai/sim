@@ -1,11 +1,11 @@
-import type { RootlyCreateAlertParams, RootlyCreateAlertResponse } from '@/tools/rootly/types'
+import type { RootlyUpdateAlertParams, RootlyUpdateAlertResponse } from '@/tools/rootly/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCreateAlertResponse> =
+export const rootlyUpdateAlertTool: ToolConfig<RootlyUpdateAlertParams, RootlyUpdateAlertResponse> =
   {
-    id: 'rootly_create_alert',
-    name: 'Rootly Create Alert',
-    description: 'Create a new alert in Rootly for on-call notification and routing.',
+    id: 'rootly_update_alert',
+    name: 'Rootly Update Alert',
+    description: 'Update an existing alert in Rootly.',
     version: '1.0.0',
 
     params: {
@@ -15,29 +15,29 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
         visibility: 'user-only',
         description: 'Rootly API key',
       },
-      summary: {
+      alertId: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'The summary of the alert',
+        description: 'The ID of the alert to update',
+      },
+      summary: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Updated alert summary',
       },
       description: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'A detailed description of the alert',
+        description: 'Updated alert description',
       },
       source: {
         type: 'string',
-        required: true,
-        visibility: 'user-or-llm',
-        description: 'The source of the alert (e.g., api, manual, datadog, pagerduty)',
-      },
-      status: {
-        type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Alert status on creation (open, triggered)',
+        description: 'Updated alert source',
       },
       serviceIds: {
         type: 'string',
@@ -61,36 +61,34 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'External ID for the alert',
+        description: 'Updated external ID',
       },
       externalUrl: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'External URL for the alert',
+        description: 'Updated external URL',
       },
       deduplicationKey: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Alerts sharing the same deduplication key are treated as a single alert',
+        description: 'Updated deduplication key',
       },
     },
 
     request: {
-      url: 'https://api.rootly.com/v1/alerts',
-      method: 'POST',
+      url: (params) => `https://api.rootly.com/v1/alerts/${params.alertId.trim()}`,
+      method: 'PATCH',
       headers: (params) => ({
         'Content-Type': 'application/vnd.api+json',
         Authorization: `Bearer ${params.apiKey}`,
       }),
       body: (params) => {
-        const attributes: Record<string, unknown> = {
-          summary: params.summary,
-          source: params.source,
-        }
+        const attributes: Record<string, unknown> = {}
+        if (params.summary) attributes.summary = params.summary
         if (params.description) attributes.description = params.description
-        if (params.status) attributes.status = params.status
+        if (params.source) attributes.source = params.source
         if (params.externalId) attributes.external_id = params.externalId
         if (params.externalUrl) attributes.external_url = params.externalUrl
         if (params.deduplicationKey) attributes.deduplication_key = params.deduplicationKey
@@ -103,7 +101,7 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
         if (params.environmentIds) {
           attributes.environment_ids = params.environmentIds.split(',').map((s: string) => s.trim())
         }
-        return { data: { type: 'alerts', attributes } }
+        return { data: { type: 'alerts', id: params.alertId.trim(), attributes } }
       },
     },
 
@@ -112,7 +110,7 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
         const errorData = await response.json().catch(() => ({}))
         return {
           success: false,
-          output: { alert: {} as RootlyCreateAlertResponse['output']['alert'] },
+          output: { alert: {} as RootlyUpdateAlertResponse['output']['alert'] },
           error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
         }
       }
@@ -144,7 +142,7 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
     outputs: {
       alert: {
         type: 'object',
-        description: 'The created alert',
+        description: 'The updated alert',
         properties: {
           id: { type: 'string', description: 'Unique alert ID' },
           shortId: { type: 'string', description: 'Short alert ID' },
