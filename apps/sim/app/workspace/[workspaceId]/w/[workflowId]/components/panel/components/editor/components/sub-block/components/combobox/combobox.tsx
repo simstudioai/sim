@@ -21,7 +21,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 /**
  * Constants for ComboBox component behavior
  */
-const DEFAULT_MODEL = 'claude-sonnet-4-5'
+const DEFAULT_MODEL = 'claude-sonnet-4-6'
 const ZOOM_FACTOR_BASE = 0.96
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 1
