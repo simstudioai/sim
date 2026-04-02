@@ -187,7 +187,7 @@ export async function createModelsOgImage({
                 name: 'Geist',
                 data: regularFontData,
                 style: 'normal' as const,
-                weight: 400,
+                weight: 400 as const,
               },
             ]
           : []),
@@ -197,7 +197,7 @@ export async function createModelsOgImage({
                 name: 'Geist',
                 data: mediumFontData,
                 style: 'normal' as const,
-                weight: 500,
+                weight: 500 as const,
               },
             ]
           : []),

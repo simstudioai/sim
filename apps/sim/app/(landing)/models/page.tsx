@@ -84,7 +84,7 @@ export default function ModelsPage() {
   )
   const featuredProviders = MODEL_PROVIDERS_WITH_CATALOGS.slice(0, 6)
   const featuredModels = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) =>
-    provider.featuredModels.slice(0, 1)
+    provider.featuredModels[0] ? [{ provider, model: provider.featuredModels[0] }] : []
   ).slice(0, 6)
   const heroProviders = ['openai', 'anthropic', 'azure-openai', 'google', 'bedrock']
     .map((providerId) => MODEL_CATALOG_PROVIDERS.find((provider) => provider.id === providerId))
@@ -108,24 +108,27 @@ export default function ModelsPage() {
     description: `Directory of ${TOTAL_MODELS} AI models tracked in Sim across ${TOTAL_MODEL_PROVIDERS} providers.`,
     url: `${baseUrl}/models`,
     numberOfItems: TOTAL_MODELS,
-    itemListElement: flatModels.map(({ provider, model }, index) => ({
-      '@type': 'ListItem',
-      position: index + 1,
-      item: {
-        '@type': 'Product',
-        name: model.displayName,
-        url: `${baseUrl}${model.href}`,
-        description: model.summary,
-        brand: provider.name,
-        category: 'AI language model',
-        offers: {
-          '@type': 'AggregateOffer',
-          priceCurrency: 'USD',
-          lowPrice: getPricingBounds(model.pricing).lowPrice.toString(),
-          highPrice: getPricingBounds(model.pricing).highPrice.toString(),
+    itemListElement: flatModels.map(({ provider, model }, index) => {
+      const { lowPrice, highPrice } = getPricingBounds(model.pricing)
+      return {
+        '@type': 'ListItem',
+        position: index + 1,
+        item: {
+          '@type': 'Product',
+          name: model.displayName,
+          url: `${baseUrl}${model.href}`,
+          description: model.summary,
+          brand: provider.name,
+          category: 'AI language model',
+          offers: {
+            '@type': 'AggregateOffer',
+            priceCurrency: 'USD',
+            lowPrice: lowPrice.toString(),
+            highPrice: highPrice.toString(),
+          },
         },
-      },
-    })),
+      }
+    }),
   }
 
   const faqJsonLd = {
@@ -248,16 +251,9 @@ export default function ModelsPage() {
           </div>
 
           <div className='grid grid-cols-1 gap-4 xl:grid-cols-2'>
-            {featuredModels.map((model) => {
-              const provider = MODEL_PROVIDERS_WITH_CATALOGS.find(
-                (entry) => entry.id === model.providerId
-              )
-              if (!provider) {
-                return null
-              }
-
-              return <ModelCard key={model.id} provider={provider} model={model} showProvider />
-            })}
+            {featuredModels.map(({ provider, model }) => (
+              <ModelCard key={model.id} provider={provider} model={model} showProvider />
+            ))}
           </div>
         </section>
 

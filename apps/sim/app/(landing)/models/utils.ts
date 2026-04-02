@@ -414,21 +414,18 @@ function getProviderDisplayName(providerId: string, providerName: string): strin
   return PROVIDER_NAME_OVERRIDES[providerId] ?? providerName
 }
 
-function compareModelsByRelevance(a: CatalogModel, b: CatalogModel): number {
-  const aScore =
-    (a.capabilities.reasoningEffort ? 10 : 0) +
-    (a.capabilities.thinking ? 10 : 0) +
-    (a.capabilities.deepResearch ? 8 : 0) +
-    (a.capabilities.nativeStructuredOutputs ? 4 : 0) +
-    (a.contextWindow ?? 0) / 100000
-  const bScore =
-    (b.capabilities.reasoningEffort ? 10 : 0) +
-    (b.capabilities.thinking ? 10 : 0) +
-    (b.capabilities.deepResearch ? 8 : 0) +
-    (b.capabilities.nativeStructuredOutputs ? 4 : 0) +
-    (b.contextWindow ?? 0) / 100000
+function computeModelRelevanceScore(model: CatalogModel): number {
+  return (
+    (model.capabilities.reasoningEffort ? 10 : 0) +
+    (model.capabilities.thinking ? 10 : 0) +
+    (model.capabilities.deepResearch ? 8 : 0) +
+    (model.capabilities.nativeStructuredOutputs ? 4 : 0) +
+    (model.contextWindow ?? 0) / 100000
+  )
+}
 
-  return bScore - aScore
+function compareModelsByRelevance(a: CatalogModel, b: CatalogModel): number {
+  return computeModelRelevanceScore(b) - computeModelRelevanceScore(a)
 }
 
 const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
@@ -622,10 +619,8 @@ export function getRelatedModels(targetModel: CatalogModel, limit = 6): CatalogM
 }
 
 export function buildProviderFaqs(provider: CatalogProvider): CatalogFaq[] {
-  const cheapestModel = [...provider.models].sort((a, b) => a.pricing.input - b.pricing.input)[0]
-  const largestContextModel = [...provider.models].sort(
-    (a, b) => (b.contextWindow ?? 0) - (a.contextWindow ?? 0)
-  )[0]
+  const cheapestModel = getCheapestProviderModel(provider)
+  const largestContextModel = getLargestContextProviderModel(provider)
 
   return [
     {

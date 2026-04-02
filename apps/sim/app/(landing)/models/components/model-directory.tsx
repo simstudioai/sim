@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Input } from '@/components/emcn'
 import { SearchIcon } from '@/components/icons'
+import { cn } from '@/lib/core/utils/cn'
 import {
   CapabilityTags,
   DetailItem,
@@ -277,11 +278,12 @@ function FilterButton({
     <button
       type='button'
       onClick={onClick}
-      className={`rounded-full border px-3 py-1.5 text-[12px] transition-colors ${
+      className={cn(
+        'rounded-full border px-3 py-1.5 text-[12px] transition-colors',
         isActive
           ? 'border-[#555] bg-[#333] text-[var(--landing-text)]'
           : 'border-[var(--landing-border)] bg-transparent text-[var(--landing-text-muted)] hover:border-[var(--landing-border-strong)] hover:text-[var(--landing-text)]'
-      }`}
+      )}
     >
       {label}
     </button>
