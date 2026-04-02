@@ -71,6 +71,7 @@ export const ripplingGetWorkerTool: ToolConfig<RipplingGetWorkerParams> = {
         termination_details: data.termination_details ?? null,
         custom_fields: data.custom_fields ?? null,
         country_fields: data.country_fields ?? null,
+        __meta: data.__meta ?? null,
       },
     }
   },
@@ -107,5 +108,6 @@ export const ripplingGetWorkerTool: ToolConfig<RipplingGetWorkerParams> = {
     termination_details: { type: 'json', description: 'Termination details', optional: true },
     custom_fields: { type: 'json', description: 'Custom fields', optional: true },
     country_fields: { type: 'json', description: 'Country-specific fields', optional: true },
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

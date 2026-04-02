@@ -1,4 +1,5 @@
 import type { RipplingGetCustomSettingParams } from '@/tools/rippling/types'
+import { CUSTOM_SETTING_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingGetCustomSettingTool: ToolConfig<RipplingGetCustomSettingParams> = {
@@ -40,19 +41,12 @@ export const ripplingGetCustomSettingTool: ToolConfig<RipplingGetCustomSettingPa
         string_value: (data.string_value as string) ?? null,
         number_value: data.number_value ?? null,
         boolean_value: data.boolean_value ?? null,
+        __meta: data.__meta ?? null,
       },
     }
   },
   outputs: {
-    id: { type: 'string', description: 'Setting ID' },
-    created_at: { type: 'string', description: 'Created timestamp', optional: true },
-    updated_at: { type: 'string', description: 'Updated timestamp', optional: true },
-    display_name: { type: 'string', description: 'Display name', optional: true },
-    api_name: { type: 'string', description: 'API name', optional: true },
-    data_type: { type: 'string', description: 'Data type', optional: true },
-    secret_value: { type: 'string', description: 'Secret value', optional: true },
-    string_value: { type: 'string', description: 'String value', optional: true },
-    number_value: { type: 'number', description: 'Number value', optional: true },
-    boolean_value: { type: 'boolean', description: 'Boolean value', optional: true },
+    ...CUSTOM_SETTING_OUTPUT_PROPERTIES,
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

@@ -113,7 +113,8 @@ export const ripplingUpdateCustomObjectFieldTool: ToolConfig<RipplingUpdateCusto
         if (params.formulaAttrMetas != null) body.formula_attr_metas = params.formulaAttrMetas
         if (params.section != null) body.section = params.section
         if (params.enableHistory != null) body.enable_history = params.enableHistory
-        if (params.derivedFieldFormula != null) body.derived_field_formula = params.derivedFieldFormula
+        if (params.derivedFieldFormula != null)
+          body.derived_field_formula = params.derivedFieldFormula
         if (params.nameFieldDetails != null) body.name_field_details = params.nameFieldDetails
         return body
       },

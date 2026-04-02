@@ -3,7 +3,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const ripplingCreateCustomAppTool: ToolConfig<RipplingCreateCustomAppParams> = {
   id: 'rippling_create_custom_app',
-  name: 'Rippling Create CustomApp',
+  name: 'Rippling Create Custom App',
   description: 'Create a new custom app',
   version: '1.0.0',
   params: {

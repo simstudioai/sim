@@ -21,7 +21,7 @@ export const ripplingCreateWorkLocationTool: ToolConfig<RipplingCreateWorkLocati
     },
     streetAddress: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description: 'Street address',
     },
@@ -61,14 +61,13 @@ export const ripplingCreateWorkLocationTool: ToolConfig<RipplingCreateWorkLocati
     }),
     body: (params) => {
       const body: Record<string, unknown> = { name: params.name }
-      const address: Record<string, string> = {}
-      if (params.streetAddress != null) address.street_address = params.streetAddress
+      const address: Record<string, string> = { street_address: params.streetAddress }
       if (params.locality != null) address.locality = params.locality
       if (params.region != null) address.region = params.region
       if (params.postalCode != null) address.postal_code = params.postalCode
       if (params.country != null) address.country = params.country
       if (params.addressType != null) address.type = params.addressType
-      if (Object.keys(address).length > 0) body.address = address
+      body.address = address
       return body
     },
   },

@@ -1,4 +1,5 @@
 import type { RipplingCreateCustomObjectRecordParams } from '@/tools/rippling/types'
+import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingCreateCustomObjectRecordTool: ToolConfig<RipplingCreateCustomObjectRecordParams> =
@@ -20,6 +21,12 @@ export const ripplingCreateCustomObjectRecordTool: ToolConfig<RipplingCreateCust
         visibility: 'user-or-llm',
         description: 'Custom object API name',
       },
+      externalId: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'External ID for the record',
+      },
       data: { type: 'json', required: true, visibility: 'user-or-llm', description: 'Record data' },
     },
     request: {
@@ -32,7 +39,10 @@ export const ripplingCreateCustomObjectRecordTool: ToolConfig<RipplingCreateCust
         Accept: 'application/json',
       }),
       body: (params) => {
-        return params.data as Record<string, unknown>
+        const body: Record<string, unknown> = { data: params.data }
+        if (params.externalId != null && params.externalId !== '')
+          body.external_id = params.externalId
+        return body
       },
     },
     transformResponse: async (response: Response) => {
@@ -59,15 +69,7 @@ export const ripplingCreateCustomObjectRecordTool: ToolConfig<RipplingCreateCust
       }
     },
     outputs: {
-      id: { type: 'string', description: 'Record ID' },
-      created_at: { type: 'string', description: 'Creation date', optional: true },
-      updated_at: { type: 'string', description: 'Update date', optional: true },
-      name: { type: 'string', description: 'Record name', optional: true },
-      external_id: { type: 'string', description: 'External ID', optional: true },
-      created_by: { type: 'json', description: 'Created by user', optional: true },
-      last_modified_by: { type: 'json', description: 'Last modified by user', optional: true },
-      owner_role: { type: 'json', description: 'Owner role', optional: true },
-      system_updated_at: { type: 'string', description: 'System update timestamp', optional: true },
+      ...CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES,
       data: { type: 'json', description: 'Full record data' },
     },
   }

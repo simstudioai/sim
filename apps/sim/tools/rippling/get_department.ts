@@ -1,4 +1,5 @@
 import type { RipplingGetDepartmentParams } from '@/tools/rippling/types'
+import { DEPARTMENT_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingGetDepartmentTool: ToolConfig<RipplingGetDepartmentParams> = {
@@ -48,26 +49,12 @@ export const ripplingGetDepartmentTool: ToolConfig<RipplingGetDepartmentParams> 
         department_hierarchy_id: (data.department_hierarchy_id as unknown[]) ?? [],
         parent: data.parent ?? null,
         department_hierarchy: data.department_hierarchy ?? null,
+        __meta: data.__meta ?? null,
       },
     }
   },
   outputs: {
-    id: { type: 'string', description: 'Department ID' },
-    created_at: { type: 'string', description: 'Creation date', optional: true },
-    updated_at: { type: 'string', description: 'Update date', optional: true },
-    name: { type: 'string', description: 'Name', optional: true },
-    parent_id: { type: 'string', description: 'Parent department ID', optional: true },
-    reference_code: { type: 'string', description: 'Reference code', optional: true },
-    department_hierarchy_id: {
-      type: 'json',
-      description: 'Department hierarchy IDs',
-      optional: true,
-    },
-    parent: { type: 'json', description: 'Expanded parent department', optional: true },
-    department_hierarchy: {
-      type: 'json',
-      description: 'Expanded department hierarchy',
-      optional: true,
-    },
+    ...DEPARTMENT_OUTPUT_PROPERTIES,
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

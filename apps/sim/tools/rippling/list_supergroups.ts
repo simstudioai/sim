@@ -18,7 +18,7 @@ export const ripplingListSupergroupsTool: ToolConfig<RipplingListSupergroupsPara
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter expression',
+      description: 'Filter expression (filterable fields: app_owner_id, group_type)',
     },
     orderBy: {
       type: 'string',
@@ -72,6 +72,7 @@ export const ripplingListSupergroupsTool: ToolConfig<RipplingListSupergroupsPara
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,
+        __meta: data.__meta ?? null,
       },
     }
   },
@@ -83,5 +84,6 @@ export const ripplingListSupergroupsTool: ToolConfig<RipplingListSupergroupsPara
     },
     totalCount: { type: 'number', description: 'Number of items returned' },
     nextLink: { type: 'string', description: 'Link to next page of results', optional: true },
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

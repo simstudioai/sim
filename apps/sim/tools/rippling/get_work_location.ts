@@ -35,6 +35,7 @@ export const ripplingGetWorkLocationTool: ToolConfig<RipplingGetWorkLocationPara
         updated_at: (data.updated_at as string) ?? null,
         name: (data.name as string) ?? null,
         address: data.address ?? null,
+        __meta: data.__meta ?? null,
       },
     }
   },
@@ -44,5 +45,6 @@ export const ripplingGetWorkLocationTool: ToolConfig<RipplingGetWorkLocationPara
     updated_at: { type: 'string', description: 'Update date', optional: true },
     name: { type: 'string', description: 'Name', optional: true },
     address: { type: 'json', description: 'Address object', optional: true },
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

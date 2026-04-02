@@ -38,6 +38,7 @@ export const ripplingGetCustomAppTool: ToolConfig<RipplingGetCustomAppParams> = 
         description: (data.description as string) ?? null,
         icon: (data.icon as string) ?? null,
         pages: (data.pages as unknown[]) ?? [],
+        __meta: data.__meta ?? null,
       },
     }
   },
@@ -50,5 +51,6 @@ export const ripplingGetCustomAppTool: ToolConfig<RipplingGetCustomAppParams> = 
     description: { type: 'string', description: 'Description', optional: true },
     icon: { type: 'string', description: 'Icon URL', optional: true },
     pages: { type: 'json', description: 'Array of page summaries', optional: true },
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

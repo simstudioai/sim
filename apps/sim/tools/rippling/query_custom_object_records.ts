@@ -31,7 +31,7 @@ export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCusto
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Max results to return',
+        description: 'Maximum number of records to return',
       },
       cursor: {
         type: 'string',
@@ -52,7 +52,7 @@ export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCusto
       body: (params) => {
         const body: Record<string, unknown> = {}
         if (params.query != null) body.query = params.query
-        if (params.limit != null) body.limit = Number(params.limit)
+        if (params.limit != null) body.limit = params.limit
         if (params.cursor != null) body.cursor = params.cursor
         return body
       },
@@ -97,6 +97,6 @@ export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCusto
         },
       },
       totalCount: { type: 'number', description: 'Number of records returned' },
-      cursor: { type: 'string', description: 'Pagination cursor for next page', optional: true },
+      cursor: { type: 'string', description: 'Cursor for next page of results', optional: true },
     },
   }

@@ -178,6 +178,7 @@ const DATA_OPS = [
   'update_supergroup_inclusion_members',
   'update_supergroup_exclusion_members',
   'create_draft_hires',
+  'trigger_report_run',
 ] as const
 
 export const RipplingBlock: BlockConfig = {
@@ -604,19 +605,20 @@ export const RipplingBlock: BlockConfig = {
           apiKey: params.apiKey,
         }
 
-        if (params.id) mapped.id = params.id
-        if (params.customObjectId) mapped.customObjectId = params.customObjectId
-        if (params.externalId) mapped.externalId = params.externalId
-        if (params.name) mapped.name = params.name
-        if (params.parentId) mapped.parentId = params.parentId
-        if (params.referenceCode) mapped.referenceCode = params.referenceCode
-        if (params.filter) mapped.filter = params.filter
-        if (params.expand) mapped.expand = params.expand
-        if (params.orderBy) mapped.orderBy = params.orderBy
-        if (params.cursor) mapped.cursor = params.cursor
-        if (params.limit) mapped.limit = Number(params.limit)
-
-        if (params.data) {
+        if (params.id != null && params.id !== '') mapped.id = params.id
+        if (params.customObjectId != null && params.customObjectId !== '')
+          mapped.customObjectId = params.customObjectId
+        if (params.externalId != null && params.externalId !== '')
+          mapped.externalId = params.externalId
+        if (params.name != null && params.name !== '') mapped.name = params.name
+        if (params.parentId != null && params.parentId !== '') mapped.parentId = params.parentId
+        if (params.referenceCode != null && params.referenceCode !== '')
+          mapped.referenceCode = params.referenceCode
+        if (params.filter != null && params.filter !== '') mapped.filter = params.filter
+        if (params.expand != null && params.expand !== '') mapped.expand = params.expand
+        if (params.orderBy != null && params.orderBy !== '') mapped.orderBy = params.orderBy
+        if (params.cursor != null && params.cursor !== '') mapped.cursor = params.cursor
+        if (params.data != null && params.data !== '') {
           try {
             mapped.data = typeof params.data === 'string' ? JSON.parse(params.data) : params.data
           } catch {
@@ -624,7 +626,7 @@ export const RipplingBlock: BlockConfig = {
           }
         }
 
-        if (params.records) {
+        if (params.records != null && params.records !== '') {
           try {
             mapped.records =
               typeof params.records === 'string' ? JSON.parse(params.records) : params.records
@@ -633,14 +635,17 @@ export const RipplingBlock: BlockConfig = {
           }
         }
 
-        if (params.query) {
+        if (params.query != null && params.query !== '') {
           mapped.query = params.query
+        }
+        if (params.limit != null && params.limit !== '') {
+          mapped.limit = Number(params.limit)
         }
 
         const op = params.operation as string
 
         // Custom object tools expect customObjectApiName, not customObjectId
-        if (mapped.customObjectId) {
+        if (mapped.customObjectId != null) {
           mapped.customObjectApiName = mapped.customObjectId
           mapped.customObjectId = undefined
         }
@@ -655,7 +660,7 @@ export const RipplingBlock: BlockConfig = {
             'update_supergroup_exclusion_members',
           ].includes(op)
         ) {
-          if (mapped.id) {
+          if (mapped.id != null) {
             mapped.groupId = mapped.id
             mapped.id = undefined
           }
@@ -663,7 +668,7 @@ export const RipplingBlock: BlockConfig = {
 
         // Custom object get/update/delete expect customObjectApiName for the object itself
         if (['get_custom_object', 'update_custom_object', 'delete_custom_object'].includes(op)) {
-          if (mapped.id) {
+          if (mapped.id != null) {
             mapped.customObjectApiName = mapped.id
             mapped.id = undefined
           }
@@ -677,7 +682,7 @@ export const RipplingBlock: BlockConfig = {
             'delete_custom_object_field',
           ].includes(op)
         ) {
-          if (mapped.id) {
+          if (mapped.id != null) {
             mapped.fieldApiName = mapped.id
             mapped.id = undefined
           }
@@ -691,7 +696,7 @@ export const RipplingBlock: BlockConfig = {
             'delete_custom_object_record',
           ].includes(op)
         ) {
-          if (mapped.id) {
+          if (mapped.id != null) {
             mapped.codrId = mapped.id
             mapped.id = undefined
           }
@@ -699,34 +704,34 @@ export const RipplingBlock: BlockConfig = {
 
         // Report run tools
         if (op === 'get_report_run') {
-          if (mapped.id) {
+          if (mapped.id != null) {
             mapped.runId = mapped.id
             mapped.id = undefined
           }
         }
         if (op === 'trigger_report_run') {
-          if (mapped.id) {
+          if (mapped.id != null) {
             mapped.reportId = mapped.id
             mapped.id = undefined
           }
         }
 
         // Bulk operations: map records to specific param names
-        if (op === 'bulk_create_custom_object_records' && mapped.records) {
+        if (op === 'bulk_create_custom_object_records' && mapped.records != null) {
           mapped.rowsToWrite = mapped.records
           mapped.records = undefined
         }
-        if (op === 'bulk_update_custom_object_records' && mapped.records) {
+        if (op === 'bulk_update_custom_object_records' && mapped.records != null) {
           mapped.rowsToUpdate = mapped.records
           mapped.records = undefined
         }
-        if (op === 'bulk_delete_custom_object_records' && mapped.records) {
+        if (op === 'bulk_delete_custom_object_records' && mapped.records != null) {
           mapped.rowsToDelete = mapped.records
           mapped.records = undefined
         }
 
         // Draft hires: map data to draftHires
-        if (op === 'create_draft_hires' && mapped.data) {
+        if (op === 'create_draft_hires' && mapped.data != null) {
           mapped.draftHires = mapped.data
           mapped.data = undefined
         }
@@ -736,7 +741,7 @@ export const RipplingBlock: BlockConfig = {
           ['update_supergroup_inclusion_members', 'update_supergroup_exclusion_members'].includes(
             op
           ) &&
-          mapped.data
+          mapped.data != null
         ) {
           mapped.operations = mapped.data
           mapped.data = undefined
@@ -744,7 +749,7 @@ export const RipplingBlock: BlockConfig = {
 
         // For create/update operations that accept data JSON:
         // Spread data fields directly into mapped params so tools receive them as individual params
-        if (mapped.data && typeof mapped.data === 'object') {
+        if (mapped.data != null && typeof mapped.data === 'object') {
           const spreadOps = [
             'create_department',
             'update_department',
@@ -762,6 +767,7 @@ export const RipplingBlock: BlockConfig = {
             'update_custom_app',
             'create_object_category',
             'update_object_category',
+            'trigger_report_run',
           ]
           if (spreadOps.includes(op)) {
             const dataFields = mapped.data as Record<string, unknown>
@@ -789,8 +795,8 @@ export const RipplingBlock: BlockConfig = {
     referenceCode: { type: 'string', description: 'Reference code' },
     data: { type: 'json', description: 'JSON data body for create/update operations' },
     records: { type: 'json', description: 'JSON array of records for bulk operations' },
-    query: { type: 'string', description: 'Query expression for custom object record queries' },
-    limit: { type: 'number', description: 'Max results to return' },
+    query: { type: 'string', description: 'Filter expression for custom object record queries' },
+    limit: { type: 'number', description: 'Max results for custom object record queries' },
     filter: { type: 'string', description: 'OData filter expression' },
     expand: { type: 'string', description: 'Fields to expand in the response' },
     orderBy: { type: 'string', description: 'Ordering expression' },
@@ -829,6 +835,7 @@ export const RipplingBlock: BlockConfig = {
     items: { type: 'array', description: 'List of returned items' },
     totalCount: { type: 'number', description: 'Total number of items returned' },
     nextLink: { type: 'string', description: 'URL or cursor for the next page of results' },
+    cursor: { type: 'string', description: 'Cursor for next page of query results' },
     deleted: { type: 'boolean', description: 'Whether the resource was deleted' },
     results: { type: 'array', description: 'Bulk operation results' },
     result: { type: 'json', description: 'Report run result' },
@@ -838,5 +845,8 @@ export const RipplingBlock: BlockConfig = {
     totalInvalid: { type: 'number', description: 'Count of invalid items' },
     totalSuccessful: { type: 'number', description: 'Count of successful items' },
     success: { type: 'boolean', description: 'Whether the operation succeeded' },
+    ok: { type: 'boolean', description: 'Whether the supergroup member update succeeded' },
+    data: { type: 'json', description: 'Record data including custom fields' },
+    __meta: { type: 'json', description: 'Metadata including redacted_fields' },
   },
 }

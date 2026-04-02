@@ -24,7 +24,7 @@ export const ripplingUpdateSupergroupInclusionMembersTool: ToolConfig<RipplingUp
         type: 'json',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Array of operations [{op, value: [{id}]}]',
+        description: 'Operations array [{op: "add"|"remove", value: [{id: "member_id"}]}]',
       },
     },
     request: {

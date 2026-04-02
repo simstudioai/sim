@@ -1,4 +1,5 @@
 import type { RipplingCreateCustomSettingParams } from '@/tools/rippling/types'
+import { CUSTOM_SETTING_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingCreateCustomSettingTool: ToolConfig<RipplingCreateCustomSettingParams> = {
@@ -50,15 +51,6 @@ export const ripplingCreateCustomSettingTool: ToolConfig<RipplingCreateCustomSet
     }
   },
   outputs: {
-    id: { type: 'string', description: 'Setting ID' },
-    created_at: { type: 'string', description: 'Created timestamp', optional: true },
-    updated_at: { type: 'string', description: 'Updated timestamp', optional: true },
-    display_name: { type: 'string', description: 'Display name', optional: true },
-    api_name: { type: 'string', description: 'API name', optional: true },
-    data_type: { type: 'string', description: 'Data type', optional: true },
-    secret_value: { type: 'string', description: 'Secret value', optional: true },
-    string_value: { type: 'string', description: 'String value', optional: true },
-    number_value: { type: 'number', description: 'Number value', optional: true },
-    boolean_value: { type: 'boolean', description: 'Boolean value', optional: true },
+    ...CUSTOM_SETTING_OUTPUT_PROPERTIES,
   },
 }

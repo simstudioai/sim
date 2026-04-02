@@ -44,6 +44,7 @@ export const ripplingGetUserTool: ToolConfig<RipplingGetUserParams> = {
         phone_numbers: data.phone_numbers ?? [],
         addresses: data.addresses ?? [],
         photos: data.photos ?? [],
+        __meta: data.__meta ?? null,
       },
     }
   },
@@ -63,5 +64,6 @@ export const ripplingGetUserTool: ToolConfig<RipplingGetUserParams> = {
     phone_numbers: { type: 'json', description: 'Phone numbers', optional: true },
     addresses: { type: 'json', description: 'Addresses', optional: true },
     photos: { type: 'json', description: 'Photos', optional: true },
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

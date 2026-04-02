@@ -41,6 +41,7 @@ export const ripplingGetEmploymentTypeTool: ToolConfig<RipplingGetEmploymentType
         type: (data.type as string) ?? null,
         compensation_time_period: (data.compensation_time_period as string) ?? null,
         amount_worked: (data.amount_worked as string) ?? null,
+        __meta: data.__meta ?? null,
       },
     }
   },
@@ -61,5 +62,6 @@ export const ripplingGetEmploymentTypeTool: ToolConfig<RipplingGetEmploymentType
       description: 'Amount worked (PART-TIME, FULL-TIME, TEMPORARY)',
       optional: true,
     },
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

@@ -49,6 +49,7 @@ export const ripplingGetBusinessPartnerGroupTool: ToolConfig<RipplingGetBusiness
           name: (data.name as string) ?? null,
           domain: (data.domain as string) ?? null,
           default_business_partner_id: (data.default_business_partner_id as string) ?? null,
+          __meta: data.__meta ?? null,
         },
       }
     },
@@ -63,5 +64,6 @@ export const ripplingGetBusinessPartnerGroupTool: ToolConfig<RipplingGetBusiness
         description: 'Default partner ID',
         optional: true,
       },
+      __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
     },
   }

@@ -73,6 +73,7 @@ export const ripplingListBusinessPartnersTool: ToolConfig<RipplingListBusinessPa
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,
+        __meta: data.__meta ?? null,
       },
     }
   },
@@ -84,5 +85,6 @@ export const ripplingListBusinessPartnersTool: ToolConfig<RipplingListBusinessPa
     },
     totalCount: { type: 'number', description: 'Number of items returned' },
     nextLink: { type: 'string', description: 'Link to next page of results', optional: true },
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

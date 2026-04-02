@@ -39,6 +39,7 @@ export const ripplingGetCustomPageTool: ToolConfig<RipplingGetCustomPageParams> 
         canvas_actions: data.canvas_actions ?? [],
         variables: data.variables ?? [],
         media: data.media ?? null,
+        __meta: data.__meta ?? null,
       },
     }
   },
@@ -52,5 +53,6 @@ export const ripplingGetCustomPageTool: ToolConfig<RipplingGetCustomPageParams> 
     canvas_actions: { type: 'json', description: 'Canvas actions', optional: true },
     variables: { type: 'json', description: 'Page variables', optional: true },
     media: { type: 'json', description: 'Page media', optional: true },
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

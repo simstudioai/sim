@@ -268,7 +268,10 @@ export const CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Record name' },
   external_id: { type: 'string', description: 'External ID' },
   created_by: { type: 'json', description: 'Created by user (id, display_value, image)' },
-  last_modified_by: { type: 'json', description: 'Last modified by user (id, display_value, image)' },
+  last_modified_by: {
+    type: 'json',
+    description: 'Last modified by user (id, display_value, image)',
+  },
   owner_role: { type: 'json', description: 'Owner role (id, display_value, image)' },
   system_updated_at: { type: 'string', description: 'System update timestamp' },
 } as const satisfies Record<string, OutputProperty>
@@ -296,6 +299,20 @@ export const CUSTOM_PAGE_OUTPUT_PROPERTIES = {
   canvas_actions: { type: 'json', description: 'Canvas actions' },
   variables: { type: 'json', description: 'Page variables' },
   media: { type: 'json', description: 'Page media' },
+} as const satisfies Record<string, OutputProperty>
+
+/** Custom setting output properties */
+export const CUSTOM_SETTING_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Setting ID' },
+  created_at: { type: 'string', description: 'Record creation date' },
+  updated_at: { type: 'string', description: 'Record update date' },
+  display_name: { type: 'string', description: 'Display name' },
+  api_name: { type: 'string', description: 'API name' },
+  data_type: { type: 'string', description: 'Data type' },
+  secret_value: { type: 'string', description: 'Secret value' },
+  string_value: { type: 'string', description: 'String value' },
+  number_value: { type: 'number', description: 'Number value' },
+  boolean_value: { type: 'boolean', description: 'Boolean value' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Object category output properties */
@@ -344,7 +361,6 @@ export interface RipplingListCompaniesParams {
 export interface RipplingGetCurrentUserParams {
   apiKey: string
   expand?: string
-  cursor?: string
 }
 
 /** Entitlements */
@@ -439,7 +455,7 @@ export interface RipplingGetWorkLocationParams {
 export interface RipplingCreateWorkLocationParams {
   apiKey: string
   name: string
-  streetAddress?: string
+  streetAddress: string
   locality?: string
   region?: string
   postalCode?: string
@@ -665,12 +681,14 @@ export interface RipplingQueryCustomObjectRecordsParams {
 export interface RipplingCreateCustomObjectRecordParams {
   apiKey: string
   customObjectApiName: string
+  externalId?: string
   data: unknown
 }
 export interface RipplingUpdateCustomObjectRecordParams {
   apiKey: string
   customObjectApiName: string
   codrId: string
+  externalId?: string
   data: unknown
 }
 export interface RipplingDeleteCustomObjectRecordParams {
@@ -693,7 +711,7 @@ export interface RipplingBulkUpdateCustomObjectRecordsParams {
 export interface RipplingBulkDeleteCustomObjectRecordsParams {
   apiKey: string
   customObjectApiName: string
-  rowsToDelete: unknown
+  rowsToDelete: string[]
   allOrNothing?: boolean
 }
 

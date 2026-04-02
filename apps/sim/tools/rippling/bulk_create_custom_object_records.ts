@@ -24,7 +24,7 @@ export const ripplingBulkCreateCustomObjectRecordsTool: ToolConfig<RipplingBulkC
         type: 'json',
         required: true,
         visibility: 'user-or-llm',
-        description: 'Array of records to create',
+        description: 'Array of records to create [{external_id?, data}]',
       },
       allOrNothing: {
         type: 'boolean',

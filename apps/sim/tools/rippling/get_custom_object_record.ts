@@ -1,4 +1,5 @@
 import type { RipplingGetCustomObjectRecordParams } from '@/tools/rippling/types'
+import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingGetCustomObjectRecordTool: ToolConfig<RipplingGetCustomObjectRecordParams> = {
@@ -50,15 +51,7 @@ export const ripplingGetCustomObjectRecordTool: ToolConfig<RipplingGetCustomObje
     }
   },
   outputs: {
-    id: { type: 'string', description: 'Record ID' },
-    created_at: { type: 'string', description: 'Created timestamp', optional: true },
-    updated_at: { type: 'string', description: 'Updated timestamp', optional: true },
-    name: { type: 'string', description: 'Name', optional: true },
-    external_id: { type: 'string', description: 'External ID', optional: true },
-    created_by: { type: 'json', description: 'Created by user', optional: true },
-    last_modified_by: { type: 'json', description: 'Last modified by user', optional: true },
-    owner_role: { type: 'json', description: 'Owner role', optional: true },
-    system_updated_at: { type: 'string', description: 'System update timestamp', optional: true },
+    ...CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES,
     data: { type: 'json', description: 'Full record data' },
   },
 }

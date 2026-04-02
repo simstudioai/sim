@@ -1,4 +1,5 @@
 import type { RipplingGetSupergroupParams } from '@/tools/rippling/types'
+import { SUPERGROUP_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingGetSupergroupTool: ToolConfig<RipplingGetSupergroupParams> = {
@@ -49,56 +50,12 @@ export const ripplingGetSupergroupTool: ToolConfig<RipplingGetSupergroupParams> 
         priority: (data.priority as number) ?? null,
         is_invisible: (data.is_invisible as boolean) ?? null,
         ignore_prov_group_matching: (data.ignore_prov_group_matching as boolean) ?? null,
+        __meta: data.__meta ?? null,
       },
     }
   },
   outputs: {
-    id: { type: 'string', description: 'ID' },
-    created_at: { type: 'string', description: 'Creation date', optional: true },
-    updated_at: { type: 'string', description: 'Update date', optional: true },
-    display_name: { type: 'string', description: 'Display name', optional: true },
-    description: { type: 'string', description: 'Description', optional: true },
-    app_owner_id: { type: 'string', description: 'App owner ID', optional: true },
-    group_type: { type: 'string', description: 'Group type', optional: true },
-    name: { type: 'string', description: 'Name', optional: true },
-    sub_group_type: { type: 'string', description: 'Sub group type', optional: true },
-    read_only: { type: 'boolean', description: 'Whether the group is read only', optional: true },
-    parent: { type: 'string', description: 'Parent group ID', optional: true },
-    mutually_exclusive_key: {
-      type: 'string',
-      description: 'Mutually exclusive key',
-      optional: true,
-    },
-    cumulatively_exhaustive_default: {
-      type: 'boolean',
-      description: 'Cumulatively exhaustive default',
-      optional: true,
-    },
-    include_terminated: {
-      type: 'boolean',
-      description: 'Whether the group includes terminated roles',
-      optional: true,
-    },
-    allow_non_employees: {
-      type: 'boolean',
-      description: 'Whether the group allows non-employees',
-      optional: true,
-    },
-    can_override_role_states: {
-      type: 'boolean',
-      description: 'Whether the group can override role states',
-      optional: true,
-    },
-    priority: { type: 'number', description: 'Group priority', optional: true },
-    is_invisible: {
-      type: 'boolean',
-      description: 'Whether the group is invisible',
-      optional: true,
-    },
-    ignore_prov_group_matching: {
-      type: 'boolean',
-      description: 'Whether to ignore provisioning group matching',
-      optional: true,
-    },
+    ...SUPERGROUP_OUTPUT_PROPERTIES,
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

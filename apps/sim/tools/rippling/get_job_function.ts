@@ -34,6 +34,7 @@ export const ripplingGetJobFunctionTool: ToolConfig<RipplingGetJobFunctionParams
         created_at: (data.created_at as string) ?? null,
         updated_at: (data.updated_at as string) ?? null,
         name: (data.name as string) ?? null,
+        __meta: data.__meta ?? null,
       },
     }
   },
@@ -42,5 +43,6 @@ export const ripplingGetJobFunctionTool: ToolConfig<RipplingGetJobFunctionParams
     created_at: { type: 'string', description: 'Creation date', optional: true },
     updated_at: { type: 'string', description: 'Update date', optional: true },
     name: { type: 'string', description: 'Name', optional: true },
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

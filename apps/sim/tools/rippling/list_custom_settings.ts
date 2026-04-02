@@ -1,4 +1,5 @@
 import type { RipplingListCustomSettingsParams } from '@/tools/rippling/types'
+import { CUSTOM_SETTING_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListCustomSettingsTool: ToolConfig<RipplingListCustomSettingsParams> = {
@@ -61,6 +62,7 @@ export const ripplingListCustomSettingsTool: ToolConfig<RipplingListCustomSettin
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,
+        __meta: data.__meta ?? null,
       },
     }
   },
@@ -68,23 +70,10 @@ export const ripplingListCustomSettingsTool: ToolConfig<RipplingListCustomSettin
     settings: {
       type: 'array',
       description: 'List of settings',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Setting ID' },
-          created_at: { type: 'string', description: 'Creation date' },
-          updated_at: { type: 'string', description: 'Update date' },
-          display_name: { type: 'string', description: 'Display name' },
-          api_name: { type: 'string', description: 'API name' },
-          data_type: { type: 'string', description: 'Data type' },
-          secret_value: { type: 'string', description: 'Secret value' },
-          string_value: { type: 'string', description: 'String value' },
-          number_value: { type: 'number', description: 'Number value' },
-          boolean_value: { type: 'boolean', description: 'Boolean value' },
-        },
-      },
+      items: { type: 'object', properties: CUSTOM_SETTING_OUTPUT_PROPERTIES },
     },
     totalCount: { type: 'number', description: 'Number of items returned' },
     nextLink: { type: 'string', description: 'Link to next page of results', optional: true },
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

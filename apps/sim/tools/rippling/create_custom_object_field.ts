@@ -105,7 +105,8 @@ export const ripplingCreateCustomObjectFieldTool: ToolConfig<RipplingCreateCusto
         if (params.formulaAttrMetas != null) body.formula_attr_metas = params.formulaAttrMetas
         if (params.section != null) body.section = params.section
         if (params.enableHistory != null) body.enable_history = params.enableHistory
-        if (params.derivedFieldFormula != null) body.derived_field_formula = params.derivedFieldFormula
+        if (params.derivedFieldFormula != null)
+          body.derived_field_formula = params.derivedFieldFormula
         if (params.derivedAggregatedField != null)
           body.derived_aggregated_field = params.derivedAggregatedField
         return body

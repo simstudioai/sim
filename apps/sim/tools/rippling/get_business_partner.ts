@@ -46,6 +46,7 @@ export const ripplingGetBusinessPartnerTool: ToolConfig<RipplingGetBusinessPartn
         worker_id: (data.worker_id as string) ?? null,
         client_group_id: (data.client_group_id as string) ?? null,
         client_group_member_count: (data.client_group_member_count as number) ?? null,
+        __meta: data.__meta ?? null,
       },
     }
   },
@@ -61,5 +62,6 @@ export const ripplingGetBusinessPartnerTool: ToolConfig<RipplingGetBusinessPartn
       description: 'Client group member count',
       optional: true,
     },
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }
