@@ -9625,11 +9625,11 @@
       },
       {
         "name": "Update Object Category",
-        "description": "Update a object category"
+        "description": "Update an object category"
       },
       {
         "name": "Delete Object Category",
-        "description": "Delete a object category"
+        "description": "Delete an object category"
       },
       {
         "name": "Get Report Run",
@@ -9651,6 +9651,81 @@
     "category": "tools",
     "integrationType": "hr",
     "tags": ["hiring"]
+  },
+  {
+    "type": "rootly",
+    "slug": "rootly",
+    "name": "Rootly",
+    "description": "Manage incidents, alerts, and on-call with Rootly",
+    "longDescription": "Integrate Rootly incident management into workflows. Create and manage incidents, alerts, services, severities, and retrospectives.",
+    "bgColor": "#6C72C8",
+    "iconName": "RootlyIcon",
+    "docsUrl": "https://docs.sim.ai/tools/rootly",
+    "operations": [
+      {
+        "name": "Create Incident",
+        "description": "Create a new incident in Rootly with optional severity, services, and teams."
+      },
+      {
+        "name": "Get Incident",
+        "description": "Retrieve a single incident by ID from Rootly."
+      },
+      {
+        "name": "Update Incident",
+        "description": "Update an existing incident in Rootly (status, severity, summary, etc.)."
+      },
+      {
+        "name": "List Incidents",
+        "description": "List incidents from Rootly with optional filtering by status, severity, and more."
+      },
+      {
+        "name": "Create Alert",
+        "description": "Create a new alert in Rootly for on-call notification and routing."
+      },
+      {
+        "name": "List Alerts",
+        "description": "List alerts from Rootly with optional filtering by status, source, and services."
+      },
+      {
+        "name": "Add Incident Event",
+        "description": "Add a timeline event to an existing incident in Rootly."
+      },
+      {
+        "name": "List Services",
+        "description": "List services from Rootly with optional search filtering."
+      },
+      {
+        "name": "List Severities",
+        "description": "List severity levels configured in Rootly."
+      },
+      {
+        "name": "List Teams",
+        "description": "List teams (groups) configured in Rootly."
+      },
+      {
+        "name": "List Environments",
+        "description": "List environments configured in Rootly."
+      },
+      {
+        "name": "List Incident Types",
+        "description": "List incident types configured in Rootly."
+      },
+      {
+        "name": "List Functionalities",
+        "description": "List functionalities configured in Rootly."
+      },
+      {
+        "name": "List Retrospectives",
+        "description": "List incident retrospectives (post-mortems) from Rootly."
+      }
+    ],
+    "operationCount": 14,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "developer-tools",
+    "tags": ["incident-management", "monitoring"]
   },
   {
     "type": "s3",
