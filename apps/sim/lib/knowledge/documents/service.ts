@@ -598,6 +598,12 @@ export async function processDocumentAsync(
 
         logger.info(`[${documentId}] Creating embedding records with tags`)
 
+        if (embeddings.length !== processed.chunks.length) {
+          throw new Error(
+            `Embedding count mismatch: expected ${processed.chunks.length} embeddings for ${processed.chunks.length} chunks, got ${embeddings.length}`
+          )
+        }
+
         const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
           id: crypto.randomUUID(),
           knowledgeBaseId,
