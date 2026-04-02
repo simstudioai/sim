@@ -1,5 +1,6 @@
 import { A2ABlock } from '@/blocks/blocks/a2a'
 import { AgentBlock } from '@/blocks/blocks/agent'
+import { AgentMailBlock } from '@/blocks/blocks/agentmail'
 import { AhrefsBlock } from '@/blocks/blocks/ahrefs'
 import { AirtableBlock } from '@/blocks/blocks/airtable'
 import { AirweaveBlock } from '@/blocks/blocks/airweave'
@@ -217,6 +218,7 @@ import type { BlockConfig } from '@/blocks/types'
 export const registry: Record<string, BlockConfig> = {
   a2a: A2ABlock,
   agent: AgentBlock,
+  agentmail: AgentMailBlock,
   ahrefs: AhrefsBlock,
   airtable: AirtableBlock,
   airweave: AirweaveBlock,
