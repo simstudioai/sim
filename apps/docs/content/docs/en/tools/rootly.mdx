@@ -528,25 +528,8 @@ Delete an incident by ID from Rootly.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `incident` | object | The deleted incident details |
-|   ↳ `id` | string | Unique incident ID |
-|   ↳ `sequentialId` | number | Sequential incident number |
-|   ↳ `title` | string | Incident title |
-|   ↳ `slug` | string | Incident slug |
-|   ↳ `kind` | string | Incident kind |
-|   ↳ `summary` | string | Incident summary |
-|   ↳ `status` | string | Incident status |
-|   ↳ `private` | boolean | Whether the incident is private |
-|   ↳ `url` | string | URL to the incident |
-|   ↳ `shortUrl` | string | Short URL to the incident |
-|   ↳ `severityName` | string | Severity name |
-|   ↳ `severityId` | string | Severity ID |
-|   ↳ `createdAt` | string | Creation date |
-|   ↳ `updatedAt` | string | Last update date |
-|   ↳ `startedAt` | string | Start date |
-|   ↳ `mitigatedAt` | string | Mitigation date |
-|   ↳ `resolvedAt` | string | Resolution date |
-|   ↳ `closedAt` | string | Closed date |
+| `success` | boolean | Whether the deletion succeeded |
+| `message` | string | Result message |
 
 ### `rootly_get_alert`
 
