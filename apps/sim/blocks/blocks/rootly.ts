@@ -189,6 +189,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       title: 'Status',
       type: 'dropdown',
       options: [
+        { label: 'Unchanged', id: '' },
         { label: 'In Triage', id: 'in_triage' },
         { label: 'Started', id: 'started' },
         { label: 'Detected', id: 'detected' },

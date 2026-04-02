@@ -104,7 +104,7 @@ export const rootlyUpdateIncidentTool: ToolConfig<
       if (params.groupIds) {
         attributes.group_ids = params.groupIds.split(',').map((s: string) => s.trim())
       }
-      return { data: { type: 'incidents', attributes } }
+      return { data: { type: 'incidents', id: params.incidentId.trim(), attributes } }
     },
   },
 
