@@ -398,6 +398,14 @@ export async function getKnowledgeBaseById(
 }
 
 /**
+ * Permanently delete a knowledge base row without soft-delete or cascading updates.
+ * Used only during creation-time rollback when the KB was never fully initialised.
+ */
+export async function hardDeleteKnowledgeBase(knowledgeBaseId: string): Promise<void> {
+  await db.delete(knowledgeBase).where(eq(knowledgeBase.id, knowledgeBaseId))
+}
+
+/**
  * Delete a knowledge base (soft delete)
  */
 export async function deleteKnowledgeBase(
