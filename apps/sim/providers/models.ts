@@ -854,6 +854,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           },
         },
         contextWindow: 200000,
+        maxOutputTokens: 100000,
       },
       {
         id: 'azure/o4-mini',
@@ -869,6 +870,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           },
         },
         contextWindow: 200000,
+        maxOutputTokens: 100000,
       },
       {
         id: 'azure/gpt-4.1',
