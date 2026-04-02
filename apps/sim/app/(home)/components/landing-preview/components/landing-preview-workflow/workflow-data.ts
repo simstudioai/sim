@@ -128,6 +128,60 @@ const SELF_HEALING_CRM_WORKFLOW: PreviewWorkflow = {
 }
 
 /**
+ * Customer Support Agent workflow — Gmail Trigger -> Agent (KB + Notion tools) -> Slack
+ */
+const CUSTOMER_SUPPORT_WORKFLOW: PreviewWorkflow = {
+  id: 'wf-customer-support',
+  name: 'Customer Support Agent',
+  color: '#0EA5E9',
+  blocks: [
+    {
+      id: 'gmail-1',
+      name: 'Gmail',
+      type: 'gmail',
+      bgColor: '#E0E0E0',
+      rows: [
+        { title: 'Event', value: 'New Email' },
+        { title: 'Label', value: 'Support' },
+      ],
+      position: { x: 80, y: 140 },
+      hideTargetHandle: true,
+    },
+    {
+      id: 'agent-3',
+      name: 'Support Agent',
+      type: 'agent',
+      bgColor: '#701ffc',
+      rows: [
+        { title: 'Model', value: 'gpt-5.4' },
+        { title: 'System Prompt', value: 'Resolve customer issues...' },
+      ],
+      tools: [
+        { name: 'Knowledge', type: 'knowledge_base', bgColor: '#10B981' },
+        { name: 'Notion', type: 'notion', bgColor: '#181C1E' },
+      ],
+      position: { x: 420, y: 40 },
+    },
+    {
+      id: 'slack-3',
+      name: 'Slack',
+      type: 'slack',
+      bgColor: '#611f69',
+      rows: [
+        { title: 'Channel', value: '#support' },
+        { title: 'Operation', value: 'Send Message' },
+      ],
+      position: { x: 420, y: 260 },
+      hideSourceHandle: true,
+    },
+  ],
+  edges: [
+    { id: 'e-cs-1', source: 'gmail-1', target: 'agent-3' },
+    { id: 'e-cs-2', source: 'gmail-1', target: 'slack-3' },
+  ],
+}
+
+/**
  * Empty "New Agent" workflow — a single note prompting the user to start building
  */
 const NEW_AGENT_WORKFLOW: PreviewWorkflow = {
@@ -153,6 +207,7 @@ const NEW_AGENT_WORKFLOW: PreviewWorkflow = {
 export const PREVIEW_WORKFLOWS: PreviewWorkflow[] = [
   SELF_HEALING_CRM_WORKFLOW,
   IT_SERVICE_WORKFLOW,
+  CUSTOMER_SUPPORT_WORKFLOW,
   NEW_AGENT_WORKFLOW,
 ]
 

@@ -10,6 +10,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#2E2D2D"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
 ## Overview
 
 [Tailscale](https://tailscale.com) is a zero-config mesh VPN built on WireGuard that makes it easy to connect devices, services, and users across any network. The Tailscale block lets you automate network management tasks like device provisioning, access control, route management, and DNS configuration directly from your Sim workflows.
@@ -39,6 +40,14 @@ Every operation requires a **tailnet** parameter. This is typically your organiz
 - **Key lifecycle**: Create, list, inspect, and revoke auth keys
 - **User auditing**: List all users in the tailnet and their roles
 - **Policy review**: Retrieve the current ACL policy for inspection or backup
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Interact with the Tailscale API to manage devices, DNS, ACLs, auth keys, users, and routes across your tailnet.
+
+
 
 ## Tools
 
@@ -100,8 +109,6 @@ Get details of a specific device by ID
 | `blocksIncomingConnections` | boolean | Whether the device blocks incoming connections |
 | `lastSeen` | string | Last seen timestamp |
 | `created` | string | Creation timestamp |
-| `enabledRoutes` | array | Approved subnet routes |
-| `advertisedRoutes` | array | Requested subnet routes |
 | `isExternal` | boolean | Whether the device is external |
 | `updateAvailable` | boolean | Whether an update is available |
 | `machineKey` | string | Machine key |
@@ -263,6 +270,7 @@ Set the DNS nameservers for the tailnet
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `dns` | array | Updated list of DNS nameserver addresses |
+| `magicDNS` | boolean | Whether MagicDNS is enabled |
 
 ### `tailscale_get_dns_preferences`
 
@@ -375,7 +383,7 @@ Create a new auth key for the tailnet to pre-authorize devices
 | `reusable` | boolean | No | Whether the key can be used more than once |
 | `ephemeral` | boolean | No | Whether devices authenticated with this key are ephemeral |
 | `preauthorized` | boolean | No | Whether devices are pre-authorized \(skip manual approval\) |
-| `tags` | string | Yes | Comma-separated list of tags for devices using this key \(e.g., "tag:server,tag:prod"\) |
+| `tags` | string | No | Comma-separated list of tags for devices using this key \(e.g., "tag:server,tag:prod"\) |
 | `description` | string | No | Description for the auth key |
 | `expirySeconds` | number | No | Key expiry time in seconds \(default: 90 days\) |
 

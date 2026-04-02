@@ -1,18 +1,12 @@
-import type {
-  RipplingListWorkLocationsParams,
-  RipplingListWorkLocationsResponse,
-} from '@/tools/rippling/types'
+import type { RipplingListWorkLocationsParams } from '@/tools/rippling/types'
+import { WORK_LOCATION_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const ripplingListWorkLocationsTool: ToolConfig<
-  RipplingListWorkLocationsParams,
-  RipplingListWorkLocationsResponse
-> = {
+export const ripplingListWorkLocationsTool: ToolConfig<RipplingListWorkLocationsParams> = {
   id: 'rippling_list_work_locations',
   name: 'Rippling List Work Locations',
-  description: 'List all work locations in Rippling',
+  description: 'List all work locations',
   version: '1.0.0',
-
   params: {
     apiKey: {
       type: 'string',
@@ -20,27 +14,26 @@ export const ripplingListWorkLocationsTool: ToolConfig<
       visibility: 'user-only',
       description: 'Rippling API key',
     },
-    limit: {
-      type: 'number',
+    orderBy: {
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of work locations to return',
+      description: 'Sort field. Prefix with - for descending',
     },
-    offset: {
-      type: 'number',
+    cursor: {
+      type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Offset for pagination',
+      description: 'Pagination cursor from previous response',
     },
   },
-
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.limit != null) query.set('limit', String(params.limit))
-      if (params.offset != null) query.set('offset', String(params.offset))
+      if (params.orderBy != null) query.set('order_by', params.orderBy)
+      if (params.cursor != null) query.set('cursor', params.cursor)
       const qs = query.toString()
-      return `https://api.rippling.com/platform/api/work_locations${qs ? `?${qs}` : ''}`
+      return `https://rest.ripplingapis.com/work-locations/${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -48,55 +41,37 @@ export const ripplingListWorkLocationsTool: ToolConfig<
       Accept: 'application/json',
     }),
   },
-
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(`Rippling API error (${response.status}): ${errorText}`)
     }
-
     const data = await response.json()
-    const results = Array.isArray(data) ? data : (data.results ?? [])
-
-    const workLocations = results.map((loc: Record<string, unknown>) => ({
-      id: (loc.id as string) ?? '',
-      nickname: (loc.nickname as string) ?? null,
-      street: (loc.street as string) ?? null,
-      city: (loc.city as string) ?? null,
-      state: (loc.state as string) ?? null,
-      zip: (loc.zip as string) ?? null,
-      country: (loc.country as string) ?? null,
-    }))
-
+    const results = data.results ?? []
     return {
       success: true,
       output: {
-        workLocations,
-        totalCount: workLocations.length,
+        workLocations: results.map((item: Record<string, unknown>) => ({
+          id: (item.id as string) ?? '',
+          created_at: (item.created_at as string) ?? null,
+          updated_at: (item.updated_at as string) ?? null,
+          name: (item.name as string) ?? null,
+          address: item.address ?? null,
+        })),
+        totalCount: results.length,
+        nextLink: (data.next_link as string) ?? null,
+        __meta: data.__meta ?? null,
       },
     }
   },
-
   outputs: {
     workLocations: {
       type: 'array',
-      description: 'List of work locations',
-      items: {
-        type: 'json',
-        properties: {
-          id: { type: 'string', description: 'Work location ID' },
-          nickname: { type: 'string', description: 'Location nickname' },
-          street: { type: 'string', description: 'Street address' },
-          city: { type: 'string', description: 'City' },
-          state: { type: 'string', description: 'State or province' },
-          zip: { type: 'string', description: 'ZIP or postal code' },
-          country: { type: 'string', description: 'Country' },
-        },
-      },
+      description: 'List of workLocations',
+      items: { type: 'object', properties: WORK_LOCATION_OUTPUT_PROPERTIES },
     },
-    totalCount: {
-      type: 'number',
-      description: 'Number of work locations returned on this page',
-    },
+    totalCount: { type: 'number', description: 'Number of items returned' },
+    nextLink: { type: 'string', description: 'Link to next page of results', optional: true },
+    __meta: { type: 'json', description: 'Metadata including redacted_fields', optional: true },
   },
 }

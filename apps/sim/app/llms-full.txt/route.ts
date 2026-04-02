@@ -9,7 +9,7 @@ export async function GET() {
 
 ## Overview
 
-Sim lets teams create agents, workflows, knowledge bases, tables, and docs. Over 100,000 builders use Sim — from startups to Fortune 500 companies. Teams connect their tools and data, build agents that execute real workflows across systems, and manage them with full observability. SOC2 and HIPAA compliant.
+Sim lets teams create agents, workflows, knowledge bases, tables, and docs. Over 100,000 builders use Sim — from startups to Fortune 500 companies. Teams connect their tools and data, build agents that execute real workflows across systems, and manage them with full observability. SOC2 compliant.
 
 ## Product Details
 
@@ -17,7 +17,7 @@ Sim lets teams create agents, workflows, knowledge bases, tables, and docs. Over
 - **Category**: AI Agent Platform / Agentic Workflow Orchestration
 - **Deployment**: Cloud (SaaS) and Self-hosted options
 - **Pricing**: Free tier, Pro ($25/month, 6K credits), Max ($100/month, 25K credits), Team plans available, Enterprise (custom)
-- **Compliance**: SOC2 Type II, HIPAA compliant
+- **Compliance**: SOC2 Type II
 
 ## Core Concepts
 

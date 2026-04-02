@@ -2,9 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, type Variants } from 'framer-motion'
+import { LandingPreviewFiles } from '@/app/(home)/components/landing-preview/components/landing-preview-files/landing-preview-files'
 import { LandingPreviewHome } from '@/app/(home)/components/landing-preview/components/landing-preview-home/landing-preview-home'
+import { LandingPreviewKnowledge } from '@/app/(home)/components/landing-preview/components/landing-preview-knowledge/landing-preview-knowledge'
+import { LandingPreviewLogs } from '@/app/(home)/components/landing-preview/components/landing-preview-logs/landing-preview-logs'
 import { LandingPreviewPanel } from '@/app/(home)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
+import { LandingPreviewScheduledTasks } from '@/app/(home)/components/landing-preview/components/landing-preview-scheduled-tasks/landing-preview-scheduled-tasks'
+import type { SidebarView } from '@/app/(home)/components/landing-preview/components/landing-preview-sidebar/landing-preview-sidebar'
 import { LandingPreviewSidebar } from '@/app/(home)/components/landing-preview/components/landing-preview-sidebar/landing-preview-sidebar'
+import { LandingPreviewTables } from '@/app/(home)/components/landing-preview/components/landing-preview-tables/landing-preview-tables'
 import { LandingPreviewWorkflow } from '@/app/(home)/components/landing-preview/components/landing-preview-workflow/landing-preview-workflow'
 import {
   EASE_OUT,
@@ -46,18 +52,16 @@ const panelVariants: Variants = {
  * Interactive workspace preview for the hero section.
  *
  * Renders a lightweight replica of the Sim workspace with:
- * - A sidebar with two selectable workflows
+ * - A sidebar with selectable workflows and workspace nav items
  * - A ReactFlow canvas showing the active workflow's blocks and edges
+ * - Static previews of Tables, Files, Knowledge Base, Logs, and Scheduled Tasks
  * - A panel with a functional copilot input (stores prompt + redirects to /signup)
  *
- * Everything except the workflow items and the copilot input is non-interactive.
- * On mount the sidebar slides from left and the panel from right. The canvas
- * background stays fully opaque; individual block nodes animate in with a
- * staggered fade. Edges draw left-to-right. Animations only fire on initial
- * load — workflow switches render instantly.
+ * Only workflow items, the home button, workspace nav items, and the copilot input
+ * are interactive. Animations only fire on initial load.
  */
 export function LandingPreview() {
-  const [activeView, setActiveView] = useState<'home' | 'workflow'>('workflow')
+  const [activeView, setActiveView] = useState<SidebarView>('workflow')
   const [activeWorkflowId, setActiveWorkflowId] = useState(PREVIEW_WORKFLOWS[0].id)
   const isInitialMount = useRef(true)
 
@@ -74,10 +78,33 @@ export function LandingPreview() {
     setActiveView('home')
   }, [])
 
+  const handleSelectNav = useCallback((id: SidebarView) => {
+    setActiveView(id)
+  }, [])
+
   const activeWorkflow =
     PREVIEW_WORKFLOWS.find((w) => w.id === activeWorkflowId) ?? PREVIEW_WORKFLOWS[0]
 
   const isWorkflowView = activeView === 'workflow'
+
+  function renderContent() {
+    switch (activeView) {
+      case 'workflow':
+        return <LandingPreviewWorkflow workflow={activeWorkflow} animate={isInitialMount.current} />
+      case 'home':
+        return <LandingPreviewHome />
+      case 'tables':
+        return <LandingPreviewTables />
+      case 'files':
+        return <LandingPreviewFiles />
+      case 'knowledge':
+        return <LandingPreviewKnowledge />
+      case 'logs':
+        return <LandingPreviewLogs />
+      case 'scheduled-tasks':
+        return <LandingPreviewScheduledTasks />
+    }
+  }
 
   return (
     <motion.div
@@ -93,6 +120,7 @@ export function LandingPreview() {
           activeView={activeView}
           onSelectWorkflow={handleSelectWorkflow}
           onSelectHome={handleSelectHome}
+          onSelectNav={handleSelectNav}
         />
       </motion.div>
       <div className='flex min-w-0 flex-1 flex-col py-2 pr-2 pl-2 lg:pl-0'>
@@ -104,11 +132,7 @@ export function LandingPreview() {
                 : 'relative flex min-w-0 flex-1 flex-col overflow-hidden'
             }
           >
-            {isWorkflowView ? (
-              <LandingPreviewWorkflow workflow={activeWorkflow} animate={isInitialMount.current} />
-            ) : (
-              <LandingPreviewHome />
-            )}
+            {renderContent()}
           </div>
           <motion.div
             className={isWorkflowView ? 'hidden lg:flex' : 'hidden'}

@@ -9293,90 +9293,358 @@
     "type": "rippling",
     "slug": "rippling",
     "name": "Rippling",
-    "description": "Manage employees, leave, departments, and company data in Rippling",
-    "longDescription": "Integrate Rippling into your workflow. Manage employees, departments, teams, leave requests, work locations, groups, candidates, and company information.",
+    "description": "Manage workers, departments, custom objects, and company data in Rippling",
+    "longDescription": "Integrate Rippling Platform into your workflow. Manage workers, users, departments, teams, titles, work locations, business partners, supergroups, custom objects, custom apps, custom pages, custom settings, object categories, reports, and draft hires.",
     "bgColor": "#FFCC1C",
     "iconName": "RipplingIcon",
     "docsUrl": "https://docs.sim.ai/tools/rippling",
     "operations": [
       {
-        "name": "List Employees",
-        "description": "List all employees in Rippling with optional pagination"
+        "name": "List Workers",
+        "description": "List all workers with optional filtering and pagination"
       },
       {
-        "name": "Get Employee",
-        "description": "Get details for a specific employee by ID"
+        "name": "Get Worker",
+        "description": "Get a specific worker by ID"
       },
       {
-        "name": "List Employees (Including Terminated)",
-        "description": "List all employees in Rippling including terminated employees with optional pagination"
+        "name": "List Users",
+        "description": "List all users with optional pagination"
       },
       {
-        "name": "List Departments",
-        "description": "List all departments in the Rippling organization"
+        "name": "Get User",
+        "description": "Get a specific user by ID"
       },
       {
-        "name": "List Teams",
-        "description": "List all teams in Rippling"
-      },
-      {
-        "name": "List Levels",
-        "description": "List all position levels in Rippling"
-      },
-      {
-        "name": "List Work Locations",
-        "description": "List all work locations in Rippling"
-      },
-      {
-        "name": "Get Company",
-        "description": "Get details for the current company in Rippling"
-      },
-      {
-        "name": "Get Company Activity",
-        "description": "Get activity events for the current company in Rippling"
-      },
-      {
-        "name": "List Custom Fields",
-        "description": "List all custom fields defined in Rippling"
+        "name": "List Companies",
+        "description": "List all companies"
       },
       {
         "name": "Get Current User",
-        "description": "Get the current authenticated user details"
+        "description": "Get SSO information for the current user"
       },
       {
-        "name": "List Leave Requests",
-        "description": "List leave requests in Rippling with optional filtering by date range and status"
+        "name": "List Entitlements",
+        "description": "List all entitlements"
       },
       {
-        "name": "Approve/Decline Leave Request",
-        "description": "Approve or decline a leave request in Rippling"
+        "name": "List Departments",
+        "description": "List all departments"
       },
       {
-        "name": "List Leave Balances",
-        "description": "List leave balances for all employees in Rippling"
+        "name": "Get Department",
+        "description": "Get a specific department by ID"
       },
       {
-        "name": "Get Leave Balance",
-        "description": "Get leave balance for a specific employee by role ID"
+        "name": "Create Department",
+        "description": "Create a new department"
       },
       {
-        "name": "List Leave Types",
-        "description": "List company leave types configured in Rippling"
+        "name": "Update Department",
+        "description": "Update an existing department"
       },
       {
-        "name": "Create Group",
-        "description": "Create a new group in Rippling"
+        "name": "List Teams",
+        "description": "List all teams"
       },
       {
-        "name": "Update Group",
-        "description": "Update an existing group in Rippling"
+        "name": "Get Team",
+        "description": "Get a specific team by ID"
       },
       {
-        "name": "Push Candidate",
-        "description": "Push a candidate to onboarding in Rippling"
+        "name": "List Employment Types",
+        "description": "List all employment types"
+      },
+      {
+        "name": "Get Employment Type",
+        "description": "Get a specific employment type by ID"
+      },
+      {
+        "name": "List Titles",
+        "description": "List all titles"
+      },
+      {
+        "name": "Get Title",
+        "description": "Get a specific title by ID"
+      },
+      {
+        "name": "Create Title",
+        "description": "Create a new title"
+      },
+      {
+        "name": "Update Title",
+        "description": "Update an existing title"
+      },
+      {
+        "name": "Delete Title",
+        "description": "Delete a title"
+      },
+      {
+        "name": "List Custom Fields",
+        "description": "List all custom fields"
+      },
+      {
+        "name": "List Job Functions",
+        "description": "List all job functions"
+      },
+      {
+        "name": "Get Job Function",
+        "description": "Get a specific job function by ID"
+      },
+      {
+        "name": "List Work Locations",
+        "description": "List all work locations"
+      },
+      {
+        "name": "Get Work Location",
+        "description": "Get a specific work location by ID"
+      },
+      {
+        "name": "Create Work Location",
+        "description": "Create a new work location"
+      },
+      {
+        "name": "Update Work Location",
+        "description": "Update a work location"
+      },
+      {
+        "name": "Delete Work Location",
+        "description": "Delete a work location"
+      },
+      {
+        "name": "List Business Partners",
+        "description": "List all business partners"
+      },
+      {
+        "name": "Get Business Partner",
+        "description": "Get a specific business partner by ID"
+      },
+      {
+        "name": "Create Business Partner",
+        "description": "Create a new business partner"
+      },
+      {
+        "name": "Delete Business Partner",
+        "description": "Delete a business partner"
+      },
+      {
+        "name": "List Business Partner Groups",
+        "description": "List all business partner groups"
+      },
+      {
+        "name": "Get Business Partner Group",
+        "description": "Get a specific business partner group by ID"
+      },
+      {
+        "name": "Create Business Partner Group",
+        "description": "Create a new business partner group"
+      },
+      {
+        "name": "Delete Business Partner Group",
+        "description": "Delete a business partner group"
+      },
+      {
+        "name": "List Supergroups",
+        "description": "List all supergroups"
+      },
+      {
+        "name": "Get Supergroup",
+        "description": "Get a specific supergroup by ID"
+      },
+      {
+        "name": "List Supergroup Members",
+        "description": "List members of a supergroup"
+      },
+      {
+        "name": "List Supergroup Inclusion Members",
+        "description": "List inclusion members of a supergroup"
+      },
+      {
+        "name": "List Supergroup Exclusion Members",
+        "description": "List exclusion members of a supergroup"
+      },
+      {
+        "name": "Update Supergroup Inclusion Members",
+        "description": "Update inclusion members of a supergroup"
+      },
+      {
+        "name": "Update Supergroup Exclusion Members",
+        "description": "Update exclusion members of a supergroup"
+      },
+      {
+        "name": "List Custom Objects",
+        "description": "List all custom objects"
+      },
+      {
+        "name": "Get Custom Object",
+        "description": "Get a custom object by API name"
+      },
+      {
+        "name": "Create Custom Object",
+        "description": "Create a new custom object"
+      },
+      {
+        "name": "Update Custom Object",
+        "description": "Update a custom object"
+      },
+      {
+        "name": "Delete Custom Object",
+        "description": "Delete a custom object"
+      },
+      {
+        "name": "List Custom Object Fields",
+        "description": "List all fields for a custom object"
+      },
+      {
+        "name": "Get Custom Object Field",
+        "description": "Get a specific field of a custom object"
+      },
+      {
+        "name": "Create Custom Object Field",
+        "description": "Create a field on a custom object"
+      },
+      {
+        "name": "Update Custom Object Field",
+        "description": "Update a field on a custom object"
+      },
+      {
+        "name": "Delete Custom Object Field",
+        "description": "Delete a field from a custom object"
+      },
+      {
+        "name": "List Custom Object Records",
+        "description": "List all records for a custom object"
+      },
+      {
+        "name": "Get Custom Object Record",
+        "description": "Get a specific custom object record"
+      },
+      {
+        "name": "Get Custom Object Record by External ID",
+        "description": "Get a custom object record by external ID"
+      },
+      {
+        "name": "Query Custom Object Records",
+        "description": "Query custom object records with filters"
+      },
+      {
+        "name": "Create Custom Object Record",
+        "description": "Create a custom object record"
+      },
+      {
+        "name": "Update Custom Object Record",
+        "description": "Update a custom object record"
+      },
+      {
+        "name": "Delete Custom Object Record",
+        "description": "Delete a custom object record"
+      },
+      {
+        "name": "Bulk Create Custom Object Records",
+        "description": "Bulk create custom object records"
+      },
+      {
+        "name": "Bulk Update Custom Object Records",
+        "description": "Bulk update custom object records"
+      },
+      {
+        "name": "Bulk Delete Custom Object Records",
+        "description": "Bulk delete custom object records"
+      },
+      {
+        "name": "List Custom Apps",
+        "description": "List all custom apps"
+      },
+      {
+        "name": "Get Custom App",
+        "description": "Get a specific custom app"
+      },
+      {
+        "name": "Create Custom App",
+        "description": "Create a new custom app"
+      },
+      {
+        "name": "Update Custom App",
+        "description": "Update a custom app"
+      },
+      {
+        "name": "Delete Custom App",
+        "description": "Delete a custom app"
+      },
+      {
+        "name": "List Custom Pages",
+        "description": "List all custom pages"
+      },
+      {
+        "name": "Get Custom Page",
+        "description": "Get a specific custom page"
+      },
+      {
+        "name": "Create Custom Page",
+        "description": "Create a new custom page"
+      },
+      {
+        "name": "Update Custom Page",
+        "description": "Update a custom page"
+      },
+      {
+        "name": "Delete Custom Page",
+        "description": "Delete a custom page"
+      },
+      {
+        "name": "List Custom Settings",
+        "description": "List all custom settings"
+      },
+      {
+        "name": "Get Custom Setting",
+        "description": "Get a specific custom setting"
+      },
+      {
+        "name": "Create Custom Setting",
+        "description": "Create a new custom setting"
+      },
+      {
+        "name": "Update Custom Setting",
+        "description": "Update a custom setting"
+      },
+      {
+        "name": "Delete Custom Setting",
+        "description": "Delete a custom setting"
+      },
+      {
+        "name": "List Object Categories",
+        "description": "List all object categories"
+      },
+      {
+        "name": "Get Object Category",
+        "description": "Get a specific object category"
+      },
+      {
+        "name": "Create Object Category",
+        "description": "Create a new object category"
+      },
+      {
+        "name": "Update Object Category",
+        "description": "Update a object category"
+      },
+      {
+        "name": "Delete Object Category",
+        "description": "Delete a object category"
+      },
+      {
+        "name": "Get Report Run",
+        "description": "Get a report run by ID"
+      },
+      {
+        "name": "Trigger Report Run",
+        "description": "Trigger a new report run"
+      },
+      {
+        "name": "Create Draft Hires",
+        "description": "Create bulk draft hires"
       }
     ],
-    "operationCount": 19,
+    "operationCount": 86,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
