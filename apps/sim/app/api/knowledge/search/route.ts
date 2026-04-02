@@ -414,10 +414,9 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Sort, normalize, and trim results to topK.
-      // When results come from multiple providers, distance scores from different
-      // embedding spaces are not directly comparable — normalize each provider's
-      // scores to 0-1 range before merging.
+      // Normalize scores globally across all results before ranking.
+      // Per-provider normalization would inflate a poor single-provider result
+      // to an artificially high rank when merging across embedding spaces.
       const normalizeScores = (items: SearchResult[]): SearchResult[] => {
         if (items.length === 0) return items
         // Single result: clamp raw distance to [0,1] to preserve quality signal.
@@ -430,21 +429,9 @@ export async function POST(request: NextRequest) {
         return items.map((r) => ({ ...r, distance: (r.distance - min) / range }))
       }
 
-      let results: SearchResult[]
-      if (openaiKbIds.length > 0 && ollamaKbIds.length > 0) {
-        const openaiResults = normalizeScores(
-          allResults.filter((r) => openaiKbIds.includes(r.knowledgeBaseId))
-        )
-        const ollamaResults = normalizeScores(
-          allResults.filter((r) => ollamaKbIds.includes(r.knowledgeBaseId))
-        )
-        results = [...openaiResults, ...ollamaResults]
-          .sort((a, b) => a.distance - b.distance)
-          .slice(0, validatedData.topK)
-      } else {
-        // Single provider — still sort and trim to topK
-        results = allResults.sort((a, b) => a.distance - b.distance).slice(0, validatedData.topK)
-      }
+      const results: SearchResult[] = normalizeScores(allResults)
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, validatedData.topK)
 
       // Calculate cost — only for OpenAI embedding calls
       let cost = null
