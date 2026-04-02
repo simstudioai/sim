@@ -23,7 +23,7 @@ export const ripplingGetCurrentUserTool: ToolConfig<RipplingGetCurrentUserParams
   request: {
     url: (params) => {
       const base = `https://rest.ripplingapis.com/sso-me/`
-      if (params.expand) return `${base}?expand=${encodeURIComponent(params.expand)}`
+      if (params.expand != null) return `${base}?expand=${encodeURIComponent(params.expand)}`
       return base
     },
     method: 'GET',
@@ -43,6 +43,7 @@ export const ripplingGetCurrentUserTool: ToolConfig<RipplingGetCurrentUserParams
         updated_at: (data.updated_at as string) ?? null,
         work_email: (data.work_email as string) ?? null,
         company_id: (data.company_id as string) ?? null,
+        company: data.company ?? null,
       },
     }
   },
@@ -52,5 +53,6 @@ export const ripplingGetCurrentUserTool: ToolConfig<RipplingGetCurrentUserParams
     updated_at: { type: 'string', description: 'Update date', optional: true },
     work_email: { type: 'string', description: 'Work email', optional: true },
     company_id: { type: 'string', description: 'Company ID', optional: true },
+    company: { type: 'json', description: 'Expanded company object', optional: true },
   },
 }

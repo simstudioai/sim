@@ -30,8 +30,8 @@ export const ripplingListSupergroupsTool: ToolConfig<RipplingListSupergroupsPara
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.filter) query.set('filter', params.filter)
-      if (params.orderBy) query.set('order_by', params.orderBy)
+      if (params.filter != null) query.set('filter', params.filter)
+      if (params.orderBy != null) query.set('order_by', params.orderBy)
       const qs = query.toString()
       return `https://rest.ripplingapis.com/supergroups/${qs ? `?${qs}` : ''}`
     },

@@ -24,7 +24,7 @@ export const ripplingGetTeamTool: ToolConfig<RipplingGetTeamParams> = {
   request: {
     url: (params) => {
       const base = `https://rest.ripplingapis.com/teams/${encodeURIComponent(params.id.trim())}/`
-      if (params.expand) return `${base}?expand=${encodeURIComponent(params.expand)}`
+      if (params.expand != null) return `${base}?expand=${encodeURIComponent(params.expand)}`
       return base
     },
     method: 'GET',
@@ -44,6 +44,7 @@ export const ripplingGetTeamTool: ToolConfig<RipplingGetTeamParams> = {
         updated_at: (data.updated_at as string) ?? null,
         name: (data.name as string) ?? null,
         parent_id: (data.parent_id as string) ?? null,
+        parent: data.parent ?? null,
       },
     }
   },
@@ -53,5 +54,6 @@ export const ripplingGetTeamTool: ToolConfig<RipplingGetTeamParams> = {
     updated_at: { type: 'string', description: 'Update date', optional: true },
     name: { type: 'string', description: 'Name', optional: true },
     parent_id: { type: 'string', description: 'Parent team ID', optional: true },
+    parent: { type: 'json', description: 'Expanded parent team', optional: true },
   },
 }

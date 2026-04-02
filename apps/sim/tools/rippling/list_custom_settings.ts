@@ -29,8 +29,8 @@ export const ripplingListCustomSettingsTool: ToolConfig<RipplingListCustomSettin
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.orderBy) query.set('order_by', params.orderBy)
-      if (params.cursor) query.set('cursor', params.cursor)
+      if (params.orderBy != null) query.set('order_by', params.orderBy)
+      if (params.cursor != null) query.set('cursor', params.cursor)
       const qs = query.toString()
       return `https://rest.ripplingapis.com/custom-settings/${qs ? `?${qs}` : ''}`
     },
@@ -77,7 +77,7 @@ export const ripplingListCustomSettingsTool: ToolConfig<RipplingListCustomSettin
           display_name: { type: 'string', description: 'Display name' },
           api_name: { type: 'string', description: 'API name' },
           data_type: { type: 'string', description: 'Data type' },
-          secret_value: { type: 'json', description: 'Secret value' },
+          secret_value: { type: 'string', description: 'Secret value' },
           string_value: { type: 'string', description: 'String value' },
           number_value: { type: 'number', description: 'Number value' },
           boolean_value: { type: 'boolean', description: 'Boolean value' },

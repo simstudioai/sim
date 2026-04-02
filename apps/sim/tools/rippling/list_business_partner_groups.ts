@@ -37,9 +37,9 @@ export const ripplingListBusinessPartnerGroupsTool: ToolConfig<RipplingListBusin
     request: {
       url: (params) => {
         const query = new URLSearchParams()
-        if (params.expand) query.set('expand', params.expand)
-        if (params.orderBy) query.set('order_by', params.orderBy)
-        if (params.cursor) query.set('cursor', params.cursor)
+        if (params.expand != null) query.set('expand', params.expand)
+        if (params.orderBy != null) query.set('order_by', params.orderBy)
+        if (params.cursor != null) query.set('cursor', params.cursor)
         const qs = query.toString()
         return `https://rest.ripplingapis.com/business-partner-groups/${qs ? `?${qs}` : ''}`
       },

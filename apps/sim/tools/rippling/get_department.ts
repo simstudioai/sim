@@ -24,7 +24,7 @@ export const ripplingGetDepartmentTool: ToolConfig<RipplingGetDepartmentParams> 
   request: {
     url: (params) => {
       const base = `https://rest.ripplingapis.com/departments/${encodeURIComponent(params.id.trim())}/`
-      if (params.expand) return `${base}?expand=${encodeURIComponent(params.expand)}`
+      if (params.expand != null) return `${base}?expand=${encodeURIComponent(params.expand)}`
       return base
     },
     method: 'GET',
@@ -46,6 +46,8 @@ export const ripplingGetDepartmentTool: ToolConfig<RipplingGetDepartmentParams> 
         parent_id: (data.parent_id as string) ?? null,
         reference_code: (data.reference_code as string) ?? null,
         department_hierarchy_id: (data.department_hierarchy_id as unknown[]) ?? [],
+        parent: data.parent ?? null,
+        department_hierarchy: data.department_hierarchy ?? null,
       },
     }
   },
@@ -59,6 +61,12 @@ export const ripplingGetDepartmentTool: ToolConfig<RipplingGetDepartmentParams> 
     department_hierarchy_id: {
       type: 'json',
       description: 'Department hierarchy IDs',
+      optional: true,
+    },
+    parent: { type: 'json', description: 'Expanded parent department', optional: true },
+    department_hierarchy: {
+      type: 'json',
+      description: 'Expanded department hierarchy',
       optional: true,
     },
   },

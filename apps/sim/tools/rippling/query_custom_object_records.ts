@@ -51,9 +51,9 @@ export const ripplingQueryCustomObjectRecordsTool: ToolConfig<RipplingQueryCusto
       }),
       body: (params) => {
         const body: Record<string, unknown> = {}
-        if (params.query) body.query = params.query
+        if (params.query != null) body.query = params.query
         if (params.limit != null) body.limit = Number(params.limit)
-        if (params.cursor) body.cursor = params.cursor
+        if (params.cursor != null) body.cursor = params.cursor
         return body
       },
     },

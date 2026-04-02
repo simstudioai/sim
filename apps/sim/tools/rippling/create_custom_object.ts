@@ -37,8 +37,8 @@ export const ripplingCreateCustomObjectTool: ToolConfig<RipplingCreateCustomObje
     }),
     body: (params) => {
       const body: Record<string, unknown> = { name: params.name }
-      if (params.description) body.description = params.description
-      if (params.category) body.category = params.category
+      if (params.description != null) body.description = params.description
+      if (params.category != null) body.category = params.category
       return body
     },
   },

@@ -5,7 +5,7 @@ description: Manage workers, departments, custom objects, and company data in Ri
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="rippling"
   color="#FFCC1C"
 />
@@ -37,12 +37,9 @@ Sim's Rippling integration connects your agentic workflows directly to your Ripp
 Whether you're automating new hire onboarding, managing custom object data, building organizational reports, or extending Rippling's platform with custom apps, Rippling in Sim gives you direct, secure access to the full Rippling Platform REST API — no middleware required. Simply configure your API key, select the operation you need, and let Sim handle the rest.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Integrate Rippling Platform into your workflow. Manage workers, users, departments, teams, titles, work locations, business partners, supergroups, custom objects, custom apps, custom pages, custom settings, object categories, reports, and draft hires.
-
-
 
 ## Tools
 
@@ -54,7 +51,6 @@ List all workers with optional filtering and pagination
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `filter` | string | No | Filter expression |
 | `expand` | string | No | Comma-separated fields to expand |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
@@ -65,40 +61,42 @@ List all workers with optional filtering and pagination
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `workers` | array | List of workers |
-|   ↳ `id` | string | Worker ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `user_id` | string | Associated user ID |
-|   ↳ `is_manager` | boolean | Whether the worker is a manager |
-|   ↳ `manager_id` | string | Manager worker ID |
-|   ↳ `legal_entity_id` | string | Legal entity ID |
-|   ↳ `country` | string | Worker country code |
-|   ↳ `start_date` | string | Employment start date |
-|   ↳ `end_date` | string | Employment end date |
-|   ↳ `number` | number | Worker number |
-|   ↳ `work_email` | string | Work email address |
-|   ↳ `personal_email` | string | Personal email address |
-|   ↳ `status` | string | Worker status \(INIT, HIRED, ACCEPTED, ACTIVE, TERMINATED\) |
-|   ↳ `employment_type_id` | string | Employment type ID |
-|   ↳ `department_id` | string | Department ID |
-|   ↳ `teams_id` | json | Array of team IDs |
-|   ↳ `title` | string | Job title |
-|   ↳ `level_id` | string | Level ID |
-|   ↳ `compensation_id` | string | Compensation ID |
-|   ↳ `overtime_exemption` | string | Overtime exemption status \(EXEMPT, NON_EXEMPT\) |
-|   ↳ `title_effective_date` | string | Title effective date |
-|   ↳ `business_partners_id` | json | Array of business partner IDs |
-|   ↳ `location` | json | Worker location \(type, work_location_id\) |
-|   ↳ `gender` | string | Gender |
-|   ↳ `date_of_birth` | string | Date of birth |
-|   ↳ `race` | string | Race |
-|   ↳ `ethnicity` | string | Ethnicity |
-|   ↳ `citizenship` | string | Citizenship country code |
-|   ↳ `termination_details` | json | Termination details |
-|   ↳ `custom_fields` | json | Custom fields \(expandable\) |
-|   ↳ `country_fields` | json | Country-specific fields |
+| `  ↳ id` | string | Worker ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ user_id` | string | Associated user ID |
+| `  ↳ is_manager` | boolean | Whether the worker is a manager |
+| `  ↳ manager_id` | string | Manager worker ID |
+| `  ↳ legal_entity_id` | string | Legal entity ID |
+| `  ↳ country` | string | Worker country code |
+| `  ↳ start_date` | string | Employment start date |
+| `  ↳ end_date` | string | Employment end date |
+| `  ↳ number` | number | Worker number |
+| `  ↳ work_email` | string | Work email address |
+| `  ↳ personal_email` | string | Personal email address |
+| `  ↳ status` | string | Worker status \(INIT, HIRED, ACCEPTED, ACTIVE, TERMINATED\) |
+| `  ↳ employment_type_id` | string | Employment type ID |
+| `  ↳ department_id` | string | Department ID |
+| `  ↳ teams_id` | json | Array of team IDs |
+| `  ↳ title` | string | Job title |
+| `  ↳ level_id` | string | Level ID |
+| `  ↳ compensation_id` | string | Compensation ID |
+| `  ↳ overtime_exemption` | string | Overtime exemption status \(EXEMPT, NON_EXEMPT\) |
+| `  ↳ title_effective_date` | string | Title effective date |
+| `  ↳ business_partners_id` | json | Array of business partner IDs |
+| `  ↳ location` | json | Worker location \(type, work_location_id\) |
+| `  ↳ gender` | string | Gender |
+| `  ↳ date_of_birth` | string | Date of birth |
+| `  ↳ race` | string | Race |
+| `  ↳ ethnicity` | string | Ethnicity |
+| `  ↳ citizenship` | string | Citizenship country code |
+| `  ↳ termination_details` | json | Termination details |
+| `  ↳ custom_fields` | json | Custom fields \(expandable\) |
+| `  ↳ country_fields` | json | Country-specific fields |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_worker`
 
@@ -108,8 +106,7 @@ Get a specific worker by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
 #### Output
@@ -149,6 +146,8 @@ Get a specific worker by ID
 | `custom_fields` | json | Custom fields |
 | `country_fields` | json | Country-specific fields |
 
+---
+
 ### `rippling_list_users`
 
 List all users with optional pagination
@@ -157,7 +156,6 @@ List all users with optional pagination
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
 
@@ -166,23 +164,25 @@ List all users with optional pagination
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `users` | array | List of users |
-|   ↳ `id` | string | User ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `active` | boolean | Whether the user is active |
-|   ↳ `username` | string | Unique username |
-|   ↳ `display_name` | string | Display name |
-|   ↳ `preferred_language` | string | Preferred language |
-|   ↳ `locale` | string | Locale |
-|   ↳ `timezone` | string | Timezone \(IANA format\) |
-|   ↳ `number` | string | Permanent profile number |
-|   ↳ `name` | json | User name object \(given_name, family_name, etc.\) |
-|   ↳ `emails` | json | Array of email objects |
-|   ↳ `phone_numbers` | json | Array of phone number objects |
-|   ↳ `addresses` | json | Array of address objects |
-|   ↳ `photos` | json | Array of photo objects |
+| `  ↳ id` | string | User ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ active` | boolean | Whether the user is active |
+| `  ↳ username` | string | Unique username |
+| `  ↳ display_name` | string | Display name |
+| `  ↳ preferred_language` | string | Preferred language |
+| `  ↳ locale` | string | Locale |
+| `  ↳ timezone` | string | Timezone \(IANA format\) |
+| `  ↳ number` | string | Permanent profile number |
+| `  ↳ name` | json | User name object \(given_name, family_name, etc.\) |
+| `  ↳ emails` | json | Array of email objects |
+| `  ↳ phone_numbers` | json | Array of phone number objects |
+| `  ↳ addresses` | json | Array of address objects |
+| `  ↳ photos` | json | Array of photo objects |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_user`
 
@@ -192,8 +192,7 @@ Get a specific user by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -215,6 +214,8 @@ Get a specific user by ID
 | `addresses` | json | Addresses |
 | `photos` | json | Photos |
 
+---
+
 ### `rippling_list_companies`
 
 List all companies
@@ -223,7 +224,6 @@ List all companies
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `expand` | string | No | Comma-separated fields to expand |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
@@ -233,19 +233,21 @@ List all companies
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `companies` | array | List of companies |
-|   ↳ `id` | string | Company ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | Company name |
-|   ↳ `legal_name` | string | Legal name |
-|   ↳ `doing_business_as_name` | string | DBA name |
-|   ↳ `phone` | string | Phone number |
-|   ↳ `primary_email` | string | Primary email |
-|   ↳ `parent_legal_entity_id` | string | Parent legal entity ID |
-|   ↳ `legal_entities_id` | json | Array of legal entity IDs |
-|   ↳ `physical_address` | json | Physical address of the holding entity |
+| `  ↳ id` | string | Company ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | Company name |
+| `  ↳ legal_name` | string | Legal name |
+| `  ↳ doing_business_as_name` | string | DBA name |
+| `  ↳ phone` | string | Phone number |
+| `  ↳ primary_email` | string | Primary email |
+| `  ↳ parent_legal_entity_id` | string | Parent legal entity ID |
+| `  ↳ legal_entities_id` | json | Array of legal entity IDs |
+| `  ↳ physical_address` | json | Physical address of the holding entity |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_current_user`
 
@@ -255,7 +257,6 @@ Get SSO information for the current user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `expand` | string | No | Comma-separated fields to expand |
 
 #### Output
@@ -267,6 +268,9 @@ Get SSO information for the current user
 | `updated_at` | string | Update date |
 | `work_email` | string | Work email |
 | `company_id` | string | Company ID |
+| `company` | json | Expanded company object |
+
+---
 
 ### `rippling_list_entitlements`
 
@@ -274,20 +278,20 @@ List all entitlements
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
+_No input parameters required._
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `entitlements` | array | List of entitlements |
-|   ↳ `id` | string | Entitlement ID |
-|   ↳ `description` | string | Entitlement description |
-|   ↳ `display_name` | string | Display name |
+| `  ↳ id` | string | Entitlement ID |
+| `  ↳ description` | string | Entitlement description |
+| `  ↳ display_name` | string | Display name |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_list_departments`
 
@@ -297,7 +301,6 @@ List all departments
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `expand` | string | No | Comma-separated fields to expand |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
@@ -307,15 +310,19 @@ List all departments
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `departments` | array | List of departments |
-|   ↳ `id` | string | Department ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | Department name |
-|   ↳ `parent_id` | string | Parent department ID |
-|   ↳ `reference_code` | string | Reference code |
-|   ↳ `department_hierarchy_id` | json | Array of department IDs in hierarchy |
+| `  ↳ id` | string | Department ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | Department name |
+| `  ↳ parent_id` | string | Parent department ID |
+| `  ↳ reference_code` | string | Reference code |
+| `  ↳ department_hierarchy_id` | json | Array of department IDs in hierarchy |
+| `  ↳ parent` | json | Expanded parent department |
+| `  ↳ department_hierarchy` | json | Expanded department hierarchy |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_department`
 
@@ -325,8 +332,7 @@ Get a specific department by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
 #### Output
@@ -340,6 +346,10 @@ Get a specific department by ID
 | `parent_id` | string | Parent department ID |
 | `reference_code` | string | Reference code |
 | `department_hierarchy_id` | json | Department hierarchy IDs |
+| `parent` | json | Expanded parent department |
+| `department_hierarchy` | json | Expanded department hierarchy |
+
+---
 
 ### `rippling_create_department`
 
@@ -349,7 +359,6 @@ Create a new department
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `name` | string | Yes | Department name |
 | `parentId` | string | No | Parent department ID |
 | `referenceCode` | string | No | Reference code |
@@ -365,6 +374,10 @@ Create a new department
 | `parent_id` | string | Parent department ID |
 | `reference_code` | string | Reference code |
 | `department_hierarchy_id` | json | Department hierarchy IDs |
+| `parent` | json | Expanded parent department |
+| `department_hierarchy` | json | Expanded department hierarchy |
+
+---
 
 ### `rippling_update_department`
 
@@ -374,8 +387,7 @@ Update an existing department
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Department ID |
 | `name` | string | No | Department name |
 | `parentId` | string | No | Parent department ID |
 | `referenceCode` | string | No | Reference code |
@@ -391,6 +403,10 @@ Update an existing department
 | `parent_id` | string | Parent department ID |
 | `reference_code` | string | Reference code |
 | `department_hierarchy_id` | json | Department hierarchy IDs |
+| `parent` | json | Expanded parent department |
+| `department_hierarchy` | json | Expanded department hierarchy |
+
+---
 
 ### `rippling_list_teams`
 
@@ -400,7 +416,6 @@ List all teams
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `expand` | string | No | Comma-separated fields to expand |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
@@ -410,13 +425,16 @@ List all teams
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `teams` | array | List of teams |
-|   ↳ `id` | string | Team ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | Team name |
-|   ↳ `parent_id` | string | Parent team ID |
+| `  ↳ id` | string | Team ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | Team name |
+| `  ↳ parent_id` | string | Parent team ID |
+| `  ↳ parent` | json | Expanded parent team |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_team`
 
@@ -426,8 +444,7 @@ Get a specific team by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
 #### Output
@@ -439,6 +456,9 @@ Get a specific team by ID
 | `updated_at` | string | Update date |
 | `name` | string | Name |
 | `parent_id` | string | Parent team ID |
+| `parent` | json | Expanded parent team |
+
+---
 
 ### `rippling_list_employment_types`
 
@@ -448,7 +468,6 @@ List all employment types
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
 
@@ -468,6 +487,8 @@ List all employment types
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
 
+---
+
 ### `rippling_get_employment_type`
 
 Get a specific employment type by ID
@@ -476,8 +497,7 @@ Get a specific employment type by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -492,6 +512,8 @@ Get a specific employment type by ID
 | `compensation_time_period` | string | Compensation period \(HOURLY, SALARIED\) |
 | `amount_worked` | string | Amount worked \(PART-TIME, FULL-TIME, TEMPORARY\) |
 
+---
+
 ### `rippling_list_titles`
 
 List all titles
@@ -500,7 +522,6 @@ List all titles
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
 
@@ -509,12 +530,14 @@ List all titles
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `titles` | array | List of titles |
-|   ↳ `id` | string | Title ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | Title name |
+| `  ↳ id` | string | Title ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | Title name |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_title`
 
@@ -524,8 +547,7 @@ Get a specific title by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -535,6 +557,8 @@ Get a specific title by ID
 | `created_at` | string | Creation date |
 | `updated_at` | string | Update date |
 | `name` | string | Title name |
+
+---
 
 ### `rippling_create_title`
 
@@ -544,8 +568,7 @@ Create a new title
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `name` | string | Yes | No description |
+| `name` | string | Yes | Title name |
 
 #### Output
 
@@ -555,6 +578,8 @@ Create a new title
 | `created_at` | string | Creation date |
 | `updated_at` | string | Update date |
 | `name` | string | Title name |
+
+---
 
 ### `rippling_update_title`
 
@@ -564,9 +589,8 @@ Update an existing title
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
-| `name` | string | No | No description |
+| `id` | string | Yes | Title ID |
+| `name` | string | No | Title name |
 
 #### Output
 
@@ -577,6 +601,8 @@ Update an existing title
 | `updated_at` | string | Update date |
 | `name` | string | Title name |
 
+---
+
 ### `rippling_delete_title`
 
 Delete a title
@@ -585,7 +611,6 @@ Delete a title
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -594,76 +619,7 @@ Delete a title
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
-### `rippling_list_custom_fields`
-
-List all custom fields
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `customFields` | array | List of customFields |
-|   ↳ `id` | string | Custom field ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | Field name |
-|   ↳ `description` | string | Field description |
-|   ↳ `required` | boolean | Whether the field is required |
-|   ↳ `type` | string | Field type \(TEXT, DATE, NUMBER, CURRENCY, etc.\) |
-| `totalCount` | number | Number of items returned |
-| `nextLink` | string | Link to next page of results |
-
-### `rippling_list_job_functions`
-
-List all job functions
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `orderBy` | string | No | Sort field. Prefix with - for descending |
-| `cursor` | string | No | Pagination cursor from previous response |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `jobFunctions` | array | List of jobFunctions |
-|   ↳ `id` | string | Job function ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | Job function name |
-| `totalCount` | number | Number of items returned |
-| `nextLink` | string | Link to next page of results |
-
-### `rippling_get_job_function`
-
-Get a specific job function by ID
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `id` | string | Job function ID |
-| `created_at` | string | Creation date |
-| `updated_at` | string | Update date |
-| `name` | string | Name |
+---
 
 ### `rippling_list_work_locations`
 
@@ -673,7 +629,6 @@ List all work locations
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
 
@@ -682,13 +637,15 @@ List all work locations
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `workLocations` | array | List of workLocations |
-|   ↳ `id` | string | Work location ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | Location name |
-|   ↳ `address` | json | Address object |
+| `  ↳ id` | string | Work location ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | Location name |
+| `  ↳ address` | json | Address object |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_work_location`
 
@@ -698,8 +655,7 @@ Get a specific work location by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -711,6 +667,8 @@ Get a specific work location by ID
 | `name` | string | Name |
 | `address` | json | Address object |
 
+---
+
 ### `rippling_create_work_location`
 
 Create a new work location
@@ -719,13 +677,13 @@ Create a new work location
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `name` | string | Yes | Location name |
 | `streetAddress` | string | No | Street address |
-| `locality` | string | No | No description |
+| `locality` | string | No | City |
 | `region` | string | No | State/region |
 | `postalCode` | string | No | Postal code |
 | `country` | string | No | Country code |
+| `addressType` | string | No | Address type \(HOME, WORK, OTHER\) |
 
 #### Output
 
@@ -736,6 +694,8 @@ Create a new work location
 | `updated_at` | string | Updated timestamp |
 | `name` | string | Name |
 | `address` | json | Address |
+
+---
 
 ### `rippling_update_work_location`
 
@@ -745,14 +705,14 @@ Update a work location
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Location ID |
 | `name` | string | No | Location name |
 | `streetAddress` | string | No | Street address |
-| `locality` | string | No | No description |
+| `locality` | string | No | City |
 | `region` | string | No | State/region |
 | `postalCode` | string | No | Postal code |
 | `country` | string | No | Country code |
+| `addressType` | string | No | Address type \(HOME, WORK, OTHER\) |
 
 #### Output
 
@@ -764,6 +724,8 @@ Update a work location
 | `name` | string | Name |
 | `address` | json | Address |
 
+---
+
 ### `rippling_delete_work_location`
 
 Delete a work location
@@ -772,7 +734,6 @@ Delete a work location
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -780,6 +741,82 @@ Delete a work location
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
+
+---
+
+### `rippling_list_custom_fields`
+
+List all custom fields
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orderBy` | string | No | Sort field. Prefix with - for descending |
+| `cursor` | string | No | Pagination cursor from previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customFields` | array | List of customFields |
+| `  ↳ id` | string | Custom field ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | Field name |
+| `  ↳ description` | string | Field description |
+| `  ↳ required` | boolean | Whether the field is required |
+| `  ↳ type` | string | Field type \(TEXT, DATE, NUMBER, CURRENCY, etc.\) |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+
+---
+
+### `rippling_list_job_functions`
+
+List all job functions
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `orderBy` | string | No | Sort field. Prefix with - for descending |
+| `cursor` | string | No | Pagination cursor from previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobFunctions` | array | List of jobFunctions |
+| `  ↳ id` | string | Job function ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | Job function name |
+| `totalCount` | number | Number of items returned |
+| `nextLink` | string | Link to next page of results |
+
+---
+
+### `rippling_get_job_function`
+
+Get a specific job function by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Resource ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Job function ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Name |
+
+---
 
 ### `rippling_list_business_partners`
 
@@ -789,7 +826,6 @@ List all business partners
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `filter` | string | No | Filter expression |
 | `expand` | string | No | Comma-separated fields to expand |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
@@ -800,15 +836,17 @@ List all business partners
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `businessPartners` | array | List of businessPartners |
-|   ↳ `id` | string | Business partner ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `business_partner_group_id` | string | Business partner group ID |
-|   ↳ `worker_id` | string | Worker ID |
-|   ↳ `client_group_id` | string | Client group ID |
-|   ↳ `client_group_member_count` | number | Client group member count |
+| `  ↳ id` | string | Business partner ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ business_partner_group_id` | string | Business partner group ID |
+| `  ↳ worker_id` | string | Worker ID |
+| `  ↳ client_group_id` | string | Client group ID |
+| `  ↳ client_group_member_count` | number | Client group member count |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_business_partner`
 
@@ -818,8 +856,7 @@ Get a specific business partner by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
 #### Output
@@ -834,6 +871,8 @@ Get a specific business partner by ID
 | `client_group_id` | string | Client group ID |
 | `client_group_member_count` | number | Client group member count |
 
+---
+
 ### `rippling_create_business_partner`
 
 Create a new business partner
@@ -842,7 +881,6 @@ Create a new business partner
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `businessPartnerGroupId` | string | Yes | Business partner group ID |
 | `workerId` | string | Yes | Worker ID |
 
@@ -858,6 +896,8 @@ Create a new business partner
 | `client_group_id` | string | Client group ID |
 | `client_group_member_count` | number | Client group member count |
 
+---
+
 ### `rippling_delete_business_partner`
 
 Delete a business partner
@@ -866,7 +906,6 @@ Delete a business partner
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -874,6 +913,8 @@ Delete a business partner
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
+
+---
 
 ### `rippling_list_business_partner_groups`
 
@@ -883,7 +924,6 @@ List all business partner groups
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `expand` | string | No | Comma-separated fields to expand |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
@@ -893,14 +933,16 @@ List all business partner groups
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `businessPartnerGroups` | array | List of businessPartnerGroups |
-|   ↳ `id` | string | Business partner group ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | Group name |
-|   ↳ `domain` | string | Domain \(HR, IT, FINANCE, RECRUITING, OTHER\) |
-|   ↳ `default_business_partner_id` | string | Default business partner ID |
+| `  ↳ id` | string | Business partner group ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | Group name |
+| `  ↳ domain` | string | Domain \(HR, IT, FINANCE, RECRUITING, OTHER\) |
+| `  ↳ default_business_partner_id` | string | Default business partner ID |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_business_partner_group`
 
@@ -910,8 +952,7 @@ Get a specific business partner group by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 | `expand` | string | No | Comma-separated fields to expand |
 
 #### Output
@@ -925,6 +966,8 @@ Get a specific business partner group by ID
 | `domain` | string | Domain |
 | `default_business_partner_id` | string | Default partner ID |
 
+---
+
 ### `rippling_create_business_partner_group`
 
 Create a new business partner group
@@ -933,7 +976,6 @@ Create a new business partner group
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `name` | string | Yes | Group name |
 | `domain` | string | No | Domain \(HR, IT, FINANCE, RECRUITING, OTHER\) |
 | `defaultBusinessPartnerId` | string | No | Default business partner ID |
@@ -949,6 +991,8 @@ Create a new business partner group
 | `domain` | string | Domain |
 | `default_business_partner_id` | string | Default partner ID |
 
+---
+
 ### `rippling_delete_business_partner_group`
 
 Delete a business partner group
@@ -957,7 +1001,6 @@ Delete a business partner group
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -965,6 +1008,8 @@ Delete a business partner group
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
+
+---
 
 ### `rippling_list_supergroups`
 
@@ -974,7 +1019,6 @@ List all supergroups
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `filter` | string | No | Filter expression |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 
@@ -983,27 +1027,29 @@ List all supergroups
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `supergroups` | array | List of supergroups |
-|   ↳ `id` | string | Supergroup ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `display_name` | string | Display name |
-|   ↳ `description` | string | Description |
-|   ↳ `app_owner_id` | string | App owner ID |
-|   ↳ `group_type` | string | Group type |
-|   ↳ `name` | string | Name |
-|   ↳ `sub_group_type` | string | Sub group type |
-|   ↳ `read_only` | boolean | Whether the group is read only |
-|   ↳ `parent` | string | Parent group ID |
-|   ↳ `mutually_exclusive_key` | string | Mutually exclusive key |
-|   ↳ `cumulatively_exhaustive_default` | boolean | Whether the group is the cumulatively exhaustive default |
-|   ↳ `include_terminated` | boolean | Whether the group includes terminated roles |
-|   ↳ `allow_non_employees` | boolean | Whether the group allows non-employees |
-|   ↳ `can_override_role_states` | boolean | Whether the group can override role states |
-|   ↳ `priority` | number | Group priority |
-|   ↳ `is_invisible` | boolean | Whether the group is invisible |
-|   ↳ `ignore_prov_group_matching` | boolean | Whether to ignore provisioning group matching |
+| `  ↳ id` | string | Supergroup ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ display_name` | string | Display name |
+| `  ↳ description` | string | Description |
+| `  ↳ app_owner_id` | string | App owner ID |
+| `  ↳ group_type` | string | Group type |
+| `  ↳ name` | string | Name |
+| `  ↳ sub_group_type` | string | Sub group type |
+| `  ↳ read_only` | boolean | Whether the group is read only |
+| `  ↳ parent` | string | Parent group ID |
+| `  ↳ mutually_exclusive_key` | string | Mutually exclusive key |
+| `  ↳ cumulatively_exhaustive_default` | boolean | Whether the group is the cumulatively exhaustive default |
+| `  ↳ include_terminated` | boolean | Whether the group includes terminated roles |
+| `  ↳ allow_non_employees` | boolean | Whether the group allows non-employees |
+| `  ↳ can_override_role_states` | boolean | Whether the group can override role states |
+| `  ↳ priority` | number | Group priority |
+| `  ↳ is_invisible` | boolean | Whether the group is invisible |
+| `  ↳ ignore_prov_group_matching` | boolean | Whether to ignore provisioning group matching |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_supergroup`
 
@@ -1013,8 +1059,7 @@ Get a specific supergroup by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -1040,6 +1085,8 @@ Get a specific supergroup by ID
 | `is_invisible` | boolean | Whether the group is invisible |
 | `ignore_prov_group_matching` | boolean | Whether to ignore provisioning group matching |
 
+---
+
 ### `rippling_list_supergroup_members`
 
 List members of a supergroup
@@ -1048,7 +1095,6 @@ List members of a supergroup
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `groupId` | string | Yes | Supergroup ID |
 | `expand` | string | No | Fields to expand \(e.g., worker\) |
 | `orderBy` | string | No | Sort field |
@@ -1058,15 +1104,17 @@ List members of a supergroup
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `members` | array | List of members |
-|   ↳ `id` | string | Member ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `full_name` | string | Full name |
-|   ↳ `work_email` | string | Work email |
-|   ↳ `worker_id` | string | Worker ID |
-|   ↳ `worker` | json | Expanded worker object |
+| `  ↳ id` | string | Member ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ full_name` | string | Full name |
+| `  ↳ work_email` | string | Work email |
+| `  ↳ worker_id` | string | Worker ID |
+| `  ↳ worker` | json | Expanded worker object |
 | `totalCount` | number | Number of members returned |
 | `nextLink` | string | Next page link |
+
+---
 
 ### `rippling_list_supergroup_inclusion_members`
 
@@ -1076,7 +1124,6 @@ List inclusion members of a supergroup
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `groupId` | string | Yes | Supergroup ID |
 | `expand` | string | No | Fields to expand \(e.g., worker\) |
 | `orderBy` | string | No | Sort field |
@@ -1086,15 +1133,17 @@ List inclusion members of a supergroup
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `members` | array | List of members |
-|   ↳ `id` | string | Member ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `full_name` | string | Full name |
-|   ↳ `work_email` | string | Work email |
-|   ↳ `worker_id` | string | Worker ID |
-|   ↳ `worker` | json | Expanded worker object |
+| `  ↳ id` | string | Member ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ full_name` | string | Full name |
+| `  ↳ work_email` | string | Work email |
+| `  ↳ worker_id` | string | Worker ID |
+| `  ↳ worker` | json | Expanded worker object |
 | `totalCount` | number | Number of members returned |
 | `nextLink` | string | Next page link |
+
+---
 
 ### `rippling_list_supergroup_exclusion_members`
 
@@ -1104,7 +1153,6 @@ List exclusion members of a supergroup
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `groupId` | string | Yes | Supergroup ID |
 | `expand` | string | No | Fields to expand \(e.g., worker\) |
 | `orderBy` | string | No | Sort field |
@@ -1114,15 +1162,17 @@ List exclusion members of a supergroup
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `members` | array | List of members |
-|   ↳ `id` | string | Member ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `full_name` | string | Full name |
-|   ↳ `work_email` | string | Work email |
-|   ↳ `worker_id` | string | Worker ID |
-|   ↳ `worker` | json | Expanded worker object |
+| `  ↳ id` | string | Member ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ full_name` | string | Full name |
+| `  ↳ work_email` | string | Work email |
+| `  ↳ worker_id` | string | Worker ID |
+| `  ↳ worker` | json | Expanded worker object |
 | `totalCount` | number | Number of members returned |
 | `nextLink` | string | Next page link |
+
+---
 
 ### `rippling_update_supergroup_inclusion_members`
 
@@ -1132,7 +1182,6 @@ Update inclusion members of a supergroup
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `groupId` | string | Yes | Supergroup ID |
 | `operations` | json | Yes | Array of operations \[\{op, value: \[\{id\}\]\}\] |
 
@@ -1141,6 +1190,8 @@ Update inclusion members of a supergroup
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether the operation succeeded |
+
+---
 
 ### `rippling_update_supergroup_exclusion_members`
 
@@ -1150,7 +1201,6 @@ Update exclusion members of a supergroup
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `groupId` | string | Yes | Supergroup ID |
 | `operations` | json | Yes | Array of operations \[\{op, value: \[\{id\}\]\}\] |
 
@@ -1160,35 +1210,37 @@ Update exclusion members of a supergroup
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether the operation succeeded |
 
+---
+
 ### `rippling_list_custom_objects`
 
 List all custom objects
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
+_No input parameters required._
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customObjects` | array | List of customObjects |
-|   ↳ `id` | string | Custom object ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | Object name |
-|   ↳ `description` | string | Description |
-|   ↳ `api_name` | string | API name |
-|   ↳ `plural_label` | string | Plural label |
-|   ↳ `category_id` | string | Category ID |
-|   ↳ `native_category_id` | string | Native category ID |
-|   ↳ `managed_package_install_id` | string | Package install ID |
-|   ↳ `owner_id` | string | Owner ID |
-|   ↳ `enable_history` | boolean | Whether history is enabled |
+| `  ↳ id` | string | Custom object ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | Object name |
+| `  ↳ description` | string | Description |
+| `  ↳ api_name` | string | API name |
+| `  ↳ plural_label` | string | Plural label |
+| `  ↳ category_id` | string | Category ID |
+| `  ↳ native_category_id` | string | Native category ID |
+| `  ↳ managed_package_install_id` | string | Package install ID |
+| `  ↳ owner_id` | string | Owner ID |
+| `  ↳ enable_history` | boolean | Whether history is enabled |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_custom_object`
 
@@ -1198,7 +1250,6 @@ Get a custom object by API name
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | custom object api name |
 
 #### Output
@@ -1218,6 +1269,8 @@ Get a custom object by API name
 | `managed_package_install_id` | string | Package install ID |
 | `owner_id` | string | Owner ID |
 
+---
+
 ### `rippling_create_custom_object`
 
 Create a new custom object
@@ -1226,8 +1279,7 @@ Create a new custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `name` | string | Yes | No description |
+| `name` | string | Yes | Object name |
 | `description` | string | No | Description |
 | `category` | string | No | Category |
 
@@ -1248,6 +1300,8 @@ Create a new custom object
 | `managed_package_install_id` | string | Package install ID |
 | `owner_id` | string | Owner ID |
 
+---
+
 ### `rippling_update_custom_object`
 
 Update a custom object
@@ -1256,9 +1310,8 @@ Update a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
-| `name` | string | No | No description |
+| `name` | string | No | Name |
 | `description` | string | No | Description |
 | `category` | string | No | Category |
 | `pluralLabel` | string | No | Plural label |
@@ -1281,6 +1334,8 @@ Update a custom object
 | `managed_package_install_id` | string | Package install ID |
 | `owner_id` | string | Owner ID |
 
+---
+
 ### `rippling_delete_custom_object`
 
 Delete a custom object
@@ -1289,7 +1344,6 @@ Delete a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -1297,6 +1351,8 @@ Delete a custom object
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
+
+---
 
 ### `rippling_list_custom_object_fields`
 
@@ -1306,7 +1362,6 @@ List all fields for a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 
 #### Output
@@ -1314,21 +1369,23 @@ List all fields for a custom object
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `fields` | array | List of fields |
-|   ↳ `id` | string | Field ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | Field name |
-|   ↳ `custom_object` | string | Parent custom object |
-|   ↳ `description` | string | Description |
-|   ↳ `api_name` | string | API name |
-|   ↳ `data_type` | json | Data type configuration |
-|   ↳ `is_unique` | boolean | Whether the field is unique |
-|   ↳ `is_immutable` | boolean | Whether the field is immutable |
-|   ↳ `is_standard` | boolean | Whether the field is standard |
-|   ↳ `enable_history` | boolean | Whether history is enabled |
-|   ↳ `managed_package_install_id` | string | Package install ID |
+| `  ↳ id` | string | Field ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | Field name |
+| `  ↳ custom_object` | string | Parent custom object |
+| `  ↳ description` | string | Description |
+| `  ↳ api_name` | string | API name |
+| `  ↳ data_type` | json | Data type configuration |
+| `  ↳ is_unique` | boolean | Whether the field is unique |
+| `  ↳ is_immutable` | boolean | Whether the field is immutable |
+| `  ↳ is_standard` | boolean | Whether the field is standard |
+| `  ↳ enable_history` | boolean | Whether history is enabled |
+| `  ↳ managed_package_install_id` | string | Package install ID |
 | `totalCount` | number | Number of fields returned |
 | `nextLink` | string | Next page link |
+
+---
 
 ### `rippling_get_custom_object_field`
 
@@ -1338,7 +1395,6 @@ Get a specific field of a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `fieldApiName` | string | Yes | Field API name |
 
@@ -1360,6 +1416,8 @@ Get a specific field of a custom object
 | `enable_history` | boolean | History enabled |
 | `managed_package_install_id` | string | Package install ID |
 
+---
+
 ### `rippling_create_custom_object_field`
 
 Create a field on a custom object
@@ -1368,7 +1426,6 @@ Create a field on a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `name` | string | Yes | Field name |
 | `description` | string | No | Description |
@@ -1394,6 +1451,8 @@ Create a field on a custom object
 | `enable_history` | boolean | History enabled |
 | `managed_package_install_id` | string | Package install ID |
 
+---
+
 ### `rippling_update_custom_object_field`
 
 Update a field on a custom object
@@ -1402,7 +1461,6 @@ Update a field on a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `fieldApiName` | string | Yes | Field API name |
 | `name` | string | No | Field name |
@@ -1429,6 +1487,8 @@ Update a field on a custom object
 | `enable_history` | boolean | History enabled |
 | `managed_package_install_id` | string | Package install ID |
 
+---
+
 ### `rippling_delete_custom_object_field`
 
 Delete a field from a custom object
@@ -1437,7 +1497,6 @@ Delete a field from a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `fieldApiName` | string | Yes | Field API name |
 
@@ -1447,6 +1506,8 @@ Delete a field from a custom object
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the field was deleted |
 
+---
+
 ### `rippling_list_custom_object_records`
 
 List all records for a custom object
@@ -1455,7 +1516,6 @@ List all records for a custom object
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 
 #### Output
@@ -1463,14 +1523,16 @@ List all records for a custom object
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `records` | array | List of records |
-|   ↳ `id` | string | Record ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | Record name |
-|   ↳ `external_id` | string | External ID |
-|   ↳ `data` | json | Full record data including dynamic fields |
+| `  ↳ id` | string | Record ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | Record name |
+| `  ↳ external_id` | string | External ID |
+| `  ↳ data` | json | Full record data including dynamic fields |
 | `totalCount` | number | Number of records returned |
 | `nextLink` | string | Next page link |
+
+---
 
 ### `rippling_get_custom_object_record`
 
@@ -1480,9 +1542,8 @@ Get a specific custom object record
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
-| `codrId` | string | Yes | No description |
+| `codrId` | string | Yes | Record ID |
 
 #### Output
 
@@ -1495,6 +1556,8 @@ Get a specific custom object record
 | `external_id` | string | External ID |
 | `data` | json | Full record data |
 
+---
+
 ### `rippling_get_custom_object_record_by_external_id`
 
 Get a custom object record by external ID
@@ -1503,7 +1566,6 @@ Get a custom object record by external ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `externalId` | string | Yes | External ID |
 
@@ -1518,33 +1580,7 @@ Get a custom object record by external ID
 | `external_id` | string | External ID |
 | `data` | json | Full record data |
 
-### `rippling_query_custom_object_records`
-
-Query custom object records with filters
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `customObjectApiName` | string | Yes | Custom object API name |
-| `query` | string | No | Query expression |
-| `limit` | number | No | Max results to return |
-| `cursor` | string | No | Pagination cursor |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `records` | array | Matching records |
-|   ↳ `id` | string | Record ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | Record name |
-|   ↳ `external_id` | string | External ID |
-|   ↳ `data` | json | Full record data |
-| `totalCount` | number | Number of records returned |
-| `cursor` | string | Pagination cursor for next page |
+---
 
 ### `rippling_create_custom_object_record`
 
@@ -1554,9 +1590,8 @@ Create a custom object record
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
-| `data` | json | Yes | No description |
+| `data` | json | Yes | Record data |
 
 #### Output
 
@@ -1569,6 +1604,8 @@ Create a custom object record
 | `external_id` | string | External ID |
 | `data` | json | Full record data |
 
+---
+
 ### `rippling_update_custom_object_record`
 
 Update a custom object record
@@ -1577,7 +1614,6 @@ Update a custom object record
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `codrId` | string | Yes | Record ID |
 | `data` | json | Yes | Updated record data |
@@ -1593,6 +1629,8 @@ Update a custom object record
 | `external_id` | string | External ID |
 | `data` | json | Full record data |
 
+---
+
 ### `rippling_delete_custom_object_record`
 
 Delete a custom object record
@@ -1601,7 +1639,6 @@ Delete a custom object record
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `codrId` | string | Yes | Record ID |
 
@@ -1611,6 +1648,37 @@ Delete a custom object record
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the record was deleted |
 
+---
+
+### `rippling_query_custom_object_records`
+
+Query custom object records with filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customObjectApiName` | string | Yes | Custom object API name |
+| `query` | string | No | Query expression |
+| `limit` | number | No | Max results to return |
+| `cursor` | string | No | Pagination cursor |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | array | Matching records |
+| `  ↳ id` | string | Record ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | Record name |
+| `  ↳ external_id` | string | External ID |
+| `  ↳ data` | json | Full record data |
+| `totalCount` | number | Number of records returned |
+| `cursor` | string | Pagination cursor for next page |
+
+---
+
 ### `rippling_bulk_create_custom_object_records`
 
 Bulk create custom object records
@@ -1619,7 +1687,6 @@ Bulk create custom object records
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `rowsToWrite` | json | Yes | Array of records to create |
 | `allOrNothing` | boolean | No | If true, fail entire batch on any error |
@@ -1631,6 +1698,8 @@ Bulk create custom object records
 | `results` | json | Bulk operation results |
 | `totalCount` | number | Number of records processed |
 
+---
+
 ### `rippling_bulk_update_custom_object_records`
 
 Bulk update custom object records
@@ -1639,7 +1708,6 @@ Bulk update custom object records
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `rowsToUpdate` | json | Yes | Array of records to update |
 | `allOrNothing` | boolean | No | If true, fail entire batch on any error |
@@ -1651,6 +1719,8 @@ Bulk update custom object records
 | `results` | json | Bulk operation results |
 | `totalCount` | number | Number of records processed |
 
+---
+
 ### `rippling_bulk_delete_custom_object_records`
 
 Bulk delete custom object records
@@ -1659,7 +1729,6 @@ Bulk delete custom object records
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `customObjectApiName` | string | Yes | Custom object API name |
 | `rowsToDelete` | json | Yes | Array of records to delete |
 | `allOrNothing` | boolean | No | If true, fail entire batch on any error |
@@ -1670,31 +1739,33 @@ Bulk delete custom object records
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the bulk delete succeeded |
 
+---
+
 ### `rippling_list_custom_apps`
 
 List all custom apps
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
+_No input parameters required._
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customApps` | array | List of customApps |
-|   ↳ `id` | string | App ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | App name |
-|   ↳ `api_name` | string | API name |
-|   ↳ `description` | string | Description |
-|   ↳ `icon` | string | Icon URL |
-|   ↳ `pages` | json | Array of page summaries |
+| `  ↳ id` | string | App ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | App name |
+| `  ↳ api_name` | string | API name |
+| `  ↳ description` | string | Description |
+| `  ↳ icon` | string | Icon URL |
+| `  ↳ pages` | json | Array of page summaries |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_custom_app`
 
@@ -1704,8 +1775,7 @@ Get a specific custom app
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -1720,6 +1790,8 @@ Get a specific custom app
 | `icon` | string | Icon URL |
 | `pages` | json | Array of page summaries |
 
+---
+
 ### `rippling_create_custom_app`
 
 Create a new custom app
@@ -1728,9 +1800,8 @@ Create a new custom app
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `name` | string | Yes | No description |
-| `apiName` | string | Yes | No description |
+| `name` | string | Yes | App name |
+| `apiName` | string | Yes | API name |
 | `description` | string | No | Description |
 
 #### Output
@@ -1746,6 +1817,8 @@ Create a new custom app
 | `icon` | string | Icon URL |
 | `pages` | json | Array of page summaries |
 
+---
+
 ### `rippling_update_custom_app`
 
 Update a custom app
@@ -1754,9 +1827,8 @@ Update a custom app
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
-| `name` | string | No | No description |
+| `id` | string | Yes | App ID |
+| `name` | string | No | App name |
 | `apiName` | string | No | API name |
 | `description` | string | No | Description |
 
@@ -1773,6 +1845,8 @@ Update a custom app
 | `icon` | string | Icon URL |
 | `pages` | json | Array of page summaries |
 
+---
+
 ### `rippling_delete_custom_app`
 
 Delete a custom app
@@ -1781,7 +1855,6 @@ Delete a custom app
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -1790,32 +1863,34 @@ Delete a custom app
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
+---
+
 ### `rippling_list_custom_pages`
 
 List all custom pages
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
+_No input parameters required._
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `customPages` | array | List of customPages |
-|   ↳ `id` | string | Page ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | Page name |
-|   ↳ `components` | json | Page components |
-|   ↳ `actions` | json | Page actions |
-|   ↳ `canvas_actions` | json | Canvas actions |
-|   ↳ `variables` | json | Page variables |
-|   ↳ `media` | json | Page media |
+| `  ↳ id` | string | Page ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | Page name |
+| `  ↳ components` | json | Page components |
+| `  ↳ actions` | json | Page actions |
+| `  ↳ canvas_actions` | json | Canvas actions |
+| `  ↳ variables` | json | Page variables |
+| `  ↳ media` | json | Page media |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_custom_page`
 
@@ -1825,8 +1900,7 @@ Get a specific custom page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -1841,6 +1915,8 @@ Get a specific custom page
 | `canvas_actions` | json | Canvas actions |
 | `variables` | json | Page variables |
 | `media` | json | Page media |
+
+---
 
 ### `rippling_create_custom_page`
 
@@ -1850,8 +1926,7 @@ Create a new custom page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `name` | string | Yes | No description |
+| `name` | string | Yes | Page name |
 
 #### Output
 
@@ -1866,6 +1941,8 @@ Create a new custom page
 | `canvas_actions` | json | Canvas actions |
 | `variables` | json | Page variables |
 | `media` | json | Page media |
+
+---
 
 ### `rippling_update_custom_page`
 
@@ -1875,9 +1952,8 @@ Update a custom page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
-| `name` | string | No | No description |
+| `id` | string | Yes | Page ID |
+| `name` | string | No | Page name |
 
 #### Output
 
@@ -1893,6 +1969,8 @@ Update a custom page
 | `variables` | json | Page variables |
 | `media` | json | Page media |
 
+---
+
 ### `rippling_delete_custom_page`
 
 Delete a custom page
@@ -1901,7 +1979,6 @@ Delete a custom page
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -1909,6 +1986,8 @@ Delete a custom page
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
+
+---
 
 ### `rippling_list_custom_settings`
 
@@ -1918,7 +1997,6 @@ List all custom settings
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `orderBy` | string | No | Sort field. Prefix with - for descending |
 | `cursor` | string | No | Pagination cursor from previous response |
 
@@ -1927,18 +2005,20 @@ List all custom settings
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `settings` | array | List of settings |
-|   ↳ `id` | string | Setting ID |
-|   ↳ `created_at` | string | Creation date |
-|   ↳ `updated_at` | string | Update date |
-|   ↳ `display_name` | string | Display name |
-|   ↳ `api_name` | string | API name |
-|   ↳ `data_type` | string | Data type |
-|   ↳ `secret_value` | json | Secret value |
-|   ↳ `string_value` | string | String value |
-|   ↳ `number_value` | number | Number value |
-|   ↳ `boolean_value` | boolean | Boolean value |
+| `  ↳ id` | string | Setting ID |
+| `  ↳ created_at` | string | Creation date |
+| `  ↳ updated_at` | string | Update date |
+| `  ↳ display_name` | string | Display name |
+| `  ↳ api_name` | string | API name |
+| `  ↳ data_type` | string | Data type |
+| `  ↳ secret_value` | string | Secret value |
+| `  ↳ string_value` | string | String value |
+| `  ↳ number_value` | number | Number value |
+| `  ↳ boolean_value` | boolean | Boolean value |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_custom_setting`
 
@@ -1948,8 +2028,7 @@ Get a specific custom setting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -1965,6 +2044,8 @@ Get a specific custom setting
 | `string_value` | string | String value |
 | `number_value` | number | Number value |
 | `boolean_value` | boolean | Boolean value |
+
+---
 
 ### `rippling_create_custom_setting`
 
@@ -1974,8 +2055,7 @@ Create a new custom setting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `data` | json | Yes | No description |
+| `data` | json | Yes | Setting data |
 
 #### Output
 
@@ -1992,6 +2072,8 @@ Create a new custom setting
 | `number_value` | number | Number value |
 | `boolean_value` | boolean | Boolean value |
 
+---
+
 ### `rippling_update_custom_setting`
 
 Update a custom setting
@@ -2000,8 +2082,7 @@ Update a custom setting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Setting ID |
 | `data` | json | Yes | Updated setting data |
 
 #### Output
@@ -2019,6 +2100,8 @@ Update a custom setting
 | `number_value` | number | Number value |
 | `boolean_value` | boolean | Boolean value |
 
+---
+
 ### `rippling_delete_custom_setting`
 
 Delete a custom setting
@@ -2027,7 +2110,6 @@ Delete a custom setting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -2036,28 +2118,30 @@ Delete a custom setting
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
+---
+
 ### `rippling_list_object_categories`
 
 List all object categories
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
+_No input parameters required._
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `objectCategories` | array | List of objectCategories |
-|   ↳ `id` | string | Category ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `name` | string | Category name |
-|   ↳ `description` | string | Description |
+| `  ↳ id` | string | Category ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ name` | string | Category name |
+| `  ↳ description` | string | Description |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
+
+---
 
 ### `rippling_get_object_category`
 
@@ -2067,8 +2151,7 @@ Get a specific object category
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Resource ID |
 
 #### Output
 
@@ -2080,6 +2163,8 @@ Get a specific object category
 | `name` | string | Name |
 | `description` | string | Description |
 
+---
+
 ### `rippling_create_object_category`
 
 Create a new object category
@@ -2088,7 +2173,6 @@ Create a new object category
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `name` | string | Yes | Category name |
 | `description` | string | No | Description |
 
@@ -2102,6 +2186,8 @@ Create a new object category
 | `name` | string | Name |
 | `description` | string | Description |
 
+---
+
 ### `rippling_update_object_category`
 
 Update a object category
@@ -2110,8 +2196,7 @@ Update a object category
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `id` | string | Yes | No description |
+| `id` | string | Yes | Category ID |
 | `name` | string | No | Category name |
 | `description` | string | No | Description |
 
@@ -2125,6 +2210,8 @@ Update a object category
 | `name` | string | Name |
 | `description` | string | Description |
 
+---
+
 ### `rippling_delete_object_category`
 
 Delete a object category
@@ -2133,7 +2220,6 @@ Delete a object category
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | ID of the resource to delete |
 
 #### Output
@@ -2142,25 +2228,7 @@ Delete a object category
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the resource was deleted |
 
-### `rippling_get_report_run`
-
-Get a report run by ID
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
-| `runId` | string | Yes | No description |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `id` | string | Report run ID |
-| `report_id` | string | Report ID |
-| `status` | string | Run status |
-| `result` | json | Report result \(file_url, expires_at, output_type\) |
+---
 
 ### `rippling_trigger_report_run`
 
@@ -2170,7 +2238,6 @@ Trigger a new report run
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `reportId` | string | Yes | Report ID to run |
 | `includeObjectIds` | boolean | No | Include object IDs in the report |
 | `includeTotalRows` | boolean | No | Include total row count |
@@ -2187,6 +2254,29 @@ Trigger a new report run
 | `status` | string | Run status |
 | `result` | json | Report result \(file_url, expires_at, output_type\) |
 
+---
+
+### `rippling_get_report_run`
+
+Get a report run by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `runId` | string | Yes | run id |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Report run ID |
+| `report_id` | string | Report ID |
+| `status` | string | Run status |
+| `result` | json | Report result \(file_url, expires_at, output_type\) |
+
+---
+
 ### `rippling_create_draft_hires`
 
 Create bulk draft hires
@@ -2195,7 +2285,6 @@ Create bulk draft hires
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rippling API key |
 | `draftHires` | json | Yes | Array of draft hire objects |
 
 #### Output
@@ -2206,5 +2295,3 @@ Create bulk draft hires
 | `successfulResults` | json | Successful draft hires |
 | `totalInvalid` | number | Number of failures |
 | `totalSuccessful` | number | Number of successes |
-
-

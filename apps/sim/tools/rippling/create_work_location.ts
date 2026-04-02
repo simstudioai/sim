@@ -44,6 +44,12 @@ export const ripplingCreateWorkLocationTool: ToolConfig<RipplingCreateWorkLocati
       visibility: 'user-or-llm',
       description: 'Country code',
     },
+    addressType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Address type (HOME, WORK, OTHER)',
+    },
   },
   request: {
     url: `https://rest.ripplingapis.com/work-locations/`,
@@ -61,6 +67,7 @@ export const ripplingCreateWorkLocationTool: ToolConfig<RipplingCreateWorkLocati
       if (params.region != null) address.region = params.region
       if (params.postalCode != null) address.postal_code = params.postalCode
       if (params.country != null) address.country = params.country
+      if (params.addressType != null) address.type = params.addressType
       if (Object.keys(address).length > 0) body.address = address
       return body
     },

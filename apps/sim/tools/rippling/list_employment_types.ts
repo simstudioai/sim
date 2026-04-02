@@ -30,8 +30,8 @@ export const ripplingListEmploymentTypesTool: ToolConfig<RipplingListEmploymentT
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.orderBy) query.set('order_by', params.orderBy)
-      if (params.cursor) query.set('cursor', params.cursor)
+      if (params.orderBy != null) query.set('order_by', params.orderBy)
+      if (params.cursor != null) query.set('cursor', params.cursor)
       const qs = query.toString()
       return `https://rest.ripplingapis.com/employment-types/${qs ? `?${qs}` : ''}`
     },

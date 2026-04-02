@@ -36,9 +36,9 @@ export const ripplingListDepartmentsTool: ToolConfig<RipplingListDepartmentsPara
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.expand) query.set('expand', params.expand)
-      if (params.orderBy) query.set('order_by', params.orderBy)
-      if (params.cursor) query.set('cursor', params.cursor)
+      if (params.expand != null) query.set('expand', params.expand)
+      if (params.orderBy != null) query.set('order_by', params.orderBy)
+      if (params.cursor != null) query.set('cursor', params.cursor)
       const qs = query.toString()
       return `https://rest.ripplingapis.com/departments/${qs ? `?${qs}` : ''}`
     },
@@ -63,6 +63,8 @@ export const ripplingListDepartmentsTool: ToolConfig<RipplingListDepartmentsPara
           parent_id: (item.parent_id as string) ?? null,
           reference_code: (item.reference_code as string) ?? null,
           department_hierarchy_id: (item.department_hierarchy_id as unknown[]) ?? [],
+          parent: item.parent ?? null,
+          department_hierarchy: item.department_hierarchy ?? null,
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,

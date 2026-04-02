@@ -36,8 +36,8 @@ export const ripplingListSupergroupMembersTool: ToolConfig<RipplingListSupergrou
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.expand) query.set('expand', params.expand)
-      if (params.orderBy) query.set('order_by', params.orderBy)
+      if (params.expand != null) query.set('expand', params.expand)
+      if (params.orderBy != null) query.set('order_by', params.orderBy)
       const qs = query.toString()
       return `https://rest.ripplingapis.com/supergroups/${encodeURIComponent(params.groupId.trim())}/members/${qs ? `?${qs}` : ''}`
     },

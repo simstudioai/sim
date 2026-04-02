@@ -25,7 +25,7 @@ export const ripplingGetBusinessPartnerGroupTool: ToolConfig<RipplingGetBusiness
     request: {
       url: (params) => {
         const base = `https://rest.ripplingapis.com/business-partner-groups/${encodeURIComponent(params.id.trim())}/`
-        if (params.expand) return `${base}?expand=${encodeURIComponent(params.expand)}`
+        if (params.expand != null) return `${base}?expand=${encodeURIComponent(params.expand)}`
         return base
       },
       method: 'GET',

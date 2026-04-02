@@ -43,8 +43,8 @@ export const ripplingCreateBusinessPartnerGroupTool: ToolConfig<RipplingCreateBu
       }),
       body: (params) => {
         const body: Record<string, unknown> = { name: params.name }
-        if (params.domain) body.domain = params.domain
-        if (params.defaultBusinessPartnerId)
+        if (params.domain != null) body.domain = params.domain
+        if (params.defaultBusinessPartnerId != null)
           body.default_business_partner_id = params.defaultBusinessPartnerId
         return body
       },

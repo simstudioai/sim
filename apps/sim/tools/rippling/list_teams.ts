@@ -36,9 +36,9 @@ export const ripplingListTeamsTool: ToolConfig<RipplingListTeamsParams> = {
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.expand) query.set('expand', params.expand)
-      if (params.orderBy) query.set('order_by', params.orderBy)
-      if (params.cursor) query.set('cursor', params.cursor)
+      if (params.expand != null) query.set('expand', params.expand)
+      if (params.orderBy != null) query.set('order_by', params.orderBy)
+      if (params.cursor != null) query.set('cursor', params.cursor)
       const qs = query.toString()
       return `https://rest.ripplingapis.com/teams/${qs ? `?${qs}` : ''}`
     },
@@ -61,6 +61,7 @@ export const ripplingListTeamsTool: ToolConfig<RipplingListTeamsParams> = {
           updated_at: (item.updated_at as string) ?? null,
           name: (item.name as string) ?? null,
           parent_id: (item.parent_id as string) ?? null,
+          parent: item.parent ?? null,
         })),
         totalCount: results.length,
         nextLink: (data.next_link as string) ?? null,

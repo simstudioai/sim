@@ -85,6 +85,8 @@ export const DEPARTMENT_OUTPUT_PROPERTIES = {
   parent_id: { type: 'string', description: 'Parent department ID' },
   reference_code: { type: 'string', description: 'Reference code' },
   department_hierarchy_id: { type: 'json', description: 'Array of department IDs in hierarchy' },
+  parent: { type: 'json', description: 'Expanded parent department' },
+  department_hierarchy: { type: 'json', description: 'Expanded department hierarchy' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Team output properties */
@@ -94,6 +96,7 @@ export const TEAM_OUTPUT_PROPERTIES = {
   updated_at: { type: 'string', description: 'Record update date' },
   name: { type: 'string', description: 'Team name' },
   parent_id: { type: 'string', description: 'Parent team ID' },
+  parent: { type: 'json', description: 'Expanded parent team' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Employment type output properties */
@@ -436,6 +439,7 @@ export interface RipplingCreateWorkLocationParams {
   region?: string
   postalCode?: string
   country?: string
+  addressType?: string
 }
 export interface RipplingUpdateWorkLocationParams {
   apiKey: string
@@ -446,6 +450,7 @@ export interface RipplingUpdateWorkLocationParams {
   region?: string
   postalCode?: string
   country?: string
+  addressType?: string
 }
 export interface RipplingDeleteWorkLocationParams {
   apiKey: string
