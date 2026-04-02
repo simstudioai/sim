@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import { sanitizeBullMQPayload } from '@/lib/core/utils/json-sanitize'
 import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/event-buffer'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -103,12 +104,14 @@ export async function executeQueuedWorkflowJob(
   }
 
   try {
+    sanitizeBullMQPayload(payload)
+
     const snapshot = new ExecutionSnapshot(
       metadata,
       payload.workflow,
       payload.input,
       payload.variables,
-      Array.isArray(payload.selectedOutputs) ? payload.selectedOutputs : []
+      payload.selectedOutputs as string[]
     )
 
     let callbacks = {}

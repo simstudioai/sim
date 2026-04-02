@@ -76,7 +76,7 @@ export async function executeWorkflow(
       workflow,
       input,
       workflow.variables || {},
-      streamConfig?.selectedOutputs || []
+      Array.isArray(streamConfig?.selectedOutputs) ? streamConfig.selectedOutputs : []
     )
 
     const result = await executeWorkflowCore({

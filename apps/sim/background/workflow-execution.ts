@@ -3,6 +3,7 @@ import { task } from '@trigger.dev/sdk'
 import { v4 as uuidv4 } from 'uuid'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import { ensureArray } from '@/lib/core/utils/json-sanitize'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -110,7 +111,7 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       useDraftState: false,
       startTime: new Date().toISOString(),
       isClientSession: false,
-      callChain: payload.callChain,
+      callChain: ensureArray(payload.callChain),
       correlation,
     }
 

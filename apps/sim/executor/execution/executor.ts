@@ -325,7 +325,9 @@ export class DAGExecutor {
         : new Set(),
       workflow: this.workflow,
       stream: this.contextExtensions.stream ?? false,
-      selectedOutputs: this.contextExtensions.selectedOutputs ?? [],
+      selectedOutputs: Array.isArray(this.contextExtensions.selectedOutputs)
+        ? this.contextExtensions.selectedOutputs
+        : [],
       edges: this.contextExtensions.edges ?? [],
       onStream: this.contextExtensions.onStream,
       onBlockStart: this.contextExtensions.onBlockStart,

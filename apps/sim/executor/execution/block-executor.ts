@@ -148,7 +148,7 @@ export class BlockExecutor {
             block,
             streamingExec,
             resolvedInputs,
-            ctx.selectedOutputs ?? []
+            Array.isArray(ctx.selectedOutputs) ? ctx.selectedOutputs : []
           )
         }
 
