@@ -33,7 +33,7 @@ const UpdateKnowledgeBaseSchema = z.object({
       maxSize: z.number().min(100).max(4000),
       /** Minimum chunk size in characters */
       minSize: z.number().min(1).max(2000),
-      /** Overlap between chunks in characters */
+      /** Overlap between chunks in tokens (1 token ≈ 4 characters) */
       overlap: z.number().min(0).max(500),
     })
     .refine(
