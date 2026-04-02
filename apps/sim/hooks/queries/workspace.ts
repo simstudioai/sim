@@ -65,7 +65,8 @@ interface CreateWorkspaceParams {
 
 /**
  * Creates a new workspace.
- * Automatically invalidates the workspace list cache on success.
+ * Merges the created row into the active list cache before invalidation so navigation
+ * cannot race a stale list (see workspace validation fallback in use-workspace-management).
  */
 export function useCreateWorkspace() {
   const queryClient = useQueryClient()
@@ -86,7 +87,16 @@ export function useCreateWorkspace() {
       const data = await response.json()
       return data.workspace as Workspace
     },
-    onSuccess: () => {
+    onSuccess: (newWorkspace) => {
+      queryClient.setQueryData<Workspace[]>(workspaceKeys.list('active'), (previous) => {
+        if (!previous?.length) {
+          return [newWorkspace]
+        }
+        if (previous.some((w) => w.id === newWorkspace.id)) {
+          return previous
+        }
+        return [newWorkspace, ...previous]
+      })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.adminLists() })
     },
