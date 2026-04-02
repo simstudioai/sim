@@ -416,6 +416,14 @@ export const RipplingBlock: BlockConfig = {
       required: { field: 'operation', value: 'create_business_partner' },
     },
     {
+      id: 'streetAddress',
+      title: 'Street Address',
+      type: 'short-input',
+      placeholder: 'Enter the street address',
+      condition: { field: 'operation', value: 'create_work_location' },
+      required: { field: 'operation', value: 'create_work_location' },
+    },
+    {
       id: 'dataType',
       title: 'Data Type',
       type: 'long-input',
@@ -650,6 +658,8 @@ export const RipplingBlock: BlockConfig = {
         if (params.parentId != null && params.parentId !== '') mapped.parentId = params.parentId
         if (params.referenceCode != null && params.referenceCode !== '')
           mapped.referenceCode = params.referenceCode
+        if (params.streetAddress != null && params.streetAddress !== '')
+          mapped.streetAddress = params.streetAddress
         if (params.apiName != null && params.apiName !== '') mapped.apiName = params.apiName
         if (params.businessPartnerGroupId != null && params.businessPartnerGroupId !== '')
           mapped.businessPartnerGroupId = params.businessPartnerGroupId
@@ -843,6 +853,7 @@ export const RipplingBlock: BlockConfig = {
     name: { type: 'string', description: 'Resource name' },
     parentId: { type: 'string', description: 'Parent resource ID' },
     referenceCode: { type: 'string', description: 'Reference code' },
+    streetAddress: { type: 'string', description: 'Street address for work location creation' },
     apiName: { type: 'string', description: 'API name for custom app creation' },
     businessPartnerGroupId: {
       type: 'string',
