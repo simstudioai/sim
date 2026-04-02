@@ -490,7 +490,7 @@ export const AgentMailBlock: BlockConfig = {
           ...rest
         } = params
 
-        if (inboxIdParam) {
+        if (['get_inbox', 'update_inbox', 'delete_inbox'].includes(operation) && inboxIdParam) {
           rest.inboxId = inboxIdParam
         }
 
