@@ -175,10 +175,7 @@ async function createWorkspace(
         })
 
         const { workflowState } = buildDefaultWorkflowArtifacts()
-        const seedResult = await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
-        if (!seedResult.success) {
-          throw new Error(seedResult.error || 'Failed to seed default workflow state')
-        }
+        await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
       }
 
       logger.info(

@@ -534,91 +534,86 @@ export async function saveWorkflowToNormalizedTables(
   state: WorkflowState,
   externalTx?: DbOrTx
 ): Promise<{ success: boolean; error?: string }> {
+  const blockRecords = state.blocks as Record<string, BlockState>
+  const canonicalLoops = generateLoopBlocks(blockRecords)
+  const canonicalParallels = generateParallelBlocks(blockRecords)
+
+  const execute = async (tx: DbOrTx) => {
+    await Promise.all([
+      tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
+      tx.delete(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
+      tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
+    ])
+
+    if (Object.keys(state.blocks).length > 0) {
+      const blockInserts = Object.values(state.blocks).map((block) => ({
+        id: block.id,
+        workflowId: workflowId,
+        type: block.type,
+        name: block.name || '',
+        positionX: String(block.position?.x || 0),
+        positionY: String(block.position?.y || 0),
+        enabled: block.enabled ?? true,
+        horizontalHandles: block.horizontalHandles ?? true,
+        advancedMode: block.advancedMode ?? false,
+        triggerMode: block.triggerMode ?? false,
+        height: String(block.height || 0),
+        subBlocks: block.subBlocks || {},
+        outputs: block.outputs || {},
+        data: block.data || {},
+        parentId: block.data?.parentId || null,
+        extent: block.data?.extent || null,
+        locked: block.locked ?? false,
+      }))
+
+      await tx.insert(workflowBlocks).values(blockInserts)
+    }
+
+    if (state.edges.length > 0) {
+      const edgeInserts = state.edges.map((edge) => ({
+        id: edge.id,
+        workflowId: workflowId,
+        sourceBlockId: edge.source,
+        targetBlockId: edge.target,
+        sourceHandle: edge.sourceHandle || null,
+        targetHandle: edge.targetHandle || null,
+      }))
+
+      await tx.insert(workflowEdges).values(edgeInserts)
+    }
+
+    const subflowInserts: SubflowInsert[] = []
+
+    Object.values(canonicalLoops).forEach((loop) => {
+      subflowInserts.push({
+        id: loop.id,
+        workflowId: workflowId,
+        type: SUBFLOW_TYPES.LOOP,
+        config: loop,
+      })
+    })
+
+    Object.values(canonicalParallels).forEach((parallel) => {
+      subflowInserts.push({
+        id: parallel.id,
+        workflowId: workflowId,
+        type: SUBFLOW_TYPES.PARALLEL,
+        config: parallel,
+      })
+    })
+
+    if (subflowInserts.length > 0) {
+      await tx.insert(workflowSubflows).values(subflowInserts)
+    }
+  }
+
+  if (externalTx) {
+    await execute(externalTx)
+    return { success: true }
+  }
+
   try {
-    const blockRecords = state.blocks as Record<string, BlockState>
-    const canonicalLoops = generateLoopBlocks(blockRecords)
-    const canonicalParallels = generateParallelBlocks(blockRecords)
-
-    const execute = async (tx: DbOrTx) => {
-      await Promise.all([
-        tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
-        tx.delete(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
-        tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
-      ])
-
-      // Insert blocks
-      if (Object.keys(state.blocks).length > 0) {
-        const blockInserts = Object.values(state.blocks).map((block) => ({
-          id: block.id,
-          workflowId: workflowId,
-          type: block.type,
-          name: block.name || '',
-          positionX: String(block.position?.x || 0),
-          positionY: String(block.position?.y || 0),
-          enabled: block.enabled ?? true,
-          horizontalHandles: block.horizontalHandles ?? true,
-          advancedMode: block.advancedMode ?? false,
-          triggerMode: block.triggerMode ?? false,
-          height: String(block.height || 0),
-          subBlocks: block.subBlocks || {},
-          outputs: block.outputs || {},
-          data: block.data || {},
-          parentId: block.data?.parentId || null,
-          extent: block.data?.extent || null,
-          locked: block.locked ?? false,
-        }))
-
-        await tx.insert(workflowBlocks).values(blockInserts)
-      }
-
-      // Insert edges
-      if (state.edges.length > 0) {
-        const edgeInserts = state.edges.map((edge) => ({
-          id: edge.id,
-          workflowId: workflowId,
-          sourceBlockId: edge.source,
-          targetBlockId: edge.target,
-          sourceHandle: edge.sourceHandle || null,
-          targetHandle: edge.targetHandle || null,
-        }))
-
-        await tx.insert(workflowEdges).values(edgeInserts)
-      }
-
-      // Insert subflows (loops and parallels)
-      const subflowInserts: SubflowInsert[] = []
-
-      // Add loops
-      Object.values(canonicalLoops).forEach((loop) => {
-        subflowInserts.push({
-          id: loop.id,
-          workflowId: workflowId,
-          type: SUBFLOW_TYPES.LOOP,
-          config: loop,
-        })
-      })
-
-      // Add parallels
-      Object.values(canonicalParallels).forEach((parallel) => {
-        subflowInserts.push({
-          id: parallel.id,
-          workflowId: workflowId,
-          type: SUBFLOW_TYPES.PARALLEL,
-          config: parallel,
-        })
-      })
-
-      if (subflowInserts.length > 0) {
-        await tx.insert(workflowSubflows).values(subflowInserts)
-      }
-    }
-
-    if (externalTx) {
-      await execute(externalTx)
-    } else {
-      await db.transaction(execute)
-    }
-
+    await db.transaction(execute)
     return { success: true }
   } catch (error) {
     logger.error(`Error saving workflow ${workflowId} to normalized tables:`, error)
