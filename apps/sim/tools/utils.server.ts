@@ -16,8 +16,8 @@ const logger = createLogger('ToolsUtils')
 
 export interface GetToolAsyncContext {
   workflowId?: string
-  userId?: string
-  workspaceId?: string
+  userId: string
+  workspaceId: string
 }
 
 /**
@@ -110,11 +110,6 @@ async function fetchCustomToolFromDB(
   const identifier = customToolId.replace('custom_', '')
 
   try {
-    if (!userId) {
-      logger.error(`Cannot fetch custom tool without userId: ${identifier}`)
-      return undefined
-    }
-
     const customTool = await getCustomToolByIdOrTitle({
       identifier,
       userId,
