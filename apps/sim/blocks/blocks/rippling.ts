@@ -833,28 +833,20 @@ export const RipplingBlock: BlockConfig = {
         }
 
         // For create/update operations that accept data JSON:
-        // Spread data fields directly into mapped params so tools receive them as individual params
+        // Spread data fields directly into mapped params so tools receive them as individual params.
+        // Excludes ops where data is passed directly to the tool (custom object records, custom settings)
+        // and ops already remapped above (draft hires -> draftHires, supergroup updates -> operations).
+        const NON_SPREAD_OPS = new Set([
+          'create_custom_object_record',
+          'update_custom_object_record',
+          'create_custom_setting',
+          'update_custom_setting',
+          'create_draft_hires',
+          'update_supergroup_inclusion_members',
+          'update_supergroup_exclusion_members',
+        ])
         if (mapped.data != null && typeof mapped.data === 'object') {
-          const spreadOps = [
-            'create_department',
-            'update_department',
-            'create_title',
-            'update_title',
-            'create_work_location',
-            'update_work_location',
-            'create_business_partner',
-            'create_business_partner_group',
-            'create_custom_object',
-            'update_custom_object',
-            'create_custom_object_field',
-            'update_custom_object_field',
-            'create_custom_app',
-            'update_custom_app',
-            'create_object_category',
-            'update_object_category',
-            'trigger_report_run',
-          ]
-          if (spreadOps.includes(op)) {
+          if (DATA_OPS.includes(op as (typeof DATA_OPS)[number]) && !NON_SPREAD_OPS.has(op)) {
             const dataFields = mapped.data as Record<string, unknown>
             for (const [key, value] of Object.entries(dataFields)) {
               if (!(key in mapped)) {
