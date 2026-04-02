@@ -559,6 +559,18 @@ export const RipplingBlock: BlockConfig = {
       placeholder: '{ "type": "TEXT" }',
       condition: { field: 'operation', value: [...CUSTOM_OBJECT_FIELD_WRITE_OPS] },
       required: { field: 'operation', value: 'create_custom_object_field' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for a Rippling custom object field data type based on the user's description.
+Common types: TEXT, NUMBER, BOOLEAN, DATE, DATETIME, LOOKUP, FORMULA, ROLLUP.
+Examples:
+- "text field" -> { "type": "TEXT" }
+- "number field" -> { "type": "NUMBER" }
+- "date field" -> { "type": "DATE" }
+- "lookup to workers" -> { "type": "LOOKUP", "referenced_object": "worker" }
+Return ONLY the JSON - no explanations, no extra text.`,
+        placeholder: 'Describe the field type',
+      },
     },
     {
       id: 'fieldRequired',
@@ -595,7 +607,7 @@ export const RipplingBlock: BlockConfig = {
     },
     {
       id: 'rqlDefinition',
-      title: 'RQL Definition (JSON)',
+      title: 'RQL Definition',
       type: 'long-input',
       placeholder: '{ ... }',
       mode: 'advanced',
@@ -603,7 +615,7 @@ export const RipplingBlock: BlockConfig = {
     },
     {
       id: 'formulaAttrMetas',
-      title: 'Formula Attr Metas (JSON)',
+      title: 'Formula Attr Metas',
       type: 'long-input',
       placeholder: '{ ... }',
       mode: 'advanced',
@@ -611,7 +623,7 @@ export const RipplingBlock: BlockConfig = {
     },
     {
       id: 'fieldSection',
-      title: 'Section (JSON)',
+      title: 'Section',
       type: 'long-input',
       placeholder: '{ ... }',
       mode: 'advanced',
@@ -627,7 +639,7 @@ export const RipplingBlock: BlockConfig = {
     },
     {
       id: 'derivedAggregatedField',
-      title: 'Derived Aggregated Field (JSON)',
+      title: 'Derived Aggregated Field',
       type: 'long-input',
       placeholder: '{ ... }',
       mode: 'advanced',
@@ -635,7 +647,7 @@ export const RipplingBlock: BlockConfig = {
     },
     {
       id: 'nameFieldDetails',
-      title: 'Name Field Details (JSON)',
+      title: 'Name Field Details',
       type: 'long-input',
       placeholder: '{ ... }',
       mode: 'advanced',
@@ -725,7 +737,7 @@ export const RipplingBlock: BlockConfig = {
     },
     {
       id: 'formatDateFields',
-      title: 'Format Date Fields (JSON)',
+      title: 'Format Date Fields',
       type: 'long-input',
       placeholder: '{ "date_format": "ISO_8601" }',
       mode: 'advanced',
@@ -733,7 +745,7 @@ export const RipplingBlock: BlockConfig = {
     },
     {
       id: 'formatCurrencyFields',
-      title: 'Format Currency Fields (JSON)',
+      title: 'Format Currency Fields',
       type: 'long-input',
       placeholder: '{ ... }',
       mode: 'advanced',
@@ -753,10 +765,19 @@ export const RipplingBlock: BlockConfig = {
     // Data JSON - only for passthrough operations (custom object records, draft hires, supergroup ops)
     {
       id: 'data',
-      title: 'Data (JSON)',
+      title: 'Data',
       type: 'long-input',
       placeholder: '{ "key": "value" }',
       condition: { field: 'operation', value: [...DATA_PASSTHROUGH_OPS] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object for a Rippling API request based on the user's description.
+For custom object records: { "field_name": "value", ... }
+For draft hires: { "draft_hires": [{ "personal_info": { "first_name": "", "last_name": "", "email": "" }, "employment_info": { "start_date": "", "title": "" }, "work_location_info": { "work_location_id": "" } }] }
+For supergroup member updates: { "Operations": [{ "op": "add", "path": "members", "value": [{ "value": "worker_id" }] }] }
+Return ONLY the JSON - no explanations, no extra text.`,
+        placeholder: 'Describe the data to send',
+      },
       required: {
         field: 'operation',
         value: [
@@ -770,9 +791,9 @@ export const RipplingBlock: BlockConfig = {
     // Records JSON for bulk operations
     {
       id: 'records',
-      title: 'Records (JSON)',
+      title: 'Records',
       type: 'long-input',
-      placeholder: '[{ "fields": { ... } }, ...]',
+      placeholder: '[{ "data": { ... } }, ...]',
       condition: {
         field: 'operation',
         value: [
@@ -816,6 +837,13 @@ export const RipplingBlock: BlockConfig = {
       type: 'long-input',
       placeholder: 'Enter query expression',
       condition: { field: 'operation', value: 'query_custom_object_records' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a query expression for the Rippling Custom Object Records Query API based on the user's description.
+The query should filter custom object records by their field values.
+Return ONLY the query expression - no explanations, no extra text.`,
+        placeholder: 'Describe which records to find',
+      },
     },
     {
       id: 'limit',
@@ -833,6 +861,16 @@ export const RipplingBlock: BlockConfig = {
       placeholder: 'OData filter expression',
       mode: 'advanced',
       condition: { field: 'operation', value: [...FILTER_OPS] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an OData filter expression for the Rippling API based on the user's description.
+Examples:
+- "active workers" -> status eq 'ACTIVE'
+- "workers in engineering" -> department eq 'Engineering'
+- "created after January" -> created_at gt '2024-01-01'
+Return ONLY the filter expression - no explanations, no extra text.`,
+        placeholder: 'Describe what to filter for',
+      },
     },
     {
       id: 'expand',
@@ -841,6 +879,13 @@ export const RipplingBlock: BlockConfig = {
       placeholder: 'Fields to expand',
       mode: 'advanced',
       condition: { field: 'operation', value: [...EXPAND_OPS] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of fields to expand for a Rippling API request based on the user's description.
+Common expandable fields: department, parent, worker, business_partner_group, client_group, parent_legal_entity, legal_entities, department_hierarchy.
+Return ONLY the comma-separated field names - no explanations, no extra text.`,
+        placeholder: 'Describe which related data to include',
+      },
     },
     {
       id: 'orderBy',
@@ -849,6 +894,17 @@ export const RipplingBlock: BlockConfig = {
       placeholder: 'e.g., name asc',
       mode: 'advanced',
       condition: { field: 'operation', value: [...ORDER_BY_OPS] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a sort expression for the Rippling API based on the user's description.
+Format: field_name for ascending, -field_name for descending. Common fields: id, created_at, updated_at, name.
+Examples:
+- "newest first" -> -created_at
+- "alphabetical" -> name
+- "recently updated" -> -updated_at
+Return ONLY the sort expression - no explanations, no extra text.`,
+        placeholder: 'Describe how to sort results',
+      },
     },
     {
       id: 'cursor',
