@@ -44,7 +44,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
     <p
       {...props}
       style={{ fontSize: '19px', marginBottom: '1.5rem', fontWeight: '400' }}
-      className={clsx('text-[var(--text-subtle)] leading-relaxed', props.className)}
+      className={clsx('text-[var(--landing-text-muted)] leading-relaxed', props.className)}
     />
   ),
   ul: (props: any) => (
@@ -52,7 +52,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
       {...props}
       style={{ fontSize: '19px', marginBottom: '1rem', fontWeight: '400' }}
       className={clsx(
-        'list-outside list-disc pl-6 text-[var(--text-subtle)] leading-relaxed',
+        'list-outside list-disc pl-6 text-[var(--landing-text-muted)] leading-relaxed',
         props.className
       )}
     />
@@ -62,7 +62,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
       {...props}
       style={{ fontSize: '19px', marginBottom: '1rem', fontWeight: '400' }}
       className={clsx(
-        'list-outside list-decimal pl-6 text-[var(--text-subtle)] leading-relaxed',
+        'list-outside list-decimal pl-6 text-[var(--landing-text-muted)] leading-relaxed',
         props.className
       )}
     />
@@ -140,7 +140,7 @@ export const mdxComponents: MDXRemoteProps['components'] = {
         <code
           {...props}
           className={clsx(
-            'rounded bg-[var(--surface-4)] px-1.5 py-0.5 font-mono font-normal text-[0.9em] text-[var(--landing-text)]',
+            'rounded bg-[var(--landing-bg-elevated)] px-1.5 py-0.5 font-mono font-normal text-[0.9em] text-[var(--landing-text)]',
             props.className
           )}
           style={{ fontWeight: 400 }}
