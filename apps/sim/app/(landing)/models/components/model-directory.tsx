@@ -4,13 +4,19 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Input } from '@/components/emcn'
 import { SearchIcon } from '@/components/icons'
-import type { CatalogProvider } from '../utils'
 import {
+  CapabilityTags,
+  DetailItem,
+  ModelCard,
+  ProviderIcon,
+  StatCard,
+} from '@/app/(landing)/models/components/model-primitives'
+import {
+  type CatalogProvider,
   MODEL_PROVIDERS_WITH_CATALOGS,
   MODEL_PROVIDERS_WITH_DYNAMIC_CATALOGS,
   TOTAL_MODELS,
-} from '../utils'
-import { CapabilityTags, DetailItem, ModelCard, ProviderIcon, StatCard } from './model-primitives'
+} from '@/app/(landing)/models/utils'
 
 export function ModelDirectory() {
   const [query, setQuery] = useState('')

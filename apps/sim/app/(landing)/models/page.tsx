@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
-import { ModelDirectory } from './components/model-directory'
-import { ModelCard, ProviderCard } from './components/model-primitives'
+import { ModelDirectory } from '@/app/(landing)/models/components/model-directory'
+import { ModelCard, ProviderCard } from '@/app/(landing)/models/components/model-primitives'
 import {
   getPricingBounds,
   MODEL_CATALOG_PROVIDERS,
@@ -11,7 +11,7 @@ import {
   TOP_MODEL_PROVIDERS,
   TOTAL_MODEL_PROVIDERS,
   TOTAL_MODELS,
-} from './utils'
+} from '@/app/(landing)/models/utils'
 
 const baseUrl = getBaseUrl()
 
@@ -24,7 +24,7 @@ const faqItems = [
   {
     question: 'Can I compare models from multiple providers in one place?',
     answer:
-      'Yes. This page organizes every tracked model by provider and lets you search across providers, model names, and capabilities. You can quickly compare OpenAI, Anthropic, Google, xAI, Mistral, Groq, Bedrock, and more from a single directory.',
+      'Yes. This page organizes every tracked model by provider and lets you search across providers, model names, and capabilities. You can quickly compare OpenAI, Anthropic, Google, xAI, Mistral, Groq, Cerebras, Fireworks, Bedrock, and more from a single directory.',
   },
   {
     question: 'Are these model prices shown per million tokens?',

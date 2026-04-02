@@ -1,7 +1,12 @@
 import Link from 'next/link'
 import { Badge } from '@/components/emcn'
-import type { CatalogModel, CatalogProvider } from '../utils'
-import { formatPrice, formatTokenCount, formatUpdatedAt } from '../utils'
+import {
+  type CatalogModel,
+  type CatalogProvider,
+  formatPrice,
+  formatTokenCount,
+  formatUpdatedAt,
+} from '@/app/(landing)/models/utils'
 
 export function Breadcrumbs({ items }: { items: Array<{ label: string; href?: string }> }) {
   return (

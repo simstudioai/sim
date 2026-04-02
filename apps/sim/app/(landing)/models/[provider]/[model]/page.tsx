@@ -10,7 +10,7 @@ import {
   ModelCard,
   ProviderIcon,
   StatCard,
-} from '../../components/model-primitives'
+} from '@/app/(landing)/models/components/model-primitives'
 import {
   ALL_CATALOG_MODELS,
   buildModelCapabilityFacts,
@@ -22,7 +22,7 @@ import {
   getPricingBounds,
   getProviderBySlug,
   getRelatedModels,
-} from '../../utils'
+} from '@/app/(landing)/models/utils'
 
 const baseUrl = getBaseUrl()
 

@@ -1,7 +1,17 @@
-import { contentType, createModelsOgImage, runtime, size } from './og-utils'
-import { formatTokenCount, MAX_CONTEXT_WINDOW, TOTAL_MODEL_PROVIDERS, TOTAL_MODELS } from './utils'
+import { createModelsOgImage } from '@/app/(landing)/models/og-utils'
+import {
+  formatTokenCount,
+  MAX_CONTEXT_WINDOW,
+  TOTAL_MODEL_PROVIDERS,
+  TOTAL_MODELS,
+} from '@/app/(landing)/models/utils'
 
-export { contentType, runtime, size }
+export const runtime = 'edge'
+export const contentType = 'image/png'
+export const size = {
+  width: 1200,
+  height: 630,
+}
 
 export default async function Image() {
   return createModelsOgImage({

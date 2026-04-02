@@ -1,14 +1,19 @@
 import { notFound } from 'next/navigation'
-import { contentType, createModelsOgImage, runtime, size } from '../og-utils'
+import { createModelsOgImage } from '@/app/(landing)/models/og-utils'
 import {
   formatPrice,
   formatTokenCount,
   getCheapestProviderModel,
   getLargestContextProviderModel,
   getProviderBySlug,
-} from '../utils'
+} from '@/app/(landing)/models/utils'
 
-export { contentType, runtime, size }
+export const runtime = 'edge'
+export const contentType = 'image/png'
+export const size = {
+  width: 1200,
+  height: 630,
+}
 
 export default async function Image({ params }: { params: Promise<{ provider: string }> }) {
   const { provider: providerSlug } = await params

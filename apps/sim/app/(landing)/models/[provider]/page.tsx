@@ -9,14 +9,14 @@ import {
   ProviderCard,
   ProviderIcon,
   StatCard,
-} from '../components/model-primitives'
+} from '@/app/(landing)/models/components/model-primitives'
 import {
   buildProviderFaqs,
   getProviderBySlug,
   getProviderCapabilitySummary,
   MODEL_PROVIDERS_WITH_CATALOGS,
   TOP_MODEL_PROVIDERS,
-} from '../utils'
+} from '@/app/(landing)/models/utils'
 
 const baseUrl = getBaseUrl()
 
