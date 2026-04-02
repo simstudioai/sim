@@ -9,7 +9,7 @@ const CAL_ICON = <Calendar className='h-[14px] w-[14px]' />
 
 const COLUMNS: PreviewColumn[] = [
   { id: 'task', header: 'Task' },
-  { id: 'schedule', header: 'Schedule', widthMultiplier: 1.5 },
+  { id: 'schedule', header: 'Schedule', width: 240 },
   { id: 'nextRun', header: 'Next Run' },
   { id: 'lastRun', header: 'Last Run' },
 ]

@@ -28,7 +28,7 @@ interface LandingPreviewSidebarProps {
   activeView: SidebarView
   onSelectWorkflow: (id: string) => void
   onSelectHome: () => void
-  onSelectNav: (id: string) => void
+  onSelectNav: (id: SidebarView) => void
 }
 
 /**
@@ -87,8 +87,8 @@ function NavItem({
       type='button'
       onClick={onClick}
       className={cn(
-        'mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2 transition-colors hover-hover:bg-[#363636]',
-        isActive && 'bg-[#363636]'
+        'mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2 transition-colors hover-hover:bg-[var(--c-active)]',
+        isActive && 'bg-[var(--c-active)]'
       )}
     >
       <Icon className='h-[14px] w-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
@@ -117,7 +117,9 @@ export function LandingPreviewSidebar({
   return (
     <div
       className='flex h-full w-[248px] flex-shrink-0 flex-col pt-3'
-      style={{ backgroundColor: C.SURFACE_1 }}
+      style={
+        { backgroundColor: C.SURFACE_1, '--c-active': C.SURFACE_ACTIVE } as React.CSSProperties
+      }
     >
       {/* Workspace Header */}
       <div className='flex-shrink-0 px-2.5'>
@@ -151,8 +153,8 @@ export function LandingPreviewSidebar({
           type='button'
           onClick={onSelectHome}
           className={cn(
-            'mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2 transition-colors hover-hover:bg-[#363636]',
-            isHomeActive && 'bg-[#363636]'
+            'mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2 transition-colors hover-hover:bg-[var(--c-active)]',
+            isHomeActive && 'bg-[var(--c-active)]'
           )}
         >
           <Home className='h-[14px] w-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />

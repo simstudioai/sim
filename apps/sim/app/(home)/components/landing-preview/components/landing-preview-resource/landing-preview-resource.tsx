@@ -8,7 +8,7 @@ import { cn } from '@/lib/core/utils/cn'
 export interface PreviewColumn {
   id: string
   header: string
-  widthMultiplier?: number
+  width?: number
 }
 
 export interface PreviewCell {
@@ -135,11 +135,7 @@ export function LandingPreviewResource({
             {columns.map((col, i) => (
               <col
                 key={col.id}
-                style={
-                  i === 0
-                    ? { minWidth: 200 * (col.widthMultiplier ?? 1) }
-                    : { width: 160 * (col.widthMultiplier ?? 1) }
-                }
+                style={i === 0 ? { minWidth: col.width ?? 200 } : { width: col.width ?? 160 }}
               />
             ))}
           </colgroup>
@@ -199,7 +195,7 @@ export function LandingPreviewResource({
                               {cell.icon}
                             </span>
                           )}
-                          <span className='truncate'>{cell?.label ?? '-  -  -'}</span>
+                          <span className='truncate'>{cell?.label ?? '—'}</span>
                         </span>
                       )}
                     </td>

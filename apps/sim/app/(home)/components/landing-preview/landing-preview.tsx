@@ -78,8 +78,8 @@ export function LandingPreview() {
     setActiveView('home')
   }, [])
 
-  const handleSelectNav = useCallback((id: string) => {
-    setActiveView(id as SidebarView)
+  const handleSelectNav = useCallback((id: SidebarView) => {
+    setActiveView(id)
   }, [])
 
   const activeWorkflow =
