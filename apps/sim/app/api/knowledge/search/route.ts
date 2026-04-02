@@ -420,7 +420,10 @@ export async function POST(request: NextRequest) {
       // scores to 0-1 range before merging.
       const normalizeScores = (items: SearchResult[]): SearchResult[] => {
         if (items.length === 0) return items
-        if (items.length === 1) return [{ ...items[0], distance: 0 }]
+        // Single result: clamp raw distance to [0,1] to preserve quality signal.
+        // Forcing distance=0 would give a poor single result the best possible rank.
+        if (items.length === 1)
+          return [{ ...items[0], distance: Math.min(1, Math.max(0, items[0].distance)) }]
         const min = Math.min(...items.map((r) => r.distance))
         const max = Math.max(...items.map((r) => r.distance))
         const range = max - min || 1
