@@ -61,7 +61,7 @@ export const navTourSteps: Step[] = [
     target: '[data-tour="nav-tasks"]',
     title: 'Tasks',
     content:
-      'Tasks that work for you. Mothership can create, edit, and delete resource throughout the platform. It can also perform actions on your behalf, like sending emails, creating tasks, and more.',
+      'Tasks that work for you. Mothership can create, edit, and delete resources throughout the platform. It can also perform actions on your behalf, like sending emails, creating tasks, and more.',
     placement: 'right',
     disableBeacon: true,
   },

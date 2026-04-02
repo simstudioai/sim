@@ -45,8 +45,8 @@ import {
   computeMentionHighlightRanges,
   extractContextTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
+import { useWorkflowMap } from '@/hooks/queries/workflows'
 import type { ChatContext } from '@/stores/panel'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -122,6 +122,7 @@ export function UserInput({
   onContextAdd,
 }: UserInputProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { data: workflowsById = {} } = useWorkflowMap(workspaceId)
   const { data: session } = useSession()
   const [value, setValue] = useState(defaultValue)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -617,7 +618,6 @@ export function UserInput({
 
     const elements: React.ReactNode[] = []
     let lastIndex = 0
-
     for (let i = 0; i < ranges.length; i++) {
       const range = ranges[i]
 
@@ -639,7 +639,7 @@ export function UserInput({
           case 'workflow':
           case 'current_workflow': {
             const wfId = (matchingCtx as { workflowId: string }).workflowId
-            const wfColor = useWorkflowRegistry.getState().workflows[wfId]?.color ?? '#888'
+            const wfColor = workflowsById[wfId]?.color ?? '#888'
             mentionIconNode = (
               <div
                 className='absolute inset-0 m-auto h-[12px] w-[12px] rounded-[3px] border-[2px]'
@@ -691,7 +691,7 @@ export function UserInput({
     }
 
     return elements.length > 0 ? elements : <span>{'\u00A0'}</span>
-  }, [value, contextManagement.selectedContexts])
+  }, [value, contextManagement.selectedContexts, workflowsById])
 
   return (
     <div

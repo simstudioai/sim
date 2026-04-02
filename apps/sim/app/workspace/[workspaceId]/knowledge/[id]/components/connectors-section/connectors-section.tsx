@@ -35,8 +35,8 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
+import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
-import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
 import {
@@ -46,6 +46,7 @@ import {
   useUpdateConnector,
 } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 
 const logger = createLogger('ConnectorsSection')
 
@@ -328,11 +329,16 @@ function ConnectorCard({
   const requiredScopes =
     connectorDef?.auth.mode === 'oauth' ? (connectorDef.auth.requiredScopes ?? []) : []
 
-  const { data: credentials } = useOAuthCredentials(providerId, { workspaceId })
+  const { data: credentials, refetch: refetchCredentials } = useOAuthCredentials(providerId, {
+    workspaceId,
+  })
+
+  useCredentialRefreshTriggers(refetchCredentials, providerId ?? '', workspaceId)
 
   const missingScopes = useMemo(() => {
     if (!credentials || !connector.credentialId) return []
     const credential = credentials.find((c) => c.id === connector.credentialId)
+    if (!credential) return []
     return getMissingRequiredScopes(credential, requiredScopes)
   }, [credentials, connector.credentialId, requiredScopes])
 
@@ -484,15 +490,17 @@ function ConnectorCard({
               <Button
                 variant='active'
                 onClick={() => {
-                  writeOAuthReturnContext({
-                    origin: 'kb-connectors',
-                    knowledgeBaseId,
-                    displayName: connectorDef?.name ?? connector.connectorType,
-                    providerId: providerId!,
-                    preCount: credentials?.length ?? 0,
-                    workspaceId,
-                    requestedAt: Date.now(),
-                  })
+                  if (connector.credentialId) {
+                    writeOAuthReturnContext({
+                      origin: 'kb-connectors',
+                      knowledgeBaseId,
+                      displayName: connectorDef?.name ?? connector.connectorType,
+                      providerId: providerId!,
+                      preCount: credentials?.length ?? 0,
+                      workspaceId,
+                      requestedAt: Date.now(),
+                    })
+                  }
                   setShowOAuthModal(true)
                 }}
                 className='w-full px-2 py-1 font-medium text-caption'
@@ -510,8 +518,25 @@ function ConnectorCard({
         </div>
       )}
 
-      {showOAuthModal && serviceId && providerId && (
-        <OAuthRequiredModal
+      {showOAuthModal && serviceId && providerId && !connector.credentialId && (
+        <OAuthModal
+          mode='connect'
+          isOpen={showOAuthModal}
+          onClose={() => {
+            consumeOAuthReturnContext()
+            setShowOAuthModal(false)
+          }}
+          provider={providerId as OAuthProvider}
+          serviceId={serviceId}
+          workspaceId={workspaceId}
+          knowledgeBaseId={knowledgeBaseId}
+          credentialCount={credentials?.length ?? 0}
+        />
+      )}
+
+      {showOAuthModal && serviceId && providerId && connector.credentialId && (
+        <OAuthModal
+          mode='reauthorize'
           isOpen={showOAuthModal}
           onClose={() => {
             consumeOAuthReturnContext()

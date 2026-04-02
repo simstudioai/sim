@@ -56,21 +56,10 @@ export function ChunkEditor({
   const [savedContent, setSavedContent] = useState(chunkContent)
   const [tokenizerOn, setTokenizerOn] = useState(false)
   const [hoveredTokenIndex, setHoveredTokenIndex] = useState<number | null>(null)
-  const prevChunkIdRef = useRef(chunk?.id)
   const savedContentRef = useRef(chunkContent)
 
   const editedContentRef = useRef(editedContent)
   editedContentRef.current = editedContent
-
-  useEffect(() => {
-    if (isCreateMode) return
-    if (chunk?.id !== prevChunkIdRef.current) {
-      prevChunkIdRef.current = chunk?.id
-      savedContentRef.current = chunkContent
-      setSavedContent(chunkContent)
-      setEditedContent(chunkContent)
-    }
-  }, [isCreateMode, chunk?.id, chunkContent])
 
   useEffect(() => {
     if (isCreateMode || !chunk?.id) return

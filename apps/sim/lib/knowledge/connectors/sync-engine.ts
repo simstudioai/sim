@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   document,
+  embedding,
   knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorSyncLog,
@@ -151,13 +152,30 @@ export async function dispatchSync(
   const requestId = options?.requestId ?? crypto.randomUUID()
 
   if (isTriggerAvailable()) {
+    const connectorRows = await db
+      .select({
+        knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
+        workspaceId: knowledgeBase.workspaceId,
+        userId: knowledgeBase.userId,
+      })
+      .from(knowledgeConnector)
+      .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
+      .where(eq(knowledgeConnector.id, connectorId))
+      .limit(1)
+
+    const row = connectorRows[0]
+    const tags = [`connectorId:${connectorId}`]
+    if (row?.knowledgeBaseId) tags.push(`knowledgeBaseId:${row.knowledgeBaseId}`)
+    if (row?.workspaceId) tags.push(`workspaceId:${row.workspaceId}`)
+    if (row?.userId) tags.push(`userId:${row.userId}`)
+
     await knowledgeConnectorSync.trigger(
       {
         connectorId,
         fullSync: options?.fullSync,
         requestId,
       },
-      { tags: [`connector:${connectorId}`] }
+      { tags }
     )
     logger.info(`Dispatched connector sync to Trigger.dev`, { connectorId, requestId })
   } else if (isBullMQEnabled()) {
@@ -658,6 +676,23 @@ export async function executeSync(
     if (stuckDocs.length > 0) {
       logger.info(`Retrying ${stuckDocs.length} stuck documents`, { connectorId })
       try {
+        const stuckDocIds = stuckDocs.map((doc) => doc.id)
+
+        await db.delete(embedding).where(inArray(embedding.documentId, stuckDocIds))
+
+        await db
+          .update(document)
+          .set({
+            processingStatus: 'pending',
+            processingStartedAt: null,
+            processingCompletedAt: null,
+            processingError: null,
+            chunkCount: 0,
+            tokenCount: 0,
+            characterCount: 0,
+          })
+          .where(inArray(document.id, stuckDocIds))
+
         await processDocumentsWithQueue(
           stuckDocs.map((doc) => ({
             documentId: doc.id,

@@ -34,40 +34,37 @@ export const attioUpdateWebhookTool: ToolConfig<
     },
     targetUrl: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'HTTPS target URL for webhook delivery',
     },
     subscriptions: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: 'JSON array of subscriptions, e.g. [{"event_type":"note.created"}]',
     },
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/webhooks/${params.webhookId}`,
+    url: (params) => `https://api.attio.com/v2/webhooks/${params.webhookId.trim()}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      let subscriptions: unknown = []
+      const data: Record<string, unknown> = {}
+      if (params.targetUrl) data.target_url = params.targetUrl.trim()
       if (params.subscriptions) {
         try {
-          subscriptions =
+          data.subscriptions =
             typeof params.subscriptions === 'string'
               ? JSON.parse(params.subscriptions)
               : params.subscriptions
         } catch {
-          subscriptions = []
+          data.subscriptions = []
         }
-      }
-      const data: Record<string, unknown> = {
-        target_url: params.targetUrl,
-        subscriptions,
       }
       return { data }
     },

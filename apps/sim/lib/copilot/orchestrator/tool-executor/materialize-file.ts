@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflow, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/orchestrator/tool-executor/upload-file-reader'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { getServePathPrefix } from '@/lib/uploads'
@@ -156,6 +157,17 @@ async function executeImport(
     workflowId,
     workflowName: dedupedName,
     chatId,
+  })
+
+  recordAudit({
+    workspaceId,
+    actorId: userId,
+    action: AuditAction.WORKFLOW_CREATED,
+    resourceType: AuditResourceType.WORKFLOW,
+    resourceId: workflowId,
+    resourceName: dedupedName,
+    description: `Imported workflow "${dedupedName}" from file`,
+    metadata: { fileName, source: 'copilot-import' },
   })
 
   return {

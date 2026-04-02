@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
 import {
   downloadFile,
   exportWorkflowsToZip,
@@ -7,9 +8,10 @@ import {
   fetchWorkflowForExport,
   type WorkflowExportData,
 } from '@/lib/workflows/operations/import-export'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 const logger = createLogger('useExportSelection')
@@ -88,9 +90,14 @@ function collectSubfoldersForMultipleFolders(
  */
 export function useExportSelection({ onSuccess }: UseExportSelectionProps = {}) {
   const [isExporting, setIsExporting] = useState(false)
+  const params = useParams()
+  const workspaceId = params.workspaceId as string | undefined
 
   const onSuccessRef = useRef(onSuccess)
   onSuccessRef.current = onSuccess
+
+  const workspaceIdRef = useRef(workspaceId)
+  workspaceIdRef.current = workspaceId
 
   /**
    * Export all selected workflows and folders to a ZIP file.
@@ -113,25 +120,29 @@ export function useExportSelection({ onSuccess }: UseExportSelectionProps = {}) 
 
       setIsExporting(true)
       try {
-        const { workflows } = useWorkflowRegistry.getState()
-        const { folders } = useFolderStore.getState()
+        if (!workspaceIdRef.current) return
+        const workflowsArray = getWorkflows(workspaceIdRef.current)
+        const workflows = Object.fromEntries(workflowsArray.map((w) => [w.id, w]))
+        const folderMap = getFolderMap(workspaceIdRef.current)
 
         const workflowsFromFolders: CollectedWorkflow[] = []
         for (const folderId of folderIds) {
-          const collected = collectWorkflowsInFolder(folderId, workflows, folders)
+          const collected = collectWorkflowsInFolder(folderId, workflows, folderMap)
           workflowsFromFolders.push(...collected)
         }
 
-        const subfolders = collectSubfoldersForMultipleFolders(folderIds, folders)
+        const subfolders = collectSubfoldersForMultipleFolders(folderIds, folderMap)
 
-        const selectedFoldersData: FolderExportData[] = folderIds.map((folderId) => {
-          const folder = folders[folderId]
-          return {
-            id: folder.id,
-            name: folder.name,
-            parentId: null,
-          }
-        })
+        const selectedFoldersData: FolderExportData[] = folderIds
+          .filter((folderId) => folderMap[folderId])
+          .map((folderId) => {
+            const folder = folderMap[folderId]
+            return {
+              id: folder.id,
+              name: folder.name,
+              parentId: null,
+            }
+          })
 
         const allFolders = [...selectedFoldersData, ...subfolders]
         const workflowIdsFromFolders = workflowsFromFolders.map((w) => w.id)

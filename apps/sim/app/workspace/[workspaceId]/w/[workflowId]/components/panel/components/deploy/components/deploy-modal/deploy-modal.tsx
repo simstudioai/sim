@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
+import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
@@ -35,6 +36,7 @@ import {
 } from '@/hooks/queries/deployments'
 // import { useTemplateByWorkflow } from '@/hooks/queries/templates'
 import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
+import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -85,14 +87,15 @@ export function DeployModal({
   isLoadingDeployedState,
 }: DeployModalProps) {
   const queryClient = useQueryClient()
+  const params = useParams()
+  const workspaceId = params?.workspaceId as string
   const { navigateToSettings } = useSettingsNavigation()
   const deploymentStatus = useWorkflowRegistry((state) =>
     state.getWorkflowDeploymentStatus(workflowId)
   )
   const isDeployed = deploymentStatus?.isDeployed ?? isDeployedProp
-  const workflowMetadata = useWorkflowRegistry((state) =>
-    workflowId ? state.workflows[workflowId] : undefined
-  )
+  const { data: workflowMap = {} } = useWorkflowMap(workspaceId)
+  const workflowMetadata = workflowId ? workflowMap[workflowId] : undefined
   const workflowWorkspaceId = workflowMetadata?.workspaceId ?? null
   const [activeTab, setActiveTab] = useState<TabView>('general')
   const [chatSubmitting, setChatSubmitting] = useState(false)

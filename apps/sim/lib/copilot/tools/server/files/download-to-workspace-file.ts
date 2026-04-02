@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { z } from 'zod'
-import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -125,8 +124,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
     params: DownloadToWorkspaceFileArgs,
     context?: ServerToolContext
   ): Promise<DownloadToWorkspaceFileResult> {
-    const withMessageId = (message: string) =>
-      appendCopilotLogContext(message, { messageId: context?.messageId })
+    const reqLogger = logger.withMetadata({ messageId: context?.messageId })
 
     if (!context?.userId) {
       throw new Error('Authentication required')
@@ -178,7 +176,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
         mimeType
       )
 
-      logger.info(withMessageId('Downloaded remote file to workspace'), {
+      reqLogger.info('Downloaded remote file to workspace', {
         sourceUrl: params.url,
         fileId: uploaded.id,
         fileName: uploaded.name,
@@ -195,7 +193,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error'
-      logger.error(withMessageId('Failed to download file to workspace'), {
+      reqLogger.error('Failed to download file to workspace', {
         url: params.url,
         error: msg,
       })

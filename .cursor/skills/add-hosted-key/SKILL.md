@@ -192,7 +192,7 @@ In the block config (`blocks/blocks/{service}.ts`), add `hideWhenHosted: true` t
 },
 ```
 
-The visibility is controlled by `isSubBlockHiddenByHostedKey()` in `lib/workflows/subblocks/visibility.ts`, which checks the `isHosted` feature flag.
+The visibility is controlled by `isSubBlockHidden()` in `lib/workflows/subblocks/visibility.ts`, which checks both the `isHosted` feature flag (`hideWhenHosted`) and optional env var conditions (`hideWhenEnvSet`).
 
 ### Excluding Specific Operations from Hosted Key Support
 

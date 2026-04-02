@@ -5,14 +5,7 @@
  * @vitest-environment node
  */
 
-import {
-  auditMock,
-  envMock,
-  loggerMock,
-  requestUtilsMock,
-  setupGlobalFetchMock,
-  telemetryMock,
-} from '@sim/testing'
+import { auditMock, envMock, loggerMock, requestUtilsMock, telemetryMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,7 +14,7 @@ const mockCheckSessionOrInternalAuth = vi.fn()
 const mockLoadWorkflowFromNormalizedTables = vi.fn()
 const mockGetWorkflowById = vi.fn()
 const mockAuthorizeWorkflowByWorkspacePermission = vi.fn()
-const mockArchiveWorkflow = vi.fn()
+const mockPerformDeleteWorkflow = vi.fn()
 const mockDbUpdate = vi.fn()
 const mockDbSelect = vi.fn()
 
@@ -72,8 +65,8 @@ vi.mock('@/lib/workflows/utils', () => ({
   }) => mockAuthorizeWorkflowByWorkspacePermission(params),
 }))
 
-vi.mock('@/lib/workflows/lifecycle', () => ({
-  archiveWorkflow: (...args: unknown[]) => mockArchiveWorkflow(...args),
+vi.mock('@/lib/workflows/orchestration', () => ({
+  performDeleteWorkflow: (...args: unknown[]) => mockPerformDeleteWorkflow(...args),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -294,18 +287,7 @@ describe('Workflow By ID API Route', () => {
         workspacePermission: 'admin',
       })
 
-      mockDbSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ id: 'workflow-123' }, { id: 'workflow-456' }]),
-        }),
-      })
-
-      mockArchiveWorkflow.mockResolvedValue({
-        archived: true,
-        workflow: mockWorkflow,
-      })
-
-      setupGlobalFetchMock({ ok: true })
+      mockPerformDeleteWorkflow.mockResolvedValue({ success: true })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
         method: 'DELETE',
@@ -317,6 +299,12 @@ describe('Workflow By ID API Route', () => {
       expect(response.status).toBe(200)
       const data = await response.json()
       expect(data.success).toBe(true)
+      expect(mockPerformDeleteWorkflow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowId: 'workflow-123',
+          userId: 'user-123',
+        })
+      )
     })
 
     it('should allow admin to delete workspace workflow', async () => {
@@ -337,19 +325,7 @@ describe('Workflow By ID API Route', () => {
         workspacePermission: 'admin',
       })
 
-      // Mock db.select() to return multiple workflows so deletion is allowed
-      mockDbSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ id: 'workflow-123' }, { id: 'workflow-456' }]),
-        }),
-      })
-
-      mockArchiveWorkflow.mockResolvedValue({
-        archived: true,
-        workflow: mockWorkflow,
-      })
-
-      setupGlobalFetchMock({ ok: true })
+      mockPerformDeleteWorkflow.mockResolvedValue({ success: true })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
         method: 'DELETE',
@@ -381,11 +357,10 @@ describe('Workflow By ID API Route', () => {
         workspacePermission: 'admin',
       })
 
-      // Mock db.select() to return only 1 workflow (the one being deleted)
-      mockDbSelect.mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ id: 'workflow-123' }]),
-        }),
+      mockPerformDeleteWorkflow.mockResolvedValue({
+        success: false,
+        error: 'Cannot delete the only workflow in the workspace',
+        errorCode: 'validation',
       })
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {

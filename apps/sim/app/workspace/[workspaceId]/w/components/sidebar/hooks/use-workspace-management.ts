@@ -39,6 +39,7 @@ export function useWorkspaceManagement({
   const {
     data: workspaces = [],
     isLoading: isWorkspacesLoading,
+    isFetching: isWorkspacesFetching,
     refetch: refetchWorkspaces,
   } = useWorkspacesQuery(Boolean(sessionUserId))
 
@@ -71,6 +72,9 @@ export function useWorkspaceManagement({
     const matchingWorkspace = workspaces.find((w) => w.id === currentWorkspaceId)
 
     if (!matchingWorkspace) {
+      if (isWorkspacesFetching) {
+        return
+      }
       logger.warn(`Workspace ${currentWorkspaceId} not found in user's workspaces`)
       const fallbackWorkspace = workspaces[0]
       logger.info(`Redirecting to fallback workspace: ${fallbackWorkspace.id}`)
@@ -78,7 +82,7 @@ export function useWorkspaceManagement({
     }
 
     hasValidatedRef.current = true
-  }, [workspaces, isWorkspacesLoading])
+  }, [workspaces, isWorkspacesLoading, isWorkspacesFetching])
 
   const refreshWorkspaceList = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
@@ -110,7 +114,7 @@ export function useWorkspaceManagement({
       }
 
       try {
-        await switchToWorkspace(workspace.id)
+        switchToWorkspace(workspace.id)
         routerRef.current?.push(`/workspace/${workspace.id}/home`)
         logger.info(`Switched to workspace: ${workspace.name} (${workspace.id})`)
       } catch (error) {

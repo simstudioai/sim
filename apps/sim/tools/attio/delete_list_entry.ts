@@ -40,7 +40,8 @@ export const attioDeleteListEntryTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/lists/${params.list}/entries/${params.entryId}`,
+    url: (params) =>
+      `https://api.attio.com/v2/lists/${params.list.trim()}/entries/${params.entryId.trim()}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

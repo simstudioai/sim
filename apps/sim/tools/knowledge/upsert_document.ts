@@ -108,9 +108,6 @@ export const knowledgeUpsertDocumentTool: ToolConfig<
         mimeType,
         ...tagData,
         processingOptions: {
-          chunkSize: 1024,
-          minCharactersPerChunk: 1,
-          chunkOverlap: 200,
           recipe: 'default',
           lang: 'en',
         },

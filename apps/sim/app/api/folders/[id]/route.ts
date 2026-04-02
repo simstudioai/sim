@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
-import { workflow, workflowFolder } from '@sim/db/schema'
+import { workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { archiveWorkflowsByIdsInWorkspace } from '@/lib/workflows/lifecycle'
+import { performDeleteFolder } from '@/lib/workflows/orchestration'
+import { checkForCircularReference } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersIDAPI')
@@ -130,7 +130,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
     }
 
-    // Check if user has admin permissions for the workspace (admin-only for deletions)
     const workspacePermission = await getUserEntityPermissions(
       session.user.id,
       'workspace',
@@ -144,170 +143,25 @@ export async function DELETE(
       )
     }
 
-    // Check if deleting this folder would delete the last workflow(s) in the workspace
-    const workflowsInFolder = await countWorkflowsInFolderRecursively(
-      id,
-      existingFolder.workspaceId
-    )
-    const totalWorkflowsInWorkspace = await db
-      .select({ id: workflow.id })
-      .from(workflow)
-      .where(and(eq(workflow.workspaceId, existingFolder.workspaceId), isNull(workflow.archivedAt)))
-
-    if (workflowsInFolder > 0 && workflowsInFolder >= totalWorkflowsInWorkspace.length) {
-      return NextResponse.json(
-        { error: 'Cannot delete folder containing the only workflow(s) in the workspace' },
-        { status: 400 }
-      )
-    }
-
-    // Recursively delete folder and all its contents
-    const deletionStats = await deleteFolderRecursively(id, existingFolder.workspaceId)
-
-    logger.info('Deleted folder and all contents:', {
-      id,
-      deletionStats,
-    })
-
-    recordAudit({
+    const result = await performDeleteFolder({
+      folderId: id,
       workspaceId: existingFolder.workspaceId,
-      actorId: session.user.id,
-      actorName: session.user.name,
-      actorEmail: session.user.email,
-      action: AuditAction.FOLDER_DELETED,
-      resourceType: AuditResourceType.FOLDER,
-      resourceId: id,
-      resourceName: existingFolder.name,
-      description: `Deleted folder "${existingFolder.name}"`,
-      metadata: {
-        affected: {
-          workflows: deletionStats.workflows,
-          subfolders: deletionStats.folders - 1,
-        },
-      },
-      request,
+      userId: session.user.id,
+      folderName: existingFolder.name,
     })
+
+    if (!result.success) {
+      const status =
+        result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
+      return NextResponse.json({ error: result.error }, { status })
+    }
 
     return NextResponse.json({
       success: true,
-      deletedItems: deletionStats,
+      deletedItems: result.deletedItems,
     })
   } catch (error) {
     logger.error('Error deleting folder:', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
-
-// Helper function to recursively delete a folder and all its contents
-async function deleteFolderRecursively(
-  folderId: string,
-  workspaceId: string
-): Promise<{ folders: number; workflows: number }> {
-  const stats = { folders: 0, workflows: 0 }
-
-  // Get all child folders first (workspace-scoped, not user-scoped)
-  const childFolders = await db
-    .select({ id: workflowFolder.id })
-    .from(workflowFolder)
-    .where(and(eq(workflowFolder.parentId, folderId), eq(workflowFolder.workspaceId, workspaceId)))
-
-  // Recursively delete child folders
-  for (const childFolder of childFolders) {
-    const childStats = await deleteFolderRecursively(childFolder.id, workspaceId)
-    stats.folders += childStats.folders
-    stats.workflows += childStats.workflows
-  }
-
-  // Delete all workflows in this folder (workspace-scoped, not user-scoped)
-  // The database cascade will handle deleting related workflow_blocks, workflow_edges, workflow_subflows
-  const workflowsInFolder = await db
-    .select({ id: workflow.id })
-    .from(workflow)
-    .where(
-      and(
-        eq(workflow.folderId, folderId),
-        eq(workflow.workspaceId, workspaceId),
-        isNull(workflow.archivedAt)
-      )
-    )
-
-  if (workflowsInFolder.length > 0) {
-    await archiveWorkflowsByIdsInWorkspace(
-      workspaceId,
-      workflowsInFolder.map((entry) => entry.id),
-      { requestId: `folder-${folderId}` }
-    )
-
-    stats.workflows += workflowsInFolder.length
-  }
-
-  // Delete this folder
-  await db.delete(workflowFolder).where(eq(workflowFolder.id, folderId))
-
-  stats.folders += 1
-
-  return stats
-}
-
-/**
- * Counts the number of workflows in a folder and all its subfolders recursively.
- */
-async function countWorkflowsInFolderRecursively(
-  folderId: string,
-  workspaceId: string
-): Promise<number> {
-  let count = 0
-
-  const workflowsInFolder = await db
-    .select({ id: workflow.id })
-    .from(workflow)
-    .where(
-      and(
-        eq(workflow.folderId, folderId),
-        eq(workflow.workspaceId, workspaceId),
-        isNull(workflow.archivedAt)
-      )
-    )
-
-  count += workflowsInFolder.length
-
-  const childFolders = await db
-    .select({ id: workflowFolder.id })
-    .from(workflowFolder)
-    .where(and(eq(workflowFolder.parentId, folderId), eq(workflowFolder.workspaceId, workspaceId)))
-
-  for (const childFolder of childFolders) {
-    count += await countWorkflowsInFolderRecursively(childFolder.id, workspaceId)
-  }
-
-  return count
-}
-
-// Helper function to check for circular references
-async function checkForCircularReference(folderId: string, parentId: string): Promise<boolean> {
-  let currentParentId: string | null = parentId
-  const visited = new Set<string>()
-
-  while (currentParentId) {
-    if (visited.has(currentParentId)) {
-      return true // Circular reference detected
-    }
-
-    if (currentParentId === folderId) {
-      return true // Would create a cycle
-    }
-
-    visited.add(currentParentId)
-
-    // Get the parent of the current parent
-    const parent: { parentId: string | null } | undefined = await db
-      .select({ parentId: workflowFolder.parentId })
-      .from(workflowFolder)
-      .where(eq(workflowFolder.id, currentParentId))
-      .then((rows) => rows[0])
-
-    currentParentId = parent?.parentId || null
-  }
-
-  return false
 }

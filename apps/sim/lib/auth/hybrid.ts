@@ -154,7 +154,7 @@ export async function checkSessionOrInternalAuth(
 
     return {
       success: false,
-      error: 'Authentication required - provide session or internal JWT',
+      error: 'Unauthorized',
     }
   } catch (error) {
     logger.error('Error in session/internal authentication:', error)
@@ -225,7 +225,7 @@ export async function checkHybridAuth(
     // No authentication found
     return {
       success: false,
-      error: 'Authentication required - provide session, API key, or internal JWT',
+      error: 'Unauthorized',
     }
   } catch (error) {
     logger.error('Error in hybrid authentication:', error)

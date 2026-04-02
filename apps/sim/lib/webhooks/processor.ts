@@ -1287,6 +1287,7 @@ export async function queueWebhookExecution(
         : await (await getJobQueue()).enqueue('webhook-execution', payload, {
             metadata: {
               workflowId: foundWorkflow.id,
+              workspaceId: foundWorkflow.workspaceId,
               userId: actorUserId,
               correlation,
             },
@@ -1317,6 +1318,7 @@ export async function queueWebhookExecution(
         : await jobQueue.enqueue('webhook-execution', payload, {
             metadata: {
               workflowId: foundWorkflow.id,
+              workspaceId: foundWorkflow.workspaceId,
               userId: actorUserId,
               correlation,
             },
@@ -1325,7 +1327,7 @@ export async function queueWebhookExecution(
         `[${options.requestId}] Queued ${foundWebhook.provider} webhook execution ${jobId} via inline backend`
       )
 
-      if (shouldExecuteInline()) {
+      if (!isBullMQEnabled()) {
         void (async () => {
           try {
             await jobQueue.startJob(jobId)

@@ -2,12 +2,13 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { Skeleton } from '@/components/emcn'
 import { formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 import type { DashboardStatsResponse, WorkflowStats } from '@/hooks/queries/logs'
+import { useWorkflows } from '@/hooks/queries/workflows'
 import { useFilterStore } from '@/stores/logs/filters/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { LineChart, WorkflowsList } from './components'
 
 interface WorkflowExecution {
@@ -156,7 +157,8 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
     }))
   )
 
-  const allWorkflows = useWorkflowRegistry((state) => state.workflows)
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { data: allWorkflowList = [], isPending: isWorkflowsPending } = useWorkflows(workspaceId)
 
   const expandedWorkflowId = workflowIds.length === 1 ? workflowIds[0] : null
 
@@ -459,7 +461,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
     )
   }
 
-  if (Object.keys(allWorkflows).length === 0) {
+  if (!isWorkflowsPending && allWorkflowList.length === 0) {
     return (
       <div className='mt-6 flex flex-1 items-center justify-center'>
         <div className='text-center text-[var(--text-secondary)]'>

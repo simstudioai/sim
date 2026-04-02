@@ -1,13 +1,12 @@
 import { db } from '@sim/db'
-import { templates, workflow } from '@sim/db/schema'
+import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { AuthType, checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { archiveWorkflow } from '@/lib/workflows/lifecycle'
+import { performDeleteWorkflow } from '@/lib/workflows/orchestration'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { authorizeWorkflowByWorkspacePermission, getWorkflowById } from '@/lib/workflows/utils'
 
@@ -184,28 +183,12 @@ export async function DELETE(
       )
     }
 
-    // Check if this is the last workflow in the workspace
-    if (workflowData.workspaceId) {
-      const totalWorkflowsInWorkspace = await db
-        .select({ id: workflow.id })
-        .from(workflow)
-        .where(and(eq(workflow.workspaceId, workflowData.workspaceId), isNull(workflow.archivedAt)))
-
-      if (totalWorkflowsInWorkspace.length <= 1) {
-        return NextResponse.json(
-          { error: 'Cannot delete the only workflow in the workspace' },
-          { status: 400 }
-        )
-      }
-    }
-
-    // Check if workflow has published templates before deletion
     const { searchParams } = new URL(request.url)
     const checkTemplates = searchParams.get('check-templates') === 'true'
     const deleteTemplatesParam = searchParams.get('deleteTemplates')
 
     if (checkTemplates) {
-      // Return template information for frontend to handle
+      const { templates } = await import('@sim/db/schema')
       const publishedTemplates = await db
         .select({
           id: templates.id,
@@ -229,48 +212,21 @@ export async function DELETE(
       })
     }
 
-    // Handle template deletion based on user choice
-    if (deleteTemplatesParam !== null) {
-      const deleteTemplates = deleteTemplatesParam === 'delete'
+    const result = await performDeleteWorkflow({
+      workflowId,
+      userId,
+      requestId,
+      templateAction: deleteTemplatesParam === 'delete' ? 'delete' : 'orphan',
+    })
 
-      if (deleteTemplates) {
-        // Delete all templates associated with this workflow
-        await db.delete(templates).where(eq(templates.workflowId, workflowId))
-        logger.info(`[${requestId}] Deleted templates for workflow ${workflowId}`)
-      } else {
-        // Orphan the templates (set workflowId to null)
-        await db
-          .update(templates)
-          .set({ workflowId: null })
-          .where(eq(templates.workflowId, workflowId))
-        logger.info(`[${requestId}] Orphaned templates for workflow ${workflowId}`)
-      }
-    }
-
-    const archiveResult = await archiveWorkflow(workflowId, { requestId })
-    if (!archiveResult.workflow) {
-      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+    if (!result.success) {
+      const status =
+        result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
+      return NextResponse.json({ error: result.error }, { status })
     }
 
     const elapsed = Date.now() - startTime
     logger.info(`[${requestId}] Successfully archived workflow ${workflowId} in ${elapsed}ms`)
-
-    recordAudit({
-      workspaceId: workflowData.workspaceId || null,
-      actorId: userId,
-      actorName: auth.userName,
-      actorEmail: auth.userEmail,
-      action: AuditAction.WORKFLOW_DELETED,
-      resourceType: AuditResourceType.WORKFLOW,
-      resourceId: workflowId,
-      resourceName: workflowData.name,
-      description: `Archived workflow "${workflowData.name}"`,
-      metadata: {
-        archived: archiveResult.archived,
-        deleteTemplates: deleteTemplatesParam === 'delete',
-      },
-      request,
-    })
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error: any) {

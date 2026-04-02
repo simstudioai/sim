@@ -21,6 +21,7 @@ export function createMockLogger() {
     trace: vi.fn(),
     fatal: vi.fn(),
     child: vi.fn(() => createMockLogger()),
+    withMetadata: vi.fn(() => createMockLogger()),
   }
 }
 
@@ -60,4 +61,5 @@ export function clearLoggerMocks(logger: ReturnType<typeof createMockLogger>) {
   logger.debug.mockClear()
   logger.trace.mockClear()
   logger.fatal.mockClear()
+  logger.withMetadata.mockClear()
 }

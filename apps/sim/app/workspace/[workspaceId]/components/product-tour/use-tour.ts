@@ -114,6 +114,16 @@ export function useTour({
     [steps.length, stopTour, cancelPendingTransitions, scheduleReveal]
   )
 
+  useEffect(() => {
+    if (!run) return
+    const html = document.documentElement
+    const prev = html.style.scrollbarGutter
+    html.style.scrollbarGutter = 'stable'
+    return () => {
+      html.style.scrollbarGutter = prev
+    }
+  }, [run])
+
   /** Stop the tour when disabled becomes true (e.g. navigating away from the relevant page) */
   useEffect(() => {
     if (disabled && run) {

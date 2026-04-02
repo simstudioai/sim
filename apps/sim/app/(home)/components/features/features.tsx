@@ -190,7 +190,6 @@ export default function Features() {
           width={1440}
           height={366}
           className='h-auto w-full'
-          priority
         />
       </div>
 

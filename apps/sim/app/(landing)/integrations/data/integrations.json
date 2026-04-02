@@ -927,6 +927,10 @@
         "description": "List tasks in Attio, optionally filtered by record, assignee, or completion status"
       },
       {
+        "name": "Get Task",
+        "description": "Get a single task by ID from Attio"
+      },
+      {
         "name": "Create Task",
         "description": "Create a task in Attio"
       },
@@ -1039,7 +1043,7 @@
         "description": "Delete a webhook from Attio"
       }
     ],
-    "operationCount": 40,
+    "operationCount": 41,
     "triggers": [
       {
         "id": "attio_record_created",
@@ -1127,16 +1131,75 @@
         "description": "Trigger workflow when a list entry is deleted in Attio"
       },
       {
+        "id": "attio_list_created",
+        "name": "Attio List Created",
+        "description": "Trigger workflow when a list is created in Attio"
+      },
+      {
+        "id": "attio_list_updated",
+        "name": "Attio List Updated",
+        "description": "Trigger workflow when a list is updated in Attio"
+      },
+      {
+        "id": "attio_list_deleted",
+        "name": "Attio List Deleted",
+        "description": "Trigger workflow when a list is deleted in Attio"
+      },
+      {
+        "id": "attio_workspace_member_created",
+        "name": "Attio Workspace Member Created",
+        "description": "Trigger workflow when a new member is added to the Attio workspace"
+      },
+      {
         "id": "attio_webhook",
         "name": "Attio Webhook (All Events)",
         "description": "Trigger workflow on any Attio webhook event"
       }
     ],
-    "triggerCount": 18,
+    "triggerCount": 22,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "crm",
     "tags": ["sales-engagement", "enrichment"]
+  },
+  {
+    "type": "secrets_manager",
+    "slug": "aws-secrets-manager",
+    "name": "AWS Secrets Manager",
+    "description": "Connect to AWS Secrets Manager",
+    "longDescription": "Integrate AWS Secrets Manager into the workflow. Can retrieve, create, update, list, and delete secrets.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "SecretsManagerIcon",
+    "docsUrl": "https://docs.sim.ai/tools/secrets-manager",
+    "operations": [
+      {
+        "name": "Get Secret",
+        "description": "Retrieve a secret value from AWS Secrets Manager"
+      },
+      {
+        "name": "List Secrets",
+        "description": "List secrets stored in AWS Secrets Manager"
+      },
+      {
+        "name": "Create Secret",
+        "description": "Create a new secret in AWS Secrets Manager"
+      },
+      {
+        "name": "Update Secret",
+        "description": "Update the value of an existing secret in AWS Secrets Manager"
+      },
+      {
+        "name": "Delete Secret",
+        "description": "Delete a secret from AWS Secrets Manager"
+      }
+    ],
+    "operationCount": 5,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationType": "developer-tools",
+    "tags": ["cloud", "secrets-management"]
   },
   {
     "type": "textract_v2",
@@ -2940,6 +3003,24 @@
     "tags": ["web-scraping", "enrichment"]
   },
   {
+    "type": "extend_v2",
+    "slug": "extend",
+    "name": "Extend",
+    "description": "Parse and extract content from documents",
+    "longDescription": "Integrate Extend AI into the workflow. Parse and extract structured content from documents or file references.",
+    "bgColor": "#000000",
+    "iconName": "ExtendIcon",
+    "docsUrl": "https://docs.sim.ai/tools/extend",
+    "operations": [],
+    "operationCount": 0,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "ai",
+    "tags": ["document-processing", "ocr"]
+  },
+  {
     "type": "fathom",
     "slug": "fathom",
     "name": "Fathom",
@@ -2993,13 +3074,26 @@
     "type": "file_v3",
     "slug": "file",
     "name": "File",
-    "description": "Read and parse multiple files",
-    "longDescription": "Upload files directly or import from external URLs to get UserFile objects for use in other blocks.",
+    "description": "Read and write workspace files",
+    "longDescription": "Read and parse files from uploads or URLs, write new workspace files, or append content to existing files.",
     "bgColor": "#40916C",
     "iconName": "DocumentIcon",
     "docsUrl": "https://docs.sim.ai/tools/file",
-    "operations": [],
-    "operationCount": 0,
+    "operations": [
+      {
+        "name": "Read",
+        "description": "Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)"
+      },
+      {
+        "name": "Write",
+        "description": "Create a new workspace file. If a file with the same name already exists, a numeric suffix is added (e.g., "
+      },
+      {
+        "name": "Append",
+        "description": "Append content to an existing workspace file. The file must already exist. Content is added to the end of the file."
+      }
+    ],
+    "operationCount": 3,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
@@ -6288,6 +6382,73 @@
     "tags": ["monitoring", "llm", "data-analytics"]
   },
   {
+    "type": "launchdarkly",
+    "slug": "launchdarkly",
+    "name": "LaunchDarkly",
+    "description": "Manage feature flags with LaunchDarkly.",
+    "longDescription": "Integrate LaunchDarkly into your workflow. List, create, update, toggle, and delete feature flags. Manage projects, environments, segments, members, and audit logs. Requires API Key.",
+    "bgColor": "#191919",
+    "iconName": "LaunchDarklyIcon",
+    "docsUrl": "https://docs.sim.ai/tools/launchdarkly",
+    "operations": [
+      {
+        "name": "List Flags",
+        "description": "List feature flags in a LaunchDarkly project."
+      },
+      {
+        "name": "Get Flag",
+        "description": "Get a single feature flag by key from a LaunchDarkly project."
+      },
+      {
+        "name": "Create Flag",
+        "description": "Create a new feature flag in a LaunchDarkly project."
+      },
+      {
+        "name": "Update Flag",
+        "description": "Update a feature flag metadata (name, description, tags, temporary, archived) using semantic patch."
+      },
+      {
+        "name": "Toggle Flag",
+        "description": "Toggle a feature flag on or off in a specific LaunchDarkly environment."
+      },
+      {
+        "name": "Delete Flag",
+        "description": "Delete a feature flag from a LaunchDarkly project."
+      },
+      {
+        "name": "Get Flag Status",
+        "description": "Get the status of a feature flag across environments (active, inactive, launched, etc.)."
+      },
+      {
+        "name": "List Projects",
+        "description": "List all projects in your LaunchDarkly account."
+      },
+      {
+        "name": "List Environments",
+        "description": "List environments in a LaunchDarkly project."
+      },
+      {
+        "name": "List Segments",
+        "description": "List user segments in a LaunchDarkly project and environment."
+      },
+      {
+        "name": "List Members",
+        "description": "List account members in your LaunchDarkly organization."
+      },
+      {
+        "name": "Get Audit Log",
+        "description": "List audit log entries from your LaunchDarkly account."
+      }
+    ],
+    "operationCount": 12,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "developer-tools",
+    "tags": ["feature-flags", "ci-cd"]
+  },
+  {
     "type": "lemlist",
     "slug": "lemlist",
     "name": "Lemlist",
@@ -8612,6 +8773,121 @@
     "tags": ["data-analytics", "monitoring"]
   },
   {
+    "type": "profound",
+    "slug": "profound",
+    "name": "Profound",
+    "description": "AI visibility and analytics with Profound",
+    "longDescription": "Track how your brand appears across AI platforms. Monitor visibility scores, sentiment, citations, bot traffic, referrals, content optimization, and prompt volumes with Profound.",
+    "bgColor": "#000000",
+    "iconName": "ProfoundIcon",
+    "docsUrl": "https://docs.sim.ai/tools/profound",
+    "operations": [
+      {
+        "name": "List Categories",
+        "description": "List all organization categories in Profound"
+      },
+      {
+        "name": "List Regions",
+        "description": "List all organization regions in Profound"
+      },
+      {
+        "name": "List Models",
+        "description": "List all AI models/platforms tracked in Profound"
+      },
+      {
+        "name": "List Domains",
+        "description": "List all organization domains in Profound"
+      },
+      {
+        "name": "List Assets",
+        "description": "List all organization assets (companies/brands) across all categories in Profound"
+      },
+      {
+        "name": "List Personas",
+        "description": "List all organization personas across all categories in Profound"
+      },
+      {
+        "name": "Category Topics",
+        "description": "List topics for a specific category in Profound"
+      },
+      {
+        "name": "Category Tags",
+        "description": "List tags for a specific category in Profound"
+      },
+      {
+        "name": "Category Prompts",
+        "description": "List prompts for a specific category in Profound"
+      },
+      {
+        "name": "Category Assets",
+        "description": "List assets (companies/brands) for a specific category in Profound"
+      },
+      {
+        "name": "Category Personas",
+        "description": "List personas for a specific category in Profound"
+      },
+      {
+        "name": "Visibility Report",
+        "description": "Query AI visibility report for a category in Profound"
+      },
+      {
+        "name": "Sentiment Report",
+        "description": "Query sentiment report for a category in Profound"
+      },
+      {
+        "name": "Citations Report",
+        "description": "Query citations report for a category in Profound"
+      },
+      {
+        "name": "Query Fanouts",
+        "description": "Query fanout report showing how AI models expand prompts into sub-queries in Profound"
+      },
+      {
+        "name": "Prompt Answers",
+        "description": "Get raw prompt answers data for a category in Profound"
+      },
+      {
+        "name": "Bots Report",
+        "description": "Query bot traffic report with hourly granularity for a domain in Profound"
+      },
+      {
+        "name": "Referrals Report",
+        "description": "Query human referral traffic report with hourly granularity for a domain in Profound"
+      },
+      {
+        "name": "Raw Logs",
+        "description": "Get raw traffic logs with filters for a domain in Profound"
+      },
+      {
+        "name": "Bot Logs",
+        "description": "Get identified bot visit logs with filters for a domain in Profound"
+      },
+      {
+        "name": "List Optimizations",
+        "description": "List content optimization entries for an asset in Profound"
+      },
+      {
+        "name": "Optimization Analysis",
+        "description": "Get detailed content optimization analysis for a specific content item in Profound"
+      },
+      {
+        "name": "Prompt Volume",
+        "description": "Query prompt volume data to understand search demand across AI platforms in Profound"
+      },
+      {
+        "name": "Citation Prompts",
+        "description": "Get prompts that cite a specific domain across AI platforms in Profound"
+      }
+    ],
+    "operationCount": 24,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "analytics",
+    "tags": ["seo", "data-analytics"]
+  },
+  {
     "type": "pulse_v2",
     "slug": "pulse",
     "name": "Pulse",
@@ -10353,6 +10629,105 @@
     "category": "tools",
     "integrationType": "databases",
     "tags": ["cloud", "data-warehouse", "vector-search"]
+  },
+  {
+    "type": "tailscale",
+    "slug": "tailscale",
+    "name": "Tailscale",
+    "description": "Manage devices and network settings in your Tailscale tailnet",
+    "longDescription": "Interact with the Tailscale API to manage devices, DNS, ACLs, auth keys, users, and routes across your tailnet.",
+    "bgColor": "#2E2D2D",
+    "iconName": "TailscaleIcon",
+    "docsUrl": "https://docs.sim.ai/tools/tailscale",
+    "operations": [
+      {
+        "name": "List Devices",
+        "description": "List all devices in the tailnet"
+      },
+      {
+        "name": "Get Device",
+        "description": "Get details of a specific device by ID"
+      },
+      {
+        "name": "Delete Device",
+        "description": "Remove a device from the tailnet"
+      },
+      {
+        "name": "Authorize Device",
+        "description": "Authorize or deauthorize a device on the tailnet"
+      },
+      {
+        "name": "Set Device Tags",
+        "description": "Set tags on a device in the tailnet"
+      },
+      {
+        "name": "Get Device Routes",
+        "description": "Get the subnet routes for a device"
+      },
+      {
+        "name": "Set Device Routes",
+        "description": "Set the enabled subnet routes for a device"
+      },
+      {
+        "name": "Update Device Key",
+        "description": "Enable or disable key expiry on a device"
+      },
+      {
+        "name": "List DNS Nameservers",
+        "description": "Get the DNS nameservers configured for the tailnet"
+      },
+      {
+        "name": "Set DNS Nameservers",
+        "description": "Set the DNS nameservers for the tailnet"
+      },
+      {
+        "name": "Get DNS Preferences",
+        "description": "Get the DNS preferences for the tailnet including MagicDNS status"
+      },
+      {
+        "name": "Set DNS Preferences",
+        "description": "Set DNS preferences for the tailnet (enable/disable MagicDNS)"
+      },
+      {
+        "name": "Get DNS Search Paths",
+        "description": "Get the DNS search paths configured for the tailnet"
+      },
+      {
+        "name": "Set DNS Search Paths",
+        "description": "Set the DNS search paths for the tailnet"
+      },
+      {
+        "name": "List Users",
+        "description": "List all users in the tailnet"
+      },
+      {
+        "name": "Create Auth Key",
+        "description": "Create a new auth key for the tailnet to pre-authorize devices"
+      },
+      {
+        "name": "List Auth Keys",
+        "description": "List all auth keys in the tailnet"
+      },
+      {
+        "name": "Get Auth Key",
+        "description": "Get details of a specific auth key"
+      },
+      {
+        "name": "Delete Auth Key",
+        "description": "Revoke and delete an auth key"
+      },
+      {
+        "name": "Get ACL",
+        "description": "Get the current ACL policy for the tailnet"
+      }
+    ],
+    "operationCount": 20,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "security",
+    "tags": ["monitoring"]
   },
   {
     "type": "tavily",

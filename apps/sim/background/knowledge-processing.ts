@@ -15,11 +15,8 @@ export type DocumentProcessingPayload = {
     mimeType: string
   }
   processingOptions: {
-    chunkSize?: number
-    minCharactersPerChunk?: number
     recipe?: string
     lang?: string
-    chunkOverlap?: number
   }
   requestId: string
 }

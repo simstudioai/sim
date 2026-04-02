@@ -205,12 +205,27 @@ async function generateIconMapping(): Promise<Record<string, string>> {
  * Write the icon mapping to the docs app
  * This file is imported by BlockInfoCard to resolve icons automatically
  */
+/**
+ * Sort strings to match Biome's organizeImports order:
+ * case-insensitive character-by-character, uppercase before lowercase as tiebreaker.
+ */
+function biomeSortCompare(a: string, b: string): number {
+  const minLen = Math.min(a.length, b.length)
+  for (let i = 0; i < minLen; i++) {
+    const al = a[i].toLowerCase()
+    const bl = b[i].toLowerCase()
+    if (al !== bl) return al < bl ? -1 : 1
+    if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1
+  }
+  return a.length - b.length
+}
+
 function writeIconMapping(iconMapping: Record<string, string>): void {
   try {
     const iconMappingPath = path.join(rootDir, 'apps/docs/components/ui/icon-mapping.ts')
 
-    // Get unique icon names
-    const iconNames = [...new Set(Object.values(iconMapping))].sort()
+    // Get unique icon names, sorted to match Biome's organizeImports
+    const iconNames = [...new Set(Object.values(iconMapping))].sort(biomeSortCompare)
 
     // Generate imports
     const imports = iconNames.map((icon) => `  ${icon},`).join('\n')
@@ -508,7 +523,7 @@ function writeIntegrationsIconMapping(iconMapping: Record<string, string>): void
     }
     const iconMappingPath = path.join(LANDING_INTEGRATIONS_DATA_PATH, 'icon-mapping.ts')
 
-    const iconNames = [...new Set(Object.values(iconMapping))].sort()
+    const iconNames = [...new Set(Object.values(iconMapping))].sort(biomeSortCompare)
     const imports = iconNames.map((icon) => `  ${icon},`).join('\n')
     const mappingEntries = Object.entries(iconMapping)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -664,7 +679,16 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
     integrations.sort((a, b) => a.name.localeCompare(b.name))
 
     const jsonPath = path.join(LANDING_INTEGRATIONS_DATA_PATH, 'integrations.json')
-    fs.writeFileSync(jsonPath, JSON.stringify(integrations, null, 2))
+    // JSON.stringify always expands arrays across multiple lines. Biome's formatter
+    // collapses short arrays of primitives onto single lines. Post-process to match.
+    const json = JSON.stringify(integrations, null, 2).replace(
+      /\[\n(\s+"[^"\n]*"(?:,\n\s+"[^"\n]*")*)\n\s+\]/g,
+      (_match, inner) => {
+        const items = (inner as string).split(',\n').map((s: string) => s.trim())
+        return `[${items.join(', ')}]`
+      }
+    )
+    fs.writeFileSync(jsonPath, `${json}\n`)
     console.log(`✓ Integration data written: ${integrations.length} integrations → ${jsonPath}`)
   } catch (error) {
     console.error('Error writing integrations JSON:', error)
@@ -2813,7 +2837,7 @@ function updateMetaJson() {
     pages: items,
   }
 
-  fs.writeFileSync(metaJsonPath, JSON.stringify(metaJson, null, 2))
+  fs.writeFileSync(metaJsonPath, `${JSON.stringify(metaJson, null, 2)}\n`)
   console.log(`Updated meta.json with ${items.length} entries`)
 }
 

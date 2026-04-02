@@ -27,6 +27,8 @@ import {
   useExportSelection,
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCreateFolder, useUpdateFolder } from '@/hooks/queries/folders'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
@@ -134,29 +136,23 @@ export function FolderItem({
 
   const isEditingRef = useRef(false)
 
-  const handleCreateWorkflowInFolder = useCallback(async () => {
-    try {
-      const name = generateCreativeWorkflowName()
-      const color = getNextWorkflowColor()
+  const handleCreateWorkflowInFolder = useCallback(() => {
+    const name = generateCreativeWorkflowName()
+    const color = getNextWorkflowColor()
+    const id = crypto.randomUUID()
 
-      const result = await createWorkflowMutation.mutateAsync({
-        workspaceId,
-        folderId: folder.id,
-        name,
-        color,
-        id: crypto.randomUUID(),
-      })
+    createWorkflowMutation.mutate({
+      workspaceId,
+      folderId: folder.id,
+      name,
+      color,
+      id,
+    })
 
-      if (result.id) {
-        router.push(`/workspace/${workspaceId}/w/${result.id}`)
-        expandFolder()
-        window.dispatchEvent(
-          new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: result.id } })
-        )
-      }
-    } catch (error) {
-      logger.error('Failed to create workflow in folder:', error)
-    }
+    useWorkflowRegistry.getState().markWorkflowCreating(id)
+    expandFolder()
+    router.push(`/workspace/${workspaceId}/w/${id}`)
+    window.dispatchEvent(new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: id } }))
   }, [createWorkflowMutation, workspaceId, folder.id, router, expandFolder])
 
   const handleCreateFolderInFolder = useCallback(async () => {
@@ -245,16 +241,16 @@ export function FolderItem({
     const workflowIds = Array.from(finalWorkflowSelection)
     const isMixed = folderIds.length > 0 && workflowIds.length > 0
 
-    const { folders } = useFolderStore.getState()
-    const { workflows } = useWorkflowRegistry.getState()
+    const folderMap = getFolderMap(workspaceId)
+    const workflows = getWorkflows(workspaceId)
 
     const names: string[] = []
     for (const id of folderIds) {
-      const f = folders[id]
+      const f = folderMap[id]
       if (f) names.push(f.name)
     }
     for (const id of workflowIds) {
-      const w = workflows[id]
+      const w = workflows.find((wf) => wf.id === id)
       if (w) names.push(w.name)
     }
 

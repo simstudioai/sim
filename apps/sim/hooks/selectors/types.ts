@@ -84,6 +84,7 @@ export interface SelectorQueryArgs {
   context: SelectorContext
   search?: string
   detailId?: string
+  signal?: AbortSignal
 }
 
 export interface SelectorDefinition {

@@ -1,4 +1,4 @@
-import { createLogger } from '@sim/logger'
+import { createLogger, type Logger } from '@sim/logger'
 import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import type { DAG } from '@/executor/dag/builder'
 import { DAGBuilder } from '@/executor/dag/builder'
@@ -52,6 +52,7 @@ export class DAGExecutor {
   private workflowVariables: Record<string, unknown>
   private contextExtensions: ContextExtensions
   private dagBuilder: DAGBuilder
+  private execLogger: Logger
 
   constructor(options: DAGExecutorOptions) {
     this.workflow = options.workflow
@@ -60,6 +61,13 @@ export class DAGExecutor {
     this.workflowVariables = options.workflowVariables ?? {}
     this.contextExtensions = options.contextExtensions ?? {}
     this.dagBuilder = new DAGBuilder()
+    this.execLogger = logger.withMetadata({
+      workflowId: this.contextExtensions.metadata?.workflowId,
+      workspaceId: this.contextExtensions.workspaceId,
+      executionId: this.contextExtensions.executionId,
+      userId: this.contextExtensions.userId,
+      requestId: this.contextExtensions.metadata?.requestId,
+    })
   }
 
   async execute(workflowId: string, triggerBlockId?: string): Promise<ExecutionResult> {
@@ -79,7 +87,9 @@ export class DAGExecutor {
     _pendingBlocks: string[],
     context: ExecutionContext
   ): Promise<ExecutionResult> {
-    logger.warn('Debug mode (continueExecution) is not yet implemented in the refactored executor')
+    this.execLogger.warn(
+      'Debug mode (continueExecution) is not yet implemented in the refactored executor'
+    )
     return {
       success: false,
       output: {},
@@ -163,7 +173,7 @@ export class DAGExecutor {
       parallelExecutions: filteredParallelExecutions,
     }
 
-    logger.info('Executing from block', {
+    this.execLogger.info('Executing from block', {
       workflowId,
       startBlockId,
       effectiveStartBlockId,
@@ -247,7 +257,7 @@ export class DAGExecutor {
     if (overrides?.runFromBlockContext) {
       const { dirtySet } = overrides.runFromBlockContext
       executedBlocks = new Set([...executedBlocks].filter((id) => !dirtySet.has(id)))
-      logger.info('Cleared executed status for dirty blocks', {
+      this.execLogger.info('Cleared executed status for dirty blocks', {
         dirtySetSize: dirtySet.size,
         remainingExecutedBlocks: executedBlocks.size,
       })
@@ -332,7 +342,7 @@ export class DAGExecutor {
 
     if (this.contextExtensions.resumeFromSnapshot) {
       context.metadata.resumeFromSnapshot = true
-      logger.info('Resume from snapshot enabled', {
+      this.execLogger.info('Resume from snapshot enabled', {
         resumePendingQueue: this.contextExtensions.resumePendingQueue,
         remainingEdges: this.contextExtensions.remainingEdges,
         triggerBlockId,
@@ -341,14 +351,14 @@ export class DAGExecutor {
 
     if (this.contextExtensions.remainingEdges) {
       ;(context.metadata as any).remainingEdges = this.contextExtensions.remainingEdges
-      logger.info('Set remaining edges for resume', {
+      this.execLogger.info('Set remaining edges for resume', {
         edgeCount: this.contextExtensions.remainingEdges.length,
       })
     }
 
     if (this.contextExtensions.resumePendingQueue?.length) {
       context.metadata.pendingBlocks = [...this.contextExtensions.resumePendingQueue]
-      logger.info('Set pending blocks from resume queue', {
+      this.execLogger.info('Set pending blocks from resume queue', {
         pendingBlocks: context.metadata.pendingBlocks,
         skipStarterBlockInit: true,
       })
@@ -409,7 +419,7 @@ export class DAGExecutor {
     if (triggerBlockId) {
       const triggerBlock = this.workflow.blocks.find((b) => b.id === triggerBlockId)
       if (!triggerBlock) {
-        logger.error('Specified trigger block not found in workflow', {
+        this.execLogger.error('Specified trigger block not found in workflow', {
           triggerBlockId,
         })
         throw new Error(`Trigger block not found: ${triggerBlockId}`)
@@ -431,7 +441,7 @@ export class DAGExecutor {
       })
 
       if (!startResolution?.block) {
-        logger.warn('No start block found in workflow')
+        this.execLogger.warn('No start block found in workflow')
         return
       }
     }

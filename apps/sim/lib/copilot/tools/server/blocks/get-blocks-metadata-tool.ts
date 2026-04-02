@@ -696,14 +696,19 @@ function resolveAuthType(
 /**
  * Gets all available models from PROVIDER_DEFINITIONS as static options.
  * This provides fallback data when store state is not available server-side.
- * Excludes dynamic providers (ollama, vllm, openrouter) which require runtime fetching.
+ * Excludes dynamic providers (ollama, vllm, openrouter, fireworks) which require runtime fetching.
  */
 function getStaticModelOptions(): { id: string; label?: string }[] {
   const models: { id: string; label?: string }[] = []
 
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
     // Skip providers with dynamic/fetched models
-    if (provider.id === 'ollama' || provider.id === 'vllm' || provider.id === 'openrouter') {
+    if (
+      provider.id === 'ollama' ||
+      provider.id === 'vllm' ||
+      provider.id === 'openrouter' ||
+      provider.id === 'fireworks'
+    ) {
       continue
     }
     if (provider?.models) {
@@ -737,6 +742,7 @@ function callOptionsWithFallback(
       ollama: { models: [] },
       vllm: { models: [] },
       openrouter: { models: [] },
+      fireworks: { models: [] },
     },
   }
 

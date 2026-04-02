@@ -147,6 +147,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   mistral: buildProviderMetadata('mistral'),
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),
+  fireworks: buildProviderMetadata('fireworks'),
 }
 
 export function updateOllamaProviderModels(models: string[]): void {
@@ -166,11 +167,20 @@ export async function updateOpenRouterProviderModels(models: string[]): Promise<
   providers.openrouter.models = getProviderModelsFromDefinitions('openrouter')
 }
 
+export async function updateFireworksProviderModels(models: string[]): Promise<void> {
+  const { updateFireworksModels } = await import('@/providers/models')
+  updateFireworksModels(models)
+  providers.fireworks.models = getProviderModelsFromDefinitions('fireworks')
+}
+
 export function getBaseModelProviders(): Record<string, ProviderId> {
   const allProviders = Object.entries(providers)
     .filter(
       ([providerId]) =>
-        providerId !== 'ollama' && providerId !== 'vllm' && providerId !== 'openrouter'
+        providerId !== 'ollama' &&
+        providerId !== 'vllm' &&
+        providerId !== 'openrouter' &&
+        providerId !== 'fireworks'
     )
     .reduce(
       (map, [providerId, config]) => {
@@ -709,6 +719,13 @@ export function shouldBillModelUsage(model: string): boolean {
 }
 
 /**
+ * Placeholder returned for providers that use their own credential mechanism
+ * rather than a user-supplied API key (e.g. AWS Bedrock via IAM/instance profiles).
+ * Must be truthy so upstream key-presence checks don't reject it.
+ */
+export const PROVIDER_PLACEHOLDER_KEY = 'provider-uses-own-credentials'
+
+/**
  * Get an API key for a specific provider, handling rotation and fallbacks
  * For use server-side only
  */
@@ -730,7 +747,7 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   // Bedrock uses its own credentials (bedrockAccessKeyId/bedrockSecretKey), not apiKey
   const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
   if (isBedrockModel) {
-    return 'bedrock-uses-own-credentials'
+    return PROVIDER_PLACEHOLDER_KEY
   }
 
   const isOpenAIModel = provider === 'openai'

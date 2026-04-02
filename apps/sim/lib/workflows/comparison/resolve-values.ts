@@ -34,6 +34,8 @@ interface ResolutionContext {
   subBlockId: string
   /** The workflow ID for API calls */
   workflowId: string
+  /** The workspace scope for selector-based lookups */
+  workspaceId?: string
   /** The current workflow state for extracting additional context */
   currentState: WorkflowState
   /** The block ID being resolved */
@@ -64,13 +66,15 @@ async function resolveCredential(credentialId: string, workflowId: string): Prom
   }
 }
 
-async function resolveWorkflow(workflowId: string): Promise<string | null> {
+async function resolveWorkflow(workflowId: string, workspaceId?: string): Promise<string | null> {
+  if (!workspaceId) return null
+
   try {
     const definition = getSelectorDefinition('sim.workflows')
     if (definition.fetchById) {
       const result = await definition.fetchById({
         key: 'sim.workflows',
-        context: {},
+        context: { workspaceId },
         detailId: workflowId,
       })
       return result?.label ?? null
@@ -141,11 +145,12 @@ export function formatValueForDisplay(value: unknown): string {
 function extractSelectorContext(
   blockId: string,
   currentState: WorkflowState,
-  workflowId: string
+  workflowId: string,
+  workspaceId?: string
 ): SelectorContext {
   const block = currentState.blocks?.[blockId]
-  if (!block?.subBlocks) return { workflowId }
-  return buildSelectorContextFromBlock(block.type, block.subBlocks, { workflowId })
+  if (!block?.subBlocks) return { workflowId, workspaceId }
+  return buildSelectorContextFromBlock(block.type, block.subBlocks, { workflowId, workspaceId })
 }
 
 /**
@@ -177,8 +182,13 @@ export async function resolveValueForDisplay(
   const semanticFallback = getSemanticFallback(subBlockConfig)
 
   const selectorCtx = context.blockId
-    ? extractSelectorContext(context.blockId, context.currentState, context.workflowId)
-    : { workflowId: context.workflowId }
+    ? extractSelectorContext(
+        context.blockId,
+        context.currentState,
+        context.workflowId,
+        context.workspaceId
+      )
+    : { workflowId: context.workflowId, workspaceId: context.workspaceId }
 
   // Credential fields (oauth-input or credential subBlockId)
   const isCredentialField =
@@ -194,7 +204,7 @@ export async function resolveValueForDisplay(
 
   // Workflow selector
   if (subBlockConfig?.type === 'workflow-selector' && isUuid(value)) {
-    const label = await resolveWorkflow(value)
+    const label = await resolveWorkflow(value, selectorCtx.workspaceId)
     if (label) {
       return { original: value, displayLabel: label, resolved: true }
     }

@@ -433,6 +433,7 @@ export function ScheduledTasks() {
       />
 
       <ScheduleModal
+        key={activeTask?.id ?? 'new'}
         open={isEditModalOpen}
         onOpenChange={(open) => {
           setIsEditModalOpen(open)

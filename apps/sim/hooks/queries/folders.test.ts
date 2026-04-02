@@ -1,33 +1,32 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLogger, queryClient, useFolderStoreMock, useWorkflowRegistryMock } = vi.hoisted(() => ({
+const { mockLogger, mockGetFolderMap, mockGetWorkflows, queryClient } = vi.hoisted(() => ({
   mockLogger: {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
   },
+  mockGetFolderMap: vi.fn(() => ({})),
+  mockGetWorkflows: vi.fn(() => []),
   queryClient: {
     cancelQueries: vi.fn().mockResolvedValue(undefined),
     invalidateQueries: vi.fn().mockResolvedValue(undefined),
+    getQueryData: vi.fn(),
+    setQueryData: vi.fn(),
   },
-  useFolderStoreMock: Object.assign(vi.fn(), {
-    getState: vi.fn(),
-    setState: vi.fn(),
-  }),
-  useWorkflowRegistryMock: Object.assign(vi.fn(), {
-    getState: vi.fn(),
-    setState: vi.fn(),
-  }),
 }))
 
-let folderState: {
-  folders: Record<string, any>
-}
+let folderMapState: Record<string, any>
+let folderListState: any[]
 
-let workflowRegistryState: {
-  workflows: Record<string, any>
-}
+let workflowList: Array<{
+  id: string
+  name: string
+  workspaceId: string
+  folderId: string
+  sortOrder: number
+}>
 
 vi.mock('@sim/logger', () => ({
   createLogger: vi.fn(() => mockLogger),
@@ -40,15 +39,15 @@ vi.mock('@tanstack/react-query', () => ({
   useMutation: vi.fn((options) => options),
 }))
 
-vi.mock('@/stores/folders/store', () => ({
-  useFolderStore: useFolderStoreMock,
+vi.mock('@/hooks/queries/utils/workflow-cache', () => ({
+  getWorkflows: mockGetWorkflows,
 }))
 
-vi.mock('@/stores/workflows/registry/store', () => ({
-  useWorkflowRegistry: useWorkflowRegistryMock,
+vi.mock('@/hooks/queries/utils/folder-cache', () => ({
+  getFolderMap: mockGetFolderMap,
 }))
 
-vi.mock('@/hooks/queries/workflows', () => ({
+vi.mock('@/hooks/queries/utils/workflow-keys', () => ({
   workflowKeys: {
     list: (workspaceId: string | undefined) => ['workflows', 'list', workspaceId ?? ''],
   },
@@ -57,7 +56,7 @@ vi.mock('@/hooks/queries/workflows', () => ({
 import { useCreateFolder, useDuplicateFolderMutation } from '@/hooks/queries/folders'
 
 function getOptimisticFolderByName(name: string) {
-  return Object.values(folderState.folders).find((folder: any) => folder.name === name) as
+  return Object.values(folderMapState).find((folder: any) => folder.name === name) as
     | { sortOrder: number }
     | undefined
 }
@@ -65,67 +64,60 @@ function getOptimisticFolderByName(name: string) {
 describe('folder optimistic top insertion ordering', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    useFolderStoreMock.getState.mockImplementation(() => folderState)
-    useFolderStoreMock.setState.mockImplementation((updater: any) => {
-      if (typeof updater === 'function') {
-        const next = updater(folderState)
-        if (next) {
-          folderState = { ...folderState, ...next }
-        }
-        return
-      }
-
-      folderState = { ...folderState, ...updater }
+    queryClient.getQueryData.mockImplementation(() => folderListState)
+    queryClient.setQueryData.mockImplementation((_key: unknown, updater: any) => {
+      folderListState = typeof updater === 'function' ? updater(folderListState) : updater
+      folderMapState = Object.fromEntries(
+        (folderListState ?? []).map((folder: any) => [folder.id, folder])
+      )
     })
-    useWorkflowRegistryMock.getState.mockImplementation(() => workflowRegistryState)
+    mockGetFolderMap.mockImplementation(() => folderMapState)
+    mockGetWorkflows.mockImplementation(() => workflowList)
 
-    folderState = {
-      folders: {
-        'folder-parent-match': {
-          id: 'folder-parent-match',
-          name: 'Existing sibling folder',
-          userId: 'user-1',
-          workspaceId: 'ws-1',
-          parentId: 'parent-1',
-          color: '#808080',
-          isExpanded: false,
-          sortOrder: 5,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        'folder-other-parent': {
-          id: 'folder-other-parent',
-          name: 'Other parent folder',
-          userId: 'user-1',
-          workspaceId: 'ws-1',
-          parentId: 'parent-2',
-          color: '#808080',
-          isExpanded: false,
-          sortOrder: -100,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
+    folderListState = [
+      {
+        id: 'folder-parent-match',
+        name: 'Existing sibling folder',
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        parentId: 'parent-1',
+        color: '#808080',
+        isExpanded: false,
+        sortOrder: 5,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
-    }
+      {
+        id: 'folder-other-parent',
+        name: 'Other parent folder',
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        parentId: 'parent-2',
+        color: '#808080',
+        isExpanded: false,
+        sortOrder: -100,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]
+    folderMapState = Object.fromEntries(folderListState.map((folder) => [folder.id, folder]))
 
-    workflowRegistryState = {
-      workflows: {
-        'workflow-parent-match': {
-          id: 'workflow-parent-match',
-          name: 'Existing sibling workflow',
-          workspaceId: 'ws-1',
-          folderId: 'parent-1',
-          sortOrder: 2,
-        },
-        'workflow-other-parent': {
-          id: 'workflow-other-parent',
-          name: 'Other parent workflow',
-          workspaceId: 'ws-1',
-          folderId: 'parent-2',
-          sortOrder: -50,
-        },
+    workflowList = [
+      {
+        id: 'workflow-parent-match',
+        name: 'Existing sibling workflow',
+        workspaceId: 'ws-1',
+        folderId: 'parent-1',
+        sortOrder: 2,
       },
-    }
+      {
+        id: 'workflow-other-parent',
+        name: 'Other parent workflow',
+        workspaceId: 'ws-1',
+        folderId: 'parent-2',
+        sortOrder: -50,
+      },
+    ]
   })
 
   it('creates folders at top of mixed non-root siblings', async () => {

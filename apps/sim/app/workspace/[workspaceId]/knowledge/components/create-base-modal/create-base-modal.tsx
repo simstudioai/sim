@@ -316,9 +316,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
       if (files.length > 0) {
         try {
           const uploadedFiles = await uploadFiles(files, newKnowledgeBase.id, {
-            chunkSize: data.maxChunkSize,
-            minCharactersPerChunk: data.minChunkSize,
-            chunkOverlap: data.overlapSize,
             recipe: 'default',
           })
 
@@ -405,12 +402,15 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                     <Label htmlFor='minChunkSize'>Min Chunk Size (characters)</Label>
                     <Input
                       id='minChunkSize'
+                      type='number'
+                      min={1}
+                      max={2000}
+                      step={1}
                       placeholder='100'
                       {...register('minChunkSize', { valueAsNumber: true })}
                       className={cn(errors.minChunkSize && 'border-[var(--text-error)]')}
                       autoComplete='off'
                       data-form-type='other'
-                      name='min-chunk-size'
                     />
                   </div>
 
@@ -418,12 +418,15 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                     <Label htmlFor='maxChunkSize'>Max Chunk Size (tokens)</Label>
                     <Input
                       id='maxChunkSize'
+                      type='number'
+                      min={100}
+                      max={4000}
+                      step={1}
                       placeholder='1024'
                       {...register('maxChunkSize', { valueAsNumber: true })}
                       className={cn(errors.maxChunkSize && 'border-[var(--text-error)]')}
                       autoComplete='off'
                       data-form-type='other'
-                      name='max-chunk-size'
                     />
                   </div>
                 </div>
@@ -432,12 +435,15 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                   <Label htmlFor='overlapSize'>Overlap (tokens)</Label>
                   <Input
                     id='overlapSize'
+                    type='number'
+                    min={0}
+                    max={500}
+                    step={1}
                     placeholder='200'
                     {...register('overlapSize', { valueAsNumber: true })}
                     className={cn(errors.overlapSize && 'border-[var(--text-error)]')}
                     autoComplete='off'
                     data-form-type='other'
-                    name='overlap-size'
                   />
                   <p className='text-[var(--text-muted)] text-xs'>
                     1 token ≈ 4 characters. Max chunk size and overlap are in tokens.

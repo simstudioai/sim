@@ -7,6 +7,7 @@ import { Button, Combobox } from '@/components/emcn/components'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { getPollingProviderFromOAuth } from '@/lib/credential-sets/providers'
+import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -15,8 +16,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
-import { ConnectCredentialModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/connect-credential-modal'
-import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -357,7 +357,18 @@ export function CredentialSelector({
           </div>
           <Button
             variant='active'
-            onClick={() => setShowOAuthModal(true)}
+            onClick={() => {
+              writeOAuthReturnContext({
+                origin: 'workflow',
+                workflowId: activeWorkflowId || '',
+                displayName: selectedCredential?.name ?? getProviderName(provider),
+                providerId: effectiveProviderId,
+                preCount: credentials.length,
+                workspaceId,
+                requestedAt: Date.now(),
+              })
+              setShowOAuthModal(true)
+            }}
             className='w-full px-2 py-1 font-medium text-caption'
           >
             Update access
@@ -366,7 +377,8 @@ export function CredentialSelector({
       )}
 
       {showConnectModal && (
-        <ConnectCredentialModal
+        <OAuthModal
+          mode='connect'
           isOpen={showConnectModal}
           onClose={() => setShowConnectModal(false)}
           provider={provider}
@@ -378,9 +390,13 @@ export function CredentialSelector({
       )}
 
       {showOAuthModal && (
-        <OAuthRequiredModal
+        <OAuthModal
+          mode='reauthorize'
           isOpen={showOAuthModal}
-          onClose={() => setShowOAuthModal(false)}
+          onClose={() => {
+            consumeOAuthReturnContext()
+            setShowOAuthModal(false)
+          }}
           provider={provider}
           toolName={getProviderName(provider)}
           requiredScopes={getCanonicalScopesForProvider(effectiveProviderId)}

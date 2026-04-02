@@ -46,7 +46,7 @@ export async function executeListFolders(
       context.workspaceId ||
       (await getDefaultWorkspaceId(context.userId))
 
-    await ensureWorkspaceAccess(workspaceId, context.userId, false)
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'read')
 
     const folders = await listFolders(workspaceId)
 

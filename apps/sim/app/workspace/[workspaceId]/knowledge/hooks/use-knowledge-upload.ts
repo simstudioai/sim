@@ -46,9 +46,6 @@ export interface UploadError {
 }
 
 export interface ProcessingOptions {
-  chunkSize?: number
-  minCharactersPerChunk?: number
-  chunkOverlap?: number
   recipe?: string
 }
 
@@ -1011,10 +1008,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           ...file,
         })),
         processingOptions: {
-          chunkSize: processingOptions.chunkSize || 1024,
-          minCharactersPerChunk: processingOptions.minCharactersPerChunk || 1,
-          chunkOverlap: processingOptions.chunkOverlap || 200,
-          recipe: processingOptions.recipe || 'default',
+          recipe: processingOptions.recipe ?? 'default',
           lang: 'en',
         },
         bulk: true,

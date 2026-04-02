@@ -32,7 +32,7 @@ export const attioGetObjectTool: ToolConfig<AttioGetObjectParams, AttioGetObject
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/objects/${params.object}`,
+    url: (params) => `https://api.attio.com/v2/objects/${params.object.trim()}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

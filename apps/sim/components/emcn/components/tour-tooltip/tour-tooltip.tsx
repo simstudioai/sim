@@ -45,12 +45,12 @@ function TourCard({
   return (
     <>
       <div className='flex items-center justify-between gap-2 px-4 pt-4 pb-2'>
-        <h3 className='min-w-0 font-medium text-[var(--text-primary)] text-sm leading-none'>
+        <h3 className='min-w-0 font-medium text-[var(--text-primary)] text-small leading-none'>
           {title}
         </h3>
         <Button
           variant='ghost'
-          className='h-[16px] w-[16px] flex-shrink-0 p-0'
+          className='relative h-[16px] w-[16px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
           onClick={onClose}
           aria-label='Close tour'
         >
@@ -60,24 +60,23 @@ function TourCard({
       </div>
 
       <div className='px-4 pt-1 pb-3'>
-        <p className='text-[12px] text-[var(--text-secondary)] leading-[1.6]'>{description}</p>
+        <p className='text-[var(--text-secondary)] text-caption leading-[1.6]'>{description}</p>
       </div>
 
-      <div className='flex items-center justify-between border-[var(--border)] border-t px-4 py-3'>
-        <span className='text-[11px] text-[var(--text-muted)] [font-variant-numeric:tabular-nums]'>
+      <div className='flex items-center justify-between rounded-b-xl border-[var(--border)] border-t bg-[color-mix(in_srgb,var(--surface-3)_50%,transparent)] px-4 py-2'>
+        <span className='text-[var(--text-muted)] text-xs [font-variant-numeric:tabular-nums]'>
           {step} / {totalSteps}
         </span>
         <div className='flex items-center gap-1.5'>
-          <div className={cn(isFirst && 'invisible')}>
-            <Button
-              variant='default'
-              size='sm'
-              onClick={onBack}
-              tabIndex={isFirst ? -1 : undefined}
-            >
-              Back
-            </Button>
-          </div>
+          <Button
+            variant='default'
+            size='sm'
+            onClick={onBack}
+            tabIndex={isFirst ? -1 : undefined}
+            className={cn(isFirst && 'invisible')}
+          >
+            Back
+          </Button>
           <Button variant='tertiary' size='sm' onClick={onNext}>
             {isLast ? 'Done' : 'Next'}
           </Button>
@@ -156,7 +155,7 @@ function TourTooltip({
   const isCentered = placement === 'center'
 
   const cardClasses = cn(
-    'w-[260px] overflow-hidden rounded-[8px] bg-[var(--bg)]',
+    'w-[260px] overflow-hidden rounded-xl bg-[var(--bg)]',
     isEntrance && 'animate-tour-tooltip-in motion-reduce:animate-none',
     className
   )
@@ -181,7 +180,7 @@ function TourTooltip({
         <div
           className={cn(
             cardClasses,
-            'pointer-events-auto relative border border-[var(--border)] shadow-sm'
+            'pointer-events-auto relative shadow-overlay ring-1 ring-foreground/10'
           )}
         >
           {cardContent}
@@ -202,10 +201,7 @@ function TourTooltip({
           sideOffset={10}
           collisionPadding={12}
           avoidCollisions
-          className='z-[10000300] outline-none'
-          style={{
-            filter: 'drop-shadow(0 0 0.5px var(--border)) drop-shadow(0 1px 2px rgba(0,0,0,0.1))',
-          }}
+          className='z-[10000300] outline-none drop-shadow-tour'
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
