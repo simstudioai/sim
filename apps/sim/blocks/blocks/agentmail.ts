@@ -484,6 +484,8 @@ export const AgentMailBlock: BlockConfig = {
           updateMessageId,
           msgAddLabels,
           msgRemoveLabels,
+          addLabels,
+          removeLabels,
           draftInReplyTo,
           ...rest
         } = params
@@ -504,7 +506,7 @@ export const AgentMailBlock: BlockConfig = {
           rest.messageId = replyMessageId
         }
 
-        if (replyTo) {
+        if (operation === 'reply_message' && replyTo) {
           rest.to = replyTo
         } else if (operation === 'reply_message') {
           rest.to = undefined
@@ -524,6 +526,14 @@ export const AgentMailBlock: BlockConfig = {
 
         if (operation === 'update_message' && msgRemoveLabels) {
           rest.removeLabels = msgRemoveLabels
+        }
+
+        if (operation === 'update_thread' && addLabels) {
+          rest.addLabels = addLabels
+        }
+
+        if (operation === 'update_thread' && removeLabels) {
+          rest.removeLabels = removeLabels
         }
 
         if (draftInReplyTo) {
