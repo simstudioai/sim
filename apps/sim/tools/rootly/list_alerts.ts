@@ -93,6 +93,7 @@ export const rootlyListAlertsTool: ToolConfig<RootlyListAlertsParams, RootlyList
       const attrs = (item.attributes || {}) as Record<string, unknown>
       return {
         id: item.id ?? null,
+        shortId: (attrs.short_id as string) ?? null,
         summary: (attrs.summary as string) ?? '',
         description: (attrs.description as string) ?? null,
         source: (attrs.source as string) ?? null,
@@ -102,6 +103,8 @@ export const rootlyListAlertsTool: ToolConfig<RootlyListAlertsParams, RootlyList
         deduplicationKey: (attrs.deduplication_key as string) ?? null,
         createdAt: (attrs.created_at as string) ?? '',
         updatedAt: (attrs.updated_at as string) ?? '',
+        startedAt: (attrs.started_at as string) ?? null,
+        endedAt: (attrs.ended_at as string) ?? null,
       }
     })
 
@@ -122,6 +125,7 @@ export const rootlyListAlertsTool: ToolConfig<RootlyListAlertsParams, RootlyList
         type: 'object',
         properties: {
           id: { type: 'string', description: 'Unique alert ID' },
+          shortId: { type: 'string', description: 'Short alert ID' },
           summary: { type: 'string', description: 'Alert summary' },
           description: { type: 'string', description: 'Alert description' },
           source: { type: 'string', description: 'Alert source' },
@@ -131,6 +135,8 @@ export const rootlyListAlertsTool: ToolConfig<RootlyListAlertsParams, RootlyList
           deduplicationKey: { type: 'string', description: 'Deduplication key' },
           createdAt: { type: 'string', description: 'Creation date' },
           updatedAt: { type: 'string', description: 'Last update date' },
+          startedAt: { type: 'string', description: 'Start date' },
+          endedAt: { type: 'string', description: 'End date' },
         },
       },
     },

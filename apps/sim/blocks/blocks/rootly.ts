@@ -36,11 +36,23 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
         { label: 'List Incident Types', id: 'rootly_list_incident_types' },
         { label: 'List Functionalities', id: 'rootly_list_functionalities' },
         { label: 'List Retrospectives', id: 'rootly_list_retrospectives' },
+        { label: 'Delete Incident', id: 'rootly_delete_incident' },
+        { label: 'Get Alert', id: 'rootly_get_alert' },
+        { label: 'Update Alert', id: 'rootly_update_alert' },
+        { label: 'Acknowledge Alert', id: 'rootly_acknowledge_alert' },
+        { label: 'Resolve Alert', id: 'rootly_resolve_alert' },
+        { label: 'Create Action Item', id: 'rootly_create_action_item' },
+        { label: 'List Action Items', id: 'rootly_list_action_items' },
+        { label: 'List Users', id: 'rootly_list_users' },
+        { label: 'List On-Calls', id: 'rootly_list_on_calls' },
+        { label: 'List Schedules', id: 'rootly_list_schedules' },
+        { label: 'List Escalation Policies', id: 'rootly_list_escalation_policies' },
+        { label: 'List Causes', id: 'rootly_list_causes' },
+        { label: 'List Playbooks', id: 'rootly_list_playbooks' },
       ],
       value: () => 'rootly_create_incident',
     },
 
-    // Create Incident fields
     {
       id: 'title',
       title: 'Title',
@@ -170,7 +182,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // Get Incident fields
     {
       id: 'getIncidentId',
       title: 'Incident ID',
@@ -180,7 +191,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       required: { field: 'operation', value: 'rootly_get_incident' },
     },
 
-    // Update Incident fields
     {
       id: 'updateIncidentId',
       title: 'Incident ID',
@@ -341,7 +351,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Incidents fields
     {
       id: 'listIncidentsStatus',
       title: 'Status Filter',
@@ -434,7 +443,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // Create Alert fields
     {
       id: 'alertSummary',
       title: 'Summary',
@@ -520,7 +528,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Alerts fields
     {
       id: 'listAlertsStatus',
       title: 'Status Filter',
@@ -585,7 +592,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // Add Incident Event fields
     {
       id: 'eventIncidentId',
       title: 'Incident ID',
@@ -616,7 +622,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Services fields
     {
       id: 'servicesSearch',
       title: 'Search',
@@ -641,7 +646,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Severities fields
     {
       id: 'severitiesSearch',
       title: 'Search',
@@ -666,7 +670,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Teams fields
     {
       id: 'teamsSearch',
       title: 'Search',
@@ -691,7 +694,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Environments fields
     {
       id: 'environmentsSearch',
       title: 'Search',
@@ -716,7 +718,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Incident Types fields
     {
       id: 'incidentTypesSearch',
       title: 'Name Filter',
@@ -741,7 +742,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Functionalities fields
     {
       id: 'functionalitiesSearch',
       title: 'Search',
@@ -766,7 +766,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // List Retrospectives fields
     {
       id: 'retrospectivesStatus',
       title: 'Status Filter',
@@ -803,7 +802,404 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // API Key (common)
+    {
+      id: 'deleteIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: 'The ID of the incident to delete',
+      condition: { field: 'operation', value: 'rootly_delete_incident' },
+      required: { field: 'operation', value: 'rootly_delete_incident' },
+    },
+
+    {
+      id: 'getAlertId',
+      title: 'Alert ID',
+      type: 'short-input',
+      placeholder: 'The ID of the alert to retrieve',
+      condition: { field: 'operation', value: 'rootly_get_alert' },
+      required: { field: 'operation', value: 'rootly_get_alert' },
+    },
+
+    {
+      id: 'updateAlertId',
+      title: 'Alert ID',
+      type: 'short-input',
+      placeholder: 'The ID of the alert to update',
+      condition: { field: 'operation', value: 'rootly_update_alert' },
+      required: { field: 'operation', value: 'rootly_update_alert' },
+    },
+    {
+      id: 'updateAlertSummary',
+      title: 'Summary',
+      type: 'short-input',
+      placeholder: 'Updated alert summary',
+      condition: { field: 'operation', value: 'rootly_update_alert' },
+    },
+    {
+      id: 'updateAlertDescription',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Updated alert description',
+      condition: { field: 'operation', value: 'rootly_update_alert' },
+    },
+    {
+      id: 'updateAlertSource',
+      title: 'Source',
+      type: 'short-input',
+      placeholder: 'Alert source (e.g., api, datadog)',
+      condition: { field: 'operation', value: 'rootly_update_alert' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateAlertServiceIds',
+      title: 'Service IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated service IDs',
+      condition: { field: 'operation', value: 'rootly_update_alert' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateAlertGroupIds',
+      title: 'Team IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated team/group IDs',
+      condition: { field: 'operation', value: 'rootly_update_alert' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateAlertEnvironmentIds',
+      title: 'Environment IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated environment IDs',
+      condition: { field: 'operation', value: 'rootly_update_alert' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateAlertExternalId',
+      title: 'External ID',
+      type: 'short-input',
+      placeholder: 'External alert ID',
+      condition: { field: 'operation', value: 'rootly_update_alert' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateAlertExternalUrl',
+      title: 'External URL',
+      type: 'short-input',
+      placeholder: 'Link to external source',
+      condition: { field: 'operation', value: 'rootly_update_alert' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateAlertDeduplicationKey',
+      title: 'Deduplication Key',
+      type: 'short-input',
+      placeholder: 'Key to deduplicate alerts',
+      condition: { field: 'operation', value: 'rootly_update_alert' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'ackAlertId',
+      title: 'Alert ID',
+      type: 'short-input',
+      placeholder: 'The ID of the alert to acknowledge',
+      condition: { field: 'operation', value: 'rootly_acknowledge_alert' },
+      required: { field: 'operation', value: 'rootly_acknowledge_alert' },
+    },
+
+    {
+      id: 'resolveAlertId',
+      title: 'Alert ID',
+      type: 'short-input',
+      placeholder: 'The ID of the alert to resolve',
+      condition: { field: 'operation', value: 'rootly_resolve_alert' },
+      required: { field: 'operation', value: 'rootly_resolve_alert' },
+    },
+    {
+      id: 'resolveResolutionMessage',
+      title: 'Resolution Message',
+      type: 'long-input',
+      placeholder: 'How was the alert resolved?',
+      condition: { field: 'operation', value: 'rootly_resolve_alert' },
+    },
+    {
+      id: 'resolveRelatedIncidents',
+      title: 'Resolve Related Incidents',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: '' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_resolve_alert' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'actionItemIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: 'The ID of the incident',
+      condition: { field: 'operation', value: 'rootly_create_action_item' },
+      required: { field: 'operation', value: 'rootly_create_action_item' },
+    },
+    {
+      id: 'actionItemSummary',
+      title: 'Summary',
+      type: 'short-input',
+      placeholder: 'Action item title',
+      condition: { field: 'operation', value: 'rootly_create_action_item' },
+      required: { field: 'operation', value: 'rootly_create_action_item' },
+    },
+    {
+      id: 'actionItemDescription',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Describe the action item',
+      condition: { field: 'operation', value: 'rootly_create_action_item' },
+    },
+    {
+      id: 'actionItemKind',
+      title: 'Kind',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Task', id: 'task' },
+        { label: 'Follow Up', id: 'follow_up' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_create_action_item' },
+    },
+    {
+      id: 'actionItemPriority',
+      title: 'Priority',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'High', id: 'high' },
+        { label: 'Medium', id: 'medium' },
+        { label: 'Low', id: 'low' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_create_action_item' },
+    },
+    {
+      id: 'actionItemStatus',
+      title: 'Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Open', id: 'open' },
+        { label: 'In Progress', id: 'in_progress' },
+        { label: 'Cancelled', id: 'cancelled' },
+        { label: 'Done', id: 'done' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_create_action_item' },
+      mode: 'advanced',
+    },
+    {
+      id: 'actionItemAssignedToUserId',
+      title: 'Assigned To User ID',
+      type: 'short-input',
+      placeholder: 'User ID to assign (use List Users to find IDs)',
+      condition: { field: 'operation', value: 'rootly_create_action_item' },
+      mode: 'advanced',
+    },
+    {
+      id: 'actionItemDueDate',
+      title: 'Due Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD',
+      condition: { field: 'operation', value: 'rootly_create_action_item' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a date in YYYY-MM-DD format for the requested due date. Return ONLY the date string - no explanations, no extra text.',
+        placeholder: 'Describe the due date (e.g., "next Friday", "in 2 weeks")...',
+        generationType: 'timestamp',
+      },
+    },
+
+    {
+      id: 'listActionItemsIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: 'The ID of the incident',
+      condition: { field: 'operation', value: 'rootly_list_action_items' },
+      required: { field: 'operation', value: 'rootly_list_action_items' },
+    },
+    {
+      id: 'listActionItemsPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '20',
+      condition: { field: 'operation', value: 'rootly_list_action_items' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listActionItemsPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'rootly_list_action_items' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'usersSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search users...',
+      condition: { field: 'operation', value: 'rootly_list_users' },
+    },
+    {
+      id: 'usersEmail',
+      title: 'Email Filter',
+      type: 'short-input',
+      placeholder: 'Filter by email address',
+      condition: { field: 'operation', value: 'rootly_list_users' },
+      mode: 'advanced',
+    },
+    {
+      id: 'usersPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '20',
+      condition: { field: 'operation', value: 'rootly_list_users' },
+      mode: 'advanced',
+    },
+    {
+      id: 'usersPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'rootly_list_users' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'onCallsScheduleIds',
+      title: 'Schedule IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated schedule IDs',
+      condition: { field: 'operation', value: 'rootly_list_on_calls' },
+    },
+    {
+      id: 'onCallsEscalationPolicyIds',
+      title: 'Escalation Policy IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated escalation policy IDs',
+      condition: { field: 'operation', value: 'rootly_list_on_calls' },
+    },
+    {
+      id: 'onCallsUserIds',
+      title: 'User IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated user IDs',
+      condition: { field: 'operation', value: 'rootly_list_on_calls' },
+      mode: 'advanced',
+    },
+    {
+      id: 'onCallsServiceIds',
+      title: 'Service IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated service IDs',
+      condition: { field: 'operation', value: 'rootly_list_on_calls' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'schedulesSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search schedules...',
+      condition: { field: 'operation', value: 'rootly_list_schedules' },
+    },
+    {
+      id: 'schedulesPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '20',
+      condition: { field: 'operation', value: 'rootly_list_schedules' },
+      mode: 'advanced',
+    },
+    {
+      id: 'schedulesPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'rootly_list_schedules' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'escalationPoliciesSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search escalation policies...',
+      condition: { field: 'operation', value: 'rootly_list_escalation_policies' },
+    },
+    {
+      id: 'escalationPoliciesPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '20',
+      condition: { field: 'operation', value: 'rootly_list_escalation_policies' },
+      mode: 'advanced',
+    },
+    {
+      id: 'escalationPoliciesPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'rootly_list_escalation_policies' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'causesSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search causes...',
+      condition: { field: 'operation', value: 'rootly_list_causes' },
+    },
+    {
+      id: 'causesPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '20',
+      condition: { field: 'operation', value: 'rootly_list_causes' },
+      mode: 'advanced',
+    },
+    {
+      id: 'causesPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'rootly_list_causes' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'playbooksPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '20',
+      condition: { field: 'operation', value: 'rootly_list_playbooks' },
+      mode: 'advanced',
+    },
+    {
+      id: 'playbooksPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'rootly_list_playbooks' },
+      mode: 'advanced',
+    },
+
     {
       id: 'apiKey',
       title: 'API Key',
@@ -829,6 +1225,19 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       'rootly_list_incident_types',
       'rootly_list_functionalities',
       'rootly_list_retrospectives',
+      'rootly_delete_incident',
+      'rootly_get_alert',
+      'rootly_update_alert',
+      'rootly_acknowledge_alert',
+      'rootly_resolve_alert',
+      'rootly_create_action_item',
+      'rootly_list_action_items',
+      'rootly_list_users',
+      'rootly_list_on_calls',
+      'rootly_list_schedules',
+      'rootly_list_escalation_policies',
+      'rootly_list_causes',
+      'rootly_list_playbooks',
     ],
     config: {
       tool: (params) => params.operation,
@@ -1012,6 +1421,131 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
                 : undefined,
             }
 
+          case 'rootly_delete_incident':
+            return {
+              ...baseParams,
+              incidentId: params.deleteIncidentId,
+            }
+
+          case 'rootly_get_alert':
+            return {
+              ...baseParams,
+              alertId: params.getAlertId,
+            }
+
+          case 'rootly_update_alert':
+            return {
+              ...baseParams,
+              alertId: params.updateAlertId,
+              summary: params.updateAlertSummary,
+              description: params.updateAlertDescription,
+              source: params.updateAlertSource,
+              serviceIds: params.updateAlertServiceIds,
+              groupIds: params.updateAlertGroupIds,
+              environmentIds: params.updateAlertEnvironmentIds,
+              externalId: params.updateAlertExternalId,
+              externalUrl: params.updateAlertExternalUrl,
+              deduplicationKey: params.updateAlertDeduplicationKey,
+            }
+
+          case 'rootly_acknowledge_alert':
+            return {
+              ...baseParams,
+              alertId: params.ackAlertId,
+            }
+
+          case 'rootly_resolve_alert':
+            return {
+              ...baseParams,
+              alertId: params.resolveAlertId,
+              resolutionMessage: params.resolveResolutionMessage,
+              resolveRelatedIncidents: params.resolveRelatedIncidents
+                ? params.resolveRelatedIncidents === 'true'
+                : undefined,
+            }
+
+          case 'rootly_create_action_item':
+            return {
+              ...baseParams,
+              incidentId: params.actionItemIncidentId,
+              summary: params.actionItemSummary,
+              description: params.actionItemDescription,
+              kind: params.actionItemKind,
+              priority: params.actionItemPriority,
+              status: params.actionItemStatus,
+              assignedToUserId: params.actionItemAssignedToUserId,
+              dueDate: params.actionItemDueDate,
+            }
+
+          case 'rootly_list_action_items':
+            return {
+              ...baseParams,
+              incidentId: params.listActionItemsIncidentId,
+              pageSize: params.listActionItemsPageSize
+                ? Number(params.listActionItemsPageSize)
+                : undefined,
+              pageNumber: params.listActionItemsPageNumber
+                ? Number(params.listActionItemsPageNumber)
+                : undefined,
+            }
+
+          case 'rootly_list_users':
+            return {
+              ...baseParams,
+              search: params.usersSearch,
+              email: params.usersEmail,
+              pageSize: params.usersPageSize ? Number(params.usersPageSize) : undefined,
+              pageNumber: params.usersPageNumber ? Number(params.usersPageNumber) : undefined,
+            }
+
+          case 'rootly_list_on_calls':
+            return {
+              ...baseParams,
+              scheduleIds: params.onCallsScheduleIds,
+              escalationPolicyIds: params.onCallsEscalationPolicyIds,
+              userIds: params.onCallsUserIds,
+              serviceIds: params.onCallsServiceIds,
+            }
+
+          case 'rootly_list_schedules':
+            return {
+              ...baseParams,
+              search: params.schedulesSearch,
+              pageSize: params.schedulesPageSize ? Number(params.schedulesPageSize) : undefined,
+              pageNumber: params.schedulesPageNumber
+                ? Number(params.schedulesPageNumber)
+                : undefined,
+            }
+
+          case 'rootly_list_escalation_policies':
+            return {
+              ...baseParams,
+              search: params.escalationPoliciesSearch,
+              pageSize: params.escalationPoliciesPageSize
+                ? Number(params.escalationPoliciesPageSize)
+                : undefined,
+              pageNumber: params.escalationPoliciesPageNumber
+                ? Number(params.escalationPoliciesPageNumber)
+                : undefined,
+            }
+
+          case 'rootly_list_causes':
+            return {
+              ...baseParams,
+              search: params.causesSearch,
+              pageSize: params.causesPageSize ? Number(params.causesPageSize) : undefined,
+              pageNumber: params.causesPageNumber ? Number(params.causesPageNumber) : undefined,
+            }
+
+          case 'rootly_list_playbooks':
+            return {
+              ...baseParams,
+              pageSize: params.playbooksPageSize ? Number(params.playbooksPageSize) : undefined,
+              pageNumber: params.playbooksPageNumber
+                ? Number(params.playbooksPageNumber)
+                : undefined,
+            }
+
           default:
             return baseParams
         }
@@ -1101,6 +1635,58 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
     retrospectivesSearch: { type: 'string', description: 'Search retrospectives' },
     retrospectivesPageSize: { type: 'string', description: 'Retrospectives page size' },
     retrospectivesPageNumber: { type: 'string', description: 'Retrospectives page number' },
+    deleteIncidentId: { type: 'string', description: 'Incident ID to delete' },
+    getAlertId: { type: 'string', description: 'Alert ID to retrieve' },
+    updateAlertId: { type: 'string', description: 'Alert ID to update' },
+    updateAlertSummary: { type: 'string', description: 'Updated alert summary' },
+    updateAlertDescription: { type: 'string', description: 'Updated alert description' },
+    updateAlertSource: { type: 'string', description: 'Updated alert source' },
+    updateAlertServiceIds: { type: 'string', description: 'Updated alert service IDs' },
+    updateAlertGroupIds: { type: 'string', description: 'Updated alert team IDs' },
+    updateAlertEnvironmentIds: { type: 'string', description: 'Updated alert environment IDs' },
+    updateAlertExternalId: { type: 'string', description: 'Updated external alert ID' },
+    updateAlertExternalUrl: { type: 'string', description: 'Updated external URL' },
+    updateAlertDeduplicationKey: { type: 'string', description: 'Updated deduplication key' },
+    ackAlertId: { type: 'string', description: 'Alert ID to acknowledge' },
+    resolveAlertId: { type: 'string', description: 'Alert ID to resolve' },
+    resolveResolutionMessage: { type: 'string', description: 'Resolution message' },
+    resolveRelatedIncidents: { type: 'string', description: 'Resolve related incidents' },
+    actionItemIncidentId: { type: 'string', description: 'Incident ID for action item' },
+    actionItemSummary: { type: 'string', description: 'Action item summary' },
+    actionItemDescription: { type: 'string', description: 'Action item description' },
+    actionItemKind: { type: 'string', description: 'Action item kind' },
+    actionItemPriority: { type: 'string', description: 'Action item priority' },
+    actionItemStatus: { type: 'string', description: 'Action item status' },
+    actionItemAssignedToUserId: { type: 'string', description: 'Assigned user ID' },
+    actionItemDueDate: { type: 'string', description: 'Action item due date' },
+    listActionItemsIncidentId: { type: 'string', description: 'Incident ID for action items' },
+    listActionItemsPageSize: { type: 'string', description: 'Action items page size' },
+    listActionItemsPageNumber: { type: 'string', description: 'Action items page number' },
+    usersSearch: { type: 'string', description: 'Search users' },
+    usersEmail: { type: 'string', description: 'Filter users by email' },
+    usersPageSize: { type: 'string', description: 'Users page size' },
+    usersPageNumber: { type: 'string', description: 'Users page number' },
+    onCallsScheduleIds: { type: 'string', description: 'Filter on-calls by schedule IDs' },
+    onCallsEscalationPolicyIds: {
+      type: 'string',
+      description: 'Filter on-calls by escalation policy IDs',
+    },
+    onCallsUserIds: { type: 'string', description: 'Filter on-calls by user IDs' },
+    onCallsServiceIds: { type: 'string', description: 'Filter on-calls by service IDs' },
+    schedulesSearch: { type: 'string', description: 'Search schedules' },
+    schedulesPageSize: { type: 'string', description: 'Schedules page size' },
+    schedulesPageNumber: { type: 'string', description: 'Schedules page number' },
+    escalationPoliciesSearch: { type: 'string', description: 'Search escalation policies' },
+    escalationPoliciesPageSize: { type: 'string', description: 'Escalation policies page size' },
+    escalationPoliciesPageNumber: {
+      type: 'string',
+      description: 'Escalation policies page number',
+    },
+    causesSearch: { type: 'string', description: 'Search causes' },
+    causesPageSize: { type: 'string', description: 'Causes page size' },
+    causesPageNumber: { type: 'string', description: 'Causes page number' },
+    playbooksPageSize: { type: 'string', description: 'Playbooks page size' },
+    playbooksPageNumber: { type: 'string', description: 'Playbooks page number' },
   },
   outputs: {
     incident: {
@@ -1150,6 +1736,42 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       type: 'json',
       description: 'List of retrospectives (id, title, status, url, timestamps)',
     },
+    users: {
+      type: 'json',
+      description: 'List of users (id, name, email)',
+    },
+    onCalls: {
+      type: 'json',
+      description:
+        'List of on-call entries (userId, userName, scheduleId, scheduleName, escalationPolicyId)',
+    },
+    schedules: {
+      type: 'json',
+      description: 'List of schedules (id, name, description)',
+    },
+    escalationPolicies: {
+      type: 'json',
+      description: 'List of escalation policies (id, name, description)',
+    },
+    causes: {
+      type: 'json',
+      description: 'List of causes (id, name, slug, description)',
+    },
+    playbooks: {
+      type: 'json',
+      description: 'List of playbooks (id, title, summary)',
+    },
+    actionItem: {
+      type: 'json',
+      description: 'Action item data (id, summary, description, kind, priority, status, dueDate)',
+    },
+    actionItems: {
+      type: 'json',
+      description:
+        'List of action items (id, summary, description, kind, priority, status, dueDate)',
+    },
+    success: { type: 'boolean', description: 'Whether the operation succeeded' },
+    message: { type: 'string', description: 'Operation result message' },
     totalCount: { type: 'number', description: 'Total count of items returned' },
   },
 }

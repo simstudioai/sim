@@ -9820,9 +9820,61 @@
       {
         "name": "List Retrospectives",
         "description": "List incident retrospectives (post-mortems) from Rootly."
+      },
+      {
+        "name": "Delete Incident",
+        "description": "Delete an incident by ID from Rootly."
+      },
+      {
+        "name": "Get Alert",
+        "description": "Retrieve a single alert by ID from Rootly."
+      },
+      {
+        "name": "Update Alert",
+        "description": "Update an existing alert in Rootly."
+      },
+      {
+        "name": "Acknowledge Alert",
+        "description": "Acknowledge an alert in Rootly."
+      },
+      {
+        "name": "Resolve Alert",
+        "description": "Resolve an alert in Rootly."
+      },
+      {
+        "name": "Create Action Item",
+        "description": "Create a new action item for an incident in Rootly."
+      },
+      {
+        "name": "List Action Items",
+        "description": "List action items for an incident in Rootly."
+      },
+      {
+        "name": "List Users",
+        "description": "List users from Rootly with optional search and email filtering."
+      },
+      {
+        "name": "List On-Calls",
+        "description": "List current on-call entries from Rootly with optional filtering."
+      },
+      {
+        "name": "List Schedules",
+        "description": "List on-call schedules from Rootly with optional search filtering."
+      },
+      {
+        "name": "List Escalation Policies",
+        "description": "List escalation policies from Rootly with optional search filtering."
+      },
+      {
+        "name": "List Causes",
+        "description": "List causes from Rootly with optional search filtering."
+      },
+      {
+        "name": "List Playbooks",
+        "description": "List playbooks from Rootly with pagination support."
       }
     ],
-    "operationCount": 14,
+    "operationCount": 27,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
