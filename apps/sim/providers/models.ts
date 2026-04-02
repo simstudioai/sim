@@ -852,9 +852,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 100000,
         },
         contextWindow: 200000,
-        maxOutputTokens: 100000,
       },
       {
         id: 'azure/o4-mini',
@@ -868,9 +868,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 100000,
         },
         contextWindow: 200000,
-        maxOutputTokens: 100000,
       },
       {
         id: 'azure/gpt-4.1',
