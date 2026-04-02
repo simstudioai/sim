@@ -2365,10 +2365,6 @@ export const credential = pgTable(
       'credential_personal_env_source_check',
       sql`(type <> 'env_personal') OR (env_key IS NOT NULL AND env_owner_user_id IS NOT NULL)`
     ),
-    serviceAccountSourceConstraint: check(
-      'credential_service_account_source_check',
-      sql`(type <> 'service_account') OR (encrypted_service_account_key IS NOT NULL AND provider_id IS NOT NULL)`
-    ),
   })
 )
 
