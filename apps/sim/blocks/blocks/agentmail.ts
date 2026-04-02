@@ -134,7 +134,7 @@ export const AgentMailBlock: BlockConfig = {
     },
     {
       id: 'text',
-      title: 'Body (Text)',
+      title: 'Text',
       type: 'long-input',
       placeholder: 'Plain text email body',
       condition: {
@@ -150,7 +150,7 @@ export const AgentMailBlock: BlockConfig = {
     },
     {
       id: 'html',
-      title: 'Body (HTML)',
+      title: 'HTML',
       type: 'long-input',
       placeholder: '<p>HTML email body</p>',
       condition: {
