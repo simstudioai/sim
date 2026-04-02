@@ -55,7 +55,7 @@ export const ripplingGetCustomObjectRecordByExternalIdTool: ToolConfig<RipplingG
           last_modified_by: data.last_modified_by ?? null,
           owner_role: data.owner_role ?? null,
           system_updated_at: (data.system_updated_at as string) ?? null,
-          data,
+          data: (data.data as Record<string, unknown>) ?? data,
         },
       }
     },

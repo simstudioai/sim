@@ -76,7 +76,7 @@ export const ripplingUpdateCustomObjectRecordTool: ToolConfig<RipplingUpdateCust
           last_modified_by: record.last_modified_by ?? null,
           owner_role: record.owner_role ?? null,
           system_updated_at: (record.system_updated_at as string) ?? null,
-          data: record,
+          data: (record.data as Record<string, unknown>) ?? record,
         },
       }
     },

@@ -338,7 +338,14 @@ export const RipplingBlock: BlockConfig = {
       title: 'External ID',
       type: 'short-input',
       placeholder: 'Enter the external ID',
-      condition: { field: 'operation', value: 'get_custom_object_record_by_external_id' },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_custom_object_record_by_external_id',
+          'create_custom_object_record',
+          'update_custom_object_record',
+        ],
+      },
       required: { field: 'operation', value: 'get_custom_object_record_by_external_id' },
     },
     {
@@ -383,6 +390,38 @@ export const RipplingBlock: BlockConfig = {
         field: 'operation',
         value: ['create_department', 'update_department'],
       },
+    },
+    {
+      id: 'apiName',
+      title: 'API Name',
+      type: 'short-input',
+      placeholder: 'Enter the API name (e.g. my_app)',
+      condition: { field: 'operation', value: 'create_custom_app' },
+      required: { field: 'operation', value: 'create_custom_app' },
+    },
+    {
+      id: 'businessPartnerGroupId',
+      title: 'Business Partner Group ID',
+      type: 'short-input',
+      placeholder: 'Enter the business partner group ID',
+      condition: { field: 'operation', value: 'create_business_partner' },
+      required: { field: 'operation', value: 'create_business_partner' },
+    },
+    {
+      id: 'workerId',
+      title: 'Worker ID',
+      type: 'short-input',
+      placeholder: 'Enter the worker ID',
+      condition: { field: 'operation', value: 'create_business_partner' },
+      required: { field: 'operation', value: 'create_business_partner' },
+    },
+    {
+      id: 'dataType',
+      title: 'Data Type',
+      type: 'long-input',
+      placeholder: '{ "type": "TEXT" }',
+      condition: { field: 'operation', value: 'create_custom_object_field' },
+      required: { field: 'operation', value: 'create_custom_object_field' },
     },
     {
       id: 'data',
@@ -614,6 +653,20 @@ export const RipplingBlock: BlockConfig = {
         if (params.parentId != null && params.parentId !== '') mapped.parentId = params.parentId
         if (params.referenceCode != null && params.referenceCode !== '')
           mapped.referenceCode = params.referenceCode
+        if (params.apiName != null && params.apiName !== '') mapped.apiName = params.apiName
+        if (params.businessPartnerGroupId != null && params.businessPartnerGroupId !== '')
+          mapped.businessPartnerGroupId = params.businessPartnerGroupId
+        if (params.workerId != null && params.workerId !== '') mapped.workerId = params.workerId
+        if (params.dataType != null && params.dataType !== '') {
+          try {
+            mapped.dataType =
+              typeof params.dataType === 'string' ? JSON.parse(params.dataType) : params.dataType
+          } catch {
+            throw new Error(
+              'Invalid JSON in "Data Type" field. Expected a valid JSON object like { "type": "TEXT" }.'
+            )
+          }
+        }
         if (params.filter != null && params.filter !== '') mapped.filter = params.filter
         if (params.expand != null && params.expand !== '') mapped.expand = params.expand
         if (params.orderBy != null && params.orderBy !== '') mapped.orderBy = params.orderBy
@@ -793,6 +846,13 @@ export const RipplingBlock: BlockConfig = {
     name: { type: 'string', description: 'Resource name' },
     parentId: { type: 'string', description: 'Parent resource ID' },
     referenceCode: { type: 'string', description: 'Reference code' },
+    apiName: { type: 'string', description: 'API name for custom app creation' },
+    businessPartnerGroupId: {
+      type: 'string',
+      description: 'Business partner group ID for partner creation',
+    },
+    workerId: { type: 'string', description: 'Worker ID for business partner creation' },
+    dataType: { type: 'json', description: 'Data type configuration for custom object fields' },
     data: { type: 'json', description: 'JSON data body for create/update operations' },
     records: { type: 'json', description: 'JSON array of records for bulk operations' },
     query: { type: 'string', description: 'Filter expression for custom object record queries' },
