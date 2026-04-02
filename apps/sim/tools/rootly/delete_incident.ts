@@ -39,64 +39,26 @@ export const rootlyDeleteIncidentTool: ToolConfig<
       const errorData = await response.json().catch(() => ({}))
       return {
         success: false,
-        output: { incident: {} as RootlyDeleteIncidentResponse['output']['incident'] },
+        output: {
+          success: false,
+          message:
+            errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        },
         error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
       }
     }
 
-    const data = await response.json()
-    const attrs = data.data?.attributes || {}
     return {
       success: true,
       output: {
-        incident: {
-          id: data.data?.id ?? null,
-          sequentialId: attrs.sequential_id ?? null,
-          title: attrs.title ?? '',
-          slug: attrs.slug ?? null,
-          kind: attrs.kind ?? null,
-          summary: attrs.summary ?? null,
-          status: attrs.status ?? null,
-          private: attrs.private ?? false,
-          url: attrs.url ?? null,
-          shortUrl: attrs.short_url ?? null,
-          severityName: attrs.severity?.data?.attributes?.name ?? null,
-          severityId: attrs.severity?.data?.id ?? null,
-          createdAt: attrs.created_at ?? '',
-          updatedAt: attrs.updated_at ?? '',
-          startedAt: attrs.started_at ?? null,
-          mitigatedAt: attrs.mitigated_at ?? null,
-          resolvedAt: attrs.resolved_at ?? null,
-          closedAt: attrs.closed_at ?? null,
-        },
+        success: true,
+        message: 'Incident deleted successfully',
       },
     }
   },
 
   outputs: {
-    incident: {
-      type: 'object',
-      description: 'The deleted incident details',
-      properties: {
-        id: { type: 'string', description: 'Unique incident ID' },
-        sequentialId: { type: 'number', description: 'Sequential incident number' },
-        title: { type: 'string', description: 'Incident title' },
-        slug: { type: 'string', description: 'Incident slug' },
-        kind: { type: 'string', description: 'Incident kind' },
-        summary: { type: 'string', description: 'Incident summary' },
-        status: { type: 'string', description: 'Incident status' },
-        private: { type: 'boolean', description: 'Whether the incident is private' },
-        url: { type: 'string', description: 'URL to the incident' },
-        shortUrl: { type: 'string', description: 'Short URL to the incident' },
-        severityName: { type: 'string', description: 'Severity name' },
-        severityId: { type: 'string', description: 'Severity ID' },
-        createdAt: { type: 'string', description: 'Creation date' },
-        updatedAt: { type: 'string', description: 'Last update date' },
-        startedAt: { type: 'string', description: 'Start date' },
-        mitigatedAt: { type: 'string', description: 'Mitigation date' },
-        resolvedAt: { type: 'string', description: 'Resolution date' },
-        closedAt: { type: 'string', description: 'Closed date' },
-      },
-    },
+    success: { type: 'boolean', description: 'Whether the deletion succeeded' },
+    message: { type: 'string', description: 'Result message' },
   },
 }

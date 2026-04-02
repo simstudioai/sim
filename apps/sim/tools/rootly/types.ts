@@ -379,7 +379,8 @@ export interface RootlyDeleteIncidentParams extends RootlyBaseParams {
 
 export interface RootlyDeleteIncidentResponse extends ToolResponse {
   output: {
-    incident: RootlyIncidentData
+    success: boolean
+    message: string
   }
 }
 
