@@ -432,9 +432,6 @@ export const RipplingBlock: BlockConfig = {
       required: {
         field: 'operation',
         value: [
-          'create_business_partner',
-          'create_custom_app',
-          'create_custom_object_field',
           'create_custom_object_record',
           'update_custom_object_record',
           'create_custom_setting',
