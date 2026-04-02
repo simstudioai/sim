@@ -34,6 +34,7 @@ export const ripplingGetReportRunTool: ToolConfig<RipplingGetReportRunParams> = 
         report_id: (data.report_id as string) ?? null,
         status: (data.status as string) ?? null,
         result: data.result ?? null,
+        __meta: data.__meta ?? null,
       },
     }
   },
@@ -44,6 +45,11 @@ export const ripplingGetReportRunTool: ToolConfig<RipplingGetReportRunParams> = 
     result: {
       type: 'json',
       description: 'Report result (file_url, expires_at, output_type)',
+      optional: true,
+    },
+    __meta: {
+      type: 'json',
+      description: 'Metadata including redacted_fields',
       optional: true,
     },
   },

@@ -44,17 +44,53 @@ export const ripplingUpdateCustomObjectFieldTool: ToolConfig<RipplingUpdateCusto
         visibility: 'user-or-llm',
         description: 'Data type',
       },
+      required: {
+        type: 'boolean',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Whether the field is required',
+      },
+      rqlDefinition: {
+        type: 'json',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'RQL definition object',
+      },
       isUnique: {
         type: 'boolean',
         required: false,
         visibility: 'user-or-llm',
         description: 'Is unique',
       },
+      formulaAttrMetas: {
+        type: 'json',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Formula attribute metadata',
+      },
+      section: {
+        type: 'json',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Section configuration',
+      },
       enableHistory: {
         type: 'boolean',
         required: false,
         visibility: 'user-or-llm',
         description: 'Enable history',
+      },
+      derivedFieldFormula: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Derived field formula expression',
+      },
+      nameFieldDetails: {
+        type: 'json',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Name field details configuration',
       },
     },
     request: {
@@ -71,8 +107,14 @@ export const ripplingUpdateCustomObjectFieldTool: ToolConfig<RipplingUpdateCusto
         if (params.name != null) body.name = params.name
         if (params.description != null) body.description = params.description
         if (params.dataType != null) body.data_type = params.dataType
+        if (params.required != null) body.required = params.required
+        if (params.rqlDefinition != null) body.rql_definition = params.rqlDefinition
         if (params.isUnique != null) body.is_unique = params.isUnique
+        if (params.formulaAttrMetas != null) body.formula_attr_metas = params.formulaAttrMetas
+        if (params.section != null) body.section = params.section
         if (params.enableHistory != null) body.enable_history = params.enableHistory
+        if (params.derivedFieldFormula != null) body.derived_field_formula = params.derivedFieldFormula
+        if (params.nameFieldDetails != null) body.name_field_details = params.nameFieldDetails
         return body
       },
     },

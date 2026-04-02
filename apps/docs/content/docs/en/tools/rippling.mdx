@@ -258,6 +258,7 @@ Get SSO information for the current user
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `expand` | string | No | Comma-separated fields to expand |
+| `cursor` | string | No | Pagination cursor |
 
 #### Output
 
@@ -476,14 +477,14 @@ List all employment types
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `employmentTypes` | array | List of employmentTypes |
-|   ↳ `id` | string | Employment type ID |
-|   ↳ `created_at` | string | Record creation date |
-|   ↳ `updated_at` | string | Record update date |
-|   ↳ `label` | string | Employment type label |
-|   ↳ `name` | string | Employment type name |
-|   ↳ `type` | string | Type \(CONTRACTOR, EMPLOYEE\) |
-|   ↳ `compensation_time_period` | string | Compensation period \(HOURLY, SALARIED\) |
-|   ↳ `amount_worked` | string | Amount worked \(PART-TIME, FULL-TIME, TEMPORARY\) |
+| `  ↳ id` | string | Employment type ID |
+| `  ↳ created_at` | string | Record creation date |
+| `  ↳ updated_at` | string | Record update date |
+| `  ↳ label` | string | Employment type label |
+| `  ↳ name` | string | Employment type name |
+| `  ↳ type` | string | Type \(CONTRACTOR, EMPLOYEE\) |
+| `  ↳ compensation_time_period` | string | Compensation period \(HOURLY, SALARIED\) |
+| `  ↳ amount_worked` | string | Amount worked \(PART-TIME, FULL-TIME, TEMPORARY\) |
 | `totalCount` | number | Number of items returned |
 | `nextLink` | string | Link to next page of results |
 
@@ -1430,8 +1431,14 @@ Create a field on a custom object
 | `name` | string | Yes | Field name |
 | `description` | string | No | Description |
 | `dataType` | json | Yes | Data type configuration |
+| `required` | boolean | No | Whether the field is required |
+| `rqlDefinition` | json | No | RQL definition object |
 | `isUnique` | boolean | No | Whether field is unique |
+| `formulaAttrMetas` | json | No | Formula attribute metadata |
+| `section` | json | No | Section configuration |
 | `enableHistory` | boolean | No | Enable history tracking |
+| `derivedFieldFormula` | string | No | Derived field formula expression |
+| `derivedAggregatedField` | json | No | Derived aggregated field configuration |
 
 #### Output
 
@@ -1466,8 +1473,14 @@ Update a field on a custom object
 | `name` | string | No | Field name |
 | `description` | string | No | Description |
 | `dataType` | json | No | Data type |
+| `required` | boolean | No | Whether the field is required |
+| `rqlDefinition` | json | No | RQL definition object |
 | `isUnique` | boolean | No | Is unique |
+| `formulaAttrMetas` | json | No | Formula attribute metadata |
+| `section` | json | No | Section configuration |
 | `enableHistory` | boolean | No | Enable history |
+| `derivedFieldFormula` | string | No | Derived field formula expression |
+| `nameFieldDetails` | json | No | Name field details configuration |
 
 #### Output
 
@@ -1528,6 +1541,10 @@ List all records for a custom object
 | `  ↳ updated_at` | string | Record update date |
 | `  ↳ name` | string | Record name |
 | `  ↳ external_id` | string | External ID |
+| `  ↳ created_by` | json | Created by user \(id, display_value, image\) |
+| `  ↳ last_modified_by` | json | Last modified by user \(id, display_value, image\) |
+| `  ↳ owner_role` | json | Owner role \(id, display_value, image\) |
+| `  ↳ system_updated_at` | string | System update timestamp |
 | `  ↳ data` | json | Full record data including dynamic fields |
 | `totalCount` | number | Number of records returned |
 | `nextLink` | string | Next page link |
@@ -1554,6 +1571,10 @@ Get a specific custom object record
 | `updated_at` | string | Updated timestamp |
 | `name` | string | Name |
 | `external_id` | string | External ID |
+| `created_by` | json | Created by user |
+| `last_modified_by` | json | Last modified by user |
+| `owner_role` | json | Owner role |
+| `system_updated_at` | string | System update timestamp |
 | `data` | json | Full record data |
 
 ---
@@ -1578,75 +1599,11 @@ Get a custom object record by external ID
 | `updated_at` | string | Updated timestamp |
 | `name` | string | Name |
 | `external_id` | string | External ID |
+| `created_by` | json | Created by user |
+| `last_modified_by` | json | Last modified by user |
+| `owner_role` | json | Owner role |
+| `system_updated_at` | string | System update timestamp |
 | `data` | json | Full record data |
-
----
-
-### `rippling_create_custom_object_record`
-
-Create a custom object record
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `customObjectApiName` | string | Yes | Custom object API name |
-| `data` | json | Yes | Record data |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `id` | string | Record ID |
-| `created_at` | string | Creation date |
-| `updated_at` | string | Update date |
-| `name` | string | Record name |
-| `external_id` | string | External ID |
-| `data` | json | Full record data |
-
----
-
-### `rippling_update_custom_object_record`
-
-Update a custom object record
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `customObjectApiName` | string | Yes | Custom object API name |
-| `codrId` | string | Yes | Record ID |
-| `data` | json | Yes | Updated record data |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `id` | string | Record ID |
-| `created_at` | string | Creation date |
-| `updated_at` | string | Update date |
-| `name` | string | Record name |
-| `external_id` | string | External ID |
-| `data` | json | Full record data |
-
----
-
-### `rippling_delete_custom_object_record`
-
-Delete a custom object record
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `customObjectApiName` | string | Yes | Custom object API name |
-| `codrId` | string | Yes | Record ID |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `deleted` | boolean | Whether the record was deleted |
 
 ---
 
@@ -1673,9 +1630,89 @@ Query custom object records with filters
 | `  ↳ updated_at` | string | Record update date |
 | `  ↳ name` | string | Record name |
 | `  ↳ external_id` | string | External ID |
+| `  ↳ created_by` | json | Created by user \(id, display_value, image\) |
+| `  ↳ last_modified_by` | json | Last modified by user \(id, display_value, image\) |
+| `  ↳ owner_role` | json | Owner role \(id, display_value, image\) |
+| `  ↳ system_updated_at` | string | System update timestamp |
 | `  ↳ data` | json | Full record data |
 | `totalCount` | number | Number of records returned |
 | `cursor` | string | Pagination cursor for next page |
+
+---
+
+### `rippling_create_custom_object_record`
+
+Create a custom object record
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customObjectApiName` | string | Yes | Custom object API name |
+| `data` | json | Yes | Record data |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Record ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Record name |
+| `external_id` | string | External ID |
+| `created_by` | json | Created by user |
+| `last_modified_by` | json | Last modified by user |
+| `owner_role` | json | Owner role |
+| `system_updated_at` | string | System update timestamp |
+| `data` | json | Full record data |
+
+---
+
+### `rippling_update_custom_object_record`
+
+Update a custom object record
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customObjectApiName` | string | Yes | Custom object API name |
+| `codrId` | string | Yes | Record ID |
+| `data` | json | Yes | Updated record data |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Record ID |
+| `created_at` | string | Creation date |
+| `updated_at` | string | Update date |
+| `name` | string | Record name |
+| `external_id` | string | External ID |
+| `created_by` | json | Created by user |
+| `last_modified_by` | json | Last modified by user |
+| `owner_role` | json | Owner role |
+| `system_updated_at` | string | System update timestamp |
+| `data` | json | Full record data |
+
+---
+
+### `rippling_delete_custom_object_record`
+
+Delete a custom object record
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customObjectApiName` | string | Yes | Custom object API name |
+| `codrId` | string | Yes | Record ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the record was deleted |
 
 ---
 
@@ -2274,6 +2311,7 @@ Get a report run by ID
 | `report_id` | string | Report ID |
 | `status` | string | Run status |
 | `result` | json | Report result \(file_url, expires_at, output_type\) |
+| `__meta` | json | Metadata including redacted_fields |
 
 ---
 

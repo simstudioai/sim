@@ -19,12 +19,20 @@ export const ripplingGetCurrentUserTool: ToolConfig<RipplingGetCurrentUserParams
       visibility: 'user-or-llm',
       description: 'Comma-separated fields to expand',
     },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor',
+    },
   },
   request: {
     url: (params) => {
-      const base = `https://rest.ripplingapis.com/sso-me/`
-      if (params.expand != null) return `${base}?expand=${encodeURIComponent(params.expand)}`
-      return base
+      const query = new URLSearchParams()
+      if (params.expand != null) query.set('expand', params.expand)
+      if (params.cursor != null) query.set('cursor', params.cursor)
+      const qs = query.toString()
+      return `https://rest.ripplingapis.com/sso-me/${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),

@@ -267,6 +267,10 @@ export const CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES = {
   updated_at: { type: 'string', description: 'Record update date' },
   name: { type: 'string', description: 'Record name' },
   external_id: { type: 'string', description: 'External ID' },
+  created_by: { type: 'json', description: 'Created by user (id, display_value, image)' },
+  last_modified_by: { type: 'json', description: 'Last modified by user (id, display_value, image)' },
+  owner_role: { type: 'json', description: 'Owner role (id, display_value, image)' },
+  system_updated_at: { type: 'string', description: 'System update timestamp' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Custom app output properties */
@@ -340,6 +344,7 @@ export interface RipplingListCompaniesParams {
 export interface RipplingGetCurrentUserParams {
   apiKey: string
   expand?: string
+  cursor?: string
 }
 
 /** Entitlements */
@@ -604,8 +609,14 @@ export interface RipplingCreateCustomObjectFieldParams {
   name: string
   description?: string
   dataType: unknown
+  required?: boolean
+  rqlDefinition?: unknown
   isUnique?: boolean
+  formulaAttrMetas?: unknown
+  section?: unknown
   enableHistory?: boolean
+  derivedFieldFormula?: string
+  derivedAggregatedField?: unknown
 }
 export interface RipplingUpdateCustomObjectFieldParams {
   apiKey: string
@@ -614,8 +625,14 @@ export interface RipplingUpdateCustomObjectFieldParams {
   name?: string
   description?: string
   dataType?: unknown
+  required?: boolean
+  rqlDefinition?: unknown
   isUnique?: boolean
+  formulaAttrMetas?: unknown
+  section?: unknown
   enableHistory?: boolean
+  derivedFieldFormula?: string
+  nameFieldDetails?: unknown
 }
 export interface RipplingDeleteCustomObjectFieldParams {
   apiKey: string

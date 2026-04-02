@@ -61,6 +61,10 @@ export const ripplingUpdateCustomObjectRecordTool: ToolConfig<RipplingUpdateCust
           updated_at: (record.updated_at as string) ?? null,
           name: (record.name as string) ?? null,
           external_id: (record.external_id as string) ?? null,
+          created_by: record.created_by ?? null,
+          last_modified_by: record.last_modified_by ?? null,
+          owner_role: record.owner_role ?? null,
+          system_updated_at: (record.system_updated_at as string) ?? null,
           data: record,
         },
       }
@@ -71,6 +75,10 @@ export const ripplingUpdateCustomObjectRecordTool: ToolConfig<RipplingUpdateCust
       updated_at: { type: 'string', description: 'Update date', optional: true },
       name: { type: 'string', description: 'Record name', optional: true },
       external_id: { type: 'string', description: 'External ID', optional: true },
+      created_by: { type: 'json', description: 'Created by user', optional: true },
+      last_modified_by: { type: 'json', description: 'Last modified by user', optional: true },
+      owner_role: { type: 'json', description: 'Owner role', optional: true },
+      system_updated_at: { type: 'string', description: 'System update timestamp', optional: true },
       data: { type: 'json', description: 'Full record data' },
     },
   }
