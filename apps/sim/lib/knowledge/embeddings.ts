@@ -358,7 +358,9 @@ export async function generateEmbeddings(
     // Use contextLength as the max character count (assumes worst case ~1 char per token)
     const maxChars = contextLength
 
-    // Truncate any chunks that exceed the context length, then batch by total character count
+    // Truncate individual chunks that exceed the model's context length.
+    // Ollama processes each input independently, so only per-input length matters.
+    const OLLAMA_BATCH_SIZE = 100
     const prepared: string[] = texts.map((text, i) => {
       if (text.length > maxChars) {
         const lastSentenceEnd = text.lastIndexOf('. ', maxChars)
@@ -372,25 +374,15 @@ export async function generateEmbeddings(
       return text
     })
 
-    // Smart batching: group chunks so total characters per batch stays within maxChars
+    // Batch by item count — Ollama applies context limits per individual input,
+    // not across the whole batch, so cumulative character batching is unnecessary.
     const batches: string[][] = []
-    let currentBatch: string[] = []
-    let currentBatchChars = 0
-    for (const text of prepared) {
-      if (currentBatch.length > 0 && currentBatchChars + text.length > maxChars) {
-        batches.push(currentBatch)
-        currentBatch = []
-        currentBatchChars = 0
-      }
-      currentBatch.push(text)
-      currentBatchChars += text.length
-    }
-    if (currentBatch.length > 0) {
-      batches.push(currentBatch)
+    for (let i = 0; i < prepared.length; i += OLLAMA_BATCH_SIZE) {
+      batches.push(prepared.slice(i, i + OLLAMA_BATCH_SIZE))
     }
 
     logger.info(
-      `[Ollama] Processing ${prepared.length} chunks in ${batches.length} batches (maxChars=${maxChars})`
+      `[Ollama] Processing ${prepared.length} chunks in ${batches.length} batches (batchSize=${OLLAMA_BATCH_SIZE})`
     )
 
     // Process each batch with retry logic
