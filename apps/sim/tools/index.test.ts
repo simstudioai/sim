@@ -24,6 +24,7 @@ const {
   mockRateLimiterFns,
   mockGetCustomToolById,
   mockListCustomTools,
+  mockGetCustomToolByIdOrTitle,
 } = vi.hoisted(() => ({
   mockIsHosted: { value: false },
   mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:3000' } as Record<string, string | undefined>,
@@ -36,6 +37,7 @@ const {
   },
   mockGetCustomToolById: vi.fn(),
   mockListCustomTools: vi.fn(),
+  mockGetCustomToolByIdOrTitle: vi.fn(),
 }))
 
 // Mock feature flags
@@ -225,6 +227,7 @@ vi.mock('@/hooks/queries/utils/custom-tool-cache', () => {
 vi.mock('@/lib/workflows/custom-tools/operations', () => ({
   getCustomToolById: mockGetCustomToolById,
   listCustomTools: mockListCustomTools,
+  getCustomToolByIdOrTitle: mockGetCustomToolByIdOrTitle,
 }))
 
 vi.mock('@/tools/utils.server', async (importOriginal) => {
@@ -320,7 +323,7 @@ describe('Custom Tools', () => {
   })
 
   it('resolves custom tools through the async helper', async () => {
-    mockGetCustomToolById.mockResolvedValue({
+    mockGetCustomToolByIdOrTitle.mockResolvedValue({
       id: 'remote-tool-123',
       title: 'Custom Weather Tool',
       schema: {

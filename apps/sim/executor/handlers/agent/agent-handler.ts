@@ -3,6 +3,7 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import {
@@ -283,7 +284,6 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     try {
-      const { getCustomToolById } = await import('@/lib/workflows/custom-tools/operations')
       const tool = await getCustomToolById({
         toolId: customToolId,
         userId: ctx.userId,

@@ -3,8 +3,8 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { getCustomToolByIdOrTitle } from '@/lib/workflows/custom-tools/operations'
 import { isCustomTool } from '@/executor/constants'
-import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import { tools } from '@/tools/registry'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
@@ -114,23 +114,18 @@ async function fetchCustomToolFromDB(
       return undefined
     }
 
-    const { getCustomToolById, listCustomTools } = await import(
-      '@/lib/workflows/custom-tools/operations'
-    )
-
-    // Try to find by ID first, fall back to searching by title
-    const customTool =
-      (await getCustomToolById({ toolId: identifier, userId, workspaceId })) ??
-      (await listCustomTools({ userId, workspaceId })).find(
-        (t: { title: string }) => t.title === identifier
-      )
+    const customTool = await getCustomToolByIdOrTitle({
+      identifier,
+      userId,
+      workspaceId,
+    })
 
     if (!customTool) {
       logger.error(`Custom tool not found: ${identifier}`)
       return undefined
     }
 
-    const toolConfig = createToolConfig(customTool as unknown as CustomToolDefinition, customToolId)
+    const toolConfig = createToolConfig(customTool, customToolId)
 
     return {
       ...toolConfig,

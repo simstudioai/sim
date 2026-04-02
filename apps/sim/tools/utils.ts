@@ -295,7 +295,7 @@ export function getTool(toolId: string, _workspaceId?: string): ToolConfig | und
 
 // Helper function to create a tool config from a custom tool
 export function createToolConfig(
-  customTool: CustomToolDefinition,
+  customTool: { title: string; schema: any; code?: string },
   customToolId: string
 ): ToolConfig {
   // Create a parameter schema from the custom tool schema
