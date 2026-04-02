@@ -54,33 +54,6 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
 }
 
 /**
- * Maps old Rippling operation values to their current equivalents.
- *
- * When the integration was expanded from 16 to 86 tools, several
- * operations were renamed or removed. Saved workflows still carry
- * the old operation value. Without this mapping the tool selector
- * returns an unregistered tool ID, causing a runtime error.
- */
-export const OPERATION_VALUE_MIGRATIONS: Record<string, Record<string, string>> = {
-  rippling: {
-    list_employees: 'list_workers',
-    get_employee: 'get_worker',
-    list_employees_with_terminated: 'list_workers',
-    get_company: 'list_companies',
-    get_company_activity: '_removed_get_company_activity',
-    list_levels: '_removed_list_levels',
-    list_leave_requests: '_removed_list_leave_requests',
-    process_leave_request: '_removed_process_leave_request',
-    list_leave_balances: '_removed_list_leave_balances',
-    get_leave_balance: '_removed_get_leave_balance',
-    list_leave_types: '_removed_list_leave_types',
-    create_group: '_removed_create_group',
-    update_group: '_removed_update_group',
-    push_candidate: '_removed_push_candidate',
-  },
-}
-
-/**
  * Migrates legacy subblock IDs inside a single block's subBlocks map.
  * Returns a new subBlocks record if anything changed, or the original if not.
  */
@@ -130,43 +103,22 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
 
   for (const [blockId, block] of Object.entries(blocks)) {
     const renames = SUBBLOCK_ID_MIGRATIONS[block.type]
-    const opMigrations = OPERATION_VALUE_MIGRATIONS[block.type]
-    let currentBlock = block
-
-    if (renames && block.subBlocks) {
-      const { subBlocks, migrated } = migrateBlockSubblockIds(block.subBlocks, renames)
-      if (migrated) {
-        logger.info('Migrated legacy subblock IDs', {
-          blockId: block.id,
-          blockType: block.type,
-        })
-        anyMigrated = true
-        currentBlock = { ...currentBlock, subBlocks }
-      }
+    if (!renames || !block.subBlocks) {
+      result[blockId] = block
+      continue
     }
 
-    if (opMigrations && currentBlock.subBlocks?.operation) {
-      const oldOp = String(currentBlock.subBlocks.operation.value ?? '')
-      const newOp = opMigrations[oldOp]
-      if (newOp) {
-        logger.info('Migrated legacy operation value', {
-          blockId: currentBlock.id,
-          blockType: currentBlock.type,
-          from: oldOp,
-          to: newOp,
-        })
-        anyMigrated = true
-        currentBlock = {
-          ...currentBlock,
-          subBlocks: {
-            ...currentBlock.subBlocks,
-            operation: { ...currentBlock.subBlocks.operation, value: newOp },
-          },
-        }
-      }
+    const { subBlocks, migrated } = migrateBlockSubblockIds(block.subBlocks, renames)
+    if (migrated) {
+      logger.info('Migrated legacy subblock IDs', {
+        blockId: block.id,
+        blockType: block.type,
+      })
+      anyMigrated = true
+      result[blockId] = { ...block, subBlocks }
+    } else {
+      result[blockId] = block
     }
-
-    result[blockId] = currentBlock
   }
 
   return { blocks: result, migrated: anyMigrated }

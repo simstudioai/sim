@@ -4,7 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 export const ripplingUpdateObjectCategoryTool: ToolConfig<RipplingUpdateObjectCategoryParams> = {
   id: 'rippling_update_object_category',
   name: 'Rippling Update ObjectCategory',
-  description: 'Update a object category',
+  description: 'Update an object category',
   version: '1.0.0',
   params: {
     apiKey: {

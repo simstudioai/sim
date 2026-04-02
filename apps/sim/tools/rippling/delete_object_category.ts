@@ -4,7 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 export const ripplingDeleteObjectCategoryTool: ToolConfig<RipplingDeleteObjectCategoryParams> = {
   id: 'rippling_delete_object_category',
   name: 'Rippling Delete ObjectCategory',
-  description: 'Delete a object category',
+  description: 'Delete an object category',
   version: '1.0.0',
   params: {
     apiKey: {
