@@ -78,7 +78,7 @@ export const rootlyListTeamsTool: ToolConfig<RootlyListTeamsParams, RootlyListTe
       success: true,
       output: {
         teams,
-        totalCount: teams.length,
+        totalCount: data.meta?.total_count ?? teams.length,
       },
     }
   },

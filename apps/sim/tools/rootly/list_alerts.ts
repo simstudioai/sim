@@ -109,7 +109,7 @@ export const rootlyListAlertsTool: ToolConfig<RootlyListAlertsParams, RootlyList
       success: true,
       output: {
         alerts,
-        totalCount: alerts.length,
+        totalCount: data.meta?.total_count ?? alerts.length,
       },
     }
   },

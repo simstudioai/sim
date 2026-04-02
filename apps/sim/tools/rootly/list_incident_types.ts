@@ -84,7 +84,7 @@ export const rootlyListIncidentTypesTool: ToolConfig<
       success: true,
       output: {
         incidentTypes,
-        totalCount: incidentTypes.length,
+        totalCount: data.meta?.total_count ?? incidentTypes.length,
       },
     }
   },

@@ -82,7 +82,7 @@ export const rootlyUpdateIncidentTool: ToolConfig<
 
   request: {
     url: (params) => `https://api.rootly.com/v1/incidents/${params.incidentId.trim()}`,
-    method: 'PUT',
+    method: 'PATCH',
     headers: (params) => ({
       'Content-Type': 'application/vnd.api+json',
       Authorization: `Bearer ${params.apiKey}`,

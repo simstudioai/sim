@@ -84,7 +84,7 @@ export const rootlyListEnvironmentsTool: ToolConfig<
       success: true,
       output: {
         environments,
-        totalCount: environments.length,
+        totalCount: data.meta?.total_count ?? environments.length,
       },
     }
   },

@@ -93,7 +93,7 @@ export const rootlyListRetrospectivesTool: ToolConfig<
       success: true,
       output: {
         retrospectives,
-        totalCount: retrospectives.length,
+        totalCount: data.meta?.total_count ?? retrospectives.length,
       },
     }
   },

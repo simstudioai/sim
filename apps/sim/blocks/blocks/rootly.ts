@@ -233,6 +233,14 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'updateEnvironmentIds',
+      title: 'Environment IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated environment IDs',
+      condition: { field: 'operation', value: 'rootly_update_incident' },
+      mode: 'advanced',
+    },
+    {
       id: 'updateGroupIds',
       title: 'Team IDs',
       type: 'short-input',
@@ -612,6 +620,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
               mitigationMessage: params.mitigationMessage,
               resolutionMessage: params.resolutionMessage,
               serviceIds: params.updateServiceIds,
+              environmentIds: params.updateEnvironmentIds,
               groupIds: params.updateGroupIds,
             }
 
@@ -742,6 +751,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
     mitigationMessage: { type: 'string', description: 'Mitigation message' },
     resolutionMessage: { type: 'string', description: 'Resolution message' },
     updateServiceIds: { type: 'string', description: 'Updated service IDs' },
+    updateEnvironmentIds: { type: 'string', description: 'Updated environment IDs' },
     updateGroupIds: { type: 'string', description: 'Updated team IDs' },
     listIncidentsStatus: { type: 'string', description: 'Filter by status' },
     listIncidentsSearch: { type: 'string', description: 'Search incidents' },

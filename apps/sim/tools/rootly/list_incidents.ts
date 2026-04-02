@@ -138,7 +138,7 @@ export const rootlyListIncidentsTool: ToolConfig<
       success: true,
       output: {
         incidents,
-        totalCount: incidents.length,
+        totalCount: data.meta?.total_count ?? incidents.length,
       },
     }
   },

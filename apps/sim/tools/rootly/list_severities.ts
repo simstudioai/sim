@@ -76,7 +76,7 @@ export const rootlyListSeveritiesTool: ToolConfig<
       success: true,
       output: {
         severities,
-        totalCount: severities.length,
+        totalCount: data.meta?.total_count ?? severities.length,
       },
     }
   },

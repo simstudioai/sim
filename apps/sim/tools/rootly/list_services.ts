@@ -81,7 +81,7 @@ export const rootlyListServicesTool: ToolConfig<
       success: true,
       output: {
         services,
-        totalCount: services.length,
+        totalCount: data.meta?.total_count ?? services.length,
       },
     }
   },

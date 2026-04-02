@@ -84,7 +84,7 @@ export const rootlyListFunctionalitiesTool: ToolConfig<
       success: true,
       output: {
         functionalities,
-        totalCount: functionalities.length,
+        totalCount: data.meta?.total_count ?? functionalities.length,
       },
     }
   },
