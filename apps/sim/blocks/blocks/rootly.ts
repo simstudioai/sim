@@ -47,7 +47,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       type: 'short-input',
       placeholder: 'Incident title',
       condition: { field: 'operation', value: 'rootly_create_incident' },
-      required: { field: 'operation', value: 'rootly_create_incident' },
     },
     {
       id: 'createSummary',
@@ -78,6 +77,9 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
         { label: 'Resolved', id: 'resolved' },
         { label: 'Closed', id: 'closed' },
         { label: 'Cancelled', id: 'cancelled' },
+        { label: 'Scheduled', id: 'scheduled' },
+        { label: 'In Progress', id: 'in_progress' },
+        { label: 'Completed', id: 'completed' },
       ],
       value: () => '',
       condition: { field: 'operation', value: 'rootly_create_incident' },
@@ -215,6 +217,9 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
         { label: 'Resolved', id: 'resolved' },
         { label: 'Closed', id: 'closed' },
         { label: 'Cancelled', id: 'cancelled' },
+        { label: 'Scheduled', id: 'scheduled' },
+        { label: 'In Progress', id: 'in_progress' },
+        { label: 'Completed', id: 'completed' },
       ],
       condition: { field: 'operation', value: 'rootly_update_incident' },
     },
@@ -266,6 +271,74 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       condition: { field: 'operation', value: 'rootly_update_incident' },
       mode: 'advanced',
     },
+    {
+      id: 'updateKind',
+      title: 'Kind',
+      type: 'dropdown',
+      options: [
+        { label: 'Unchanged', id: '' },
+        { label: 'Normal', id: 'normal' },
+        { label: 'Test', id: 'test' },
+        { label: 'Example', id: 'example' },
+        { label: 'Backfilled', id: 'backfilled' },
+        { label: 'Scheduled', id: 'scheduled' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_update_incident' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updatePrivate',
+      title: 'Private',
+      type: 'dropdown',
+      options: [
+        { label: 'Unchanged', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_update_incident' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateIncidentTypeIds',
+      title: 'Incident Type IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated incident type IDs',
+      condition: { field: 'operation', value: 'rootly_update_incident' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateFunctionalityIds',
+      title: 'Functionality IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated functionality IDs',
+      condition: { field: 'operation', value: 'rootly_update_incident' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateLabels',
+      title: 'Labels',
+      type: 'short-input',
+      placeholder: '{"platform":"osx","version":"1.29"}',
+      condition: { field: 'operation', value: 'rootly_update_incident' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON object of key-value label pairs for a Rootly incident. Example: {"platform":"osx","version":"1.29","region":"us-east-1"}. Return ONLY the JSON object - no explanations, no extra text.',
+        placeholder: 'Describe the labels (e.g., "platform osx, version 1.29")...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'cancellationMessage',
+      title: 'Cancellation Message',
+      type: 'long-input',
+      placeholder: 'Why was the incident cancelled?',
+      condition: { field: 'operation', value: 'rootly_update_incident' },
+      mode: 'advanced',
+    },
 
     // List Incidents fields
     {
@@ -282,6 +355,9 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
         { label: 'Resolved', id: 'resolved' },
         { label: 'Closed', id: 'closed' },
         { label: 'Cancelled', id: 'cancelled' },
+        { label: 'Scheduled', id: 'scheduled' },
+        { label: 'In Progress', id: 'in_progress' },
+        { label: 'Completed', id: 'completed' },
       ],
       condition: { field: 'operation', value: 'rootly_list_incidents' },
     },
@@ -378,7 +454,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       type: 'short-input',
       placeholder: 'Alert source (e.g., api, datadog)',
       condition: { field: 'operation', value: 'rootly_create_alert' },
-      mode: 'advanced',
+      required: { field: 'operation', value: 'rootly_create_alert' },
     },
     {
       id: 'alertServiceIds',
@@ -420,8 +496,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
         { label: 'Default', id: '' },
         { label: 'Open', id: 'open' },
         { label: 'Triggered', id: 'triggered' },
-        { label: 'Acknowledged', id: 'acknowledged' },
-        { label: 'Resolved', id: 'resolved' },
       ],
       value: () => '',
       condition: { field: 'operation', value: 'rootly_create_alert' },
@@ -455,6 +529,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
         { label: 'Triggered', id: 'triggered' },
         { label: 'Acknowledged', id: 'acknowledged' },
         { label: 'Resolved', id: 'resolved' },
+        { label: 'Deferred', id: 'deferred' },
       ],
       condition: { field: 'operation', value: 'rootly_list_alerts' },
     },
@@ -565,6 +640,13 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
 
     // List Severities fields
     {
+      id: 'severitiesSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search severities...',
+      condition: { field: 'operation', value: 'rootly_list_severities' },
+    },
+    {
       id: 'severitiesPageSize',
       title: 'Page Size',
       type: 'short-input',
@@ -634,9 +716,9 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
     // List Incident Types fields
     {
       id: 'incidentTypesSearch',
-      title: 'Search',
+      title: 'Name Filter',
       type: 'short-input',
-      placeholder: 'Search incident types...',
+      placeholder: 'Filter by name...',
       condition: { field: 'operation', value: 'rootly_list_incident_types' },
     },
     {
@@ -783,11 +865,17 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
               summary: params.updateSummary,
               status: params.updateStatus,
               severityId: params.updateSeverityId,
+              kind: params.updateKind,
+              private: params.updatePrivate ? params.updatePrivate === 'true' : undefined,
               mitigationMessage: params.mitigationMessage,
               resolutionMessage: params.resolutionMessage,
+              cancellationMessage: params.cancellationMessage,
               serviceIds: params.updateServiceIds,
               environmentIds: params.updateEnvironmentIds,
               groupIds: params.updateGroupIds,
+              incidentTypeIds: params.updateIncidentTypeIds,
+              functionalityIds: params.updateFunctionalityIds,
+              labels: params.updateLabels,
             }
 
           case 'rootly_list_incidents':
@@ -856,6 +944,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
           case 'rootly_list_severities':
             return {
               ...baseParams,
+              search: params.severitiesSearch,
               pageSize: params.severitiesPageSize ? Number(params.severitiesPageSize) : undefined,
               pageNumber: params.severitiesPageNumber
                 ? Number(params.severitiesPageNumber)
@@ -951,6 +1040,12 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
     updateServiceIds: { type: 'string', description: 'Updated service IDs' },
     updateEnvironmentIds: { type: 'string', description: 'Updated environment IDs' },
     updateGroupIds: { type: 'string', description: 'Updated team IDs' },
+    updateKind: { type: 'string', description: 'Updated kind' },
+    updatePrivate: { type: 'string', description: 'Whether incident is private' },
+    updateIncidentTypeIds: { type: 'string', description: 'Updated incident type IDs' },
+    updateFunctionalityIds: { type: 'string', description: 'Updated functionality IDs' },
+    updateLabels: { type: 'string', description: 'Updated labels as JSON' },
+    cancellationMessage: { type: 'string', description: 'Cancellation message' },
     listIncidentsStatus: { type: 'string', description: 'Filter by status' },
     listIncidentsSearch: { type: 'string', description: 'Search incidents' },
     listIncidentsSeverity: { type: 'string', description: 'Filter by severity' },
@@ -983,6 +1078,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
     servicesSearch: { type: 'string', description: 'Search services' },
     servicesPageSize: { type: 'string', description: 'Services page size' },
     servicesPageNumber: { type: 'string', description: 'Services page number' },
+    severitiesSearch: { type: 'string', description: 'Search severities' },
     severitiesPageSize: { type: 'string', description: 'Severities page size' },
     severitiesPageNumber: { type: 'string', description: 'Severities page number' },
     teamsSearch: { type: 'string', description: 'Search teams' },
@@ -1024,6 +1120,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
     visibility: { type: 'string', description: 'Event visibility' },
     occurredAt: { type: 'string', description: 'When the event occurred' },
     createdAt: { type: 'string', description: 'Creation date' },
+    updatedAt: { type: 'string', description: 'Last update date' },
     services: {
       type: 'json',
       description: 'List of services (id, name, slug, description, color)',

@@ -67,6 +67,7 @@ export const rootlyAddIncidentEventTool: ToolConfig<
           visibility: null,
           occurredAt: null,
           createdAt: '',
+          updatedAt: '',
         },
         error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
       }
@@ -82,6 +83,7 @@ export const rootlyAddIncidentEventTool: ToolConfig<
         visibility: attrs.visibility ?? null,
         occurredAt: attrs.occurred_at ?? null,
         createdAt: attrs.created_at ?? '',
+        updatedAt: attrs.updated_at ?? '',
       },
     }
   },
@@ -106,6 +108,10 @@ export const rootlyAddIncidentEventTool: ToolConfig<
     createdAt: {
       type: 'string',
       description: 'Creation date',
+    },
+    updatedAt: {
+      type: 'string',
+      description: 'Last update date',
     },
   },
 }

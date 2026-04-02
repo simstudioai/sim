@@ -7,7 +7,7 @@ export interface RootlyBaseParams {
 
 /** Create Incident */
 export interface RootlyCreateIncidentParams extends RootlyBaseParams {
-  title: string
+  title?: string
   summary?: string
   severityId?: string
   status?: string
@@ -66,11 +66,17 @@ export interface RootlyUpdateIncidentParams extends RootlyBaseParams {
   summary?: string
   severityId?: string
   status?: string
+  kind?: string
+  private?: boolean
   serviceIds?: string
   environmentIds?: string
   groupIds?: string
+  incidentTypeIds?: string
+  functionalityIds?: string
+  labels?: string
   mitigationMessage?: string
   resolutionMessage?: string
+  cancellationMessage?: string
 }
 
 export interface RootlyUpdateIncidentResponse extends ToolResponse {
@@ -102,8 +108,8 @@ export interface RootlyListIncidentsResponse extends ToolResponse {
 /** Create Alert */
 export interface RootlyCreateAlertParams extends RootlyBaseParams {
   summary: string
+  source: string
   description?: string
-  source?: string
   status?: string
   serviceIds?: string
   groupIds?: string
@@ -164,6 +170,7 @@ export interface RootlyAddIncidentEventResponse extends ToolResponse {
     visibility: string | null
     occurredAt: string | null
     createdAt: string
+    updatedAt: string
   }
 }
 
@@ -193,6 +200,7 @@ export interface RootlyListServicesResponse extends ToolResponse {
 
 /** List Severities */
 export interface RootlyListSeveritiesParams extends RootlyBaseParams {
+  search?: string
   pageSize?: number
   pageNumber?: number
 }

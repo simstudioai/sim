@@ -29,7 +29,7 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
       },
       source: {
         type: 'string',
-        required: false,
+        required: true,
         visibility: 'user-or-llm',
         description: 'The source of the alert (e.g., api, manual, datadog, pagerduty)',
       },
@@ -37,7 +37,7 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Alert status (open, triggered, acknowledged, resolved)',
+        description: 'Alert status on creation (open, triggered)',
       },
       serviceIds: {
         type: 'string',
@@ -87,9 +87,9 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
       body: (params) => {
         const attributes: Record<string, unknown> = {
           summary: params.summary,
+          source: params.source,
         }
         if (params.description) attributes.description = params.description
-        if (params.source) attributes.source = params.source
         if (params.status) attributes.status = params.status
         if (params.externalId) attributes.external_id = params.externalId
         if (params.externalUrl) attributes.external_url = params.externalUrl

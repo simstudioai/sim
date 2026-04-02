@@ -53,11 +53,11 @@ Create a new incident in Rootly with optional severity, services, and teams.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rootly API key |
-| `title` | string | Yes | The title of the incident |
+| `title` | string | No | The title of the incident \(auto-generated if not provided\) |
 | `summary` | string | No | A summary of the incident |
 | `severityId` | string | No | Severity ID to attach to the incident |
-| `status` | string | No | Incident status \(in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled\) |
-| `kind` | string | No | Incident kind \(normal, test, example, backfilled, scheduled\) |
+| `status` | string | No | Incident status \(in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled, scheduled, in_progress, completed\) |
+| `kind` | string | No | Incident kind \(normal, normal_sub, test, test_sub, example, example_sub, backfilled, scheduled, scheduled_sub\) |
 | `serviceIds` | string | No | Comma-separated service IDs to attach |
 | `environmentIds` | string | No | Comma-separated environment IDs to attach |
 | `groupIds` | string | No | Comma-separated team/group IDs to attach |
@@ -138,12 +138,18 @@ Update an existing incident in Rootly (status, severity, summary, etc.).
 | `title` | string | No | Updated incident title |
 | `summary` | string | No | Updated incident summary |
 | `severityId` | string | No | Updated severity ID |
-| `status` | string | No | Updated status \(in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled\) |
+| `status` | string | No | Updated status \(in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled, scheduled, in_progress, completed\) |
+| `kind` | string | No | Incident kind \(normal, normal_sub, test, test_sub, example, example_sub, backfilled, scheduled, scheduled_sub\) |
+| `private` | boolean | No | Set incident as private \(cannot be undone\) |
 | `serviceIds` | string | No | Comma-separated service IDs |
 | `environmentIds` | string | No | Comma-separated environment IDs |
 | `groupIds` | string | No | Comma-separated team/group IDs |
+| `incidentTypeIds` | string | No | Comma-separated incident type IDs to attach |
+| `functionalityIds` | string | No | Comma-separated functionality IDs to attach |
+| `labels` | string | No | Labels as JSON object, e.g. \{"platform":"osx","version":"1.29"\} |
 | `mitigationMessage` | string | No | How was the incident mitigated? |
 | `resolutionMessage` | string | No | How was the incident resolved? |
+| `cancellationMessage` | string | No | Why was the incident cancelled? |
 
 #### Output
 
@@ -178,7 +184,7 @@ List incidents from Rootly with optional filtering by status, severity, and more
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rootly API key |
-| `status` | string | No | Filter by status \(in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled\) |
+| `status` | string | No | Filter by status \(in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled, scheduled, in_progress, completed\) |
 | `severity` | string | No | Filter by severity slug |
 | `search` | string | No | Search term to filter incidents |
 | `services` | string | No | Filter by service slugs \(comma-separated\) |
@@ -224,8 +230,8 @@ Create a new alert in Rootly for on-call notification and routing.
 | `apiKey` | string | Yes | Rootly API key |
 | `summary` | string | Yes | The summary of the alert |
 | `description` | string | No | A detailed description of the alert |
-| `source` | string | No | The source of the alert \(e.g., api, manual, datadog, pagerduty\) |
-| `status` | string | No | Alert status \(open, triggered, acknowledged, resolved\) |
+| `source` | string | Yes | The source of the alert \(e.g., api, manual, datadog, pagerduty\) |
+| `status` | string | No | Alert status on creation \(open, triggered\) |
 | `serviceIds` | string | No | Comma-separated service IDs to attach |
 | `groupIds` | string | No | Comma-separated team/group IDs to attach |
 | `environmentIds` | string | No | Comma-separated environment IDs to attach |
@@ -305,6 +311,7 @@ Add a timeline event to an existing incident in Rootly.
 | `visibility` | string | Event visibility \(internal or external\) |
 | `occurredAt` | string | When the event occurred |
 | `createdAt` | string | Creation date |
+| `updatedAt` | string | Last update date |
 
 ### `rootly_list_services`
 
@@ -342,6 +349,7 @@ List severity levels configured in Rootly.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rootly API key |
+| `search` | string | No | Search term to filter severities |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |
 
@@ -424,7 +432,7 @@ List incident types configured in Rootly.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rootly API key |
-| `search` | string | No | Search term to filter incident types |
+| `search` | string | No | Filter incident types by name |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |
 

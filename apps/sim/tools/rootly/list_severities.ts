@@ -17,6 +17,12 @@ export const rootlyListSeveritiesTool: ToolConfig<
       visibility: 'user-only',
       description: 'Rootly API key',
     },
+    search: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Search term to filter severities',
+    },
     pageSize: {
       type: 'number',
       required: false,
@@ -34,6 +40,7 @@ export const rootlyListSeveritiesTool: ToolConfig<
   request: {
     url: (params) => {
       const queryParams = new URLSearchParams()
+      if (params.search) queryParams.set('filter[search]', params.search)
       if (params.pageSize) queryParams.set('page[size]', String(params.pageSize))
       if (params.pageNumber) queryParams.set('page[number]', String(params.pageNumber))
       const qs = queryParams.toString()

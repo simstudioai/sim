@@ -46,7 +46,20 @@ export const rootlyUpdateIncidentTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Updated status (in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled)',
+        'Updated status (in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled, scheduled, in_progress, completed)',
+    },
+    kind: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Incident kind (normal, normal_sub, test, test_sub, example, example_sub, backfilled, scheduled, scheduled_sub)',
+    },
+    private: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Set incident as private (cannot be undone)',
     },
     serviceIds: {
       type: 'string',
@@ -66,6 +79,24 @@ export const rootlyUpdateIncidentTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Comma-separated team/group IDs',
     },
+    incidentTypeIds: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated incident type IDs to attach',
+    },
+    functionalityIds: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated functionality IDs to attach',
+    },
+    labels: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Labels as JSON object, e.g. {"platform":"osx","version":"1.29"}',
+    },
     mitigationMessage: {
       type: 'string',
       required: false,
@@ -77,6 +108,12 @@ export const rootlyUpdateIncidentTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'How was the incident resolved?',
+    },
+    cancellationMessage: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Why was the incident cancelled?',
     },
   },
 
@@ -93,8 +130,28 @@ export const rootlyUpdateIncidentTool: ToolConfig<
       if (params.summary) attributes.summary = params.summary
       if (params.severityId) attributes.severity_id = params.severityId
       if (params.status) attributes.status = params.status
+      if (params.kind) attributes.kind = params.kind
+      if (params.private !== undefined) attributes.private = params.private
       if (params.mitigationMessage) attributes.mitigation_message = params.mitigationMessage
       if (params.resolutionMessage) attributes.resolution_message = params.resolutionMessage
+      if (params.cancellationMessage) attributes.cancellation_message = params.cancellationMessage
+      if (params.incidentTypeIds) {
+        attributes.incident_type_ids = params.incidentTypeIds
+          .split(',')
+          .map((s: string) => s.trim())
+      }
+      if (params.functionalityIds) {
+        attributes.functionality_ids = params.functionalityIds
+          .split(',')
+          .map((s: string) => s.trim())
+      }
+      if (params.labels) {
+        try {
+          attributes.labels = JSON.parse(params.labels)
+        } catch {
+          attributes.labels = params.labels
+        }
+      }
       if (params.serviceIds) {
         attributes.service_ids = params.serviceIds.split(',').map((s: string) => s.trim())
       }

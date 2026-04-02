@@ -19,9 +19,9 @@ export const rootlyCreateIncidentTool: ToolConfig<
     },
     title: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'The title of the incident',
+      description: 'The title of the incident (auto-generated if not provided)',
     },
     summary: {
       type: 'string',
@@ -40,13 +40,14 @@ export const rootlyCreateIncidentTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Incident status (in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled)',
+        'Incident status (in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled, scheduled, in_progress, completed)',
     },
     kind: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Incident kind (normal, test, example, backfilled, scheduled)',
+      description:
+        'Incident kind (normal, normal_sub, test, test_sub, example, example_sub, backfilled, scheduled, scheduled_sub)',
     },
     serviceIds: {
       type: 'string',
@@ -100,9 +101,8 @@ export const rootlyCreateIncidentTool: ToolConfig<
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      const attributes: Record<string, unknown> = {
-        title: params.title,
-      }
+      const attributes: Record<string, unknown> = {}
+      if (params.title) attributes.title = params.title
       if (params.summary) attributes.summary = params.summary
       if (params.severityId) attributes.severity_id = params.severityId
       if (params.status) attributes.status = params.status

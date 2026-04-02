@@ -22,7 +22,7 @@ export const rootlyListIncidentsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Filter by status (in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled)',
+        'Filter by status (in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled, scheduled, in_progress, completed)',
     },
     severity: {
       type: 'string',

@@ -24,7 +24,7 @@ export const rootlyListIncidentTypesTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Search term to filter incident types',
+      description: 'Filter incident types by name',
     },
     pageSize: {
       type: 'number',
@@ -43,7 +43,7 @@ export const rootlyListIncidentTypesTool: ToolConfig<
   request: {
     url: (params) => {
       const queryParams = new URLSearchParams()
-      if (params.search) queryParams.set('filter[search]', params.search)
+      if (params.search) queryParams.set('filter[name]', params.search)
       if (params.pageSize) queryParams.set('page[size]', String(params.pageSize))
       if (params.pageNumber) queryParams.set('page[number]', String(params.pageNumber))
       const qs = queryParams.toString()
