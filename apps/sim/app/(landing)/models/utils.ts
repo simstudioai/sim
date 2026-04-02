@@ -135,7 +135,7 @@ export interface CatalogProvider {
 }
 
 export function formatTokenCount(value?: number | null): string {
-  if (!value) {
+  if (value == null) {
     return 'Unknown'
   }
 
