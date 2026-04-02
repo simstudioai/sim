@@ -85,7 +85,10 @@ export const rootlyCreateActionItemTool: ToolConfig<
       if (params.kind) attributes.kind = params.kind
       if (params.priority) attributes.priority = params.priority
       if (params.status) attributes.status = params.status
-      if (params.assignedToUserId) attributes.assigned_to_user_id = Number(params.assignedToUserId)
+      if (params.assignedToUserId) {
+        const numericId = Number.parseInt(params.assignedToUserId, 10)
+        if (!Number.isNaN(numericId)) attributes.assigned_to_user_id = numericId
+      }
       if (params.dueDate) attributes.due_date = params.dueDate
       return { data: { type: 'incident_action_items', attributes } }
     },

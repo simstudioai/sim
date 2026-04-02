@@ -49,7 +49,7 @@ export const rootlyResolveAlertTool: ToolConfig<
       if (params.resolutionMessage) attributes.resolution_message = params.resolutionMessage
       if (params.resolveRelatedIncidents !== undefined)
         attributes.resolve_related_incidents = params.resolveRelatedIncidents
-      if (Object.keys(attributes).length === 0) return undefined
+      if (Object.keys(attributes).length === 0) return { data: {} }
       return { data: { type: 'alerts', attributes } }
     },
   },
