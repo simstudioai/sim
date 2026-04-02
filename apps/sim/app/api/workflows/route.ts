@@ -251,27 +251,29 @@ export async function POST(req: NextRequest) {
 
     const { workflowState, subBlockValues, startBlockId } = buildDefaultWorkflowArtifacts()
 
-    await db.insert(workflow).values({
-      id: workflowId,
-      userId,
-      workspaceId,
-      folderId: folderId || null,
-      sortOrder,
-      name,
-      description,
-      color,
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      variables: {},
-    })
+    await db.transaction(async (tx) => {
+      await tx.insert(workflow).values({
+        id: workflowId,
+        userId,
+        workspaceId,
+        folderId: folderId || null,
+        sortOrder,
+        name,
+        description,
+        color,
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+        isDeployed: false,
+        runCount: 0,
+        variables: {},
+      })
 
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
-    if (!saveResult.success) {
-      throw new Error(saveResult.error || 'Failed to persist default workflow blocks')
-    }
+      const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
+      if (!saveResult.success) {
+        throw new Error(saveResult.error || 'Failed to persist default workflow blocks')
+      }
+    })
 
     logger.info(`[${requestId}] Successfully created workflow ${workflowId} with default blocks`)
 

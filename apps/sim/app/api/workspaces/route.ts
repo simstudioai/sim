@@ -173,6 +173,12 @@ async function createWorkspace(
           runCount: 0,
           variables: {},
         })
+
+        const { workflowState } = buildDefaultWorkflowArtifacts()
+        const seedResult = await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
+        if (!seedResult.success) {
+          throw new Error(seedResult.error || 'Failed to seed default workflow state')
+        }
       }
 
       logger.info(
@@ -181,15 +187,6 @@ async function createWorkspace(
           : `Created workspace ${workspaceId} with initial workflow ${workflowId} for user ${userId}`
       )
     })
-
-    if (!skipDefaultWorkflow) {
-      const { workflowState } = buildDefaultWorkflowArtifacts()
-      const seedResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
-
-      if (!seedResult.success) {
-        throw new Error(seedResult.error || 'Failed to seed default workflow state')
-      }
-    }
   } catch (error) {
     logger.error(`Failed to create workspace ${workspaceId}:`, error)
     throw error

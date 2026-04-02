@@ -104,7 +104,6 @@ interface CreateWorkflowResult {
   workspaceId: string
   folderId?: string | null
   sortOrder: number
-  startBlockId?: string
   subBlockValues?: Record<string, Record<string, unknown>>
 }
 
@@ -153,7 +152,6 @@ export function useCreateWorkflow() {
         workspaceId,
         folderId: createdWorkflow.folderId,
         sortOrder: createdWorkflow.sortOrder ?? 0,
-        startBlockId: createdWorkflow.startBlockId,
         subBlockValues: createdWorkflow.subBlockValues,
       }
     },

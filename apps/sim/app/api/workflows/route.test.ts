@@ -28,6 +28,13 @@ vi.mock('@sim/db', () => ({
   db: {
     select: (...args: unknown[]) => mockDbSelect(...args),
     insert: (...args: unknown[]) => mockDbInsert(...args),
+    transaction: vi.fn(async (fn: (tx: Record<string, unknown>) => Promise<void>) => {
+      const tx = {
+        select: (...args: unknown[]) => mockDbSelect(...args),
+        insert: (...args: unknown[]) => mockDbInsert(...args),
+      }
+      await fn(tx)
+    }),
   },
 }))
 

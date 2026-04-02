@@ -531,15 +531,15 @@ export async function loadWorkflowFromNormalizedTables(
  */
 export async function saveWorkflowToNormalizedTables(
   workflowId: string,
-  state: WorkflowState
+  state: WorkflowState,
+  externalTx?: DbOrTx
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const blockRecords = state.blocks as Record<string, BlockState>
     const canonicalLoops = generateLoopBlocks(blockRecords)
     const canonicalParallels = generateParallelBlocks(blockRecords)
 
-    // Start a transaction
-    await db.transaction(async (tx) => {
+    const execute = async (tx: DbOrTx) => {
       await Promise.all([
         tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
         tx.delete(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
@@ -611,7 +611,13 @@ export async function saveWorkflowToNormalizedTables(
       if (subflowInserts.length > 0) {
         await tx.insert(workflowSubflows).values(subflowInserts)
       }
-    })
+    }
+
+    if (externalTx) {
+      await execute(externalTx)
+    } else {
+      await db.transaction(execute)
+    }
 
     return { success: true }
   } catch (error) {
