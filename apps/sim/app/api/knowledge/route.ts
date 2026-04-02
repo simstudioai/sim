@@ -13,8 +13,8 @@ import {
 import { getOllamaBaseUrl, validateOllamaModel } from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
-  deleteKnowledgeBase,
   getKnowledgeBases,
+  hardDeleteKnowledgeBase,
   KnowledgeBaseConflictError,
   type KnowledgeBaseScope,
 } from '@/lib/knowledge/service'
@@ -221,10 +221,11 @@ export async function POST(req: NextRequest) {
             `[${requestId}] Failed to create embedding table for KB ${newKnowledgeBase.id}`,
             tableError
           )
-          // Clean up the orphaned KB row and any partially-created table
+          // Hard-delete the KB row — this is a creation-time rollback, not a user-initiated
+          // deletion, so a soft delete would leave a restorable broken KB in the archive.
           try {
             await dropKBEmbeddingTable(newKnowledgeBase.id)
-            await deleteKnowledgeBase(newKnowledgeBase.id, requestId)
+            await hardDeleteKnowledgeBase(newKnowledgeBase.id)
             logger.info(
               `[${requestId}] Cleaned up orphaned KB ${newKnowledgeBase.id} after table creation failure`
             )
