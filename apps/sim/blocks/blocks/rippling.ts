@@ -473,6 +473,25 @@ export const RipplingBlock: BlockConfig = {
       },
     },
     {
+      id: 'allOrNothing',
+      title: 'All Or Nothing',
+      type: 'dropdown',
+      options: [
+        { label: 'No (partial success allowed)', id: 'false' },
+        { label: 'Yes (fail entire batch on any error)', id: 'true' },
+      ],
+      value: () => 'false',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [
+          'bulk_create_custom_object_records',
+          'bulk_update_custom_object_records',
+          'bulk_delete_custom_object_records',
+        ],
+      },
+    },
+    {
       id: 'query',
       title: 'Query',
       type: 'long-input',
@@ -674,6 +693,12 @@ export const RipplingBlock: BlockConfig = {
             )
           }
         }
+        if (
+          params.allOrNothing != null &&
+          params.allOrNothing !== '' &&
+          params.allOrNothing !== 'false'
+        )
+          mapped.allOrNothing = params.allOrNothing === 'true'
         if (params.filter != null && params.filter !== '') mapped.filter = params.filter
         if (params.expand != null && params.expand !== '') mapped.expand = params.expand
         if (params.orderBy != null && params.orderBy !== '') mapped.orderBy = params.orderBy
@@ -863,6 +888,7 @@ export const RipplingBlock: BlockConfig = {
     dataType: { type: 'json', description: 'Data type configuration for custom object fields' },
     data: { type: 'json', description: 'JSON data body for create/update operations' },
     records: { type: 'json', description: 'JSON array of records for bulk operations' },
+    allOrNothing: { type: 'boolean', description: 'Fail entire batch on any error' },
     query: { type: 'string', description: 'Filter expression for custom object record queries' },
     limit: { type: 'number', description: 'Max results for custom object record queries' },
     filter: { type: 'string', description: 'OData filter expression' },
