@@ -51,20 +51,32 @@ export const ripplingCreateCustomObjectRecordTool: ToolConfig<RipplingCreateCust
         throw new Error(`Rippling API error (${response.status}): ${errorText}`)
       }
       const json = await response.json()
-      const record = json.data ?? json
+      const record = (json.data ?? json) as Record<string, unknown>
+      const {
+        id,
+        created_at,
+        updated_at,
+        name,
+        external_id,
+        created_by,
+        last_modified_by,
+        owner_role,
+        system_updated_at,
+        ...dynamicFields
+      } = record
       return {
         success: true,
         output: {
-          id: (record.id as string) ?? '',
-          created_at: (record.created_at as string) ?? null,
-          updated_at: (record.updated_at as string) ?? null,
-          name: (record.name as string) ?? null,
-          external_id: (record.external_id as string) ?? null,
-          created_by: record.created_by ?? null,
-          last_modified_by: record.last_modified_by ?? null,
-          owner_role: record.owner_role ?? null,
-          system_updated_at: (record.system_updated_at as string) ?? null,
-          data: (record.data as Record<string, unknown>) ?? record,
+          id: (id as string) ?? '',
+          created_at: (created_at as string) ?? null,
+          updated_at: (updated_at as string) ?? null,
+          name: (name as string) ?? null,
+          external_id: (external_id as string) ?? null,
+          created_by: created_by ?? null,
+          last_modified_by: last_modified_by ?? null,
+          owner_role: owner_role ?? null,
+          system_updated_at: (system_updated_at as string) ?? null,
+          data: dynamicFields,
         },
       }
     },
