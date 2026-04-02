@@ -506,6 +506,8 @@ export const AgentMailBlock: BlockConfig = {
 
         if (replyTo) {
           rest.to = replyTo
+        } else if (operation === 'reply_message') {
+          rest.to = undefined
         }
 
         if (forwardMessageId) {
