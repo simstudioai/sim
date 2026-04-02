@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Share2 } from 'lucide-react'
+import { Copy, Share2 } from 'lucide-react'
+import { LinkedInIcon, xIcon as XIcon } from '@/components/icons'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,10 +51,17 @@ export function ShareButton({ url, title }: ShareButtonProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         <DropdownMenuItem onSelect={handleCopyLink}>
+          <Copy className='h-4 w-4' />
           {copied ? 'Copied!' : 'Copy link'}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={handleShareTwitter}>Share on X</DropdownMenuItem>
-        <DropdownMenuItem onSelect={handleShareLinkedIn}>Share on LinkedIn</DropdownMenuItem>
+        <DropdownMenuItem onSelect={handleShareTwitter}>
+          <XIcon className='h-4 w-4' />
+          Share on X
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={handleShareLinkedIn}>
+          <LinkedInIcon className='h-4 w-4' />
+          Share on LinkedIn
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

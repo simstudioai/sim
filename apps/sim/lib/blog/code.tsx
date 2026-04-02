@@ -1,3 +1,5 @@
+'use client'
+
 import { Code } from '@/components/emcn'
 
 interface CodeBlockProps {
