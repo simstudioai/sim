@@ -500,7 +500,7 @@ export const AgentMailBlock: BlockConfig = {
           rest.replyAll = replyAll === 'true'
         }
 
-        if (replyMessageId) {
+        if (operation === 'reply_message' && replyMessageId) {
           rest.messageId = replyMessageId
         }
 
@@ -510,19 +510,19 @@ export const AgentMailBlock: BlockConfig = {
           rest.to = undefined
         }
 
-        if (forwardMessageId) {
+        if (operation === 'forward_message' && forwardMessageId) {
           rest.messageId = forwardMessageId
         }
 
-        if (updateMessageId) {
+        if (operation === 'update_message' && updateMessageId) {
           rest.messageId = updateMessageId
         }
 
-        if (msgAddLabels) {
+        if (operation === 'update_message' && msgAddLabels) {
           rest.addLabels = msgAddLabels
         }
 
-        if (msgRemoveLabels) {
+        if (operation === 'update_message' && msgRemoveLabels) {
           rest.removeLabels = msgRemoveLabels
         }
 
