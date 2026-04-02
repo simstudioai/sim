@@ -533,7 +533,10 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                           min={64}
                           max={8192}
                           value={ollamaDimension}
-                          onChange={(e) => setOllamaDimension(Number(e.target.value))}
+                          onChange={(e) => {
+                            const parsed = Number.parseInt(e.target.value, 10)
+                            if (!Number.isNaN(parsed)) setOllamaDimension(parsed)
+                          }}
                           autoComplete='off'
                           data-form-type='other'
                         />
