@@ -49,8 +49,8 @@ export const rootlyListOnCallsTool: ToolConfig<RootlyListOnCallsParams, RootlyLi
           queryParams.set('filter[escalation_policy_ids]', params.escalationPolicyIds)
         if (params.userIds) queryParams.set('filter[user_ids]', params.userIds)
         if (params.serviceIds) queryParams.set('filter[service_ids]', params.serviceIds)
-        const qs = queryParams.toString()
-        return `https://api.rootly.com/v1/oncalls${qs ? `?${qs}` : ''}`
+        queryParams.set('include', 'user,schedule,escalation_policy')
+        return `https://api.rootly.com/v1/oncalls?${queryParams.toString()}`
       },
       method: 'GET',
       headers: (params) => ({
@@ -70,15 +70,36 @@ export const rootlyListOnCallsTool: ToolConfig<RootlyListOnCallsParams, RootlyLi
       }
 
       const data = await response.json()
+      const included = (data.included || []) as Record<string, unknown>[]
+      const findIncluded = (
+        type: string,
+        id: string | null
+      ): Record<string, unknown> | undefined =>
+        id ? included.find((i) => i.type === type && i.id === id) : undefined
+
       const onCalls = (data.data || []).map((item: Record<string, unknown>) => {
         const attrs = (item.attributes || {}) as Record<string, unknown>
+        const rels = (item.relationships || {}) as Record<string, Record<string, unknown>>
+
+        const userId = ((rels.user?.data as Record<string, unknown>)?.id as string) ?? null
+        const scheduleId = ((rels.schedule?.data as Record<string, unknown>)?.id as string) ?? null
+        const escalationPolicyId =
+          ((rels.escalation_policy?.data as Record<string, unknown>)?.id as string) ?? null
+
+        const userIncl = findIncluded('users', userId)
+        const scheduleIncl = findIncluded('schedules', scheduleId)
+
         return {
-          id: item.id ?? null,
-          userId: (attrs.user_id as string) ?? null,
-          userName: (attrs.user_name as string) ?? null,
-          scheduleId: (attrs.schedule_id as string) ?? null,
-          scheduleName: (attrs.schedule_name as string) ?? null,
-          escalationPolicyId: (attrs.escalation_policy_id as string) ?? null,
+          id: (item.id as string) ?? null,
+          userId,
+          userName: userIncl
+            ? (((userIncl.attributes as Record<string, unknown>)?.full_name as string) ?? null)
+            : null,
+          scheduleId,
+          scheduleName: scheduleIncl
+            ? (((scheduleIncl.attributes as Record<string, unknown>)?.name as string) ?? null)
+            : null,
+          escalationPolicyId,
           startTime: (attrs.start_time as string) ?? null,
           endTime: (attrs.end_time as string) ?? null,
         }
