@@ -8,6 +8,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uuid,
   vector,
 } from 'drizzle-orm/pg-core'
 import { ALL_TAG_SLOTS, type AllTagSlot } from '@/lib/knowledge/constants'
@@ -166,7 +167,7 @@ function validateEmbedding(embedding: number[], chunkIndex: number): void {
  */
 function createDynamicKBTable(tableName: string, dimensions: number) {
   return pgTable(tableName, {
-    id: text('id').primaryKey(),
+    id: uuid('id').primaryKey(),
     knowledgeBaseId: text('knowledge_base_id').notNull(),
     documentId: text('document_id').notNull(),
     chunkIndex: integer('chunk_index').notNull(),
