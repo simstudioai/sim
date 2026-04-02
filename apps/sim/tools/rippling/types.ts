@@ -689,7 +689,7 @@ export interface RipplingUpdateCustomObjectRecordParams {
   customObjectApiName: string
   codrId: string
   externalId?: string
-  data: unknown
+  data?: unknown
 }
 export interface RipplingDeleteCustomObjectRecordParams {
   apiKey: string
