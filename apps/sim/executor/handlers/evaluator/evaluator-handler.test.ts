@@ -463,7 +463,7 @@ describe('EvaluatorBlockHandler', () => {
         json: () =>
           Promise.resolve({
             content: JSON.stringify({ score: 7 }),
-            model: 'claude-sonnet-4-5',
+            model: 'claude-sonnet-4-6',
             tokens: {},
             cost: 0,
             timing: {},
@@ -476,6 +476,6 @@ describe('EvaluatorBlockHandler', () => {
     const fetchCallArgs = mockFetch.mock.calls[0]
     const requestBody = JSON.parse(fetchCallArgs[1].body)
 
-    expect(requestBody.model).toBe('claude-sonnet-4-5')
+    expect(requestBody.model).toBe('claude-sonnet-4-6')
   })
 })
