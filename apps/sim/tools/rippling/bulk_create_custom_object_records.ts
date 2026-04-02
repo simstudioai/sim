@@ -54,17 +54,17 @@ export const ripplingBulkCreateCustomObjectRecordsTool: ToolConfig<RipplingBulkC
         throw new Error(`Rippling API error (${response.status}): ${errorText}`)
       }
       const data = await response.json()
-      const results = data.data ?? data.results ?? []
+      const createdRecords = data.data ?? []
       return {
         success: true,
         output: {
-          results,
-          totalCount: Array.isArray(results) ? results.length : 0,
+          createdRecords,
+          totalCount: Array.isArray(createdRecords) ? createdRecords.length : 0,
         },
       }
     },
     outputs: {
-      results: { type: 'json', description: 'Bulk operation results' },
-      totalCount: { type: 'number', description: 'Number of records processed' },
+      createdRecords: { type: 'array', description: 'Created custom object records' },
+      totalCount: { type: 'number', description: 'Number of records created' },
     },
   }

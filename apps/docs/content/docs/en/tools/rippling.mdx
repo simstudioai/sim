@@ -1707,8 +1707,8 @@ Bulk create custom object records
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | json | Bulk operation results |
-| `totalCount` | number | Number of records processed |
+| `createdRecords` | array | Created custom object records |
+| `totalCount` | number | Number of records created |
 
 ### `rippling_bulk_update_custom_object_records`
 
@@ -1727,8 +1727,8 @@ Bulk update custom object records
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | json | Bulk operation results |
-| `totalCount` | number | Number of records processed |
+| `updatedRecords` | array | Updated custom object records |
+| `totalCount` | number | Number of records updated |
 
 ### `rippling_bulk_delete_custom_object_records`
 
@@ -2009,7 +2009,7 @@ List all custom settings
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `settings` | array | List of settings |
+| `customSettings` | array | List of custom settings |
 |   ↳ `id` | string | Setting ID |
 |   ↳ `created_at` | string | Record creation date |
 |   ↳ `updated_at` | string | Record update date |
@@ -2257,7 +2257,9 @@ Get a report run by ID
 | `id` | string | Report run ID |
 | `report_id` | string | Report ID |
 | `status` | string | Run status |
-| `result` | json | Report result \(file_url, expires_at, output_type\) |
+| `file_url` | string | URL to download the report file |
+| `expires_at` | string | Expiration timestamp for the file URL |
+| `output_type` | string | Output format \(JSON or CSV\) |
 | `__meta` | json | Metadata including redacted_fields |
 
 ### `rippling_trigger_report_run`
@@ -2283,7 +2285,9 @@ Trigger a new report run
 | `id` | string | Report run ID |
 | `report_id` | string | Report ID |
 | `status` | string | Run status |
-| `result` | json | Report result \(file_url, expires_at, output_type\) |
+| `file_url` | string | URL to download the report file |
+| `expires_at` | string | Expiration timestamp for the file URL |
+| `output_type` | string | Output format \(JSON or CSV\) |
 
 ### `rippling_create_draft_hires`
 

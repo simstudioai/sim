@@ -761,7 +761,6 @@ export const RipplingBlock: BlockConfig = {
         field: 'operation',
         value: [
           'create_custom_object_record',
-          'update_custom_object_record',
           'create_draft_hires',
           'update_supergroup_inclusion_members',
           'update_supergroup_exclusion_members',
@@ -1124,11 +1123,7 @@ export const RipplingBlock: BlockConfig = {
           mapped.stringValue = params.stringValue
         if (params.settingNumberValue != null && params.settingNumberValue !== '')
           mapped.numberValue = Number(params.settingNumberValue)
-        if (
-          params.settingBooleanValue != null &&
-          params.settingBooleanValue !== '' &&
-          params.settingBooleanValue !== 'false'
-        )
+        if (params.settingBooleanValue != null && params.settingBooleanValue !== '')
           mapped.booleanValue = params.settingBooleanValue === 'true'
 
         // Report Run fields
@@ -1402,14 +1397,16 @@ export const RipplingBlock: BlockConfig = {
     customPages: { type: 'array', description: 'List of custom pages' },
     customSettings: { type: 'array', description: 'List of custom settings' },
     objectCategories: { type: 'array', description: 'List of object categories' },
-    items: { type: 'array', description: 'List of returned items' },
     totalCount: { type: 'number', description: 'Total number of items returned' },
     nextLink: { type: 'string', description: 'URL or cursor for the next page of results' },
     cursor: { type: 'string', description: 'Cursor for next page of query results' },
     deleted: { type: 'boolean', description: 'Whether the resource was deleted' },
-    results: { type: 'array', description: 'Bulk operation results' },
-    result: { type: 'json', description: 'Report run result' },
+    createdRecords: { type: 'array', description: 'Bulk created custom object records' },
+    updatedRecords: { type: 'array', description: 'Bulk updated custom object records' },
     report_id: { type: 'string', description: 'Report ID' },
+    file_url: { type: 'string', description: 'URL to download the report file' },
+    expires_at: { type: 'string', description: 'Expiration timestamp for the file URL' },
+    output_type: { type: 'string', description: 'Report output format (JSON or CSV)' },
     invalidItems: { type: 'array', description: 'Invalid items from draft hires' },
     successfulResults: { type: 'array', description: 'Successful draft hire results' },
     totalInvalid: { type: 'number', description: 'Count of invalid items' },

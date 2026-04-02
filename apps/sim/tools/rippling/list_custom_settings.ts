@@ -48,7 +48,7 @@ export const ripplingListCustomSettingsTool: ToolConfig<RipplingListCustomSettin
     return {
       success: true,
       output: {
-        settings: results.map((item: Record<string, unknown>) => ({
+        customSettings: results.map((item: Record<string, unknown>) => ({
           id: (item.id as string) ?? '',
           created_at: (item.created_at as string) ?? null,
           updated_at: (item.updated_at as string) ?? null,
@@ -67,9 +67,9 @@ export const ripplingListCustomSettingsTool: ToolConfig<RipplingListCustomSettin
     }
   },
   outputs: {
-    settings: {
+    customSettings: {
       type: 'array',
-      description: 'List of settings',
+      description: 'List of custom settings',
       items: { type: 'object', properties: CUSTOM_SETTING_OUTPUT_PROPERTIES },
     },
     totalCount: { type: 'number', description: 'Number of items returned' },
