@@ -494,11 +494,11 @@ export const AgentMailBlock: BlockConfig = {
           rest.inboxId = inboxIdParam
         }
 
-        if (permanent !== undefined) {
+        if (operation === 'delete_thread' && permanent !== undefined) {
           rest.permanent = permanent === 'true'
         }
 
-        if (replyAll !== undefined) {
+        if (operation === 'reply_message' && replyAll !== undefined) {
           rest.replyAll = replyAll === 'true'
         }
 
@@ -536,7 +536,7 @@ export const AgentMailBlock: BlockConfig = {
           rest.removeLabels = removeLabels
         }
 
-        if (draftInReplyTo) {
+        if (operation === 'create_draft' && draftInReplyTo) {
           rest.inReplyTo = draftInReplyTo
         }
 
