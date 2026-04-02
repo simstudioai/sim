@@ -1,5 +1,5 @@
 {
-  "id": "1c75b73c-f8d0-4b69-b42a-995991f56e35",
+  "id": "7f097b1f-1207-472e-b1bc-e237bab9528c",
   "prevId": "1114a957-9e5b-49fe-b82d-ef3612189345",
   "version": "7",
   "dialect": "postgresql",
@@ -3019,10 +3019,6 @@
         "credential_personal_env_source_check": {
           "name": "credential_personal_env_source_check",
           "value": "(type <> 'env_personal') OR (env_key IS NOT NULL AND env_owner_user_id IS NOT NULL)"
-        },
-        "credential_service_account_source_check": {
-          "name": "credential_service_account_source_check",
-          "value": "(type <> 'service_account') OR (encrypted_service_account_key IS NOT NULL AND provider_id IS NOT NULL)"
         }
       },
       "isRLSEnabled": false
