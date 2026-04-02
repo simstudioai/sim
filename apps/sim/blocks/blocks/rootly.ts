@@ -221,6 +221,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
         { label: 'In Progress', id: 'in_progress' },
         { label: 'Completed', id: 'completed' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'rootly_update_incident' },
     },
     {
@@ -359,6 +360,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
         { label: 'In Progress', id: 'in_progress' },
         { label: 'Completed', id: 'completed' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'rootly_list_incidents' },
     },
     {
@@ -531,6 +533,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
         { label: 'Resolved', id: 'resolved' },
         { label: 'Deferred', id: 'deferred' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'rootly_list_alerts' },
     },
     {
@@ -773,6 +776,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
         { label: 'Draft', id: 'draft' },
         { label: 'Published', id: 'published' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'rootly_list_retrospectives' },
     },
     {

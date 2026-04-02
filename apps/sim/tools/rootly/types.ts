@@ -22,7 +22,7 @@ export interface RootlyCreateIncidentParams extends RootlyBaseParams {
 }
 
 export interface RootlyIncidentData {
-  id: string
+  id: string | null
   sequentialId: number | null
   title: string
   slug: string | null
@@ -120,7 +120,7 @@ export interface RootlyCreateAlertParams extends RootlyBaseParams {
 }
 
 export interface RootlyAlertData {
-  id: string
+  id: string | null
   summary: string
   description: string | null
   source: string | null
@@ -182,7 +182,7 @@ export interface RootlyListServicesParams extends RootlyBaseParams {
 }
 
 export interface RootlyServiceData {
-  id: string
+  id: string | null
   name: string
   slug: string | null
   description: string | null
@@ -206,7 +206,7 @@ export interface RootlyListSeveritiesParams extends RootlyBaseParams {
 }
 
 export interface RootlySeverityData {
-  id: string
+  id: string | null
   name: string
   slug: string | null
   description: string | null
@@ -233,7 +233,7 @@ export interface RootlyListRetrospectivesParams extends RootlyBaseParams {
 }
 
 export interface RootlyRetrospectiveData {
-  id: string
+  id: string | null
   title: string
   status: string | null
   url: string | null
@@ -259,7 +259,7 @@ export interface RootlyListTeamsParams extends RootlyBaseParams {
 }
 
 export interface RootlyTeamData {
-  id: string
+  id: string | null
   name: string
   slug: string | null
   description: string | null
@@ -283,7 +283,7 @@ export interface RootlyListEnvironmentsParams extends RootlyBaseParams {
 }
 
 export interface RootlyEnvironmentData {
-  id: string
+  id: string | null
   name: string
   slug: string | null
   description: string | null
@@ -307,7 +307,7 @@ export interface RootlyListIncidentTypesParams extends RootlyBaseParams {
 }
 
 export interface RootlyIncidentTypeData {
-  id: string
+  id: string | null
   name: string
   slug: string | null
   description: string | null
@@ -331,7 +331,7 @@ export interface RootlyListFunctionalitiesParams extends RootlyBaseParams {
 }
 
 export interface RootlyFunctionalityData {
-  id: string
+  id: string | null
   name: string
   slug: string | null
   description: string | null

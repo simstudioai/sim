@@ -11,4 +11,5 @@ export { rootlyListRetrospectivesTool } from '@/tools/rootly/list_retrospectives
 export { rootlyListServicesTool } from '@/tools/rootly/list_services'
 export { rootlyListSeveritiesTool } from '@/tools/rootly/list_severities'
 export { rootlyListTeamsTool } from '@/tools/rootly/list_teams'
+export * from '@/tools/rootly/types'
 export { rootlyUpdateIncidentTool } from '@/tools/rootly/update_incident'
