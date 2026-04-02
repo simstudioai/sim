@@ -166,14 +166,14 @@ export function AuditLogPreview() {
   const counterRef = useRef(ENTRY_TEMPLATES.length)
   const templateIndexRef = useRef(6 % ENTRY_TEMPLATES.length)
 
-  const now = Date.now()
-  const [entries, setEntries] = useState<LogEntry[]>(() =>
-    ENTRY_TEMPLATES.slice(0, 6).map((t, i) => ({
+  const [entries, setEntries] = useState<LogEntry[]>(() => {
+    const now = Date.now()
+    return ENTRY_TEMPLATES.slice(0, 6).map((t, i) => ({
       ...t,
       id: i,
       insertedAt: now - INITIAL_OFFSETS_MS[i],
     }))
-  )
+  })
   const [, tick] = useState(0)
 
   useEffect(() => {
@@ -208,10 +208,9 @@ export function AuditLogPreview() {
             exit={{ opacity: 0 }}
             transition={{
               layout: {
-                type: 'spring',
-                stiffness: 350,
-                damping: 50,
-                mass: 0.8,
+                type: 'tween',
+                duration: 0.32,
+                ease: [0.25, 0.46, 0.45, 0.94],
               },
               y: { duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] },
               opacity: { duration: 0.25 },
