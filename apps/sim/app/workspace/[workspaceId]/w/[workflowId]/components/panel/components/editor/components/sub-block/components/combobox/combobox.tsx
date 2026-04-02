@@ -248,9 +248,11 @@ export const ComboBox = memo(function ComboBox({
 
     // For model field, default to claude-sonnet-4-6 if available
     if (subBlockId === 'model') {
-      const claudeSonnet45 = evaluatedOptions.find((opt) => getOptionValue(opt) === DEFAULT_MODEL)
-      if (claudeSonnet45) {
-        return getOptionValue(claudeSonnet45)
+      const defaultModelOption = evaluatedOptions.find(
+        (opt) => getOptionValue(opt) === DEFAULT_MODEL
+      )
+      if (defaultModelOption) {
+        return getOptionValue(defaultModelOption)
       }
     }
 
