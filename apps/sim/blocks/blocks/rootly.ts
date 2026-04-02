@@ -1200,7 +1200,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
 
-    // API Key (common)
     {
       id: 'apiKey',
       title: 'API Key',
