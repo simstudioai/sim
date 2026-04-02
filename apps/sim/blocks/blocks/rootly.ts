@@ -69,6 +69,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       title: 'Status',
       type: 'dropdown',
       options: [
+        { label: 'Default', id: '' },
         { label: 'In Triage', id: 'in_triage' },
         { label: 'Started', id: 'started' },
         { label: 'Detected', id: 'detected' },
@@ -78,6 +79,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
         { label: 'Closed', id: 'closed' },
         { label: 'Cancelled', id: 'cancelled' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'rootly_create_incident' },
       mode: 'advanced',
     },
@@ -86,12 +88,14 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       title: 'Kind',
       type: 'dropdown',
       options: [
+        { label: 'Default', id: '' },
         { label: 'Normal', id: 'normal' },
         { label: 'Test', id: 'test' },
         { label: 'Example', id: 'example' },
         { label: 'Backfilled', id: 'backfilled' },
         { label: 'Scheduled', id: 'scheduled' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'rootly_create_incident' },
       mode: 'advanced',
     },
@@ -149,6 +153,19 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
         placeholder: 'Describe the labels (e.g., "platform osx, version 1.29")...',
         generationType: 'json-object',
       },
+    },
+    {
+      id: 'createPrivate',
+      title: 'Private',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_create_incident' },
+      mode: 'advanced',
     },
 
     // Get Incident fields
@@ -296,11 +313,29 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       title: 'Sort',
       type: 'dropdown',
       options: [
+        { label: 'Default', id: '' },
         { label: 'Newest First', id: '-created_at' },
         { label: 'Oldest First', id: 'created_at' },
         { label: 'Recently Started', id: '-started_at' },
         { label: 'Recently Updated', id: '-updated_at' },
       ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_list_incidents' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listIncidentsTeams',
+      title: 'Teams Filter',
+      type: 'short-input',
+      placeholder: 'Comma-separated team slugs',
+      condition: { field: 'operation', value: 'rootly_list_incidents' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listIncidentsEnvironments',
+      title: 'Environments Filter',
+      type: 'short-input',
+      placeholder: 'Comma-separated environment slugs',
       condition: { field: 'operation', value: 'rootly_list_incidents' },
       mode: 'advanced',
     },
@@ -309,6 +344,14 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       title: 'Page Size',
       type: 'short-input',
       placeholder: '20',
+      condition: { field: 'operation', value: 'rootly_list_incidents' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listIncidentsPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
       condition: { field: 'operation', value: 'rootly_list_incidents' },
       mode: 'advanced',
     },
@@ -362,6 +405,37 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'alertEnvironmentIds',
+      title: 'Environment IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated environment IDs',
+      condition: { field: 'operation', value: 'rootly_create_alert' },
+      mode: 'advanced',
+    },
+    {
+      id: 'alertStatus',
+      title: 'Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Open', id: 'open' },
+        { label: 'Triggered', id: 'triggered' },
+        { label: 'Acknowledged', id: 'acknowledged' },
+        { label: 'Resolved', id: 'resolved' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_create_alert' },
+      mode: 'advanced',
+    },
+    {
+      id: 'alertExternalId',
+      title: 'External ID',
+      type: 'short-input',
+      placeholder: 'External alert ID',
+      condition: { field: 'operation', value: 'rootly_create_alert' },
+      mode: 'advanced',
+    },
+    {
       id: 'alertExternalUrl',
       title: 'External URL',
       type: 'short-input',
@@ -393,10 +467,42 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'listAlertsServices',
+      title: 'Services Filter',
+      type: 'short-input',
+      placeholder: 'Comma-separated service slugs',
+      condition: { field: 'operation', value: 'rootly_list_alerts' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listAlertsEnvironments',
+      title: 'Environments Filter',
+      type: 'short-input',
+      placeholder: 'Comma-separated environment slugs',
+      condition: { field: 'operation', value: 'rootly_list_alerts' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listAlertsGroups',
+      title: 'Teams Filter',
+      type: 'short-input',
+      placeholder: 'Comma-separated team slugs',
+      condition: { field: 'operation', value: 'rootly_list_alerts' },
+      mode: 'advanced',
+    },
+    {
       id: 'listAlertsPageSize',
       title: 'Page Size',
       type: 'short-input',
       placeholder: '20',
+      condition: { field: 'operation', value: 'rootly_list_alerts' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listAlertsPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
       condition: { field: 'operation', value: 'rootly_list_alerts' },
       mode: 'advanced',
     },
@@ -423,9 +529,11 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       title: 'Visibility',
       type: 'dropdown',
       options: [
+        { label: 'Default', id: '' },
         { label: 'Internal', id: 'internal' },
         { label: 'External', id: 'external' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'rootly_add_incident_event' },
       mode: 'advanced',
     },
@@ -446,6 +554,14 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       condition: { field: 'operation', value: 'rootly_list_services' },
       mode: 'advanced',
     },
+    {
+      id: 'servicesPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'rootly_list_services' },
+      mode: 'advanced',
+    },
 
     // List Severities fields
     {
@@ -453,6 +569,14 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       title: 'Page Size',
       type: 'short-input',
       placeholder: '20',
+      condition: { field: 'operation', value: 'rootly_list_severities' },
+      mode: 'advanced',
+    },
+    {
+      id: 'severitiesPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
       condition: { field: 'operation', value: 'rootly_list_severities' },
       mode: 'advanced',
     },
@@ -473,6 +597,14 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       condition: { field: 'operation', value: 'rootly_list_teams' },
       mode: 'advanced',
     },
+    {
+      id: 'teamsPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'rootly_list_teams' },
+      mode: 'advanced',
+    },
 
     // List Environments fields
     {
@@ -487,6 +619,14 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       title: 'Page Size',
       type: 'short-input',
       placeholder: '20',
+      condition: { field: 'operation', value: 'rootly_list_environments' },
+      mode: 'advanced',
+    },
+    {
+      id: 'environmentsPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
       condition: { field: 'operation', value: 'rootly_list_environments' },
       mode: 'advanced',
     },
@@ -507,6 +647,14 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       condition: { field: 'operation', value: 'rootly_list_incident_types' },
       mode: 'advanced',
     },
+    {
+      id: 'incidentTypesPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'rootly_list_incident_types' },
+      mode: 'advanced',
+    },
 
     // List Functionalities fields
     {
@@ -521,6 +669,14 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       title: 'Page Size',
       type: 'short-input',
       placeholder: '20',
+      condition: { field: 'operation', value: 'rootly_list_functionalities' },
+      mode: 'advanced',
+    },
+    {
+      id: 'functionalitiesPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
       condition: { field: 'operation', value: 'rootly_list_functionalities' },
       mode: 'advanced',
     },
@@ -549,6 +705,14 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       title: 'Page Size',
       type: 'short-input',
       placeholder: '20',
+      condition: { field: 'operation', value: 'rootly_list_retrospectives' },
+      mode: 'advanced',
+    },
+    {
+      id: 'retrospectivesPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
       condition: { field: 'operation', value: 'rootly_list_retrospectives' },
       mode: 'advanced',
     },
@@ -602,6 +766,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
               incidentTypeIds: params.createIncidentTypeIds,
               functionalityIds: params.createFunctionalityIds,
               labels: params.createLabels,
+              private: params.createPrivate ? params.createPrivate === 'true' : undefined,
             }
 
           case 'rootly_get_incident':
@@ -632,9 +797,14 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
               search: params.listIncidentsSearch,
               severity: params.listIncidentsSeverity,
               services: params.listIncidentsServices,
+              teams: params.listIncidentsTeams,
+              environments: params.listIncidentsEnvironments,
               sort: params.listIncidentsSort,
               pageSize: params.listIncidentsPageSize
                 ? Number(params.listIncidentsPageSize)
+                : undefined,
+              pageNumber: params.listIncidentsPageNumber
+                ? Number(params.listIncidentsPageNumber)
                 : undefined,
             }
 
@@ -644,8 +814,11 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
               summary: params.alertSummary,
               description: params.alertDescription,
               source: params.alertSource,
+              status: params.alertStatus,
               serviceIds: params.alertServiceIds,
               groupIds: params.alertGroupIds,
+              environmentIds: params.alertEnvironmentIds,
+              externalId: params.alertExternalId,
               deduplicationKey: params.alertDeduplicationKey,
               externalUrl: params.alertExternalUrl,
             }
@@ -655,7 +828,13 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
               ...baseParams,
               status: params.listAlertsStatus,
               source: params.listAlertsSource,
+              services: params.listAlertsServices,
+              environments: params.listAlertsEnvironments,
+              groups: params.listAlertsGroups,
               pageSize: params.listAlertsPageSize ? Number(params.listAlertsPageSize) : undefined,
+              pageNumber: params.listAlertsPageNumber
+                ? Number(params.listAlertsPageNumber)
+                : undefined,
             }
 
           case 'rootly_add_incident_event':
@@ -671,12 +850,16 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
               ...baseParams,
               search: params.servicesSearch,
               pageSize: params.servicesPageSize ? Number(params.servicesPageSize) : undefined,
+              pageNumber: params.servicesPageNumber ? Number(params.servicesPageNumber) : undefined,
             }
 
           case 'rootly_list_severities':
             return {
               ...baseParams,
               pageSize: params.severitiesPageSize ? Number(params.severitiesPageSize) : undefined,
+              pageNumber: params.severitiesPageNumber
+                ? Number(params.severitiesPageNumber)
+                : undefined,
             }
 
           case 'rootly_list_teams':
@@ -684,6 +867,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
               ...baseParams,
               search: params.teamsSearch,
               pageSize: params.teamsPageSize ? Number(params.teamsPageSize) : undefined,
+              pageNumber: params.teamsPageNumber ? Number(params.teamsPageNumber) : undefined,
             }
 
           case 'rootly_list_environments':
@@ -692,6 +876,9 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
               search: params.environmentsSearch,
               pageSize: params.environmentsPageSize
                 ? Number(params.environmentsPageSize)
+                : undefined,
+              pageNumber: params.environmentsPageNumber
+                ? Number(params.environmentsPageNumber)
                 : undefined,
             }
 
@@ -702,6 +889,9 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
               pageSize: params.incidentTypesPageSize
                 ? Number(params.incidentTypesPageSize)
                 : undefined,
+              pageNumber: params.incidentTypesPageNumber
+                ? Number(params.incidentTypesPageNumber)
+                : undefined,
             }
 
           case 'rootly_list_functionalities':
@@ -710,6 +900,9 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
               search: params.functionalitiesSearch,
               pageSize: params.functionalitiesPageSize
                 ? Number(params.functionalitiesPageSize)
+                : undefined,
+              pageNumber: params.functionalitiesPageNumber
+                ? Number(params.functionalitiesPageNumber)
                 : undefined,
             }
 
@@ -720,6 +913,9 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
               search: params.retrospectivesSearch,
               pageSize: params.retrospectivesPageSize
                 ? Number(params.retrospectivesPageSize)
+                : undefined,
+              pageNumber: params.retrospectivesPageNumber
+                ? Number(params.retrospectivesPageNumber)
                 : undefined,
             }
 
@@ -743,6 +939,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
     createIncidentTypeIds: { type: 'string', description: 'Incident type IDs' },
     createFunctionalityIds: { type: 'string', description: 'Functionality IDs' },
     createLabels: { type: 'string', description: 'Labels as JSON' },
+    createPrivate: { type: 'string', description: 'Whether incident is private' },
     getIncidentId: { type: 'string', description: 'Incident ID to retrieve' },
     updateIncidentId: { type: 'string', description: 'Incident ID to update' },
     updateTitle: { type: 'string', description: 'Updated title' },
@@ -758,35 +955,52 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
     listIncidentsSearch: { type: 'string', description: 'Search incidents' },
     listIncidentsSeverity: { type: 'string', description: 'Filter by severity' },
     listIncidentsServices: { type: 'string', description: 'Filter by services' },
+    listIncidentsTeams: { type: 'string', description: 'Filter by teams' },
+    listIncidentsEnvironments: { type: 'string', description: 'Filter by environments' },
     listIncidentsSort: { type: 'string', description: 'Sort order' },
     listIncidentsPageSize: { type: 'string', description: 'Page size' },
+    listIncidentsPageNumber: { type: 'string', description: 'Page number' },
     alertSummary: { type: 'string', description: 'Alert summary' },
     alertDescription: { type: 'string', description: 'Alert description' },
     alertSource: { type: 'string', description: 'Alert source' },
     alertServiceIds: { type: 'string', description: 'Alert service IDs' },
     alertGroupIds: { type: 'string', description: 'Alert team IDs' },
+    alertEnvironmentIds: { type: 'string', description: 'Alert environment IDs' },
+    alertStatus: { type: 'string', description: 'Alert status' },
+    alertExternalId: { type: 'string', description: 'External alert ID' },
     alertDeduplicationKey: { type: 'string', description: 'Deduplication key' },
     alertExternalUrl: { type: 'string', description: 'External URL' },
     listAlertsStatus: { type: 'string', description: 'Filter alerts by status' },
     listAlertsSource: { type: 'string', description: 'Filter alerts by source' },
+    listAlertsServices: { type: 'string', description: 'Filter alerts by services' },
+    listAlertsEnvironments: { type: 'string', description: 'Filter alerts by environments' },
+    listAlertsGroups: { type: 'string', description: 'Filter alerts by teams' },
     listAlertsPageSize: { type: 'string', description: 'Alerts page size' },
+    listAlertsPageNumber: { type: 'string', description: 'Alerts page number' },
     eventIncidentId: { type: 'string', description: 'Incident ID for event' },
     eventText: { type: 'string', description: 'Event description' },
     eventVisibility: { type: 'string', description: 'Event visibility' },
     servicesSearch: { type: 'string', description: 'Search services' },
     servicesPageSize: { type: 'string', description: 'Services page size' },
+    servicesPageNumber: { type: 'string', description: 'Services page number' },
     severitiesPageSize: { type: 'string', description: 'Severities page size' },
+    severitiesPageNumber: { type: 'string', description: 'Severities page number' },
     teamsSearch: { type: 'string', description: 'Search teams' },
     teamsPageSize: { type: 'string', description: 'Teams page size' },
+    teamsPageNumber: { type: 'string', description: 'Teams page number' },
     environmentsSearch: { type: 'string', description: 'Search environments' },
     environmentsPageSize: { type: 'string', description: 'Environments page size' },
+    environmentsPageNumber: { type: 'string', description: 'Environments page number' },
     incidentTypesSearch: { type: 'string', description: 'Search incident types' },
     incidentTypesPageSize: { type: 'string', description: 'Incident types page size' },
+    incidentTypesPageNumber: { type: 'string', description: 'Incident types page number' },
     functionalitiesSearch: { type: 'string', description: 'Search functionalities' },
     functionalitiesPageSize: { type: 'string', description: 'Functionalities page size' },
+    functionalitiesPageNumber: { type: 'string', description: 'Functionalities page number' },
     retrospectivesStatus: { type: 'string', description: 'Filter retrospectives by status' },
     retrospectivesSearch: { type: 'string', description: 'Search retrospectives' },
     retrospectivesPageSize: { type: 'string', description: 'Retrospectives page size' },
+    retrospectivesPageNumber: { type: 'string', description: 'Retrospectives page number' },
   },
   outputs: {
     incident: {
