@@ -153,32 +153,40 @@ const CUSTOM_OBJECT_ID_OPS = [
   'bulk_delete_custom_object_records',
 ] as const
 
-/** Operations that accept a JSON data body */
-const DATA_OPS = [
-  'create_department',
-  'update_department',
-  'create_title',
-  'update_title',
-  'create_work_location',
-  'update_work_location',
-  'create_business_partner',
-  'create_business_partner_group',
+/** Operations that accept a description field */
+const DESCRIPTION_OPS = [
   'create_custom_object',
   'update_custom_object',
   'create_custom_object_field',
   'update_custom_object_field',
-  'create_custom_object_record',
-  'update_custom_object_record',
   'create_custom_app',
   'update_custom_app',
-  'create_custom_setting',
-  'update_custom_setting',
   'create_object_category',
   'update_object_category',
+] as const
+
+/** Operations for work location address fields */
+const WORK_LOCATION_WRITE_OPS = ['create_work_location', 'update_work_location'] as const
+
+/** Operations for custom object create/update */
+const CUSTOM_OBJECT_WRITE_OPS = ['create_custom_object', 'update_custom_object'] as const
+
+/** Operations for custom object field configuration */
+const CUSTOM_OBJECT_FIELD_WRITE_OPS = [
+  'create_custom_object_field',
+  'update_custom_object_field',
+] as const
+
+/** Operations for custom setting fields */
+const CUSTOM_SETTING_WRITE_OPS = ['create_custom_setting', 'update_custom_setting'] as const
+
+/** Operations where data JSON is passed through directly (not spread) */
+const DATA_PASSTHROUGH_OPS = [
+  'create_custom_object_record',
+  'update_custom_object_record',
+  'create_draft_hires',
   'update_supergroup_inclusion_members',
   'update_supergroup_exclusion_members',
-  'create_draft_hires',
-  'trigger_report_run',
 ] as const
 
 export const RipplingBlock: BlockConfig = {
@@ -257,8 +265,14 @@ export const RipplingBlock: BlockConfig = {
         { label: 'List Supergroup Members', id: 'list_supergroup_members' },
         { label: 'List Supergroup Inclusion Members', id: 'list_supergroup_inclusion_members' },
         { label: 'List Supergroup Exclusion Members', id: 'list_supergroup_exclusion_members' },
-        { label: 'Update Supergroup Inclusion Members', id: 'update_supergroup_inclusion_members' },
-        { label: 'Update Supergroup Exclusion Members', id: 'update_supergroup_exclusion_members' },
+        {
+          label: 'Update Supergroup Inclusion Members',
+          id: 'update_supergroup_inclusion_members',
+        },
+        {
+          label: 'Update Supergroup Exclusion Members',
+          id: 'update_supergroup_exclusion_members',
+        },
         // Custom Objects
         { label: 'List Custom Objects', id: 'list_custom_objects' },
         { label: 'Get Custom Object', id: 'get_custom_object' },
@@ -282,9 +296,18 @@ export const RipplingBlock: BlockConfig = {
         { label: 'Create Custom Object Record', id: 'create_custom_object_record' },
         { label: 'Update Custom Object Record', id: 'update_custom_object_record' },
         { label: 'Delete Custom Object Record', id: 'delete_custom_object_record' },
-        { label: 'Bulk Create Custom Object Records', id: 'bulk_create_custom_object_records' },
-        { label: 'Bulk Update Custom Object Records', id: 'bulk_update_custom_object_records' },
-        { label: 'Bulk Delete Custom Object Records', id: 'bulk_delete_custom_object_records' },
+        {
+          label: 'Bulk Create Custom Object Records',
+          id: 'bulk_create_custom_object_records',
+        },
+        {
+          label: 'Bulk Update Custom Object Records',
+          id: 'bulk_update_custom_object_records',
+        },
+        {
+          label: 'Bulk Delete Custom Object Records',
+          id: 'bulk_delete_custom_object_records',
+        },
         // Custom Apps
         { label: 'List Custom Apps', id: 'list_custom_apps' },
         { label: 'Get Custom App', id: 'get_custom_app' },
@@ -369,6 +392,7 @@ export const RipplingBlock: BlockConfig = {
         ],
       },
     },
+    // Department fields
     {
       id: 'parentId',
       title: 'Parent ID',
@@ -391,14 +415,25 @@ export const RipplingBlock: BlockConfig = {
         value: ['create_department', 'update_department'],
       },
     },
+    // Description (shared across many create/update operations)
+    {
+      id: 'description',
+      title: 'Description',
+      type: 'short-input',
+      placeholder: 'Enter a description',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...DESCRIPTION_OPS] },
+    },
+    // Custom App fields
     {
       id: 'apiName',
       title: 'API Name',
       type: 'short-input',
       placeholder: 'Enter the API name (e.g. my_app)',
-      condition: { field: 'operation', value: 'create_custom_app' },
+      condition: { field: 'operation', value: ['create_custom_app', 'update_custom_app'] },
       required: { field: 'operation', value: 'create_custom_app' },
     },
+    // Business Partner fields
     {
       id: 'businessPartnerGroupId',
       title: 'Business Partner Group ID',
@@ -415,41 +450,325 @@ export const RipplingBlock: BlockConfig = {
       condition: { field: 'operation', value: 'create_business_partner' },
       required: { field: 'operation', value: 'create_business_partner' },
     },
+    // Business Partner Group fields
+    {
+      id: 'domain',
+      title: 'Domain',
+      type: 'dropdown',
+      options: [
+        { label: 'HR', id: 'HR' },
+        { label: 'IT', id: 'IT' },
+        { label: 'Finance', id: 'FINANCE' },
+        { label: 'Recruiting', id: 'RECRUITING' },
+        { label: 'Other', id: 'OTHER' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_business_partner_group' },
+    },
+    {
+      id: 'defaultBusinessPartnerId',
+      title: 'Default Business Partner ID',
+      type: 'short-input',
+      placeholder: 'Enter the default business partner worker ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_business_partner_group' },
+    },
+    // Work Location address fields
     {
       id: 'streetAddress',
       title: 'Street Address',
       type: 'short-input',
       placeholder: 'Enter the street address',
-      condition: { field: 'operation', value: 'create_work_location' },
+      condition: { field: 'operation', value: [...WORK_LOCATION_WRITE_OPS] },
       required: { field: 'operation', value: 'create_work_location' },
     },
+    {
+      id: 'locality',
+      title: 'City',
+      type: 'short-input',
+      placeholder: 'Enter the city',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...WORK_LOCATION_WRITE_OPS] },
+    },
+    {
+      id: 'region',
+      title: 'State/Region',
+      type: 'short-input',
+      placeholder: 'Enter the state or region',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...WORK_LOCATION_WRITE_OPS] },
+    },
+    {
+      id: 'postalCode',
+      title: 'Postal Code',
+      type: 'short-input',
+      placeholder: 'Enter the postal code',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...WORK_LOCATION_WRITE_OPS] },
+    },
+    {
+      id: 'addressCountry',
+      title: 'Country',
+      type: 'short-input',
+      placeholder: 'Enter the country code (e.g. US)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...WORK_LOCATION_WRITE_OPS] },
+    },
+    {
+      id: 'addressType',
+      title: 'Address Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Home', id: 'HOME' },
+        { label: 'Work', id: 'WORK' },
+        { label: 'Other', id: 'OTHER' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...WORK_LOCATION_WRITE_OPS] },
+    },
+    // Custom Object fields
+    {
+      id: 'category',
+      title: 'Category',
+      type: 'short-input',
+      placeholder: 'Enter the category ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...CUSTOM_OBJECT_WRITE_OPS] },
+    },
+    {
+      id: 'pluralLabel',
+      title: 'Plural Label',
+      type: 'short-input',
+      placeholder: 'Enter the plural label',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'update_custom_object' },
+    },
+    {
+      id: 'ownerRole',
+      title: 'Owner Role',
+      type: 'short-input',
+      placeholder: 'Enter the owner role',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'update_custom_object' },
+    },
+    // Custom Object Field configuration
     {
       id: 'dataType',
       title: 'Data Type',
       type: 'long-input',
       placeholder: '{ "type": "TEXT" }',
-      condition: { field: 'operation', value: 'create_custom_object_field' },
+      condition: { field: 'operation', value: [...CUSTOM_OBJECT_FIELD_WRITE_OPS] },
       required: { field: 'operation', value: 'create_custom_object_field' },
     },
+    {
+      id: 'fieldRequired',
+      title: 'Required',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...CUSTOM_OBJECT_FIELD_WRITE_OPS] },
+    },
+    {
+      id: 'isUnique',
+      title: 'Unique',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...CUSTOM_OBJECT_FIELD_WRITE_OPS] },
+    },
+    {
+      id: 'enableHistory',
+      title: 'Enable History',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...CUSTOM_OBJECT_FIELD_WRITE_OPS] },
+    },
+    {
+      id: 'rqlDefinition',
+      title: 'RQL Definition (JSON)',
+      type: 'long-input',
+      placeholder: '{ ... }',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...CUSTOM_OBJECT_FIELD_WRITE_OPS] },
+    },
+    {
+      id: 'formulaAttrMetas',
+      title: 'Formula Attr Metas (JSON)',
+      type: 'long-input',
+      placeholder: '{ ... }',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...CUSTOM_OBJECT_FIELD_WRITE_OPS] },
+    },
+    {
+      id: 'fieldSection',
+      title: 'Section (JSON)',
+      type: 'long-input',
+      placeholder: '{ ... }',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...CUSTOM_OBJECT_FIELD_WRITE_OPS] },
+    },
+    {
+      id: 'derivedFieldFormula',
+      title: 'Derived Field Formula',
+      type: 'short-input',
+      placeholder: 'Enter the formula expression',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...CUSTOM_OBJECT_FIELD_WRITE_OPS] },
+    },
+    {
+      id: 'derivedAggregatedField',
+      title: 'Derived Aggregated Field (JSON)',
+      type: 'long-input',
+      placeholder: '{ ... }',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_custom_object_field' },
+    },
+    {
+      id: 'nameFieldDetails',
+      title: 'Name Field Details (JSON)',
+      type: 'long-input',
+      placeholder: '{ ... }',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'update_custom_object_field' },
+    },
+    // Custom Setting fields
+    {
+      id: 'displayName',
+      title: 'Display Name',
+      type: 'short-input',
+      placeholder: 'Enter the display name',
+      condition: { field: 'operation', value: [...CUSTOM_SETTING_WRITE_OPS] },
+    },
+    {
+      id: 'settingApiName',
+      title: 'Setting API Name',
+      type: 'short-input',
+      placeholder: 'Enter the unique API name',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...CUSTOM_SETTING_WRITE_OPS] },
+    },
+    {
+      id: 'settingDataType',
+      title: 'Setting Data Type',
+      type: 'short-input',
+      placeholder: 'Enter the data type',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...CUSTOM_SETTING_WRITE_OPS] },
+    },
+    {
+      id: 'secretValue',
+      title: 'Secret Value',
+      type: 'short-input',
+      placeholder: 'Enter the secret value',
+      password: true,
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...CUSTOM_SETTING_WRITE_OPS] },
+    },
+    {
+      id: 'stringValue',
+      title: 'String Value',
+      type: 'short-input',
+      placeholder: 'Enter the string value',
+      condition: { field: 'operation', value: [...CUSTOM_SETTING_WRITE_OPS] },
+    },
+    {
+      id: 'settingNumberValue',
+      title: 'Number Value',
+      type: 'short-input',
+      placeholder: 'Enter the number value',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...CUSTOM_SETTING_WRITE_OPS] },
+    },
+    {
+      id: 'settingBooleanValue',
+      title: 'Boolean Value',
+      type: 'dropdown',
+      options: [
+        { label: 'False', id: 'false' },
+        { label: 'True', id: 'true' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...CUSTOM_SETTING_WRITE_OPS] },
+    },
+    // Report Run fields
+    {
+      id: 'includeObjectIds',
+      title: 'Include Object IDs',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'trigger_report_run' },
+    },
+    {
+      id: 'includeTotalRows',
+      title: 'Include Total Rows',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'trigger_report_run' },
+    },
+    {
+      id: 'formatDateFields',
+      title: 'Format Date Fields (JSON)',
+      type: 'long-input',
+      placeholder: '{ "date_format": "ISO_8601" }',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'trigger_report_run' },
+    },
+    {
+      id: 'formatCurrencyFields',
+      title: 'Format Currency Fields (JSON)',
+      type: 'long-input',
+      placeholder: '{ ... }',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'trigger_report_run' },
+    },
+    {
+      id: 'outputType',
+      title: 'Output Type',
+      type: 'dropdown',
+      options: [
+        { label: 'JSON', id: 'JSON' },
+        { label: 'CSV', id: 'CSV' },
+      ],
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'trigger_report_run' },
+    },
+    // Data JSON - only for passthrough operations (custom object records, draft hires, supergroup ops)
     {
       id: 'data',
       title: 'Data (JSON)',
       type: 'long-input',
       placeholder: '{ "key": "value" }',
-      condition: { field: 'operation', value: [...DATA_OPS] },
+      condition: { field: 'operation', value: [...DATA_PASSTHROUGH_OPS] },
       required: {
         field: 'operation',
         value: [
           'create_custom_object_record',
           'update_custom_object_record',
-          'create_custom_setting',
-          'update_custom_setting',
           'create_draft_hires',
           'update_supergroup_inclusion_members',
           'update_supergroup_exclusion_members',
         ],
       },
     },
+    // Records JSON for bulk operations
     {
       id: 'records',
       title: 'Records (JSON)',
@@ -491,6 +810,7 @@ export const RipplingBlock: BlockConfig = {
         ],
       },
     },
+    // Query fields for custom object record queries
     {
       id: 'query',
       title: 'Query',
@@ -506,6 +826,7 @@ export const RipplingBlock: BlockConfig = {
       mode: 'advanced',
       condition: { field: 'operation', value: 'query_custom_object_records' },
     },
+    // Common query parameters
     {
       id: 'filter',
       title: 'Filter',
@@ -538,6 +859,7 @@ export const RipplingBlock: BlockConfig = {
       mode: 'advanced',
       condition: { field: 'operation', value: [...CURSOR_OPS] },
     },
+    // API Key
     {
       id: 'apiKey',
       title: 'API Key',
@@ -667,7 +989,9 @@ export const RipplingBlock: BlockConfig = {
         const mapped: Record<string, unknown> = {
           apiKey: params.apiKey,
         }
+        const op = params.operation as string
 
+        // Common fields
         if (params.id != null && params.id !== '') mapped.id = params.id
         if (params.customObjectId != null && params.customObjectId !== '')
           mapped.customObjectId = params.customObjectId
@@ -677,12 +1001,39 @@ export const RipplingBlock: BlockConfig = {
         if (params.parentId != null && params.parentId !== '') mapped.parentId = params.parentId
         if (params.referenceCode != null && params.referenceCode !== '')
           mapped.referenceCode = params.referenceCode
-        if (params.streetAddress != null && params.streetAddress !== '')
-          mapped.streetAddress = params.streetAddress
+        if (params.description != null && params.description !== '')
+          mapped.description = params.description
         if (params.apiName != null && params.apiName !== '') mapped.apiName = params.apiName
+
+        // Business Partner fields
         if (params.businessPartnerGroupId != null && params.businessPartnerGroupId !== '')
           mapped.businessPartnerGroupId = params.businessPartnerGroupId
         if (params.workerId != null && params.workerId !== '') mapped.workerId = params.workerId
+
+        // Business Partner Group fields
+        if (params.domain != null && params.domain !== '') mapped.domain = params.domain
+        if (params.defaultBusinessPartnerId != null && params.defaultBusinessPartnerId !== '')
+          mapped.defaultBusinessPartnerId = params.defaultBusinessPartnerId
+
+        // Work Location address fields
+        if (params.streetAddress != null && params.streetAddress !== '')
+          mapped.streetAddress = params.streetAddress
+        if (params.locality != null && params.locality !== '') mapped.locality = params.locality
+        if (params.region != null && params.region !== '') mapped.region = params.region
+        if (params.postalCode != null && params.postalCode !== '')
+          mapped.postalCode = params.postalCode
+        if (params.addressCountry != null && params.addressCountry !== '')
+          mapped.country = params.addressCountry
+        if (params.addressType != null && params.addressType !== '')
+          mapped.addressType = params.addressType
+
+        // Custom Object fields
+        if (params.category != null && params.category !== '') mapped.category = params.category
+        if (params.pluralLabel != null && params.pluralLabel !== '')
+          mapped.pluralLabel = params.pluralLabel
+        if (params.ownerRole != null && params.ownerRole !== '') mapped.ownerRole = params.ownerRole
+
+        // Custom Object Field configuration
         if (params.dataType != null && params.dataType !== '') {
           try {
             mapped.dataType =
@@ -694,40 +1045,166 @@ export const RipplingBlock: BlockConfig = {
           }
         }
         if (
+          params.fieldRequired != null &&
+          params.fieldRequired !== '' &&
+          params.fieldRequired !== 'false'
+        )
+          mapped.required = params.fieldRequired === 'true'
+        if (params.isUnique != null && params.isUnique !== '' && params.isUnique !== 'false')
+          mapped.isUnique = params.isUnique === 'true'
+        if (
+          params.enableHistory != null &&
+          params.enableHistory !== '' &&
+          params.enableHistory !== 'false'
+        )
+          mapped.enableHistory = params.enableHistory === 'true'
+        if (params.rqlDefinition != null && params.rqlDefinition !== '') {
+          try {
+            mapped.rqlDefinition =
+              typeof params.rqlDefinition === 'string'
+                ? JSON.parse(params.rqlDefinition)
+                : params.rqlDefinition
+          } catch {
+            throw new Error('Invalid JSON in "RQL Definition" field.')
+          }
+        }
+        if (params.formulaAttrMetas != null && params.formulaAttrMetas !== '') {
+          try {
+            mapped.formulaAttrMetas =
+              typeof params.formulaAttrMetas === 'string'
+                ? JSON.parse(params.formulaAttrMetas)
+                : params.formulaAttrMetas
+          } catch {
+            throw new Error('Invalid JSON in "Formula Attr Metas" field.')
+          }
+        }
+        if (params.fieldSection != null && params.fieldSection !== '') {
+          try {
+            mapped.section =
+              typeof params.fieldSection === 'string'
+                ? JSON.parse(params.fieldSection)
+                : params.fieldSection
+          } catch {
+            throw new Error('Invalid JSON in "Section" field.')
+          }
+        }
+        if (params.derivedFieldFormula != null && params.derivedFieldFormula !== '')
+          mapped.derivedFieldFormula = params.derivedFieldFormula
+        if (params.derivedAggregatedField != null && params.derivedAggregatedField !== '') {
+          try {
+            mapped.derivedAggregatedField =
+              typeof params.derivedAggregatedField === 'string'
+                ? JSON.parse(params.derivedAggregatedField)
+                : params.derivedAggregatedField
+          } catch {
+            throw new Error('Invalid JSON in "Derived Aggregated Field" field.')
+          }
+        }
+        if (params.nameFieldDetails != null && params.nameFieldDetails !== '') {
+          try {
+            mapped.nameFieldDetails =
+              typeof params.nameFieldDetails === 'string'
+                ? JSON.parse(params.nameFieldDetails)
+                : params.nameFieldDetails
+          } catch {
+            throw new Error('Invalid JSON in "Name Field Details" field.')
+          }
+        }
+
+        // Custom Setting fields
+        if (params.displayName != null && params.displayName !== '')
+          mapped.displayName = params.displayName
+        if (params.settingApiName != null && params.settingApiName !== '')
+          mapped.apiName = params.settingApiName
+        if (params.settingDataType != null && params.settingDataType !== '')
+          mapped.dataType = params.settingDataType
+        if (params.secretValue != null && params.secretValue !== '')
+          mapped.secretValue = params.secretValue
+        if (params.stringValue != null && params.stringValue !== '')
+          mapped.stringValue = params.stringValue
+        if (params.settingNumberValue != null && params.settingNumberValue !== '')
+          mapped.numberValue = Number(params.settingNumberValue)
+        if (
+          params.settingBooleanValue != null &&
+          params.settingBooleanValue !== '' &&
+          params.settingBooleanValue !== 'false'
+        )
+          mapped.booleanValue = params.settingBooleanValue === 'true'
+
+        // Report Run fields
+        if (
+          params.includeObjectIds != null &&
+          params.includeObjectIds !== '' &&
+          params.includeObjectIds !== 'false'
+        )
+          mapped.includeObjectIds = params.includeObjectIds === 'true'
+        if (
+          params.includeTotalRows != null &&
+          params.includeTotalRows !== '' &&
+          params.includeTotalRows !== 'false'
+        )
+          mapped.includeTotalRows = params.includeTotalRows === 'true'
+        if (params.formatDateFields != null && params.formatDateFields !== '') {
+          try {
+            mapped.formatDateFields =
+              typeof params.formatDateFields === 'string'
+                ? JSON.parse(params.formatDateFields)
+                : params.formatDateFields
+          } catch {
+            throw new Error('Invalid JSON in "Format Date Fields" field.')
+          }
+        }
+        if (params.formatCurrencyFields != null && params.formatCurrencyFields !== '') {
+          try {
+            mapped.formatCurrencyFields =
+              typeof params.formatCurrencyFields === 'string'
+                ? JSON.parse(params.formatCurrencyFields)
+                : params.formatCurrencyFields
+          } catch {
+            throw new Error('Invalid JSON in "Format Currency Fields" field.')
+          }
+        }
+        if (params.outputType != null && params.outputType !== '')
+          mapped.outputType = params.outputType
+
+        // All Or Nothing for bulk operations
+        if (
           params.allOrNothing != null &&
           params.allOrNothing !== '' &&
           params.allOrNothing !== 'false'
         )
           mapped.allOrNothing = params.allOrNothing === 'true'
+
+        // Common query parameters
         if (params.filter != null && params.filter !== '') mapped.filter = params.filter
         if (params.expand != null && params.expand !== '') mapped.expand = params.expand
         if (params.orderBy != null && params.orderBy !== '') mapped.orderBy = params.orderBy
         if (params.cursor != null && params.cursor !== '') mapped.cursor = params.cursor
+
+        // Query and limit for custom object record queries
+        if (params.query != null && params.query !== '') mapped.query = params.query
+        if (params.limit != null && params.limit !== '') mapped.limit = Number(params.limit)
+
+        // Data JSON - only for passthrough operations
         if (params.data != null && params.data !== '') {
           try {
             mapped.data = typeof params.data === 'string' ? JSON.parse(params.data) : params.data
           } catch {
-            throw new Error('Invalid JSON in "Data (JSON)" field. Expected a valid JSON object.')
+            throw new Error('Invalid JSON in "Data (JSON)" field.')
           }
         }
 
+        // Records JSON for bulk operations
         if (params.records != null && params.records !== '') {
           try {
             mapped.records =
               typeof params.records === 'string' ? JSON.parse(params.records) : params.records
           } catch {
-            throw new Error('Invalid JSON in "Records (JSON)" field. Expected a valid JSON array.')
+            throw new Error('Invalid JSON in "Records (JSON)" field.')
           }
         }
 
-        if (params.query != null && params.query !== '') {
-          mapped.query = params.query
-        }
-        if (params.limit != null && params.limit !== '') {
-          mapped.limit = Number(params.limit)
-        }
-
-        const op = params.operation as string
+        // --- ID remapping ---
 
         // Custom object tools expect customObjectApiName, not customObjectId
         if (mapped.customObjectId != null) {
@@ -832,31 +1309,6 @@ export const RipplingBlock: BlockConfig = {
           mapped.data = undefined
         }
 
-        // For create/update operations that accept data JSON:
-        // Spread data fields directly into mapped params so tools receive them as individual params.
-        // Excludes ops where data is passed directly to the tool (custom object records, custom settings)
-        // and ops already remapped above (draft hires -> draftHires, supergroup updates -> operations).
-        const NON_SPREAD_OPS = new Set([
-          'create_custom_object_record',
-          'update_custom_object_record',
-          'create_custom_setting',
-          'update_custom_setting',
-          'create_draft_hires',
-          'update_supergroup_inclusion_members',
-          'update_supergroup_exclusion_members',
-        ])
-        if (mapped.data != null && typeof mapped.data === 'object') {
-          if (DATA_OPS.includes(op as (typeof DATA_OPS)[number]) && !NON_SPREAD_OPS.has(op)) {
-            const dataFields = mapped.data as Record<string, unknown>
-            for (const [key, value] of Object.entries(dataFields)) {
-              if (!(key in mapped)) {
-                mapped[key] = value
-              }
-            }
-            mapped.data = undefined
-          }
-        }
-
         return mapped
       },
     },
@@ -865,26 +1317,58 @@ export const RipplingBlock: BlockConfig = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     id: { type: 'string', description: 'Resource ID' },
-    customObjectId: { type: 'string', description: 'Custom object ID' },
-    externalId: { type: 'string', description: 'External ID for custom object record lookup' },
+    customObjectId: { type: 'string', description: 'Custom object API name' },
+    externalId: { type: 'string', description: 'External ID' },
     name: { type: 'string', description: 'Resource name' },
     parentId: { type: 'string', description: 'Parent resource ID' },
     referenceCode: { type: 'string', description: 'Reference code' },
-    streetAddress: { type: 'string', description: 'Street address for work location creation' },
-    apiName: { type: 'string', description: 'API name for custom app creation' },
+    description: { type: 'string', description: 'Resource description' },
+    apiName: { type: 'string', description: 'API name for custom app' },
     businessPartnerGroupId: {
       type: 'string',
-      description: 'Business partner group ID for partner creation',
+      description: 'Business partner group ID',
     },
-    workerId: { type: 'string', description: 'Worker ID for business partner creation' },
-    dataType: { type: 'json', description: 'Data type configuration for custom object fields' },
-    data: { type: 'json', description: 'JSON data body for create/update operations' },
-    records: { type: 'json', description: 'JSON array of records for bulk operations' },
+    workerId: { type: 'string', description: 'Worker ID' },
+    domain: { type: 'string', description: 'Business partner group domain' },
+    defaultBusinessPartnerId: { type: 'string', description: 'Default business partner ID' },
+    streetAddress: { type: 'string', description: 'Street address' },
+    locality: { type: 'string', description: 'City' },
+    region: { type: 'string', description: 'State/Region' },
+    postalCode: { type: 'string', description: 'Postal code' },
+    addressCountry: { type: 'string', description: 'Country code' },
+    addressType: { type: 'string', description: 'Address type' },
+    category: { type: 'string', description: 'Category' },
+    pluralLabel: { type: 'string', description: 'Plural label' },
+    ownerRole: { type: 'string', description: 'Owner role' },
+    dataType: { type: 'json', description: 'Data type configuration' },
+    fieldRequired: { type: 'boolean', description: 'Whether the field is required' },
+    isUnique: { type: 'boolean', description: 'Whether the field is unique' },
+    enableHistory: { type: 'boolean', description: 'Enable history tracking' },
+    rqlDefinition: { type: 'json', description: 'RQL definition' },
+    formulaAttrMetas: { type: 'json', description: 'Formula attribute metadata' },
+    fieldSection: { type: 'json', description: 'Section configuration' },
+    derivedFieldFormula: { type: 'string', description: 'Derived field formula' },
+    derivedAggregatedField: { type: 'json', description: 'Derived aggregated field' },
+    nameFieldDetails: { type: 'json', description: 'Name field details' },
+    displayName: { type: 'string', description: 'Display name' },
+    settingApiName: { type: 'string', description: 'Setting API name' },
+    settingDataType: { type: 'string', description: 'Setting data type' },
+    secretValue: { type: 'string', description: 'Secret value' },
+    stringValue: { type: 'string', description: 'String value' },
+    settingNumberValue: { type: 'number', description: 'Number value' },
+    settingBooleanValue: { type: 'boolean', description: 'Boolean value' },
+    includeObjectIds: { type: 'boolean', description: 'Include object IDs in report' },
+    includeTotalRows: { type: 'boolean', description: 'Include total row count' },
+    formatDateFields: { type: 'json', description: 'Date field formatting' },
+    formatCurrencyFields: { type: 'json', description: 'Currency field formatting' },
+    outputType: { type: 'string', description: 'Report output type' },
+    data: { type: 'json', description: 'JSON data for custom object records' },
+    records: { type: 'json', description: 'JSON array for bulk operations' },
     allOrNothing: { type: 'boolean', description: 'Fail entire batch on any error' },
-    query: { type: 'string', description: 'Filter expression for custom object record queries' },
-    limit: { type: 'number', description: 'Max results for custom object record queries' },
+    query: { type: 'string', description: 'Query expression' },
+    limit: { type: 'number', description: 'Max results' },
     filter: { type: 'string', description: 'OData filter expression' },
-    expand: { type: 'string', description: 'Fields to expand in the response' },
+    expand: { type: 'string', description: 'Fields to expand' },
     orderBy: { type: 'string', description: 'Ordering expression' },
     cursor: { type: 'string', description: 'Pagination cursor' },
     apiKey: { type: 'string', description: 'Rippling API key' },

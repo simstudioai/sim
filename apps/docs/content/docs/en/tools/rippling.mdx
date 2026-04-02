@@ -2060,7 +2060,13 @@ Create a new custom setting
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
-| `data` | json | Yes | No description |
+| `displayName` | string | No | Display name |
+| `apiName` | string | No | Unique API name |
+| `dataType` | string | No | Data type of the setting |
+| `secretValue` | string | No | Secret value \(for secret data type\) |
+| `stringValue` | string | No | String value \(for string data type\) |
+| `numberValue` | number | No | Number value \(for number data type\) |
+| `booleanValue` | boolean | No | Boolean value \(for boolean data type\) |
 
 #### Output
 
@@ -2087,7 +2093,13 @@ Update a custom setting
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Rippling API key |
 | `id` | string | Yes | No description |
-| `data` | json | Yes | Updated setting data |
+| `displayName` | string | No | Display name |
+| `apiName` | string | No | Unique API name |
+| `dataType` | string | No | Data type of the setting |
+| `secretValue` | string | No | Secret value \(for secret data type\) |
+| `stringValue` | string | No | String value \(for string data type\) |
+| `numberValue` | number | No | Number value \(for number data type\) |
+| `booleanValue` | boolean | No | Boolean value \(for boolean data type\) |
 
 #### Output
 

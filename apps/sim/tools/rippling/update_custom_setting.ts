@@ -15,11 +15,47 @@ export const ripplingUpdateCustomSettingTool: ToolConfig<RipplingUpdateCustomSet
       description: 'Rippling API key',
     },
     id: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Setting ID' },
-    data: {
-      type: 'json',
-      required: true,
+    displayName: {
+      type: 'string',
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Updated setting data',
+      description: 'Display name',
+    },
+    apiName: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Unique API name',
+    },
+    dataType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Data type of the setting',
+    },
+    secretValue: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Secret value (for secret data type)',
+    },
+    stringValue: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'String value (for string data type)',
+    },
+    numberValue: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number value (for number data type)',
+    },
+    booleanValue: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Boolean value (for boolean data type)',
     },
   },
   request: {
@@ -32,7 +68,15 @@ export const ripplingUpdateCustomSettingTool: ToolConfig<RipplingUpdateCustomSet
       Accept: 'application/json',
     }),
     body: (params) => {
-      return params.data as Record<string, unknown>
+      const body: Record<string, unknown> = {}
+      if (params.displayName != null) body.display_name = params.displayName
+      if (params.apiName != null) body.api_name = params.apiName
+      if (params.dataType != null) body.data_type = params.dataType
+      if (params.secretValue != null) body.secret_value = params.secretValue
+      if (params.stringValue != null) body.string_value = params.stringValue
+      if (params.numberValue != null) body.number_value = params.numberValue
+      if (params.booleanValue != null) body.boolean_value = params.booleanValue
+      return body
     },
   },
   transformResponse: async (response: Response) => {

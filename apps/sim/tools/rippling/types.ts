@@ -775,12 +775,24 @@ export interface RipplingGetCustomSettingParams {
 }
 export interface RipplingCreateCustomSettingParams {
   apiKey: string
-  data: unknown
+  displayName?: string
+  apiName?: string
+  dataType?: string
+  secretValue?: string
+  stringValue?: string
+  numberValue?: number
+  booleanValue?: boolean
 }
 export interface RipplingUpdateCustomSettingParams {
   apiKey: string
   id: string
-  data: unknown
+  displayName?: string
+  apiName?: string
+  dataType?: string
+  secretValue?: string
+  stringValue?: string
+  numberValue?: number
+  booleanValue?: boolean
 }
 export interface RipplingDeleteCustomSettingParams {
   apiKey: string
