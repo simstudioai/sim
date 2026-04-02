@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { executeTool as executeAppTool } from '@/tools'
 import { isKnownTool, isSimExecuted } from './router'
 import type {
   ToolCallDescriptor,
@@ -34,14 +35,10 @@ export async function executeTool(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  if (!isKnownTool(toolId)) {
-    logger.warn('Unknown tool requested', { toolId })
-    return { success: false, error: `Unknown tool: ${toolId}` }
-  }
-
-  if (!isSimExecuted(toolId)) {
-    logger.warn('Tool is not Sim-executed', { toolId })
-    return { success: false, error: `Tool ${toolId} is not executed by Sim` }
+  const canUseRegisteredHandler = isKnownTool(toolId) && isSimExecuted(toolId)
+  if (!canUseRegisteredHandler) {
+    const appParams = buildAppToolParams(params, context)
+    return executeAppTool(toolId, appParams, false)
   }
 
   if (context.abortSignal?.aborted) {
@@ -86,4 +83,30 @@ export async function executeToolBatch(
   }
 
   return results
+}
+
+function buildAppToolParams(
+  params: Record<string, unknown>,
+  context: ToolExecutionContext
+): Record<string, unknown> {
+  const result = { ...params }
+
+  if (result.credentialId && !result.credential && !result.oauthCredential) {
+    result.credential = result.credentialId
+  }
+
+  result._context = {
+    ...(typeof result._context === 'object' && result._context !== null
+      ? (result._context as object)
+      : {}),
+    userId: context.userId,
+    workflowId: context.workflowId,
+    workspaceId: context.workspaceId,
+    chatId: context.chatId,
+    executionId: context.executionId,
+    runId: context.runId,
+    enforceCredentialAccess: true,
+  }
+
+  return result
 }

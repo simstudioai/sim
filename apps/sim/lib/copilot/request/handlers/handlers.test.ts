@@ -477,4 +477,33 @@ describe('sse-handlers tool lifecycle', () => {
       MothershipStreamV1ToolOutcome.success
     )
   })
+
+  it('executes dynamic sim tools based on payload executor', async () => {
+    isSimExecuted.mockReturnValueOnce(false)
+    executeTool.mockResolvedValueOnce({ success: true, output: { emails: [] } })
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-dynamic-sim',
+          toolName: 'gmail_read',
+          arguments: { maxResults: 10 },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(executeTool).toHaveBeenCalledWith('gmail_read', { maxResults: 10 }, expect.any(Object))
+    expect(context.toolCalls.get('tool-dynamic-sim')?.status).toBe(
+      MothershipStreamV1ToolOutcome.success
+    )
+  })
 })

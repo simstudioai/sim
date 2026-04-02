@@ -84,6 +84,7 @@ export async function buildIntegrationToolSchemas(
           }),
           input_schema: userSchema as unknown as Record<string, unknown>,
           defer_loading: true,
+          executeLocally: toolConfig.clientExecutable === true || toolConfig.executor === 'client',
           ...(toolConfig.oauth?.required && {
             oauth: {
               required: true,
@@ -207,6 +208,7 @@ export async function buildCopilotRequestPayload(
               description:
                 mcpTool.description || `MCP tool: ${mcpTool.name} (${mcpTool.serverName})`,
               input_schema: mcpTool.inputSchema as unknown as Record<string, unknown>,
+              executeLocally: false,
             })
           }
           if (mcpTools.length > 0) {

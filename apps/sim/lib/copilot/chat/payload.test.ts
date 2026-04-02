@@ -35,11 +35,20 @@ vi.mock('@/tools/registry', () => ({
       id: 'gmail_send',
       name: 'Gmail Send',
       description: 'Send emails using Gmail',
+      executor: 'sim',
     },
     brandfetch_search: {
       id: 'brandfetch_search',
       name: 'Brandfetch Search',
       description: 'Search for brands by company name',
+      executor: 'sim',
+    },
+    run_workflow_dynamic: {
+      id: 'run_workflow_dynamic',
+      name: 'Run Workflow Dynamic',
+      description: 'Run a workflow from the client',
+      executor: 'client',
+      clientExecutable: true,
     },
   },
 }))
@@ -97,5 +106,16 @@ describe('buildIntegrationToolSchemas', () => {
     expect(getUserSubscriptionState).toHaveBeenCalledWith('user-error')
     expect(gmailTool?.description).toBe('Send emails using Gmail')
     expect(brandfetchTool?.description).toBe('Search for brands by company name')
+  })
+
+  it('emits executeLocally for dynamic client tools only', async () => {
+    mockedGetUserSubscriptionState.mockResolvedValue({ isFree: false })
+
+    const toolSchemas = await buildIntegrationToolSchemas('user-client')
+    const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
+    const runTool = toolSchemas.find((tool) => tool.name === 'run_workflow_dynamic')
+
+    expect(gmailTool?.executeLocally).toBe(false)
+    expect(runTool?.executeLocally).toBe(true)
   })
 })

@@ -167,6 +167,15 @@ async function runCheckpointLoop(
     )
     context.trace.setActiveSpan(streamSpan)
 
+    logger.info('Starting stream loop', {
+      route,
+      isResume,
+      resumeAttempt,
+      pendingToolPromises: context.pendingToolPromises.size,
+      toolCallCount: context.toolCalls.size,
+      hasCheckpoint: !!context.awaitingAsyncContinuation,
+    })
+
     try {
       await runStreamLoop(
         `${SIM_AGENT_API_URL}${route}`,
@@ -210,6 +219,17 @@ async function runCheckpointLoop(
       }
       throw streamError
     }
+
+    logger.info('Stream loop completed', {
+      route,
+      isResume,
+      isAborted: isAborted(options, context),
+      hasCheckpoint: !!context.awaitingAsyncContinuation,
+      checkpointId: context.awaitingAsyncContinuation?.checkpointId,
+      pendingToolPromises: context.pendingToolPromises.size,
+      streamComplete: context.streamComplete,
+      toolCallCount: context.toolCalls.size,
+    })
 
     if (isAborted(options, context)) {
       cancelPendingTools(context)

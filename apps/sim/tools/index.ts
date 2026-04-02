@@ -695,7 +695,6 @@ export async function executeTool(
     if (contextParams.oauthCredential) {
       contextParams.credential = contextParams.oauthCredential
     }
-
     if (contextParams.credential) {
       logger.info(
         `[${requestId}] Tool ${toolId} needs access token for credential: ${contextParams.credential}`

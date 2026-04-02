@@ -2,9 +2,12 @@ import { createLogger } from '@sim/logger'
 import { ASYNC_TOOL_STATUS, type AsyncCompletionEnvelope } from '@/lib/copilot/async-runs/lifecycle'
 import { getAsyncToolCalls } from '@/lib/copilot/async-runs/repository'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
+import { getRedisClient } from '@/lib/core/config/redis'
 import { createPubSubChannel } from '@/lib/events/pubsub'
 
 const logger = createLogger('CopilotOrchestratorPersistence')
+const TOOL_CONFIRMATION_TTL_SECONDS = 60 * 10
+const toolConfirmationKey = (toolCallId: string) => `copilot:tool-confirmation:${toolCallId}`
 
 const toolConfirmationChannel = createPubSubChannel<AsyncCompletionEnvelope>({
   channel: 'copilot:tool-confirmation',
@@ -48,6 +51,34 @@ export function publishToolConfirmation(event: AsyncCompletionEnvelope): void {
     toolCallId: event.toolCallId,
     status: event.status,
   })
+  const redis = getRedisClient()
+  if (redis) {
+    void redis
+      .set(
+        toolConfirmationKey(event.toolCallId),
+        JSON.stringify(event),
+        'EX',
+        TOOL_CONFIRMATION_TTL_SECONDS
+      )
+      .then(() => {
+        logger.info('Persisted tool confirmation in Redis', {
+          toolCallId: event.toolCallId,
+          status: event.status,
+          redisKey: toolConfirmationKey(event.toolCallId),
+        })
+      })
+      .catch((error) => {
+        logger.warn('Failed to persist tool confirmation in Redis', {
+          toolCallId: event.toolCallId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      })
+  } else {
+    logger.warn('Redis unavailable while publishing tool confirmation', {
+      toolCallId: event.toolCallId,
+      status: event.status,
+    })
+  }
   toolConfirmationChannel.publish(event)
 }
 

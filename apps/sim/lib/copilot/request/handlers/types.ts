@@ -84,6 +84,7 @@ export function abortPendingToolIfStreamDead(
 export function getEventUI(event: StreamEvent): {
   requiresConfirmation: boolean
   clientExecutable: boolean
+  simExecutable: boolean
   internal: boolean
   hidden: boolean
 } {
@@ -93,6 +94,7 @@ export function getEventUI(event: StreamEvent): {
     requiresConfirmation: raw.requiresConfirmation === true || data?.requiresConfirmation === true,
     clientExecutable:
       raw.clientExecutable === true || data?.executor === MothershipStreamV1ToolExecutor.client,
+    simExecutable: data?.executor === MothershipStreamV1ToolExecutor.sim,
     internal: raw.internal === true,
     hidden: raw.hidden === true,
   }

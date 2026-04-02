@@ -184,9 +184,26 @@ async function handleCallPhase(
   const toolCall = context.toolCalls.get(toolCallId)
   if (!toolCall) return
 
-  const { clientExecutable, internal } = getEventUI(event)
+  const { clientExecutable, simExecutable, internal } = getEventUI(event)
+  const staticSimExecuted = isSimExecuted(toolName)
+  const willDispatch = !internal && (staticSimExecuted || simExecutable || clientExecutable)
+  logger.info('Tool call routing decision', {
+    toolCallId,
+    toolName,
+    scope,
+    isSubagent,
+    parentToolCallId,
+    executor: data?.executor,
+    clientExecutable,
+    simExecutable,
+    staticSimExecuted,
+    internal,
+    hasPendingPromise: context.pendingToolPromises.has(toolCallId),
+    existingStatus: existing?.status,
+    willDispatch,
+  })
   if (internal) return
-  if (!isSimExecuted(toolName) && !clientExecutable) return
+  if (!willDispatch) return
 
   await dispatchToolExecution(
     toolCall,
