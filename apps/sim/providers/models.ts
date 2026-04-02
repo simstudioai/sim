@@ -130,7 +130,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.5,
           cachedInput: 1.25,
           output: 10.0,
-          updatedAt: '2025-06-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -143,7 +143,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.5,
           cachedInput: 0.25,
           output: 15.0,
-          updatedAt: '2026-03-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -161,7 +161,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 30.0,
           output: 180.0,
-          updatedAt: '2026-03-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -172,12 +172,42 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 1050000,
       },
       {
+        id: 'gpt-5.2-pro',
+        pricing: {
+          input: 21.0,
+          output: 168.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['medium', 'high', 'xhigh'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 400000,
+      },
+      {
+        id: 'gpt-5-pro',
+        pricing: {
+          input: 15.0,
+          output: 120.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['high'],
+          },
+          maxOutputTokens: 272000,
+        },
+        contextWindow: 400000,
+      },
+      {
         id: 'gpt-5.4-mini',
         pricing: {
           input: 0.75,
           cachedInput: 0.075,
           output: 4.5,
-          updatedAt: '2026-03-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -196,7 +226,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.2,
           cachedInput: 0.02,
           output: 1.25,
-          updatedAt: '2026-03-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -215,7 +245,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.75,
           cachedInput: 0.175,
           output: 14.0,
-          updatedAt: '2025-12-11',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -233,7 +263,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.25,
           cachedInput: 0.125,
           output: 10.0,
-          updatedAt: '2025-11-14',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -251,7 +281,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.25,
           cachedInput: 0.125,
           output: 10.0,
-          updatedAt: '2025-08-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -269,7 +299,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.25,
           cachedInput: 0.025,
           output: 2.0,
-          updatedAt: '2025-08-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -287,7 +317,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.05,
           cachedInput: 0.005,
           output: 0.4,
-          updatedAt: '2025-08-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -305,7 +335,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.25,
           cachedInput: 0.125,
           output: 10.0,
-          updatedAt: '2025-08-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -318,7 +348,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 15.0,
           cachedInput: 7.5,
           output: 60,
-          updatedAt: '2025-06-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -333,12 +363,41 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2,
           cachedInput: 0.5,
           output: 8,
-          updatedAt: '2025-06-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 100000,
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'o3-mini',
+        pricing: {
+          input: 1.1,
+          cachedInput: 0.55,
+          output: 4.4,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['low', 'medium', 'high'],
+          },
+          maxOutputTokens: 100000,
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'o3-pro',
+        pricing: {
+          input: 20.0,
+          output: 80.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          maxOutputTokens: 100000,
         },
         contextWindow: 200000,
       },
@@ -348,12 +407,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.1,
           cachedInput: 0.275,
           output: 4.4,
-          updatedAt: '2025-06-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 100000,
         },
         contextWindow: 200000,
       },
@@ -363,12 +423,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.0,
           cachedInput: 0.5,
           output: 8.0,
-          updatedAt: '2025-06-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 32768,
         },
-        contextWindow: 1000000,
+        contextWindow: 1047576,
       },
       {
         id: 'gpt-4.1-nano',
@@ -376,12 +437,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.1,
           cachedInput: 0.025,
           output: 0.4,
-          updatedAt: '2025-06-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 32768,
         },
-        contextWindow: 1000000,
+        contextWindow: 1047576,
       },
       {
         id: 'gpt-4.1-mini',
@@ -389,12 +451,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.4,
           cachedInput: 0.1,
           output: 1.6,
-          updatedAt: '2025-06-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 32768,
         },
-        contextWindow: 1000000,
+        contextWindow: 1047576,
       },
     ],
   },
@@ -415,7 +478,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 5.0,
           cachedInput: 0.5,
           output: 25.0,
-          updatedAt: '2026-02-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -426,7 +489,26 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
             default: 'high',
           },
         },
-        contextWindow: 200000,
+        contextWindow: 1000000,
+      },
+      {
+        id: 'claude-sonnet-4-6',
+        pricing: {
+          input: 3.0,
+          cachedInput: 0.3,
+          output: 15.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          thinking: {
+            levels: ['low', 'medium', 'high', 'max'],
+            default: 'high',
+          },
+        },
+        contextWindow: 1000000,
       },
       {
         id: 'claude-opus-4-5',
@@ -434,7 +516,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 5.0,
           cachedInput: 0.5,
           output: 25.0,
-          updatedAt: '2025-11-24',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -453,12 +535,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 15.0,
           cachedInput: 1.5,
           output: 75.0,
-          updatedAt: '2026-02-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: 64000,
+          maxOutputTokens: 32000,
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -472,11 +554,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 15.0,
           cachedInput: 1.5,
           output: 75.0,
-          updatedAt: '2026-02-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
-          maxOutputTokens: 64000,
+          maxOutputTokens: 32000,
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -490,7 +572,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 3.0,
           cachedInput: 0.3,
           output: 15.0,
-          updatedAt: '2026-02-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -501,7 +583,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
             default: 'high',
           },
         },
-        contextWindow: 200000,
+        contextWindow: 1000000,
       },
       {
         id: 'claude-sonnet-4-0',
@@ -509,7 +591,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 3.0,
           cachedInput: 0.3,
           output: 15.0,
-          updatedAt: '2026-02-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -519,7 +601,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
             default: 'high',
           },
         },
-        contextWindow: 200000,
+        contextWindow: 1000000,
       },
       {
         id: 'claude-haiku-4-5',
@@ -527,7 +609,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.0,
           cachedInput: 0.1,
           output: 5.0,
-          updatedAt: '2026-02-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -546,7 +628,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.25,
           cachedInput: 0.03,
           output: 1.25,
-          updatedAt: '2026-02-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -573,7 +655,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.5,
           cachedInput: 1.25,
           output: 10.0,
-          updatedAt: '2025-06-15',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -586,7 +668,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.5,
           cachedInput: 0.25,
           output: 15.0,
-          updatedAt: '2026-03-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -605,7 +687,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.75,
           cachedInput: 0.075,
           output: 4.5,
-          updatedAt: '2026-03-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -624,7 +706,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.2,
           cachedInput: 0.02,
           output: 1.25,
-          updatedAt: '2026-03-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -643,7 +725,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.75,
           cachedInput: 0.175,
           output: 14.0,
-          updatedAt: '2025-12-11',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -661,7 +743,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.25,
           cachedInput: 0.125,
           output: 10.0,
-          updatedAt: '2025-11-14',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -679,7 +761,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.25,
           cachedInput: 0.125,
           output: 10.0,
-          updatedAt: '2025-11-14',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -697,7 +779,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.25,
           cachedInput: 0.125,
           output: 10.0,
-          updatedAt: '2025-08-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -715,7 +797,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.25,
           cachedInput: 0.025,
           output: 2.0,
-          updatedAt: '2025-08-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -733,7 +815,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.05,
           cachedInput: 0.005,
           output: 0.4,
-          updatedAt: '2025-08-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
@@ -751,7 +833,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.25,
           cachedInput: 0.125,
           output: 10.0,
-          updatedAt: '2025-08-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -764,12 +846,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2,
           cachedInput: 0.5,
           output: 8,
-          updatedAt: '2026-02-06',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 100000,
         },
         contextWindow: 200000,
       },
@@ -779,12 +862,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.1,
           cachedInput: 0.275,
           output: 4.4,
-          updatedAt: '2025-06-15',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 100000,
         },
         contextWindow: 200000,
       },
@@ -794,12 +878,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.0,
           cachedInput: 0.5,
           output: 8.0,
-          updatedAt: '2025-06-15',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 32768,
         },
-        contextWindow: 1000000,
+        contextWindow: 1047576,
       },
       {
         id: 'azure/gpt-4.1-mini',
@@ -807,12 +892,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.4,
           cachedInput: 0.1,
           output: 1.6,
-          updatedAt: '2025-06-15',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 32768,
         },
-        contextWindow: 1000000,
+        contextWindow: 1047576,
       },
       {
         id: 'azure/gpt-4.1-nano',
@@ -820,12 +906,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.1,
           cachedInput: 0.025,
           output: 0.4,
-          updatedAt: '2025-06-15',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 32768,
         },
-        contextWindow: 1000000,
+        contextWindow: 1047576,
       },
       {
         id: 'azure/model-router',
@@ -833,7 +920,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.0,
           cachedInput: 0.5,
           output: 8.0,
-          updatedAt: '2025-06-15',
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
         contextWindow: 200000,
@@ -857,7 +944,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 5.0,
           cachedInput: 0.5,
           output: 25.0,
-          updatedAt: '2026-02-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -876,7 +963,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 5.0,
           cachedInput: 0.5,
           output: 25.0,
-          updatedAt: '2026-02-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -895,7 +982,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 3.0,
           cachedInput: 0.3,
           output: 15.0,
-          updatedAt: '2026-02-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -914,12 +1001,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 15.0,
           cachedInput: 1.5,
           output: 75.0,
-          updatedAt: '2026-02-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: 64000,
+          maxOutputTokens: 32000,
           thinking: {
             levels: ['low', 'medium', 'high'],
             default: 'high',
@@ -933,7 +1020,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.0,
           cachedInput: 0.1,
           output: 5.0,
-          updatedAt: '2026-02-05',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -965,33 +1052,33 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.0,
           cachedInput: 0.2,
           output: 12.0,
-          updatedAt: '2026-02-19',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
           thinking: {
-            levels: ['low', 'medium', 'high'],
+            levels: ['minimal', 'low', 'medium', 'high'],
             default: 'high',
           },
         },
         contextWindow: 1048576,
       },
       {
-        id: 'gemini-3-pro-preview',
+        id: 'gemini-3.1-flash-lite-preview',
         pricing: {
-          input: 2.0,
-          cachedInput: 0.2,
-          output: 12.0,
-          updatedAt: '2025-12-17',
+          input: 0.25,
+          cachedInput: 0.025,
+          output: 1.5,
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
           thinking: {
-            levels: ['low', 'medium', 'high'],
-            default: 'high',
+            levels: ['minimal', 'low', 'medium', 'high'],
+            default: 'minimal',
           },
         },
-        contextWindow: 1000000,
+        contextWindow: 1048576,
       },
       {
         id: 'gemini-3-flash-preview',
@@ -999,7 +1086,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.5,
           cachedInput: 0.05,
           output: 3.0,
-          updatedAt: '2025-12-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -1016,7 +1103,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.25,
           cachedInput: 0.125,
           output: 10.0,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -1029,7 +1116,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.3,
           cachedInput: 0.03,
           output: 2.5,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -1042,7 +1129,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.1,
           cachedInput: 0.01,
           output: 0.4,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -1053,32 +1140,33 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'gemini-2.0-flash',
         pricing: {
           input: 0.1,
+          cachedInput: 0.025,
           output: 0.4,
-          updatedAt: '2025-12-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
         },
-        contextWindow: 1000000,
+        contextWindow: 1048576,
       },
       {
         id: 'gemini-2.0-flash-lite',
         pricing: {
           input: 0.075,
           output: 0.3,
-          updatedAt: '2025-12-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
         },
-        contextWindow: 1000000,
+        contextWindow: 1048576,
       },
       {
         id: 'deep-research-pro-preview-12-2025',
         pricing: {
           input: 2.0,
           output: 2.0,
-          updatedAt: '2026-02-10',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           deepResearch: true,
@@ -1105,13 +1193,30 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.0,
           cachedInput: 0.2,
           output: 12.0,
-          updatedAt: '2026-02-19',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
           thinking: {
-            levels: ['low', 'medium', 'high'],
+            levels: ['minimal', 'low', 'medium', 'high'],
             default: 'high',
+          },
+        },
+        contextWindow: 1048576,
+      },
+      {
+        id: 'vertex/gemini-3.1-flash-lite-preview',
+        pricing: {
+          input: 0.25,
+          cachedInput: 0.025,
+          output: 1.5,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          thinking: {
+            levels: ['minimal', 'low', 'medium', 'high'],
+            default: 'minimal',
           },
         },
         contextWindow: 1048576,
@@ -1122,7 +1227,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 2.0,
           cachedInput: 0.2,
           output: 12.0,
-          updatedAt: '2025-12-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -1139,7 +1244,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.5,
           cachedInput: 0.05,
           output: 3.0,
-          updatedAt: '2025-12-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -1156,7 +1261,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 1.25,
           cachedInput: 0.125,
           output: 10.0,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -1169,7 +1274,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.3,
           cachedInput: 0.03,
           output: 2.5,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -1182,7 +1287,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.1,
           cachedInput: 0.01,
           output: 0.4,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -1193,32 +1298,33 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'vertex/gemini-2.0-flash',
         pricing: {
           input: 0.1,
+          cachedInput: 0.025,
           output: 0.4,
-          updatedAt: '2025-12-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
         },
-        contextWindow: 1000000,
+        contextWindow: 1048576,
       },
       {
         id: 'vertex/gemini-2.0-flash-lite',
         pricing: {
           input: 0.075,
           output: 0.3,
-          updatedAt: '2025-12-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
         },
-        contextWindow: 1000000,
+        contextWindow: 1048576,
       },
       {
         id: 'vertex/deep-research-pro-preview-12-2025',
         pricing: {
           input: 2.0,
           output: 2.0,
-          updatedAt: '2026-02-10',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           deepResearch: true,
@@ -1242,10 +1348,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'deepseek-chat',
         pricing: {
-          input: 0.75,
-          cachedInput: 0.4,
-          output: 1.0,
-          updatedAt: '2025-03-21',
+          input: 0.28,
+          cachedInput: 0.028,
+          output: 0.42,
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
         contextWindow: 128000,
@@ -1253,10 +1359,10 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'deepseek-v3',
         pricing: {
-          input: 0.75,
-          cachedInput: 0.4,
-          output: 1.0,
-          updatedAt: '2025-03-21',
+          input: 0.28,
+          cachedInput: 0.028,
+          output: 0.42,
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
@@ -1266,10 +1372,21 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'deepseek-r1',
         pricing: {
-          input: 1.0,
-          cachedInput: 0.5,
-          output: 1.5,
-          updatedAt: '2025-03-21',
+          input: 0.55,
+          cachedInput: 0.14,
+          output: 2.19,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {},
+        contextWindow: 128000,
+      },
+      {
+        id: 'deepseek-reasoner',
+        pricing: {
+          input: 0.28,
+          cachedInput: 0.028,
+          output: 0.42,
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
         contextWindow: 128000,
@@ -1293,7 +1410,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 3.0,
           cachedInput: 0.75,
           output: 15.0,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1306,7 +1423,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 3.0,
           cachedInput: 0.75,
           output: 15.0,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1319,7 +1436,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.2,
           cachedInput: 0.05,
           output: 0.5,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1332,7 +1449,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           input: 0.2,
           cachedInput: 0.05,
           output: 0.5,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1343,9 +1460,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'grok-4-fast-reasoning',
         pricing: {
           input: 0.2,
-          cachedInput: 0.25,
+          cachedInput: 0.05,
           output: 0.5,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1356,9 +1473,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'grok-4-fast-non-reasoning',
         pricing: {
           input: 0.2,
-          cachedInput: 0.25,
+          cachedInput: 0.05,
           output: 0.5,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1369,9 +1486,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'grok-code-fast-1',
         pricing: {
           input: 0.2,
-          cachedInput: 0.25,
+          cachedInput: 0.02,
           output: 1.5,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1379,12 +1496,51 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 256000,
       },
       {
+        id: 'grok-4.20-0309-reasoning',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.2,
+          output: 6.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 2000000,
+      },
+      {
+        id: 'grok-4.20-0309-non-reasoning',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.2,
+          output: 6.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 2000000,
+      },
+      {
+        id: 'grok-4.20-multi-agent-0309',
+        pricing: {
+          input: 2.0,
+          cachedInput: 0.2,
+          output: 6.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 2000000,
+      },
+      {
         id: 'grok-3-latest',
         pricing: {
           input: 3.0,
-          cachedInput: 1.5,
+          cachedInput: 0.75,
           output: 15.0,
-          updatedAt: '2025-04-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1395,9 +1551,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         id: 'grok-3-fast-latest',
         pricing: {
           input: 5.0,
-          cachedInput: 2.5,
+          cachedInput: 0.75,
           output: 25.0,
-          updatedAt: '2025-04-17',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1422,60 +1578,40 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.35,
           output: 0.75,
-          updatedAt: '2026-01-27',
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
-        contextWindow: 131000,
+        contextWindow: 131072,
       },
       {
         id: 'cerebras/llama3.1-8b',
         pricing: {
           input: 0.1,
           output: 0.1,
-          updatedAt: '2026-01-27',
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
-        contextWindow: 32000,
-      },
-      {
-        id: 'cerebras/llama-3.3-70b',
-        pricing: {
-          input: 0.85,
-          output: 1.2,
-          updatedAt: '2026-01-27',
-        },
-        capabilities: {},
-        contextWindow: 128000,
-      },
-      {
-        id: 'cerebras/qwen-3-32b',
-        pricing: {
-          input: 0.4,
-          output: 0.8,
-          updatedAt: '2026-01-27',
-        },
-        capabilities: {},
-        contextWindow: 131000,
+        contextWindow: 32768,
       },
       {
         id: 'cerebras/qwen-3-235b-a22b-instruct-2507',
         pricing: {
           input: 0.6,
           output: 1.2,
-          updatedAt: '2026-01-27',
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
-        contextWindow: 131000,
+        contextWindow: 131072,
       },
       {
         id: 'cerebras/zai-glm-4.7',
         pricing: {
           input: 2.25,
           output: 2.75,
-          updatedAt: '2026-01-27',
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
-        contextWindow: 131000,
+        contextWindow: 131072,
       },
     ],
   },
@@ -1495,7 +1631,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.15,
           output: 0.6,
-          updatedAt: '2026-01-27',
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1505,7 +1641,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.075,
           output: 0.3,
-          updatedAt: '2026-01-27',
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1515,7 +1651,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.075,
           output: 0.3,
-          updatedAt: '2026-01-27',
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1525,7 +1661,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.29,
           output: 0.59,
-          updatedAt: '2026-01-27',
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1535,7 +1671,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.05,
           output: 0.08,
-          updatedAt: '2026-01-27',
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1545,7 +1681,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.59,
           output: 0.79,
-          updatedAt: '2026-01-27',
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
         contextWindow: 131072,
@@ -1555,70 +1691,20 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.11,
           output: 0.34,
-          updatedAt: '2026-01-27',
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
         contextWindow: 131072,
-      },
-      {
-        id: 'groq/meta-llama/llama-4-maverick-17b-128e-instruct',
-        pricing: {
-          input: 0.2,
-          output: 0.6,
-          updatedAt: '2026-01-27',
-        },
-        capabilities: {},
-        contextWindow: 131072,
-      },
-      {
-        id: 'groq/gemma2-9b-it',
-        pricing: {
-          input: 0.04,
-          output: 0.04,
-          updatedAt: '2026-01-27',
-        },
-        capabilities: {},
-        contextWindow: 8192,
-      },
-      {
-        id: 'groq/deepseek-r1-distill-llama-70b',
-        pricing: {
-          input: 0.59,
-          output: 0.79,
-          updatedAt: '2026-01-27',
-        },
-        capabilities: {},
-        contextWindow: 128000,
-      },
-      {
-        id: 'groq/deepseek-r1-distill-qwen-32b',
-        pricing: {
-          input: 0.69,
-          output: 0.69,
-          updatedAt: '2026-01-27',
-        },
-        capabilities: {},
-        contextWindow: 128000,
       },
       {
         id: 'groq/moonshotai/kimi-k2-instruct-0905',
         pricing: {
           input: 1.0,
           output: 3.0,
-          updatedAt: '2026-01-27',
+          updatedAt: '2026-04-01',
         },
         capabilities: {},
         contextWindow: 262144,
-      },
-      {
-        id: 'groq/meta-llama/llama-guard-4-12b',
-        pricing: {
-          input: 0.2,
-          output: 0.2,
-          updatedAt: '2026-01-27',
-        },
-        capabilities: {},
-        contextWindow: 131072,
       },
     ],
   },
@@ -1645,7 +1731,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.5,
           output: 1.5,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1657,7 +1743,31 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.5,
           output: 1.5,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 256000,
+      },
+      {
+        id: 'mistral-small-2603',
+        pricing: {
+          input: 0.15,
+          output: 0.6,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 256000,
+      },
+      {
+        id: 'devstral-2512',
+        pricing: {
+          input: 0.4,
+          output: 2.0,
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1669,7 +1779,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 2.0,
           output: 6.0,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1681,7 +1791,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 2.0,
           output: 5.0,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1693,7 +1803,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 2.0,
           output: 5.0,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1705,7 +1815,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.5,
           output: 1.5,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1717,7 +1827,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.5,
           output: 1.5,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1729,7 +1839,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.4,
           output: 2.0,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1741,7 +1851,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.4,
           output: 2.0,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1753,7 +1863,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.4,
           output: 2.0,
-          updatedAt: '2025-05-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1763,21 +1873,21 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'mistral-small-latest',
         pricing: {
-          input: 0.1,
-          output: 0.3,
-          updatedAt: '2025-12-02',
+          input: 0.15,
+          output: 0.6,
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
         },
-        contextWindow: 128000,
+        contextWindow: 256000,
       },
       {
         id: 'mistral-small-2506',
         pricing: {
           input: 0.1,
           output: 0.3,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1789,7 +1899,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.15,
           output: 0.15,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1801,19 +1911,31 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.3,
           output: 0.9,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
         },
-        contextWindow: 256000,
+        contextWindow: 128000,
       },
       {
         id: 'codestral-2508',
         pricing: {
           input: 0.3,
           output: 0.9,
-          updatedAt: '2025-10-11',
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1 },
+        },
+        contextWindow: 128000,
+      },
+      {
+        id: 'devstral-latest',
+        pricing: {
+          input: 0.4,
+          output: 2.0,
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1825,19 +1947,19 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.1,
           output: 0.3,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
         },
-        contextWindow: 128000,
+        contextWindow: 256000,
       },
       {
         id: 'devstral-small-2507',
         pricing: {
           input: 0.1,
           output: 0.3,
-          updatedAt: '2025-07-10',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1847,9 +1969,9 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       {
         id: 'devstral-medium-2507',
         pricing: {
-          input: 0.5,
-          output: 1.5,
-          updatedAt: '2025-07-10',
+          input: 0.4,
+          output: 2.0,
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1861,7 +1983,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.2,
           output: 0.2,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1873,7 +1995,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.2,
           output: 0.2,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1885,7 +2007,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.15,
           output: 0.15,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1897,7 +2019,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.15,
           output: 0.15,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1905,23 +2027,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 256000,
       },
       {
-        id: 'ministral-8b-2410',
-        pricing: {
-          input: 0.1,
-          output: 0.1,
-          updatedAt: '2025-10-09',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
-      },
-      {
         id: 'ministral-3b-latest',
         pricing: {
           input: 0.1,
           output: 0.1,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1933,24 +2043,12 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.1,
           output: 0.1,
-          updatedAt: '2025-12-02',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 256000,
-      },
-      {
-        id: 'ministral-3b-2410',
-        pricing: {
-          input: 0.04,
-          output: 0.04,
-          updatedAt: '2025-10-09',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 1 },
-        },
-        contextWindow: 128000,
       },
     ],
   },
@@ -1984,7 +2082,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 5.0,
           output: 25.0,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -1997,7 +2095,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 3.0,
           output: 15.0,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2010,7 +2108,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 1.0,
           output: 5.0,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2023,7 +2121,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 15.0,
           output: 75.0,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2036,7 +2134,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 1.0,
           output: 4.0,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2048,7 +2146,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.08,
           output: 0.32,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2060,7 +2158,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 2.5,
           output: 10.0,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2072,7 +2170,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.8,
           output: 3.2,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2084,7 +2182,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.06,
           output: 0.24,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2096,7 +2194,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.035,
           output: 0.14,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2108,7 +2206,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.24,
           output: 0.97,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2120,7 +2218,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.18,
           output: 0.72,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2132,7 +2230,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.72,
           output: 0.72,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2144,7 +2242,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 2.0,
           output: 2.0,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2156,7 +2254,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.16,
           output: 0.16,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2168,7 +2266,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.15,
           output: 0.15,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2180,7 +2278,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.1,
           output: 0.1,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2192,7 +2290,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 5.32,
           output: 16.0,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2204,7 +2302,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 2.65,
           output: 3.5,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2216,7 +2314,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.3,
           output: 0.6,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2228,7 +2326,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 2.0,
           output: 6.0,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2240,7 +2338,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 2.0,
           output: 6.0,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2252,7 +2350,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 4.0,
           output: 12.0,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2264,7 +2362,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 2.0,
           output: 6.0,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2276,7 +2374,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.5,
           output: 1.5,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2288,7 +2386,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.2,
           output: 0.2,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2300,7 +2398,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.1,
           output: 0.1,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2312,7 +2410,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.04,
           output: 0.04,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2324,7 +2422,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.45,
           output: 0.7,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2336,7 +2434,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.5,
           output: 1.5,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2348,7 +2446,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 3.0,
           output: 15.0,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2360,7 +2458,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         pricing: {
           input: 0.5,
           output: 1.5,
-          updatedAt: '2026-01-07',
+          updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
@@ -2582,17 +2680,17 @@ export const EMBEDDING_MODEL_PRICING: Record<string, ModelPricing> = {
   'text-embedding-3-small': {
     input: 0.02, // $0.02 per 1M tokens
     output: 0.0,
-    updatedAt: '2025-07-10',
+    updatedAt: '2026-04-01',
   },
   'text-embedding-3-large': {
     input: 0.13, // $0.13 per 1M tokens
     output: 0.0,
-    updatedAt: '2025-07-10',
+    updatedAt: '2026-04-01',
   },
   'text-embedding-ada-002': {
     input: 0.1, // $0.1 per 1M tokens
     output: 0.0,
-    updatedAt: '2025-07-10',
+    updatedAt: '2026-04-01',
   },
 }
 
