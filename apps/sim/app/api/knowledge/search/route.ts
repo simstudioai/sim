@@ -414,22 +414,20 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Normalize scores globally across all results before ranking.
-      // Per-provider normalization would inflate a poor single-provider result
-      // to an artificially high rank when merging across embedding spaces.
+      // When mixing results from different embedding spaces (OpenAI + Ollama), raw
+      // cosine distances are not directly comparable. Normalize to [0, 1] only in
+      // that case so existing consumers of single-provider similarity scores are
+      // unaffected.
+      const isMixedProviders = openaiKbIds.length > 0 && ollamaKbIds.length > 0
       const normalizeScores = (items: SearchResult[]): SearchResult[] => {
-        if (items.length === 0) return items
-        // Single result: clamp raw distance to [0,1] to preserve quality signal.
-        // Forcing distance=0 would give a poor single result the best possible rank.
-        if (items.length === 1)
-          return [{ ...items[0], distance: Math.min(1, Math.max(0, items[0].distance)) }]
+        if (items.length <= 1) return items
         const min = Math.min(...items.map((r) => r.distance))
         const max = Math.max(...items.map((r) => r.distance))
         const range = max - min || 1
         return items.map((r) => ({ ...r, distance: (r.distance - min) / range }))
       }
 
-      const results: SearchResult[] = normalizeScores(allResults)
+      const results: SearchResult[] = (isMixedProviders ? normalizeScores(allResults) : allResults)
         .sort((a, b) => a.distance - b.distance)
         .slice(0, validatedData.topK)
 
