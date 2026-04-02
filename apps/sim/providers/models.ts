@@ -117,25 +117,71 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'openai',
     name: 'OpenAI',
     description: "OpenAI's models",
-    defaultModel: 'gpt-4o',
+    defaultModel: 'gpt-4.1',
     modelPatterns: [/^gpt/, /^o\d/, /^text-embedding/],
     icon: OpenAIIcon,
     capabilities: {
       toolUsageControl: true,
     },
     models: [
+      // GPT-4.1 family
       {
-        id: 'gpt-4o',
+        id: 'gpt-4.1',
         pricing: {
-          input: 2.5,
-          cachedInput: 1.25,
-          output: 10.0,
+          input: 2.0,
+          cachedInput: 0.5,
+          output: 8.0,
           updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 32768,
         },
-        contextWindow: 128000,
+        contextWindow: 1047576,
+      },
+      {
+        id: 'gpt-4.1-mini',
+        pricing: {
+          input: 0.4,
+          cachedInput: 0.1,
+          output: 1.6,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          maxOutputTokens: 32768,
+        },
+        contextWindow: 1047576,
+      },
+      {
+        id: 'gpt-4.1-nano',
+        pricing: {
+          input: 0.1,
+          cachedInput: 0.025,
+          output: 0.4,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          maxOutputTokens: 32768,
+        },
+        contextWindow: 1047576,
+      },
+      // GPT-5.4 family
+      {
+        id: 'gpt-5.4-pro',
+        pricing: {
+          input: 30.0,
+          output: 180.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['medium', 'high', 'xhigh'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
       },
       {
         id: 'gpt-5.4',
@@ -155,51 +201,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           maxOutputTokens: 128000,
         },
         contextWindow: 1050000,
-      },
-      {
-        id: 'gpt-5.4-pro',
-        pricing: {
-          input: 30.0,
-          output: 180.0,
-          updatedAt: '2026-04-01',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['medium', 'high', 'xhigh'],
-          },
-          maxOutputTokens: 128000,
-        },
-        contextWindow: 1050000,
-      },
-      {
-        id: 'gpt-5.2-pro',
-        pricing: {
-          input: 21.0,
-          output: 168.0,
-          updatedAt: '2026-04-01',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['medium', 'high', 'xhigh'],
-          },
-          maxOutputTokens: 128000,
-        },
-        contextWindow: 400000,
-      },
-      {
-        id: 'gpt-5-pro',
-        pricing: {
-          input: 15.0,
-          output: 120.0,
-          updatedAt: '2026-04-01',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['high'],
-          },
-          maxOutputTokens: 272000,
-        },
-        contextWindow: 400000,
       },
       {
         id: 'gpt-5.4-mini',
@@ -239,6 +240,22 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 400000,
       },
+      // GPT-5.2 family
+      {
+        id: 'gpt-5.2-pro',
+        pricing: {
+          input: 21.0,
+          output: 168.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['medium', 'high', 'xhigh'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 400000,
+      },
       {
         id: 'gpt-5.2',
         pricing: {
@@ -257,6 +274,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 400000,
       },
+      // GPT-5.1 family
       {
         id: 'gpt-5.1',
         pricing: {
@@ -272,6 +290,22 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+        },
+        contextWindow: 400000,
+      },
+      // GPT-5 family
+      {
+        id: 'gpt-5-pro',
+        pricing: {
+          input: 15.0,
+          output: 120.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['high'],
+          },
+          maxOutputTokens: 272000,
         },
         contextWindow: 400000,
       },
@@ -342,18 +376,32 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
       },
+      // o-series reasoning models
       {
-        id: 'o1',
+        id: 'o4-mini',
         pricing: {
-          input: 15.0,
-          cachedInput: 7.5,
-          output: 60,
+          input: 1.1,
+          cachedInput: 0.275,
+          output: 4.4,
           updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 100000,
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'o3-pro',
+        pricing: {
+          input: 20.0,
+          output: 80.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          maxOutputTokens: 100000,
         },
         contextWindow: 200000,
       },
@@ -390,74 +438,33 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 200000,
       },
       {
-        id: 'o3-pro',
+        id: 'o1',
         pricing: {
-          input: 20.0,
-          output: 80.0,
-          updatedAt: '2026-04-01',
-        },
-        capabilities: {
-          maxOutputTokens: 100000,
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'o4-mini',
-        pricing: {
-          input: 1.1,
-          cachedInput: 0.275,
-          output: 4.4,
+          input: 15.0,
+          cachedInput: 7.5,
+          output: 60,
           updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
-          maxOutputTokens: 100000,
         },
         contextWindow: 200000,
       },
+      // Legacy
       {
-        id: 'gpt-4.1',
+        id: 'gpt-4o',
         pricing: {
-          input: 2.0,
-          cachedInput: 0.5,
-          output: 8.0,
+          input: 2.5,
+          cachedInput: 1.25,
+          output: 10.0,
           updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
-          maxOutputTokens: 32768,
         },
-        contextWindow: 1047576,
-      },
-      {
-        id: 'gpt-4.1-nano',
-        pricing: {
-          input: 0.1,
-          cachedInput: 0.025,
-          output: 0.4,
-          updatedAt: '2026-04-01',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 2 },
-          maxOutputTokens: 32768,
-        },
-        contextWindow: 1047576,
-      },
-      {
-        id: 'gpt-4.1-mini',
-        pricing: {
-          input: 0.4,
-          cachedInput: 0.1,
-          output: 1.6,
-          updatedAt: '2026-04-01',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 2 },
-          maxOutputTokens: 32768,
-        },
-        contextWindow: 1047576,
+        contextWindow: 128000,
       },
     ],
   },
@@ -465,7 +472,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'anthropic',
     name: 'Anthropic',
     description: "Anthropic's Claude models",
-    defaultModel: 'claude-sonnet-4-5',
+    defaultModel: 'claude-sonnet-4-6',
     modelPatterns: [/^claude/],
     icon: AnthropicIcon,
     capabilities: {
