@@ -358,15 +358,12 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
-  task_marked_read: {
-    workspace_id: string
-  }
-
   task_marked_unread: {
     workspace_id: string
   }
 
   task_message_sent: {
+    workspace_id: string
     has_attachments: boolean
     has_contexts: boolean
     is_new_task: boolean
@@ -388,6 +385,62 @@ export interface PostHogEventMap {
   docs_opened: {
     source: 'help_menu' | 'editor_button' | 'toolbar_context_menu'
     block_type?: string
+  }
+
+  search_result_selected: {
+    result_type:
+      | 'block'
+      | 'tool'
+      | 'trigger'
+      | 'tool_operation'
+      | 'workflow'
+      | 'workspace'
+      | 'task'
+      | 'table'
+      | 'file'
+      | 'knowledge_base'
+      | 'page'
+      | 'docs'
+    query_length: number
+    workspace_id: string
+  }
+
+  workflow_imported: {
+    workspace_id: string
+    workflow_count: number
+    format: 'json' | 'zip'
+  }
+
+  workflow_exported: {
+    workspace_id: string
+    workflow_count: number
+    format: 'json' | 'zip'
+  }
+
+  folder_created: {
+    workspace_id: string
+  }
+
+  folder_deleted: {
+    workspace_id: string
+  }
+
+  logs_filter_applied: {
+    filter_type: 'status' | 'workflow' | 'folder' | 'trigger' | 'time'
+    workspace_id: string
+  }
+
+  knowledge_base_document_deleted: {
+    knowledge_base_id: string
+    workspace_id: string
+  }
+
+  scheduled_task_created: {
+    workspace_id: string
+  }
+
+  scheduled_task_deleted: {
+    workspace_id: string
   }
 }
 
