@@ -107,23 +107,25 @@ export async function executeWorkflow(
           .filter((t): t is string => typeof t === 'string')
       ),
     ]
-    captureServerEvent(
-      actorUserId,
-      'workflow_executed',
-      {
-        workflow_id: workflowId,
-        workspace_id: workspaceId,
-        trigger_type: triggerType,
-        success: result.success,
-        block_count: result.logs?.length ?? 0,
-        block_types: blockTypes.join(','),
-        duration_ms: Date.now() - executionStartMs,
-      },
-      {
-        groups: { workspace: workspaceId },
-        setOnce: { first_execution_at: new Date().toISOString() },
-      }
-    )
+    if (result.status !== 'paused') {
+      captureServerEvent(
+        actorUserId,
+        'workflow_executed',
+        {
+          workflow_id: workflowId,
+          workspace_id: workspaceId,
+          trigger_type: triggerType,
+          success: result.success,
+          block_count: result.logs?.length ?? 0,
+          block_types: blockTypes.join(','),
+          duration_ms: Date.now() - executionStartMs,
+        },
+        {
+          groups: { workspace: workspaceId },
+          setOnce: { first_execution_at: new Date().toISOString() },
+        }
+      )
+    }
 
     if (result.status === 'paused') {
       if (!result.snapshotSeed) {

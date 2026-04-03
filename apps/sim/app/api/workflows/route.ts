@@ -250,13 +250,6 @@ export async function POST(req: NextRequest) {
         // Silently fail
       })
 
-    captureServerEvent(
-      userId,
-      'workflow_created',
-      { workflow_id: workflowId, workspace_id: workspaceId ?? '', name },
-      { groups: { workspace: workspaceId ?? '' } }
-    )
-
     const { workflowState, subBlockValues, startBlockId } = buildDefaultWorkflowArtifacts()
 
     await db.transaction(async (tx) => {
@@ -281,6 +274,16 @@ export async function POST(req: NextRequest) {
     })
 
     logger.info(`[${requestId}] Successfully created workflow ${workflowId} with default blocks`)
+
+    captureServerEvent(
+      userId,
+      'workflow_created',
+      { workflow_id: workflowId, workspace_id: workspaceId ?? '', name },
+      {
+        groups: { workspace: workspaceId ?? '' },
+        setOnce: { first_workflow_created_at: new Date().toISOString() },
+      }
+    )
 
     recordAudit({
       workspaceId,

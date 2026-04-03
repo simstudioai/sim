@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -163,6 +163,10 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const mcpServerId = searchParams.get('mcpServerId')
   const { data: session, isPending: sessionLoading } = useSession()
   const posthog = usePostHog()
+  const posthogRef = useRef(posthog)
+  useEffect(() => {
+    posthogRef.current = posthog
+  }, [posthog])
 
   const isAdminRole = session?.user?.role === 'admin'
   const effectiveSection =
@@ -179,8 +183,8 @@ export function SettingsPage({ section }: SettingsPageProps) {
 
   useEffect(() => {
     if (sessionLoading) return
-    posthog?.capture('settings_tab_viewed', { section: effectiveSection })
-  }, [effectiveSection, sessionLoading, posthog])
+    posthogRef.current?.capture('settings_tab_viewed', { section: effectiveSection })
+  }, [effectiveSection, sessionLoading])
 
   return (
     <div>

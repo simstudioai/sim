@@ -219,6 +219,17 @@ export async function handleSubscriptionDeleted(subscription: {
         organizationDeleted,
         membersSynced,
       })
+
+      captureServerEvent(
+        subscription.referenceId,
+        'subscription_cancelled',
+        {
+          plan: subscription.plan ?? 'unknown',
+          reference_id: subscription.referenceId,
+        },
+        { set: { plan: 'free' } }
+      )
+
       return
     }
 

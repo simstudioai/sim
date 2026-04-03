@@ -20,7 +20,7 @@ import {
   organization,
 } from 'better-auth/plugins'
 import { emailHarmony } from 'better-auth-harmony'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import {
@@ -190,13 +190,6 @@ export const auth = betterAuth({
           } catch {
             // Telemetry should not fail the operation
           }
-
-          captureServerEvent(
-            user.id,
-            'user_created',
-            { auth_method: 'email' },
-            { setOnce: { signup_at: new Date().toISOString() } }
-          )
 
           try {
             await handleNewUser(user.id)
@@ -375,6 +368,34 @@ export const auth = betterAuth({
               accountId: account.id,
               error,
             })
+          }
+
+          try {
+            const [{ value: accountCount }] = await db
+              .select({ value: count() })
+              .from(schema.account)
+              .where(eq(schema.account.userId, account.userId))
+
+            if (accountCount === 1) {
+              const isOAuth = account.providerId !== 'credential'
+              captureServerEvent(
+                account.userId,
+                'user_created',
+                {
+                  auth_method: isOAuth ? 'oauth' : 'email',
+                  ...(isOAuth ? { provider: account.providerId } : {}),
+                },
+                { setOnce: { signup_at: new Date().toISOString() } }
+              )
+            }
+          } catch (error) {
+            logger.error(
+              '[databaseHooks.account.create.after] Failed to capture user_created event',
+              {
+                userId: account.userId,
+                error,
+              }
+            )
           }
 
           if (account.providerId === 'salesforce') {
