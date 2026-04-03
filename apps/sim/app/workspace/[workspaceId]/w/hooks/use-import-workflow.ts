@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import { captureClientEvent } from '@/lib/posthog/client'
 import {
   extractWorkflowsFromFiles,
   extractWorkflowsFromZip,
@@ -204,6 +205,11 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
         logger.info(`Import complete. Imported ${importedWorkflowIds.length} workflow(s)`)
 
         if (importedWorkflowIds.length > 0) {
+          captureClientEvent('workflow_imported', {
+            workspace_id: workspaceId,
+            workflow_count: importedWorkflowIds.length,
+            format: hasZip ? 'zip' : 'json',
+          })
           router.push(
             `/workspace/${workspaceId}/w/${importedWorkflowIds[importedWorkflowIds.length - 1]}`
           )

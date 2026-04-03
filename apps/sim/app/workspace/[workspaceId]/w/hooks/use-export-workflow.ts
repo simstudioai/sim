@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { captureClientEvent } from '@/lib/posthog/client'
 import {
   downloadFile,
   exportWorkflowsToZip,
@@ -99,6 +100,12 @@ export function useExportWorkflow({ onSuccess }: UseExportWorkflowProps = {}) {
 
         const { clearSelection } = useFolderStore.getState()
         clearSelection()
+
+        captureClientEvent('workflow_exported', {
+          workspace_id: workspaceIdRef.current ?? '',
+          workflow_count: exportedWorkflows.length,
+          format: exportedWorkflows.length === 1 ? 'json' : 'zip',
+        })
 
         logger.info('Workflow(s) exported successfully', {
           workflowIds: workflowIdsToExport,
