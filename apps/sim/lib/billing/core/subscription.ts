@@ -460,6 +460,32 @@ export async function hasInboxAccess(userId: string): Promise<boolean> {
 }
 
 /**
+ * Check if user has access to live sync (every 5 minutes) for KB connectors
+ * Returns true if:
+ * - Self-hosted deployment, OR
+ * - Non-production environment, OR
+ * - User has a Max plan (credits >= 25000) or enterprise plan
+ */
+export async function hasLiveSyncAccess(userId: string): Promise<boolean> {
+  try {
+    if (!isHosted) {
+      return true
+    }
+    if (!isProd) {
+      return true
+    }
+    const sub = await getHighestPrioritySubscription(userId)
+    if (!sub) return false
+    const billingStatus = await getEffectiveBillingStatus(userId)
+    if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) return false
+    return getPlanTierCredits(sub.plan) >= 25000 || checkEnterprisePlan(sub)
+  } catch (error) {
+    logger.error('Error checking live sync access', { error, userId })
+    return false
+  }
+}
+
+/**
  * Check if user has exceeded their cost limit based on current period usage
  */
 export async function hasExceededCostLimit(userId: string): Promise<boolean> {
