@@ -101,4 +101,4 @@ export interface JobQueueBackend {
   markJobFailed(jobId: string, error: string): Promise<void>
 }
 
-export type AsyncBackendType = 'trigger-dev' | 'bullmq' | 'database'
+export type AsyncBackendType = 'trigger-dev' | 'database'

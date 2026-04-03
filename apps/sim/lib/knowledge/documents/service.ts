@@ -25,10 +25,8 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
-import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { env } from '@/lib/core/config/env'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
-import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
@@ -81,15 +79,8 @@ const PROCESSING_CONFIG = {
   delayBetweenDocuments: (env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS || 50) * 2,
 }
 
-const REDIS_PROCESSING_CONFIG = {
-  maxConcurrentDocuments: env.KB_CONFIG_CONCURRENCY_LIMIT || 20,
-  batchSize: env.KB_CONFIG_BATCH_SIZE || 20,
-  delayBetweenBatches: env.KB_CONFIG_DELAY_BETWEEN_BATCHES || 100,
-  delayBetweenDocuments: env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS || 50,
-}
-
 export function getProcessingConfig() {
-  return isBullMQEnabled() ? REDIS_PROCESSING_CONFIG : PROCESSING_CONFIG
+  return PROCESSING_CONFIG
 }
 
 export interface DocumentData {
@@ -122,35 +113,6 @@ export async function dispatchDocumentProcessingJob(payload: DocumentJobData): P
   if (isTriggerAvailable()) {
     await tasks.trigger('knowledge-process-document', payload, {
       tags: [`knowledgeBaseId:${payload.knowledgeBaseId}`, `documentId:${payload.documentId}`],
-    })
-    return
-  }
-
-  if (isBullMQEnabled()) {
-    const workspaceRows = await db
-      .select({
-        workspaceId: knowledgeBase.workspaceId,
-        userId: knowledgeBase.userId,
-      })
-      .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.id, payload.knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-      .limit(1)
-
-    const workspaceId = workspaceRows[0]?.workspaceId
-    const userId = workspaceRows[0]?.userId
-    if (!workspaceId || !userId) {
-      throw new Error(`Knowledge base not found: ${payload.knowledgeBaseId}`)
-    }
-
-    await enqueueWorkspaceDispatch({
-      workspaceId,
-      lane: 'knowledge',
-      queueName: 'knowledge-process-document',
-      bullmqJobName: 'knowledge-process-document',
-      bullmqPayload: createBullMQJobData(payload),
-      metadata: {
-        userId,
-      },
     })
     return
   }
@@ -375,7 +337,7 @@ export async function processDocumentsWithQueue(
   logger.info(
     `[${requestId}] Dispatching background processing for ${jobPayloads.length} documents`,
     {
-      backend: isTriggerAvailable() ? 'trigger-dev' : isBullMQEnabled() ? 'bullmq' : 'direct',
+      backend: isTriggerAvailable() ? 'trigger-dev' : 'direct',
     }
   )
 

@@ -1,5 +1,5 @@
 import { createHmac } from 'crypto'
-import { db, workflowExecutionLogs } from '@sim/db'
+import { db } from '@sim/db'
 import {
   account,
   workspaceNotificationDelivery,
@@ -17,14 +17,11 @@ import {
 import { checkUsageStatus } from '@/lib/billing/calculations/usage-monitor'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
-import { acquireLock } from '@/lib/core/config/redis'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { formatDuration } from '@/lib/core/utils/formatting'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import type { AlertConfig } from '@/lib/notifications/alert-rules'
@@ -35,7 +32,6 @@ const logger = createLogger('WorkspaceNotificationDelivery')
 
 const MAX_ATTEMPTS = 5
 const RETRY_DELAYS = [5 * 1000, 15 * 1000, 60 * 1000, 3 * 60 * 1000, 10 * 60 * 1000]
-const NOTIFICATION_DISPATCH_LOCK_TTL_SECONDS = 3
 
 function getRetryDelayWithJitter(baseDelay: number): number {
   const jitter = Math.random() * 0.1 * baseDelay
@@ -499,157 +495,6 @@ export interface NotificationDeliveryParams {
 export type NotificationDeliveryResult =
   | { status: 'success' | 'skipped' | 'failed' }
   | { status: 'retry'; retryDelayMs: number }
-
-async function buildRetryLog(params: NotificationDeliveryParams): Promise<WorkflowExecutionLog> {
-  const conditions = [eq(workflowExecutionLogs.executionId, params.log.executionId)]
-  if (params.log.workflowId) {
-    conditions.push(eq(workflowExecutionLogs.workflowId, params.log.workflowId))
-  }
-
-  const [storedLog] = await db
-    .select()
-    .from(workflowExecutionLogs)
-    .where(and(...conditions))
-    .limit(1)
-
-  if (storedLog) {
-    return storedLog as unknown as WorkflowExecutionLog
-  }
-
-  const now = new Date().toISOString()
-  return {
-    id: `retry_log_${params.deliveryId}`,
-    workflowId: params.log.workflowId,
-    executionId: params.log.executionId,
-    stateSnapshotId: '',
-    level: 'info',
-    trigger: 'system',
-    startedAt: now,
-    endedAt: now,
-    totalDurationMs: 0,
-    executionData: {},
-    cost: { total: 0 },
-    createdAt: now,
-  }
-}
-
-export async function enqueueNotificationDeliveryDispatch(
-  params: NotificationDeliveryParams
-): Promise<boolean> {
-  if (!isBullMQEnabled()) {
-    return false
-  }
-
-  const lockAcquired = await acquireLock(
-    `workspace-notification-dispatch:${params.deliveryId}`,
-    params.deliveryId,
-    NOTIFICATION_DISPATCH_LOCK_TTL_SECONDS
-  )
-  if (!lockAcquired) {
-    return false
-  }
-
-  await enqueueWorkspaceDispatch({
-    workspaceId: params.workspaceId,
-    lane: 'lightweight',
-    queueName: 'workspace-notification-delivery',
-    bullmqJobName: 'workspace-notification-delivery',
-    bullmqPayload: createBullMQJobData(params),
-    metadata: {
-      workflowId: params.log.workflowId ?? undefined,
-    },
-  })
-
-  return true
-}
-
-const STUCK_IN_PROGRESS_THRESHOLD_MS = 5 * 60 * 1000
-
-export async function sweepPendingNotificationDeliveries(limit = 50): Promise<number> {
-  if (!isBullMQEnabled()) {
-    return 0
-  }
-
-  const stuckThreshold = new Date(Date.now() - STUCK_IN_PROGRESS_THRESHOLD_MS)
-
-  await db
-    .update(workspaceNotificationDelivery)
-    .set({
-      status: 'pending',
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(workspaceNotificationDelivery.status, 'in_progress'),
-        lte(workspaceNotificationDelivery.lastAttemptAt, stuckThreshold)
-      )
-    )
-
-  const dueDeliveries = await db
-    .select({
-      deliveryId: workspaceNotificationDelivery.id,
-      subscriptionId: workspaceNotificationDelivery.subscriptionId,
-      workflowId: workspaceNotificationDelivery.workflowId,
-      executionId: workspaceNotificationDelivery.executionId,
-      workspaceId: workspaceNotificationSubscription.workspaceId,
-      alertConfig: workspaceNotificationSubscription.alertConfig,
-      notificationType: workspaceNotificationSubscription.notificationType,
-    })
-    .from(workspaceNotificationDelivery)
-    .innerJoin(
-      workspaceNotificationSubscription,
-      eq(workspaceNotificationDelivery.subscriptionId, workspaceNotificationSubscription.id)
-    )
-    .where(
-      and(
-        eq(workspaceNotificationDelivery.status, 'pending'),
-        or(
-          isNull(workspaceNotificationDelivery.nextAttemptAt),
-          lte(workspaceNotificationDelivery.nextAttemptAt, new Date())
-        )
-      )
-    )
-    .limit(limit)
-
-  let enqueued = 0
-
-  for (const delivery of dueDeliveries) {
-    const params: NotificationDeliveryParams = {
-      deliveryId: delivery.deliveryId,
-      subscriptionId: delivery.subscriptionId,
-      workspaceId: delivery.workspaceId,
-      notificationType: delivery.notificationType,
-      log: await buildRetryLog({
-        deliveryId: delivery.deliveryId,
-        subscriptionId: delivery.subscriptionId,
-        workspaceId: delivery.workspaceId,
-        notificationType: delivery.notificationType,
-        log: {
-          id: '',
-          workflowId: delivery.workflowId,
-          executionId: delivery.executionId,
-          stateSnapshotId: '',
-          level: 'info',
-          trigger: 'system',
-          startedAt: '',
-          endedAt: '',
-          totalDurationMs: 0,
-          executionData: {},
-          cost: { total: 0 },
-          createdAt: '',
-        },
-        alertConfig: (delivery.alertConfig as AlertConfig | null) ?? undefined,
-      }),
-      alertConfig: (delivery.alertConfig as AlertConfig | null) ?? undefined,
-    }
-
-    if (await enqueueNotificationDeliveryDispatch(params)) {
-      enqueued += 1
-    }
-  }
-
-  return enqueued
-}
 
 export async function executeNotificationDelivery(
   params: NotificationDeliveryParams

@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { DispatchQueueFullError } from '@/lib/core/workspace-dispatch'
 import {
   checkWebhookPreprocessing,
   findAllWebhooksForPath,
@@ -167,16 +166,6 @@ async function handleWebhookPost(
       })
       responses.push(response)
     } catch (error) {
-      if (error instanceof DispatchQueueFullError) {
-        return NextResponse.json(
-          {
-            error: 'Service temporarily at capacity',
-            message: error.message,
-            retryAfterSeconds: 10,
-          },
-          { status: 503, headers: { 'Retry-After': '10' } }
-        )
-      }
       throw error
     }
   }

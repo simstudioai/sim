@@ -2,12 +2,26 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getJobQueue } from '@/lib/core/async-jobs'
+import type { Job } from '@/lib/core/async-jobs/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { presentDispatchOrJobStatus } from '@/lib/core/workspace-dispatch/status'
-import { getDispatchJobRecord } from '@/lib/core/workspace-dispatch/store'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('TaskStatusAPI')
+
+function presentJobStatus(job: Job) {
+  return {
+    status: job.status,
+    metadata: {
+      createdAt: job.createdAt.toISOString(),
+      startedAt: job.startedAt?.toISOString(),
+      completedAt: job.completedAt?.toISOString(),
+      attempts: job.attempts,
+      maxAttempts: job.maxAttempts,
+    },
+    output: job.output,
+    error: job.error,
+  }
+}
 
 export async function GET(
   request: NextRequest,
@@ -25,15 +39,14 @@ export async function GET(
 
     const authenticatedUserId = authResult.userId
 
-    const dispatchJob = await getDispatchJobRecord(taskId)
     const jobQueue = await getJobQueue()
-    const job = dispatchJob ? null : await jobQueue.getJob(taskId)
+    const job = await jobQueue.getJob(taskId)
 
-    if (!job && !dispatchJob) {
+    if (!job) {
       return createErrorResponse('Task not found', 404)
     }
 
-    const metadataToCheck = dispatchJob?.metadata ?? job?.metadata
+    const metadataToCheck = job.metadata
 
     if (metadataToCheck?.workflowId) {
       const { verifyWorkflowAccess } = await import('@/socket/middleware/permissions')
@@ -61,7 +74,7 @@ export async function GET(
       return createErrorResponse('Access denied', 403)
     }
 
-    const presented = presentDispatchOrJobStatus(dispatchJob, job)
+    const presented = presentJobStatus(job)
     const response: any = {
       success: true,
       taskId,
@@ -71,9 +84,6 @@ export async function GET(
 
     if (presented.output !== undefined) response.output = presented.output
     if (presented.error !== undefined) response.error = presented.error
-    if (presented.estimatedDuration !== undefined) {
-      response.estimatedDuration = presented.estimatedDuration
-    }
 
     return NextResponse.json(response)
   } catch (error: any) {
