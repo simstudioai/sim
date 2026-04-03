@@ -80,31 +80,3 @@ export function captureServerEvent<E extends PostHogEventName>(
     logger.warn('Failed to capture PostHog server event', { event, error })
   }
 }
-
-/**
- * Update person properties without firing an event.
- * Use when a property change happens independently of any trackable action.
- *
- * @param distinctId - The user ID to update.
- * @param set        - Properties to update (mutable state like `plan`).
- * @param setOnce    - Properties to set only once (milestones like `first_execution_at`).
- */
-export function identifyServerPerson(
-  distinctId: string,
-  set?: PersonProperties,
-  setOnce?: PersonProperties
-): void {
-  try {
-    const client = getClient()
-    if (!client) return
-    client.identify({
-      distinctId,
-      properties: {
-        ...(set ?? {}),
-        ...(setOnce ? { $set_once: setOnce } : {}),
-      },
-    })
-  } catch (error) {
-    logger.warn('Failed to identify PostHog server person', { error })
-  }
-}
