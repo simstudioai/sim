@@ -21,6 +21,9 @@ import {
   ModalTabsTrigger,
   Skeleton,
 } from '@/components/emcn'
+import { getSubscriptionAccessState } from '@/lib/billing/client'
+import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/sync-intervals'
+import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfig } from '@/connectors/types'
 import type { ConnectorData } from '@/hooks/queries/kb/connectors'
@@ -30,16 +33,9 @@ import {
   useRestoreConnectorDocument,
   useUpdateConnector,
 } from '@/hooks/queries/kb/connectors'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('EditConnectorModal')
-
-const SYNC_INTERVALS = [
-  { label: 'Every hour', value: 60 },
-  { label: 'Every 6 hours', value: 360 },
-  { label: 'Daily', value: 1440 },
-  { label: 'Weekly', value: 10080 },
-  { label: 'Manual only', value: 0 },
-] as const
 
 /** Keys injected by the sync engine — not user-editable */
 const INTERNAL_CONFIG_KEYS = new Set(['tagSlotMapping', 'disabledTagIds'])
@@ -75,6 +71,10 @@ export function EditConnectorModal({
   const [error, setError] = useState<string | null>(null)
 
   const { mutate: updateConnector, isPending: isSaving } = useUpdateConnector()
+
+  const { data: subscriptionResponse } = useSubscriptionData({ enabled: isBillingEnabled })
+  const subscriptionAccess = getSubscriptionAccessState(subscriptionResponse?.data)
+  const hasMaxAccess = !isBillingEnabled || subscriptionAccess.hasUsableMaxAccess
 
   const hasChanges = useMemo(() => {
     if (syncInterval !== connector.syncIntervalMinutes) return true
@@ -146,6 +146,7 @@ export function EditConnectorModal({
                 setSourceConfig={setSourceConfig}
                 syncInterval={syncInterval}
                 setSyncInterval={setSyncInterval}
+                hasMaxAccess={hasMaxAccess}
                 error={error}
               />
             </ModalTabsContent>
@@ -184,6 +185,7 @@ interface SettingsTabProps {
   setSourceConfig: React.Dispatch<React.SetStateAction<Record<string, string>>>
   syncInterval: number
   setSyncInterval: (v: number) => void
+  hasMaxAccess: boolean
   error: string | null
 }
 
@@ -193,6 +195,7 @@ function SettingsTab({
   setSourceConfig,
   syncInterval,
   setSyncInterval,
+  hasMaxAccess,
   error,
 }: SettingsTabProps) {
   return (
@@ -234,8 +237,17 @@ function SettingsTab({
           onValueChange={(val) => setSyncInterval(Number(val))}
         >
           {SYNC_INTERVALS.map((interval) => (
-            <ButtonGroupItem key={interval.value} value={String(interval.value)}>
+            <ButtonGroupItem
+              key={interval.value}
+              value={String(interval.value)}
+              disabled={interval.requiresMax && !hasMaxAccess}
+            >
               {interval.label}
+              {interval.requiresMax && !hasMaxAccess && (
+                <span className='ml-1 shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
+                  Max
+                </span>
+              )}
             </ButtonGroupItem>
           ))}
         </ButtonGroup>
