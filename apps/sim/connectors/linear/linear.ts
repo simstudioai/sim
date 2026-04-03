@@ -119,7 +119,7 @@ const ISSUE_FIELDS = `
 `
 
 const ISSUE_BY_ID_QUERY = `
-  query GetIssue($id: ID!) {
+  query GetIssue($id: String!) {
     issue(id: $id) {
       ${ISSUE_FIELDS}
     }
@@ -147,13 +147,13 @@ function buildIssuesQuery(sourceConfig: Record<string, unknown>): {
   const variables: Record<string, unknown> = {}
 
   if (teamId) {
-    varDefs.push('$teamId: ID!')
+    varDefs.push('$teamId: String!')
     filterClauses.push('team: { id: { eq: $teamId } }')
     variables.teamId = teamId
   }
 
   if (projectId) {
-    varDefs.push('$projectId: ID!')
+    varDefs.push('$projectId: String!')
     filterClauses.push('project: { id: { eq: $projectId } }')
     variables.projectId = projectId
   }
