@@ -471,9 +471,6 @@ export async function hasLiveSyncAccess(userId: string): Promise<boolean> {
     if (!isHosted) {
       return true
     }
-    if (!isProd) {
-      return true
-    }
     const sub = await getHighestPrioritySubscription(userId)
     if (!sub) return false
     const billingStatus = await getEffectiveBillingStatus(userId)
