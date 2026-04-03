@@ -200,7 +200,7 @@ export async function POST(req: NextRequest) {
         mode,
       },
       {
-        groups: { workspace: resolvedWorkspaceId ?? '' },
+        groups: resolvedWorkspaceId ? { workspace: resolvedWorkspaceId } : undefined,
         setOnce: { first_copilot_use_at: new Date().toISOString() },
       }
     )
