@@ -246,9 +246,9 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
     },
     {
       id: 'metricDimensions',
-      title: 'Dimensions (JSON)',
-      type: 'code',
-      placeholder: '{"InstanceId": "i-1234567890abcdef0"}',
+      title: 'Dimensions',
+      type: 'table',
+      columns: ['Name', 'Value'],
       condition: { field: 'operation', value: 'get_metric_statistics' },
     },
     // Describe Alarms fields
@@ -460,7 +460,22 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
               endTime: Number(endTime),
               period: Number(rest.metricPeriod),
               statistics: Array.isArray(stat) ? stat : [stat],
-              ...(rest.metricDimensions && { dimensions: rest.metricDimensions }),
+              ...(rest.metricDimensions && {
+                dimensions: (() => {
+                  const dims = rest.metricDimensions
+                  if (typeof dims === 'string') return dims
+                  if (Array.isArray(dims)) {
+                    const obj: Record<string, string> = {}
+                    for (const row of dims) {
+                      const name = row.cells?.Name
+                      const value = row.cells?.Value
+                      if (name && value !== undefined) obj[name] = String(value)
+                    }
+                    return JSON.stringify(obj)
+                  }
+                  return JSON.stringify(dims)
+                })(),
+              }),
             }
           }
 
@@ -502,7 +517,7 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
     recentlyActive: { type: 'boolean', description: 'Only show recently active metrics' },
     metricPeriod: { type: 'number', description: 'Granularity in seconds' },
     metricStatistics: { type: 'string', description: 'Statistic type (Average, Sum, etc.)' },
-    metricDimensions: { type: 'string', description: 'Dimensions as JSON' },
+    metricDimensions: { type: 'json', description: 'Metric dimensions (Name/Value pairs)' },
     alarmNamePrefix: { type: 'string', description: 'Alarm name prefix filter' },
     stateValue: {
       type: 'string',
