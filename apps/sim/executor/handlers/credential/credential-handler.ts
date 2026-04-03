@@ -25,8 +25,12 @@ export class CredentialBlockHandler implements BlockHandler {
       throw new Error('No credential selected')
     }
 
+    if (!ctx.workspaceId) {
+      throw new Error('workspaceId is required for credential resolution')
+    }
+
     const record = await db.query.credential.findFirst({
-      where: and(eq(credential.id, credentialId), eq(credential.workspaceId, ctx.workspaceId!)),
+      where: and(eq(credential.id, credentialId), eq(credential.workspaceId, ctx.workspaceId)),
       columns: {
         id: true,
         displayName: true,

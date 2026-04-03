@@ -194,13 +194,13 @@ export function CredentialSelector({
     [refetch]
   )
 
-  const hasSelection = Boolean(selectedCredential)
-  const missingRequiredScopes = hasSelection
+  const hasOAuthSelection = Boolean(selectedCredential)
+  const missingRequiredScopes = hasOAuthSelection
     ? getMissingRequiredScopes(selectedCredential!, requiredScopes || [])
     : []
 
   const needsUpdate =
-    hasSelection &&
+    hasOAuthSelection &&
     !isServiceAccount &&
     missingRequiredScopes.length > 0 &&
     !effectiveDisabled &&
