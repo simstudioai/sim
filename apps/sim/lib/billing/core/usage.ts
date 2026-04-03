@@ -778,8 +778,8 @@ export async function maybeSendUsageThresholdEmail(params: {
       }
     }
 
-    // For 80% threshold email (free users only)
-    if (crosses80 && isFreeUser) {
+    // For 80% threshold email (free users only — skip if they also crossed 100% in same call)
+    if (crosses80 && isFreeUser && !crosses100) {
       const upgradeLink = `${baseUrl}/workspace?billing=upgrade`
       const sendFreeTierEmail = async (email: string, name?: string) => {
         const prefs = await getEmailPreferences(email)
