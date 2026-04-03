@@ -227,7 +227,7 @@ export const auth = betterAuth({
               await scheduleLifecycleEmail({
                 userId: user.id,
                 type: 'onboarding-followup',
-                delayDays: 3,
+                delayDays: 5,
               })
             } catch (error) {
               logger.error(
