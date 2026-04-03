@@ -317,11 +317,12 @@ export const useWorkflowStore = create<WorkflowStore>()(
         }
 
         if (blocks.length === 1) {
+          const workflowId = get().currentWorkflowId ?? 'unknown'
           import('@/lib/posthog/client')
             .then(({ captureClientEvent }) => {
               captureClientEvent('block_added', {
                 block_type: blocks[0].type,
-                workflow_id: get().currentWorkflowId ?? 'unknown',
+                workflow_id: workflowId,
               })
             })
             .catch(() => {})
@@ -389,11 +390,12 @@ export const useWorkflowStore = create<WorkflowStore>()(
         if (ids.length === 1) {
           const blockType = currentBlocks[ids[0]]?.type
           if (blockType) {
+            const workflowId = get().currentWorkflowId ?? 'unknown'
             import('@/lib/posthog/client')
               .then(({ captureClientEvent }) => {
                 captureClientEvent('block_removed', {
                   block_type: blockType,
-                  workflow_id: get().currentWorkflowId ?? 'unknown',
+                  workflow_id: workflowId,
                 })
               })
               .catch(() => {})
