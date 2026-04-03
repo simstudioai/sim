@@ -2244,6 +2244,45 @@
     "tags": ["agentic", "automation"]
   },
   {
+    "type": "dagster",
+    "slug": "dagster",
+    "name": "Dagster",
+    "description": "Orchestrate data pipelines and manage job runs on Dagster+",
+    "longDescription": "Connect to Dagster+ to launch job runs, monitor run status, list available jobs across repositories, and terminate in-progress runs. Requires a Dagster Cloud API token.",
+    "bgColor": "#191A23",
+    "iconName": "DagsterIcon",
+    "docsUrl": "https://docs.sim.ai/tools/dagster",
+    "operations": [
+      {
+        "name": "Launch Run",
+        "description": "Launch a Dagster job run in your Dagster+ deployment."
+      },
+      {
+        "name": "Get Run",
+        "description": "Get the status and details of a Dagster run by its ID."
+      },
+      {
+        "name": "List Runs",
+        "description": "List recent Dagster runs, optionally filtered by job name."
+      },
+      {
+        "name": "List Jobs",
+        "description": "List all jobs across repositories in a Dagster+ deployment."
+      },
+      {
+        "name": "Terminate Run",
+        "description": "Terminate an in-progress Dagster run."
+      }
+    ],
+    "operationCount": 5,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "automation",
+    "tags": ["data-analytics", "cloud", "automation"]
+  },
+  {
     "type": "databricks",
     "slug": "databricks",
     "name": "Databricks",

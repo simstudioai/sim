@@ -124,6 +124,29 @@ export function ConditionalIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function CredentialIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <circle cx='8' cy='15' r='4' stroke='currentColor' strokeWidth='1.75' />
+      <path d='M11.83 13.17L20 5' stroke='currentColor' strokeWidth='1.75' strokeLinecap='round' />
+      <path
+        d='M18 7l2 2'
+        stroke='currentColor'
+        strokeWidth='1.75'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path
+        d='M15 10l2 2'
+        stroke='currentColor'
+        strokeWidth='1.75'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>
+  )
+}
+
 export function NoteIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -4840,6 +4863,21 @@ export function SSHIcon(props: SVGProps<SVGSVGElement>) {
       <path
         fill='#fff'
         d='M24.792,18.593l-1.475,4.449c0,0-1.337-0.715-2.927-0.715c-2.374,0-2.489,1.498-2.489,1.867	c0,2.028,5.301,2.812,5.301,7.583c0,3.757-2.374,6.177-5.578,6.177c-3.872,0-5.808-2.397-5.808-2.397l1.037-3.411	c0,0,2.028,1.752,3.734,1.752c1.129,0,1.59-0.876,1.59-1.521c0-2.651-4.333-2.766-4.333-7.145c0-3.665,2.628-7.214,7.952-7.214	C23.777,17.994,24.792,18.593,24.792,18.593z'
+      />
+    </svg>
+  )
+}
+
+export function DagsterIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 147 147' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M73.5 0C32.9 0 0 32.9 0 73.5S32.9 147 73.5 147 147 114.1 147 73.5 114.1 0 73.5 0z'
+        fill='#4F43DD'
+      />
+      <path
+        d='M109.6 52.4L87 39.7c-1.9-1.1-4.3-1.1-6.2 0l-7.3 4.2-7.3-4.2c-1.9-1.1-4.3-1.1-6.2 0L37.4 52.4c-1.9 1.1-3.1 3.1-3.1 5.3v25.4c0 2.2 1.2 4.2 3.1 5.3l7.3 4.2v8.5c0 2.2 1.2 4.2 3.1 5.3l22.6 13.1c1.9 1.1 4.3 1.1 6.2 0l22.6-13.1c1.9-1.1 3.1-3.1 3.1-5.3v-8.5l7.3-4.2c1.9-1.1 3.1-3.1 3.1-5.3V57.7c0-2.2-1.2-4.2-3.1-5.3zm-12 40.4l-16.4 9.5v-8.5l16.4-9.5v8.5zm-6.2-19l-10.2 5.9-10.2-5.9 10.2-5.9 10.2 5.9zm-22.6 27.5l-16.4-9.5v-8.5l16.4 9.5v8.5zm-22.6-35.9l16.4-9.5 10.2 5.9-16.4 9.5-10.2-5.9zm13.1 24.4l-10.2-5.9V75l10.2 5.9v8.9zm22.6 0V81l10.2-5.9v8.8l-10.2 5.9zm9.5-24.4L74.9 74.9l-10.2-5.9 16.4-9.5 10.2 5.9z'
+        fill='white'
       />
     </svg>
   )
