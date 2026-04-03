@@ -384,9 +384,9 @@ export function CredentialSelector({
         }
       }
 
-      const matchedCred = (isAllCredentials ? allWorkspaceCredentials : credentials).find(
-        (c) => c.id === value
-      )
+      const matchedCred = (
+        isAllCredentials ? allWorkspaceCredentials.filter((c) => c.type === 'oauth') : credentials
+      ).find((c) => c.id === value)
       if (matchedCred) {
         handleSelect(value)
         return
