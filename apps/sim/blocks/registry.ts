@@ -26,6 +26,7 @@ import { ClerkBlock } from '@/blocks/blocks/clerk'
 import { CloudflareBlock } from '@/blocks/blocks/cloudflare'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceV2Block } from '@/blocks/blocks/confluence'
+import { CredentialBlock } from '@/blocks/blocks/credential'
 import { CursorBlock, CursorV2Block } from '@/blocks/blocks/cursor'
 import { DatabricksBlock } from '@/blocks/blocks/databricks'
 import { DatadogBlock } from '@/blocks/blocks/datadog'
@@ -243,6 +244,7 @@ export const registry: Record<string, BlockConfig> = {
   clay: ClayBlock,
   clerk: ClerkBlock,
   condition: ConditionBlock,
+  credential: CredentialBlock,
   confluence: ConfluenceBlock,
   confluence_v2: ConfluenceV2Block,
   cursor: CursorBlock,

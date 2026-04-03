@@ -8,6 +8,7 @@
 import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
 import { ApiBlockHandler } from '@/executor/handlers/api/api-handler'
 import { ConditionBlockHandler } from '@/executor/handlers/condition/condition-handler'
+import { CredentialBlockHandler } from '@/executor/handlers/credential/credential-handler'
 import { EvaluatorBlockHandler } from '@/executor/handlers/evaluator/evaluator-handler'
 import { FunctionBlockHandler } from '@/executor/handlers/function/function-handler'
 import { GenericBlockHandler } from '@/executor/handlers/generic/generic-handler'
@@ -42,6 +43,7 @@ export function createBlockHandlers(): BlockHandler[] {
     new WorkflowBlockHandler(),
     new WaitBlockHandler(),
     new EvaluatorBlockHandler(),
+    new CredentialBlockHandler(),
     new GenericBlockHandler(),
   ]
 }
