@@ -56,7 +56,6 @@ import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-so
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
-import { useFolderStore } from '@/stores/folders/store'
 import type { ChatContext } from '@/stores/panel'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
