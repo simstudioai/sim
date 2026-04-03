@@ -62,6 +62,8 @@ const roleOptions = [
   { value: 'admin', label: 'Admin' },
 ] as const
 
+const roleComboOptions = roleOptions.map((option) => ({ value: option.value, label: option.label }))
+
 export function IntegrationsManager() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
@@ -1315,42 +1317,32 @@ export function IntegrationsManager() {
                           </div>
                         </div>
 
+                        <Combobox
+                          options={roleComboOptions}
+                          value={
+                            roleOptions.find((option) => option.value === member.role)?.label || ''
+                          }
+                          selectedValue={member.role}
+                          onChange={(value) =>
+                            handleChangeMemberRole(member.userId, value as WorkspaceCredentialRole)
+                          }
+                          placeholder='Role'
+                          disabled={
+                            !isSelectedAdmin || (member.role === 'admin' && adminMemberCount <= 1)
+                          }
+                          size='sm'
+                        />
                         {isSelectedAdmin ? (
-                          <>
-                            <Combobox
-                              options={roleOptions.map((option) => ({
-                                value: option.value,
-                                label: option.label,
-                              }))}
-                              value={
-                                roleOptions.find((option) => option.value === member.role)?.label ||
-                                ''
-                              }
-                              selectedValue={member.role}
-                              onChange={(value) =>
-                                handleChangeMemberRole(
-                                  member.userId,
-                                  value as WorkspaceCredentialRole
-                                )
-                              }
-                              placeholder='Role'
-                              disabled={member.role === 'admin' && adminMemberCount <= 1}
-                              size='sm'
-                            />
-                            <Button
-                              variant='ghost'
-                              onClick={() => handleRemoveMember(member.userId)}
-                              disabled={member.role === 'admin' && adminMemberCount <= 1}
-                              className='w-full justify-end'
-                            >
-                              Remove
-                            </Button>
-                          </>
+                          <Button
+                            variant='ghost'
+                            onClick={() => handleRemoveMember(member.userId)}
+                            disabled={member.role === 'admin' && adminMemberCount <= 1}
+                            className='w-full justify-end'
+                          >
+                            Remove
+                          </Button>
                         ) : (
-                          <>
-                            <Badge variant='gray-secondary'>{member.role}</Badge>
-                            <div />
-                          </>
+                          <div />
                         )}
                       </div>
                     ))}
@@ -1370,10 +1362,7 @@ export function IntegrationsManager() {
                           size='sm'
                         />
                         <Combobox
-                          options={roleOptions.map((option) => ({
-                            value: option.value,
-                            label: option.label,
-                          }))}
+                          options={roleComboOptions}
                           value={
                             roleOptions.find((option) => option.value === memberRole)?.label || ''
                           }
