@@ -25,9 +25,10 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
+import { recordUsage } from '@/lib/billing/core/usage-log'
 import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { env } from '@/lib/core/config/env'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
@@ -43,6 +44,7 @@ import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
+import { getEmbeddingModelPricing } from '@/providers/models'
 
 const logger = createLogger('DocumentService')
 
@@ -460,6 +462,9 @@ export async function processDocumentAsync(
       overlap: rawConfig?.overlap ?? 200,
     }
 
+    let totalEmbeddingTokens = 0
+    let embeddingIsBYOK = false
+
     await withTimeout(
       (async () => {
         const processed = await processDocument(
@@ -500,10 +505,16 @@ export async function processDocumentAsync(
             const batchNum = Math.floor(i / batchSize) + 1
 
             logger.info(`[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`)
-            const batchEmbeddings = await generateEmbeddings(batch, undefined, kb[0].workspaceId)
+            const {
+              embeddings: batchEmbeddings,
+              totalTokens: batchTokens,
+              isBYOK,
+            } = await generateEmbeddings(batch, undefined, kb[0].workspaceId)
             for (const emb of batchEmbeddings) {
               embeddings.push(emb)
             }
+            totalEmbeddingTokens += batchTokens
+            embeddingIsBYOK = isBYOK
           }
         }
 
@@ -638,6 +649,34 @@ export async function processDocumentAsync(
 
     const processingTime = Date.now() - startTime
     logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
+
+    if (!embeddingIsBYOK && totalEmbeddingTokens > 0 && kb[0].userId) {
+      try {
+        const embeddingModel = 'text-embedding-3-small'
+        const pricing = getEmbeddingModelPricing(embeddingModel)
+        if (pricing) {
+          const cost = (totalEmbeddingTokens / 1_000_000) * pricing.input * getCostMultiplier()
+          await recordUsage({
+            userId: kb[0].userId,
+            workspaceId: kb[0].workspaceId ?? undefined,
+            entries: [
+              {
+                category: 'model',
+                source: 'knowledge-base',
+                description: embeddingModel,
+                cost,
+                metadata: { inputTokens: totalEmbeddingTokens, outputTokens: 0 },
+              },
+            ],
+            additionalStats: {
+              totalTokensUsed: sql`total_tokens_used + ${totalEmbeddingTokens}`,
+            },
+          })
+        }
+      } catch (billingError) {
+        logger.error(`[${documentId}] Failed to record embedding usage`, { error: billingError })
+      }
+    }
   } catch (error) {
     const processingTime = Date.now() - startTime
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
