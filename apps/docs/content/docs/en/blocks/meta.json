@@ -4,6 +4,7 @@
     "agent",
     "api",
     "condition",
+    "credential",
     "evaluator",
     "function",
     "guardrails",

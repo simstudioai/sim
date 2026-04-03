@@ -5,6 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
 
 const logger = createLogger('WorkspaceByIdAPI')
@@ -291,6 +292,13 @@ export async function DELETE(
       },
       request,
     })
+
+    captureServerEvent(
+      session.user.id,
+      'workspace_deleted',
+      { workspace_id: workspaceId, workflow_count: workflowIds.length },
+      { groups: { workspace: workspaceId } }
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {

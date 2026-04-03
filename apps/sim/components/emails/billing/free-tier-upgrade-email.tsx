@@ -1,5 +1,6 @@
 import { Link, Section, Text } from '@react-email/components'
 import { baseStyles, colors, typography } from '@/components/emails/_styles'
+import { proFeatures } from '@/components/emails/billing/constants'
 import { EmailLayout } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBrandConfig } from '@/ee/whitelabeling'
@@ -11,13 +12,6 @@ interface FreeTierUpgradeEmailProps {
   limit: number
   upgradeLink: string
 }
-
-const proFeatures = [
-  { label: '6,000 credits/month', desc: 'included' },
-  { label: '+50 daily refresh', desc: 'credits per day' },
-  { label: '150 runs/min', desc: 'sync executions' },
-  { label: '50GB storage', desc: 'for files & assets' },
-]
 
 export function FreeTierUpgradeEmail({
   userName,
@@ -105,7 +99,7 @@ export function FreeTierUpgradeEmail({
       <div style={baseStyles.divider} />
 
       <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
-        One-time notification at 90% usage.
+        One-time notification at 80% usage.
       </Text>
     </EmailLayout>
   )

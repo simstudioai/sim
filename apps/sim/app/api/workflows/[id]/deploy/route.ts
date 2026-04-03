@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { performFullDeploy, performFullUndeploy } from '@/lib/workflows/orchestration'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import {
@@ -96,6 +97,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
 
+    captureServerEvent(
+      actorUserId,
+      'workflow_deployed',
+      { workflow_id: id, workspace_id: workflowData!.workspaceId ?? '' },
+      {
+        groups: workflowData!.workspaceId ? { workspace: workflowData!.workspaceId } : undefined,
+        setOnce: { first_workflow_deployed_at: new Date().toISOString() },
+      }
+    )
+
     const responseApiKeyInfo = workflowData!.workspaceId
       ? 'Workspace API keys'
       : 'Personal API keys'
@@ -118,7 +129,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params
 
   try {
-    const { error, session } = await validateWorkflowPermissions(id, requestId, 'admin')
+    const {
+      error,
+      session,
+      workflow: workflowData,
+    } = await validateWorkflowPermissions(id, requestId, 'admin')
     if (error) {
       return createErrorResponse(error.message, error.status)
     }
@@ -148,6 +163,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     logger.info(`[${requestId}] Updated isPublicApi for workflow ${id} to ${isPublicApi}`)
 
+    const wsId = workflowData?.workspaceId
+    captureServerEvent(
+      session!.user.id,
+      'workflow_public_api_toggled',
+      { workflow_id: id, workspace_id: wsId ?? '', is_public: isPublicApi },
+      wsId ? { groups: { workspace: wsId } } : undefined
+    )
+
     return createSuccessResponse({ isPublicApi })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to update deployment settings'
@@ -164,7 +187,11 @@ export async function DELETE(
   const { id } = await params
 
   try {
-    const { error, session } = await validateWorkflowPermissions(id, requestId, 'admin')
+    const {
+      error,
+      session,
+      workflow: workflowData,
+    } = await validateWorkflowPermissions(id, requestId, 'admin')
     if (error) {
       return createErrorResponse(error.message, error.status)
     }
@@ -178,6 +205,14 @@ export async function DELETE(
     if (!result.success) {
       return createErrorResponse(result.error || 'Failed to undeploy workflow', 500)
     }
+
+    const wsId = workflowData?.workspaceId
+    captureServerEvent(
+      session!.user.id,
+      'workflow_undeployed',
+      { workflow_id: id, workspace_id: wsId ?? '' },
+      wsId ? { groups: { workspace: wsId } } : undefined
+    )
 
     return createSuccessResponse({
       isDeployed: false,

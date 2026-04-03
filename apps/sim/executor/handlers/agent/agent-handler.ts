@@ -3,6 +3,7 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import {
@@ -277,39 +278,18 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     customToolId: string
   ): Promise<{ schema: any; title: string } | null> {
+    if (!ctx.userId) {
+      logger.error('Cannot fetch custom tool without userId:', { customToolId })
+      return null
+    }
+
     try {
-      const headers = await buildAuthHeaders(ctx.userId)
-      const params: Record<string, string> = {}
-
-      if (ctx.workspaceId) {
-        params.workspaceId = ctx.workspaceId
-      }
-      if (ctx.workflowId) {
-        params.workflowId = ctx.workflowId
-      }
-      if (ctx.userId) {
-        params.userId = ctx.userId
-      }
-
-      const url = buildAPIUrl('/api/tools/custom', params)
-      const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers,
+      const tool = await getCustomToolById({
+        toolId: customToolId,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
       })
 
-      if (!response.ok) {
-        await response.text().catch(() => {})
-        logger.error(`Failed to fetch custom tools: ${response.status}`)
-        return null
-      }
-
-      const data = await response.json()
-      if (!data.data || !Array.isArray(data.data)) {
-        logger.error('Invalid custom tools API response')
-        return null
-      }
-
-      const tool = data.data.find((t: any) => t.id === customToolId)
       if (!tool) {
         logger.warn(`Custom tool not found by ID: ${customToolId}`)
         return null

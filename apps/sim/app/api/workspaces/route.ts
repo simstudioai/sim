@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
@@ -95,6 +96,16 @@ export async function POST(req: Request) {
     const { name, color, skipDefaultWorkflow } = createWorkspaceSchema.parse(await req.json())
 
     const newWorkspace = await createWorkspace(session.user.id, name, skipDefaultWorkflow, color)
+
+    captureServerEvent(
+      session.user.id,
+      'workspace_created',
+      { workspace_id: newWorkspace.id, name: newWorkspace.name },
+      {
+        groups: { workspace: newWorkspace.id },
+        setOnce: { first_workspace_created_at: new Date().toISOString() },
+      }
+    )
 
     recordAudit({
       workspaceId: newWorkspace.id,

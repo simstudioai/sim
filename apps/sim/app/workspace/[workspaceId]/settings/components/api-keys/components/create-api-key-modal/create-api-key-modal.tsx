@@ -26,6 +26,7 @@ interface CreateApiKeyModalProps {
   allowPersonalApiKeys?: boolean
   canManageWorkspaceKeys?: boolean
   defaultKeyType?: 'personal' | 'workspace'
+  source?: 'settings' | 'deploy_modal'
   onKeyCreated?: (key: ApiKey) => void
 }
 
@@ -41,6 +42,7 @@ export function CreateApiKeyModal({
   allowPersonalApiKeys = true,
   canManageWorkspaceKeys = false,
   defaultKeyType = 'personal',
+  source = 'settings',
   onKeyCreated,
 }: CreateApiKeyModalProps) {
   const [keyName, setKeyName] = useState('')
@@ -74,6 +76,7 @@ export function CreateApiKeyModal({
         workspaceId,
         name: trimmedName,
         keyType,
+        source,
       })
 
       setNewKey(data.key)

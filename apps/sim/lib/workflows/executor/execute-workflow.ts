@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { v4 as uuidv4 } from 'uuid'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -79,6 +80,8 @@ export async function executeWorkflow(
       streamConfig?.selectedOutputs || []
     )
 
+    const executionStartMs = Date.now()
+
     const result = await executeWorkflowCore({
       snapshot,
       callbacks: {
@@ -96,6 +99,33 @@ export async function executeWorkflow(
       stopAfterBlockId: streamConfig?.stopAfterBlockId,
       runFromBlock: streamConfig?.runFromBlock,
     })
+
+    const blockTypes = [
+      ...new Set(
+        (result.logs ?? [])
+          .map((log) => log.blockType)
+          .filter((t): t is string => typeof t === 'string')
+      ),
+    ]
+    if (result.status !== 'paused') {
+      captureServerEvent(
+        actorUserId,
+        'workflow_executed',
+        {
+          workflow_id: workflowId,
+          workspace_id: workspaceId,
+          trigger_type: triggerType,
+          success: result.success,
+          block_count: result.logs?.length ?? 0,
+          block_types: blockTypes.join(','),
+          duration_ms: Date.now() - executionStartMs,
+        },
+        {
+          groups: { workspace: workspaceId },
+          setOnce: { first_execution_at: new Date().toISOString() },
+        }
+      )
+    }
 
     if (result.status === 'paused') {
       if (!result.snapshotSeed) {
@@ -123,7 +153,14 @@ export async function executeWorkflow(
         }
       }
     } else {
-      await PauseResumeManager.processQueuedResumes(executionId)
+      try {
+        await PauseResumeManager.processQueuedResumes(executionId)
+      } catch (resumeError) {
+        logger.error(`[${requestId}] Failed to process queued resumes`, {
+          executionId,
+          error: resumeError instanceof Error ? resumeError.message : String(resumeError),
+        })
+      }
     }
 
     if (streamConfig?.skipLoggingComplete) {
@@ -139,6 +176,19 @@ export async function executeWorkflow(
     return result
   } catch (error: unknown) {
     logger.error(`[${requestId}] Workflow execution failed:`, error)
+
+    captureServerEvent(
+      actorUserId,
+      'workflow_execution_failed',
+      {
+        workflow_id: workflow.id,
+        workspace_id: workspaceId,
+        trigger_type: streamConfig?.workflowTriggerType || 'api',
+        error_message: error instanceof Error ? error.message : String(error),
+      },
+      { groups: { workspace: workspaceId } }
+    )
+
     throw error
   }
 }

@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { restoreWorkflow } from '@/lib/workflows/lifecycle'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -57,6 +58,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       description: `Restored workflow "${workflowData.name}"`,
       request,
     })
+
+    captureServerEvent(
+      auth.userId,
+      'workflow_restored',
+      { workflow_id: workflowId, workspace_id: workflowData.workspaceId ?? '' },
+      workflowData.workspaceId ? { groups: { workspace: workflowData.workspaceId } } : undefined
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {

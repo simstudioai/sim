@@ -106,6 +106,109 @@
     "tags": ["agentic", "automation"]
   },
   {
+    "type": "agentmail",
+    "slug": "agentmail",
+    "name": "AgentMail",
+    "description": "Manage email inboxes, threads, and messages with AgentMail",
+    "longDescription": "Integrate AgentMail into your workflow. Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels. Requires API Key.",
+    "bgColor": "#000000",
+    "iconName": "AgentMailIcon",
+    "docsUrl": "https://docs.sim.ai/tools/agentmail",
+    "operations": [
+      {
+        "name": "Send Message",
+        "description": "Send an email message from an AgentMail inbox"
+      },
+      {
+        "name": "Reply to Message",
+        "description": "Reply to an existing email message in AgentMail"
+      },
+      {
+        "name": "Forward Message",
+        "description": "Forward an email message to new recipients in AgentMail"
+      },
+      {
+        "name": "List Threads",
+        "description": "List email threads in AgentMail"
+      },
+      {
+        "name": "Get Thread",
+        "description": "Get details of a specific email thread including messages in AgentMail"
+      },
+      {
+        "name": "Update Thread Labels",
+        "description": "Add or remove labels on an email thread in AgentMail"
+      },
+      {
+        "name": "Delete Thread",
+        "description": "Delete an email thread in AgentMail (moves to trash, or permanently deletes if already in trash)"
+      },
+      {
+        "name": "List Messages",
+        "description": "List messages in an inbox in AgentMail"
+      },
+      {
+        "name": "Get Message",
+        "description": "Get details of a specific email message in AgentMail"
+      },
+      {
+        "name": "Update Message Labels",
+        "description": "Add or remove labels on an email message in AgentMail"
+      },
+      {
+        "name": "Create Draft",
+        "description": "Create a new email draft in AgentMail"
+      },
+      {
+        "name": "List Drafts",
+        "description": "List email drafts in an inbox in AgentMail"
+      },
+      {
+        "name": "Get Draft",
+        "description": "Get details of a specific email draft in AgentMail"
+      },
+      {
+        "name": "Update Draft",
+        "description": "Update an existing email draft in AgentMail"
+      },
+      {
+        "name": "Delete Draft",
+        "description": "Delete an email draft in AgentMail"
+      },
+      {
+        "name": "Send Draft",
+        "description": "Send an existing email draft in AgentMail"
+      },
+      {
+        "name": "Create Inbox",
+        "description": "Create a new email inbox with AgentMail"
+      },
+      {
+        "name": "List Inboxes",
+        "description": "List all email inboxes in AgentMail"
+      },
+      {
+        "name": "Get Inbox",
+        "description": "Get details of a specific email inbox in AgentMail"
+      },
+      {
+        "name": "Update Inbox",
+        "description": "Update the display name of an email inbox in AgentMail"
+      },
+      {
+        "name": "Delete Inbox",
+        "description": "Delete an email inbox in AgentMail"
+      }
+    ],
+    "operationCount": 21,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "email",
+    "tags": ["messaging"]
+  },
+  {
     "type": "ahrefs",
     "slug": "ahrefs",
     "name": "Ahrefs",
@@ -9717,9 +9820,61 @@
       {
         "name": "List Retrospectives",
         "description": "List incident retrospectives (post-mortems) from Rootly."
+      },
+      {
+        "name": "Delete Incident",
+        "description": "Delete an incident by ID from Rootly."
+      },
+      {
+        "name": "Get Alert",
+        "description": "Retrieve a single alert by ID from Rootly."
+      },
+      {
+        "name": "Update Alert",
+        "description": "Update an existing alert in Rootly."
+      },
+      {
+        "name": "Acknowledge Alert",
+        "description": "Acknowledge an alert in Rootly."
+      },
+      {
+        "name": "Resolve Alert",
+        "description": "Resolve an alert in Rootly."
+      },
+      {
+        "name": "Create Action Item",
+        "description": "Create a new action item for an incident in Rootly."
+      },
+      {
+        "name": "List Action Items",
+        "description": "List action items for an incident in Rootly."
+      },
+      {
+        "name": "List Users",
+        "description": "List users from Rootly with optional search and email filtering."
+      },
+      {
+        "name": "List On-Calls",
+        "description": "List current on-call entries from Rootly with optional filtering."
+      },
+      {
+        "name": "List Schedules",
+        "description": "List on-call schedules from Rootly with optional search filtering."
+      },
+      {
+        "name": "List Escalation Policies",
+        "description": "List escalation policies from Rootly with optional search filtering."
+      },
+      {
+        "name": "List Causes",
+        "description": "List causes from Rootly with optional search filtering."
+      },
+      {
+        "name": "List Playbooks",
+        "description": "List playbooks from Rootly with pagination support."
       }
     ],
-    "operationCount": 14,
+    "operationCount": 27,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",

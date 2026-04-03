@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import { PanelLeft } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import {
@@ -10,6 +11,7 @@ import {
   type LandingWorkflowSeed,
   LandingWorkflowSeedStorage,
 } from '@/lib/core/utils/browser-storage'
+import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import type { ChatContext } from '@/stores/panel'
@@ -27,6 +29,8 @@ export function Home({ chatId }: HomeProps = {}) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
   const { data: session } = useSession()
+  const posthog = usePostHog()
+  const posthogRef = useRef(posthog)
   const [initialPrompt, setInitialPrompt] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
@@ -199,10 +203,20 @@ export function Home({ chatId }: HomeProps = {}) {
     return () => cancelAnimationFrame(id)
   }, [resources])
 
+  useEffect(() => {
+    posthogRef.current = posthog
+  }, [posthog])
+
   const handleSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       const trimmed = text.trim()
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
+
+      captureEvent(posthogRef.current, 'task_message_sent', {
+        has_attachments: !!(fileAttachments && fileAttachments.length > 0),
+        has_contexts: !!(contexts && contexts.length > 0),
+        is_new_task: !chatId,
+      })
 
       if (initialViewInputRef.current) {
         setIsInputEntering(true)

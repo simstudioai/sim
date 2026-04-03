@@ -73,7 +73,7 @@ export const workspaceCredentialKeys = {
  * Fetch workspace credential list from API.
  * Used by the prefetch function for hover-based cache warming.
  */
-async function fetchWorkspaceCredentialList(
+export async function fetchWorkspaceCredentialList(
   workspaceId: string,
   signal?: AbortSignal
 ): Promise<WorkspaceCredential[]> {

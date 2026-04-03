@@ -18,6 +18,7 @@ import {
   createMcpSuccessResponse,
   generateMcpServerId,
 } from '@/lib/mcp/utils'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('McpServersAPI')
 
@@ -180,6 +181,20 @@ export const POST = withMcpAuth('write')(
         // Silently fail
       }
 
+      const sourceParam = body.source as string | undefined
+      const source =
+        sourceParam === 'settings' || sourceParam === 'tool_input' ? sourceParam : undefined
+
+      captureServerEvent(
+        userId,
+        'mcp_server_connected',
+        { workspace_id: workspaceId, server_name: body.name, transport: body.transport, source },
+        {
+          groups: { workspace: workspaceId },
+          setOnce: { first_mcp_connected_at: new Date().toISOString() },
+        }
+      )
+
       recordAudit({
         workspaceId,
         actorId: userId,
@@ -214,6 +229,9 @@ export const DELETE = withMcpAuth('admin')(
     try {
       const { searchParams } = new URL(request.url)
       const serverId = searchParams.get('serverId')
+      const sourceParam = searchParams.get('source')
+      const source =
+        sourceParam === 'settings' || sourceParam === 'tool_input' ? sourceParam : undefined
 
       if (!serverId) {
         return createMcpErrorResponse(
@@ -241,6 +259,13 @@ export const DELETE = withMcpAuth('admin')(
       await mcpService.clearCache(workspaceId)
 
       logger.info(`[${requestId}] Successfully deleted MCP server: ${serverId}`)
+
+      captureServerEvent(
+        userId,
+        'mcp_server_disconnected',
+        { workspace_id: workspaceId, server_name: deletedServer.name, source },
+        { groups: { workspace: workspaceId } }
+      )
 
       recordAudit({
         workspaceId,

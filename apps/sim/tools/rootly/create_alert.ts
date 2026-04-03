@@ -124,6 +124,7 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
         output: {
           alert: {
             id: data.data?.id ?? null,
+            shortId: attrs.short_id ?? null,
             summary: attrs.summary ?? '',
             description: attrs.description ?? null,
             source: attrs.source ?? null,
@@ -133,6 +134,8 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
             deduplicationKey: attrs.deduplication_key ?? null,
             createdAt: attrs.created_at ?? '',
             updatedAt: attrs.updated_at ?? '',
+            startedAt: attrs.started_at ?? null,
+            endedAt: attrs.ended_at ?? null,
           },
         },
       }
@@ -144,6 +147,7 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
         description: 'The created alert',
         properties: {
           id: { type: 'string', description: 'Unique alert ID' },
+          shortId: { type: 'string', description: 'Short alert ID' },
           summary: { type: 'string', description: 'Alert summary' },
           description: { type: 'string', description: 'Alert description' },
           source: { type: 'string', description: 'Alert source' },
@@ -153,6 +157,8 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
           deduplicationKey: { type: 'string', description: 'Deduplication key' },
           createdAt: { type: 'string', description: 'Creation date' },
           updatedAt: { type: 'string', description: 'Last update date' },
+          startedAt: { type: 'string', description: 'Start date' },
+          endedAt: { type: 'string', description: 'End date' },
         },
       },
     },

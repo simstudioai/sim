@@ -13,6 +13,7 @@ import {
   getBilledOverageForSubscription,
   resetUsageForSubscription,
 } from '@/lib/billing/webhooks/invoices'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('StripeSubscriptionWebhooks')
 
@@ -155,6 +156,14 @@ export async function handleSubscriptionCreated(subscriptionData: {
         otherActiveSubscriptionsCount: otherActiveSubscriptions.length,
       })
     }
+
+    if (wasFreePreviously && isPaidPlan) {
+      captureServerEvent(subscriptionData.referenceId, 'subscription_created', {
+        plan: subscriptionData.plan ?? 'unknown',
+        status: subscriptionData.status,
+        reference_id: subscriptionData.referenceId,
+      })
+    }
   } catch (error) {
     logger.error('Failed to handle subscription creation usage reset', {
       subscriptionId: subscriptionData.id,
@@ -205,6 +214,12 @@ export async function handleSubscriptionDeleted(subscription: {
         organizationDeleted,
         membersSynced,
       })
+
+      captureServerEvent(subscription.referenceId, 'subscription_cancelled', {
+        plan: subscription.plan ?? 'unknown',
+        reference_id: subscription.referenceId,
+      })
+
       return
     }
 
@@ -336,6 +351,11 @@ export async function handleSubscriptionDeleted(subscription: {
       restoredProCount,
       organizationDeleted,
       membersSynced,
+    })
+
+    captureServerEvent(subscription.referenceId, 'subscription_cancelled', {
+      plan: subscription.plan ?? 'unknown',
+      reference_id: subscription.referenceId,
     })
   } catch (error) {
     logger.error('Failed to handle subscription deletion', {

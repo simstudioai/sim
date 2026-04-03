@@ -20,7 +20,7 @@ import {
   organization,
 } from 'better-auth/plugins'
 import { emailHarmony } from 'better-auth-harmony'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import {
@@ -47,6 +47,7 @@ import { isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
 import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
+import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
 import {
@@ -75,6 +76,8 @@ import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
@@ -221,6 +224,19 @@ export const auth = betterAuth({
                 error,
               })
             }
+
+            try {
+              await scheduleLifecycleEmail({
+                userId: user.id,
+                type: 'onboarding-followup',
+                delayDays: 5,
+              })
+            } catch (error) {
+              logger.error(
+                '[databaseHooks.user.create.after] Failed to schedule onboarding followup email',
+                { userId: user.id, error }
+              )
+            }
           }
         },
       },
@@ -353,6 +369,40 @@ export const auth = betterAuth({
               accountId: account.id,
               error,
             })
+          }
+
+          try {
+            const [{ value: accountCount }] = await db
+              .select({ value: count() })
+              .from(schema.account)
+              .where(eq(schema.account.userId, account.userId))
+
+            if (accountCount === 1) {
+              const { providerId } = account
+              const authMethod =
+                providerId === 'credential'
+                  ? 'email'
+                  : SSO_TRUSTED_PROVIDERS.includes(providerId)
+                    ? 'sso'
+                    : 'oauth'
+              captureServerEvent(
+                account.userId,
+                'user_created',
+                {
+                  auth_method: authMethod,
+                  ...(providerId !== 'credential' ? { provider: providerId } : {}),
+                },
+                { setOnce: { signup_at: new Date().toISOString() } }
+              )
+            }
+          } catch (error) {
+            logger.error(
+              '[databaseHooks.account.create.after] Failed to capture user_created event',
+              {
+                userId: account.userId,
+                error,
+              }
+            )
           }
 
           if (account.providerId === 'salesforce') {
@@ -595,6 +645,19 @@ export const auth = betterAuth({
             userId: user.id,
             error,
           })
+        }
+
+        try {
+          await scheduleLifecycleEmail({
+            userId: user.id,
+            type: 'onboarding-followup',
+            delayDays: 5,
+          })
+        } catch (error) {
+          logger.error(
+            '[emailVerification.onEmailVerification] Failed to schedule onboarding followup email',
+            { userId: user.id, error }
+          )
         }
       }
     },
@@ -2952,6 +3015,10 @@ export const auth = betterAuth({
                   }
                   case 'customer.subscription.created': {
                     await handleManualEnterpriseSubscription(event)
+                    break
+                  }
+                  case 'checkout.session.expired': {
+                    await handleAbandonedCheckout(event)
                     break
                   }
                   case 'charge.dispute.created': {

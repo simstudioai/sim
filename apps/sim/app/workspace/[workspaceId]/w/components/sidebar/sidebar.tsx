@@ -6,6 +6,7 @@ import { Compass, MoreHorizontal } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import {
   Blimp,
   Button,
@@ -39,6 +40,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree } from '@/lib/folders/tree'
+import { captureEvent } from '@/lib/posthog/client'
 import {
   START_NAV_TOUR_EVENT,
   START_WORKFLOW_TOUR_EVENT,
@@ -315,6 +317,7 @@ export const Sidebar = memo(function Sidebar() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
+  const posthog = usePostHog()
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const { canEdit } = useUserPermissionsContext()
   const { config: permissionConfig, filterBlocks } = usePermissionConfig()
@@ -1092,10 +1095,10 @@ export const Sidebar = memo(function Sidebar() {
 
   const handleOpenHelpFromMenu = useCallback(() => setIsHelpModalOpen(true), [])
 
-  const handleOpenDocs = useCallback(
-    () => window.open('https://docs.sim.ai', '_blank', 'noopener,noreferrer'),
-    []
-  )
+  const handleOpenDocs = useCallback(() => {
+    window.open('https://docs.sim.ai', '_blank', 'noopener,noreferrer')
+    captureEvent(posthog, 'docs_opened', { source: 'help_menu' })
+  }, [posthog])
 
   const handleTaskRenameBlur = useCallback(
     () => void taskFlyoutRename.saveRename(),

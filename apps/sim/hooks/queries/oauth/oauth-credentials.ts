@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { Credential } from '@/lib/oauth'
 import { CREDENTIAL_SET } from '@/executor/constants'
 import { useCredentialSetDetail } from '@/hooks/queries/credential-sets'
+import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { fetchJson } from '@/hooks/selectors/helpers'
 
 interface CredentialListResponse {
@@ -163,17 +164,26 @@ export function useCredentialName(
     shouldFetchDetail
   )
 
+  // Fallback for credential blocks that have no serviceId/providerId — look up by ID directly
+  const { data: workspaceCredential, isFetching: workspaceCredentialLoading } =
+    useWorkspaceCredential(!providerId && !isCredentialSet ? credentialId : undefined)
+
   const detailCredential = foreignCredentials[0]
   const hasForeignMeta = foreignCredentials.length > 0
 
   const displayName =
-    credentialSetData?.name ?? selectedCredential?.name ?? detailCredential?.name ?? null
+    credentialSetData?.name ??
+    selectedCredential?.name ??
+    detailCredential?.name ??
+    workspaceCredential?.displayName ??
+    null
 
   return {
     displayName,
     isLoading:
       credentialsLoading ||
       foreignLoading ||
+      workspaceCredentialLoading ||
       (isCredentialSet && credentialSetLoading && !credentialSetData),
     hasForeignMeta,
   }
