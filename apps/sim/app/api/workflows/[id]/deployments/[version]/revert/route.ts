@@ -113,7 +113,9 @@ export async function POST(
         workspace_id: workflowRecord?.workspaceId ?? '',
         version,
       },
-      { groups: { workspace: workflowRecord?.workspaceId ?? '' } }
+      workflowRecord?.workspaceId
+        ? { groups: { workspace: workflowRecord.workspaceId } }
+        : undefined
     )
 
     recordAudit({

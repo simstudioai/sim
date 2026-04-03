@@ -102,7 +102,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       'workflow_deployed',
       { workflow_id: id, workspace_id: workflowData!.workspaceId ?? '' },
       {
-        groups: { workspace: workflowData!.workspaceId ?? '' },
+        groups: workflowData!.workspaceId ? { workspace: workflowData!.workspaceId } : undefined,
         setOnce: { first_workflow_deployed_at: new Date().toISOString() },
       }
     )

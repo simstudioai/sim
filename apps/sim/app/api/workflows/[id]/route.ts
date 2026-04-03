@@ -230,7 +230,7 @@ export async function DELETE(
       userId,
       'workflow_deleted',
       { workflow_id: workflowId, workspace_id: workflowData.workspaceId ?? '' },
-      { groups: { workspace: workflowData.workspaceId ?? '' } }
+      workflowData.workspaceId ? { groups: { workspace: workflowData.workspaceId } } : undefined
     )
 
     const elapsed = Date.now() - startTime
