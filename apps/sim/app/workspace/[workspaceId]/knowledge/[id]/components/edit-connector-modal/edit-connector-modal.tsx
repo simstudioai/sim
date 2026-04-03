@@ -22,7 +22,7 @@ import {
   Skeleton,
 } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
-import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/sync-intervals'
+import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfig } from '@/connectors/types'
