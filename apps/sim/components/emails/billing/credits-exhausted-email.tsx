@@ -7,14 +7,12 @@ import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface CreditsExhaustedEmailProps {
   userName?: string
-  currentUsage: number
   limit: number
   upgradeLink: string
 }
 
 export function CreditsExhaustedEmail({
   userName,
-  currentUsage,
   limit,
   upgradeLink,
 }: CreditsExhaustedEmailProps) {
@@ -30,8 +28,8 @@ export function CreditsExhaustedEmail({
       </Text>
 
       <Text style={baseStyles.paragraph}>
-        You&apos;ve used all <strong>{dollarsToCredits(currentUsage).toLocaleString()}</strong> of
-        your free credits on {brand.name}. Your workflows are paused until you upgrade.
+        You&apos;ve used all <strong>{dollarsToCredits(limit).toLocaleString()}</strong> of your
+        free credits on {brand.name}. Your workflows are paused until you upgrade.
       </Text>
 
       <Section

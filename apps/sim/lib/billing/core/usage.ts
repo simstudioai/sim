@@ -829,7 +829,6 @@ export async function maybeSendUsageThresholdEmail(params: {
 
         const html = await renderCreditsExhaustedEmail({
           userName: name,
-          currentUsage: params.currentUsageAfter,
           limit: params.limit,
           upgradeLink,
         })

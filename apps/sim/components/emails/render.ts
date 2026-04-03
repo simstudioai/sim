@@ -176,7 +176,6 @@ export async function renderAbandonedCheckoutEmail(userName?: string): Promise<s
 
 export async function renderCreditsExhaustedEmail(params: {
   userName?: string
-  currentUsage: number
   limit: number
   upgradeLink: string
 }): Promise<string> {
