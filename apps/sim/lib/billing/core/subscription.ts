@@ -448,9 +448,11 @@ export async function hasInboxAccess(userId: string): Promise<boolean> {
     if (!isProd) {
       return true
     }
-    const sub = await getHighestPrioritySubscription(userId)
+    const [sub, billingStatus] = await Promise.all([
+      getHighestPrioritySubscription(userId),
+      getEffectiveBillingStatus(userId),
+    ])
     if (!sub) return false
-    const billingStatus = await getEffectiveBillingStatus(userId)
     if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) return false
     return getPlanTierCredits(sub.plan) >= 25000 || checkEnterprisePlan(sub)
   } catch (error) {
@@ -470,9 +472,11 @@ export async function hasLiveSyncAccess(userId: string): Promise<boolean> {
     if (!isHosted) {
       return true
     }
-    const sub = await getHighestPrioritySubscription(userId)
+    const [sub, billingStatus] = await Promise.all([
+      getHighestPrioritySubscription(userId),
+      getEffectiveBillingStatus(userId),
+    ])
     if (!sub) return false
-    const billingStatus = await getEffectiveBillingStatus(userId)
     if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) return false
     return getPlanTierCredits(sub.plan) >= 25000 || checkEnterprisePlan(sub)
   } catch (error) {
