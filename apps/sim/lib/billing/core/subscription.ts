@@ -463,7 +463,6 @@ export async function hasInboxAccess(userId: string): Promise<boolean> {
  * Check if user has access to live sync (every 5 minutes) for KB connectors
  * Returns true if:
  * - Self-hosted deployment, OR
- * - Non-production environment, OR
  * - User has a Max plan (credits >= 25000) or enterprise plan
  */
 export async function hasLiveSyncAccess(userId: string): Promise<boolean> {
