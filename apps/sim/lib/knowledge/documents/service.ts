@@ -516,8 +516,10 @@ export async function processDocumentAsync(
               embeddings.push(emb)
             }
             totalEmbeddingTokens += batchTokens
-            embeddingIsBYOK = isBYOK
-            embeddingModelName = modelName
+            if (i === 0) {
+              embeddingIsBYOK = isBYOK
+              embeddingModelName = modelName
+            }
           }
         }
 
