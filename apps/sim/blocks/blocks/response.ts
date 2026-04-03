@@ -12,12 +12,13 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
   bestPractices: `
   - Only use this if the trigger block is the API Trigger.
   - Prefer the builder mode over the editor mode.
-  - This is usually used as the last block in the workflow.
+  - The Response block is an exit point. When it executes, the workflow stops and the API response is sent immediately.
+  - Multiple Response blocks can be placed on different branches (e.g. after a Router or Condition). The first one to execute determines the API response and ends the workflow.
+  - If a Response block is on a parallel branch, there are no guarantees about whether other parallel blocks will run. Avoid placing Response blocks in parallel with blocks that have important side effects.
   `,
   category: 'blocks',
   bgColor: '#2F55FF',
   icon: ResponseIcon,
-  singleInstance: true,
   subBlocks: [
     {
       id: 'dataMode',

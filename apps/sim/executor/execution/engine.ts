@@ -23,6 +23,7 @@ export class ExecutionEngine {
   private executing = new Set<Promise<void>>()
   private queueLock = Promise.resolve()
   private finalOutput: NormalizedBlockOutput = {}
+  private responseOutputLocked = false
   private pausedBlocks: Map<string, PauseMetadata> = new Map()
   private allowResumeTriggers: boolean
   private cancelledFlag = false
@@ -399,6 +400,10 @@ export class ExecutionEngine {
       return
     }
 
+    if (this.stoppedEarlyFlag && this.responseOutputLocked) {
+      return
+    }
+
     if (output._pauseMetadata) {
       const pauseMetadata = output._pauseMetadata
       this.pausedBlocks.set(pauseMetadata.contextId, pauseMetadata)
@@ -410,7 +415,17 @@ export class ExecutionEngine {
 
     await this.nodeOrchestrator.handleNodeCompletion(this.context, nodeId, output)
 
-    if (isFinalOutput) {
+    const isResponseBlock = node.block.metadata?.id === BlockType.RESPONSE
+    if (isResponseBlock) {
+      if (!this.responseOutputLocked) {
+        this.finalOutput = output
+        this.responseOutputLocked = true
+      }
+      this.stoppedEarlyFlag = true
+      return
+    }
+
+    if (isFinalOutput && !this.responseOutputLocked) {
       this.finalOutput = output
     }
 
