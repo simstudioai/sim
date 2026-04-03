@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { MAX_EMAIL_RECIPIENTS, MAX_NOTIFICATIONS_PER_TYPE, MAX_WORKFLOW_IDS } from './constants'
 
@@ -255,6 +256,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       subscriptionId: subscription.id,
       type: data.notificationType,
     })
+
+    captureServerEvent(
+      session.user.id,
+      'notification_channel_created',
+      {
+        workspace_id: workspaceId,
+        notification_type: data.notificationType,
+        alert_rule: data.alertConfig?.rule ?? null,
+      },
+      { groups: { workspace: workspaceId } }
+    )
 
     recordAudit({
       workspaceId,

@@ -10,6 +10,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getWorkspaceMemberUserIds } from '@/lib/credentials/environment'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { isValidEnvVarName } from '@/executor/constants'
 
@@ -599,6 +600,16 @@ export async function POST(request: NextRequest) {
       .from(credential)
       .where(eq(credential.id, credentialId))
       .limit(1)
+
+    captureServerEvent(
+      session.user.id,
+      'credential_connected',
+      { credential_type: type, provider_id: resolvedProviderId ?? type, workspace_id: workspaceId },
+      {
+        groups: { workspace: workspaceId },
+        setOnce: { first_credential_connected_at: new Date().toISOString() },
+      }
+    )
 
     return NextResponse.json({ credential: created }, { status: 201 })
   } catch (error: any) {

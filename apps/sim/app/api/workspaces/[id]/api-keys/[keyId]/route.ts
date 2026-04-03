@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceApiKeyAPI')
@@ -144,6 +145,13 @@ export async function DELETE(
     }
 
     const deletedKey = deletedRows[0]
+
+    captureServerEvent(
+      userId,
+      'api_key_revoked',
+      { workspace_id: workspaceId, key_name: deletedKey.name },
+      { groups: { workspace: workspaceId } }
+    )
 
     recordAudit({
       workspaceId,

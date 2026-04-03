@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -248,6 +249,13 @@ export async function POST(req: NextRequest) {
       .catch(() => {
         // Silently fail
       })
+
+    captureServerEvent(
+      userId,
+      'workflow_created',
+      { workflow_id: workflowId, workspace_id: workspaceId ?? '', name },
+      { groups: { workspace: workspaceId ?? '' } }
+    )
 
     const { workflowState, subBlockValues, startBlockId } = buildDefaultWorkflowArtifacts()
 

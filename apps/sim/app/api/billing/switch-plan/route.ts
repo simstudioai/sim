@@ -17,6 +17,7 @@ import {
   hasUsableSubscriptionStatus,
 } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('SwitchPlan')
 
@@ -172,6 +173,13 @@ export async function POST(request: NextRequest) {
       toPlan: targetPlanName,
       interval: targetInterval,
     })
+
+    captureServerEvent(
+      userId,
+      'subscription_changed',
+      { from_plan: sub.plan ?? 'unknown', to_plan: targetPlanName, interval: targetInterval },
+      { set: { plan: targetPlanName } }
+    )
 
     return NextResponse.json({ success: true, plan: targetPlanName, interval: targetInterval })
   } catch (error) {

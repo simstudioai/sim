@@ -7,6 +7,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('ConnectorManualSyncAPI')
@@ -54,6 +55,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     logger.info(`[${requestId}] Manual sync triggered for connector ${connectorId}`)
+
+    captureServerEvent(
+      auth.userId,
+      'knowledge_base_connector_synced',
+      {
+        knowledge_base_id: knowledgeBaseId,
+        workspace_id: writeCheck.knowledgeBase.workspaceId,
+        connector_type: connectorRows[0].connectorType,
+      },
+      { groups: { workspace: writeCheck.knowledgeBase.workspaceId } }
+    )
 
     recordAudit({
       workspaceId: writeCheck.knowledgeBase.workspaceId,
