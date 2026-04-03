@@ -268,6 +268,22 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  task_renamed: {
+    workspace_id: string
+  }
+
+  task_deleted: {
+    workspace_id: string
+  }
+
+  task_marked_read: {
+    workspace_id: string
+  }
+
+  task_marked_unread: {
+    workspace_id: string
+  }
+
   task_message_sent: {
     has_attachments: boolean
     has_contexts: boolean
