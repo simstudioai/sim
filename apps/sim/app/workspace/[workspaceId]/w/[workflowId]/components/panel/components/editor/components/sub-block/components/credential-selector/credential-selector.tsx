@@ -22,11 +22,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import type { SubBlockConfig } from '@/blocks/types'
 import { CREDENTIAL_SET } from '@/executor/constants'
 import { useCredentialSets } from '@/hooks/queries/credential-sets'
-import {
-  useWorkspaceCredential,
-  useWorkspaceCredentials,
-  type WorkspaceCredential,
-} from '@/hooks/queries/credentials'
+import { useWorkspaceCredential, useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
@@ -34,13 +30,6 @@ import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-tri
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
-
-const TYPE_SECTION_LABELS: Record<string, string> = {
-  oauth: 'OAuth',
-  env_workspace: 'Environment Variables',
-  env_personal: 'Personal Variables',
-  service_account: 'Service Accounts',
-} as const
 
 interface CredentialSelectorProps {
   blockId: string
@@ -255,22 +244,9 @@ export function CredentialSelector({
 
   const { comboboxOptions, comboboxGroups } = useMemo(() => {
     if (isAllCredentials) {
-      const grouped = allWorkspaceCredentials.reduce<Record<string, WorkspaceCredential[]>>(
-        (acc, cred) => {
-          const section = TYPE_SECTION_LABELS[cred.type] ?? cred.type
-          acc[section] = acc[section] ?? []
-          acc[section].push(cred)
-          return acc
-        },
-        {}
-      )
-
-      const groups = Object.entries(grouped).map(([section, creds]) => ({
-        section,
-        items: creds.map((cred) => ({ label: cred.displayName, value: cred.id })),
-      }))
-
-      return { comboboxOptions: [], comboboxGroups: groups.length > 0 ? groups : undefined }
+      const oauthCredentials = allWorkspaceCredentials.filter((c) => c.type === 'oauth')
+      const options = oauthCredentials.map((cred) => ({ label: cred.displayName, value: cred.id }))
+      return { comboboxOptions: options, comboboxGroups: undefined }
     }
 
     const pollingProviderId = getPollingProviderFromOAuth(effectiveProviderId)

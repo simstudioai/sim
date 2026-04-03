@@ -10,12 +10,10 @@ interface CredentialBlockOutput {
   output: {
     credentialId: string
     displayName: string
-    type: string
     providerId: string
     credentials: Array<{
       credentialId: string
       displayName: string
-      type: string
       providerId: string
     }>
     count: number
@@ -25,14 +23,13 @@ interface CredentialBlockOutput {
 export const CredentialBlock: BlockConfig<CredentialBlockOutput> = {
   type: 'credential',
   name: 'Credential',
-  description: 'Select or list stored credentials',
+  description: 'Select or list OAuth credentials',
   longDescription:
-    'Select a stored credential once and pipe its ID into any downstream block that requires authentication, or list all credentials in the workspace for iteration. No secrets are ever exposed — only credential IDs and metadata.',
+    'Select an OAuth credential once and pipe its ID into any downstream block that requires authentication, or list all OAuth credentials in the workspace for iteration. No secrets are ever exposed — only credential IDs and metadata.',
   bestPractices: `
-  - Use "Select Credential" to define a credential once and reference <CredentialBlock.credentialId> in multiple downstream blocks instead of repeating credential IDs.
-  - Use "List Credentials" with a ForEach loop to iterate over all credentials of a given type (e.g. all OAuth accounts).
-  - Use the Type Filter in "List Credentials" to narrow results to a specific credential type.
-  - Use the Provider filter to further narrow OAuth results to specific services (e.g. Gmail, Slack).
+  - Use "Select Credential" to define an OAuth credential once and reference <CredentialBlock.credentialId> in multiple downstream blocks instead of repeating credential IDs.
+  - Use "List Credentials" with a ForEach loop to iterate over all OAuth accounts (e.g. all Gmail accounts).
+  - Use the Provider filter to narrow results to specific services (e.g. Gmail, Slack).
   - The outputs are credential ID references, not secret values — they are safe to log and inspect.
   - To switch credentials across environments, replace the single Credential block rather than updating every downstream block.
   `,
@@ -52,25 +49,12 @@ export const CredentialBlock: BlockConfig<CredentialBlockOutput> = {
       value: () => 'select',
     },
     {
-      id: 'typeFilter',
-      title: 'Type Filter',
-      type: 'dropdown',
-      options: [
-        { label: 'All', id: 'all' },
-        { label: 'OAuth', id: 'oauth' },
-        { label: 'Env Variables (Workspace)', id: 'env_workspace' },
-        { label: 'Env Variables (Personal)', id: 'env_personal' },
-        { label: 'Service Accounts', id: 'service_account' },
-      ],
-      value: () => 'all',
-      condition: { field: 'operation', value: 'list' },
-    },
-    {
       id: 'providerFilter',
       title: 'Provider',
       type: 'dropdown',
       multiSelect: true,
       options: [],
+      condition: { field: 'operation', value: 'list' },
       fetchOptions: async () => {
         const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
         if (!workspaceId) return []
@@ -98,11 +82,6 @@ export const CredentialBlock: BlockConfig<CredentialBlockOutput> = {
         const serviceConfig = getServiceConfigByProviderId(optionId)
         const label = serviceConfig?.name ?? optionId
         return { label, id: optionId }
-      },
-      condition: {
-        field: 'operation',
-        value: 'list',
-        and: { field: 'typeFilter', value: 'oauth' },
       },
     },
     {
@@ -133,17 +112,12 @@ export const CredentialBlock: BlockConfig<CredentialBlockOutput> = {
     operation: { type: 'string', description: "'select' or 'list'" },
     credentialId: {
       type: 'string',
-      description: 'The credential ID to resolve (select operation)',
-    },
-    typeFilter: {
-      type: 'string',
-      description:
-        "Type filter for list operation: 'all' | 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'",
+      description: 'The OAuth credential ID to resolve (select operation)',
     },
     providerFilter: {
       type: 'json',
       description:
-        'Array of OAuth provider IDs to filter by (e.g. ["google-email", "slack"]). Only applies when typeFilter is oauth.',
+        'Array of OAuth provider IDs to filter by (e.g. ["google-email", "slack"]). Leave empty to return all OAuth credentials.',
     },
   },
   outputs: {
@@ -157,20 +131,15 @@ export const CredentialBlock: BlockConfig<CredentialBlockOutput> = {
       description: 'Human-readable name of the credential',
       condition: { field: 'operation', value: 'select' },
     },
-    type: {
-      type: 'string',
-      description: 'Credential type: oauth | env_workspace | env_personal | service_account',
-      condition: { field: 'operation', value: 'select' },
-    },
     providerId: {
       type: 'string',
-      description: 'OAuth provider ID (e.g. google, github), empty for non-OAuth credentials',
+      description: 'OAuth provider ID (e.g. google-email, slack)',
       condition: { field: 'operation', value: 'select' },
     },
     credentials: {
       type: 'json',
       description:
-        'Array of credential objects, each with credentialId, displayName, type, and providerId',
+        'Array of OAuth credential objects, each with credentialId, displayName, and providerId',
       condition: { field: 'operation', value: 'list' },
     },
     count: {

@@ -43,11 +43,14 @@ export class CredentialBlockHandler implements BlockHandler {
     }
 
     const record = await db.query.credential.findFirst({
-      where: and(eq(credential.id, credentialId), eq(credential.workspaceId, workspaceId)),
+      where: and(
+        eq(credential.id, credentialId),
+        eq(credential.workspaceId, workspaceId),
+        eq(credential.type, 'oauth')
+      ),
       columns: {
         id: true,
         displayName: true,
-        type: true,
         providerId: true,
       },
     })
@@ -56,12 +59,11 @@ export class CredentialBlockHandler implements BlockHandler {
       throw new Error(`Credential not found: ${credentialId}`)
     }
 
-    logger.info('Credential block resolved', { credentialId: record.id, type: record.type })
+    logger.info('Credential block resolved', { credentialId: record.id })
 
     return {
       credentialId: record.id,
       displayName: record.displayName,
-      type: record.type,
       providerId: record.providerId ?? '',
     }
   }
@@ -70,19 +72,11 @@ export class CredentialBlockHandler implements BlockHandler {
     workspaceId: string,
     inputs: Record<string, unknown>
   ): Promise<BlockOutput> {
-    const typeFilter = typeof inputs.typeFilter === 'string' ? inputs.typeFilter : 'all'
-    const providerFilter =
-      typeFilter === 'oauth' && Array.isArray(inputs.providerFilter)
-        ? (inputs.providerFilter as string[]).filter(Boolean)
-        : []
+    const providerFilter = Array.isArray(inputs.providerFilter)
+      ? (inputs.providerFilter as string[]).filter(Boolean)
+      : []
 
-    const conditions = [eq(credential.workspaceId, workspaceId)]
-
-    if (typeFilter !== 'all') {
-      conditions.push(
-        eq(credential.type, typeFilter as (typeof credential.type)['enumValues'][number])
-      )
-    }
+    const conditions = [eq(credential.workspaceId, workspaceId), eq(credential.type, 'oauth')]
 
     if (providerFilter.length > 0) {
       conditions.push(inArray(credential.providerId, providerFilter))
@@ -93,7 +87,6 @@ export class CredentialBlockHandler implements BlockHandler {
       columns: {
         id: true,
         displayName: true,
-        type: true,
         providerId: true,
       },
       orderBy: [asc(credential.displayName)],
@@ -102,13 +95,11 @@ export class CredentialBlockHandler implements BlockHandler {
     const credentials = records.map((r) => ({
       credentialId: r.id,
       displayName: r.displayName,
-      type: r.type,
       providerId: r.providerId ?? '',
     }))
 
     logger.info('Credential block listed credentials', {
       count: credentials.length,
-      typeFilter,
       providerFilter: providerFilter.length > 0 ? providerFilter : undefined,
     })
 
