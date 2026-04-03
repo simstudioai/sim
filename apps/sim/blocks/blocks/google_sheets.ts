@@ -2,7 +2,7 @@ import { GoogleSheetsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { createVersionedToolSelector } from '@/blocks/utils'
+import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleSheetsResponse, GoogleSheetsV2Response } from '@/tools/google_sheets/types'
 
 // Legacy block - hidden from toolbar
@@ -55,6 +55,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
+    ...SERVICE_ACCOUNT_SUBBLOCKS,
     // Spreadsheet Selector
     {
       id: 'spreadsheetId',
@@ -350,6 +351,7 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
+    ...SERVICE_ACCOUNT_SUBBLOCKS,
     // Spreadsheet Selector (basic mode) - not for create operation
     {
       id: 'spreadsheetId',

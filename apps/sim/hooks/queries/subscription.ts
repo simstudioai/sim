@@ -142,7 +142,7 @@ export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
 export function prefetchSubscriptionData(queryClient: QueryClient) {
   queryClient.prefetchQuery({
     queryKey: subscriptionKeys.user(false),
-    queryFn: () => fetchSubscriptionData(false),
+    queryFn: ({ signal }) => fetchSubscriptionData(false, signal),
     staleTime: 30 * 1000,
   })
 }

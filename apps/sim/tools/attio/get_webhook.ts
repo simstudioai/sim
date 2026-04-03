@@ -32,7 +32,7 @@ export const attioGetWebhookTool: ToolConfig<AttioGetWebhookParams, AttioGetWebh
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/webhooks/${params.webhookId}`,
+    url: (params) => `https://api.attio.com/v2/webhooks/${params.webhookId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

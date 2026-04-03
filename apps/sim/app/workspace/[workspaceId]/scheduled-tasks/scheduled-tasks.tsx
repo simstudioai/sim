@@ -3,11 +3,24 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
+import {
+  Button,
+  Combobox,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+} from '@/components/emcn'
 import { Calendar } from '@/components/emcn/icons'
 import { formatAbsoluteDate } from '@/lib/core/utils/formatting'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
-import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
+import type {
+  FilterTag,
+  ResourceColumn,
+  ResourceRow,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components'
 import { Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { ScheduleModal } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/create-schedule-modal'
 import { ScheduleContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-context-menu'
@@ -74,6 +87,13 @@ export function ScheduledTasks() {
   const [activeTask, setActiveTask] = useState<WorkspaceScheduleData | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
+  const [activeSort, setActiveSort] = useState<{
+    column: string
+    direction: 'asc' | 'desc'
+  } | null>(null)
+  const [scheduleTypeFilter, setScheduleTypeFilter] = useState<string[]>([])
+  const [statusFilter, setStatusFilter] = useState<string[]>([])
+  const [healthFilter, setHealthFilter] = useState<string[]>([])
 
   const visibleItems = useMemo(
     () => allItems.filter((item) => item.sourceType === 'job' && item.status !== 'completed'),
@@ -81,15 +101,68 @@ export function ScheduledTasks() {
   )
 
   const filteredItems = useMemo(() => {
-    if (!debouncedSearchQuery) return visibleItems
-    const q = debouncedSearchQuery.toLowerCase()
-    return visibleItems.filter((item) => {
-      const task = item.prompt || ''
-      return (
-        task.toLowerCase().includes(q) || getScheduleDescription(item).toLowerCase().includes(q)
-      )
+    let result = debouncedSearchQuery
+      ? visibleItems.filter((item) => {
+          const task = item.prompt || ''
+          return (
+            task.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+            getScheduleDescription(item).toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+          )
+        })
+      : visibleItems
+
+    if (scheduleTypeFilter.length > 0) {
+      result = result.filter((item) => {
+        if (scheduleTypeFilter.includes('recurring') && Boolean(item.cronExpression)) return true
+        if (scheduleTypeFilter.includes('once') && !item.cronExpression) return true
+        return false
+      })
+    }
+
+    if (statusFilter.length > 0) {
+      result = result.filter((item) => {
+        if (statusFilter.includes('active') && item.status === 'active') return true
+        if (statusFilter.includes('paused') && item.status === 'disabled') return true
+        return false
+      })
+    }
+
+    if (healthFilter.includes('has-failures')) {
+      result = result.filter((item) => (item.failedCount ?? 0) > 0)
+    }
+
+    const col = activeSort?.column ?? 'nextRun'
+    const dir = activeSort?.direction ?? 'desc'
+    return [...result].sort((a, b) => {
+      let cmp = 0
+      switch (col) {
+        case 'task':
+          cmp = (a.prompt || '').localeCompare(b.prompt || '')
+          break
+        case 'nextRun':
+          cmp =
+            (a.nextRunAt ? new Date(a.nextRunAt).getTime() : 0) -
+            (b.nextRunAt ? new Date(b.nextRunAt).getTime() : 0)
+          break
+        case 'lastRun':
+          cmp =
+            (a.lastRanAt ? new Date(a.lastRanAt).getTime() : 0) -
+            (b.lastRanAt ? new Date(b.lastRanAt).getTime() : 0)
+          break
+        case 'schedule':
+          cmp = getScheduleDescription(a).localeCompare(getScheduleDescription(b))
+          break
+      }
+      return dir === 'asc' ? cmp : -cmp
     })
-  }, [visibleItems, debouncedSearchQuery])
+  }, [
+    visibleItems,
+    debouncedSearchQuery,
+    scheduleTypeFilter,
+    statusFilter,
+    healthFilter,
+    activeSort,
+  ])
 
   const rows: ResourceRow[] = useMemo(
     () =>
@@ -103,10 +176,6 @@ export function ScheduledTasks() {
           schedule: { label: getScheduleDescription(item) },
           nextRun: timeCell(item.nextRunAt),
           lastRun: timeCell(item.lastRanAt),
-        },
-        sortValues: {
-          nextRun: item.nextRunAt ? -new Date(item.nextRunAt).getTime() : 0,
-          lastRun: item.lastRanAt ? -new Date(item.lastRanAt).getTime() : 0,
         },
       })),
     [filteredItems]
@@ -170,6 +239,151 @@ export function ScheduledTasks() {
     }
   }
 
+  const sortConfig: SortConfig = useMemo(
+    () => ({
+      options: [
+        { id: 'task', label: 'Task' },
+        { id: 'schedule', label: 'Schedule' },
+        { id: 'nextRun', label: 'Next Run' },
+        { id: 'lastRun', label: 'Last Run' },
+      ],
+      active: activeSort,
+      onSort: (column, direction) => setActiveSort({ column, direction }),
+      onClear: () => setActiveSort(null),
+    }),
+    [activeSort]
+  )
+
+  const scheduleTypeDisplayLabel = useMemo(() => {
+    if (scheduleTypeFilter.length === 0) return 'All'
+    if (scheduleTypeFilter.length === 1)
+      return scheduleTypeFilter[0] === 'recurring' ? 'Recurring' : 'One-time'
+    return `${scheduleTypeFilter.length} selected`
+  }, [scheduleTypeFilter])
+
+  const statusDisplayLabel = useMemo(() => {
+    if (statusFilter.length === 0) return 'All'
+    if (statusFilter.length === 1) return statusFilter[0] === 'active' ? 'Active' : 'Paused'
+    return `${statusFilter.length} selected`
+  }, [statusFilter])
+
+  const healthDisplayLabel = useMemo(() => {
+    if (healthFilter.length === 0) return 'All'
+    return 'Has failures'
+  }, [healthFilter])
+
+  const hasActiveFilters =
+    scheduleTypeFilter.length > 0 || statusFilter.length > 0 || healthFilter.length > 0
+
+  const filterContent = useMemo(
+    () => (
+      <div className='flex w-[240px] flex-col gap-3 p-3'>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>
+            Schedule Type
+          </span>
+          <Combobox
+            options={[
+              { value: 'recurring', label: 'Recurring' },
+              { value: 'once', label: 'One-time' },
+            ]}
+            multiSelect
+            multiSelectValues={scheduleTypeFilter}
+            onMultiSelectChange={setScheduleTypeFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>
+                {scheduleTypeDisplayLabel}
+              </span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
+          <Combobox
+            options={[
+              { value: 'active', label: 'Active' },
+              { value: 'paused', label: 'Paused' },
+            ]}
+            multiSelect
+            multiSelectValues={statusFilter}
+            onMultiSelectChange={setStatusFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{statusDisplayLabel}</span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Health</span>
+          <Combobox
+            options={[{ value: 'has-failures', label: 'Has failures' }]}
+            multiSelect
+            multiSelectValues={healthFilter}
+            onMultiSelectChange={setHealthFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{healthDisplayLabel}</span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        {hasActiveFilters && (
+          <button
+            type='button'
+            onClick={() => {
+              setScheduleTypeFilter([])
+              setStatusFilter([])
+              setHealthFilter([])
+            }}
+            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+          >
+            Clear all filters
+          </button>
+        )}
+      </div>
+    ),
+    [
+      scheduleTypeFilter,
+      statusFilter,
+      healthFilter,
+      scheduleTypeDisplayLabel,
+      statusDisplayLabel,
+      healthDisplayLabel,
+      hasActiveFilters,
+    ]
+  )
+
+  const filterTags: FilterTag[] = useMemo(() => {
+    const tags: FilterTag[] = []
+    if (scheduleTypeFilter.length > 0) {
+      const label =
+        scheduleTypeFilter.length === 1
+          ? `Type: ${scheduleTypeFilter[0] === 'recurring' ? 'Recurring' : 'One-time'}`
+          : `Type: ${scheduleTypeFilter.length} selected`
+      tags.push({ label, onRemove: () => setScheduleTypeFilter([]) })
+    }
+    if (statusFilter.length > 0) {
+      const label =
+        statusFilter.length === 1
+          ? `Status: ${statusFilter[0] === 'active' ? 'Active' : 'Paused'}`
+          : `Status: ${statusFilter.length} selected`
+      tags.push({ label, onRemove: () => setStatusFilter([]) })
+    }
+    if (healthFilter.length > 0) {
+      tags.push({ label: 'Health: Has failures', onRemove: () => setHealthFilter([]) })
+    }
+    return tags
+  }, [scheduleTypeFilter, statusFilter, healthFilter])
+
   return (
     <>
       <Resource
@@ -184,7 +398,9 @@ export function ScheduledTasks() {
           onChange: setSearchQuery,
           placeholder: 'Search scheduled tasks...',
         }}
-        defaultSort='nextRun'
+        sort={sortConfig}
+        filter={filterContent}
+        filterTags={filterTags}
         columns={COLUMNS}
         rows={rows}
         onRowContextMenu={handleRowContextMenu}
@@ -217,6 +433,7 @@ export function ScheduledTasks() {
       />
 
       <ScheduleModal
+        key={activeTask?.id ?? 'new'}
         open={isEditModalOpen}
         onOpenChange={(open) => {
           setIsEditModalOpen(open)

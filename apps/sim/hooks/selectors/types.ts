@@ -79,6 +79,7 @@ export interface SelectorContext {
   baseId?: string
   datasetId?: string
   serviceDeskId?: string
+  impersonateUserEmail?: string
   awsAccessKeyId?: string
   awsSecretAccessKey?: string
   awsRegion?: string
@@ -90,6 +91,7 @@ export interface SelectorQueryArgs {
   context: SelectorContext
   search?: string
   detailId?: string
+  signal?: AbortSignal
 }
 
 export interface SelectorDefinition {

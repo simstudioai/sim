@@ -125,7 +125,7 @@ function getEncryptionKeyBuffer(): Buffer {
 async function encryptSecret(secret: string): Promise<string> {
   const iv = randomBytes(16)
   const key = getEncryptionKeyBuffer()
-  const cipher = createCipheriv('aes-256-gcm', key, iv)
+  const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 })
   let encrypted = cipher.update(secret, 'utf8', 'hex')
   encrypted += cipher.final('hex')
   const authTag = cipher.getAuthTag()
@@ -146,7 +146,7 @@ async function decryptSecret(encryptedValue: string): Promise<string> {
   const iv = Buffer.from(ivHex, 'hex')
   const authTag = Buffer.from(authTagHex, 'hex')
 
-  const decipher = createDecipheriv('aes-256-gcm', key, iv)
+  const decipher = createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 })
   decipher.setAuthTag(authTag)
 
   let decrypted = decipher.update(encrypted, 'hex', 'utf8')

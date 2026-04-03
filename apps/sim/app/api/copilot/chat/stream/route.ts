@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import {
   getStreamMeta,
   readStreamEvents,
@@ -36,24 +35,21 @@ export async function GET(request: NextRequest) {
   const toParam = url.searchParams.get('to')
   const toEventId = toParam ? Number(toParam) : undefined
 
-  logger.error(
-    appendCopilotLogContext('[Resume] Received resume request', {
-      messageId: streamId || undefined,
-    }),
-    {
-      streamId: streamId || undefined,
-      fromEventId,
-      toEventId,
-      batchMode,
-    }
-  )
+  const reqLogger = logger.withMetadata({ messageId: streamId || undefined })
+
+  reqLogger.info('[Resume] Received resume request', {
+    streamId: streamId || undefined,
+    fromEventId,
+    toEventId,
+    batchMode,
+  })
 
   if (!streamId) {
     return NextResponse.json({ error: 'streamId is required' }, { status: 400 })
   }
 
   const meta = (await getStreamMeta(streamId)) as StreamMeta | null
-  logger.error(appendCopilotLogContext('[Resume] Stream lookup', { messageId: streamId }), {
+  reqLogger.info('[Resume] Stream lookup', {
     streamId,
     fromEventId,
     toEventId,
@@ -72,7 +68,7 @@ export async function GET(request: NextRequest) {
   if (batchMode) {
     const events = await readStreamEvents(streamId, fromEventId)
     const filteredEvents = toEventId ? events.filter((e) => e.eventId <= toEventId) : events
-    logger.error(appendCopilotLogContext('[Resume] Batch response', { messageId: streamId }), {
+    reqLogger.info('[Resume] Batch response', {
       streamId,
       fromEventId,
       toEventId,
@@ -124,14 +120,11 @@ export async function GET(request: NextRequest) {
       const flushEvents = async () => {
         const events = await readStreamEvents(streamId, lastEventId)
         if (events.length > 0) {
-          logger.error(
-            appendCopilotLogContext('[Resume] Flushing events', { messageId: streamId }),
-            {
-              streamId,
-              fromEventId: lastEventId,
-              eventCount: events.length,
-            }
-          )
+          reqLogger.info('[Resume] Flushing events', {
+            streamId,
+            fromEventId: lastEventId,
+            eventCount: events.length,
+          })
         }
         for (const entry of events) {
           lastEventId = entry.eventId
@@ -178,7 +171,7 @@ export async function GET(request: NextRequest) {
         }
       } catch (error) {
         if (!controllerClosed && !request.signal.aborted) {
-          logger.warn(appendCopilotLogContext('Stream replay failed', { messageId: streamId }), {
+          reqLogger.warn('Stream replay failed', {
             streamId,
             error: error instanceof Error ? error.message : String(error),
           })

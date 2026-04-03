@@ -195,9 +195,6 @@ export function AddDocumentsModal({
 
     try {
       await uploadFiles([fileToRetry], knowledgeBaseId, {
-        chunkSize: chunkingConfig?.maxSize || 1024,
-        minCharactersPerChunk: chunkingConfig?.minSize || 1,
-        chunkOverlap: chunkingConfig?.overlap || 200,
         recipe: 'default',
       })
       removeFile(index)
@@ -217,9 +214,6 @@ export function AddDocumentsModal({
 
     try {
       await uploadFiles(files, knowledgeBaseId, {
-        chunkSize: chunkingConfig?.maxSize || 1024,
-        minCharactersPerChunk: chunkingConfig?.minSize || 1,
-        chunkOverlap: chunkingConfig?.overlap || 200,
         recipe: 'default',
       })
       logger.info(`Successfully uploaded ${files.length} files`)

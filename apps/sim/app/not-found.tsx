@@ -2,15 +2,13 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getNavBlogPosts } from '@/lib/blog/registry'
 import AuthBackground from '@/app/(auth)/components/auth-background'
+import { AUTH_PRIMARY_CTA_BASE } from '@/app/(auth)/components/auth-button-classes'
 import Navbar from '@/app/(home)/components/navbar/navbar'
 
 export const metadata: Metadata = {
   title: 'Page Not Found',
   robots: { index: false, follow: true },
 }
-
-const CTA_BASE =
-  'inline-flex items-center h-[32px] rounded-[5px] border px-2.5 font-[430] font-season text-sm'
 
 export default async function NotFound() {
   const blogPosts = await getNavBlogPosts()
@@ -29,10 +27,7 @@ export default async function NotFound() {
               The page you&apos;re looking for doesn&apos;t exist or has been moved.
             </p>
             <div className='mt-3 flex items-center gap-2'>
-              <Link
-                href='/'
-                className={`${CTA_BASE} gap-2 border-white bg-white text-black transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)]`}
-              >
+              <Link href='/' className={AUTH_PRIMARY_CTA_BASE}>
                 Return to Home
               </Link>
             </div>

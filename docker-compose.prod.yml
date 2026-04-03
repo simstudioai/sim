@@ -42,7 +42,7 @@ services:
 
   sim-worker:
     image: ghcr.io/simstudioai/simstudio:latest
-    command: ['bun', 'apps/sim/dist/worker/index.js']
+    command: ['bun', 'apps/sim/worker/index.ts']
     restart: unless-stopped
     deploy:
       resources:

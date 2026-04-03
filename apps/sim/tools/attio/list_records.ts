@@ -56,7 +56,7 @@ export const attioListRecordsTool: ToolConfig<AttioListRecordsParams, AttioListR
   },
 
   request: {
-    url: (params) => `https://api.attio.com/v2/objects/${params.objectType}/records/query`,
+    url: (params) => `https://api.attio.com/v2/objects/${params.objectType.trim()}/records/query`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

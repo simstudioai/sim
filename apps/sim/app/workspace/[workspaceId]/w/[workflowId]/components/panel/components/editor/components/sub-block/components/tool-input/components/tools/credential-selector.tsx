@@ -4,6 +4,7 @@ import { createElement, useCallback, useMemo, useRef, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
+import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -14,10 +15,10 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
-import { ConnectCredentialModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/connect-credential-modal'
-import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -77,9 +78,10 @@ export function ToolCredentialSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [editingInputValue, setEditingInputValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
-  const { activeWorkflowId, workflows } = useWorkflowRegistry()
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const { data: workflowMap = {} } = useWorkflowMap(workspaceId)
   const effectiveWorkflowId =
-    activeWorkflowId && workflows[activeWorkflowId] ? activeWorkflowId : undefined
+    activeWorkflowId && workflowMap[activeWorkflowId] ? activeWorkflowId : undefined
 
   const selectedId = value || ''
   const effectiveLabel = label || `Select ${getProviderName(provider)} account`
@@ -222,7 +224,18 @@ export function ToolCredentialSelector({
           </div>
           <Button
             variant='active'
-            onClick={() => setShowOAuthModal(true)}
+            onClick={() => {
+              writeOAuthReturnContext({
+                origin: 'workflow',
+                workflowId: effectiveWorkflowId || '',
+                displayName: selectedCredential?.name ?? getProviderName(provider),
+                providerId: effectiveProviderId,
+                preCount: credentials.length,
+                workspaceId,
+                requestedAt: Date.now(),
+              })
+              setShowOAuthModal(true)
+            }}
             className='w-full px-2 py-1 font-medium text-caption'
           >
             Update access
@@ -231,7 +244,8 @@ export function ToolCredentialSelector({
       )}
 
       {showConnectModal && (
-        <ConnectCredentialModal
+        <OAuthModal
+          mode='connect'
           isOpen={showConnectModal}
           onClose={() => setShowConnectModal(false)}
           provider={provider}
@@ -243,9 +257,13 @@ export function ToolCredentialSelector({
       )}
 
       {showOAuthModal && (
-        <OAuthRequiredModal
+        <OAuthModal
+          mode='reauthorize'
           isOpen={showOAuthModal}
-          onClose={() => setShowOAuthModal(false)}
+          onClose={() => {
+            consumeOAuthReturnContext()
+            setShowOAuthModal(false)
+          }}
           provider={provider}
           toolName={getProviderName(provider)}
           requiredScopes={getCanonicalScopesForProvider(effectiveProviderId)}

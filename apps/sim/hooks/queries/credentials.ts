@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { environmentKeys } from '@/hooks/queries/environment'
 import { fetchJson } from '@/hooks/selectors/helpers'
 
-export type WorkspaceCredentialType = 'oauth' | 'env_workspace' | 'env_personal'
+export type WorkspaceCredentialType = 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
 export type WorkspaceCredentialRole = 'admin' | 'member'
 export type WorkspaceCredentialMemberStatus = 'active' | 'pending' | 'revoked'
 
@@ -173,6 +173,7 @@ export function useCreateWorkspaceCredential() {
       accountId?: string
       envKey?: string
       envOwnerUserId?: string
+      serviceAccountJson?: string
     }) => {
       const response = await fetch('/api/credentials', {
         method: 'POST',
@@ -204,6 +205,7 @@ export function useUpdateWorkspaceCredential() {
       displayName?: string
       description?: string | null
       accountId?: string
+      serviceAccountJson?: string
     }) => {
       const response = await fetch(`/api/credentials/${payload.credentialId}`, {
         method: 'PUT',
@@ -212,6 +214,7 @@ export function useUpdateWorkspaceCredential() {
           displayName: payload.displayName,
           description: payload.description,
           accountId: payload.accountId,
+          serviceAccountJson: payload.serviceAccountJson,
         }),
       })
       if (!response.ok) {

@@ -1,17 +1,20 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
-import { Tooltip } from '@/components/emcn'
+import type { ComboboxOption } from '@/components/emcn'
+import { Combobox, Tooltip } from '@/components/emcn'
 import { Database } from '@/components/emcn/icons'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import type {
   CreateAction,
+  FilterTag,
   ResourceCell,
   ResourceColumn,
   ResourceRow,
   SearchConfig,
+  SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
@@ -29,6 +32,8 @@ import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
+import { useDebounce } from '@/hooks/use-debounce'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('Knowledge')
 
@@ -87,6 +92,13 @@ export function Knowledge() {
   const router = useRouter()
   const workspaceId = params.workspaceId as string
 
+  const { config: permissionConfig } = usePermissionConfig()
+  useEffect(() => {
+    if (permissionConfig.hideKnowledgeBaseTab) {
+      router.replace(`/workspace/${workspaceId}`)
+    }
+  }, [permissionConfig.hideKnowledgeBaseTab, router, workspaceId])
+
   const { knowledgeBases, isLoading, error } = useKnowledgeBasesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
 
@@ -98,21 +110,16 @@ export function Knowledge() {
   const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
   const { mutateAsync: deleteKnowledgeBaseMutation } = useDeleteKnowledgeBase(workspaceId)
 
+  const [activeSort, setActiveSort] = useState<{
+    column: string
+    direction: 'asc' | 'desc'
+  } | null>(null)
+  const [connectorFilter, setConnectorFilter] = useState<string[]>([])
+  const [contentFilter, setContentFilter] = useState<string[]>([])
+  const [ownerFilter, setOwnerFilter] = useState<string[]>([])
+
   const [searchInputValue, setSearchInputValue] = useState('')
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
-
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchInputValue(value)
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
-    searchTimerRef.current = setTimeout(() => {
-      setDebouncedSearchQuery(value)
-    }, 300)
-  }, [])
-
-  const handleSearchClearAll = useCallback(() => {
-    handleSearchChange('')
-  }, [handleSearchChange])
+  const debouncedSearchQuery = useDebounce(searchInputValue, 300)
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
@@ -184,14 +191,77 @@ export function Knowledge() {
     [deleteKnowledgeBaseMutation]
   )
 
-  const filteredKnowledgeBases = useMemo(
-    () => filterKnowledgeBases(knowledgeBases, debouncedSearchQuery),
-    [knowledgeBases, debouncedSearchQuery]
-  )
+  const processedKBs = useMemo(() => {
+    let result = filterKnowledgeBases(knowledgeBases, debouncedSearchQuery)
+
+    if (connectorFilter.length > 0) {
+      result = result.filter((kb) => {
+        const hasConnectors = (kb.connectorTypes?.length ?? 0) > 0
+        if (connectorFilter.includes('connected') && hasConnectors) return true
+        if (connectorFilter.includes('unconnected') && !hasConnectors) return true
+        return false
+      })
+    }
+
+    if (contentFilter.length > 0) {
+      const docCount = (kb: KnowledgeBaseData) => (kb as KnowledgeBaseWithDocCount).docCount ?? 0
+      result = result.filter((kb) => {
+        if (contentFilter.includes('has-docs') && docCount(kb) > 0) return true
+        if (contentFilter.includes('empty') && docCount(kb) === 0) return true
+        return false
+      })
+    }
+
+    if (ownerFilter.length > 0) {
+      result = result.filter((kb) => ownerFilter.includes(kb.userId))
+    }
+
+    const col = activeSort?.column ?? 'created'
+    const dir = activeSort?.direction ?? 'desc'
+    return [...result].sort((a, b) => {
+      let cmp = 0
+      switch (col) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name)
+          break
+        case 'documents':
+          cmp =
+            ((a as KnowledgeBaseWithDocCount).docCount || 0) -
+            ((b as KnowledgeBaseWithDocCount).docCount || 0)
+          break
+        case 'tokens':
+          cmp = (a.tokenCount || 0) - (b.tokenCount || 0)
+          break
+        case 'created':
+          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          break
+        case 'updated':
+          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+          break
+        case 'connectors':
+          cmp = (a.connectorTypes?.length ?? 0) - (b.connectorTypes?.length ?? 0)
+          break
+        case 'owner':
+          cmp = (members?.find((m) => m.userId === a.userId)?.name ?? '').localeCompare(
+            members?.find((m) => m.userId === b.userId)?.name ?? ''
+          )
+          break
+      }
+      return dir === 'asc' ? cmp : -cmp
+    })
+  }, [
+    knowledgeBases,
+    debouncedSearchQuery,
+    connectorFilter,
+    contentFilter,
+    ownerFilter,
+    activeSort,
+    members,
+  ])
 
   const rows: ResourceRow[] = useMemo(
     () =>
-      filteredKnowledgeBases.map((kb) => {
+      processedKBs.map((kb) => {
         const kbWithCount = kb as KnowledgeBaseWithDocCount
         return {
           id: kb.id,
@@ -211,16 +281,9 @@ export function Knowledge() {
             owner: ownerCell(kb.userId, members),
             updated: timeCell(kb.updatedAt),
           },
-          sortValues: {
-            documents: kbWithCount.docCount || 0,
-            tokens: kb.tokenCount || 0,
-            connectors: kb.connectorTypes?.length || 0,
-            created: -new Date(kb.createdAt).getTime(),
-            updated: -new Date(kb.updatedAt).getTime(),
-          },
         }
       }),
-    [filteredKnowledgeBases, members]
+    [processedKBs, members]
   )
 
   const handleRowClick = useCallback(
@@ -303,12 +366,189 @@ export function Knowledge() {
   const searchConfig: SearchConfig = useMemo(
     () => ({
       value: searchInputValue,
-      onChange: handleSearchChange,
-      onClearAll: handleSearchClearAll,
+      onChange: setSearchInputValue,
+      onClearAll: () => setSearchInputValue(''),
       placeholder: 'Search knowledge bases...',
     }),
-    [searchInputValue, handleSearchChange, handleSearchClearAll]
+    [searchInputValue]
   )
+
+  const sortConfig: SortConfig = useMemo(
+    () => ({
+      options: [
+        { id: 'name', label: 'Name' },
+        { id: 'documents', label: 'Documents' },
+        { id: 'tokens', label: 'Tokens' },
+        { id: 'connectors', label: 'Connectors' },
+        { id: 'created', label: 'Created' },
+        { id: 'updated', label: 'Last Updated' },
+        { id: 'owner', label: 'Owner' },
+      ],
+      active: activeSort,
+      onSort: (column, direction) => setActiveSort({ column, direction }),
+      onClear: () => setActiveSort(null),
+    }),
+    [activeSort]
+  )
+
+  const connectorDisplayLabel = useMemo(() => {
+    if (connectorFilter.length === 0) return 'All'
+    if (connectorFilter.length === 1)
+      return connectorFilter[0] === 'connected' ? 'With connectors' : 'Without connectors'
+    return `${connectorFilter.length} selected`
+  }, [connectorFilter])
+
+  const contentDisplayLabel = useMemo(() => {
+    if (contentFilter.length === 0) return 'All'
+    if (contentFilter.length === 1)
+      return contentFilter[0] === 'has-docs' ? 'Has documents' : 'Empty'
+    return `${contentFilter.length} selected`
+  }, [contentFilter])
+
+  const ownerDisplayLabel = useMemo(() => {
+    if (ownerFilter.length === 0) return 'All'
+    if (ownerFilter.length === 1)
+      return members?.find((m) => m.userId === ownerFilter[0])?.name ?? '1 member'
+    return `${ownerFilter.length} members`
+  }, [ownerFilter, members])
+
+  const memberOptions: ComboboxOption[] = useMemo(
+    () =>
+      (members ?? []).map((m) => ({
+        value: m.userId,
+        label: m.name,
+        iconElement: m.image ? (
+          <img
+            src={m.image}
+            alt={m.name}
+            referrerPolicy='no-referrer'
+            className='h-[14px] w-[14px] rounded-full border border-[var(--border)] object-cover'
+          />
+        ) : (
+          <span className='flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+            {m.name.charAt(0).toUpperCase()}
+          </span>
+        ),
+      })),
+    [members]
+  )
+
+  const hasActiveFilters =
+    connectorFilter.length > 0 || contentFilter.length > 0 || ownerFilter.length > 0
+
+  const filterContent = useMemo(
+    () => (
+      <div className='flex w-[240px] flex-col gap-3 p-3'>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Connectors</span>
+          <Combobox
+            options={[
+              { value: 'connected', label: 'With connectors' },
+              { value: 'unconnected', label: 'Without connectors' },
+            ]}
+            multiSelect
+            multiSelectValues={connectorFilter}
+            onMultiSelectChange={setConnectorFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{connectorDisplayLabel}</span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Content</span>
+          <Combobox
+            options={[
+              { value: 'has-docs', label: 'Has documents' },
+              { value: 'empty', label: 'Empty' },
+            ]}
+            multiSelect
+            multiSelectValues={contentFilter}
+            onMultiSelectChange={setContentFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{contentDisplayLabel}</span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        {memberOptions.length > 0 && (
+          <div className='flex flex-col gap-1.5'>
+            <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
+            <Combobox
+              options={memberOptions}
+              multiSelect
+              multiSelectValues={ownerFilter}
+              onMultiSelectChange={setOwnerFilter}
+              overlayContent={
+                <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
+              }
+              searchable
+              searchPlaceholder='Search members...'
+              showAllOption
+              allOptionLabel='All'
+              size='sm'
+              className='h-[32px] w-full rounded-md'
+            />
+          </div>
+        )}
+        {hasActiveFilters && (
+          <button
+            type='button'
+            onClick={() => {
+              setConnectorFilter([])
+              setContentFilter([])
+              setOwnerFilter([])
+            }}
+            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+          >
+            Clear all filters
+          </button>
+        )}
+      </div>
+    ),
+    [
+      connectorFilter,
+      contentFilter,
+      ownerFilter,
+      memberOptions,
+      connectorDisplayLabel,
+      contentDisplayLabel,
+      ownerDisplayLabel,
+      hasActiveFilters,
+    ]
+  )
+
+  const filterTags: FilterTag[] = useMemo(() => {
+    const tags: FilterTag[] = []
+    if (connectorFilter.length > 0) {
+      const label =
+        connectorFilter.length === 1
+          ? `Connectors: ${connectorFilter[0] === 'connected' ? 'With connectors' : 'Without connectors'}`
+          : `Connectors: ${connectorFilter.length} types`
+      tags.push({ label, onRemove: () => setConnectorFilter([]) })
+    }
+    if (contentFilter.length > 0) {
+      const label =
+        contentFilter.length === 1
+          ? `Content: ${contentFilter[0] === 'has-docs' ? 'Has documents' : 'Empty'}`
+          : `Content: ${contentFilter.length} types`
+      tags.push({ label, onRemove: () => setContentFilter([]) })
+    }
+    if (ownerFilter.length > 0) {
+      const label =
+        ownerFilter.length === 1
+          ? `Owner: ${members?.find((m) => m.userId === ownerFilter[0])?.name ?? '1 member'}`
+          : `Owner: ${ownerFilter.length} members`
+      tags.push({ label, onRemove: () => setOwnerFilter([]) })
+    }
+    return tags
+  }, [connectorFilter, contentFilter, ownerFilter, members])
 
   return (
     <>
@@ -317,7 +557,9 @@ export function Knowledge() {
         title='Knowledge Base'
         create={createAction}
         search={searchConfig}
-        defaultSort='created'
+        sort={sortConfig}
+        filter={filterContent}
+        filterTags={filterTags}
         columns={COLUMNS}
         rows={rows}
         onRowClick={handleRowClick}
@@ -360,6 +602,7 @@ export function Knowledge() {
           knowledgeBaseId={activeKnowledgeBase.id}
           initialName={activeKnowledgeBase.name}
           initialDescription={activeKnowledgeBase.description || ''}
+          chunkingConfig={activeKnowledgeBase.chunkingConfig}
           onSave={handleUpdateKnowledgeBase}
         />
       )}

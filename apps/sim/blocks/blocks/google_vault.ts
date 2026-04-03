@@ -2,6 +2,7 @@ import { GoogleVaultIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 
 export const GoogleVaultBlock: BlockConfig = {
   type: 'google_vault',
@@ -53,6 +54,7 @@ export const GoogleVaultBlock: BlockConfig = {
       placeholder: 'Enter credential ID',
       required: true,
     },
+    ...SERVICE_ACCOUNT_SUBBLOCKS,
     // Create Hold inputs
     {
       id: 'matterId',

@@ -288,7 +288,6 @@ export default function Collaboration() {
                 width={876}
                 height={480}
                 className='h-full w-auto object-left md:min-w-[100vw]'
-                priority
               />
             </div>
             <div className='hidden lg:block'>

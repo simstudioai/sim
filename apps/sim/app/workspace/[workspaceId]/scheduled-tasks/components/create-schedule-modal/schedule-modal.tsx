@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -151,48 +151,45 @@ function buildCronExpression(
   }
 }
 
+/**
+ * Modal for creating and editing scheduled tasks.
+ *
+ * All `useState` initializers read from the `schedule` prop at mount time only.
+ * When editing an existing task, the call-site **must** supply a `key` prop equal to the
+ * task's ID so React remounts the component when the selected task changes — otherwise
+ * the form will display stale values from the previously selected task.
+ */
 export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: ScheduleModalProps) {
   const createScheduleMutation = useCreateSchedule()
   const updateScheduleMutation = useUpdateSchedule()
 
   const isEditing = Boolean(schedule)
 
-  const [title, setTitle] = useState('')
-  const [prompt, setPrompt] = useState('')
-  const [scheduleType, setScheduleType] = useState<ScheduleType>('daily')
-  const [minutesInterval, setMinutesInterval] = useState('15')
-  const [hourlyMinute, setHourlyMinute] = useState('0')
-  const [dailyTime, setDailyTime] = useState('09:00')
-  const [weeklyDay, setWeeklyDay] = useState('MON')
-  const [weeklyDayTime, setWeeklyDayTime] = useState('09:00')
-  const [monthlyDay, setMonthlyDay] = useState('1')
-  const [monthlyTime, setMonthlyTime] = useState('09:00')
-  const [cronExpression, setCronExpression] = useState('')
-  const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE)
-  const [startDate, setStartDate] = useState('')
-  const [lifecycle, setLifecycle] = useState<'persistent' | 'until_complete'>('persistent')
-  const [maxRuns, setMaxRuns] = useState('')
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const initialCronState = useMemo(
+    () => (schedule ? parseCronToScheduleType(schedule.cronExpression) : null),
+    [schedule]
+  )
 
-  useEffect(() => {
-    if (!open || !schedule) return
-    const cronState = parseCronToScheduleType(schedule.cronExpression)
-    setTitle(schedule.jobTitle || '')
-    setPrompt(schedule.prompt || '')
-    setScheduleType(cronState.scheduleType)
-    setMinutesInterval(cronState.minutesInterval)
-    setHourlyMinute(cronState.hourlyMinute)
-    setDailyTime(cronState.dailyTime)
-    setWeeklyDay(cronState.weeklyDay)
-    setWeeklyDayTime(cronState.weeklyDayTime)
-    setMonthlyDay(cronState.monthlyDay)
-    setMonthlyTime(cronState.monthlyTime)
-    setCronExpression(cronState.cronExpression)
-    setTimezone(schedule.timezone || DEFAULT_TIMEZONE)
-    setLifecycle(schedule.lifecycle === 'until_complete' ? 'until_complete' : 'persistent')
-    setMaxRuns(schedule.maxRuns ? String(schedule.maxRuns) : '')
-    setStartDate('')
-  }, [open, schedule])
+  const [title, setTitle] = useState(schedule?.jobTitle ?? '')
+  const [prompt, setPrompt] = useState(schedule?.prompt ?? '')
+  const [scheduleType, setScheduleType] = useState<ScheduleType>(
+    initialCronState?.scheduleType ?? 'daily'
+  )
+  const [minutesInterval, setMinutesInterval] = useState(initialCronState?.minutesInterval ?? '15')
+  const [hourlyMinute, setHourlyMinute] = useState(initialCronState?.hourlyMinute ?? '0')
+  const [dailyTime, setDailyTime] = useState(initialCronState?.dailyTime ?? '09:00')
+  const [weeklyDay, setWeeklyDay] = useState(initialCronState?.weeklyDay ?? 'MON')
+  const [weeklyDayTime, setWeeklyDayTime] = useState(initialCronState?.weeklyDayTime ?? '09:00')
+  const [monthlyDay, setMonthlyDay] = useState(initialCronState?.monthlyDay ?? '1')
+  const [monthlyTime, setMonthlyTime] = useState(initialCronState?.monthlyTime ?? '09:00')
+  const [cronExpression, setCronExpression] = useState(initialCronState?.cronExpression ?? '')
+  const [timezone, setTimezone] = useState(schedule?.timezone ?? DEFAULT_TIMEZONE)
+  const [startDate, setStartDate] = useState('')
+  const [lifecycle, setLifecycle] = useState<'persistent' | 'until_complete'>(
+    schedule?.lifecycle === 'until_complete' ? 'until_complete' : 'persistent'
+  )
+  const [maxRuns, setMaxRuns] = useState(schedule?.maxRuns ? String(schedule.maxRuns) : '')
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const computedCron = useMemo(
     () =>

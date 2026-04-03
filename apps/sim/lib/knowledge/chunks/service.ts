@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm'
 import type {
   BatchOperationResult,
   ChunkData,
@@ -23,24 +23,27 @@ export async function queryChunks(
   filters: ChunkFilters,
   requestId: string
 ): Promise<ChunkQueryResult> {
-  const { search, enabled = 'all', limit = 50, offset = 0 } = filters
+  const {
+    search,
+    enabled = 'all',
+    limit = 50,
+    offset = 0,
+    sortBy = 'chunkIndex',
+    sortOrder = 'asc',
+  } = filters
 
-  // Build query conditions
   const conditions = [eq(embedding.documentId, documentId)]
 
-  // Add enabled filter
   if (enabled === 'true') {
     conditions.push(eq(embedding.enabled, true))
   } else if (enabled === 'false') {
     conditions.push(eq(embedding.enabled, false))
   }
 
-  // Add search filter
   if (search) {
     conditions.push(ilike(embedding.content, `%${search}%`))
   }
 
-  // Fetch chunks
   const chunks = await db
     .select({
       id: embedding.id,
@@ -63,11 +66,20 @@ export async function queryChunks(
     })
     .from(embedding)
     .where(and(...conditions))
-    .orderBy(asc(embedding.chunkIndex))
+    .orderBy(
+      (() => {
+        const col =
+          sortBy === 'tokenCount'
+            ? embedding.tokenCount
+            : sortBy === 'enabled'
+              ? embedding.enabled
+              : embedding.chunkIndex
+        return sortOrder === 'desc' ? desc(col) : asc(col)
+      })()
+    )
     .limit(limit)
     .offset(offset)
 
-  // Get total count for pagination
   const totalCount = await db
     .select({ count: sql`count(*)` })
     .from(embedding)

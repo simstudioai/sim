@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
+import { useWorkflows } from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -151,14 +152,11 @@ export function useMentionData(props: UseMentionDataProps): MentionDataReturn {
     useShallow(useCallback((state) => Object.keys(state.blocks), []))
   )
 
-  const registryWorkflows = useWorkflowRegistry(useShallow((state) => state.workflows))
+  const { data: registryWorkflowList = [] } = useWorkflows(workspaceId)
   const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
-  const isLoadingWorkflows =
-    hydrationPhase === 'idle' ||
-    hydrationPhase === 'metadata-loading' ||
-    hydrationPhase === 'state-loading'
+  const isLoadingWorkflows = hydrationPhase === 'idle' || hydrationPhase === 'state-loading'
 
-  const workflows: WorkflowItem[] = Object.values(registryWorkflows)
+  const workflows: WorkflowItem[] = registryWorkflowList
     .filter((w) => w.workspaceId === workspaceId)
     .sort((a, b) => {
       const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0

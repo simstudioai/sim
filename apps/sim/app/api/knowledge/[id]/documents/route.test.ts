@@ -457,11 +457,8 @@ describe('Knowledge Base Documents API Route', () => {
         },
       ],
       processingOptions: {
-        chunkSize: 1024,
-        minCharactersPerChunk: 100,
         recipe: 'default',
         lang: 'en',
-        chunkOverlap: 200,
       },
     }
 
@@ -533,11 +530,8 @@ describe('Knowledge Base Documents API Route', () => {
           },
         ],
         processingOptions: {
-          chunkSize: 50, // Invalid: too small
-          minCharactersPerChunk: 0, // Invalid: too small
           recipe: 'default',
           lang: 'en',
-          chunkOverlap: 1000, // Invalid: too large
         },
       }
 

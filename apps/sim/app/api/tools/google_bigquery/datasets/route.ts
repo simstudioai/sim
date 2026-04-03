@@ -2,7 +2,8 @@ import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { getScopesForService } from '@/lib/oauth/utils'
+import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('GoogleBigQueryDatasetsAPI')
 
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
   const requestId = generateRequestId()
   try {
     const body = await request.json()
-    const { credential, workflowId, projectId } = body
+    const { credential, workflowId, projectId, impersonateEmail } = body
 
     if (!credential) {
       logger.error('Missing credential in request')
@@ -43,7 +44,9 @@ export async function POST(request: Request) {
     const accessToken = await refreshAccessTokenIfNeeded(
       credential,
       authz.credentialOwnerUserId,
-      requestId
+      requestId,
+      getScopesForService('google-bigquery'),
+      impersonateEmail
     )
     if (!accessToken) {
       logger.error('Failed to get access token', {
@@ -91,6 +94,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ datasets })
   } catch (error) {
+    if (error instanceof ServiceAccountTokenError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     logger.error('Error processing BigQuery datasets request:', error)
     return NextResponse.json(
       { error: 'Failed to retrieve BigQuery datasets', details: (error as Error).message },

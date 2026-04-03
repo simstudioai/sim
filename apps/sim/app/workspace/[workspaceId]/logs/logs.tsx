@@ -39,6 +39,7 @@ import type {
   ResourceColumn,
   ResourceRow,
   SearchConfig,
+  SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import {
   ResourceHeader,
@@ -49,19 +50,18 @@ import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-sea
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks/registry'
-import { useFolders } from '@/hooks/queries/folders'
+import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import {
   prefetchLogDetail,
   useDashboardStats,
   useLogDetail,
   useLogsList,
 } from '@/hooks/queries/logs'
+import { useWorkflowMap, useWorkflows } from '@/hooks/queries/workflows'
 import { useDebounce } from '@/hooks/use-debounce'
-import { useFolderStore } from '@/stores/folders/store'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import {
   Dashboard,
   ExecutionSnapshot,
@@ -265,17 +265,19 @@ export default function Logs() {
     isSidebarOpen: false,
   })
   const isInitialized = useRef<boolean>(false)
+  const pendingExecutionIdRef = useRef<string | null | undefined>(undefined)
+  if (pendingExecutionIdRef.current === undefined) {
+    pendingExecutionIdRef.current =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('executionId')
+        : null
+  }
 
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    return new URLSearchParams(window.location.search).get('search') ?? ''
+  })
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
-
-  useEffect(() => {
-    const urlSearch = new URLSearchParams(window.location.search).get('search') || ''
-    if (urlSearch && urlSearch !== searchQuery) {
-      setSearchQuery(urlSearch)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const isLive = true
   const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
@@ -288,12 +290,15 @@ export default function Logs() {
   const activeLogRefetchRef = useRef<() => void>(() => {})
   const logsQueryRef = useRef({ isFetching: false, hasNextPage: false, fetchNextPage: () => {} })
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
+  const [activeSort, setActiveSort] = useState<{
+    column: string
+    direction: 'asc' | 'desc'
+  } | null>(null)
   const userPermissions = useUserPermissionsContext()
 
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
   const [contextMenuLog, setContextMenuLog] = useState<WorkflowLog | null>(null)
-  const contextMenuRef = useRef<HTMLDivElement>(null)
 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [previewLogId, setPreviewLogId] = useState<string | null>(null)
@@ -358,11 +363,43 @@ export default function Logs() {
     return logsQuery.data.pages.flatMap((page) => page.logs)
   }, [logsQuery.data?.pages])
 
+  const sortedLogs = useMemo(() => {
+    if (!activeSort) return logs
+
+    const { column, direction } = activeSort
+    return [...logs].sort((a, b) => {
+      let cmp = 0
+      switch (column) {
+        case 'date':
+          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          break
+        case 'duration': {
+          const aDuration = parseDuration({ duration: a.duration ?? undefined }) ?? -1
+          const bDuration = parseDuration({ duration: b.duration ?? undefined }) ?? -1
+          cmp = aDuration - bDuration
+          break
+        }
+        case 'cost': {
+          const aCost = typeof a.cost?.total === 'number' ? a.cost.total : -1
+          const bCost = typeof b.cost?.total === 'number' ? b.cost.total : -1
+          cmp = aCost - bCost
+          break
+        }
+        case 'status':
+          cmp = (a.status ?? '').localeCompare(b.status ?? '')
+          break
+        default:
+          break
+      }
+      return direction === 'asc' ? cmp : -cmp
+    })
+  }, [logs, activeSort])
+
   const selectedLogIndex = useMemo(
-    () => (selectedLogId ? logs.findIndex((l) => l.id === selectedLogId) : -1),
-    [logs, selectedLogId]
+    () => (selectedLogId ? sortedLogs.findIndex((l) => l.id === selectedLogId) : -1),
+    [sortedLogs, selectedLogId]
   )
-  const selectedLogFromList = selectedLogIndex >= 0 ? logs[selectedLogIndex] : null
+  const selectedLogFromList = selectedLogIndex >= 0 ? sortedLogs[selectedLogIndex] : null
 
   const selectedLog = useMemo(() => {
     if (!selectedLogFromList) return null
@@ -380,28 +417,30 @@ export default function Logs() {
 
   useFolders(workspaceId)
 
+  logsRef.current = sortedLogs
+  selectedLogIndexRef.current = selectedLogIndex
+  selectedLogIdRef.current = selectedLogId
+  logsRefetchRef.current = logsQuery.refetch
+  activeLogRefetchRef.current = activeLogQuery.refetch
+  logsQueryRef.current = {
+    isFetching: logsQuery.isFetching,
+    hasNextPage: logsQuery.hasNextPage ?? false,
+    fetchNextPage: logsQuery.fetchNextPage,
+  }
+
   useEffect(() => {
-    logsRef.current = logs
-  }, [logs])
-  useEffect(() => {
-    selectedLogIndexRef.current = selectedLogIndex
-  }, [selectedLogIndex])
-  useEffect(() => {
-    selectedLogIdRef.current = selectedLogId
-  }, [selectedLogId])
-  useEffect(() => {
-    logsRefetchRef.current = logsQuery.refetch
-  }, [logsQuery.refetch])
-  useEffect(() => {
-    activeLogRefetchRef.current = activeLogQuery.refetch
-  }, [activeLogQuery.refetch])
-  useEffect(() => {
-    logsQueryRef.current = {
-      isFetching: logsQuery.isFetching,
-      hasNextPage: logsQuery.hasNextPage ?? false,
-      fetchNextPage: logsQuery.fetchNextPage,
+    if (!pendingExecutionIdRef.current) return
+    const targetExecutionId = pendingExecutionIdRef.current
+    const found = sortedLogs.find((l) => l.executionId === targetExecutionId)
+    if (found) {
+      pendingExecutionIdRef.current = null
+      dispatch({ type: 'TOGGLE_LOG', logId: found.id })
+    } else if (!logsQuery.hasNextPage && logsQuery.status === 'success') {
+      pendingExecutionIdRef.current = null
+    } else if (!logsQuery.isFetching && logsQuery.status === 'success') {
+      logsQueryRef.current.fetchNextPage()
     }
-  }, [logsQuery.isFetching, logsQuery.hasNextPage, logsQuery.fetchNextPage])
+  }, [sortedLogs, logsQuery.hasNextPage, logsQuery.isFetching, logsQuery.status])
 
   useEffect(() => {
     const timers = refreshTimersRef.current
@@ -443,19 +482,26 @@ export default function Logs() {
   const handleLogContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
       e.preventDefault()
-      const log = logs.find((l) => l.id === rowId) ?? null
+      const log = sortedLogs.find((l) => l.id === rowId) ?? null
       setContextMenuPosition({ x: e.clientX, y: e.clientY })
       setContextMenuLog(log)
       setContextMenuOpen(true)
     },
-    [logs]
+    [sortedLogs]
   )
 
   const handleCopyExecutionId = useCallback(() => {
     if (contextMenuLog?.executionId) {
-      navigator.clipboard.writeText(contextMenuLog.executionId)
+      navigator.clipboard.writeText(contextMenuLog.executionId).catch(() => {})
     }
   }, [contextMenuLog])
+
+  const handleCopyLink = useCallback(() => {
+    if (contextMenuLog?.executionId) {
+      const url = `${window.location.origin}/workspace/${workspaceId}/logs?executionId=${contextMenuLog.executionId}`
+      navigator.clipboard.writeText(url).catch(() => {})
+    }
+  }, [contextMenuLog, workspaceId])
 
   const handleOpenWorkflow = useCallback(() => {
     const wfId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
@@ -603,11 +649,12 @@ export default function Logs() {
   }, [initializeFromURL])
 
   const loadMoreLogs = useCallback(() => {
+    if (activeSort) return
     const { isFetching, hasNextPage, fetchNextPage } = logsQueryRef.current
     if (!isFetching && hasNextPage) {
       fetchNextPage()
     }
-  }, [])
+  }, [activeSort])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -659,7 +706,7 @@ export default function Logs() {
 
   const rows: ResourceRow[] = useMemo(
     () =>
-      logs.map((log) => {
+      sortedLogs.map((log) => {
         const formattedDate = formatDate(log.createdAt)
         const displayStatus = getDisplayStatus(log.status)
         const isMothershipJob = log.trigger === 'mothership'
@@ -710,7 +757,7 @@ export default function Logs() {
           },
         }
       }),
-    [logs]
+    [sortedLogs]
   )
 
   const sidebarOverlay = useMemo(
@@ -721,7 +768,7 @@ export default function Logs() {
         onClose={handleCloseSidebar}
         onNavigateNext={handleNavigateNext}
         onNavigatePrev={handleNavigatePrev}
-        hasNext={selectedLogIndex < logs.length - 1}
+        hasNext={selectedLogIndex < sortedLogs.length - 1}
         hasPrev={selectedLogIndex > 0}
       />
     ),
@@ -732,12 +779,12 @@ export default function Logs() {
       handleNavigateNext,
       handleNavigatePrev,
       selectedLogIndex,
-      logs.length,
+      sortedLogs.length,
     ]
   )
 
-  const allWorkflows = useWorkflowRegistry((state) => state.workflows)
-  const folders = useFolderStore((state) => state.folders)
+  const { data: allWorkflows = {} } = useWorkflowMap(workspaceId)
+  const { data: folders = {} } = useFolderMap(workspaceId)
 
   const filterTags = useMemo<FilterTag[]>(() => {
     const tags: FilterTag[] = []
@@ -978,6 +1025,21 @@ export default function Logs() {
     [appliedFilters, textSearch, removeBadge, handleFiltersChange]
   )
 
+  const sortConfig = useMemo<SortConfig>(
+    () => ({
+      options: [
+        { id: 'date', label: 'Date' },
+        { id: 'duration', label: 'Duration' },
+        { id: 'cost', label: 'Cost' },
+        { id: 'status', label: 'Status' },
+      ],
+      active: activeSort,
+      onSort: (column, direction) => setActiveSort({ column, direction }),
+      onClear: () => setActiveSort(null),
+    }),
+    [activeSort]
+  )
+
   const searchConfig = useMemo<SearchConfig>(
     () => ({
       value: currentInput,
@@ -1021,7 +1083,7 @@ export default function Logs() {
         label: 'Export',
         icon: Download,
         onClick: handleExport,
-        disabled: !userPermissions.canEdit || isExporting || logs.length === 0,
+        disabled: !userPermissions.canEdit || isExporting || sortedLogs.length === 0,
       },
       {
         label: 'Notifications',
@@ -1054,7 +1116,7 @@ export default function Logs() {
       handleExport,
       userPermissions.canEdit,
       isExporting,
-      logs.length,
+      sortedLogs.length,
       handleOpenNotificationSettings,
     ]
   )
@@ -1065,6 +1127,7 @@ export default function Logs() {
         <ResourceHeader icon={Library} title='Logs' actions={headerActions} />
         <ResourceOptionsBar
           search={searchConfig}
+          sort={sortConfig}
           filter={
             <LogsFilterPanel searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />
           }
@@ -1091,7 +1154,7 @@ export default function Logs() {
             onRowContextMenu={handleLogContextMenu}
             isLoading={!logsQuery.data}
             onLoadMore={loadMoreLogs}
-            hasMore={logsQuery.hasNextPage ?? false}
+            hasMore={!activeSort && (logsQuery.hasNextPage ?? false)}
             isLoadingMore={logsQuery.isFetchingNextPage}
             emptyMessage='No logs found'
             overlay={sidebarOverlay}
@@ -1111,6 +1174,7 @@ export default function Logs() {
         onClose={handleCloseContextMenu}
         log={contextMenuLog}
         onCopyExecutionId={handleCopyExecutionId}
+        onCopyLink={handleCopyLink}
         onOpenWorkflow={handleOpenWorkflow}
         onOpenPreview={handleOpenPreview}
         onToggleWorkflowFilter={handleToggleWorkflowFilter}
@@ -1179,12 +1243,12 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [previousTimeRange, setPreviousTimeRange] = useState(timeRange)
-  const folders = useFolderStore((state) => state.folders)
-  const allWorkflows = useWorkflowRegistry((state) => state.workflows)
+  const { data: folders = {} } = useFolderMap(workspaceId)
+  const { data: allWorkflowList = [] } = useWorkflows(workspaceId)
 
   const workflows = useMemo(
-    () => Object.values(allWorkflows).map((w) => ({ id: w.id, name: w.name, color: w.color })),
-    [allWorkflows]
+    () => allWorkflowList.map((w) => ({ id: w.id, name: w.name, color: w.color })),
+    [allWorkflowList]
   )
 
   const folderList = useMemo(
@@ -1335,7 +1399,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   }, [resetFilters, onSearchQueryChange])
 
   return (
-    <div className='flex flex-col gap-3 p-3'>
+    <div className='flex w-[240px] flex-col gap-3 p-3'>
       <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
         <Combobox

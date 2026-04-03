@@ -1,26 +1,35 @@
 import { createLogger } from '@sim/logger'
 import { AgentIcon } from '@/components/icons'
-import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { getApiKeyCondition, getModelOptions, RESPONSE_FORMAT_WAND_CONFIG } from '@/blocks/utils'
+import {
+  getModelOptions,
+  getProviderCredentialSubBlocks,
+  RESPONSE_FORMAT_WAND_CONFIG,
+} from '@/blocks/utils'
 import {
   getBaseModelProviders,
   getMaxTemperature,
+  getModelsWithDeepResearch,
+  getModelsWithoutMemory,
+  getModelsWithReasoningEffort,
+  getModelsWithThinking,
+  getModelsWithVerbosity,
   getReasoningEffortValuesForModel,
   getThinkingLevelsForModel,
   getVerbosityValuesForModel,
-  MODELS_WITH_DEEP_RESEARCH,
-  MODELS_WITH_REASONING_EFFORT,
-  MODELS_WITH_THINKING,
-  MODELS_WITH_VERBOSITY,
-  MODELS_WITHOUT_MEMORY,
-  providers,
   supportsTemperature,
-} from '@/providers/utils'
+} from '@/providers/models'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgentBlock')
+const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
+const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
+const MODELS_WITH_THINKING = getModelsWithThinking()
+const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
+const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 
 interface AgentResponse extends ToolResponse {
   output: {
@@ -125,34 +134,6 @@ Return ONLY the JSON array.`,
       options: getModelOptions,
     },
     {
-      id: 'vertexCredential',
-      title: 'Google Cloud Account',
-      type: 'oauth-input',
-      serviceId: 'vertex-ai',
-      canonicalParamId: 'oauthCredential',
-      mode: 'basic',
-      requiredScopes: getScopesForService('vertex-ai'),
-      placeholder: 'Select Google Cloud account',
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
-    },
-    {
-      id: 'manualCredential',
-      title: 'Google Cloud Account',
-      type: 'short-input',
-      canonicalParamId: 'oauthCredential',
-      mode: 'advanced',
-      placeholder: 'Enter credential ID',
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
-    },
-    {
       id: 'reasoningEffort',
       title: 'Reasoning Effort',
       type: 'dropdown',
@@ -165,9 +146,6 @@ Return ONLY the JSON array.`,
       ],
       dependsOn: ['model'],
       fetchOptions: async (blockId: string) => {
-        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
         const autoOption = { label: 'auto', id: 'auto' }
 
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -224,9 +202,6 @@ Return ONLY the JSON array.`,
       ],
       dependsOn: ['model'],
       fetchOptions: async (blockId: string) => {
-        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
         const autoOption = { label: 'auto', id: 'auto' }
 
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -285,9 +260,6 @@ Return ONLY the JSON array.`,
       ],
       dependsOn: ['model'],
       fetchOptions: async (blockId: string) => {
-        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
         const noneOption = { label: 'none', id: 'none' }
 
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -317,100 +289,7 @@ Return ONLY the JSON array.`,
       },
     },
 
-    {
-      id: 'azureEndpoint',
-      title: 'Azure Endpoint',
-      type: 'short-input',
-      password: true,
-      placeholder: 'https://your-resource.services.ai.azure.com',
-      connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: [...providers['azure-openai'].models, ...providers['azure-anthropic'].models],
-      },
-    },
-    {
-      id: 'azureApiVersion',
-      title: 'Azure API Version',
-      type: 'short-input',
-      placeholder: 'Enter API version',
-      connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: [...providers['azure-openai'].models, ...providers['azure-anthropic'].models],
-      },
-    },
-    {
-      id: 'vertexProject',
-      title: 'Vertex AI Project',
-      type: 'short-input',
-      placeholder: 'your-gcp-project-id',
-      connectionDroppable: false,
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
-    },
-    {
-      id: 'vertexLocation',
-      title: 'Vertex AI Location',
-      type: 'short-input',
-      placeholder: 'us-central1',
-      connectionDroppable: false,
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
-    },
-    {
-      id: 'bedrockAccessKeyId',
-      title: 'AWS Access Key ID',
-      type: 'short-input',
-      password: true,
-      placeholder: 'Enter your AWS Access Key ID',
-      connectionDroppable: false,
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.bedrock.models,
-      },
-    },
-    {
-      id: 'bedrockSecretKey',
-      title: 'AWS Secret Access Key',
-      type: 'short-input',
-      password: true,
-      placeholder: 'Enter your AWS Secret Access Key',
-      connectionDroppable: false,
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.bedrock.models,
-      },
-    },
-    {
-      id: 'bedrockRegion',
-      title: 'AWS Region',
-      type: 'short-input',
-      placeholder: 'us-east-1',
-      connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: providers.bedrock.models,
-      },
-    },
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      placeholder: 'Enter your API key',
-      password: true,
-      connectionDroppable: false,
-      required: true,
-      condition: getApiKeyCondition(),
-    },
+    ...getProviderCredentialSubBlocks(),
     {
       id: 'tools',
       title: 'Tools',
@@ -660,7 +539,7 @@ Return ONLY the JSON array.`,
     apiKey: { type: 'string', description: 'Provider API key' },
     azureEndpoint: { type: 'string', description: 'Azure endpoint URL' },
     azureApiVersion: { type: 'string', description: 'Azure API version' },
-    oauthCredential: { type: 'string', description: 'OAuth credential for Vertex AI' },
+    vertexCredential: { type: 'string', description: 'OAuth credential for Vertex AI' },
     vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },
     vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
     bedrockAccessKeyId: { type: 'string', description: 'AWS Access Key ID for Bedrock' },

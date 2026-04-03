@@ -9,6 +9,7 @@ import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import { useEnvironmentStore } from '@/stores/settings/environment'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useDependsOnGate } from './use-depends-on-gate'
+import { useSubBlockValue } from './use-sub-block-value'
 
 /**
  * Resolves all selector configuration from a sub-block's declarative properties.
@@ -38,6 +39,8 @@ export function useSelectorSetup(
     subBlock,
     opts
   )
+
+  const [impersonateUserEmail] = useSubBlockValue<string | null>(blockId, 'impersonateUserEmail')
 
   const resolvedDependencyValues = useMemo(() => {
     const resolved: Record<string, unknown> = {}
@@ -75,8 +78,18 @@ export function useSelectorSetup(
       }
     }
 
+    if (context.oauthCredential && impersonateUserEmail) {
+      context.impersonateUserEmail = impersonateUserEmail
+    }
+
     return context
-  }, [resolvedDependencyValues, canonicalIndex, workflowId, subBlock.mimeType])
+  }, [
+    resolvedDependencyValues,
+    canonicalIndex,
+    workflowId,
+    subBlock.mimeType,
+    impersonateUserEmail,
+  ])
 
   return {
     selectorKey: (subBlock.selectorKey ?? null) as SelectorKey | null,

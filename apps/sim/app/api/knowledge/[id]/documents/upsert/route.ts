@@ -25,13 +25,12 @@ const UpsertDocumentSchema = z.object({
   fileSize: z.number().min(1, 'File size must be greater than 0'),
   mimeType: z.string().min(1, 'MIME type is required'),
   documentTagsData: z.string().optional(),
-  processingOptions: z.object({
-    chunkSize: z.number().min(100).max(4000),
-    minCharactersPerChunk: z.number().min(1).max(2000),
-    recipe: z.string(),
-    lang: z.string(),
-    chunkOverlap: z.number().min(0).max(500),
-  }),
+  processingOptions: z
+    .object({
+      recipe: z.string().optional(),
+      lang: z.string().optional(),
+    })
+    .optional(),
   workflowId: z.string().optional(),
 })
 
@@ -166,7 +165,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     processDocumentsWithQueue(
       createdDocuments,
       knowledgeBaseId,
-      validatedData.processingOptions,
+      validatedData.processingOptions ?? {},
       requestId
     ).catch((error: unknown) => {
       logger.error(`[${requestId}] Critical error in document processing pipeline:`, error)
@@ -178,8 +177,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         knowledgeBaseId,
         documentsCount: 1,
         uploadType: 'single',
-        chunkSize: validatedData.processingOptions.chunkSize,
-        recipe: validatedData.processingOptions.recipe,
+        recipe: validatedData.processingOptions?.recipe,
       })
     } catch (_e) {
       // Silently fail

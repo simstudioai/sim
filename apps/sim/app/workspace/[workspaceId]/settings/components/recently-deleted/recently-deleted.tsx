@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Button, SModalTabs, SModalTabsList, SModalTabsTrigger } from '@/components/emcn'
+import { Button, Combobox, SModalTabs, SModalTabsList, SModalTabsTrigger } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { formatDate } from '@/lib/core/utils/formatting'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
@@ -33,6 +33,21 @@ function getResourceHref(
 }
 
 type ResourceType = 'all' | 'workflow' | 'table' | 'knowledge' | 'file'
+
+type SortColumn = 'deleted' | 'name' | 'type'
+
+interface SortConfig {
+  column: SortColumn
+  direction: 'asc' | 'desc'
+}
+
+const DEFAULT_SORT: SortConfig = { column: 'deleted', direction: 'desc' }
+
+const SORT_OPTIONS: { column: SortColumn; direction: 'asc' | 'desc'; label: string }[] = [
+  { column: 'deleted', direction: 'desc', label: 'Deleted (newest first)' },
+  { column: 'name', direction: 'asc', label: 'Name (A–Z)' },
+  { column: 'type', direction: 'asc', label: 'Type (A–Z)' },
+]
 
 const ICON_CLASS = 'h-[14px] w-[14px]'
 
@@ -100,10 +115,11 @@ export function RecentlyDeleted() {
   const workspaceId = params?.workspaceId as string
   const [activeTab, setActiveTab] = useState<ResourceType>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [activeSort, setActiveSort] = useState<SortConfig | null>(null)
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set())
   const [restoredItems, setRestoredItems] = useState<Map<string, DeletedResource>>(new Map())
 
-  const workflowsQuery = useWorkflows(workspaceId, { syncRegistry: false, scope: 'archived' })
+  const workflowsQuery = useWorkflows(workspaceId, { scope: 'archived' })
   const tablesQuery = useTablesList(workspaceId, 'archived')
   const knowledgeQuery = useKnowledgeBasesQuery(workspaceId, { scope: 'archived' })
   const filesQuery = useWorkspaceFiles(workspaceId, 'archived')
@@ -174,7 +190,6 @@ export function RecentlyDeleted() {
       }
     }
 
-    items.sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime())
     return items
   }, [
     workflowsQuery.data,
@@ -191,10 +206,27 @@ export function RecentlyDeleted() {
       const normalized = searchTerm.toLowerCase()
       items = items.filter((r) => r.name.toLowerCase().includes(normalized))
     }
-    return items
-  }, [resources, activeTab, searchTerm])
+    const col = (activeSort ?? DEFAULT_SORT).column
+    const dir = (activeSort ?? DEFAULT_SORT).direction
+    return [...items].sort((a, b) => {
+      let cmp = 0
+      switch (col) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name)
+          break
+        case 'type':
+          cmp = a.type.localeCompare(b.type)
+          break
+        case 'deleted':
+          cmp = a.deletedAt.getTime() - b.deletedAt.getTime()
+          break
+      }
+      return dir === 'asc' ? cmp : -cmp
+    })
+  }, [resources, activeTab, searchTerm, activeSort])
 
   const showNoResults = searchTerm.trim() && filtered.length === 0 && resources.length > 0
+  const selectedSort = activeSort ?? DEFAULT_SORT
 
   function handleRestore(resource: DeletedResource) {
     setRestoringIds((prev) => new Set(prev).add(resource.id))
@@ -213,7 +245,10 @@ export function RecentlyDeleted() {
 
     switch (resource.type) {
       case 'workflow':
-        restoreWorkflow.mutate(resource.id, { onSettled, onSuccess })
+        restoreWorkflow.mutate(
+          { workflowId: resource.id, workspaceId: resource.workspaceId },
+          { onSettled, onSuccess }
+        )
         break
       case 'table':
         restoreTable.mutate(resource.id, { onSettled, onSuccess })
@@ -232,18 +267,41 @@ export function RecentlyDeleted() {
 
   return (
     <div className='flex h-full flex-col gap-4.5'>
-      <div className='flex items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-        <Search
-          className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-          strokeWidth={2}
-        />
-        <Input
-          placeholder='Search deleted items...'
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          disabled={isLoading}
-          className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-        />
+      <div className='flex items-center gap-2'>
+        <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-[5px] transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+          <Search
+            className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
+            strokeWidth={2}
+          />
+          <Input
+            placeholder='Search deleted items...'
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            disabled={isLoading}
+            className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+          />
+        </div>
+        <div className='w-[190px] shrink-0'>
+          <Combobox
+            size='sm'
+            align='end'
+            disabled={isLoading}
+            value={`${selectedSort.column}:${selectedSort.direction}`}
+            onChange={(value) => {
+              const option = SORT_OPTIONS.find(
+                (sortOption) => `${sortOption.column}:${sortOption.direction}` === value
+              )
+              if (option) {
+                setActiveSort({ column: option.column, direction: option.direction })
+              }
+            }}
+            options={SORT_OPTIONS.map((option) => ({
+              label: option.label,
+              value: `${option.column}:${option.direction}`,
+            }))}
+            className='h-[30px] rounded-lg border-[var(--border)] bg-transparent px-2.5 text-small dark:bg-[var(--surface-4)]'
+          />
+        </div>
       </div>
 
       <SModalTabs value={activeTab} onValueChange={(v) => setActiveTab(v as ResourceType)}>

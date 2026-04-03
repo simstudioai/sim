@@ -6,6 +6,8 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   Button,
   Columns2,
+  Combobox,
+  type ComboboxOption,
   Download,
   DropdownMenu,
   DropdownMenuContent,
@@ -31,17 +33,22 @@ import {
   formatFileSize,
   getFileExtension,
   getMimeTypeFromExtension,
+  isAudioFileType,
+  isVideoFileType,
 } from '@/lib/uploads/utils/file-utils'
 import {
+  isSupportedExtension,
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
 import type {
+  FilterTag,
   HeaderAction,
   ResourceColumn,
   ResourceRow,
   SearchConfig,
+  SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import {
   InlineRenameInput,
@@ -66,7 +73,9 @@ import {
   useUploadWorkspaceFile,
   useWorkspaceFiles,
 } from '@/hooks/queries/workspace-files'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -86,7 +95,6 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'type', header: 'Type' },
   { id: 'created', header: 'Created' },
   { id: 'owner', header: 'Owner' },
-  { id: 'updated', header: 'Last Updated' },
 ]
 
 const MIME_TYPE_LABELS: Record<string, string> = {
@@ -129,6 +137,13 @@ export function Files() {
   const fileIdFromRoute =
     typeof params?.fileId === 'string' && params.fileId.length > 0 ? params.fileId : null
   const userPermissions = useUserPermissionsContext()
+  const { config: permissionConfig } = usePermissionConfig()
+
+  useEffect(() => {
+    if (permissionConfig.hideFilesTab) {
+      router.replace(`/workspace/${workspaceId}`)
+    }
+  }, [permissionConfig.hideFilesTab, router, workspaceId])
 
   const { data: files = [], isLoading, error } = useWorkspaceFiles(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
@@ -161,16 +176,14 @@ export function Files() {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const [inputValue, setInputValue] = useState('')
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
-
-  const handleSearchChange = useCallback((value: string) => {
-    setInputValue(value)
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
-    searchTimerRef.current = setTimeout(() => {
-      setDebouncedSearchTerm(value)
-    }, 200)
-  }, [])
+  const debouncedSearchTerm = useDebounce(inputValue, 200)
+  const [activeSort, setActiveSort] = useState<{
+    column: string
+    direction: 'asc' | 'desc'
+  } | null>(null)
+  const [typeFilter, setTypeFilter] = useState<string[]>([])
+  const [sizeFilter, setSizeFilter] = useState<string[]>([])
+  const [uploadedByFilter, setUploadedByFilter] = useState<string[]>([])
 
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
@@ -206,10 +219,60 @@ export function Files() {
   selectedFileRef.current = selectedFile
 
   const filteredFiles = useMemo(() => {
-    if (!debouncedSearchTerm) return files
-    const q = debouncedSearchTerm.toLowerCase()
-    return files.filter((f) => f.name.toLowerCase().includes(q))
-  }, [files, debouncedSearchTerm])
+    let result = debouncedSearchTerm
+      ? files.filter((f) => f.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
+      : files
+
+    if (typeFilter.length > 0) {
+      result = result.filter((f) => {
+        const ext = getFileExtension(f.name)
+        if (typeFilter.includes('document') && isSupportedExtension(ext)) return true
+        if (typeFilter.includes('audio') && isAudioFileType(f.type)) return true
+        if (typeFilter.includes('video') && isVideoFileType(f.type)) return true
+        return false
+      })
+    }
+
+    if (sizeFilter.length > 0) {
+      result = result.filter((f) => {
+        if (sizeFilter.includes('small') && f.size < 1_048_576) return true
+        if (sizeFilter.includes('medium') && f.size >= 1_048_576 && f.size <= 10_485_760)
+          return true
+        if (sizeFilter.includes('large') && f.size > 10_485_760) return true
+        return false
+      })
+    }
+
+    if (uploadedByFilter.length > 0) {
+      result = result.filter((f) => uploadedByFilter.includes(f.uploadedBy))
+    }
+
+    const col = activeSort?.column ?? 'created'
+    const dir = activeSort?.direction ?? 'desc'
+    return [...result].sort((a, b) => {
+      let cmp = 0
+      switch (col) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name)
+          break
+        case 'size':
+          cmp = a.size - b.size
+          break
+        case 'type':
+          cmp = formatFileType(a.type, a.name).localeCompare(formatFileType(b.type, b.name))
+          break
+        case 'created':
+          cmp = new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime()
+          break
+        case 'owner':
+          cmp = (members?.find((m) => m.userId === a.uploadedBy)?.name ?? '').localeCompare(
+            members?.find((m) => m.userId === b.uploadedBy)?.name ?? ''
+          )
+          break
+      }
+      return dir === 'asc' ? cmp : -cmp
+    })
+  }, [files, debouncedSearchTerm, typeFilter, sizeFilter, uploadedByFilter, activeSort, members])
 
   const rowCacheRef = useRef(
     new Map<string, { row: ResourceRow; file: WorkspaceFileRecord; members: typeof members }>()
@@ -245,12 +308,6 @@ export function Files() {
           },
           created: timeCell(file.uploadedAt),
           owner: ownerCell(file.uploadedBy, members),
-          updated: timeCell(file.uploadedAt),
-        },
-        sortValues: {
-          size: file.size,
-          created: -new Date(file.uploadedAt).getTime(),
-          updated: -new Date(file.uploadedAt).getTime(),
         },
       }
       nextCache.set(file.id, { row, file, members })
@@ -342,7 +399,7 @@ export function Files() {
         }
       }
     },
-    [workspaceId]
+    [workspaceId, uploadFile]
   )
 
   const handleDownload = useCallback(async (file: WorkspaceFileRecord) => {
@@ -690,7 +747,6 @@ export function Files() {
     handleDeleteSelected,
   ])
 
-  /** Stable refs for values used in callbacks to avoid dependency churn */
   const listRenameRef = useRef(listRename)
   listRenameRef.current = listRename
   const headerRenameRef = useRef(headerRename)
@@ -711,18 +767,14 @@ export function Files() {
 
   const canEdit = userPermissions.canEdit === true
 
-  const handleSearchClearAll = useCallback(() => {
-    handleSearchChange('')
-  }, [handleSearchChange])
-
   const searchConfig: SearchConfig = useMemo(
     () => ({
       value: inputValue,
-      onChange: handleSearchChange,
-      onClearAll: handleSearchClearAll,
+      onChange: setInputValue,
+      onClearAll: () => setInputValue(''),
       placeholder: 'Search files...',
     }),
-    [inputValue, handleSearchChange, handleSearchClearAll]
+    [inputValue]
   )
 
   const createConfig = useMemo(
@@ -763,6 +815,205 @@ export function Files() {
     () => [{ label: 'Files', onClick: handleNavigateToFiles }, { label: '...' }],
     [handleNavigateToFiles]
   )
+
+  const typeDisplayLabel = useMemo(() => {
+    if (typeFilter.length === 0) return 'All'
+    if (typeFilter.length === 1) {
+      const labels: Record<string, string> = {
+        document: 'Documents',
+        audio: 'Audio',
+        video: 'Video',
+      }
+      return labels[typeFilter[0]] ?? typeFilter[0]
+    }
+    return `${typeFilter.length} selected`
+  }, [typeFilter])
+
+  const sizeDisplayLabel = useMemo(() => {
+    if (sizeFilter.length === 0) return 'All'
+    if (sizeFilter.length === 1) {
+      const labels: Record<string, string> = { small: 'Small', medium: 'Medium', large: 'Large' }
+      return labels[sizeFilter[0]] ?? sizeFilter[0]
+    }
+    return `${sizeFilter.length} selected`
+  }, [sizeFilter])
+
+  const uploadedByDisplayLabel = useMemo(() => {
+    if (uploadedByFilter.length === 0) return 'All'
+    if (uploadedByFilter.length === 1)
+      return members?.find((m) => m.userId === uploadedByFilter[0])?.name ?? '1 member'
+    return `${uploadedByFilter.length} members`
+  }, [uploadedByFilter, members])
+
+  const memberOptions: ComboboxOption[] = useMemo(
+    () =>
+      (members ?? []).map((m) => ({
+        value: m.userId,
+        label: m.name,
+        iconElement: m.image ? (
+          <img
+            src={m.image}
+            alt={m.name}
+            referrerPolicy='no-referrer'
+            className='h-[14px] w-[14px] rounded-full border border-[var(--border)] object-cover'
+          />
+        ) : (
+          <span className='flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+            {m.name.charAt(0).toUpperCase()}
+          </span>
+        ),
+      })),
+    [members]
+  )
+
+  const sortConfig: SortConfig = useMemo(
+    () => ({
+      options: [
+        { id: 'name', label: 'Name' },
+        { id: 'size', label: 'Size' },
+        { id: 'type', label: 'Type' },
+        { id: 'created', label: 'Created' },
+        { id: 'owner', label: 'Owner' },
+      ],
+      active: activeSort,
+      onSort: (column, direction) => setActiveSort({ column, direction }),
+      onClear: () => setActiveSort(null),
+    }),
+    [activeSort]
+  )
+
+  const hasActiveFilters =
+    typeFilter.length > 0 || sizeFilter.length > 0 || uploadedByFilter.length > 0
+
+  const filterContent = useMemo(
+    () => (
+      <div className='flex w-[240px] flex-col gap-3 p-3'>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>File Type</span>
+          <Combobox
+            options={[
+              { value: 'document', label: 'Documents' },
+              { value: 'audio', label: 'Audio' },
+              { value: 'video', label: 'Video' },
+            ]}
+            multiSelect
+            multiSelectValues={typeFilter}
+            onMultiSelectChange={setTypeFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{typeDisplayLabel}</span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Size</span>
+          <Combobox
+            options={[
+              { value: 'small', label: 'Small (< 1 MB)' },
+              { value: 'medium', label: 'Medium (1–10 MB)' },
+              { value: 'large', label: 'Large (> 10 MB)' },
+            ]}
+            multiSelect
+            multiSelectValues={sizeFilter}
+            onMultiSelectChange={setSizeFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{sizeDisplayLabel}</span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        {memberOptions.length > 0 && (
+          <div className='flex flex-col gap-1.5'>
+            <span className='font-medium text-[var(--text-secondary)] text-caption'>
+              Uploaded By
+            </span>
+            <Combobox
+              options={memberOptions}
+              multiSelect
+              multiSelectValues={uploadedByFilter}
+              onMultiSelectChange={setUploadedByFilter}
+              overlayContent={
+                <span className='truncate text-[var(--text-primary)]'>
+                  {uploadedByDisplayLabel}
+                </span>
+              }
+              searchable
+              searchPlaceholder='Search members...'
+              showAllOption
+              allOptionLabel='All'
+              size='sm'
+              className='h-[32px] w-full rounded-md'
+            />
+          </div>
+        )}
+        {hasActiveFilters && (
+          <button
+            type='button'
+            onClick={() => {
+              setTypeFilter([])
+              setSizeFilter([])
+              setUploadedByFilter([])
+            }}
+            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+          >
+            Clear all filters
+          </button>
+        )}
+      </div>
+    ),
+    [
+      typeFilter,
+      sizeFilter,
+      uploadedByFilter,
+      memberOptions,
+      typeDisplayLabel,
+      sizeDisplayLabel,
+      uploadedByDisplayLabel,
+      hasActiveFilters,
+    ]
+  )
+
+  const filterTags: FilterTag[] = useMemo(() => {
+    const tags: FilterTag[] = []
+    if (typeFilter.length > 0) {
+      const typeLabels: Record<string, string> = {
+        document: 'Documents',
+        audio: 'Audio',
+        video: 'Video',
+      }
+      const label =
+        typeFilter.length === 1
+          ? `Type: ${typeLabels[typeFilter[0]]}`
+          : `Type: ${typeFilter.length} selected`
+      tags.push({ label, onRemove: () => setTypeFilter([]) })
+    }
+    if (sizeFilter.length > 0) {
+      const sizeLabels: Record<string, string> = {
+        small: 'Small',
+        medium: 'Medium',
+        large: 'Large',
+      }
+      const label =
+        sizeFilter.length === 1
+          ? `Size: ${sizeLabels[sizeFilter[0]]}`
+          : `Size: ${sizeFilter.length} selected`
+      tags.push({ label, onRemove: () => setSizeFilter([]) })
+    }
+    if (uploadedByFilter.length > 0) {
+      const label =
+        uploadedByFilter.length === 1
+          ? `Uploaded by: ${members?.find((m) => m.userId === uploadedByFilter[0])?.name ?? '1 member'}`
+          : `Uploaded by: ${uploadedByFilter.length} members`
+      tags.push({ label, onRemove: () => setUploadedByFilter([]) })
+    }
+    return tags
+  }, [typeFilter, sizeFilter, uploadedByFilter, members])
 
   if (fileIdFromRoute && !selectedFile) {
     return (
@@ -834,7 +1085,9 @@ export function Files() {
         title='Files'
         create={createConfig}
         search={searchConfig}
-        defaultSort='created'
+        sort={sortConfig}
+        filter={filterContent}
+        filterTags={filterTags}
         headerActions={headerActionsConfig}
         columns={COLUMNS}
         rows={rows}

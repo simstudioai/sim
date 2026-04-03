@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
+import { getFolderById } from '@/lib/folders/tree'
 import {
   downloadFile,
   exportFolderToZip,
@@ -8,9 +10,10 @@ import {
   sanitizePathSegment,
   type WorkflowExportData,
 } from '@/lib/workflows/operations/import-export'
+import { useFolderMap } from '@/hooks/queries/folders'
+import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 const logger = createLogger('useExportFolder')
@@ -89,8 +92,9 @@ function collectSubfolders(
  * Hook for managing folder export to ZIP.
  */
 export function useExportFolder({ folderId, onSuccess }: UseExportFolderProps) {
-  const workflows = useWorkflowRegistry((s) => s.workflows)
-  const folders = useFolderStore((s) => s.folders)
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { data: workflows = {} } = useWorkflowMap(workspaceId)
+  const { data: folders = {} } = useFolderMap(workspaceId)
   const [isExporting, setIsExporting] = useState(false)
 
   const hasWorkflows = useMemo(() => {
@@ -105,22 +109,21 @@ export function useExportFolder({ folderId, onSuccess }: UseExportFolderProps) {
 
     setIsExporting(true)
     try {
-      const folderStore = useFolderStore.getState()
-      const folder = folderStore.getFolderById(folderId)
+      const folder = getFolderById(folders, folderId)
 
       if (!folder) {
         logger.warn('Folder not found for export', { folderId })
         return
       }
 
-      const workflowsToExport = collectWorkflowsInFolder(folderId, workflows, folderStore.folders)
+      const workflowsToExport = collectWorkflowsInFolder(folderId, workflows, folders)
 
       if (workflowsToExport.length === 0) {
         logger.warn('No workflows found in folder to export', { folderId, folderName: folder.name })
         return
       }
 
-      const subfolders = collectSubfolders(folderId, folderStore.folders)
+      const subfolders = collectSubfolders(folderId, folders)
 
       logger.info('Starting folder export', {
         folderId,

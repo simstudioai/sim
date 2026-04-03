@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { StatusPageLayout } from '@/app/(auth)/components/status-page-layout'
 
 const logger = createLogger('FormError')
@@ -21,10 +22,7 @@ export default function FormError({ error, reset }: FormErrorProps) {
       title='Something went wrong'
       description='We encountered an error loading this form. Please try again.'
     >
-      <button
-        onClick={reset}
-        className='inline-flex h-[32px] w-full items-center justify-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[var(--border-1)] hover:bg-[var(--border-1)] disabled:cursor-not-allowed disabled:opacity-50'
-      >
+      <button onClick={reset} className={AUTH_SUBMIT_BTN}>
         Try again
       </button>
     </StatusPageLayout>

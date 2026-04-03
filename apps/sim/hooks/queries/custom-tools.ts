@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getQueryClient } from '@/app/_shell/providers/query-provider'
+import { customToolsKeys } from '@/hooks/queries/utils/custom-tool-keys'
 
 const logger = createLogger('CustomToolsQueries')
 const API_ENDPOINT = '/api/tools/custom'
@@ -27,16 +27,6 @@ export interface CustomToolDefinition {
   code: string
   createdAt: string
   updatedAt?: string
-}
-
-/**
- * Query key factories for custom tools queries
- */
-export const customToolsKeys = {
-  all: ['customTools'] as const,
-  lists: () => [...customToolsKeys.all, 'list'] as const,
-  list: (workspaceId: string) => [...customToolsKeys.lists(), workspaceId] as const,
-  detail: (toolId: string) => [...customToolsKeys.all, 'detail', toolId] as const,
 }
 
 export type CustomTool = CustomToolDefinition
@@ -85,41 +75,6 @@ function normalizeCustomTool(tool: ApiCustomTool, workspaceId: string): CustomTo
       },
     },
   }
-}
-
-/**
- * Extract workspaceId from the current URL path
- * Expected format: /workspace/{workspaceId}/...
- */
-function getWorkspaceIdFromUrl(): string | null {
-  if (typeof window === 'undefined') return null
-  const match = window.location.pathname.match(/^\/workspace\/([^/]+)/)
-  return match?.[1] ?? null
-}
-
-/**
- * Get all custom tools from the query cache (for non-React code)
- * If workspaceId is not provided, extracts it from the current URL
- */
-export function getCustomTools(workspaceId?: string): CustomToolDefinition[] {
-  if (typeof window === 'undefined') return []
-  const wsId = workspaceId ?? getWorkspaceIdFromUrl()
-  if (!wsId) return []
-  const queryClient = getQueryClient()
-  return queryClient.getQueryData<CustomToolDefinition[]>(customToolsKeys.list(wsId)) ?? []
-}
-
-/**
- * Get a specific custom tool from the query cache by ID or title (for non-React code)
- * Custom tools are referenced by title in the system (custom_${title}), so title lookup is required.
- * If workspaceId is not provided, extracts it from the current URL
- */
-export function getCustomTool(
-  identifier: string,
-  workspaceId?: string
-): CustomToolDefinition | undefined {
-  const tools = getCustomTools(workspaceId)
-  return tools.find((tool) => tool.id === identifier || tool.title === identifier)
 }
 
 /**

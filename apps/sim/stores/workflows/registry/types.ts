@@ -32,13 +32,7 @@ export interface WorkflowMetadata {
   isSandbox?: boolean
 }
 
-export type HydrationPhase =
-  | 'idle'
-  | 'metadata-loading'
-  | 'metadata-ready'
-  | 'state-loading'
-  | 'ready'
-  | 'error'
+export type HydrationPhase = 'idle' | 'creating' | 'state-loading' | 'ready' | 'error'
 
 export interface HydrationState {
   phase: HydrationPhase
@@ -49,7 +43,6 @@ export interface HydrationState {
 }
 
 export interface WorkflowRegistryState {
-  workflows: Record<string, WorkflowMetadata>
   activeWorkflowId: string | null
   error: string | null
   deploymentStatuses: Record<string, DeploymentStatus>
@@ -59,15 +52,11 @@ export interface WorkflowRegistryState {
 }
 
 export interface WorkflowRegistryActions {
-  beginMetadataLoad: (workspaceId: string) => void
-  completeMetadataLoad: (workspaceId: string, workflows: WorkflowMetadata[]) => void
-  failMetadataLoad: (workspaceId: string | null, error: string) => void
   setActiveWorkflow: (id: string) => Promise<void>
   loadWorkflowState: (workflowId: string) => Promise<void>
-  switchToWorkspace: (id: string) => Promise<void>
-  removeWorkflow: (id: string) => Promise<void>
-  updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => Promise<void>
-  duplicateWorkflow: (sourceId: string) => Promise<string | null>
+  switchToWorkspace: (id: string) => void
+  markWorkflowCreating: (workflowId: string) => void
+  markWorkflowCreated: (workflowId: string | null) => void
   getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
   setDeploymentStatus: (
     workflowId: string | null,

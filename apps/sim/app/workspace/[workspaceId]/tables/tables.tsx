@@ -1,10 +1,12 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
+import type { ComboboxOption } from '@/components/emcn'
 import {
   Button,
+  Combobox,
   Modal,
   ModalBody,
   ModalContent,
@@ -16,7 +18,13 @@ import {
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName } from '@/lib/table/constants'
-import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
+import type {
+  FilterTag,
+  ResourceColumn,
+  ResourceRow,
+  SearchConfig,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components'
 import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { TablesListContextMenu } from '@/app/workspace/[workspaceId]/tables/components'
@@ -29,6 +37,8 @@ import {
   useUploadCsvToTable,
 } from '@/hooks/queries/tables'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
+import { useDebounce } from '@/hooks/use-debounce'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('Tables')
 
@@ -45,6 +55,14 @@ export function Tables() {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
+
+  const { config: permissionConfig } = usePermissionConfig()
+  useEffect(() => {
+    if (permissionConfig.hideTablesTab) {
+      router.replace(`/workspace/${workspaceId}`)
+    }
+  }, [permissionConfig.hideTablesTab, router, workspaceId])
+
   const userPermissions = useUserPermissionsContext()
 
   const { data: tables = [], isLoading, error } = useTablesList(workspaceId)
@@ -60,6 +78,13 @@ export function Tables() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [activeTable, setActiveTable] = useState<TableDefinition | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
+  const [activeSort, setActiveSort] = useState<{
+    column: string
+    direction: 'asc' | 'desc'
+  } | null>(null)
+  const [rowCountFilter, setRowCountFilter] = useState<string[]>([])
+  const [ownerFilter, setOwnerFilter] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const csvInputRef = useRef<HTMLInputElement>(null)
@@ -78,15 +103,56 @@ export function Tables() {
     closeMenu: closeRowContextMenu,
   } = useContextMenu()
 
-  const filteredTables = useMemo(() => {
-    if (!searchTerm) return tables
-    const term = searchTerm.toLowerCase()
-    return tables.filter((table) => table.name.toLowerCase().includes(term))
-  }, [tables, searchTerm])
+  const processedTables = useMemo(() => {
+    let result = debouncedSearchTerm
+      ? tables.filter((t) => t.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
+      : tables
+
+    if (rowCountFilter.length > 0) {
+      result = result.filter((t) => {
+        if (rowCountFilter.includes('empty') && t.rowCount === 0) return true
+        if (rowCountFilter.includes('small') && t.rowCount >= 1 && t.rowCount <= 100) return true
+        if (rowCountFilter.includes('large') && t.rowCount > 100) return true
+        return false
+      })
+    }
+    if (ownerFilter.length > 0) {
+      result = result.filter((t) => ownerFilter.includes(t.createdBy))
+    }
+    const col = activeSort?.column ?? 'created'
+    const dir = activeSort?.direction ?? 'desc'
+    return [...result].sort((a, b) => {
+      let cmp = 0
+      switch (col) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name)
+          break
+        case 'columns':
+          cmp = a.schema.columns.length - b.schema.columns.length
+          break
+        case 'rows':
+          cmp = a.rowCount - b.rowCount
+          break
+        case 'created':
+          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          break
+        case 'updated':
+          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+          break
+        case 'owner': {
+          const aName = members?.find((m) => m.userId === a.createdBy)?.name ?? ''
+          const bName = members?.find((m) => m.userId === b.createdBy)?.name ?? ''
+          cmp = aName.localeCompare(bName)
+          break
+        }
+      }
+      return dir === 'asc' ? cmp : -cmp
+    })
+  }, [tables, debouncedSearchTerm, rowCountFilter, ownerFilter, activeSort, members])
 
   const rows: ResourceRow[] = useMemo(
     () =>
-      filteredTables.map((table) => ({
+      processedTables.map((table) => ({
         id: table.id,
         cells: {
           name: {
@@ -105,15 +171,166 @@ export function Tables() {
           owner: ownerCell(table.createdBy, members),
           updated: timeCell(table.updatedAt),
         },
-        sortValues: {
-          columns: table.schema.columns.length,
-          rows: table.rowCount,
-          created: -new Date(table.createdAt).getTime(),
-          updated: -new Date(table.updatedAt).getTime(),
-        },
       })),
-    [filteredTables, members]
+    [processedTables, members]
   )
+
+  const searchConfig: SearchConfig = useMemo(
+    () => ({
+      value: searchTerm,
+      onChange: setSearchTerm,
+      onClearAll: () => setSearchTerm(''),
+      placeholder: 'Search tables...',
+    }),
+    [searchTerm]
+  )
+
+  const sortConfig: SortConfig = useMemo(
+    () => ({
+      options: [
+        { id: 'name', label: 'Name' },
+        { id: 'columns', label: 'Columns' },
+        { id: 'rows', label: 'Rows' },
+        { id: 'created', label: 'Created' },
+        { id: 'owner', label: 'Owner' },
+        { id: 'updated', label: 'Last Updated' },
+      ],
+      active: activeSort,
+      onSort: (column, direction) => setActiveSort({ column, direction }),
+      onClear: () => setActiveSort(null),
+    }),
+    [activeSort]
+  )
+
+  const rowCountDisplayLabel = useMemo(() => {
+    if (rowCountFilter.length === 0) return 'All'
+    if (rowCountFilter.length === 1) {
+      const labels: Record<string, string> = {
+        empty: 'Empty',
+        small: 'Small (1–100)',
+        large: 'Large (101+)',
+      }
+      return labels[rowCountFilter[0]] ?? rowCountFilter[0]
+    }
+    return `${rowCountFilter.length} selected`
+  }, [rowCountFilter])
+
+  const ownerDisplayLabel = useMemo(() => {
+    if (ownerFilter.length === 0) return 'All'
+    if (ownerFilter.length === 1)
+      return members?.find((m) => m.userId === ownerFilter[0])?.name ?? '1 member'
+    return `${ownerFilter.length} members`
+  }, [ownerFilter, members])
+
+  const memberOptions: ComboboxOption[] = useMemo(
+    () =>
+      (members ?? []).map((m) => ({
+        value: m.userId,
+        label: m.name,
+        iconElement: m.image ? (
+          <img
+            src={m.image}
+            alt={m.name}
+            referrerPolicy='no-referrer'
+            className='h-[14px] w-[14px] rounded-full border border-[var(--border)] object-cover'
+          />
+        ) : (
+          <span className='flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+            {m.name.charAt(0).toUpperCase()}
+          </span>
+        ),
+      })),
+    [members]
+  )
+
+  const hasActiveFilters = rowCountFilter.length > 0 || ownerFilter.length > 0
+
+  const filterContent = useMemo(
+    () => (
+      <div className='flex w-[240px] flex-col gap-3 p-3'>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Row Count</span>
+          <Combobox
+            options={[
+              { value: 'empty', label: 'Empty' },
+              { value: 'small', label: 'Small (1–100 rows)' },
+              { value: 'large', label: 'Large (101+ rows)' },
+            ]}
+            multiSelect
+            multiSelectValues={rowCountFilter}
+            onMultiSelectChange={setRowCountFilter}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{rowCountDisplayLabel}</span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        {memberOptions.length > 0 && (
+          <div className='flex flex-col gap-1.5'>
+            <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
+            <Combobox
+              options={memberOptions}
+              multiSelect
+              multiSelectValues={ownerFilter}
+              onMultiSelectChange={setOwnerFilter}
+              overlayContent={
+                <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
+              }
+              searchable
+              searchPlaceholder='Search members...'
+              showAllOption
+              allOptionLabel='All'
+              size='sm'
+              className='h-[32px] w-full rounded-md'
+            />
+          </div>
+        )}
+        {hasActiveFilters && (
+          <button
+            type='button'
+            onClick={() => {
+              setRowCountFilter([])
+              setOwnerFilter([])
+            }}
+            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+          >
+            Clear all filters
+          </button>
+        )}
+      </div>
+    ),
+    [
+      rowCountFilter,
+      ownerFilter,
+      memberOptions,
+      rowCountDisplayLabel,
+      ownerDisplayLabel,
+      hasActiveFilters,
+    ]
+  )
+
+  const filterTags: FilterTag[] = useMemo(() => {
+    const tags: FilterTag[] = []
+    if (rowCountFilter.length > 0) {
+      const rowLabels: Record<string, string> = { empty: 'Empty', small: 'Small', large: 'Large' }
+      const label =
+        rowCountFilter.length === 1
+          ? `Rows: ${rowLabels[rowCountFilter[0]]}`
+          : `Rows: ${rowCountFilter.length} selected`
+      tags.push({ label, onRemove: () => setRowCountFilter([]) })
+    }
+    if (ownerFilter.length > 0) {
+      const label =
+        ownerFilter.length === 1
+          ? `Owner: ${members?.find((m) => m.userId === ownerFilter[0])?.name ?? '1 member'}`
+          : `Owner: ${ownerFilter.length} members`
+      tags.push({ label, onRemove: () => setOwnerFilter([]) })
+    }
+    return tags
+  }, [rowCountFilter, ownerFilter, members])
 
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -215,7 +432,7 @@ export function Tables() {
         }
       }
     },
-    [workspaceId, router]
+    [workspaceId, router, uploadCsv]
   )
 
   const handleListUploadCsv = useCallback(() => {
@@ -260,12 +477,10 @@ export function Tables() {
           onClick: handleCreateTable,
           disabled: uploading || userPermissions.canEdit !== true || createTable.isPending,
         }}
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: 'Search tables...',
-        }}
-        defaultSort='created'
+        search={searchConfig}
+        sort={sortConfig}
+        filter={filterContent}
+        filterTags={filterTags}
         headerActions={[
           {
             label: uploadButtonLabel,

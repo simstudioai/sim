@@ -18,6 +18,7 @@ import {
   BrandfetchIcon,
   ExaAIIcon,
   FirecrawlIcon,
+  FireworksIcon,
   GeminiIcon,
   GoogleIcon,
   JinaAIIcon,
@@ -74,6 +75,13 @@ const PROVIDERS: {
     icon: MistralIcon,
     description: 'LLM calls and Knowledge Base OCR',
     placeholder: 'Enter your API key',
+  },
+  {
+    id: 'fireworks',
+    name: 'Fireworks',
+    icon: FireworksIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your Fireworks API key',
   },
   {
     id: 'firecrawl',

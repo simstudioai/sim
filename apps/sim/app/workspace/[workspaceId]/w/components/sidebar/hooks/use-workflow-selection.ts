@@ -60,18 +60,15 @@ export function useWorkflowSelection({
   }, [workflowAncestorFolderIds])
 
   /**
-   * Handle workflow click with support for shift-click range selection and cmd/ctrl-click toggle.
+   * Handle workflow click with support for shift-click range selection.
+   * cmd/ctrl+click is handled by the browser (opens in new tab) and never reaches this handler.
    *
    * @param workflowId - ID of clicked workflow
    * @param shiftKey - Whether shift key was pressed
-   * @param metaKey - Whether cmd (Mac) or ctrl (Windows) key was pressed
    */
   const handleWorkflowClick = useCallback(
-    (workflowId: string, shiftKey: boolean, metaKey: boolean) => {
-      if (metaKey) {
-        toggleWorkflowSelection(workflowId)
-        deselectConflictingFolders()
-      } else if (shiftKey && activeWorkflowId && activeWorkflowId !== workflowId) {
+    (workflowId: string, shiftKey: boolean) => {
+      if (shiftKey && activeWorkflowId && activeWorkflowId !== workflowId) {
         selectRange(workflowIds, activeWorkflowId, workflowId)
         deselectConflictingFolders()
       } else if (shiftKey) {

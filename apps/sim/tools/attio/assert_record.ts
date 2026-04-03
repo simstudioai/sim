@@ -49,7 +49,7 @@ export const attioAssertRecordTool: ToolConfig<AttioAssertRecordParams, AttioAss
 
     request: {
       url: (params) =>
-        `https://api.attio.com/v2/objects/${params.objectType}/records?matching_attribute=${params.matchingAttribute}`,
+        `https://api.attio.com/v2/objects/${params.objectType.trim()}/records?matching_attribute=${params.matchingAttribute.trim()}`,
       method: 'PUT',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,

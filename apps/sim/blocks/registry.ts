@@ -43,6 +43,7 @@ import { EnrichBlock } from '@/blocks/blocks/enrich'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { EvernoteBlock } from '@/blocks/blocks/evernote'
 import { ExaBlock } from '@/blocks/blocks/exa'
+import { ExtendBlock, ExtendV2Block } from '@/blocks/blocks/extend'
 import { FathomBlock } from '@/blocks/blocks/fathom'
 import { FileBlock, FileV2Block, FileV3Block } from '@/blocks/blocks/file'
 import { FirecrawlBlock } from '@/blocks/blocks/firecrawl'
@@ -96,6 +97,7 @@ import { KalshiBlock, KalshiV2Block } from '@/blocks/blocks/kalshi'
 import { KetchBlock } from '@/blocks/blocks/ketch'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LangsmithBlock } from '@/blocks/blocks/langsmith'
+import { LaunchDarklyBlock } from '@/blocks/blocks/launchdarkly'
 import { LemlistBlock } from '@/blocks/blocks/lemlist'
 import { LinearBlock } from '@/blocks/blocks/linear'
 import { LinkedInBlock } from '@/blocks/blocks/linkedin'
@@ -138,6 +140,7 @@ import { PipedriveBlock } from '@/blocks/blocks/pipedrive'
 import { PolymarketBlock } from '@/blocks/blocks/polymarket'
 import { PostgreSQLBlock } from '@/blocks/blocks/postgresql'
 import { PostHogBlock } from '@/blocks/blocks/posthog'
+import { ProfoundBlock } from '@/blocks/blocks/profound'
 import { PulseBlock, PulseV2Block } from '@/blocks/blocks/pulse'
 import { QdrantBlock } from '@/blocks/blocks/qdrant'
 import { QuiverBlock } from '@/blocks/blocks/quiver'
@@ -155,6 +158,7 @@ import { S3Block } from '@/blocks/blocks/s3'
 import { SalesforceBlock } from '@/blocks/blocks/salesforce'
 import { ScheduleBlock } from '@/blocks/blocks/schedule'
 import { SearchBlock } from '@/blocks/blocks/search'
+import { SecretsManagerBlock } from '@/blocks/blocks/secrets_manager'
 import { SendGridBlock } from '@/blocks/blocks/sendgrid'
 import { SentryBlock } from '@/blocks/blocks/sentry'
 import { SerperBlock } from '@/blocks/blocks/serper'
@@ -175,6 +179,7 @@ import { StripeBlock } from '@/blocks/blocks/stripe'
 import { SttBlock, SttV2Block } from '@/blocks/blocks/stt'
 import { SupabaseBlock } from '@/blocks/blocks/supabase'
 import { TableBlock } from '@/blocks/blocks/table'
+import { TailscaleBlock } from '@/blocks/blocks/tailscale'
 import { TavilyBlock } from '@/blocks/blocks/tavily'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { TextractBlock, TextractV2Block } from '@/blocks/blocks/textract'
@@ -255,9 +260,11 @@ export const registry: Record<string, BlockConfig> = {
   elevenlabs: ElevenLabsBlock,
   fathom: FathomBlock,
   enrich: EnrichBlock,
-  evernote: EvernoteBlock,
   evaluator: EvaluatorBlock,
+  evernote: EvernoteBlock,
   exa: ExaBlock,
+  extend: ExtendBlock,
+  extend_v2: ExtendV2Block,
   file: FileBlock,
   file_v2: FileV2Block,
   file_v3: FileV3Block,
@@ -320,6 +327,7 @@ export const registry: Record<string, BlockConfig> = {
   ketch: KetchBlock,
   knowledge: KnowledgeBlock,
   langsmith: LangsmithBlock,
+  launchdarkly: LaunchDarklyBlock,
   lemlist: LemlistBlock,
   linear: LinearBlock,
   linkedin: LinkedInBlock,
@@ -359,6 +367,7 @@ export const registry: Record<string, BlockConfig> = {
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
+  profound: ProfoundBlock,
   polymarket: PolymarketBlock,
   postgresql: PostgreSQLBlock,
   posthog: PostHogBlock,
@@ -393,6 +402,7 @@ export const registry: Record<string, BlockConfig> = {
   slack: SlackBlock,
   smtp: SmtpBlock,
   spotify: SpotifyBlock,
+  secrets_manager: SecretsManagerBlock,
   sqs: SQSBlock,
   ssh: SSHBlock,
   stagehand: StagehandBlock,
@@ -403,6 +413,7 @@ export const registry: Record<string, BlockConfig> = {
   stt_v2: SttV2Block,
   supabase: SupabaseBlock,
   table: TableBlock,
+  tailscale: TailscaleBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,
   textract: TextractBlock,

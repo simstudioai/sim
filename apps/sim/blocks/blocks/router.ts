@@ -5,8 +5,8 @@ import {
   getProviderCredentialSubBlocks,
   PROVIDER_CREDENTIAL_INPUTS,
 } from '@/blocks/utils'
+import { getBaseModelProviders } from '@/providers/models'
 import type { ProviderId } from '@/providers/types'
-import { getBaseModelProviders } from '@/providers/utils'
 import type { ToolResponse } from '@/tools/types'
 
 interface RouterResponse extends ToolResponse {

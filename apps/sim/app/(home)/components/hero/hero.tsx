@@ -42,7 +42,7 @@ export default function Hero() {
         1,000+ integrations and LLMs — including OpenAI, Claude, Gemini, Mistral, and xAI — to
         deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables,
         and docs. Trusted by over 100,000 builders at startups and Fortune 500 companies. SOC2 and
-        HIPAA compliant.
+        SOC2 compliant.
       </p>
 
       <div

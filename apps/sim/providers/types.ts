@@ -14,6 +14,7 @@ export type ProviderId =
   | 'mistral'
   | 'ollama'
   | 'openrouter'
+  | 'fireworks'
   | 'vllm'
   | 'bedrock'
 

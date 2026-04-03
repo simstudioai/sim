@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { deleteSkill, listSkills, upsertSkills } from '@/lib/workflows/skills/operations'
@@ -96,6 +97,18 @@ export async function POST(req: NextRequest) {
         requestId,
       })
 
+      for (const skill of resultSkills) {
+        recordAudit({
+          workspaceId,
+          actorId: userId,
+          action: AuditAction.SKILL_CREATED,
+          resourceType: AuditResourceType.SKILL,
+          resourceId: skill.id,
+          resourceName: skill.name,
+          description: `Created/updated skill "${skill.name}"`,
+        })
+      }
+
       return NextResponse.json({ success: true, data: resultSkills })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
@@ -157,6 +170,15 @@ export async function DELETE(request: NextRequest) {
       logger.warn(`[${requestId}] Skill not found: ${skillId}`)
       return NextResponse.json({ error: 'Skill not found' }, { status: 404 })
     }
+
+    recordAudit({
+      workspaceId,
+      actorId: authResult.userId,
+      action: AuditAction.SKILL_DELETED,
+      resourceType: AuditResourceType.SKILL,
+      resourceId: skillId,
+      description: `Deleted skill`,
+    })
 
     logger.info(`[${requestId}] Deleted skill: ${skillId}`)
     return NextResponse.json({ success: true })

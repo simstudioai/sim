@@ -9,7 +9,7 @@ export function useTagSelection(blockId: string, subblockId: string) {
   const { collaborativeSetTagSelection } = useCollaborativeWorkflow()
 
   const emitTagSelectionValue = useCallback(
-    (value: any) => {
+    (value: string) => {
       collaborativeSetTagSelection(blockId, subblockId, value)
     },
     [blockId, subblockId, collaborativeSetTagSelection]

@@ -80,7 +80,7 @@ const PRICING_TIERS: PricingTier[] = [
       'Custom execution limits',
       'Custom concurrency limits',
       'Unlimited log retention',
-      'SSO & SCIM · SOC2 & HIPAA',
+      'SSO & SCIM · SOC2',
       'Self hosting · Dedicated support',
     ],
     cta: { label: 'Book a demo', action: 'demo-request' },

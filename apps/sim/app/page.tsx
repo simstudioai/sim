@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import Landing from '@/app/(home)/landing'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 3600
 
 const baseUrl = getBaseUrl()
 
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description:
     'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to orchestrate agentic workflows.',
   keywords:
-    'AI agents, agentic workforce, open-source AI agent platform, agentic workflows, LLM orchestration, AI automation, knowledge base, workflow builder, AI integrations, SOC2 compliant, HIPAA compliant, enterprise AI',
+    'AI agents, agentic workforce, open-source AI agent platform, agentic workflows, LLM orchestration, AI automation, knowledge base, workflow builder, AI integrations, SOC2 compliant, enterprise AI',
   authors: [{ name: 'Sim' }],
   creator: 'Sim',
   publisher: 'Sim',

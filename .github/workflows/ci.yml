@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, staging]
+    branches: [main, staging, dev]
   pull_request:
-    branches: [main, staging]
+    branches: [main, staging, dev]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -23,7 +23,7 @@ jobs:
   detect-version:
     name: Detect Version
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     outputs:
       version: ${{ steps.extract.outputs.version }}
       is_release: ${{ steps.extract.outputs.is_release }}
@@ -49,7 +49,7 @@ jobs:
   build-amd64:
     name: Build AMD64
     needs: [test-build, detect-version]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -75,8 +75,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_REGION || secrets.STAGING_AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -109,6 +109,8 @@ jobs:
           # ECR tags (always build for ECR)
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             ECR_TAG="latest"
+          elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            ECR_TAG="dev"
           else
             ECR_TAG="staging"
           fi

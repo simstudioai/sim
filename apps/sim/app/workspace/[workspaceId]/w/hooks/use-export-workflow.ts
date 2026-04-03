@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
 import {
   downloadFile,
   exportWorkflowsToZip,
@@ -7,8 +8,8 @@ import {
   fetchWorkflowForExport,
   sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('useExportWorkflow')
 
@@ -24,9 +25,14 @@ interface UseExportWorkflowProps {
  */
 export function useExportWorkflow({ onSuccess }: UseExportWorkflowProps = {}) {
   const [isExporting, setIsExporting] = useState(false)
+  const params = useParams()
+  const workspaceId = params.workspaceId as string | undefined
 
   const onSuccessRef = useRef(onSuccess)
   onSuccessRef.current = onSuccess
+
+  const workspaceIdRef = useRef(workspaceId)
+  workspaceIdRef.current = workspaceId
 
   /**
    * Export the workflow(s) to JSON or ZIP
@@ -52,11 +58,12 @@ export function useExportWorkflow({ onSuccess }: UseExportWorkflowProps = {}) {
           count: workflowIdsToExport.length,
         })
 
-        const { workflows } = useWorkflowRegistry.getState()
+        if (!workspaceIdRef.current) return
+        const workflowMap = new Map(getWorkflows(workspaceIdRef.current).map((w) => [w.id, w]))
         const exportedWorkflows = []
 
         for (const workflowId of workflowIdsToExport) {
-          const workflowMeta = workflows[workflowId]
+          const workflowMeta = workflowMap.get(workflowId)
           if (!workflowMeta) {
             logger.warn(`Workflow ${workflowId} not found in registry`)
             continue

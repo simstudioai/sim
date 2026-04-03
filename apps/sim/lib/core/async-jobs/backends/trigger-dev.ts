@@ -66,9 +66,10 @@ export class TriggerDevJobQueue implements JobQueueBackend {
         ? { ...payload, ...options.metadata }
         : payload
 
-    const handle = await tasks.trigger(taskId, enrichedPayload)
+    const tags = buildTags(options)
+    const handle = await tasks.trigger(taskId, enrichedPayload, tags.length > 0 ? { tags } : {})
 
-    logger.debug('Enqueued job via trigger.dev', { jobId: handle.id, type, taskId })
+    logger.debug('Enqueued job via trigger.dev', { jobId: handle.id, type, taskId, tags })
     return handle.id
   }
 
@@ -120,4 +121,34 @@ export class TriggerDevJobQueue implements JobQueueBackend {
   async completeJob(_jobId: string, _output: unknown): Promise<void> {}
 
   async markJobFailed(_jobId: string, _error: string): Promise<void> {}
+}
+
+/**
+ * Derives trigger.dev tags from job type, metadata, and explicit tags.
+ * Tags follow the `namespace:value` convention for consistent filtering.
+ * Max 10 tags per run, each max 128 chars.
+ */
+function buildTags(options?: EnqueueOptions): string[] {
+  const tags: string[] = []
+  const meta = options?.metadata
+
+  if (meta?.workspaceId) tags.push(`workspaceId:${meta.workspaceId}`)
+  if (meta?.workflowId) tags.push(`workflowId:${meta.workflowId}`)
+  if (meta?.userId) tags.push(`userId:${meta.userId}`)
+
+  if (meta?.correlation) {
+    const c = meta.correlation
+    tags.push(`source:${c.source}`)
+    if (c.webhookId) tags.push(`webhookId:${c.webhookId}`)
+    if (c.scheduleId) tags.push(`scheduleId:${c.scheduleId}`)
+    if (c.provider) tags.push(`provider:${c.provider}`)
+  }
+
+  if (options?.tags) {
+    for (const tag of options.tags) {
+      if (!tags.includes(tag)) tags.push(tag)
+    }
+  }
+
+  return tags.slice(0, 10)
 }

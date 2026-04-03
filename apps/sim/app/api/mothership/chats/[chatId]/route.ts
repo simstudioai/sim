@@ -5,7 +5,6 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat-lifecycle'
-import { appendCopilotLogContext } from '@/lib/copilot/logging'
 import { getStreamMeta, readStreamEvents } from '@/lib/copilot/orchestrator/stream/buffer'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -63,16 +62,13 @@ export async function GET(
           status: meta?.status || 'unknown',
         }
       } catch (error) {
-        logger.warn(
-          appendCopilotLogContext('Failed to read stream snapshot for mothership chat', {
-            messageId: chat.conversationId || undefined,
-          }),
-          {
+        logger
+          .withMetadata({ messageId: chat.conversationId || undefined })
+          .warn('Failed to read stream snapshot for mothership chat', {
             chatId,
             conversationId: chat.conversationId,
             error: error instanceof Error ? error.message : String(error),
-          }
-        )
+          })
       }
     }
 

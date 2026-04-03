@@ -1,12 +1,13 @@
 'use client'
 
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Badge,
   Button,
+  Combobox,
   Modal,
   ModalBody,
   ModalContent,
@@ -15,7 +16,6 @@ import {
   Trash,
 } from '@/components/emcn'
 import { SearchHighlight } from '@/components/ui/search-highlight'
-import { cn } from '@/lib/core/utils/cn'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { formatTokenCount } from '@/lib/tokenization'
 import type {
@@ -27,6 +27,7 @@ import type {
   ResourceRow,
   SearchConfig,
   SelectableConfig,
+  SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import { Resource, ResourceHeader } from '@/app/workspace/[workspaceId]/components'
 import {
@@ -46,6 +47,7 @@ import {
   useUpdateChunk,
   useUpdateDocument,
 } from '@/hooks/queries/kb/knowledge'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 
 const logger = createLogger('Document')
@@ -151,21 +153,41 @@ export function Document({
   const [showTagsModal, setShowTagsModal] = useState(false)
 
   const [searchQuery, setSearchQuery] = useState('')
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
-  const [enabledFilter, setEnabledFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
+  const debouncedSearchQuery = useDebounce(searchQuery, 200)
+  const [enabledFilter, setEnabledFilter] = useState<string[]>([])
+  const [activeSort, setActiveSort] = useState<{
+    column: string
+    direction: 'asc' | 'desc'
+  } | null>(null)
+
+  const enabledFilterParam = useMemo(
+    () => (enabledFilter.length === 1 ? (enabledFilter[0] as 'enabled' | 'disabled') : 'all'),
+    [enabledFilter]
+  )
 
   const {
     chunks: initialChunks,
     currentPage: initialPage,
     totalPages: initialTotalPages,
-    hasNextPage: initialHasNextPage,
-    hasPrevPage: initialHasPrevPage,
     goToPage: initialGoToPage,
     error: initialError,
-    refreshChunks: initialRefreshChunks,
     updateChunk: initialUpdateChunk,
     isFetching: isFetchingChunks,
-  } = useDocumentChunks(knowledgeBaseId, documentId, currentPageFromURL, '', enabledFilter)
+  } = useDocumentChunks(
+    knowledgeBaseId,
+    documentId,
+    currentPageFromURL,
+    '',
+    enabledFilterParam,
+    activeSort?.column === 'tokens'
+      ? 'tokenCount'
+      : activeSort?.column === 'status'
+        ? 'enabled'
+        : activeSort?.column === 'index'
+          ? 'chunkIndex'
+          : undefined,
+    activeSort?.direction
+  )
 
   const { data: searchResults = [], error: searchQueryError } = useDocumentChunkSearchQuery(
     {
@@ -183,7 +205,9 @@ export function Document({
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(() => new Set())
 
   // Inline editor state
-  const [selectedChunkId, setSelectedChunkId] = useState<string | null>(null)
+  const [selectedChunkId, setSelectedChunkId] = useState<string | null>(() =>
+    searchParams.get('chunk')
+  )
   const [isCreatingNewChunk, setIsCreatingNewChunk] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
@@ -192,27 +216,6 @@ export function Document({
   const saveRef = useRef<(() => Promise<void>) | null>(null)
   const saveStatusRef = useRef<SaveStatus>('idle')
   saveStatusRef.current = saveStatus
-
-  // Auto-select chunk from URL param on mount
-  const initialChunkParam = useRef(searchParams.get('chunk'))
-  useEffect(() => {
-    if (initialChunkParam.current) {
-      setSelectedChunkId(initialChunkParam.current)
-      initialChunkParam.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      startTransition(() => {
-        setDebouncedSearchQuery(searchQuery)
-      })
-    }, 200)
-
-    return () => {
-      clearTimeout(handler)
-    }
-  }, [searchQuery])
 
   const isSearching = debouncedSearchQuery.trim().length > 0
   const showingSearch = isSearching && searchQuery.trim().length > 0 && searchResults.length > 0
@@ -229,11 +232,12 @@ export function Document({
     searchStartIndex + SEARCH_PAGE_SIZE
   )
 
-  const displayChunks = showingSearch ? paginatedSearchResults : initialChunks
+  const rawDisplayChunks = showingSearch ? paginatedSearchResults : initialChunks
+
+  const displayChunks = rawDisplayChunks ?? []
+
   const currentPage = showingSearch ? searchCurrentPage : initialPage
   const totalPages = showingSearch ? searchTotalPages : initialTotalPages
-  const hasNextPage = showingSearch ? searchCurrentPage < searchTotalPages : initialHasNextPage
-  const hasPrevPage = showingSearch ? searchCurrentPage > 1 : initialHasPrevPage
 
   // Keep refs to displayChunks and totalPages so polling callbacks can read fresh data
   const displayChunksRef = useRef(displayChunks)
@@ -254,12 +258,11 @@ export function Document({
       if (showingSearch) {
         return
       }
-      return await initialGoToPage(page)
+      return initialGoToPage(page)
     },
     [showingSearch, initialGoToPage]
   )
 
-  const refreshChunks = showingSearch ? async () => {} : initialRefreshChunks
   const updateChunk = showingSearch
     ? (_id: string, _updates: Record<string, unknown>) => {}
     : initialUpdateChunk
@@ -282,7 +285,6 @@ export function Document({
   const {
     isOpen: isContextMenuOpen,
     position: contextMenuPosition,
-    menuRef,
     handleContextMenu: baseHandleContextMenu,
     closeMenu: closeContextMenu,
   } = useContextMenu()
@@ -562,47 +564,68 @@ export function Document({
       }
     : undefined
 
-  const filterContent = (
-    <div className='w-[200px]'>
-      <div className='border-[var(--border-1)] border-b px-3 py-2'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
-      </div>
-      <div className='flex flex-col gap-0.5 px-3 py-2'>
-        {(['all', 'enabled', 'disabled'] as const).map((value) => (
-          <button
-            key={value}
-            type='button'
-            className={cn(
-              'flex w-full cursor-pointer select-none items-center rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-secondary)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-active)]',
-              enabledFilter === value && 'bg-[var(--surface-active)]'
-            )}
-            onClick={() => {
-              setEnabledFilter(value)
+  const enabledDisplayLabel = useMemo(() => {
+    if (enabledFilter.length === 0) return 'All'
+    if (enabledFilter.length === 1) return enabledFilter[0] === 'enabled' ? 'Enabled' : 'Disabled'
+    return `${enabledFilter.length} selected`
+  }, [enabledFilter])
+
+  const filterContent = useMemo(
+    () => (
+      <div className='flex w-[240px] flex-col gap-3 p-3'>
+        <div className='flex flex-col gap-1.5'>
+          <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
+          <Combobox
+            options={[
+              { value: 'enabled', label: 'Enabled' },
+              { value: 'disabled', label: 'Disabled' },
+            ]}
+            multiSelect
+            multiSelectValues={enabledFilter}
+            onMultiSelectChange={(values) => {
+              setEnabledFilter(values)
               setSelectedChunks(new Set())
               void goToPage(1)
             }}
-          >
-            {value.charAt(0).toUpperCase() + value.slice(1)}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-
-  const filterTags: FilterTag[] = [
-    ...(enabledFilter !== 'all'
-      ? [
-          {
-            label: `Status: ${enabledFilter === 'enabled' ? 'Enabled' : 'Disabled'}`,
-            onRemove: () => {
-              setEnabledFilter('all')
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{enabledDisplayLabel}</span>
+            }
+            showAllOption
+            allOptionLabel='All'
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+        </div>
+        {enabledFilter.length > 0 && (
+          <button
+            type='button'
+            onClick={() => {
+              setEnabledFilter([])
               setSelectedChunks(new Set())
               void goToPage(1)
-            },
-          },
-        ]
-      : []),
-  ]
+            }}
+            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
+          >
+            Clear all filters
+          </button>
+        )}
+      </div>
+    ),
+    [enabledFilter, enabledDisplayLabel, goToPage]
+  )
+
+  const filterTags: FilterTag[] = useMemo(
+    () =>
+      enabledFilter.map((value) => ({
+        label: `Status: ${value === 'enabled' ? 'Enabled' : 'Disabled'}`,
+        onRemove: () => {
+          setEnabledFilter((prev) => prev.filter((v) => v !== value))
+          setSelectedChunks(new Set())
+          void goToPage(1)
+        },
+      })),
+    [enabledFilter, goToPage]
+  )
 
   const handleChunkClick = useCallback((rowId: string) => {
     setSelectedChunkId(rowId)
@@ -613,18 +636,11 @@ export function Document({
       const chunk = displayChunks.find((c) => c.id === chunkId)
       if (!chunk) return
 
+      const newEnabled = !chunk.enabled
+      updateChunk(chunkId, { enabled: newEnabled })
       updateChunkMutation(
-        {
-          knowledgeBaseId,
-          documentId,
-          chunkId,
-          enabled: !chunk.enabled,
-        },
-        {
-          onSuccess: () => {
-            updateChunk(chunkId, { enabled: !chunk.enabled })
-          },
-        }
+        { knowledgeBaseId, documentId, chunkId, enabled: newEnabled },
+        { onError: () => updateChunk(chunkId, { enabled: chunk.enabled }) }
       )
     },
     [displayChunks, knowledgeBaseId, documentId, updateChunk]
@@ -813,6 +829,26 @@ export function Document({
           onPageChange: goToPage,
         }
       : undefined
+
+  const sortConfig: SortConfig = useMemo(
+    () => ({
+      options: [
+        { id: 'index', label: 'Index' },
+        { id: 'tokens', label: 'Tokens' },
+        { id: 'status', label: 'Status' },
+      ],
+      active: activeSort,
+      onSort: (column, direction) => {
+        setActiveSort({ column, direction })
+        void goToPage(1)
+      },
+      onClear: () => {
+        setActiveSort(null)
+        void goToPage(1)
+      },
+    }),
+    [activeSort, goToPage]
+  )
 
   const chunkRows: ResourceRow[] = useMemo(() => {
     if (!isCompleted) {
@@ -1100,6 +1136,7 @@ export function Document({
         emptyMessage={emptyMessage}
         filter={combinedError ? undefined : filterContent}
         filterTags={combinedError ? undefined : filterTags}
+        sort={combinedError ? undefined : sortConfig}
       />
 
       <DocumentTagsModal

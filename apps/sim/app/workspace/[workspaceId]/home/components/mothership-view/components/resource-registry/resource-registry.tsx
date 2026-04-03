@@ -1,7 +1,8 @@
 'use client'
 
-import type { ElementType, ReactNode } from 'react'
+import { type ElementType, type ReactNode, useMemo } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
+import { useParams } from 'next/navigation'
 import {
   Database,
   File as FileIcon,
@@ -17,9 +18,9 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { tableKeys } from '@/hooks/queries/tables'
-import { workflowKeys } from '@/hooks/queries/workflows'
+import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { useWorkflows } from '@/hooks/queries/workflows'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface DropdownItemRenderProps {
   item: { id: string; name: string; [key: string]: unknown }
@@ -34,7 +35,12 @@ export interface ResourceTypeConfig {
 }
 
 function WorkflowTabSquare({ workflowId, className }: { workflowId: string; className?: string }) {
-  const color = useWorkflowRegistry((state) => state.workflows[workflowId]?.color ?? '#888')
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { data: workflowList } = useWorkflows(workspaceId)
+  const color = useMemo(() => {
+    const wf = (workflowList ?? []).find((w) => w.id === workflowId)
+    return wf?.color ?? '#888'
+  }, [workflowList, workflowId])
   return (
     <div
       className={cn('flex-shrink-0 rounded-[3px] border-[2px]', className)}
@@ -157,8 +163,8 @@ const RESOURCE_INVALIDATORS: Record<
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.contentFile(wId, id) })
     qc.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
   },
-  workflow: (qc, _wId) => {
-    qc.invalidateQueries({ queryKey: workflowKeys.lists() })
+  workflow: (qc, wId) => {
+    void invalidateWorkflowLists(qc, wId)
   },
   knowledgebase: (qc, _wId, id) => {
     qc.invalidateQueries({ queryKey: knowledgeKeys.lists() })
