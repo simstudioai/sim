@@ -51,7 +51,7 @@ export function getEmailSubject(type: EmailSubjectType): string {
     case 'usage-threshold':
       return `You're nearing your monthly budget on ${brandName}`
     case 'free-tier-upgrade':
-      return `You're at 90% of your free credits on ${brandName}`
+      return `You're at 80% of your free credits on ${brandName}`
     case 'plan-welcome-pro':
       return `Your Pro plan is now active on ${brandName}`
     case 'plan-welcome-team':

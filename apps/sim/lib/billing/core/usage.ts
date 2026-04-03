@@ -715,18 +715,16 @@ export async function maybeSendUsageThresholdEmail(params: {
     const baseUrl = getBaseUrl()
     const isFreeUser = params.planName === 'Free'
 
-    // Check for 80% threshold (all users)
+    // Check for 80% threshold (paid users only — free users get a more specific email below)
     const crosses80 = params.percentBefore < 80 && params.percentAfter >= 80
-    // Check for 80% threshold (free users only)
-    const crosses80Free = params.percentBefore < 80 && params.percentAfter >= 80
     // Check for 100% threshold (free users only — credits exhausted)
     const crosses100 = params.percentBefore < 100 && params.percentAfter >= 100
 
     // Skip if no thresholds crossed
-    if (!crosses80 && !crosses80Free && !crosses100) return
+    if (!crosses80 && !crosses100) return
 
-    // For 80% threshold email (all users)
-    if (crosses80) {
+    // For 80% threshold email (paid users only)
+    if (crosses80 && !isFreeUser) {
       const ctaLink = `${baseUrl}/workspace?billing=usage`
       const sendTo = async (email: string, name?: string) => {
         const prefs = await getEmailPreferences(email)
@@ -781,7 +779,7 @@ export async function maybeSendUsageThresholdEmail(params: {
     }
 
     // For 80% threshold email (free users only)
-    if (crosses80Free && isFreeUser) {
+    if (crosses80 && isFreeUser) {
       const upgradeLink = `${baseUrl}/workspace?billing=upgrade`
       const sendFreeTierEmail = async (email: string, name?: string) => {
         const prefs = await getEmailPreferences(email)
