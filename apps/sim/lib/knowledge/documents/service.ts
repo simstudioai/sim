@@ -44,7 +44,7 @@ import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import type { DocumentProcessingPayload } from '@/background/knowledge-processing'
-import { getEmbeddingModelPricing } from '@/providers/models'
+import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('DocumentService')
 
@@ -464,6 +464,7 @@ export async function processDocumentAsync(
 
     let totalEmbeddingTokens = 0
     let embeddingIsBYOK = false
+    let embeddingModelName = 'text-embedding-3-small'
 
     await withTimeout(
       (async () => {
@@ -509,12 +510,14 @@ export async function processDocumentAsync(
               embeddings: batchEmbeddings,
               totalTokens: batchTokens,
               isBYOK,
+              modelName,
             } = await generateEmbeddings(batch, undefined, kb[0].workspaceId)
             for (const emb of batchEmbeddings) {
               embeddings.push(emb)
             }
             totalEmbeddingTokens += batchTokens
             embeddingIsBYOK = isBYOK
+            embeddingModelName = modelName
           }
         }
 
@@ -652,10 +655,15 @@ export async function processDocumentAsync(
 
     if (!embeddingIsBYOK && totalEmbeddingTokens > 0 && kb[0].userId) {
       try {
-        const embeddingModel = 'text-embedding-3-small'
-        const pricing = getEmbeddingModelPricing(embeddingModel)
-        if (pricing) {
-          const cost = (totalEmbeddingTokens / 1_000_000) * pricing.input * getCostMultiplier()
+        const costMultiplier = getCostMultiplier()
+        const { total: cost } = calculateCost(
+          embeddingModelName,
+          totalEmbeddingTokens,
+          0,
+          false,
+          costMultiplier
+        )
+        if (cost > 0) {
           await recordUsage({
             userId: kb[0].userId,
             workspaceId: kb[0].workspaceId ?? undefined,
@@ -663,7 +671,7 @@ export async function processDocumentAsync(
               {
                 category: 'model',
                 source: 'knowledge-base',
-                description: embeddingModel,
+                description: embeddingModelName,
                 cost,
                 metadata: { inputTokens: totalEmbeddingTokens, outputTokens: 0 },
               },

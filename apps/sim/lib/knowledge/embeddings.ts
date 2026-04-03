@@ -193,12 +193,13 @@ export interface GenerateEmbeddingsResult {
   embeddings: number[][]
   totalTokens: number
   isBYOK: boolean
+  modelName: string
 }
 
 /**
  * Generate embeddings for multiple texts with token-aware batching and parallel processing.
- * Returns embeddings alongside the actual token count from the API and whether a BYOK key was used.
- * Callers should use `totalTokens` and `isBYOK` to record billing via `recordUsage`.
+ * Returns embeddings alongside actual token count, model name, and whether a workspace BYOK key
+ * was used (vs. the platform's shared key) — enabling callers to make correct billing decisions.
  */
 export async function generateEmbeddings(
   texts: string[],
@@ -231,7 +232,12 @@ export async function generateEmbeddings(
     totalTokens += batch.totalTokens
   }
 
-  return { embeddings: allEmbeddings, totalTokens, isBYOK: config.isBYOK }
+  return {
+    embeddings: allEmbeddings,
+    totalTokens,
+    isBYOK: config.isBYOK,
+    modelName: config.modelName,
+  }
 }
 
 /**
