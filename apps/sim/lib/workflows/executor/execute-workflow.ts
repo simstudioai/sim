@@ -153,7 +153,14 @@ export async function executeWorkflow(
         }
       }
     } else {
-      await PauseResumeManager.processQueuedResumes(executionId)
+      try {
+        await PauseResumeManager.processQueuedResumes(executionId)
+      } catch (resumeError) {
+        logger.error(`[${requestId}] Failed to process queued resumes`, {
+          executionId,
+          error: resumeError instanceof Error ? resumeError.message : String(resumeError),
+        })
+      }
     }
 
     if (streamConfig?.skipLoggingComplete) {
