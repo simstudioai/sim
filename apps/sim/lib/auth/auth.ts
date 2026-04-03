@@ -75,6 +75,7 @@ import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
@@ -220,6 +221,19 @@ export const auth = betterAuth({
                 userId: user.id,
                 error,
               })
+            }
+
+            try {
+              await scheduleLifecycleEmail({
+                userId: user.id,
+                type: 'onboarding-followup',
+                delayDays: 5,
+              })
+            } catch (error) {
+              logger.error(
+                '[databaseHooks.user.create.after] Failed to schedule onboarding followup email',
+                { userId: user.id, error }
+              )
             }
           }
         },
@@ -595,6 +609,19 @@ export const auth = betterAuth({
             userId: user.id,
             error,
           })
+        }
+
+        try {
+          await scheduleLifecycleEmail({
+            userId: user.id,
+            type: 'onboarding-followup',
+            delayDays: 3,
+          })
+        } catch (error) {
+          logger.error(
+            '[emailVerification.onEmailVerification] Failed to schedule onboarding followup email',
+            { userId: user.id, error }
+          )
         }
       }
     },
