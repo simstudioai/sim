@@ -8,6 +8,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateInteger } from '@/lib/core/security/input-validation'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
@@ -273,6 +274,19 @@ export async function DELETE(
       metadata: { workflowId: webhookData.workflow.id },
       request,
     })
+
+    const wsId = webhookData.workflow.workspaceId || undefined
+    captureServerEvent(
+      userId,
+      'webhook_trigger_deleted',
+      {
+        webhook_id: id,
+        workflow_id: webhookData.workflow.id,
+        provider: foundWebhook.provider || 'generic',
+        workspace_id: wsId ?? '',
+      },
+      wsId ? { groups: { workspace: wsId } } : undefined
+    )
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error: any) {

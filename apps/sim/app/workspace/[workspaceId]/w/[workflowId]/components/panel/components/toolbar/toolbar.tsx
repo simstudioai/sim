@@ -12,7 +12,9 @@ import {
 } from 'react'
 import clsx from 'clsx'
 import { Search } from 'lucide-react'
+import { usePostHog } from 'posthog-js/react'
 import { Button } from '@/components/emcn'
+import { captureEvent } from '@/lib/posthog/client'
 import {
   getBlocksForSidebar,
   getTriggersForSidebar,
@@ -348,6 +350,7 @@ export const Toolbar = memo(
       triggersHeaderRef,
     })
 
+    const posthog = usePostHog()
     const { filterBlocks } = usePermissionConfig()
     const sandboxAllowedBlocks = useSandboxBlockConstraints()
 
@@ -541,8 +544,12 @@ export const Toolbar = memo(
     const handleViewDocumentation = useCallback(() => {
       if (activeItemInfo?.docsLink) {
         window.open(activeItemInfo.docsLink, '_blank', 'noopener,noreferrer')
+        captureEvent(posthog, 'docs_opened', {
+          source: 'toolbar_context_menu',
+          block_type: activeItemInfo.type,
+        })
       }
-    }, [activeItemInfo])
+    }, [activeItemInfo, posthog])
 
     /**
      * Handle clicks outside the context menu to close it

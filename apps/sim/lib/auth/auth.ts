@@ -20,7 +20,7 @@ import {
   organization,
 } from 'better-auth/plugins'
 import { emailHarmony } from 'better-auth-harmony'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import {
@@ -77,6 +77,7 @@ import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
@@ -368,6 +369,40 @@ export const auth = betterAuth({
               accountId: account.id,
               error,
             })
+          }
+
+          try {
+            const [{ value: accountCount }] = await db
+              .select({ value: count() })
+              .from(schema.account)
+              .where(eq(schema.account.userId, account.userId))
+
+            if (accountCount === 1) {
+              const { providerId } = account
+              const authMethod =
+                providerId === 'credential'
+                  ? 'email'
+                  : SSO_TRUSTED_PROVIDERS.includes(providerId)
+                    ? 'sso'
+                    : 'oauth'
+              captureServerEvent(
+                account.userId,
+                'user_created',
+                {
+                  auth_method: authMethod,
+                  ...(providerId !== 'credential' ? { provider: providerId } : {}),
+                },
+                { setOnce: { signup_at: new Date().toISOString() } }
+              )
+            }
+          } catch (error) {
+            logger.error(
+              '[databaseHooks.account.create.after] Failed to capture user_created event',
+              {
+                userId: account.userId,
+                error,
+              }
+            )
           }
 
           if (account.providerId === 'salesforce') {

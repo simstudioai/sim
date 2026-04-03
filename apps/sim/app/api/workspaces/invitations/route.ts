@@ -19,6 +19,7 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import {
   InvitationsNotAllowedError,
@@ -213,6 +214,16 @@ export async function POST(req: NextRequest) {
     } catch {
       // Telemetry should not fail the operation
     }
+
+    captureServerEvent(
+      session.user.id,
+      'workspace_member_invited',
+      { workspace_id: workspaceId, invitee_role: permission },
+      {
+        groups: { workspace: workspaceId },
+        setOnce: { first_invitation_sent_at: new Date().toISOString() },
+      }
+    )
 
     await sendInvitationEmail({
       to: email,

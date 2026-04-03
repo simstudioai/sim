@@ -915,6 +915,7 @@ export function DeployModal({
         allowPersonalApiKeys={allowPersonalApiKeys}
         canManageWorkspaceKeys={canManageWorkspaceKeys}
         defaultKeyType={defaultKeyType}
+        source='deploy_modal'
       />
 
       {workflowId && (

@@ -5,6 +5,7 @@ import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -103,6 +104,19 @@ export async function POST(
     } catch (e) {
       logger.error('Error sending workflow reverted event to socket server', e)
     }
+
+    captureServerEvent(
+      session!.user.id,
+      'workflow_deployment_reverted',
+      {
+        workflow_id: id,
+        workspace_id: workflowRecord?.workspaceId ?? '',
+        version,
+      },
+      workflowRecord?.workspaceId
+        ? { groups: { workspace: workflowRecord.workspaceId } }
+        : undefined
+    )
 
     recordAudit({
       workspaceId: workflowRecord?.workspaceId ?? null,

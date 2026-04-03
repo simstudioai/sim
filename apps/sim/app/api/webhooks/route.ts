@@ -9,6 +9,7 @@ import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import {
   cleanupExternalWebhook,
@@ -763,6 +764,19 @@ export async function POST(request: NextRequest) {
         metadata: { provider, workflowId },
         request,
       })
+
+      const wsId = workflowRecord.workspaceId || undefined
+      captureServerEvent(
+        userId,
+        'webhook_trigger_created',
+        {
+          webhook_id: savedWebhook.id,
+          workflow_id: workflowId,
+          provider: provider || 'generic',
+          workspace_id: wsId ?? '',
+        },
+        wsId ? { groups: { workspace: wsId } } : undefined
+      )
     }
 
     const status = targetWebhookId ? 200 : 201

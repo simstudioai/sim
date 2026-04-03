@@ -11,6 +11,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
 import { taskPubSub } from '@/lib/copilot/task-events'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MothershipChatsAPI')
@@ -94,6 +95,15 @@ export async function POST(request: NextRequest) {
       .returning({ id: copilotChats.id })
 
     taskPubSub?.publishStatusChanged({ workspaceId, chatId: chat.id, type: 'created' })
+
+    captureServerEvent(
+      userId,
+      'task_created',
+      { workspace_id: workspaceId },
+      {
+        groups: { workspace: workspaceId },
+      }
+    )
 
     return NextResponse.json({ success: true, id: chat.id })
   } catch (error) {

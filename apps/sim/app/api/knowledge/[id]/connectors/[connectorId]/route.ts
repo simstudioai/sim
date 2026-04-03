@@ -16,6 +16,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
 import { cleanupUnusedTagDefinitions } from '@/lib/knowledge/tags/service'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
@@ -349,6 +350,19 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     logger.info(
       `[${requestId}] Deleted connector ${connectorId}${deleteDocuments ? ` and ${docCount} documents` : `, kept ${docCount} documents`}`
+    )
+
+    const kbWorkspaceId = writeCheck.knowledgeBase.workspaceId ?? ''
+    captureServerEvent(
+      auth.userId,
+      'knowledge_base_connector_removed',
+      {
+        knowledge_base_id: knowledgeBaseId,
+        workspace_id: kbWorkspaceId,
+        connector_type: existingConnector[0].connectorType,
+        documents_deleted: deleteDocuments ? docCount : 0,
+      },
+      kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : undefined
     )
 
     recordAudit({

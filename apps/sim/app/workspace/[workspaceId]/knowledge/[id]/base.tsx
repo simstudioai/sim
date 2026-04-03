@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { format } from 'date-fns'
 import { AlertCircle, Loader2, Pencil, Plus, Tag, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import {
   Badge,
   Button,
@@ -28,6 +29,7 @@ import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowl
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import type { DocumentData } from '@/lib/knowledge/types'
+import { captureEvent } from '@/lib/posthog/client'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import type {
   BreadcrumbItem,
@@ -190,6 +192,15 @@ export function KnowledgeBase({
 }: KnowledgeBaseProps) {
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
+  const posthog = usePostHog()
+
+  useEffect(() => {
+    captureEvent(posthog, 'knowledge_base_opened', {
+      knowledge_base_id: id,
+      knowledge_base_name: passedKnowledgeBaseName ?? 'Unknown',
+    })
+  }, [id, passedKnowledgeBaseName, posthog])
+
   useOAuthReturnForKBConnectors(id)
   const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
   const userPermissions = useUserPermissionsContext()

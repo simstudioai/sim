@@ -10,12 +10,14 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceApiKeysAPI')
 
 const CreateKeySchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
+  source: z.enum(['settings', 'deploy_modal']).optional(),
 })
 
 const DeleteKeysSchema = z.object({
@@ -101,7 +103,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const body = await request.json()
-    const { name } = CreateKeySchema.parse(body)
+    const { name, source } = CreateKeySchema.parse(body)
 
     const existingKey = await db
       .select()
@@ -157,6 +159,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     } catch {
       // Telemetry should not fail the operation
     }
+
+    captureServerEvent(
+      userId,
+      'api_key_created',
+      { workspace_id: workspaceId, key_name: name, source },
+      {
+        groups: { workspace: workspaceId },
+        setOnce: { first_api_key_created_at: new Date().toISOString() },
+      }
+    )
 
     logger.info(`[${requestId}] Created workspace API key: ${name} in workspace ${workspaceId}`)
 

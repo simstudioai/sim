@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { revokeWorkspaceCredentialMemberships } from '@/lib/credentials/access'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceMemberAPI')
@@ -104,6 +105,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       )
 
     await revokeWorkspaceCredentialMemberships(workspaceId, userId)
+
+    captureServerEvent(
+      session.user.id,
+      'workspace_member_removed',
+      { workspace_id: workspaceId, is_self_removal: isSelf },
+      { groups: { workspace: workspaceId } }
+    )
 
     recordAudit({
       workspaceId,

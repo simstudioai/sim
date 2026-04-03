@@ -5,6 +5,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 
 const logger = createLogger('WorkflowDuplicateAPI')
@@ -59,6 +60,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     } catch {
       // Telemetry should not fail the operation
     }
+
+    captureServerEvent(
+      userId,
+      'workflow_duplicated',
+      {
+        source_workflow_id: sourceWorkflowId,
+        new_workflow_id: result.id,
+        workspace_id: workspaceId ?? '',
+      },
+      workspaceId ? { groups: { workspace: workspaceId } } : undefined
+    )
 
     const elapsed = Date.now() - startTime
     logger.info(

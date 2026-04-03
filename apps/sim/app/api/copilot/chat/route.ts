@@ -27,6 +27,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   authorizeWorkflowByWorkspacePermission,
   resolveWorkflowIdForUser,
@@ -187,6 +188,22 @@ export async function POST(req: NextRequest) {
         .withMetadata({ requestId: tracker.requestId, messageId: userMessageId })
         .warn('Failed to resolve workspaceId from workflow')
     }
+
+    captureServerEvent(
+      authenticatedUserId,
+      'copilot_chat_sent',
+      {
+        workflow_id: workflowId,
+        workspace_id: resolvedWorkspaceId ?? '',
+        has_file_attachments: Array.isArray(fileAttachments) && fileAttachments.length > 0,
+        has_contexts: Array.isArray(contexts) && contexts.length > 0,
+        mode,
+      },
+      {
+        groups: resolvedWorkspaceId ? { workspace: resolvedWorkspaceId } : undefined,
+        setOnce: { first_copilot_use_at: new Date().toISOString() },
+      }
+    )
 
     const userMessageIdToUse = userMessageId || crypto.randomUUID()
     const reqLogger = logger.withMetadata({

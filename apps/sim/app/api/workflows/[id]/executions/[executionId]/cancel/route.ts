@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('CancelExecutionAPI')
@@ -58,6 +59,16 @@ export async function POST(
         executionId,
         reason: cancellation.reason,
       })
+    }
+
+    if (cancellation.durablyRecorded || locallyAborted) {
+      const workspaceId = workflowAuthorization.workflow?.workspaceId
+      captureServerEvent(
+        auth.userId,
+        'workflow_execution_cancelled',
+        { workflow_id: workflowId, workspace_id: workspaceId ?? '' },
+        workspaceId ? { groups: { workspace: workspaceId } } : undefined
+      )
     }
 
     return NextResponse.json({

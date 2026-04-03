@@ -14,6 +14,7 @@ import { generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
 import { A2A_DEFAULT_CAPABILITIES } from '@/lib/a2a/constants'
 import { sanitizeAgentName } from '@/lib/a2a/utils'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -200,6 +201,16 @@ export async function POST(request: NextRequest) {
       .returning()
 
     logger.info(`Created A2A agent ${agentId} for workflow ${workflowId}`)
+
+    captureServerEvent(
+      auth.userId,
+      'a2a_agent_created',
+      { agent_id: agentId, workflow_id: workflowId, workspace_id: workspaceId },
+      {
+        groups: { workspace: workspaceId },
+        setOnce: { first_a2a_agent_created_at: new Date().toISOString() },
+      }
+    )
 
     return NextResponse.json({ success: true, agent }, { status: 201 })
   } catch (error) {

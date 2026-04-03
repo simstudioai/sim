@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   deleteTable,
   NAME_PATTERN,
@@ -182,6 +183,13 @@ export async function DELETE(request: NextRequest, { params }: TableRouteParams)
     }
 
     await deleteTable(tableId, requestId)
+
+    captureServerEvent(
+      authResult.userId,
+      'table_deleted',
+      { table_id: tableId, workspace_id: table.workspaceId },
+      { groups: { workspace: table.workspaceId } }
+    )
 
     return NextResponse.json({
       success: true,

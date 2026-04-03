@@ -11,6 +11,7 @@ import {
   syncPersonalEnvCredentialsForUser,
   syncWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialByIdAPI')
 
@@ -236,6 +237,17 @@ export async function DELETE(
         envKeys: Object.keys(current),
       })
 
+      captureServerEvent(
+        session.user.id,
+        'credential_deleted',
+        {
+          credential_type: 'env_personal',
+          provider_id: access.credential.envKey,
+          workspace_id: access.credential.workspaceId,
+        },
+        { groups: { workspace: access.credential.workspaceId } }
+      )
+
       return NextResponse.json({ success: true }, { status: 200 })
     }
 
@@ -278,10 +290,33 @@ export async function DELETE(
         actingUserId: session.user.id,
       })
 
+      captureServerEvent(
+        session.user.id,
+        'credential_deleted',
+        {
+          credential_type: 'env_workspace',
+          provider_id: access.credential.envKey,
+          workspace_id: access.credential.workspaceId,
+        },
+        { groups: { workspace: access.credential.workspaceId } }
+      )
+
       return NextResponse.json({ success: true }, { status: 200 })
     }
 
     await db.delete(credential).where(eq(credential.id, id))
+
+    captureServerEvent(
+      session.user.id,
+      'credential_deleted',
+      {
+        credential_type: access.credential.type as 'oauth' | 'service_account',
+        provider_id: access.credential.providerId ?? id,
+        workspace_id: access.credential.workspaceId,
+      },
+      { groups: { workspace: access.credential.workspaceId } }
+    )
+
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
     logger.error('Failed to delete credential', error)

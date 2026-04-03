@@ -13,6 +13,7 @@ import {
   Templates,
   Testimonials,
 } from '@/app/(home)/components'
+import { LandingAnalytics } from '@/app/(home)/landing-analytics'
 
 /**
  * Landing page root component.
@@ -45,6 +46,7 @@ export default async function Landing() {
       >
         Skip to main content
       </a>
+      <LandingAnalytics />
       <StructuredData />
       <header>
         <Navbar blogPosts={blogPosts} />
