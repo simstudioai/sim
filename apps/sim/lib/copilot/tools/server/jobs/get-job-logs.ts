@@ -114,7 +114,7 @@ export const getJobLogsServerTool: BaseServerTool<GetJobLogsArgs, JobLogEntry[]>
 
     const clampedLimit = Math.min(Math.max(1, limit), 5)
 
-    reqLogger.info('Fetching job logs', {
+    logger.info('Fetching job logs', {
       jobId,
       executionId,
       limit: clampedLimit,
@@ -173,7 +173,7 @@ export const getJobLogsServerTool: BaseServerTool<GetJobLogsArgs, JobLogEntry[]>
       return entry
     })
 
-    reqLogger.info('Job logs prepared', {
+    logger.info('Job logs prepared', {
       jobId,
       count: entries.length,
       resultSizeKB: Math.round(JSON.stringify(entries).length / 1024),

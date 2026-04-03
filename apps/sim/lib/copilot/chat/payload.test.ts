@@ -35,20 +35,17 @@ vi.mock('@/tools/registry', () => ({
       id: 'gmail_send',
       name: 'Gmail Send',
       description: 'Send emails using Gmail',
-      executor: 'sim',
     },
     brandfetch_search: {
       id: 'brandfetch_search',
       name: 'Brandfetch Search',
       description: 'Search for brands by company name',
-      executor: 'sim',
     },
-    run_workflow_dynamic: {
-      id: 'run_workflow_dynamic',
-      name: 'Run Workflow Dynamic',
+    // Catalog marks run_workflow as client / clientExecutable; registry ToolConfig has no executor fields.
+    run_workflow: {
+      id: 'run_workflow',
+      name: 'Run Workflow',
       description: 'Run a workflow from the client',
-      executor: 'client',
-      clientExecutable: true,
     },
   },
 }))
@@ -113,7 +110,7 @@ describe('buildIntegrationToolSchemas', () => {
 
     const toolSchemas = await buildIntegrationToolSchemas('user-client')
     const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
-    const runTool = toolSchemas.find((tool) => tool.name === 'run_workflow_dynamic')
+    const runTool = toolSchemas.find((tool) => tool.name === 'run_workflow')
 
     expect(gmailTool?.executeLocally).toBe(false)
     expect(runTool?.executeLocally).toBe(true)

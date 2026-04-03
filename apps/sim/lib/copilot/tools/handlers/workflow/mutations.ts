@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { createWorkspaceApiKey } from '@/lib/api-key/auth'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'

@@ -727,7 +727,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const coerced = coerceRows(rows, columns, columnMap)
           const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
 
-          reqLogger.info('Table created from file', {
+          logger.info('Table created from file', {
             tableId: table.id,
             fileName: file.name,
             columns: columns.length,
@@ -803,7 +803,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const coerced = coerceRows(rows, matchedColumns, columnMap)
           const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
 
-          reqLogger.info('Rows imported from file', {
+          logger.info('Rows imported from file', {
             tableId: table.id,
             fileName: file.name,
             matchedColumns: mappedHeaders.length,
@@ -1001,7 +1001,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             ? error.cause.message
             : String(error.cause)
           : undefined
-      reqLogger.error('Table operation failed', {
+      logger.error('Table operation failed', {
         operation,
         error: errorMessage,
         cause,

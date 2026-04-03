@@ -178,7 +178,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
         mimeType
       )
 
-      reqLogger.info('Downloaded remote file to workspace', {
+      logger.info('Downloaded remote file to workspace', {
         sourceUrl: params.url,
         fileId: uploaded.id,
         fileName: uploaded.name,
@@ -195,7 +195,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error'
-      reqLogger.error('Failed to download file to workspace', {
+      logger.error('Failed to download file to workspace', {
         url: params.url,
         error: msg,
       })

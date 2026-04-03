@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getUserSubscriptionState } from '@/lib/billing/core/subscription'
+import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { createMcpToolId } from '@/lib/mcp/utils'
@@ -75,6 +76,7 @@ export async function buildIntegrationToolSchemas(
       try {
         const userSchema = createUserToolSchema(toolConfig)
         const strippedName = stripVersionSuffix(toolId)
+        const catalogEntry = getToolEntry(strippedName)
         integrationTools.push({
           name: strippedName,
           description: getCopilotToolDescription(toolConfig, {
@@ -84,7 +86,8 @@ export async function buildIntegrationToolSchemas(
           }),
           input_schema: userSchema as unknown as Record<string, unknown>,
           defer_loading: true,
-          executeLocally: toolConfig.clientExecutable === true || toolConfig.executor === 'client',
+          executeLocally:
+            catalogEntry?.clientExecutable === true || catalogEntry?.executor === 'client',
           ...(toolConfig.oauth?.required && {
             oauth: {
               required: true,

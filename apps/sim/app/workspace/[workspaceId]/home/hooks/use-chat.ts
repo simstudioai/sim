@@ -52,13 +52,17 @@ import {
   taskKeys,
   useChatHistory,
 } from '@/hooks/queries/tasks'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { invalidateWorkflowSelectors } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
+import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import type { ChatContext } from '@/stores/panel'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type {
   ChatMessage,
   ContentBlock,
@@ -390,7 +394,7 @@ export function useChat(
           ? toolArgs.workflowId
           : useWorkflowRegistry.getState().activeWorkflowId
       if (targetWorkflowId) {
-        const meta = useWorkflowRegistry.getState().workflows[targetWorkflowId]
+        const meta = getWorkflowById(workspaceId, targetWorkflowId)
         const wasAdded = addResource({
           type: 'workflow',
           id: targetWorkflowId,
@@ -404,7 +408,7 @@ export function useChat(
 
       executeRunToolOnClient(toolCallId, toolName, toolArgs)
     },
-    [addResource]
+    [addResource, workspaceId]
   )
 
   const recoverPendingClientWorkflowTools = useCallback(
@@ -1444,8 +1448,6 @@ export function useChat(
       }
 
       if (options?.error) {
-        pendingRecoveryMessageRef.current = null
-        setPendingRecoveryMessage(null)
         setMessageQueue([])
         return
       }
