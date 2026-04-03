@@ -379,10 +379,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }
         }
 
-        const removedBlockTypes = [...blocksToRemove]
-          .map((id) => currentBlocks[id]?.type)
-          .filter((t): t is string => typeof t === 'string')
-
         set({
           blocks: newBlocks,
           edges: newEdges,
