@@ -147,6 +147,14 @@ async function initializeOpenTelemetry() {
       } catch (err) {
         logger.error('Error shutting down OpenTelemetry SDK', err)
       }
+
+      try {
+        const { getPostHogClient } = await import('@/lib/posthog/server')
+        await getPostHogClient()?.shutdown()
+        logger.info('PostHog client shut down successfully')
+      } catch (err) {
+        logger.error('Error shutting down PostHog client', err)
+      }
     }
 
     process.on('SIGTERM', shutdownHandler)

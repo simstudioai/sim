@@ -6,6 +6,10 @@ const logger = createLogger('PostHogServer')
 let _client: import('posthog-node').PostHog | null = null
 let _disabled = false
 
+export function getPostHogClient(): import('posthog-node').PostHog | null {
+  return getClient()
+}
+
 function getClient(): import('posthog-node').PostHog | null {
   if (_disabled) return null
   if (_client) return _client
