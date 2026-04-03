@@ -1,8 +1,9 @@
-import { CloudWatchLogsClient, DescribeLogGroupsCommand } from '@aws-sdk/client-cloudwatch-logs'
+import { DescribeLogGroupsCommand } from '@aws-sdk/client-cloudwatch-logs'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { createCloudWatchLogsClient } from '@/app/api/tools/cloudwatch/utils'
 
 const logger = createLogger('CloudWatchDescribeLogGroups')
 
@@ -27,12 +28,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = DescribeLogGroupsSchema.parse(body)
 
-    const client = new CloudWatchLogsClient({
+    const client = createCloudWatchLogsClient({
       region: validatedData.region,
-      credentials: {
-        accessKeyId: validatedData.accessKeyId,
-        secretAccessKey: validatedData.secretAccessKey,
-      },
+      accessKeyId: validatedData.accessKeyId,
+      secretAccessKey: validatedData.secretAccessKey,
     })
 
     const command = new DescribeLogGroupsCommand({
