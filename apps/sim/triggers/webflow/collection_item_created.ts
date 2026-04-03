@@ -56,7 +56,7 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         field: 'selectedTriggerId',
         value: 'webflow_collection_item_created',
       },
-      fetchOptions: async (blockId: string, _subBlockId: string) => {
+      fetchOptions: async (blockId: string) => {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
@@ -85,7 +85,7 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
           throw error
         }
       },
-      fetchOptionById: async (blockId: string, _subBlockId: string, optionId: string) => {
+      fetchOptionById: async (blockId: string, optionId: string) => {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
@@ -122,7 +122,7 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
         field: 'selectedTriggerId',
         value: 'webflow_collection_item_created',
       },
-      fetchOptions: async (blockId: string, _subBlockId: string) => {
+      fetchOptions: async (blockId: string) => {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
@@ -154,7 +154,7 @@ export const webflowCollectionItemCreatedTrigger: TriggerConfig = {
           throw error
         }
       },
-      fetchOptionById: async (blockId: string, _subBlockId: string, optionId: string) => {
+      fetchOptionById: async (blockId: string, optionId: string) => {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null
