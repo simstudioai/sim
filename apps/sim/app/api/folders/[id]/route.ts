@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { performDeleteFolder } from '@/lib/workflows/orchestration'
 import { checkForCircularReference } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -155,6 +156,13 @@ export async function DELETE(
         result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
       return NextResponse.json({ error: result.error }, { status })
     }
+
+    captureServerEvent(
+      session.user.id,
+      'folder_deleted',
+      { workspace_id: existingFolder.workspaceId },
+      { groups: { workspace: existingFolder.workspaceId } }
+    )
 
     return NextResponse.json({
       success: true,
