@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import { releasePendingChatStream } from '@/lib/copilot/request/session'
 import { taskPubSub } from '@/lib/copilot/tasks'
 
 const logger = createLogger('MothershipChatStopAPI')
