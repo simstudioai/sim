@@ -198,7 +198,7 @@ export function KnowledgeBase({
       knowledge_base_id: id,
       knowledge_base_name: passedKnowledgeBaseName ?? 'Unknown',
     })
-  }, [id, posthog])
+  }, [id, passedKnowledgeBaseName, posthog])
 
   useOAuthReturnForKBConnectors(id)
   const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
