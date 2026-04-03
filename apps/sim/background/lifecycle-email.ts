@@ -8,7 +8,7 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getPersonalEmailFrom } from '@/lib/messaging/email/utils'
-import type { LifecycleEmailType } from '@/lib/messaging/lifecycle'
+import { LIFECYCLE_EMAIL_TASK_ID, type LifecycleEmailType } from '@/lib/messaging/lifecycle'
 
 const logger = createLogger('LifecycleEmail')
 
@@ -57,7 +57,7 @@ async function sendLifecycleEmail({ userId, type }: LifecycleEmailParams): Promi
 }
 
 export const lifecycleEmailTask = task({
-  id: 'lifecycle-email',
+  id: LIFECYCLE_EMAIL_TASK_ID,
   retry: { maxAttempts: 2 },
   run: async (params: LifecycleEmailParams) => {
     await sendLifecycleEmail(params)
