@@ -366,7 +366,6 @@ export function CredentialSelector({
     selectedCredentialSet,
     isAllCredentials,
     selectedAllCredential,
-    isServiceAccount,
   ])
 
   const handleComboboxChange = useCallback(
