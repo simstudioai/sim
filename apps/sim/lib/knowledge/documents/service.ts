@@ -26,6 +26,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import { recordUsage } from '@/lib/billing/core/usage-log'
+import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
@@ -682,6 +683,7 @@ export async function processDocumentAsync(
               totalTokensUsed: sql`total_tokens_used + ${totalEmbeddingTokens}`,
             },
           })
+          await checkAndBillOverageThreshold(kb[0].userId)
         } else {
           logger.warn(
             `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
