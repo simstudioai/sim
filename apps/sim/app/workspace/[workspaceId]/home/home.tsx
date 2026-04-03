@@ -225,7 +225,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
       sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
-    [sendMessage]
+    [sendMessage, workspaceId, chatId]
   )
 
   useEffect(() => {

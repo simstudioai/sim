@@ -212,7 +212,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
           captureEvent(posthogRef.current, 'workflow_imported', {
             workspace_id: workspaceId,
             workflow_count: importedWorkflowIds.length,
-            format: hasZip ? 'zip' : 'json',
+            format: hasZip && fileArray.length === 1 ? 'zip' : 'json',
           })
           router.push(
             `/workspace/${workspaceId}/w/${importedWorkflowIds[importedWorkflowIds.length - 1]}`
