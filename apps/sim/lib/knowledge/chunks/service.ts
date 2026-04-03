@@ -110,7 +110,7 @@ export async function createChunk(
   workspaceId?: string | null
 ): Promise<ChunkData> {
   logger.info(`[${requestId}] Generating embedding for manual chunk`)
-  const embeddings = await generateEmbeddings([chunkData.content], undefined, workspaceId)
+  const { embeddings } = await generateEmbeddings([chunkData.content], undefined, workspaceId)
 
   // Calculate accurate token count
   const tokenCount = estimateTokenCount(chunkData.content, 'openai')
@@ -359,7 +359,7 @@ export async function updateChunk(
       if (content !== currentChunk[0].content) {
         logger.info(`[${requestId}] Content changed, regenerating embedding for chunk ${chunkId}`)
 
-        const embeddings = await generateEmbeddings([content], undefined, workspaceId)
+        const { embeddings } = await generateEmbeddings([content], undefined, workspaceId)
 
         // Calculate accurate token count
         const tokenCount = estimateTokenCount(content, 'openai')

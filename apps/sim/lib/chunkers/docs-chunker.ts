@@ -81,7 +81,10 @@ export class DocsChunker {
     const textChunks = await this.splitContent(markdownContent)
 
     logger.info(`Generating embeddings for ${textChunks.length} chunks in ${relativePath}`)
-    const embeddings = textChunks.length > 0 ? await generateEmbeddings(textChunks) : []
+    const { embeddings } =
+      textChunks.length > 0
+        ? await generateEmbeddings(textChunks)
+        : { embeddings: [] as number[][] }
     const embeddingModel = 'text-embedding-3-small'
 
     const chunks: DocChunk[] = []
