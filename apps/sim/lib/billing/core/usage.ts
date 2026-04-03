@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq, inArray } from 'drizzle-orm'
 import {
   getEmailSubject,
+  renderCreditsExhaustedEmail,
   renderFreeTierUpgradeEmail,
   renderUsageThresholdEmail,
 } from '@/components/emails'
@@ -716,11 +717,13 @@ export async function maybeSendUsageThresholdEmail(params: {
 
     // Check for 80% threshold (all users)
     const crosses80 = params.percentBefore < 80 && params.percentAfter >= 80
-    // Check for 90% threshold (free users only)
-    const crosses90 = params.percentBefore < 90 && params.percentAfter >= 90
+    // Check for 80% threshold (free users only)
+    const crosses80Free = params.percentBefore < 80 && params.percentAfter >= 80
+    // Check for 100% threshold (free users only — credits exhausted)
+    const crosses100 = params.percentBefore < 100 && params.percentAfter >= 100
 
     // Skip if no thresholds crossed
-    if (!crosses80 && !crosses90) return
+    if (!crosses80 && !crosses80Free && !crosses100) return
 
     // For 80% threshold email (all users)
     if (crosses80) {
@@ -777,8 +780,8 @@ export async function maybeSendUsageThresholdEmail(params: {
       }
     }
 
-    // For 90% threshold email (free users only)
-    if (crosses90 && isFreeUser) {
+    // For 80% threshold email (free users only)
+    if (crosses80Free && isFreeUser) {
       const upgradeLink = `${baseUrl}/workspace?billing=upgrade`
       const sendFreeTierEmail = async (email: string, name?: string) => {
         const prefs = await getEmailPreferences(email)
@@ -816,6 +819,45 @@ export async function maybeSendUsageThresholdEmail(params: {
           .limit(1)
         if (rows.length > 0 && rows[0].enabled === false) return
         await sendFreeTierEmail(params.userEmail, params.userName)
+      }
+    }
+
+    // For 100% threshold email (free users only — credits exhausted)
+    if (crosses100 && isFreeUser) {
+      const upgradeLink = `${baseUrl}/workspace?billing=upgrade`
+      const sendExhaustedEmail = async (email: string, name?: string) => {
+        const prefs = await getEmailPreferences(email)
+        if (prefs?.unsubscribeAll || prefs?.unsubscribeNotifications) return
+
+        const html = await renderCreditsExhaustedEmail({
+          userName: name,
+          currentUsage: params.currentUsageAfter,
+          limit: params.limit,
+          upgradeLink,
+        })
+
+        await sendEmail({
+          to: email,
+          subject: getEmailSubject('free-tier-exhausted'),
+          html,
+          emailType: 'notifications',
+        })
+
+        logger.info('Free tier credits exhausted email sent', {
+          email,
+          currentUsage: params.currentUsageAfter,
+          limit: params.limit,
+        })
+      }
+
+      if (params.scope === 'user' && params.userId && params.userEmail) {
+        const rows = await db
+          .select({ enabled: settings.billingUsageNotificationsEnabled })
+          .from(settings)
+          .where(eq(settings.userId, params.userId))
+          .limit(1)
+        if (rows.length > 0 && rows[0].enabled === false) return
+        await sendExhaustedEmail(params.userEmail, params.userName)
       }
     }
   } catch (error) {

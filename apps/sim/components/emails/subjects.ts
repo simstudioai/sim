@@ -17,6 +17,7 @@ export type EmailSubjectType =
   | 'plan-welcome-team'
   | 'credit-purchase'
   | 'abandoned-checkout'
+  | 'free-tier-exhausted'
   | 'onboarding-followup'
   | 'welcome'
 
@@ -59,6 +60,8 @@ export function getEmailSubject(type: EmailSubjectType): string {
       return `Credits added to your ${brandName} account`
     case 'abandoned-checkout':
       return `Quick question`
+    case 'free-tier-exhausted':
+      return `You've run out of free credits on ${brandName}`
     case 'onboarding-followup':
       return `Quick question about ${brandName}`
     case 'welcome':

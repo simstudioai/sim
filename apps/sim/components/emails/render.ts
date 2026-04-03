@@ -8,6 +8,7 @@ import {
 import {
   AbandonedCheckoutEmail,
   CreditPurchaseEmail,
+  CreditsExhaustedEmail,
   EnterpriseSubscriptionEmail,
   FreeTierUpgradeEmail,
   PaymentFailedEmail,
@@ -171,6 +172,15 @@ export async function renderOnboardingFollowupEmail(userName?: string): Promise<
 
 export async function renderAbandonedCheckoutEmail(userName?: string): Promise<string> {
   return await render(AbandonedCheckoutEmail({ userName }))
+}
+
+export async function renderCreditsExhaustedEmail(params: {
+  userName?: string
+  currentUsage: number
+  limit: number
+  upgradeLink: string
+}): Promise<string> {
+  return await render(CreditsExhaustedEmail(params))
 }
 
 export async function renderCreditPurchaseEmail(params: {
