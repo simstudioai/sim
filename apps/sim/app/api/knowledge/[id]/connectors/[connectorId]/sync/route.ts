@@ -56,15 +56,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     logger.info(`[${requestId}] Manual sync triggered for connector ${connectorId}`)
 
+    const kbWorkspaceId = writeCheck.knowledgeBase.workspaceId ?? ''
     captureServerEvent(
       auth.userId,
       'knowledge_base_connector_synced',
       {
         knowledge_base_id: knowledgeBaseId,
-        workspace_id: writeCheck.knowledgeBase.workspaceId,
+        workspace_id: kbWorkspaceId,
         connector_type: connectorRows[0].connectorType,
       },
-      { groups: { workspace: writeCheck.knowledgeBase.workspaceId } }
+      kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : undefined
     )
 
     recordAudit({

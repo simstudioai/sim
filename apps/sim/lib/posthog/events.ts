@@ -93,7 +93,6 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
-  /** Fired server-side when a user reverts a workflow canvas to a prior deployment snapshot. */
   workflow_deployment_reverted: {
     workflow_id: string
     workspace_id: string
@@ -105,7 +104,6 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
-  /** Fired server-side when a workflow is exposed as an A2A agent. */
   a2a_agent_created: {
     agent_id: string
     workflow_id: string
@@ -241,7 +239,6 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
-  /** Fired server-side when a custom tool is created or updated. */
   custom_tool_saved: {
     tool_id: string
     workspace_id: string
@@ -253,7 +250,6 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
-  /** Fired server-side when a new BYOK (bring-your-own-key) provider key is added. */
   byok_key_added: {
     workspace_id: string
     provider_id: string

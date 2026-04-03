@@ -1,11 +1,12 @@
 'use client'
 
-import { Suspense, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import { Input, Label } from '@/components/emcn'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
@@ -81,7 +82,12 @@ function SignupFormContent({
   const router = useRouter()
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
+  const posthog = usePostHog()
   const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    posthog?.capture('signup_page_viewed', {})
+  }, [posthog])
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])

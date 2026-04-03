@@ -352,16 +352,17 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       `[${requestId}] Deleted connector ${connectorId}${deleteDocuments ? ` and ${docCount} documents` : `, kept ${docCount} documents`}`
     )
 
+    const kbWorkspaceId = writeCheck.knowledgeBase.workspaceId ?? ''
     captureServerEvent(
       auth.userId,
       'knowledge_base_connector_removed',
       {
         knowledge_base_id: knowledgeBaseId,
-        workspace_id: writeCheck.knowledgeBase.workspaceId,
+        workspace_id: kbWorkspaceId,
         connector_type: existingConnector[0].connectorType,
         documents_deleted: deleteDocuments ? docCount : 0,
       },
-      { groups: { workspace: writeCheck.knowledgeBase.workspaceId } }
+      kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : undefined
     )
 
     recordAudit({

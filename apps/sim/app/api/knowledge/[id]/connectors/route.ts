@@ -228,17 +228,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     logger.info(`[${requestId}] Created connector ${connectorId} for KB ${knowledgeBaseId}`)
 
+    const kbWorkspaceId = writeCheck.knowledgeBase.workspaceId ?? ''
     captureServerEvent(
       auth.userId,
       'knowledge_base_connector_added',
       {
         knowledge_base_id: knowledgeBaseId,
-        workspace_id: writeCheck.knowledgeBase.workspaceId,
+        workspace_id: kbWorkspaceId,
         connector_type: connectorType,
         sync_interval_minutes: syncIntervalMinutes,
       },
       {
-        groups: { workspace: writeCheck.knowledgeBase.workspaceId },
+        groups: kbWorkspaceId ? { workspace: kbWorkspaceId } : undefined,
         setOnce: { first_connector_added_at: new Date().toISOString() },
       }
     )

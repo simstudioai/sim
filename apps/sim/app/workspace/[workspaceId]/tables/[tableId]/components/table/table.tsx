@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { GripVertical } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import {
   Button,
   Checkbox,
@@ -177,6 +178,12 @@ export function Table({
   const router = useRouter()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
+  const posthog = usePostHog()
+
+  useEffect(() => {
+    if (!tableId || !workspaceId) return
+    posthog?.capture('table_opened', { table_id: tableId, workspace_id: workspaceId })
+  }, [tableId, workspaceId, posthog])
 
   const [queryOptions, setQueryOptions] = useState<QueryOptions>({
     filter: null,

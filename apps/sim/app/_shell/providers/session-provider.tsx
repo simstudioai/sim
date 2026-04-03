@@ -92,11 +92,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
               email_verified: data.user.emailVerified,
               created_at: data.user.createdAt,
             })
-
-            const workspaceId = data.session?.activeOrganizationId
-            if (workspaceId && typeof posthog.group === 'function') {
-              posthog.group('workspace', workspaceId)
-            }
           } else {
             posthog.reset()
           }
