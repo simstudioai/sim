@@ -158,6 +158,32 @@ export async function getCustomToolById(params: {
   return legacyTool[0] || null
 }
 
+export async function getCustomToolByIdOrTitle(params: {
+  identifier: string
+  userId: string
+  workspaceId?: string
+}) {
+  const { identifier, userId, workspaceId } = params
+
+  const conditions = [or(eq(customTools.id, identifier), eq(customTools.title, identifier))]
+
+  if (workspaceId) {
+    const workspaceTool = await db
+      .select()
+      .from(customTools)
+      .where(and(eq(customTools.workspaceId, workspaceId), ...conditions))
+      .limit(1)
+    if (workspaceTool[0]) return workspaceTool[0]
+  }
+
+  const legacyTool = await db
+    .select()
+    .from(customTools)
+    .where(and(isNull(customTools.workspaceId), eq(customTools.userId, userId), ...conditions))
+    .limit(1)
+  return legacyTool[0] || null
+}
+
 export async function deleteCustomTool(params: {
   toolId: string
   userId: string

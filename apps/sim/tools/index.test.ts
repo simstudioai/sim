@@ -16,19 +16,29 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted mock state - these are available to vi.mock factories
-const { mockIsHosted, mockEnv, mockGetBYOKKey, mockGetToolAsync, mockRateLimiterFns } = vi.hoisted(
-  () => ({
-    mockIsHosted: { value: false },
-    mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:3000' } as Record<string, string | undefined>,
-    mockGetBYOKKey: vi.fn(),
-    mockGetToolAsync: vi.fn(),
-    mockRateLimiterFns: {
-      acquireKey: vi.fn(),
-      preConsumeCapacity: vi.fn(),
-      consumeCapacity: vi.fn(),
-    },
-  })
-)
+const {
+  mockIsHosted,
+  mockEnv,
+  mockGetBYOKKey,
+  mockGetToolAsync,
+  mockRateLimiterFns,
+  mockGetCustomToolById,
+  mockListCustomTools,
+  mockGetCustomToolByIdOrTitle,
+} = vi.hoisted(() => ({
+  mockIsHosted: { value: false },
+  mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:3000' } as Record<string, string | undefined>,
+  mockGetBYOKKey: vi.fn(),
+  mockGetToolAsync: vi.fn(),
+  mockRateLimiterFns: {
+    acquireKey: vi.fn(),
+    preConsumeCapacity: vi.fn(),
+    consumeCapacity: vi.fn(),
+  },
+  mockGetCustomToolById: vi.fn(),
+  mockListCustomTools: vi.fn(),
+  mockGetCustomToolByIdOrTitle: vi.fn(),
+}))
 
 // Mock feature flags
 vi.mock('@/lib/core/config/feature-flags', () => ({
@@ -214,6 +224,12 @@ vi.mock('@/hooks/queries/utils/custom-tool-cache', () => {
   }
 })
 
+vi.mock('@/lib/workflows/custom-tools/operations', () => ({
+  getCustomToolById: mockGetCustomToolById,
+  listCustomTools: mockListCustomTools,
+  getCustomToolByIdOrTitle: mockGetCustomToolByIdOrTitle,
+}))
+
 vi.mock('@/tools/utils.server', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/tools/utils.server')>()
   mockGetToolAsync.mockImplementation(actual.getToolAsync)
@@ -307,30 +323,23 @@ describe('Custom Tools', () => {
   })
 
   it('resolves custom tools through the async helper', async () => {
-    setupFetchMock({
-      json: {
-        data: [
-          {
-            id: 'remote-tool-123',
-            title: 'Custom Weather Tool',
-            schema: {
-              function: {
-                name: 'weather_tool',
-                description: 'Get weather information',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    location: { type: 'string', description: 'City name' },
-                  },
-                  required: ['location'],
-                },
-              },
+    mockGetCustomToolByIdOrTitle.mockResolvedValue({
+      id: 'remote-tool-123',
+      title: 'Custom Weather Tool',
+      schema: {
+        function: {
+          name: 'weather_tool',
+          description: 'Get weather information',
+          parameters: {
+            type: 'object',
+            properties: {
+              location: { type: 'string', description: 'City name' },
             },
+            required: ['location'],
           },
-        ],
+        },
       },
-      status: 200,
-      headers: { 'content-type': 'application/json' },
+      code: '',
     })
 
     const customTool = await getToolAsync('custom_remote-tool-123', {
