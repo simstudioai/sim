@@ -162,7 +162,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const tagSlotMapping: Record<string, string> = {}
-    const newTagSlotMapping: Record<string, string> = {}
+    let newTagSlots: Record<string, string> = {}
 
     if (connectorConfig.tagDefinitions?.length) {
       const disabledIds = new Set((sourceConfig.disabledTagIds as string[] | undefined) ?? [])
@@ -179,7 +179,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const usedSlots = new Set<string>(existingDefs.map((d) => d.tagSlot))
       const existingByName = new Map(existingDefs.map((d) => [d.displayName, d.tagSlot]))
 
-      /** Reuse existing tag definitions that match by display name */
       const defsNeedingSlots: typeof enabledDefs = []
       for (const td of enabledDefs) {
         const existingSlot = existingByName.get(td.displayName)
@@ -192,7 +191,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       const { mapping, skipped: skippedTags } = allocateTagSlots(defsNeedingSlots, usedSlots)
       Object.assign(tagSlotMapping, mapping)
-      Object.assign(newTagSlotMapping, mapping)
+      newTagSlots = mapping
 
       for (const name of skippedTags) {
         logger.warn(`[${requestId}] No available slots for "${name}"`)
@@ -226,7 +225,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         throw new Error('Knowledge base not found')
       }
 
-      for (const [semanticId, slot] of Object.entries(newTagSlotMapping)) {
+      for (const [semanticId, slot] of Object.entries(newTagSlots)) {
         const td = connectorConfig.tagDefinitions!.find((d) => d.id === semanticId)!
         await createTagDefinition(
           {
