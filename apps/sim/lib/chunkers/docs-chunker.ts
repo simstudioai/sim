@@ -84,7 +84,12 @@ export class DocsChunker {
     const { embeddings } =
       textChunks.length > 0
         ? await generateEmbeddings(textChunks)
-        : { embeddings: [] as number[][] }
+        : {
+            embeddings: [] as number[][],
+            totalTokens: 0,
+            isBYOK: false,
+            modelName: 'text-embedding-3-small',
+          }
     const embeddingModel = 'text-embedding-3-small'
 
     const chunks: DocChunk[] = []
