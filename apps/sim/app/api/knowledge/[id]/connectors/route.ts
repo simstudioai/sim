@@ -172,18 +172,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .select({
           tagSlot: knowledgeBaseTagDefinitions.tagSlot,
           displayName: knowledgeBaseTagDefinitions.displayName,
+          fieldType: knowledgeBaseTagDefinitions.fieldType,
         })
         .from(knowledgeBaseTagDefinitions)
         .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
 
       const usedSlots = new Set<string>(existingDefs.map((d) => d.tagSlot))
-      const existingByName = new Map(existingDefs.map((d) => [d.displayName, d.tagSlot]))
+      const existingByName = new Map(
+        existingDefs.map((d) => [d.displayName, { tagSlot: d.tagSlot, fieldType: d.fieldType }])
+      )
 
       const defsNeedingSlots: typeof enabledDefs = []
       for (const td of enabledDefs) {
-        const existingSlot = existingByName.get(td.displayName)
-        if (existingSlot) {
-          tagSlotMapping[td.id] = existingSlot
+        const existing = existingByName.get(td.displayName)
+        if (existing && existing.fieldType === td.fieldType) {
+          tagSlotMapping[td.id] = existing.tagSlot
         } else {
           defsNeedingSlots.push(td)
         }
