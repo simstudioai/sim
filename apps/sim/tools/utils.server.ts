@@ -110,10 +110,8 @@ async function fetchCustomToolFromDB(
   const identifier = customToolId.replace('custom_', '')
 
   if (!userId) {
-    throw new Error(`Cannot fetch custom tool without userId: ${identifier}`)
-  }
-  if (!workspaceId) {
-    throw new Error(`Cannot fetch custom tool without workspaceId: ${identifier}`)
+    logger.error(`Cannot fetch custom tool without userId: ${identifier}`)
+    return undefined
   }
 
   try {
