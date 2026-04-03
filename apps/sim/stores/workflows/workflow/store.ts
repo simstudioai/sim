@@ -316,6 +316,17 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }
         }
 
+        if (blocks.length === 1) {
+          import('@/lib/posthog/client')
+            .then(({ captureClientEvent }) => {
+              captureClientEvent('block_added', {
+                block_type: blocks[0].type,
+                workflow_id: get().currentWorkflowId ?? 'unknown',
+              })
+            })
+            .catch(() => {})
+        }
+
         get().updateLastSaved()
       },
 
@@ -368,12 +379,27 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }
         }
 
+        const removedBlockTypes = [...blocksToRemove]
+          .map((id) => currentBlocks[id]?.type)
+          .filter((t): t is string => typeof t === 'string')
+
         set({
           blocks: newBlocks,
           edges: newEdges,
           loops: generateLoopBlocks(newBlocks),
           parallels: generateParallelBlocks(newBlocks),
         })
+
+        if (removedBlockTypes.length === 1) {
+          import('@/lib/posthog/client')
+            .then(({ captureClientEvent }) => {
+              captureClientEvent('block_removed', {
+                block_type: removedBlockTypes[0],
+                workflow_id: get().currentWorkflowId ?? 'unknown',
+              })
+            })
+            .catch(() => {})
+        }
 
         get().updateLastSaved()
       },

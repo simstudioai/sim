@@ -28,6 +28,11 @@ export const usePanelStore = create<PanelState>()(
         if (typeof document !== 'undefined') {
           document.documentElement.removeAttribute('data-panel-active-tab')
         }
+        if (tab === 'copilot') {
+          import('@/lib/posthog/client')
+            .then(({ captureClientEvent }) => captureClientEvent('copilot_panel_opened', {}))
+            .catch(() => {})
+        }
       },
       isResizing: false,
       setIsResizing: (isResizing) => {

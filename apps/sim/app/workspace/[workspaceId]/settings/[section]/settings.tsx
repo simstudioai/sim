@@ -1,7 +1,9 @@
 'use client'
 
+import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import { Skeleton } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { AdminSkeleton } from '@/app/workspace/[workspaceId]/settings/components/admin/admin-skeleton'
@@ -160,6 +162,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const searchParams = useSearchParams()
   const mcpServerId = searchParams.get('mcpServerId')
   const { data: session, isPending: sessionLoading } = useSession()
+  const posthog = usePostHog()
 
   const isAdminRole = session?.user?.role === 'admin'
   const effectiveSection =
@@ -173,6 +176,11 @@ export function SettingsPage({ section }: SettingsPageProps) {
 
   const label =
     allNavigationItems.find((item) => item.id === effectiveSection)?.label ?? effectiveSection
+
+  useEffect(() => {
+    if (sessionLoading) return
+    posthog?.capture('settings_tab_viewed', { section: effectiveSection })
+  }, [effectiveSection, sessionLoading, posthog])
 
   return (
     <div>

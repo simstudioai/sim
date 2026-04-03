@@ -2,6 +2,7 @@
 
 import { type ComponentType, memo, type SVGProps } from 'react'
 import Image from 'next/image'
+import { usePostHog } from 'posthog-js/react'
 import { AgentIcon, ScheduleIcon, StartIcon } from '@/components/icons'
 import type { Category, ModuleTag } from './consts'
 import { CATEGORY_META, TEMPLATES } from './consts'
@@ -349,11 +350,18 @@ interface TemplateCardProps {
 
 const TemplateCard = memo(function TemplateCard({ template, onSelect }: TemplateCardProps) {
   const Icon = template.icon
+  const posthog = usePostHog()
 
   return (
     <button
       type='button'
-      onClick={() => onSelect(template.prompt)}
+      onClick={() => {
+        posthog?.capture('template_used', {
+          template_title: template.title,
+          template_modules: template.modules.join(' '),
+        })
+        onSelect(template.prompt)
+      }}
       aria-label={`Select template: ${template.title}`}
       className='group flex cursor-pointer flex-col text-left'
     >

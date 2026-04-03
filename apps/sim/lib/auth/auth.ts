@@ -76,6 +76,7 @@ import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
@@ -189,6 +190,13 @@ export const auth = betterAuth({
           } catch {
             // Telemetry should not fail the operation
           }
+
+          captureServerEvent(
+            user.id,
+            'user_created',
+            { auth_method: 'email' },
+            { setOnce: { signup_at: new Date().toISOString() } }
+          )
 
           try {
             await handleNewUser(user.id)

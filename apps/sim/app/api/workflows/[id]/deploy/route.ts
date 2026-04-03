@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { performFullDeploy, performFullUndeploy } from '@/lib/workflows/orchestration'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import {
@@ -95,6 +96,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
+
+    captureServerEvent(
+      actorUserId,
+      'workflow_deployed',
+      { workflow_id: id, workspace_id: workflowData!.workspaceId ?? '' },
+      {
+        groups: { workspace: workflowData!.workspaceId ?? '' },
+        setOnce: { first_workflow_deployed_at: new Date().toISOString() },
+      }
+    )
 
     const responseApiKeyInfo = workflowData!.workspaceId
       ? 'Workspace API keys'

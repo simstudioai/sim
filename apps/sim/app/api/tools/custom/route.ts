@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -168,6 +169,16 @@ export async function POST(req: NextRequest) {
       })
 
       for (const tool of resultTools) {
+        captureServerEvent(
+          userId,
+          'custom_tool_saved',
+          { tool_id: tool.id, workspace_id: workspaceId, tool_name: tool.title },
+          {
+            groups: { workspace: workspaceId },
+            setOnce: { first_custom_tool_saved_at: new Date().toISOString() },
+          }
+        )
+
         recordAudit({
           workspaceId,
           actorId: userId,
@@ -277,6 +288,14 @@ export async function DELETE(request: NextRequest) {
 
     // Delete the tool
     await db.delete(customTools).where(eq(customTools.id, toolId))
+
+    const toolWorkspaceId = tool.workspaceId ?? workspaceId ?? ''
+    captureServerEvent(
+      userId,
+      'custom_tool_deleted',
+      { tool_id: toolId, workspace_id: toolWorkspaceId },
+      toolWorkspaceId ? { groups: { workspace: toolWorkspaceId } } : undefined
+    )
 
     recordAudit({
       workspaceId: tool.workspaceId || undefined,

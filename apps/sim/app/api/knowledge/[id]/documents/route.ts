@@ -16,6 +16,7 @@ import {
   type TagFilterCondition,
 } from '@/lib/knowledge/documents/service'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
@@ -214,6 +215,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const kbWorkspaceId = accessCheck.knowledgeBase?.workspaceId
+
     if (body.bulk === true) {
       try {
         const validatedData = BulkCreateDocumentsSchema.parse(body)
@@ -239,6 +242,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         } catch (_e) {
           // Silently fail
         }
+
+        captureServerEvent(
+          userId,
+          'knowledge_base_document_uploaded',
+          {
+            knowledge_base_id: knowledgeBaseId,
+            workspace_id: kbWorkspaceId ?? '',
+            document_count: createdDocuments.length,
+            upload_type: 'bulk',
+          },
+          {
+            ...(kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : {}),
+            setOnce: { first_document_uploaded_at: new Date().toISOString() },
+          }
+        )
 
         processDocumentsWithQueue(
           createdDocuments,
@@ -313,6 +331,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         } catch (_e) {
           // Silently fail
         }
+
+        captureServerEvent(
+          userId,
+          'knowledge_base_document_uploaded',
+          {
+            knowledge_base_id: knowledgeBaseId,
+            workspace_id: kbWorkspaceId ?? '',
+            document_count: 1,
+            upload_type: 'single',
+          },
+          {
+            ...(kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : {}),
+            setOnce: { first_document_uploaded_at: new Date().toISOString() },
+          }
+        )
 
         recordAudit({
           workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,

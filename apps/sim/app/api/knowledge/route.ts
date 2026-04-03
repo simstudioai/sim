@@ -11,6 +11,7 @@ import {
   KnowledgeBaseConflictError,
   type KnowledgeBaseScope,
 } from '@/lib/knowledge/service'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('KnowledgeBaseAPI')
 
@@ -114,6 +115,20 @@ export async function POST(req: NextRequest) {
       } catch {
         // Telemetry should not fail the operation
       }
+
+      captureServerEvent(
+        session.user.id,
+        'knowledge_base_created',
+        {
+          knowledge_base_id: newKnowledgeBase.id,
+          workspace_id: validatedData.workspaceId,
+          name: validatedData.name,
+        },
+        {
+          groups: { workspace: validatedData.workspaceId },
+          setOnce: { first_kb_created_at: new Date().toISOString() },
+        }
+      )
 
       logger.info(
         `[${requestId}] Knowledge base created: ${newKnowledgeBase.id} for user ${session.user.id}`

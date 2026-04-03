@@ -11,6 +11,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CopilotFeedbackAPI')
 
@@ -74,6 +75,12 @@ export async function POST(req: NextRequest) {
       userId: authenticatedUserId,
       isPositive: isPositiveFeedback,
       duration: tracker.getDuration(),
+    })
+
+    captureServerEvent(authenticatedUserId, 'copilot_feedback_submitted', {
+      is_positive: isPositiveFeedback,
+      has_text_feedback: !!feedback,
+      has_workflow_yaml: !!workflowYaml,
     })
 
     return NextResponse.json({

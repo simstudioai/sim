@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { format } from 'date-fns'
 import { AlertCircle, Loader2, Pencil, Plus, Tag, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import {
   Badge,
   Button,
@@ -190,6 +191,15 @@ export function KnowledgeBase({
 }: KnowledgeBaseProps) {
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
+  const posthog = usePostHog()
+
+  useEffect(() => {
+    posthog?.capture('knowledge_base_opened', {
+      knowledge_base_id: id,
+      knowledge_base_name: passedKnowledgeBaseName ?? 'Unknown',
+    })
+  }, [id, posthog])
+
   useOAuthReturnForKBConnectors(id)
   const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
   const userPermissions = useUserPermissionsContext()
