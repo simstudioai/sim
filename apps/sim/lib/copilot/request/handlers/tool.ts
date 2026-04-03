@@ -184,6 +184,12 @@ async function handleCallPhase(
   const toolCall = context.toolCalls.get(toolCallId)
   if (!toolCall) return
 
+  const isGoHandledInternalRead =
+    toolName === 'read' &&
+    typeof args?.path === 'string' &&
+    (args.path as string).startsWith('internal/')
+  if (isGoHandledInternalRead) return
+
   const { clientExecutable, simExecutable, internal } = getEventUI(event)
   const staticSimExecuted = isSimExecuted(toolName)
   const willDispatch = !internal && (staticSimExecuted || simExecutable || clientExecutable)

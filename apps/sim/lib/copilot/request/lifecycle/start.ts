@@ -92,31 +92,29 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       await resetBuffer(streamId)
 
       if (chatId) {
-        try {
-          await createRunSegment({
-            id: runId,
-            executionId,
-            chatId,
-            userId,
-            workflowId: (requestPayload.workflowId as string | undefined) || null,
-            workspaceId,
-            streamId,
-            model: (requestPayload.model as string | undefined) || null,
-            provider: (requestPayload.provider as string | undefined) || null,
-            requestContext: { requestId },
-          })
-        } catch (error) {
+        createRunSegment({
+          id: runId,
+          executionId,
+          chatId,
+          userId,
+          workflowId: (requestPayload.workflowId as string | undefined) || null,
+          workspaceId,
+          streamId,
+          model: (requestPayload.model as string | undefined) || null,
+          provider: (requestPayload.provider as string | undefined) || null,
+          requestContext: { requestId },
+        }).catch((error) => {
           logger.warn(`[${requestId}] Failed to create copilot run segment`, {
             error: error instanceof Error ? error.message : String(error),
           })
-        }
+        })
       }
 
       const abortPoller = startAbortPoller(streamId, abortController, { requestId })
       publisher.startKeepalive()
 
       if (chatId) {
-        await publisher.publish({
+        publisher.publish({
           type: MothershipStreamV1EventType.session,
           payload: {
             kind: MothershipStreamV1SessionKind.chat,

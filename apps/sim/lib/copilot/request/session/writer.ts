@@ -82,7 +82,7 @@ export class StreamWriter {
     }
   }
 
-  async publish(event: StreamEvent): Promise<void> {
+  publish(event: StreamEvent): void {
     const envelope = this.createEnvelope(event)
     this.enqueue(envelope)
     this.queuePersistence(envelope)

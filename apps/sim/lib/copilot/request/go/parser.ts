@@ -3,13 +3,21 @@ import { createLogger } from '@sim/logger'
 const logger = createLogger('CopilotSseParser')
 
 /**
- * Parses SSE streams from the copilot backend into typed events.
+ * Processes an SSE stream by calling onEvent synchronously for each parsed event
+ * within a single reader.read() chunk. All events from one chunk are processed
+ * in the same microtask — no yield/next() boundaries between them.
+ *
+ * Replaces the async generator approach which incurred 2 microtask yields per
+ * event (one for yield, one for the consumer's next() resumption).
+ *
+ * @param onEvent Called synchronously per parsed event. Return true to stop processing.
  */
-export async function* parseSSEStream(
+export async function processSSEStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   decoder: TextDecoder,
-  abortSignal?: AbortSignal
-): AsyncGenerator<unknown> {
+  abortSignal: AbortSignal | undefined,
+  onEvent: (event: unknown) => boolean | undefined
+): Promise<void> {
   let buffer = ''
 
   try {
@@ -27,6 +35,7 @@ export async function* parseSSEStream(
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
 
+        let stopped = false
         for (const line of lines) {
           if (abortSignal?.aborted) {
             logger.info('SSE stream aborted mid-chunk (between events)')
@@ -39,7 +48,10 @@ export async function* parseSSEStream(
           if (jsonStr === '[DONE]') continue
 
           try {
-            yield JSON.parse(jsonStr)
+            if (onEvent(JSON.parse(jsonStr))) {
+              stopped = true
+              break
+            }
           } catch (error) {
             logger.warn('Failed to parse SSE event', {
               preview: jsonStr.slice(0, 200),
@@ -47,6 +59,7 @@ export async function* parseSSEStream(
             })
           }
         }
+        if (stopped) break
       }
     } catch (error) {
       const aborted =
@@ -60,7 +73,7 @@ export async function* parseSSEStream(
 
     if (buffer.trim() && buffer.startsWith('data: ')) {
       try {
-        yield JSON.parse(buffer.slice(6))
+        onEvent(JSON.parse(buffer.slice(6)))
       } catch (error) {
         logger.warn('Failed to parse final SSE buffer', {
           preview: buffer.slice(0, 200),

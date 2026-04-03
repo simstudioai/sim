@@ -121,9 +121,21 @@ export async function POST(req: NextRequest) {
     const userMessageId = providedMessageId || crypto.randomUUID()
     lockStreamId = userMessageId
 
-    try {
-      await assertActiveWorkspaceAccess(workspaceId, authenticatedUserId)
-    } catch {
+    // Phase 1: workspace access + chat resolution in parallel
+    const [accessResult, chatResult] = await Promise.allSettled([
+      assertActiveWorkspaceAccess(workspaceId, authenticatedUserId),
+      chatId || createNewChat
+        ? resolveOrCreateChat({
+            chatId,
+            userId: authenticatedUserId,
+            workspaceId,
+            model: 'claude-opus-4-6',
+            type: 'mothership',
+          })
+        : null,
+    ])
+
+    if (accessResult.status === 'rejected') {
       return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 403 })
     }
 
@@ -131,18 +143,12 @@ export async function POST(req: NextRequest) {
     let conversationHistory: any[] = []
     let actualChatId = chatId
 
-    if (chatId || createNewChat) {
-      const chatResult = await resolveOrCreateChat({
-        chatId,
-        userId: authenticatedUserId,
-        workspaceId,
-        model: 'claude-opus-4-6',
-        type: 'mothership',
-      })
-      currentChat = chatResult.chat
-      actualChatId = chatResult.chatId || chatId
-      conversationHistory = Array.isArray(chatResult.conversationHistory)
-        ? chatResult.conversationHistory
+    if (chatResult.status === 'fulfilled' && chatResult.value) {
+      const resolved = chatResult.value
+      currentChat = resolved.chat
+      actualChatId = resolved.chatId || chatId
+      conversationHistory = Array.isArray(resolved.conversationHistory)
+        ? resolved.conversationHistory
         : []
 
       if (chatId && !currentChat) {
@@ -165,58 +171,58 @@ export async function POST(req: NextRequest) {
       lockChatId = actualChatId
     }
 
-    let agentContexts: Array<{ type: string; content: string }> = []
-    if (Array.isArray(contexts) && contexts.length > 0) {
-      try {
-        agentContexts = await processContextsServer(
-          contexts as any,
-          authenticatedUserId,
-          message,
-          workspaceId,
-          actualChatId
-        )
-      } catch (e) {
-        logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
-      }
-    }
-
-    if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0) {
-      const results = await Promise.allSettled(
-        resourceAttachments.map(async (r) => {
-          const ctx = await resolveActiveResourceContext(
-            r.type,
-            r.id,
-            workspaceId,
+    // Phase 2: contexts + workspace context + user message persistence in parallel
+    const contextPromise = (async () => {
+      let agentCtxs: Array<{ type: string; content: string }> = []
+      if (Array.isArray(contexts) && contexts.length > 0) {
+        try {
+          agentCtxs = await processContextsServer(
+            contexts as any,
             authenticatedUserId,
+            message,
+            workspaceId,
             actualChatId
           )
-          if (!ctx) return null
-          return {
-            ...ctx,
-            tag: r.active ? '@active_tab' : '@open_tab',
-          }
-        })
-      )
-      for (const result of results) {
-        if (result.status === 'fulfilled' && result.value) {
-          agentContexts.push(result.value)
-        } else if (result.status === 'rejected') {
-          logger.error(
-            `[${tracker.requestId}] Failed to resolve resource attachment`,
-            result.reason
-          )
+        } catch (e) {
+          logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
         }
       }
-    }
+      if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0) {
+        const results = await Promise.allSettled(
+          resourceAttachments.map(async (r) => {
+            const ctx = await resolveActiveResourceContext(
+              r.type,
+              r.id,
+              workspaceId,
+              authenticatedUserId,
+              actualChatId
+            )
+            if (!ctx) return null
+            return { ...ctx, tag: r.active ? '@active_tab' : '@open_tab' }
+          })
+        )
+        for (const result of results) {
+          if (result.status === 'fulfilled' && result.value) {
+            agentCtxs.push(result.value)
+          } else if (result.status === 'rejected') {
+            logger.error(
+              `[${tracker.requestId}] Failed to resolve resource attachment`,
+              result.reason
+            )
+          }
+        }
+      }
+      return agentCtxs
+    })()
 
-    if (actualChatId) {
+    const userMsgPromise = (async () => {
+      if (!actualChatId) return
       const userMsg = buildPersistedUserMessage({
         id: userMessageId,
         content: message,
         fileAttachments,
         contexts,
       })
-
       const [updated] = await db
         .update(copilotChats)
         .set({
@@ -232,11 +238,15 @@ export async function POST(req: NextRequest) {
         conversationHistory = freshMessages.filter((m: any) => m.id !== userMessageId)
         taskPubSub?.publishStatusChanged({ workspaceId, chatId: actualChatId, type: 'started' })
       }
-    }
+    })()
 
-    const [workspaceContext, userPermission] = await Promise.all([
-      generateWorkspaceContext(workspaceId, authenticatedUserId),
-      getUserEntityPermissions(authenticatedUserId, 'workspace', workspaceId).catch(() => null),
+    const [agentContexts, [workspaceContext, userPermission]] = await Promise.all([
+      contextPromise,
+      Promise.all([
+        generateWorkspaceContext(workspaceId, authenticatedUserId),
+        getUserEntityPermissions(authenticatedUserId, 'workspace', workspaceId).catch(() => null),
+      ]),
+      userMsgPromise,
     ])
 
     const requestPayload = await buildCopilotRequestPayload(

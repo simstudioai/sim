@@ -5,7 +5,7 @@ import {
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { parseSSEStream } from '@/lib/copilot/request/go/parser'
+import { processSSEStream } from '@/lib/copilot/request/go/parser'
 import {
   handleSubagentRouting,
   sseHandlers,
@@ -52,11 +52,19 @@ export interface StreamLoopOptions extends OrchestratorOptions {
   onBeforeDispatch?: (event: StreamEvent, context: StreamingContext) => boolean | undefined
 }
 
+// Pre-resolve text handlers at module level to avoid map lookups in the hot path.
+const textHandler = sseHandlers[MothershipStreamV1EventType.text]
+const subagentTextHandler = subAgentHandlers[MothershipStreamV1EventType.text]
+
 /**
  * Run the SSE stream processing loop against the Go backend.
  *
  * Handles: fetch -> parse -> normalize -> dedupe -> subagent routing -> handler dispatch.
  * Callers provide the fetch URL/options and can intercept events via onBeforeDispatch.
+ *
+ * Optimised hot path: text events (the most frequent) bypass tool-call dedup
+ * checks and are dispatched synchronously without any await, eliminating ~4
+ * microtask yields per text event vs the previous async-generator + await chain.
  */
 export async function runStreamLoop(
   fetchUrl: string,
@@ -107,32 +115,69 @@ export async function runStreamLoop(
   }, timeout)
 
   try {
-    for await (const event of parseSSEStream(reader, decoder, abortSignal)) {
+    await processSSEStream(reader, decoder, abortSignal, (raw) => {
+      // --- Abort gate (sync check, no await) ---
       if (abortSignal?.aborted) {
         context.wasAborted = true
-        await reader.cancel().catch(() => {})
-        break
+        return true
       }
 
-      if (!isEventRecord(event)) {
+      if (!isEventRecord(raw)) {
         logger.warn('Received non-contract stream event on shared path; dropping event')
-        continue
-      }
-      const streamEvent = eventToStreamEvent(event)
-      if (event.trace?.requestId) {
-        context.requestId = event.trace.requestId
-        context.trace.setGoTraceId(event.trace.requestId)
+        return
       }
 
-      const shouldSkipToolCall = shouldSkipToolCallEvent(streamEvent)
-      const shouldSkipToolResult = shouldSkipToolResultEvent(streamEvent)
-
-      if (shouldSkipToolCall || shouldSkipToolResult) {
-        continue
+      const streamEvent = eventToStreamEvent(raw)
+      if (raw.trace?.requestId) {
+        context.requestId = raw.trace.requestId
+        context.trace.setGoTraceId(raw.trace.requestId)
       }
 
+      // ---------------------------------------------------------------
+      // FAST PATH — text events
+      //
+      // Text is the most frequent event type. We skip two things that
+      // can never match for text events:
+      //   • shouldSkipToolCallEvent  (early-exits for type !== 'tool')
+      //   • shouldSkipToolResultEvent (early-exits for type !== 'tool')
+      //
+      // All calls in this path are synchronous: onEvent (publish) returns
+      // void, and both textHandler / subagentTextHandler return void.
+      // Eliminating the awaits saves 2 microtask yields per text event
+      // (on top of the 2 saved by replacing the async generator).
+      // ---------------------------------------------------------------
+      if (streamEvent.type === MothershipStreamV1EventType.text) {
+        try {
+          options.onEvent?.(streamEvent)
+        } catch (error) {
+          logger.warn('Failed to forward stream event', {
+            type: streamEvent.type,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+
+        if (options.onBeforeDispatch?.(streamEvent, context)) {
+          return context.streamComplete || undefined
+        }
+
+        if (handleSubagentRouting(streamEvent, context)) {
+          subagentTextHandler(streamEvent, context, execContext, options)
+        } else {
+          textHandler(streamEvent, context, execContext, options)
+        }
+        return context.streamComplete || undefined
+      }
+
+      // ---------------------------------------------------------------
+      // STANDARD PATH — all other event types
+      // ---------------------------------------------------------------
+      if (shouldSkipToolCallEvent(streamEvent) || shouldSkipToolResultEvent(streamEvent)) {
+        return
+      }
+
+      // onEvent (publish) is synchronous — no await needed.
       try {
-        await options.onEvent?.(streamEvent)
+        options.onEvent?.(streamEvent)
       } catch (error) {
         logger.warn('Failed to forward stream event', {
           type: streamEvent.type,
@@ -141,10 +186,10 @@ export async function runStreamLoop(
       }
 
       if (options.onBeforeDispatch?.(streamEvent, context)) {
-        if (context.streamComplete) break
-        continue
+        return context.streamComplete || undefined
       }
 
+      // --- Subagent span lifecycle ---
       if (
         streamEvent.type === MothershipStreamV1EventType.span &&
         streamEvent.payload.kind === MothershipStreamV1SpanPayloadKind.subagent
@@ -186,11 +231,11 @@ export async function runStreamLoop(
               timestamp: Date.now(),
             })
           }
-          continue
+          return
         }
         if (spanEvent === MothershipStreamV1SpanLifecycleEvent.end) {
           if (isPendingPause) {
-            continue
+            return
           }
           if (context.subAgentParentStack.length > 0) {
             context.subAgentParentStack.pop()
@@ -201,25 +246,32 @@ export async function runStreamLoop(
             context.subAgentParentStack.length > 0
               ? context.subAgentParentStack[context.subAgentParentStack.length - 1]
               : undefined
-          continue
+          return
         }
       }
 
+      // --- Subagent-scoped event dispatch ---
       if (handleSubagentRouting(streamEvent, context)) {
         const handler = subAgentHandlers[streamEvent.type]
         if (handler) {
-          await handler(streamEvent, context, execContext, options)
+          // All current subagent handlers (text, tool, span) resolve
+          // synchronously or fire-and-forget their async work internally.
+          // Calling without await saves 1 microtask yield per event.
+          handler(streamEvent, context, execContext, options)
         }
-        if (context.streamComplete) break
-        continue
+        return context.streamComplete || undefined
       }
 
+      // --- Main handler dispatch ---
       const handler = sseHandlers[streamEvent.type]
       if (handler) {
-        await handler(streamEvent, context, execContext, options)
+        // session, complete, error, run, span handlers are synchronous.
+        // tool handler is async but resolves immediately (fire-and-forget
+        // internal dispatch). Calling without await saves 1 microtask yield.
+        handler(streamEvent, context, execContext, options)
       }
-      if (context.streamComplete) break
-    }
+      return context.streamComplete || undefined
+    })
   } finally {
     if (abortSignal?.aborted) {
       context.wasAborted = true
