@@ -1,28 +1,9 @@
 import { Body, Head, Html, Preview, Text } from '@react-email/components'
+import { plainEmailStyles as styles } from '@/components/emails/_styles'
 
 interface OnboardingFollowupEmailProps {
   userName?: string
 }
-
-const styles = {
-  body: {
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    backgroundColor: '#ffffff',
-    margin: '0',
-    padding: '0',
-  },
-  container: {
-    maxWidth: '560px',
-    margin: '40px auto',
-    padding: '0 24px',
-  },
-  p: {
-    fontSize: '15px',
-    lineHeight: '1.6',
-    color: '#1a1a1a',
-    margin: '0 0 16px',
-  },
-} as const
 
 export function OnboardingFollowupEmail({ userName }: OnboardingFollowupEmailProps) {
   return (

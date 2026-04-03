@@ -47,6 +47,7 @@ import { isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
 import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
+import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
 import {
@@ -615,7 +616,7 @@ export const auth = betterAuth({
           await scheduleLifecycleEmail({
             userId: user.id,
             type: 'onboarding-followup',
-            delayDays: 3,
+            delayDays: 5,
           })
         } catch (error) {
           logger.error(
@@ -2979,6 +2980,10 @@ export const auth = betterAuth({
                   }
                   case 'customer.subscription.created': {
                     await handleManualEnterpriseSubscription(event)
+                    break
+                  }
+                  case 'checkout.session.expired': {
+                    await handleAbandonedCheckout(event)
                     break
                   }
                   case 'charge.dispute.created': {

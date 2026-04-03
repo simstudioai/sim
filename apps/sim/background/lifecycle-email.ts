@@ -50,7 +50,7 @@ async function sendLifecycleEmail({ userId, type }: LifecycleEmailParams): Promi
     html,
     from,
     replyTo,
-    emailType: 'transactional',
+    emailType: 'notifications',
   })
 
   logger.info('[lifecycle-email] Sent lifecycle email', { userId, type })

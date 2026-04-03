@@ -16,6 +16,8 @@ export type EmailSubjectType =
   | 'plan-welcome-pro'
   | 'plan-welcome-team'
   | 'credit-purchase'
+  | 'abandoned-checkout'
+  | 'free-tier-exhausted'
   | 'onboarding-followup'
   | 'welcome'
 
@@ -49,13 +51,17 @@ export function getEmailSubject(type: EmailSubjectType): string {
     case 'usage-threshold':
       return `You're nearing your monthly budget on ${brandName}`
     case 'free-tier-upgrade':
-      return `You're at 90% of your free credits on ${brandName}`
+      return `You're at 80% of your free credits on ${brandName}`
     case 'plan-welcome-pro':
       return `Your Pro plan is now active on ${brandName}`
     case 'plan-welcome-team':
       return `Your Team plan is now active on ${brandName}`
     case 'credit-purchase':
       return `Credits added to your ${brandName} account`
+    case 'abandoned-checkout':
+      return `Quick question`
+    case 'free-tier-exhausted':
+      return `You've run out of free credits on ${brandName}`
     case 'onboarding-followup':
       return `Quick question about ${brandName}`
     case 'welcome':
