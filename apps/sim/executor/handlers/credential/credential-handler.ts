@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
@@ -19,18 +19,31 @@ export class CredentialBlockHandler implements BlockHandler {
     _block: SerializedBlock,
     inputs: Record<string, unknown>
   ): Promise<BlockOutput> {
+    if (!ctx.workspaceId) {
+      throw new Error('workspaceId is required for credential resolution')
+    }
+
+    const operation = typeof inputs.operation === 'string' ? inputs.operation : 'select'
+
+    if (operation === 'list') {
+      return this.listCredentials(ctx.workspaceId, inputs)
+    }
+
+    return this.selectCredential(ctx.workspaceId, inputs)
+  }
+
+  private async selectCredential(
+    workspaceId: string,
+    inputs: Record<string, unknown>
+  ): Promise<BlockOutput> {
     const credentialId = typeof inputs.credentialId === 'string' ? inputs.credentialId.trim() : ''
 
     if (!credentialId) {
       throw new Error('No credential selected')
     }
 
-    if (!ctx.workspaceId) {
-      throw new Error('workspaceId is required for credential resolution')
-    }
-
     const record = await db.query.credential.findFirst({
-      where: and(eq(credential.id, credentialId), eq(credential.workspaceId, ctx.workspaceId)),
+      where: and(eq(credential.id, credentialId), eq(credential.workspaceId, workspaceId)),
       columns: {
         id: true,
         displayName: true,
@@ -50,6 +63,58 @@ export class CredentialBlockHandler implements BlockHandler {
       displayName: record.displayName,
       type: record.type,
       providerId: record.providerId ?? '',
+    }
+  }
+
+  private async listCredentials(
+    workspaceId: string,
+    inputs: Record<string, unknown>
+  ): Promise<BlockOutput> {
+    const typeFilter = typeof inputs.typeFilter === 'string' ? inputs.typeFilter : 'all'
+    const providerFilter =
+      typeFilter === 'oauth' && Array.isArray(inputs.providerFilter)
+        ? (inputs.providerFilter as string[]).filter(Boolean)
+        : []
+
+    const conditions = [eq(credential.workspaceId, workspaceId)]
+
+    if (typeFilter !== 'all') {
+      conditions.push(
+        eq(credential.type, typeFilter as (typeof credential.type)['enumValues'][number])
+      )
+    }
+
+    if (providerFilter.length > 0) {
+      conditions.push(inArray(credential.providerId, providerFilter))
+    }
+
+    const records = await db.query.credential.findMany({
+      where: and(...conditions),
+      columns: {
+        id: true,
+        displayName: true,
+        type: true,
+        providerId: true,
+      },
+      orderBy: [asc(credential.displayName)],
+    })
+
+    const credentials = records.map((r) => ({
+      credentialId: r.id,
+      displayName: r.displayName,
+      type: r.type,
+      providerId: r.providerId ?? '',
+    }))
+
+    logger.info('Credential block listed credentials', {
+      count: credentials.length,
+      typeFilter,
+      providerFilter: providerFilter.length > 0 ? providerFilter : undefined,
+    })
+
+    return {
+      credentials,
+      count: credentials.length,
     }
   }
 }

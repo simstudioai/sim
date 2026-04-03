@@ -52,14 +52,10 @@ interface DropdownProps {
   /** Enable multi-select mode */
   multiSelect?: boolean
   /** Async function to fetch options dynamically */
-  fetchOptions?: (
-    blockId: string,
-    subBlockId: string
-  ) => Promise<Array<{ label: string; id: string }>>
+  fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
   /** Async function to fetch a single option's label by ID (for hydration) */
   fetchOptionById?: (
     blockId: string,
-    subBlockId: string,
     optionId: string
   ) => Promise<{ label: string; id: string } | null>
   /** Field dependencies that trigger option refetch when changed */
@@ -160,7 +156,7 @@ export const Dropdown = memo(function Dropdown({
     setIsLoadingOptions(true)
     setFetchError(null)
     try {
-      const options = await fetchOptions(blockId, subBlockId)
+      const options = await fetchOptions(blockId)
       setFetchedOptions(options)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
@@ -169,7 +165,7 @@ export const Dropdown = memo(function Dropdown({
     } finally {
       setIsLoadingOptions(false)
     }
-  }, [fetchOptions, blockId, subBlockId, isPreview, disabled])
+  }, [fetchOptions, blockId, isPreview, disabled])
 
   /**
    * Handles combobox open state changes to trigger option fetching
@@ -430,7 +426,7 @@ export const Dropdown = memo(function Dropdown({
     let isActive = true
 
     // Fetch the hydrated option
-    fetchOptionById(blockId, subBlockId, valueToHydrate)
+    fetchOptionById(blockId, valueToHydrate)
       .then((option) => {
         if (isActive) setHydratedOption(option)
       })
@@ -446,7 +442,6 @@ export const Dropdown = memo(function Dropdown({
     singleValue,
     multiSelect,
     blockId,
-    subBlockId,
     isPreview,
     disabled,
     fetchedOptions,

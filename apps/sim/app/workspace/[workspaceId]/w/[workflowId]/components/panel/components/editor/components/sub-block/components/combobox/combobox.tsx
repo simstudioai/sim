@@ -59,14 +59,10 @@ interface ComboBoxProps {
   /** Configuration for the sub-block */
   config: SubBlockConfig
   /** Async function to fetch options dynamically */
-  fetchOptions?: (
-    blockId: string,
-    subBlockId: string
-  ) => Promise<Array<{ label: string; id: string }>>
+  fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
   /** Async function to fetch a single option's label by ID (for hydration) */
   fetchOptionById?: (
     blockId: string,
-    subBlockId: string,
     optionId: string
   ) => Promise<{ label: string; id: string } | null>
   /** Field dependencies that trigger option refetch when changed */
@@ -135,7 +131,7 @@ export const ComboBox = memo(function ComboBox({
     setIsLoadingOptions(true)
     setFetchError(null)
     try {
-      const options = await fetchOptions(blockId, subBlockId)
+      const options = await fetchOptions(blockId)
       setFetchedOptions(options)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
@@ -144,7 +140,7 @@ export const ComboBox = memo(function ComboBox({
     } finally {
       setIsLoadingOptions(false)
     }
-  }, [fetchOptions, blockId, subBlockId, isPreview, disabled])
+  }, [fetchOptions, blockId, isPreview, disabled])
 
   // Determine the active value based on mode (preview vs. controlled vs. store)
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
@@ -363,7 +359,7 @@ export const ComboBox = memo(function ComboBox({
     let isActive = true
 
     // Fetch the hydrated option
-    fetchOptionById(blockId, subBlockId, valueToHydrate)
+    fetchOptionById(blockId, valueToHydrate)
       .then((option) => {
         if (isActive) setHydratedOption(option)
       })
@@ -378,7 +374,6 @@ export const ComboBox = memo(function ComboBox({
     fetchOptionById,
     value,
     blockId,
-    subBlockId,
     isPreview,
     disabled,
     fetchedOptions,
