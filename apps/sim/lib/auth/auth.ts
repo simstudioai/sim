@@ -377,13 +377,19 @@ export const auth = betterAuth({
               .where(eq(schema.account.userId, account.userId))
 
             if (accountCount === 1) {
-              const isOAuth = account.providerId !== 'credential'
+              const { providerId } = account
+              const authMethod =
+                providerId === 'credential'
+                  ? 'email'
+                  : SSO_TRUSTED_PROVIDERS.includes(providerId)
+                    ? 'sso'
+                    : 'oauth'
               captureServerEvent(
                 account.userId,
                 'user_created',
                 {
-                  auth_method: isOAuth ? 'oauth' : 'email',
-                  ...(isOAuth ? { provider: account.providerId } : {}),
+                  auth_method: authMethod,
+                  ...(providerId !== 'credential' ? { provider: providerId } : {}),
                 },
                 { setOnce: { signup_at: new Date().toISOString() } }
               )

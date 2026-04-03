@@ -280,7 +280,7 @@ export async function POST(req: NextRequest) {
       'workflow_created',
       { workflow_id: workflowId, workspace_id: workspaceId ?? '', name },
       {
-        groups: { workspace: workspaceId ?? '' },
+        groups: workspaceId ? { workspace: workspaceId } : undefined,
         setOnce: { first_workflow_created_at: new Date().toISOString() },
       }
     )

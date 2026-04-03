@@ -69,7 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         new_workflow_id: result.id,
         workspace_id: workspaceId ?? '',
       },
-      { groups: { workspace: workspaceId ?? '' } }
+      workspaceId ? { groups: { workspace: workspaceId } } : undefined
     )
 
     const elapsed = Date.now() - startTime
