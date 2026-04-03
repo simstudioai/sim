@@ -715,7 +715,7 @@ export async function maybeSendUsageThresholdEmail(params: {
     const baseUrl = getBaseUrl()
     const isFreeUser = params.planName === 'Free'
 
-    // Check for 80% threshold (paid users only — free users get a more specific email below)
+    // Check for 80% threshold crossing — used for paid users (budget warning) and free users (upgrade nudge)
     const crosses80 = params.percentBefore < 80 && params.percentAfter >= 80
     // Check for 100% threshold (free users only — credits exhausted)
     const crosses100 = params.percentBefore < 100 && params.percentAfter >= 100

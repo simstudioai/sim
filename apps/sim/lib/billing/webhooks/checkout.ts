@@ -51,7 +51,7 @@ export async function handleAbandonedCheckout(event: Stripe.Event): Promise<void
     html,
     from,
     replyTo,
-    emailType: 'transactional',
+    emailType: 'notifications',
   })
 
   logger.info('Sent abandoned checkout email', { userId: userData.id, sessionId: session.id })
