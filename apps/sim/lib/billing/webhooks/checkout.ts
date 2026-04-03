@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, renderAbandonedCheckoutEmail } from '@/components/emails'
-import { hasPaidSubscription } from '@/lib/billing/core/subscription'
+import { isProPlan } from '@/lib/billing/core/subscription'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 
@@ -38,8 +38,8 @@ export async function handleAbandonedCheckout(event: Stripe.Event): Promise<void
     return
   }
 
-  // Skip if the user has since completed a subscription (first session expired after successful second)
-  const alreadySubscribed = await hasPaidSubscription(userData.id)
+  // Skip if the user already has a paid plan (direct or via org) — covers session expiring after a successful upgrade
+  const alreadySubscribed = await isProPlan(userData.id)
   if (alreadySubscribed) return
 
   const { from, replyTo } = getPersonalEmailFrom()
