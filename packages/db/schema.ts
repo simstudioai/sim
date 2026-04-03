@@ -2273,6 +2273,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'workspace-chat',
   'mcp_copilot',
   'mothership_block',
+  'knowledge-base',
 ])
 
 export const usageLog = pgTable(

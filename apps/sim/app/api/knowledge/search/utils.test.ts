@@ -5,6 +5,7 @@
  * @vitest-environment node
  */
 import { createEnvMock, databaseMock, loggerMock } from '@sim/testing'
+import { mockNextFetchResponse } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('drizzle-orm')
@@ -13,16 +14,6 @@ vi.mock('@sim/db', () => databaseMock)
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   retryWithExponentialBackoff: (fn: any) => fn(),
 }))
-
-vi.stubGlobal(
-  'fetch',
-  vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({
-      data: [{ embedding: [0.1, 0.2, 0.3] }],
-    }),
-  })
-)
 
 vi.mock('@/lib/core/config/env', () => createEnvMock())
 
@@ -178,17 +169,16 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
+      mockNextFetchResponse({
+        json: {
           data: [{ embedding: [0.1, 0.2, 0.3] }],
-        }),
-      } as any)
+          usage: { prompt_tokens: 1, total_tokens: 1 },
+        },
+      })
 
       const result = await generateSearchEmbedding('test query')
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
         'https://test.openai.azure.com/openai/deployments/text-embedding-ada-002/embeddings?api-version=2024-12-01-preview',
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -209,17 +199,16 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
+      mockNextFetchResponse({
+        json: {
           data: [{ embedding: [0.1, 0.2, 0.3] }],
-        }),
-      } as any)
+          usage: { prompt_tokens: 1, total_tokens: 1 },
+        },
+      })
 
       const result = await generateSearchEmbedding('test query')
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
         'https://api.openai.com/v1/embeddings',
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -243,17 +232,16 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
+      mockNextFetchResponse({
+        json: {
           data: [{ embedding: [0.1, 0.2, 0.3] }],
-        }),
-      } as any)
+          usage: { prompt_tokens: 1, total_tokens: 1 },
+        },
+      })
 
       await generateSearchEmbedding('test query')
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
         expect.stringContaining('api-version='),
         expect.any(Object)
       )
@@ -273,17 +261,16 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
+      mockNextFetchResponse({
+        json: {
           data: [{ embedding: [0.1, 0.2, 0.3] }],
-        }),
-      } as any)
+          usage: { prompt_tokens: 1, total_tokens: 1 },
+        },
+      })
 
       await generateSearchEmbedding('test query', 'text-embedding-3-small')
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
         'https://test.openai.azure.com/openai/deployments/custom-embedding-model/embeddings?api-version=2024-12-01-preview',
         expect.any(Object)
       )
@@ -311,13 +298,12 @@ describe('Knowledge Search Utils', () => {
         KB_OPENAI_MODEL_NAME: 'text-embedding-ada-002',
       })
 
-      const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce({
+      mockNextFetchResponse({
         ok: false,
         status: 404,
         statusText: 'Not Found',
-        text: async () => 'Deployment not found',
-      } as any)
+        text: 'Deployment not found',
+      })
 
       await expect(generateSearchEmbedding('test query')).rejects.toThrow('Embedding API failed')
 
@@ -332,13 +318,12 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce({
+      mockNextFetchResponse({
         ok: false,
         status: 429,
         statusText: 'Too Many Requests',
-        text: async () => 'Rate limit exceeded',
-      } as any)
+        text: 'Rate limit exceeded',
+      })
 
       await expect(generateSearchEmbedding('test query')).rejects.toThrow('Embedding API failed')
 
@@ -356,17 +341,16 @@ describe('Knowledge Search Utils', () => {
         KB_OPENAI_MODEL_NAME: 'text-embedding-ada-002',
       })
 
-      const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
+      mockNextFetchResponse({
+        json: {
           data: [{ embedding: [0.1, 0.2, 0.3] }],
-        }),
-      } as any)
+          usage: { prompt_tokens: 1, total_tokens: 1 },
+        },
+      })
 
       await generateSearchEmbedding('test query')
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           body: JSON.stringify({
@@ -387,17 +371,16 @@ describe('Knowledge Search Utils', () => {
         OPENAI_API_KEY: 'test-openai-key',
       })
 
-      const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
+      mockNextFetchResponse({
+        json: {
           data: [{ embedding: [0.1, 0.2, 0.3] }],
-        }),
-      } as any)
+          usage: { prompt_tokens: 1, total_tokens: 1 },
+        },
+      })
 
       await generateSearchEmbedding('test query', 'text-embedding-3-small')
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           body: JSON.stringify({

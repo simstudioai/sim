@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { encryptApiKey } from '@/lib/api-key/crypto'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
@@ -96,6 +97,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const { connectorType, credentialId, apiKey, sourceConfig, syncIntervalMinutes } = parsed.data
+
+    if (syncIntervalMinutes > 0 && syncIntervalMinutes < 60) {
+      const canUseLiveSync = await hasLiveSyncAccess(auth.userId)
+      if (!canUseLiveSync) {
+        return NextResponse.json(
+          { error: 'Live sync requires a Max or Enterprise plan' },
+          { status: 403 }
+        )
+      }
+    }
 
     const connectorConfig = CONNECTOR_REGISTRY[connectorType]
     if (!connectorConfig) {
