@@ -682,6 +682,11 @@ export async function processDocumentAsync(
               totalTokensUsed: sql`total_tokens_used + ${totalEmbeddingTokens}`,
             },
           })
+        } else {
+          logger.warn(
+            `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
+            { totalEmbeddingTokens, embeddingModelName }
+          )
         }
       } catch (billingError) {
         logger.error(`[${documentId}] Failed to record embedding usage`, { error: billingError })
