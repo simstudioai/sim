@@ -730,8 +730,6 @@ async function handleBuildToolCall(
       userId,
       workflowId: resolved.workflowId,
       chatId,
-      executionId,
-      runId,
       goRoute: '/api/mcp',
       autoExecuteTools: true,
       timeout: ORCHESTRATION_TIMEOUT_MS,

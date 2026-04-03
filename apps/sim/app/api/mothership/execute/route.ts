@@ -75,8 +75,6 @@ export async function POST(req: NextRequest) {
       userId,
       workspaceId,
       chatId: effectiveChatId,
-      executionId,
-      runId,
       goRoute: '/api/mothership/execute',
       autoExecuteTools: true,
       interactive: false,

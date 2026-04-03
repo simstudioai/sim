@@ -109,8 +109,6 @@ export async function POST(req: NextRequest) {
       userId: auth.userId,
       workflowId: resolved.workflowId,
       chatId,
-      executionId,
-      runId,
       goRoute: '/api/mcp',
       autoExecuteTools: parsed.autoExecuteTools,
       timeout: parsed.timeout,
