@@ -23,6 +23,7 @@ import {
 } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
+import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfig } from '@/connectors/types'
@@ -243,11 +244,7 @@ function SettingsTab({
               disabled={interval.requiresMax && !hasMaxAccess}
             >
               {interval.label}
-              {interval.requiresMax && !hasMaxAccess && (
-                <span className='ml-1 shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
-                  Max
-                </span>
-              )}
+              {interval.requiresMax && !hasMaxAccess && <MaxBadge />}
             </ButtonGroupItem>
           ))}
         </ButtonGroup>
