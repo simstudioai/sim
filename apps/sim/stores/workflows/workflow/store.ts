@@ -316,17 +316,15 @@ export const useWorkflowStore = create<WorkflowStore>()(
           }
         }
 
-        if (blocks.length === 1) {
-          const workflowId = get().currentWorkflowId ?? 'unknown'
-          import('@/lib/posthog/client')
-            .then(({ captureClientEvent }) => {
-              captureClientEvent('block_added', {
-                block_type: blocks[0].type,
-                workflow_id: workflowId,
-              })
-            })
-            .catch(() => {})
-        }
+        const workflowId = get().currentWorkflowId ?? 'unknown'
+        const uniqueBlockTypes = [...new Set(blocks.map((b) => b.type))]
+        import('@/lib/posthog/client')
+          .then(({ captureClientEvent }) => {
+            for (const blockType of uniqueBlockTypes) {
+              captureClientEvent('block_added', { block_type: blockType, workflow_id: workflowId })
+            }
+          })
+          .catch(() => {})
 
         get().updateLastSaved()
       },
@@ -387,19 +385,21 @@ export const useWorkflowStore = create<WorkflowStore>()(
           parallels: generateParallelBlocks(newBlocks),
         })
 
-        if (ids.length === 1) {
-          const blockType = currentBlocks[ids[0]]?.type
-          if (blockType) {
-            const workflowId = get().currentWorkflowId ?? 'unknown'
-            import('@/lib/posthog/client')
-              .then(({ captureClientEvent }) => {
+        const workflowId = get().currentWorkflowId ?? 'unknown'
+        const uniqueRemovedTypes = [
+          ...new Set(ids.map((id) => currentBlocks[id]?.type).filter((t): t is string => !!t)),
+        ]
+        if (uniqueRemovedTypes.length > 0) {
+          import('@/lib/posthog/client')
+            .then(({ captureClientEvent }) => {
+              for (const blockType of uniqueRemovedTypes) {
                 captureClientEvent('block_removed', {
                   block_type: blockType,
                   workflow_id: workflowId,
                 })
-              })
-              .catch(() => {})
-          }
+              }
+            })
+            .catch(() => {})
         }
 
         get().updateLastSaved()

@@ -30,6 +30,7 @@ export function Home({ chatId }: HomeProps = {}) {
   const router = useRouter()
   const { data: session } = useSession()
   const posthog = usePostHog()
+  const posthogRef = useRef(posthog)
   const [initialPrompt, setInitialPrompt] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
@@ -202,12 +203,16 @@ export function Home({ chatId }: HomeProps = {}) {
     return () => cancelAnimationFrame(id)
   }, [resources])
 
+  useEffect(() => {
+    posthogRef.current = posthog
+  }, [posthog])
+
   const handleSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       const trimmed = text.trim()
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
 
-      captureEvent(posthog, 'task_message_sent', {
+      captureEvent(posthogRef.current, 'task_message_sent', {
         has_attachments: !!(fileAttachments && fileAttachments.length > 0),
         has_contexts: !!(contexts && contexts.length > 0),
         is_new_task: !chatId,
@@ -219,7 +224,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
       sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
-    [sendMessage, posthog]
+    [sendMessage]
   )
 
   useEffect(() => {
