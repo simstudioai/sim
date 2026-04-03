@@ -6,6 +6,7 @@ import {
   WelcomeEmail,
 } from '@/components/emails/auth'
 import {
+  AbandonedCheckoutEmail,
   CreditPurchaseEmail,
   EnterpriseSubscriptionEmail,
   FreeTierUpgradeEmail,
@@ -166,6 +167,10 @@ export async function renderWelcomeEmail(userName?: string): Promise<string> {
 
 export async function renderOnboardingFollowupEmail(userName?: string): Promise<string> {
   return await render(OnboardingFollowupEmail({ userName }))
+}
+
+export async function renderAbandonedCheckoutEmail(userName?: string): Promise<string> {
+  return await render(AbandonedCheckoutEmail({ userName }))
 }
 
 export async function renderCreditPurchaseEmail(params: {

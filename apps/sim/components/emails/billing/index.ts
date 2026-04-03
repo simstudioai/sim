@@ -1,3 +1,4 @@
+export { AbandonedCheckoutEmail } from './abandoned-checkout-email'
 export { CreditPurchaseEmail } from './credit-purchase-email'
 export { EnterpriseSubscriptionEmail } from './enterprise-subscription-email'
 export { FreeTierUpgradeEmail } from './free-tier-upgrade-email'

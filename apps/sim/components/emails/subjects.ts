@@ -16,6 +16,7 @@ export type EmailSubjectType =
   | 'plan-welcome-pro'
   | 'plan-welcome-team'
   | 'credit-purchase'
+  | 'abandoned-checkout'
   | 'onboarding-followup'
   | 'welcome'
 
@@ -56,6 +57,8 @@ export function getEmailSubject(type: EmailSubjectType): string {
       return `Your Team plan is now active on ${brandName}`
     case 'credit-purchase':
       return `Credits added to your ${brandName} account`
+    case 'abandoned-checkout':
+      return `Quick question`
     case 'onboarding-followup':
       return `Quick question about ${brandName}`
     case 'welcome':
