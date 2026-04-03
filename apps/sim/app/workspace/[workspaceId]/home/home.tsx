@@ -207,9 +207,10 @@ export function Home({ chatId }: HomeProps = {}) {
       const trimmed = text.trim()
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
 
-      captureEvent(posthog, 'message_sent', {
+      captureEvent(posthog, 'task_message_sent', {
         has_attachments: !!(fileAttachments && fileAttachments.length > 0),
         has_contexts: !!(contexts && contexts.length > 0),
+        is_new_task: !chatId,
       })
 
       if (initialViewInputRef.current) {

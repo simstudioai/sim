@@ -205,8 +205,6 @@ export interface PostHogEventMap {
     mode: string
   }
 
-  copilot_panel_opened: Record<string, never>
-
   copilot_feedback_submitted: {
     is_positive: boolean
     has_text_feedback: boolean
@@ -266,9 +264,14 @@ export interface PostHogEventMap {
     alert_rule: string | null
   }
 
-  message_sent: {
+  task_created: {
+    workspace_id: string
+  }
+
+  task_message_sent: {
     has_attachments: boolean
     has_contexts: boolean
+    is_new_task: boolean
   }
 }
 
