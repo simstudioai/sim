@@ -1,6 +1,6 @@
 import { Link, Section, Text } from '@react-email/components'
 import { baseStyles, colors, typography } from '@/components/emails/_styles'
-import { proFeatures } from '@/components/emails/billing/_constants'
+import { proFeatures } from '@/components/emails/billing/constants'
 import { EmailLayout } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBrandConfig } from '@/ee/whitelabeling'
