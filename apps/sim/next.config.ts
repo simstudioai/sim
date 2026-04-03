@@ -417,6 +417,14 @@ const nextConfig: NextConfig = {
         source: '/r/:shortCode',
         destination: 'https://go.trybeluga.ai/:shortCode',
       },
+      {
+        source: '/ingest/static/:path*',
+        destination: 'https://us-assets.i.posthog.com/static/:path*',
+      },
+      {
+        source: '/ingest/:path*',
+        destination: 'https://us.i.posthog.com/:path*',
+      },
     ]
   },
 }
