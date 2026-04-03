@@ -1,0 +1,141 @@
+---
+title: Dagster
+description: Orchestrate data pipelines and manage job runs on Dagster+
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="dagster"
+  color="#191A23"
+/>
+
+## Usage Instructions
+
+Connect to Dagster+ to launch job runs, monitor run status, list available jobs across repositories, and terminate in-progress runs. Requires a Dagster Cloud API token.
+
+
+
+## Tools
+
+### `dagster_launch_run`
+
+Launch a Dagster job run in your Dagster+ deployment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organizationName` | string | Yes | Dagster+ organization name \(subdomain, e.g., "myorg"\) |
+| `deploymentName` | string | Yes | Dagster+ deployment name \(e.g., "prod"\) |
+| `apiKey` | string | Yes | Dagster Cloud API token |
+| `repositoryLocationName` | string | Yes | Repository location \(code location\) name |
+| `repositoryName` | string | Yes | Repository name within the code location |
+| `jobName` | string | Yes | Name of the job to launch |
+| `runConfigJson` | string | No | Run configuration as a JSON object \(optional\) |
+| `tags` | string | No | Tags as a JSON array of \{key, value\} objects \(optional\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `runId` | string | The globally unique ID of the launched run |
+
+### `dagster_get_run`
+
+Get the status and details of a Dagster run by its ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organizationName` | string | Yes | Dagster+ organization name \(subdomain\) |
+| `deploymentName` | string | Yes | Dagster+ deployment name \(e.g., "prod"\) |
+| `apiKey` | string | Yes | Dagster Cloud API token |
+| `runId` | string | Yes | The ID of the run to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `runId` | string | Run ID |
+| `jobName` | string | Name of the job this run belongs to |
+| `status` | string | Run status \(QUEUED, NOT_STARTED, STARTING, MANAGED, STARTED, SUCCESS, FAILURE, CANCELING, CANCELED\) |
+| `startTime` | number | Run start time as Unix timestamp |
+| `endTime` | number | Run end time as Unix timestamp |
+| `runConfigYaml` | string | Run configuration as YAML |
+| `tags` | json | Run tags as array of \{key, value\} objects |
+
+### `dagster_list_runs`
+
+List recent Dagster runs, optionally filtered by job name.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organizationName` | string | Yes | Dagster+ organization name \(subdomain\) |
+| `deploymentName` | string | Yes | Dagster+ deployment name \(e.g., "prod"\) |
+| `apiKey` | string | Yes | Dagster Cloud API token |
+| `jobName` | string | No | Filter runs by job name \(optional\) |
+| `limit` | number | No | Maximum number of runs to return \(default 20\) |
+| `cursor` | string | No | Pagination cursor from a previous list_runs response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `runs` | json | Array of runs with runId, jobName, status, startTime, endTime |
+|   ↳ `runId` | string | Run ID |
+|   ↳ `jobName` | string | Job name |
+|   ↳ `status` | string | Run status |
+|   ↳ `startTime` | number | Start time as Unix timestamp |
+|   ↳ `endTime` | number | End time as Unix timestamp |
+| `cursor` | string | Pagination cursor to retrieve the next page |
+| `hasMore` | boolean | Whether more runs are available |
+
+### `dagster_list_jobs`
+
+List all jobs across repositories in a Dagster+ deployment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organizationName` | string | Yes | Dagster+ organization name \(subdomain\) |
+| `deploymentName` | string | Yes | Dagster+ deployment name \(e.g., "prod"\) |
+| `apiKey` | string | Yes | Dagster Cloud API token |
+| `repositoryLocationName` | string | No | Filter by repository location name \(optional\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobs` | json | Array of jobs with name, repositoryName, repositoryLocationName, and description |
+|   ↳ `name` | string | Job name |
+|   ↳ `repositoryName` | string | Repository name |
+|   ↳ `repositoryLocationName` | string | Repository location name |
+|   ↳ `description` | string | Job description |
+
+### `dagster_terminate_run`
+
+Terminate an in-progress Dagster run.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `organizationName` | string | Yes | Dagster+ organization name \(subdomain\) |
+| `deploymentName` | string | Yes | Dagster+ deployment name \(e.g., "prod"\) |
+| `apiKey` | string | Yes | Dagster Cloud API token |
+| `runId` | string | Yes | The ID of the run to terminate |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the run was successfully terminated |
+| `runId` | string | The ID of the terminated run |
+| `message` | string | Error or status message if termination failed |
+
+

@@ -27,6 +27,7 @@
     "cloudwatch",
     "confluence",
     "cursor",
+    "dagster",
     "databricks",
     "datadog",
     "devin",

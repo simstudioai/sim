@@ -362,6 +362,13 @@ import {
   cursorStopAgentV2Tool,
 } from '@/tools/cursor'
 import {
+  dagsterGetRunTool,
+  dagsterLaunchRunTool,
+  dagsterListJobsTool,
+  dagsterListRunsTool,
+  dagsterTerminateRunTool,
+} from '@/tools/dagster'
+import {
   databricksCancelRunTool,
   databricksExecuteSqlTool,
   databricksGetRunOutputTool,
@@ -3444,6 +3451,11 @@ export const tools: Record<string, ToolConfig> = {
   devin_get_session: devinGetSessionTool,
   devin_list_sessions: devinListSessionsTool,
   devin_send_message: devinSendMessageTool,
+  dagster_get_run: dagsterGetRunTool,
+  dagster_launch_run: dagsterLaunchRunTool,
+  dagster_list_jobs: dagsterListJobsTool,
+  dagster_list_runs: dagsterListRunsTool,
+  dagster_terminate_run: dagsterTerminateRunTool,
   databricks_cancel_run: databricksCancelRunTool,
   databricks_execute_sql: databricksExecuteSqlTool,
   databricks_get_run: databricksGetRunTool,
