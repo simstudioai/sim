@@ -406,8 +406,12 @@ export const LogsToolbar = memo(function LogsToolbar({
     (start: string, end: string) => {
       setDateRange(start, end)
       setDatePickerOpen(false)
+      captureEvent(posthogRef.current, 'logs_filter_applied', {
+        filter_type: 'time',
+        workspace_id: workspaceId,
+      })
     },
-    [setDateRange]
+    [setDateRange, workspaceId]
   )
 
   /**
