@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, renderAbandonedCheckoutEmail } from '@/components/emails'
+import { hasPaidSubscription } from '@/lib/billing/core/subscription'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 
@@ -12,15 +13,17 @@ const logger = createLogger('CheckoutWebhooks')
 /**
  * Handles checkout.session.expired — fires when a user starts an upgrade but doesn't complete it.
  * Sends a plain personal email to check in and offer help.
+ * Only fires for subscription-mode sessions to avoid misfires on credit purchase or setup sessions.
+ * Skips users who have already completed a subscription (session may expire after a successful upgrade).
  */
 export async function handleAbandonedCheckout(event: Stripe.Event): Promise<void> {
   const session = event.data.object as Stripe.Checkout.Session
 
+  if (session.mode !== 'subscription') return
+
   const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id
   if (!customerId) {
-    logger.warn('[handleAbandonedCheckout] No customer ID on expired session', {
-      sessionId: session.id,
-    })
+    logger.warn('No customer ID on expired session', { sessionId: session.id })
     return
   }
 
@@ -31,12 +34,13 @@ export async function handleAbandonedCheckout(event: Stripe.Event): Promise<void
     .limit(1)
 
   if (!userData?.email) {
-    logger.warn('[handleAbandonedCheckout] No user found for Stripe customer', {
-      customerId,
-      sessionId: session.id,
-    })
+    logger.warn('No user found for Stripe customer', { customerId, sessionId: session.id })
     return
   }
+
+  // Skip if the user has since completed a subscription (first session expired after successful second)
+  const alreadySubscribed = await hasPaidSubscription(userData.id)
+  if (alreadySubscribed) return
 
   const { from, replyTo } = getPersonalEmailFrom()
   const html = await renderAbandonedCheckoutEmail(userData.name || undefined)
@@ -50,8 +54,5 @@ export async function handleAbandonedCheckout(event: Stripe.Event): Promise<void
     emailType: 'transactional',
   })
 
-  logger.info('[handleAbandonedCheckout] Sent abandoned checkout email', {
-    userId: userData.id,
-    sessionId: session.id,
-  })
+  logger.info('Sent abandoned checkout email', { userId: userData.id, sessionId: session.id })
 }

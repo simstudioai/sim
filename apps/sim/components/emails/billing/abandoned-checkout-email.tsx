@@ -9,7 +9,7 @@ export function AbandonedCheckoutEmail({ userName }: AbandonedCheckoutEmailProps
   return (
     <Html>
       <Head />
-      <Preview>Quick question</Preview>
+      <Preview>Did you run into an issue with your upgrade?</Preview>
       <Body style={styles.body}>
         <div style={styles.container}>
           <Text style={styles.p}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
