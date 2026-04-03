@@ -1067,7 +1067,7 @@ describe('ExecutionEngine', () => {
             return {
               nodeId,
               output: { data: { fast: true }, status: 200, headers: {} },
-              isFinalOutput: false,
+              isFinalOutput: true,
             }
           }
           if (nodeId === 'slow-work') {
@@ -1203,6 +1203,48 @@ describe('ExecutionEngine', () => {
 
       expect(result.success).toBe(true)
       expect(result.output).toEqual({ data: { response: true }, status: 200, headers: {} })
+    })
+
+    it('should honor locked Response output even when a parallel node throws an error', async () => {
+      const startNode = createMockNode('start', 'starter')
+      const responseNode = createMockNode('response', 'response')
+      const errorNode = createMockNode('error-node', 'function')
+
+      startNode.outgoingEdges.set('edge1', { target: 'response' })
+      startNode.outgoingEdges.set('edge2', { target: 'error-node' })
+
+      const dag = createMockDAG([startNode, responseNode, errorNode])
+      const context = createMockContext()
+      const edgeManager = createMockEdgeManager((node) => {
+        if (node.id === 'start') return ['response', 'error-node']
+        return []
+      })
+
+      const nodeOrchestrator = {
+        executionCount: 0,
+        executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
+          nodeOrchestrator.executionCount++
+          if (nodeId === 'response') {
+            return {
+              nodeId,
+              output: { data: { ok: true }, status: 200, headers: {} },
+              isFinalOutput: true,
+            }
+          }
+          if (nodeId === 'error-node') {
+            await new Promise((resolve) => setTimeout(resolve, 1))
+            throw new Error('Parallel branch failed')
+          }
+          return { nodeId, output: {}, isFinalOutput: false }
+        }),
+        handleNodeCompletion: vi.fn(),
+      } as unknown as MockNodeOrchestrator
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const result = await engine.run('start')
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual({ data: { ok: true }, status: 200, headers: {} })
     })
   })
 

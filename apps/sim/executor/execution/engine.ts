@@ -128,8 +128,7 @@ export class ExecutionEngine {
         await this.waitForAllExecutions()
       }
 
-      // Rethrow the captured error so it's handled by the catch block
-      if (this.errorFlag && this.executionError) {
+      if (this.errorFlag && this.executionError && !this.responseOutputLocked) {
         throw this.executionError
       }
 
@@ -401,6 +400,8 @@ export class ExecutionEngine {
     }
 
     if (this.stoppedEarlyFlag && this.responseOutputLocked) {
+      // Workflow already ended via Response block. Skip state persistence (setBlockOutput),
+      // parallel/loop scope tracking, and edge propagation — no downstream blocks will run.
       return
     }
 
