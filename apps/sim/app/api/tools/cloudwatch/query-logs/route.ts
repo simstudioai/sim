@@ -1,7 +1,11 @@
 import { StartQueryCommand } from '@aws-sdk/client-cloudwatch-logs'
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+
+const logger = createLogger('CloudWatchQueryLogs')
+
 import { createCloudWatchLogsClient, pollQueryResults } from '@/app/api/tools/cloudwatch/utils'
 
 const QueryLogsSchema = z.object({
@@ -62,6 +66,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'CloudWatch Log Insights query failed'
+    logger.error('QueryLogs failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

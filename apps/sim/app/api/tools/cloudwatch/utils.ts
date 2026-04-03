@@ -5,6 +5,7 @@ import {
   GetQueryResultsCommand,
   type ResultField,
 } from '@aws-sdk/client-cloudwatch-logs'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 
 interface AwsCredentials {
   region: string
@@ -53,7 +54,7 @@ export async function pollQueryResults(
   queryId: string,
   options: PollOptions = {}
 ): Promise<PollResult> {
-  const { maxWaitMs = 60_000, pollIntervalMs = 1_000 } = options
+  const { maxWaitMs = DEFAULT_EXECUTION_TIMEOUT_MS, pollIntervalMs = 1_000 } = options
   const startTime = Date.now()
 
   while (Date.now() - startTime < maxWaitMs) {
@@ -107,11 +108,12 @@ export async function describeLogStreams(
     storedBytes: number
   }[]
 }> {
+  const hasPrefix = Boolean(options?.prefix)
   const command = new DescribeLogStreamsCommand({
     logGroupName,
-    orderBy: 'LastEventTime',
-    descending: true,
-    ...(options?.prefix && { logStreamNamePrefix: options.prefix }),
+    ...(hasPrefix
+      ? { orderBy: 'LogStreamName', logStreamNamePrefix: options!.prefix }
+      : { orderBy: 'LastEventTime', descending: true }),
     ...(options?.limit !== undefined && { limit: options.limit }),
   })
 

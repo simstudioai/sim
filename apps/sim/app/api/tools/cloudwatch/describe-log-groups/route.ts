@@ -25,13 +25,6 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    logger.info('Received request', {
-      hasRegion: Boolean(body.region),
-      hasAccessKeyId: Boolean(body.accessKeyId),
-      hasSecretAccessKey: Boolean(body.secretAccessKey),
-      region: body.region,
-      accessKeyIdPrefix: body.accessKeyId?.slice(0, 8),
-    })
     const validatedData = DescribeLogGroupsSchema.parse(body)
 
     const client = new CloudWatchLogsClient({
@@ -42,14 +35,12 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    logger.info('Sending DescribeLogGroupsCommand')
     const command = new DescribeLogGroupsCommand({
       ...(validatedData.prefix && { logGroupNamePrefix: validatedData.prefix }),
       ...(validatedData.limit !== undefined && { limit: validatedData.limit }),
     })
 
     const response = await client.send(command)
-    logger.info('DescribeLogGroupsCommand returned', { count: response.logGroups?.length ?? 0 })
 
     const logGroups = (response.logGroups ?? []).map((lg) => ({
       logGroupName: lg.logGroupName ?? '',
@@ -66,6 +57,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to describe CloudWatch log groups'
+    logger.error('DescribeLogGroups failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

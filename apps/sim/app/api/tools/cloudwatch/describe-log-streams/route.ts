@@ -1,6 +1,10 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+
+const logger = createLogger('CloudWatchDescribeLogStreams')
+
 import { createCloudWatchLogsClient, describeLogStreams } from '@/app/api/tools/cloudwatch/utils'
 
 const DescribeLogStreamsSchema = z.object({
@@ -43,6 +47,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to describe CloudWatch log streams'
+    logger.error('DescribeLogStreams failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

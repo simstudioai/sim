@@ -4,9 +4,12 @@ import {
   DescribeAlarmsCommand,
   type StateValue,
 } from '@aws-sdk/client-cloudwatch'
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+
+const logger = createLogger('CloudWatchDescribeAlarms')
 
 const DescribeAlarmsSchema = z.object({
   region: z.string().min(1, 'AWS region is required'),
@@ -87,6 +90,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to describe CloudWatch alarms'
+    logger.error('DescribeAlarms failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

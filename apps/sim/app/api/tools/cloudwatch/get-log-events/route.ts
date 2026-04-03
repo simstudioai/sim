@@ -1,6 +1,10 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+
+const logger = createLogger('CloudWatchGetLogEvents')
+
 import { createCloudWatchLogsClient, getLogEvents } from '@/app/api/tools/cloudwatch/utils'
 
 const GetLogEventsSchema = z.object({
@@ -51,6 +55,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to get CloudWatch log events'
+    logger.error('GetLogEvents failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

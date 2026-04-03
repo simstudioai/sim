@@ -1,7 +1,10 @@
 import { CloudWatchClient, GetMetricStatisticsCommand } from '@aws-sdk/client-cloudwatch'
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+
+const logger = createLogger('CloudWatchGetMetricStatistics')
 
 const GetMetricStatisticsSchema = z.object({
   region: z.string().min(1, 'AWS region is required'),
@@ -88,6 +91,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to get CloudWatch metric statistics'
+    logger.error('GetMetricStatistics failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
