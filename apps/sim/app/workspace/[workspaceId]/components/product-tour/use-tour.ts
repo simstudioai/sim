@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { usePostHog } from 'posthog-js/react'
 import { ACTIONS, type CallBackProps, EVENTS, STATUS, type Step } from 'react-joyride'
+import { captureEvent } from '@/lib/posthog/client'
 
 const logger = createLogger('useTour')
 
@@ -16,6 +18,8 @@ interface UseTourOptions {
   triggerEvent?: string
   /** Identifier for logging */
   tourName?: string
+  /** Analytics tour type for PostHog events */
+  tourType?: 'nav' | 'workflow'
   /** When true, stops a running tour (e.g. navigating away from the relevant page) */
   disabled?: boolean
 }
@@ -45,8 +49,10 @@ export function useTour({
   steps,
   triggerEvent,
   tourName = 'tour',
+  tourType,
   disabled = false,
 }: UseTourOptions): UseTourReturn {
+  const posthog = usePostHog()
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [tourKey, setTourKey] = useState(0)
@@ -152,6 +158,9 @@ export function useTour({
         setRun(true)
         logger.info(`${tourName} triggered via event`)
         scheduleReveal()
+        if (tourType) {
+          captureEvent(posthog, 'tour_started', { tour_type: tourType })
+        }
       }, 50)
     }
 
@@ -181,6 +190,13 @@ export function useTour({
       if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
         stopTour()
         logger.info(`${tourName} ended`, { status })
+        if (tourType) {
+          if (status === STATUS.FINISHED) {
+            captureEvent(posthog, 'tour_completed', { tour_type: tourType })
+          } else {
+            captureEvent(posthog, 'tour_skipped', { tour_type: tourType, step_index: index })
+          }
+        }
         return
       }
 
@@ -188,6 +204,9 @@ export function useTour({
         if (action === ACTIONS.CLOSE) {
           stopTour()
           logger.info(`${tourName} closed by user`)
+          if (tourType) {
+            captureEvent(posthog, 'tour_skipped', { tour_type: tourType, step_index: index })
+          }
           return
         }
 
@@ -203,7 +222,7 @@ export function useTour({
         transitionToStep(nextIndex)
       }
     },
-    [stopTour, transitionToStep, steps, tourName]
+    [stopTour, transitionToStep, steps, tourName, tourType, posthog]
   )
 
   return {

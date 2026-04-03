@@ -104,6 +104,84 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  workflow_undeployed: {
+    workflow_id: string
+    workspace_id: string
+  }
+
+  workflow_restored: {
+    workflow_id: string
+    workspace_id: string
+  }
+
+  workflow_public_api_toggled: {
+    workflow_id: string
+    workspace_id: string
+    is_public: boolean
+  }
+
+  deployment_version_activated: {
+    workflow_id: string
+    workspace_id: string
+    version: number
+  }
+
+  webhook_trigger_created: {
+    webhook_id: string
+    workflow_id: string
+    workspace_id: string
+    provider: string
+  }
+
+  webhook_trigger_deleted: {
+    webhook_id: string
+    workflow_id: string
+    workspace_id: string
+    provider: string
+  }
+
+  skill_created: {
+    skill_id: string
+    skill_name: string
+    workspace_id: string
+    source?: 'settings' | 'tool_input'
+  }
+
+  skill_deleted: {
+    skill_id: string
+    workspace_id: string
+    source?: 'settings' | 'tool_input'
+  }
+
+  workspace_deleted: {
+    workspace_id: string
+    workflow_count: number
+  }
+
+  notification_channel_deleted: {
+    notification_id: string
+    workspace_id: string
+    notification_type: string
+  }
+
+  a2a_agent_deleted: {
+    agent_id: string
+    workflow_id: string
+    workspace_id: string
+  }
+
+  a2a_agent_published: {
+    agent_id: string
+    workflow_id: string
+    workspace_id: string
+  }
+
+  a2a_agent_unpublished: {
+    agent_id: string
+    workflow_id: string
+    workspace_id: string
+  }
+
   a2a_agent_created: {
     agent_id: string
     workflow_id: string
@@ -178,11 +256,13 @@ export interface PostHogEventMap {
     workspace_id: string
     server_name: string
     transport: string
+    source?: 'settings' | 'tool_input'
   }
 
   mcp_server_disconnected: {
     workspace_id: string
     server_name: string
+    source?: 'settings' | 'tool_input'
   }
 
   credential_connected: {
@@ -241,11 +321,13 @@ export interface PostHogEventMap {
     tool_id: string
     workspace_id: string
     tool_name: string
+    source?: 'settings' | 'tool_input'
   }
 
   custom_tool_deleted: {
     tool_id: string
     workspace_id: string
+    source?: 'settings' | 'tool_input'
   }
 
   byok_key_added: {
@@ -288,6 +370,24 @@ export interface PostHogEventMap {
     has_attachments: boolean
     has_contexts: boolean
     is_new_task: boolean
+  }
+
+  tour_started: {
+    tour_type: 'nav' | 'workflow'
+  }
+
+  tour_completed: {
+    tour_type: 'nav' | 'workflow'
+  }
+
+  tour_skipped: {
+    tour_type: 'nav' | 'workflow'
+    step_index: number
+  }
+
+  docs_opened: {
+    source: 'help_menu' | 'editor_button' | 'toolbar_context_menu'
+    block_type?: string
   }
 }
 

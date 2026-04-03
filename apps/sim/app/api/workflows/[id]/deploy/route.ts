@@ -129,7 +129,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params
 
   try {
-    const { error, session } = await validateWorkflowPermissions(id, requestId, 'admin')
+    const {
+      error,
+      session,
+      workflow: workflowData,
+    } = await validateWorkflowPermissions(id, requestId, 'admin')
     if (error) {
       return createErrorResponse(error.message, error.status)
     }
@@ -159,6 +163,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     logger.info(`[${requestId}] Updated isPublicApi for workflow ${id} to ${isPublicApi}`)
 
+    const wsId = workflowData?.workspaceId
+    captureServerEvent(
+      session!.user.id,
+      'workflow_public_api_toggled',
+      { workflow_id: id, workspace_id: wsId ?? '', is_public: isPublicApi },
+      wsId ? { groups: { workspace: wsId } } : undefined
+    )
+
     return createSuccessResponse({ isPublicApi })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to update deployment settings'
@@ -175,7 +187,11 @@ export async function DELETE(
   const { id } = await params
 
   try {
-    const { error, session } = await validateWorkflowPermissions(id, requestId, 'admin')
+    const {
+      error,
+      session,
+      workflow: workflowData,
+    } = await validateWorkflowPermissions(id, requestId, 'admin')
     if (error) {
       return createErrorResponse(error.message, error.status)
     }
@@ -189,6 +205,14 @@ export async function DELETE(
     if (!result.success) {
       return createErrorResponse(result.error || 'Failed to undeploy workflow', 500)
     }
+
+    const wsId = workflowData?.workspaceId
+    captureServerEvent(
+      session!.user.id,
+      'workflow_undeployed',
+      { workflow_id: id, workspace_id: wsId ?? '' },
+      wsId ? { groups: { workspace: wsId } } : undefined
+    )
 
     return createSuccessResponse({
       isDeployed: false,

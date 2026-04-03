@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { performActivateVersion } from '@/lib/workflows/orchestration'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -173,6 +174,14 @@ export async function PATCH(
           )
         }
       }
+
+      const wsId = (workflowData as { workspaceId?: string } | null)?.workspaceId
+      captureServerEvent(
+        actorUserId,
+        'deployment_version_activated',
+        { workflow_id: id, workspace_id: wsId ?? '', version: versionNum },
+        wsId ? { groups: { workspace: wsId } } : undefined
+      )
 
       return createSuccessResponse({
         success: true,

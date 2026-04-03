@@ -26,6 +26,7 @@ export function WorkflowTour() {
     steps: workflowTourSteps,
     triggerEvent: START_WORKFLOW_TOUR_EVENT,
     tourName: 'Workflow tour',
+    tourType: 'workflow',
   })
 
   const tourState = useMemo<TourState>(
