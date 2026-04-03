@@ -248,7 +248,7 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       id: 'metricDimensions',
       title: 'Dimensions',
       type: 'table',
-      columns: ['Name', 'Value'],
+      columns: ['name', 'value'],
       condition: { field: 'operation', value: 'get_metric_statistics' },
     },
     // Describe Alarms fields
@@ -467,8 +467,8 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
                   if (Array.isArray(dims)) {
                     const obj: Record<string, string> = {}
                     for (const row of dims) {
-                      const name = row.cells?.Name
-                      const value = row.cells?.Value
+                      const name = row.cells?.name
+                      const value = row.cells?.value
                       if (name && value !== undefined) obj[name] = String(value)
                     }
                     return JSON.stringify(obj)

@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       try {
         const dims = JSON.parse(validatedData.dimensions)
         if (Array.isArray(dims)) {
-          parsedDimensions = dims.map((d: { name: string; value: string }) => ({
+          parsedDimensions = dims.map((d: Record<string, string>) => ({
             Name: d.name,
             Value: d.value,
           }))
