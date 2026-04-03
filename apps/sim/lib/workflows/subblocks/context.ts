@@ -22,6 +22,10 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
   'datasetId',
   'serviceDeskId',
   'impersonateUserEmail',
+  'awsAccessKeyId',
+  'awsSecretAccessKey',
+  'awsRegion',
+  'logGroupName',
 ])
 
 /**

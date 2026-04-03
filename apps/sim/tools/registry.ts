@@ -276,6 +276,15 @@ import {
   cloudflareUpdateZoneSettingTool,
 } from '@/tools/cloudflare'
 import {
+  cloudwatchDescribeAlarmsTool,
+  cloudwatchDescribeLogGroupsTool,
+  cloudwatchDescribeLogStreamsTool,
+  cloudwatchGetLogEventsTool,
+  cloudwatchGetMetricStatisticsTool,
+  cloudwatchListMetricsTool,
+  cloudwatchQueryLogsTool,
+} from '@/tools/cloudwatch'
+import {
   confluenceAddLabelTool,
   confluenceCreateBlogPostTool,
   confluenceCreateCommentTool,
@@ -3376,6 +3385,13 @@ export const tools: Record<string, ToolConfig> = {
   rds_delete: rdsDeleteTool,
   rds_execute: rdsExecuteTool,
   rds_introspect: rdsIntrospectTool,
+  cloudwatch_query_logs: cloudwatchQueryLogsTool,
+  cloudwatch_describe_log_groups: cloudwatchDescribeLogGroupsTool,
+  cloudwatch_describe_alarms: cloudwatchDescribeAlarmsTool,
+  cloudwatch_describe_log_streams: cloudwatchDescribeLogStreamsTool,
+  cloudwatch_get_log_events: cloudwatchGetLogEventsTool,
+  cloudwatch_list_metrics: cloudwatchListMetricsTool,
+  cloudwatch_get_metric_statistics: cloudwatchGetMetricStatisticsTool,
   dynamodb_get: dynamodbGetTool,
   dynamodb_put: dynamodbPutTool,
   dynamodb_query: dynamodbQueryTool,

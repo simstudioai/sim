@@ -1716,6 +1716,81 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       }))
     },
   },
+  'cloudwatch.logGroups': {
+    key: 'cloudwatch.logGroups',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'cloudwatch.logGroups',
+      context.awsAccessKeyId ?? 'none',
+      context.awsRegion ?? 'none',
+    ],
+    enabled: ({ context }) =>
+      Boolean(context.awsAccessKeyId && context.awsSecretAccessKey && context.awsRegion),
+    fetchList: async ({ context, search }: SelectorQueryArgs) => {
+      const body = JSON.stringify({
+        accessKeyId: context.awsAccessKeyId,
+        secretAccessKey: context.awsSecretAccessKey,
+        region: context.awsRegion,
+        ...(search && { prefix: search }),
+      })
+      const data = await fetchJson<{
+        output: { logGroups: { logGroupName: string }[] }
+      }>('/api/tools/cloudwatch/describe-log-groups', {
+        method: 'POST',
+        body,
+      })
+      return (data.output?.logGroups || []).map((lg) => ({
+        id: lg.logGroupName,
+        label: lg.logGroupName,
+      }))
+    },
+    fetchById: async ({ detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      return { id: detailId, label: detailId }
+    },
+  },
+  'cloudwatch.logStreams': {
+    key: 'cloudwatch.logStreams',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'cloudwatch.logStreams',
+      context.awsAccessKeyId ?? 'none',
+      context.awsRegion ?? 'none',
+      context.logGroupName ?? 'none',
+    ],
+    enabled: ({ context }) =>
+      Boolean(
+        context.awsAccessKeyId &&
+          context.awsSecretAccessKey &&
+          context.awsRegion &&
+          context.logGroupName
+      ),
+    fetchList: async ({ context, search }: SelectorQueryArgs) => {
+      const body = JSON.stringify({
+        accessKeyId: context.awsAccessKeyId,
+        secretAccessKey: context.awsSecretAccessKey,
+        region: context.awsRegion,
+        logGroupName: context.logGroupName,
+        ...(search && { prefix: search }),
+      })
+      const data = await fetchJson<{
+        output: { logStreams: { logStreamName: string; lastEventTimestamp?: number }[] }
+      }>('/api/tools/cloudwatch/describe-log-streams', {
+        method: 'POST',
+        body,
+      })
+      return (data.output?.logStreams || []).map((ls) => ({
+        id: ls.logStreamName,
+        label: ls.logStreamName,
+      }))
+    },
+    fetchById: async ({ detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      return { id: detailId, label: detailId }
+    },
+  },
   'sim.workflows': {
     key: 'sim.workflows',
     staleTime: SELECTOR_STALE,

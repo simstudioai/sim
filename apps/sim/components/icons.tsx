@@ -4653,6 +4653,33 @@ export function SQSIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function CloudWatchIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 80 80'
+      version='1.1'
+      xmlns='http://www.w3.org/2000/svg'
+      xmlnsXlink='http://www.w3.org/1999/xlink'
+    >
+      <g
+        id='Icon-Architecture/64/Arch_Amazon-CloudWatch_64'
+        stroke='none'
+        strokeWidth='1'
+        fill='none'
+        fillRule='evenodd'
+        transform='translate(40, 40) scale(1.25) translate(-40, -40)'
+      >
+        <path
+          d='M53,42 L41,42 L41,24 L43,24 L43,40 L53,40 L53,42 Z M40,66 C24.561,66 12,53.439 12,38 C12,22.561 24.561,10 40,10 C55.439,10 68,22.561 68,38 C68,53.439 55.439,66 40,66 M40,8 C23.458,8 10,21.458 10,38 C10,54.542 23.458,68 40,68 C56.542,68 70,54.542 70,38 C70,21.458 56.542,8 40,8'
+          id='Amazon-CloudWatch_Icon_64_Squid'
+          fill='currentColor'
+        />
+      </g>
+    </svg>
+  )
+}
+
 export function TextractIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

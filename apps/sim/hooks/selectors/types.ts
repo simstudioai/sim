@@ -49,6 +49,8 @@ export type SelectorKey =
   | 'webflow.sites'
   | 'webflow.collections'
   | 'webflow.items'
+  | 'cloudwatch.logGroups'
+  | 'cloudwatch.logStreams'
   | 'sim.workflows'
 
 export interface SelectorOption {
@@ -78,6 +80,10 @@ export interface SelectorContext {
   datasetId?: string
   serviceDeskId?: string
   impersonateUserEmail?: string
+  awsAccessKeyId?: string
+  awsSecretAccessKey?: string
+  awsRegion?: string
+  logGroupName?: string
 }
 
 export interface SelectorQueryArgs {
