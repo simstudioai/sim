@@ -299,14 +299,12 @@ export async function DELETE(
       request,
     })
 
-    if (workspaceId) {
-      captureServerEvent(
-        session.user.id,
-        'scheduled_task_deleted',
-        { workspace_id: workspaceId },
-        { groups: { workspace: workspaceId } }
-      )
-    }
+    captureServerEvent(
+      session.user.id,
+      'scheduled_task_deleted',
+      { workspace_id: workspaceId ?? '' },
+      workspaceId ? { groups: { workspace: workspaceId } } : undefined
+    )
 
     return NextResponse.json({ message: 'Schedule deleted successfully' })
   } catch (error) {
