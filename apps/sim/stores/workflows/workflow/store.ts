@@ -390,15 +390,18 @@ export const useWorkflowStore = create<WorkflowStore>()(
           parallels: generateParallelBlocks(newBlocks),
         })
 
-        if (removedBlockTypes.length === 1) {
-          import('@/lib/posthog/client')
-            .then(({ captureClientEvent }) => {
-              captureClientEvent('block_removed', {
-                block_type: removedBlockTypes[0],
-                workflow_id: get().currentWorkflowId ?? 'unknown',
+        if (ids.length === 1) {
+          const blockType = currentBlocks[ids[0]]?.type
+          if (blockType) {
+            import('@/lib/posthog/client')
+              .then(({ captureClientEvent }) => {
+                captureClientEvent('block_removed', {
+                  block_type: blockType,
+                  workflow_id: get().currentWorkflowId ?? 'unknown',
+                })
               })
-            })
-            .catch(() => {})
+              .catch(() => {})
+          }
         }
 
         get().updateLastSaved()
