@@ -40,6 +40,7 @@ import {
   TypeText,
 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, Filter, SortDirection, TableRow as TableRowType } from '@/lib/table'
 import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
@@ -182,7 +183,7 @@ export function Table({
 
   useEffect(() => {
     if (!tableId || !workspaceId) return
-    posthog?.capture('table_opened', { table_id: tableId, workspace_id: workspaceId })
+    captureEvent(posthog, 'table_opened', { table_id: tableId, workspace_id: workspaceId })
   }, [tableId, workspaceId, posthog])
 
   const [queryOptions, setQueryOptions] = useState<QueryOptions>({

@@ -11,6 +11,7 @@ import {
   type LandingWorkflowSeed,
   LandingWorkflowSeedStorage,
 } from '@/lib/core/utils/browser-storage'
+import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import type { ChatContext } from '@/stores/panel'
@@ -206,7 +207,7 @@ export function Home({ chatId }: HomeProps = {}) {
       const trimmed = text.trim()
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
 
-      posthog?.capture('message_sent', {
+      captureEvent(posthog, 'message_sent', {
         has_attachments: !!(fileAttachments && fileAttachments.length > 0),
         has_contexts: !!(contexts && contexts.length > 0),
       })

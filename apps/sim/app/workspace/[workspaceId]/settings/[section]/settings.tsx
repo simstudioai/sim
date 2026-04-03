@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { Skeleton } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
+import { captureEvent } from '@/lib/posthog/client'
 import { AdminSkeleton } from '@/app/workspace/[workspaceId]/settings/components/admin/admin-skeleton'
 import { ApiKeysSkeleton } from '@/app/workspace/[workspaceId]/settings/components/api-keys/api-key-skeleton'
 import { BYOKSkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
@@ -179,7 +180,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
 
   useEffect(() => {
     if (sessionLoading) return
-    posthog?.capture('settings_tab_viewed', { section: effectiveSection })
+    captureEvent(posthog, 'settings_tab_viewed', { section: effectiveSection })
   }, [effectiveSection, sessionLoading, posthog])
 
   return (

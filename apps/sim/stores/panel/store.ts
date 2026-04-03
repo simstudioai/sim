@@ -10,7 +10,7 @@ const DEFAULT_TAB: PanelTab = 'copilot'
 
 export const usePanelStore = create<PanelState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       panelWidth: PANEL_WIDTH.DEFAULT,
       setPanelWidth: (width) => {
         // Only enforce minimum - maximum is enforced dynamically by the resize hook
@@ -28,7 +28,7 @@ export const usePanelStore = create<PanelState>()(
         if (typeof document !== 'undefined') {
           document.documentElement.removeAttribute('data-panel-active-tab')
         }
-        if (tab === 'copilot') {
+        if (tab === 'copilot' && get().activeTab !== 'copilot') {
           import('@/lib/posthog/client')
             .then(({ captureClientEvent }) => captureClientEvent('copilot_panel_opened', {}))
             .catch(() => {})

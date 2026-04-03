@@ -2,12 +2,13 @@
 
 import { useEffect } from 'react'
 import { usePostHog } from 'posthog-js/react'
+import { captureEvent } from '@/lib/posthog/client'
 
 export function LandingAnalytics() {
   const posthog = usePostHog()
 
   useEffect(() => {
-    posthog?.capture('landing_page_viewed', {})
+    captureEvent(posthog, 'landing_page_viewed', {})
   }, [posthog])
 
   return null

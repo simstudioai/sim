@@ -29,6 +29,7 @@ import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowl
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import type { DocumentData } from '@/lib/knowledge/types'
+import { captureEvent } from '@/lib/posthog/client'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import type {
   BreadcrumbItem,
@@ -194,7 +195,7 @@ export function KnowledgeBase({
   const posthog = usePostHog()
 
   useEffect(() => {
-    posthog?.capture('knowledge_base_opened', {
+    captureEvent(posthog, 'knowledge_base_opened', {
       knowledge_base_id: id,
       knowledge_base_name: passedKnowledgeBaseName ?? 'Unknown',
     })

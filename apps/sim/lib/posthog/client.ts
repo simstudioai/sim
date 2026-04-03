@@ -1,3 +1,4 @@
+import type { PostHog } from 'posthog-js'
 import type { PostHogEventMap, PostHogEventName } from '@/lib/posthog/events'
 
 /**
@@ -6,7 +7,7 @@ import type { PostHogEventMap, PostHogEventName } from '@/lib/posthog/events'
  * Uses the same dynamic `import('posthog-js')` pattern as `session-provider.tsx`.
  * Fully fire-and-forget — never throws, never blocks.
  *
- * React components should use `usePostHog()` from `posthog-js/react` instead.
+ * React components should use {@link captureEvent} with the `posthog` instance from `usePostHog()`.
  *
  * @param event      - Typed event name from {@link PostHogEventMap}.
  * @param properties - Strongly-typed property bag for this event.
@@ -24,4 +25,22 @@ export function captureClientEvent<E extends PostHogEventName>(
       } catch {}
     })
     .catch(() => {})
+}
+
+/**
+ * Typed wrapper for `posthog.capture` in React components.
+ *
+ * Enforces event names and property shapes from {@link PostHogEventMap} at compile time,
+ * matching the type safety provided by `captureServerEvent` on the server side.
+ *
+ * @param posthog    - PostHog instance from `usePostHog()`.
+ * @param event      - Typed event name from {@link PostHogEventMap}.
+ * @param properties - Strongly-typed property bag for this event.
+ */
+export function captureEvent<E extends PostHogEventName>(
+  posthog: PostHog | null | undefined,
+  event: E,
+  properties: PostHogEventMap[E]
+): void {
+  posthog?.capture(event, properties as Record<string, unknown>)
 }
