@@ -62,12 +62,12 @@ export async function POST(
     }
 
     if (cancellation.durablyRecorded || locallyAborted) {
-      const workspaceId = workflowAuthorization.workflow?.workspaceId ?? ''
+      const workspaceId = workflowAuthorization.workflow?.workspaceId
       captureServerEvent(
         auth.userId,
         'workflow_execution_cancelled',
-        { workflow_id: workflowId, workspace_id: workspaceId },
-        { groups: { workspace: workspaceId } }
+        { workflow_id: workflowId, workspace_id: workspaceId ?? '' },
+        workspaceId ? { groups: { workspace: workspaceId } } : undefined
       )
     }
 

@@ -177,17 +177,16 @@ export async function executeWorkflow(
   } catch (error: unknown) {
     logger.error(`[${requestId}] Workflow execution failed:`, error)
 
-    const workspaceId = workflow.workspaceId
     captureServerEvent(
       actorUserId,
       'workflow_execution_failed',
       {
         workflow_id: workflow.id,
-        workspace_id: workspaceId ?? '',
+        workspace_id: workspaceId,
         trigger_type: streamConfig?.workflowTriggerType || 'api',
         error_message: error instanceof Error ? error.message : String(error),
       },
-      workspaceId ? { groups: { workspace: workspaceId } } : undefined
+      { groups: { workspace: workspaceId } }
     )
 
     throw error
