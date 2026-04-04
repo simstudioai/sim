@@ -622,7 +622,7 @@ export class Serializer {
       position: serializedBlock.position,
       subBlocks,
       outputs: serializedBlock.outputs,
-      enabled: true,
+      enabled: serializedBlock.enabled ?? true,
       triggerMode:
         serializedBlock.config?.params?.triggerMode === true ||
         serializedBlock.metadata?.category === 'triggers',
