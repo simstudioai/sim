@@ -25,6 +25,7 @@ import {
 import { Database, DatabaseX } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { cn } from '@/lib/core/utils/cn'
+import { ADD_CONNECTOR_SEARCH_PARAM } from '@/lib/credentials/client-state'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
@@ -74,7 +75,6 @@ import {
   useUpdateKnowledgeBase,
 } from '@/hooks/queries/kb/knowledge'
 import { useInlineRename } from '@/hooks/use-inline-rename'
-import { ADD_CONNECTOR_SEARCH_PARAM } from '@/lib/credentials/client-state'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 
 const logger = createLogger('KnowledgeBase')

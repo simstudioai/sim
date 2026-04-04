@@ -58,9 +58,7 @@ export function AddConnectorModal({
   knowledgeBaseId,
   initialConnectorType,
 }: AddConnectorModalProps) {
-  const [step, setStep] = useState<Step>(() =>
-    initialConnectorType ? 'configure' : 'select-type'
-  )
+  const [step, setStep] = useState<Step>(() => (initialConnectorType ? 'configure' : 'select-type'))
   const [selectedType, setSelectedType] = useState<string | null>(initialConnectorType ?? null)
   const [sourceConfig, setSourceConfig] = useState<Record<string, string>>({})
   const [syncInterval, setSyncInterval] = useState(1440)
