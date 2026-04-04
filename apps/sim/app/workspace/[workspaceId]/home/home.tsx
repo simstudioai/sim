@@ -348,6 +348,7 @@ export function Home({ chatId }: HomeProps = {}) {
           onSendQueuedMessage={sendNow}
           onEditQueuedMessage={handleEditQueuedMessage}
           userId={session?.user?.id}
+          chatId={resolvedChatId}
           onContextAdd={handleContextAdd}
           editValue={editingInputValue}
           onEditValueConsumed={clearEditingValue}
