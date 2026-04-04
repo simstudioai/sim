@@ -411,6 +411,17 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     setHasHydrated(true)
   }, [setHasHydrated])
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const message = (e as CustomEvent<{ message: string }>).detail?.message
+      if (!message) return
+      setActiveTab('copilot')
+      copilotSendMessage(message)
+    }
+    window.addEventListener('mothership-send-message', handler)
+    return () => window.removeEventListener('mothership-send-message', handler)
+  }, [setActiveTab, copilotSendMessage])
+
   /**
    * Handles tab click events
    */
