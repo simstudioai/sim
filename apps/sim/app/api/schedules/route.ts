@@ -5,6 +5,7 @@ import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { validateCronExpression } from '@/lib/workflows/schedules/utils'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
@@ -276,6 +277,13 @@ export async function POST(req: NextRequest) {
       timezone,
       lifecycle,
     })
+
+    captureServerEvent(
+      session.user.id,
+      'scheduled_task_created',
+      { workspace_id: workspaceId },
+      { groups: { workspace: workspaceId } }
+    )
 
     return NextResponse.json(
       { schedule: { id, status: 'active', cronExpression, nextRunAt } },

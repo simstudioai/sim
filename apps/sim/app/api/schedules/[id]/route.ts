@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { validateCronExpression } from '@/lib/workflows/schedules/utils'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
@@ -297,6 +298,13 @@ export async function DELETE(
       metadata: {},
       request,
     })
+
+    captureServerEvent(
+      session.user.id,
+      'scheduled_task_deleted',
+      { workspace_id: workspaceId ?? '' },
+      workspaceId ? { groups: { workspace: workspaceId } } : undefined
+    )
 
     return NextResponse.json({ message: 'Schedule deleted successfully' })
   } catch (error) {

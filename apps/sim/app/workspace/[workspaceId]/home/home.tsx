@@ -228,6 +228,7 @@ export function Home({ chatId }: HomeProps = {}) {
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
 
       captureEvent(posthogRef.current, 'task_message_sent', {
+        workspace_id: workspaceId,
         has_attachments: !!(fileAttachments && fileAttachments.length > 0),
         has_contexts: !!(contexts && contexts.length > 0),
         is_new_task: !chatId,
@@ -239,7 +240,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
       sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
-    [sendMessage]
+    [sendMessage, workspaceId, chatId]
   )
 
   useEffect(() => {

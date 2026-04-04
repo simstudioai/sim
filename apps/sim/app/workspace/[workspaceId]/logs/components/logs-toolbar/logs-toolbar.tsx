@@ -1,8 +1,9 @@
 'use client'
 
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { ArrowUp, Bell, Library, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Button,
@@ -18,6 +19,7 @@ import { DatePicker } from '@/components/emcn/components/date-picker/date-picker
 import { cn } from '@/lib/core/utils/cn'
 import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
+import { captureEvent } from '@/lib/posthog/client'
 import { type LogStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
@@ -179,6 +181,9 @@ export const LogsToolbar = memo(function LogsToolbar({
 }: LogsToolbarProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const posthog = usePostHog()
+  const posthogRef = useRef(posthog)
+  posthogRef.current = posthog
 
   const {
     level,
@@ -258,8 +263,45 @@ export const LogsToolbar = memo(function LogsToolbar({
       } else {
         setLevel(values.join(','))
       }
+      captureEvent(posthogRef.current, 'logs_filter_applied', {
+        filter_type: 'status',
+        workspace_id: workspaceId,
+      })
     },
-    [setLevel]
+    [setLevel, workspaceId]
+  )
+
+  const handleWorkflowFilterChange = useCallback(
+    (values: string[]) => {
+      setWorkflowIds(values)
+      captureEvent(posthogRef.current, 'logs_filter_applied', {
+        filter_type: 'workflow',
+        workspace_id: workspaceId,
+      })
+    },
+    [setWorkflowIds, workspaceId]
+  )
+
+  const handleFolderFilterChange = useCallback(
+    (values: string[]) => {
+      setFolderIds(values)
+      captureEvent(posthogRef.current, 'logs_filter_applied', {
+        filter_type: 'folder',
+        workspace_id: workspaceId,
+      })
+    },
+    [setFolderIds, workspaceId]
+  )
+
+  const handleTriggerFilterChange = useCallback(
+    (values: string[]) => {
+      setTriggers(values)
+      captureEvent(posthogRef.current, 'logs_filter_applied', {
+        filter_type: 'trigger',
+        workspace_id: workspaceId,
+      })
+    },
+    [setTriggers, workspaceId]
   )
 
   const statusDisplayLabel = useMemo(() => {
@@ -348,9 +390,13 @@ export const LogsToolbar = memo(function LogsToolbar({
       } else {
         clearDateRange()
         setTimeRange(val as typeof timeRange)
+        captureEvent(posthogRef.current, 'logs_filter_applied', {
+          filter_type: 'time',
+          workspace_id: workspaceId,
+        })
       }
     },
-    [timeRange, setTimeRange, clearDateRange]
+    [timeRange, setTimeRange, clearDateRange, workspaceId]
   )
 
   /**
@@ -360,8 +406,12 @@ export const LogsToolbar = memo(function LogsToolbar({
     (start: string, end: string) => {
       setDateRange(start, end)
       setDatePickerOpen(false)
+      captureEvent(posthogRef.current, 'logs_filter_applied', {
+        filter_type: 'time',
+        workspace_id: workspaceId,
+      })
     },
-    [setDateRange]
+    [setDateRange, workspaceId]
   )
 
   /**
@@ -545,7 +595,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     options={workflowOptions}
                     multiSelect
                     multiSelectValues={workflowIds}
-                    onMultiSelectChange={setWorkflowIds}
+                    onMultiSelectChange={handleWorkflowFilterChange}
                     placeholder='All workflows'
                     overlayContent={
                       <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
@@ -580,7 +630,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     options={folderOptions}
                     multiSelect
                     multiSelectValues={folderIds}
-                    onMultiSelectChange={setFolderIds}
+                    onMultiSelectChange={handleFolderFilterChange}
                     placeholder='All folders'
                     overlayContent={
                       <span className='truncate text-[var(--text-primary)]'>
@@ -605,7 +655,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     options={triggerOptions}
                     multiSelect
                     multiSelectValues={triggers}
-                    onMultiSelectChange={setTriggers}
+                    onMultiSelectChange={handleTriggerFilterChange}
                     placeholder='All triggers'
                     overlayContent={
                       <span className='truncate text-[var(--text-primary)]'>
@@ -676,7 +726,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               options={workflowOptions}
               multiSelect
               multiSelectValues={workflowIds}
-              onMultiSelectChange={setWorkflowIds}
+              onMultiSelectChange={handleWorkflowFilterChange}
               placeholder='Workflow'
               overlayContent={
                 <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
@@ -707,7 +757,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               options={folderOptions}
               multiSelect
               multiSelectValues={folderIds}
-              onMultiSelectChange={setFolderIds}
+              onMultiSelectChange={handleFolderFilterChange}
               placeholder='Folder'
               overlayContent={
                 <span className='truncate text-[var(--text-primary)]'>{folderDisplayLabel}</span>
@@ -726,7 +776,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               options={triggerOptions}
               multiSelect
               multiSelectValues={triggers}
-              onMultiSelectChange={setTriggers}
+              onMultiSelectChange={handleTriggerFilterChange}
               placeholder='Trigger'
               overlayContent={
                 <span className='truncate text-[var(--text-primary)]'>{triggerDisplayLabel}</span>
