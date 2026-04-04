@@ -756,4 +756,92 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(safeCompleteWithErrorMock).not.toHaveBeenCalled()
     expect(wasExecutionFinalizedByCore(envError, 'execution-no-log-start')).toBe(false)
   })
+
+  it('uses sessionUserId for env resolution when isClientSession is true', async () => {
+    const snapshot = {
+      ...createSnapshot(),
+      metadata: {
+        ...createSnapshot().metadata,
+        isClientSession: true,
+        sessionUserId: 'session-user',
+        workflowUserId: 'workflow-owner',
+      },
+    }
+
+    getPersonalAndWorkspaceEnvMock.mockResolvedValue({
+      personalEncrypted: {},
+      workspaceEncrypted: {},
+      personalDecrypted: {},
+      workspaceDecrypted: {},
+    })
+    safeStartMock.mockResolvedValue(true)
+    executorExecuteMock.mockResolvedValue({
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: snapshot as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(getPersonalAndWorkspaceEnvMock).toHaveBeenCalledWith('session-user', 'workspace-1')
+  })
+
+  it('uses workflowUserId for env resolution in server-side execution', async () => {
+    const snapshot = {
+      ...createSnapshot(),
+      metadata: {
+        ...createSnapshot().metadata,
+        isClientSession: false,
+        sessionUserId: undefined,
+        workflowUserId: 'workflow-owner',
+        userId: 'billing-actor',
+      },
+    }
+
+    getPersonalAndWorkspaceEnvMock.mockResolvedValue({
+      personalEncrypted: {},
+      workspaceEncrypted: {},
+      personalDecrypted: {},
+      workspaceDecrypted: {},
+    })
+    safeStartMock.mockResolvedValue(true)
+    executorExecuteMock.mockResolvedValue({
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: snapshot as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(getPersonalAndWorkspaceEnvMock).toHaveBeenCalledWith('workflow-owner', 'workspace-1')
+  })
+
+  it('throws when workflowUserId is missing in server-side execution', async () => {
+    const snapshot = {
+      ...createSnapshot(),
+      metadata: {
+        ...createSnapshot().metadata,
+        isClientSession: false,
+        sessionUserId: undefined,
+        workflowUserId: undefined,
+        userId: 'billing-actor',
+      },
+    }
+
+    await expect(
+      executeWorkflowCore({
+        snapshot: snapshot as any,
+        callbacks: {},
+        loggingSession: loggingSession as any,
+      })
+    ).rejects.toThrow('Missing workflowUserId in execution metadata')
+  })
 })
