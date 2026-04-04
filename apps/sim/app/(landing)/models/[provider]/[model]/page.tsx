@@ -199,7 +199,7 @@ export default async function ModelPage({
           </div>
 
           <p className='max-w-[820px] text-[17px] text-[var(--landing-text-muted)] leading-relaxed'>
-            {model.summary} {model.bestFor}
+            {model.summary}
           </p>
 
           <div className='mt-8 flex flex-wrap gap-3'>
@@ -286,7 +286,6 @@ export default async function ModelPage({
                   }
                 />
                 <DetailItem label='Provider' value={provider.name} />
-                <DetailItem label='Best for' value={model.bestFor} />
               </div>
             </section>
 
