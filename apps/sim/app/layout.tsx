@@ -90,6 +90,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 }
 
                 // Sidebar width
+                var defaultSidebarWidth = '248px';
                 try {
                   var stored = localStorage.getItem('sidebar-state');
                   if (stored) {
@@ -108,11 +109,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         document.documentElement.style.setProperty('--sidebar-width', width + 'px');
                       } else if (width > maxSidebarWidth) {
                         document.documentElement.style.setProperty('--sidebar-width', maxSidebarWidth + 'px');
+                      } else {
+                        document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth);
                       }
                     }
+                  } else {
+                    document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth);
                   }
                 } catch (e) {
-                  // Fallback handled by CSS defaults
+                  document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth);
                 }
 
                 // Panel width and active tab

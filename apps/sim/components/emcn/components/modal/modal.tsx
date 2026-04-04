@@ -40,6 +40,7 @@ import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as TabsPrimitive from '@radix-ui/react-tabs'
 import { X } from 'lucide-react'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { Button } from '../button/button'
 
@@ -55,7 +56,7 @@ const ANIMATION_CLASSES =
  * We keep only the slide animations (no zoom) to stabilize positioning while avoiding scale effects.
  */
 const CONTENT_ANIMATION_CLASSES =
-  'data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[50%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[50%] motion-reduce:animate-none'
+  'data-[state=closed]:slide-out-to-top-[50%] data-[state=open]:slide-in-from-top-[50%] motion-reduce:animate-none'
 
 /**
  * Root modal component. Manages open state.
@@ -145,6 +146,8 @@ const ModalContent = React.forwardRef<
   ModalContentProps
 >(({ className, children, showClose = true, size = 'md', style, ...props }, ref) => {
   const [isInteractionReady, setIsInteractionReady] = React.useState(false)
+  const pathname = usePathname()
+  const isWorkflowPage = pathname?.includes('/w/') ?? false
 
   React.useEffect(() => {
     const timer = setTimeout(() => setIsInteractionReady(true), 100)
@@ -164,7 +167,10 @@ const ModalContent = React.forwardRef<
           className
         )}
         style={{
-          left: '50%',
+          left: isWorkflowPage
+            ? // --panel-width is always the rendered panel width on /w/ routes (panel is never hidden/collapsed)
+              'calc(50% + (var(--sidebar-width) - var(--panel-width)) / 2)'
+            : 'calc(var(--sidebar-width) / 2 + 50%)',
           ...style,
         }}
         onEscapeKeyDown={(e) => {
