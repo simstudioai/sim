@@ -1190,7 +1190,7 @@ export function CredentialsManager() {
 
               <div className='flex flex-col gap-0 overflow-hidden rounded-lg border border-[var(--border)]'>
                 {/* Header */}
-                <div className='flex items-start gap-3 border-b border-[var(--border)] bg-[var(--surface-1)] px-4 py-3'>
+                <div className='flex items-start gap-3 border-[var(--border)] border-b bg-[var(--surface-1)] px-4 py-3'>
                   <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-4)]'>
                     <Shield className='h-4 w-4 text-[var(--text-secondary)]' />
                   </div>
@@ -1221,7 +1221,7 @@ export function CredentialsManager() {
                       </div>
                       <Skeleton className='h-7 w-[80px] rounded-md' />
                     </div>
-                    <div className='flex items-center gap-3 border-t border-[var(--border)] py-3'>
+                    <div className='flex items-center gap-3 border-[var(--border)] border-t py-3'>
                       <Skeleton className='h-8 w-8 rounded-full' />
                       <div className='flex-1'>
                         <Skeleton className='mb-1 h-3.5 w-[100px]' />
@@ -1236,7 +1236,7 @@ export function CredentialsManager() {
                       <div
                         key={member.id}
                         className={`flex items-center gap-3 px-4 py-2.5 ${
-                          index > 0 ? 'border-t border-[var(--border)]' : ''
+                          index > 0 ? 'border-[var(--border)] border-t' : ''
                         }`}
                       >
                         <Avatar className='h-8 w-8 flex-shrink-0'>
@@ -1299,10 +1299,10 @@ export function CredentialsManager() {
 
                     {/* Add member row */}
                     {isSelectedAdmin && (
-                      <div className='flex flex-col gap-2 border-t border-[var(--border)] bg-[var(--surface-1)] px-4 py-3'>
+                      <div className='flex flex-col gap-2 border-[var(--border)] border-t bg-[var(--surface-1)] px-4 py-3'>
                         <div className='flex items-center gap-1.5'>
                           <UserPlus className='h-3.5 w-3.5 text-[var(--text-tertiary)]' />
-                          <p className='text-[var(--text-secondary)] text-caption font-medium'>
+                          <p className='font-medium text-[var(--text-secondary)] text-caption'>
                             Grant access to a workspace member
                           </p>
                         </div>
@@ -1348,7 +1348,7 @@ export function CredentialsManager() {
                             {upsertMember.isPending ? 'Adding...' : 'Add'}
                           </Button>
                         </div>
-                        <p className='flex items-start gap-1 text-[var(--text-muted)] text-[11px]'>
+                        <p className='flex items-start gap-1 text-[11px] text-[var(--text-muted)]'>
                           <Info className='mt-0.5 h-3 w-3 flex-shrink-0' />
                           Only members of this workspace appear here. To add someone new, invite
                           them to the workspace first.
@@ -1358,7 +1358,7 @@ export function CredentialsManager() {
 
                     {/* Non-admin notice */}
                     {!isSelectedAdmin && (
-                      <div className='flex items-center gap-2 border-t border-[var(--border)] bg-[var(--surface-1)] px-4 py-2.5'>
+                      <div className='flex items-center gap-2 border-[var(--border)] border-t bg-[var(--surface-1)] px-4 py-2.5'>
                         <Info className='h-3.5 w-3.5 flex-shrink-0 text-[var(--text-muted)]' />
                         <p className='text-[var(--text-muted)] text-caption'>
                           Only admins of this secret can manage access control.

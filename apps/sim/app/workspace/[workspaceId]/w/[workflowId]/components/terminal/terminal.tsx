@@ -140,7 +140,7 @@ const BlockRow = memo(function BlockRow({
       </div>
       <div className='flex flex-shrink-0 items-center gap-3'>
         {entry.startedAt && (
-          <span className='font-mono text-[10px] leading-[30px] text-[var(--text-muted)]'>
+          <span className='font-mono text-[10px] text-[var(--text-muted)] leading-[30px]'>
             {new Date(entry.startedAt).toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit',
@@ -1387,7 +1387,7 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
           >
             {/* Panel mode: compact filter bar */}
             {isPanelMode && !selectedEntry && allWorkflowEntries.length > 0 && (
-              <div className='flex h-[30px] flex-shrink-0 items-center gap-1.5 border-b border-[var(--border)] px-3'>
+              <div className='flex h-[30px] flex-shrink-0 items-center gap-1.5 border-[var(--border)] border-b px-3'>
                 <Button
                   className='h-[22px] rounded-[4px] px-1.5 text-[11px]'
                   variant={filters.statuses.size === 0 ? 'active' : 'ghost'}
@@ -1630,7 +1630,7 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
           {/* Bottom output panel — panel mode: collapsible, resizable */}
           {isPanelMode && (
             <div
-              className='flex flex-shrink-0 flex-col overflow-hidden border-t border-[var(--border)]'
+              className='flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t'
               style={{ height: panelOutputHeight > 0 ? `${panelOutputHeight}px` : '0px' }}
             >
               {/* Drag handle */}
@@ -1664,7 +1664,7 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
               {selectedEntry ? (
                 <div className='flex min-h-0 flex-1 flex-col'>
                   {/* Output/Input tab header */}
-                  <div className='flex h-[30px] flex-shrink-0 items-center gap-0.5 border-b border-[var(--border)] px-2.5'>
+                  <div className='flex h-[30px] flex-shrink-0 items-center gap-0.5 border-[var(--border)] border-b px-2.5'>
                     <Button
                       variant='ghost'
                       className={clsx(
@@ -1688,13 +1688,13 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
                       </Button>
                     )}
                     <div className='flex-1' />
-                    <span className='truncate text-[var(--text-muted)] text-[11px]'>
+                    <span className='truncate text-[11px] text-[var(--text-muted)]'>
                       {selectedEntry.blockName}
                     </span>
                   </div>
                   {/* Scrollable content */}
                   <div className='min-h-0 flex-1 overflow-auto'>
-                    <pre className='whitespace-pre-wrap p-3 font-mono text-[12px] leading-relaxed text-[var(--text-body)]'>
+                    <pre className='whitespace-pre-wrap p-3 font-mono text-[12px] text-[var(--text-body)] leading-relaxed'>
                       {outputData
                         ? typeof outputData === 'string'
                           ? outputData

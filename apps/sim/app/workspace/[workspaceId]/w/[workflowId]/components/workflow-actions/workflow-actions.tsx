@@ -87,13 +87,6 @@ export const WorkflowActions = memo(function WorkflowActions({
     onSuccess: () => setIsDeleteModalOpen(false),
   })
 
-  const { isOpen: isVariablesOpen, setIsOpen: setVariablesOpen } = useVariablesStore(
-    useShallow((state) => ({
-      isOpen: state.isOpen,
-      setIsOpen: state.setIsOpen,
-    }))
-  )
-
   const handleAutoLayout = useCallback(async () => {
     if (isExecuting || !userPermissions.canEdit || isAutoLayouting) return
     setIsAutoLayouting(true)

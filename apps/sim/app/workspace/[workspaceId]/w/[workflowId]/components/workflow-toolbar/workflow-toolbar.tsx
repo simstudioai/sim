@@ -61,7 +61,7 @@ export const WorkflowToolbar = memo(function WorkflowToolbar({
 
   const canRun = userPermissions.canRead
   const isLoadingPermissions = userPermissions.isLoading
-  const isButtonDisabled = !isExecuting && (!canRun && !isLoadingPermissions)
+  const isButtonDisabled = !isExecuting && !canRun && !isLoadingPermissions
 
   return (
     <div className='absolute top-4 right-4 z-10 flex h-[36px] items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-1'>

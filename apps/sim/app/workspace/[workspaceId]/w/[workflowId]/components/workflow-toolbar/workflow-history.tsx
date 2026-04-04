@@ -261,8 +261,8 @@ export const WorkflowHistory = memo(function WorkflowHistory({
           }}
         >
           {/* Header */}
-          <div className='flex items-center justify-between px-2 pb-1 pt-0.5'>
-            <span className='text-[12px] font-medium text-[var(--text-primary)]'>
+          <div className='flex items-center justify-between px-2 pt-0.5 pb-1'>
+            <span className='font-medium text-[12px] text-[var(--text-primary)]'>
               Change History
             </span>
             <Button
@@ -322,7 +322,7 @@ export const WorkflowHistory = memo(function WorkflowHistory({
               {/* Recent Changes Section */}
               {hasSnapshots && (
                 <>
-                  {hasVersions && <div className='mx-2 my-1 border-t border-[var(--border)]' />}
+                  {hasVersions && <div className='mx-2 my-1 border-[var(--border)] border-t' />}
                   <PopoverSection>Recent Changes</PopoverSection>
                   {snapshots.map((snapshot) => (
                     <PopoverItem key={snapshot.id} onClick={() => handleRestore(snapshot)}>
@@ -333,7 +333,7 @@ export const WorkflowHistory = memo(function WorkflowHistory({
                       </span>
                     </PopoverItem>
                   ))}
-                  <div className='border-t border-[var(--border)] pt-1'>
+                  <div className='border-[var(--border)] border-t pt-1'>
                     <PopoverItem onClick={handleClear}>
                       <Trash2 className='h-3 w-3 flex-shrink-0 text-[var(--text-muted)]' />
                       <span className='text-[12px]'>Clear local history</span>
@@ -489,7 +489,7 @@ function VersionRow({
             }}
             onClick={(e) => e.stopPropagation()}
             onBlur={() => onSaveRename(v.version)}
-            className='w-full border-0 bg-transparent p-0 text-[12px] font-medium leading-4 text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0'
+            className='w-full border-0 bg-transparent p-0 font-medium text-[12px] text-[var(--text-primary)] leading-4 outline-none focus:outline-none focus:ring-0'
             maxLength={100}
             disabled={renamePending}
             autoComplete='off'
@@ -498,7 +498,7 @@ function VersionRow({
             spellCheck='false'
           />
         ) : (
-          <span className='flex items-center gap-1 truncate text-[12px] font-medium text-[var(--text-primary)]'>
+          <span className='flex items-center gap-1 truncate font-medium text-[12px] text-[var(--text-primary)]'>
             <span className='truncate'>{v.name || `v${v.version}`}</span>
             {v.isActive && <span className='text-[10px] text-[var(--text-tertiary)]'>(live)</span>}
           </span>

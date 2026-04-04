@@ -420,7 +420,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <button
-                className='absolute top-1/2 left-0 z-20 flex h-[28px] w-[12px] -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] transition-colors hover-hover:bg-[var(--surface-5)]'
+                className='-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 z-20 flex h-[28px] w-[12px] cursor-pointer items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] transition-colors hover-hover:bg-[var(--surface-5)]'
                 onClick={() => setIsPanelOpen(true)}
                 aria-label='Expand panel'
               >
@@ -519,7 +519,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button
-              className='pointer-events-auto absolute top-1/2 left-0 flex h-[28px] w-[12px] -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] transition-colors hover-hover:bg-[var(--surface-5)]'
+              className='-translate-x-1/2 -translate-y-1/2 pointer-events-auto absolute top-1/2 left-0 flex h-[28px] w-[12px] cursor-pointer items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-1)] transition-colors hover-hover:bg-[var(--surface-5)]'
               onClick={() => setIsPanelOpen(false)}
               aria-label='Collapse panel'
             >

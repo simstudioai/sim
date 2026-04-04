@@ -8,8 +8,8 @@ import { usePanelStore } from '@/stores/panel'
 
 const SEND_BUTTON_BASE = 'h-[28px] w-[28px] rounded-full border-0 p-0 transition-colors'
 const SEND_BUTTON_ACTIVE =
-  'bg-[#383838] hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover:bg-[#CFCFCF]'
-const SEND_BUTTON_DISABLED = 'bg-[#808080] dark:bg-[#808080]'
+  'bg-[var(--surface-inverted)] hover-hover:bg-[var(--surface-inverted-hover)]'
+const SEND_BUTTON_DISABLED = 'bg-[var(--surface-6)]'
 
 export const CopilotInput = memo(function CopilotInput() {
   const isPanelOpen = usePanelStore((s) => s.isPanelOpen)
@@ -81,7 +81,7 @@ export const CopilotInput = memo(function CopilotInput() {
           aria-label='Send message'
         >
           <ArrowUp
-            className='block h-[16px] w-[16px] text-white dark:text-black'
+            className='block h-[16px] w-[16px] text-[var(--text-inverse)]'
             strokeWidth={2.25}
           />
         </Button>

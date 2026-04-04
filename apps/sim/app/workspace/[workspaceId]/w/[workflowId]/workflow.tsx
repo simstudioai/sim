@@ -4060,7 +4060,7 @@ const WorkflowContent = React.memo(
                     <MiniMap
                       pannable
                       zoomable
-                      className='!absolute !bottom-[60px] !left-[16px] !right-auto overflow-hidden rounded-md border border-[var(--border)] !bg-[var(--surface-2)] shadow-subtle'
+                      className='!absolute !bottom-[60px] !left-[16px] !right-auto !bg-[var(--surface-2)] overflow-hidden rounded-md border border-[var(--border)] shadow-subtle'
                       style={{ width: 120, height: 72 }}
                       maskColor='color-mix(in srgb, var(--bg) 60%, transparent)'
                       nodeColor='var(--surface-6)'
