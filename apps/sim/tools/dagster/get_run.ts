@@ -1,5 +1,17 @@
+import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/graphql'
 import type { DagsterGetRunParams, DagsterGetRunResponse } from '@/tools/dagster/types'
 import type { ToolConfig } from '@/tools/types'
+
+/** Fields selected on `runOrError` when the union resolves to `Run`. */
+interface DagsterGetRunGraphqlRun {
+  runId: string
+  jobName: string | null
+  status: string
+  startTime: number | null
+  endTime: number | null
+  runConfigYaml: string | null
+  tags: Array<{ key: string; value: string }> | null
+}
 
 const GET_RUN_QUERY = `
   query GetRun($runId: ID!) {
@@ -16,7 +28,8 @@ const GET_RUN_QUERY = `
           value
         }
       }
-      ... on RunNotFoundError {
+      ... on Error {
+        __typename
         message
       }
     }
@@ -66,33 +79,29 @@ export const getRunTool: ToolConfig<DagsterGetRunParams, DagsterGetRunResponse> 
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await parseDagsterGraphqlResponse<{ runOrError?: unknown }>(response)
 
-    if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || 'Dagster GraphQL request failed')
+    const raw = data.data?.runOrError
+    if (!raw || typeof raw !== 'object') throw new Error('Unexpected response from Dagster')
+
+    if (!('runId' in raw) || typeof (raw as { runId: unknown }).runId !== 'string') {
+      throw new Error(
+        dagsterUnionErrorMessage(raw as { message?: string }, 'Run not found or Dagster error')
+      )
     }
 
-    if (data.errors?.length) {
-      throw new Error(data.errors[0].message)
-    }
-
-    const result = data.data?.runOrError
-    if (!result) throw new Error('Unexpected response from Dagster')
-
-    if (result.message && !result.runId) {
-      throw new Error(result.message)
-    }
+    const run = raw as DagsterGetRunGraphqlRun
 
     return {
       success: true,
       output: {
-        runId: result.runId,
-        jobName: result.jobName ?? null,
-        status: result.status,
-        startTime: result.startTime ?? null,
-        endTime: result.endTime ?? null,
-        runConfigYaml: result.runConfigYaml ?? null,
-        tags: result.tags ?? null,
+        runId: run.runId,
+        jobName: run.jobName ?? null,
+        status: run.status,
+        startTime: run.startTime ?? null,
+        endTime: run.endTime ?? null,
+        runConfigYaml: run.runConfigYaml ?? null,
+        tags: run.tags ?? null,
       },
     }
   },
@@ -105,6 +114,7 @@ export const getRunTool: ToolConfig<DagsterGetRunParams, DagsterGetRunResponse> 
     jobName: {
       type: 'string',
       description: 'Name of the job this run belongs to',
+      optional: true,
     },
     status: {
       type: 'string',

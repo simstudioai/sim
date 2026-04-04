@@ -150,6 +150,7 @@ describe('formatRequestParams', () => {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       body: undefined, // No body for GET
+      toolParams: params,
     })
 
     expect(mockTool.request.headers).toHaveBeenCalledWith(params)
@@ -166,6 +167,7 @@ describe('formatRequestParams', () => {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       body: undefined,
+      toolParams: params,
     })
   })
 

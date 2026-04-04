@@ -1,5 +1,13 @@
+import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/graphql'
 import type { DagsterTerminateRunParams, DagsterTerminateRunResponse } from '@/tools/dagster/types'
 import type { ToolConfig } from '@/tools/types'
+
+/** Fields returned from `terminateRun` for success and `Error` union members. */
+interface DagsterTerminateRunPayload {
+  __typename?: string
+  run?: { runId: string }
+  message?: string
+}
 
 const TERMINATE_RUN_MUTATION = `
   mutation TerminateRun($runId: String!) {
@@ -9,13 +17,8 @@ const TERMINATE_RUN_MUTATION = `
           runId
         }
       }
-      ... on TerminateRunFailure {
-        run {
-          runId
-        }
-        message
-      }
-      ... on RunNotFoundError {
+      ... on Error {
+        __typename
         message
       }
     }
@@ -65,22 +68,15 @@ export const terminateRunTool: ToolConfig<DagsterTerminateRunParams, DagsterTerm
       }),
     },
 
-    transformResponse: async (response: Response) => {
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.errors?.[0]?.message || 'Dagster GraphQL request failed')
-      }
-
-      if (data.errors?.length) {
-        throw new Error(data.errors[0].message)
-      }
+    transformResponse: async (response: Response, params?: DagsterTerminateRunParams) => {
+      const data = await parseDagsterGraphqlResponse<{ terminateRun?: DagsterTerminateRunPayload }>(
+        response
+      )
 
       const result = data.data?.terminateRun
       if (!result) throw new Error('Unexpected response from Dagster')
 
-      // TerminateRunSuccess: has run.runId, no message
-      if (result.run?.runId && !result.message) {
+      if (result.run?.runId) {
         return {
           success: true,
           output: {
@@ -91,20 +87,30 @@ export const terminateRunTool: ToolConfig<DagsterTerminateRunParams, DagsterTerm
         }
       }
 
-      // TerminateRunFailure: has run.runId and message
-      if (result.run?.runId && result.message) {
-        return {
-          success: true,
-          output: {
-            success: false,
-            runId: result.run.runId,
-            message: result.message,
-          },
+      if (typeof result.message === 'string') {
+        if (result.__typename === 'RunNotFoundError') {
+          throw new Error(result.message)
         }
+        if (result.__typename === 'TerminateRunFailure') {
+          const runId = params?.runId
+          if (!runId) {
+            throw new Error(
+              'Terminate run failed but runId was not available in tool context; ensure the tool is invoked with runId.'
+            )
+          }
+          return {
+            success: true,
+            output: {
+              success: false,
+              runId,
+              message: result.message,
+            },
+          }
+        }
+        throw new Error(result.message)
       }
 
-      // RunNotFoundError: only has message
-      throw new Error(result.message || 'Terminate run failed')
+      throw new Error(dagsterUnionErrorMessage(result, 'Terminate run failed'))
     },
 
     outputs: {

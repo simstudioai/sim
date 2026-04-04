@@ -31,7 +31,7 @@ export interface DagsterGetRunParams extends DagsterBaseParams {
 export interface DagsterGetRunResponse extends ToolResponse {
   output: {
     runId: string
-    jobName: string
+    jobName: string | null
     status: string
     startTime: number | null
     endTime: number | null

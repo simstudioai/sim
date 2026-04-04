@@ -1,3 +1,4 @@
+import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/graphql'
 import type { DagsterBaseParams, DagsterListJobsResponse } from '@/tools/dagster/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -11,6 +12,10 @@ const LIST_JOBS_QUERY = `
             name
           }
         }
+      }
+      ... on Error {
+        __typename
+        message
       }
     }
   }
@@ -53,38 +58,32 @@ export const listJobsTool: ToolConfig<DagsterBaseParams, DagsterListJobsResponse
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await parseDagsterGraphqlResponse<{ repositoriesOrError?: unknown }>(response)
 
-    if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || 'Dagster GraphQL request failed')
-    }
-
-    if (data.errors?.length) {
-      throw new Error(data.errors[0].message)
-    }
-
-    const result = data.data?.repositoriesOrError
+    const result = data.data?.repositoriesOrError as
+      | { nodes?: Array<{ name: string; jobs?: Array<{ name: string }> }>; message?: string }
+      | undefined
     if (!result) throw new Error('Unexpected response from Dagster')
 
-    if (result.nodes != null) {
-      const jobs: Array<{ name: string; repositoryName: string }> = []
+    if (!Array.isArray(result.nodes)) {
+      throw new Error(dagsterUnionErrorMessage(result, 'List jobs failed'))
+    }
 
-      for (const repo of result.nodes ?? []) {
-        for (const job of repo.jobs ?? []) {
-          jobs.push({
-            name: job.name,
-            repositoryName: repo.name,
-          })
-        }
-      }
+    const jobs: Array<{ name: string; repositoryName: string }> = []
 
-      return {
-        success: true,
-        output: { jobs },
+    for (const repo of result.nodes) {
+      for (const job of repo.jobs ?? []) {
+        jobs.push({
+          name: job.name,
+          repositoryName: repo.name,
+        })
       }
     }
 
-    throw new Error(result.message || 'List jobs failed')
+    return {
+      success: true,
+      output: { jobs },
+    }
   },
 
   outputs: {
