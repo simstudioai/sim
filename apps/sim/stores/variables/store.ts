@@ -235,7 +235,6 @@ export const useVariablesStore = create<VariablesStore>()(
       set((state) => {
         if (!state.variables[id]) return state
 
-        const workflowId = state.variables[id].workflowId
         const { [id]: _, ...rest } = state.variables
 
         return { variables: rest }
