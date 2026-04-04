@@ -2152,12 +2152,9 @@ const WorkflowContent = React.memo(
 
     const handleCanvasPointerMove = useCallback(
       (event: React.PointerEvent<Element>) => {
-        const target = event.currentTarget as HTMLElement
-        const bounds = target.getBoundingClientRect()
-
         const position = screenToFlowPosition({
-          x: event.clientX - bounds.left,
-          y: event.clientY - bounds.top,
+          x: event.clientX,
+          y: event.clientY,
         })
 
         emitCursorUpdate(position)
