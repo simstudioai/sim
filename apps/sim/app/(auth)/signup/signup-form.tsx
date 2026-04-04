@@ -99,8 +99,6 @@ function SignupFormContent({
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
-  const captchaResolveRef = useRef<((token: string) => void) | null>(null)
-  const captchaRejectRef = useRef<((reason: Error) => void) | null>(null)
   const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
   const redirectUrl = useMemo(
     () => searchParams.get('redirect') || searchParams.get('callbackUrl') || '',
@@ -258,27 +256,14 @@ function SignupFormContent({
       let token: string | undefined
       const widget = turnstileRef.current
       if (turnstileSiteKey && widget) {
-        let timeoutId: ReturnType<typeof setTimeout> | undefined
         try {
           widget.reset()
-          token = await Promise.race([
-            new Promise<string>((resolve, reject) => {
-              captchaResolveRef.current = resolve
-              captchaRejectRef.current = reject
-              widget.execute()
-            }),
-            new Promise<string>((_, reject) => {
-              timeoutId = setTimeout(() => reject(new Error('Captcha timed out')), 15_000)
-            }),
-          ])
+          widget.execute()
+          token = await widget.getResponsePromise()
         } catch {
           setFormError('Captcha verification failed. Please try again.')
           setIsLoading(false)
           return
-        } finally {
-          clearTimeout(timeoutId)
-          captchaResolveRef.current = null
-          captchaRejectRef.current = null
         }
       }
 
@@ -535,10 +520,7 @@ function SignupFormContent({
             <Turnstile
               ref={turnstileRef}
               siteKey={turnstileSiteKey}
-              onSuccess={(token) => captchaResolveRef.current?.(token)}
-              onError={() => captchaRejectRef.current?.(new Error('Captcha verification failed'))}
-              onExpire={() => captchaRejectRef.current?.(new Error('Captcha token expired'))}
-              options={{ execution: 'execute' }}
+              options={{ execution: 'execute', appearance: 'execute' }}
             />
           )}
 
