@@ -677,17 +677,26 @@ input[type="search"]::-ms-clear {
    * Panel tab visibility and styling to prevent hydration flash
    */
   html[data-panel-active-tab="copilot"] .panel-container [data-tab-content="toolbar"],
-  html[data-panel-active-tab="copilot"] .panel-container [data-tab-content="editor"] {
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-content="editor"],
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-content="logs"] {
     display: none !important;
   }
 
   html[data-panel-active-tab="toolbar"] .panel-container [data-tab-content="copilot"],
-  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-content="editor"] {
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-content="editor"],
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-content="logs"] {
     display: none !important;
   }
 
   html[data-panel-active-tab="editor"] .panel-container [data-tab-content="copilot"],
-  html[data-panel-active-tab="editor"] .panel-container [data-tab-content="toolbar"] {
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-content="toolbar"],
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-content="logs"] {
+    display: none !important;
+  }
+
+  html[data-panel-active-tab="logs"] .panel-container [data-tab-content="copilot"],
+  html[data-panel-active-tab="logs"] .panel-container [data-tab-content="toolbar"],
+  html[data-panel-active-tab="logs"] .panel-container [data-tab-content="editor"] {
     display: none !important;
   }
 
@@ -696,7 +705,8 @@ input[type="search"]::-ms-clear {
     color: var(--text-primary) !important;
   }
   html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="toolbar"],
-  html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="editor"] {
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="editor"],
+  html[data-panel-active-tab="copilot"] .panel-container [data-tab-button="logs"] {
     background-color: transparent !important;
     color: var(--text-tertiary) !important;
   }
@@ -706,7 +716,8 @@ input[type="search"]::-ms-clear {
     color: var(--text-primary) !important;
   }
   html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="copilot"],
-  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="editor"] {
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="editor"],
+  html[data-panel-active-tab="toolbar"] .panel-container [data-tab-button="logs"] {
     background-color: transparent !important;
     color: var(--text-tertiary) !important;
   }
@@ -716,7 +727,19 @@ input[type="search"]::-ms-clear {
     color: var(--text-primary) !important;
   }
   html[data-panel-active-tab="editor"] .panel-container [data-tab-button="copilot"],
-  html[data-panel-active-tab="editor"] .panel-container [data-tab-button="toolbar"] {
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-button="toolbar"],
+  html[data-panel-active-tab="editor"] .panel-container [data-tab-button="logs"] {
+    background-color: transparent !important;
+    color: var(--text-tertiary) !important;
+  }
+
+  html[data-panel-active-tab="logs"] .panel-container [data-tab-button="logs"] {
+    background-color: var(--border-1) !important;
+    color: var(--text-primary) !important;
+  }
+  html[data-panel-active-tab="logs"] .panel-container [data-tab-button="copilot"],
+  html[data-panel-active-tab="logs"] .panel-container [data-tab-button="toolbar"],
+  html[data-panel-active-tab="logs"] .panel-container [data-tab-button="editor"] {
     background-color: transparent !important;
     color: var(--text-tertiary) !important;
   }

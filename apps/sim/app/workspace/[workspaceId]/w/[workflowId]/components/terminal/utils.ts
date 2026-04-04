@@ -747,5 +747,5 @@ export const TERMINAL_CONFIG = {
   NEAR_MIN_THRESHOLD: 40,
   BLOCK_COLUMN_WIDTH_PX: TERMINAL_BLOCK_COLUMN_WIDTH,
   HEADER_TEXT_CLASS: 'font-base text-[var(--text-icon)] text-small',
-  LOG_ROW_HEIGHT_PX: 32,
+  LOG_ROW_HEIGHT_PX: 30,
 } as const

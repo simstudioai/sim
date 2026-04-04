@@ -93,7 +93,8 @@ const hasCanceledInTree = (nodes: EntryNode[]) =>
   hasMatchInTree(nodes, (e) => Boolean(e.isCanceled))
 
 /**
- * Block row component for displaying actual block entries
+ * Block row component for displaying actual block entries.
+ * Click to select and view input/output in the output panel.
  */
 const BlockRow = memo(function BlockRow({
   entry,
@@ -132,25 +133,36 @@ const BlockRow = memo(function BlockRow({
         </div>
         <span
           className={clsx(
-            'min-w-0 truncate font-base text-sm',
+            'min-w-0 truncate font-base text-sm leading-[30px]',
             hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
           )}
         >
           {entry.blockName}
         </span>
       </div>
-      <span
-        className={clsx(
-          'flex-shrink-0 font-base text-sm',
-          !isRunning && 'text-[var(--text-secondary)]'
+      <div className='flex flex-shrink-0 items-center gap-3'>
+        {entry.startedAt && (
+          <span className='font-mono text-[10px] leading-[30px] text-[var(--text-muted)]'>
+            {new Date(entry.startedAt).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            })}
+          </span>
         )}
-      >
-        <StatusDisplay
-          isRunning={isRunning}
-          isCanceled={isCanceled}
-          formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
-        />
-      </span>
+        <span
+          className={clsx(
+            'font-base text-sm leading-[30px]',
+            !isRunning && 'text-[var(--text-secondary)]'
+          )}
+        >
+          <StatusDisplay
+            isRunning={isRunning}
+            isCanceled={isCanceled}
+            formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
+          />
+        </span>
+      </div>
     </div>
   )
 })
@@ -553,15 +565,15 @@ function TerminalLogListRow({
 
   if (row.rowType === 'separator') {
     return (
-      <div style={style} className='px-[6px]'>
-        <div className='mx-[4px] mt-[6px] border-[var(--border)] border-t' />
+      <div style={style} className='flex items-center px-3'>
+        <div className='h-[1px] w-full bg-[var(--border)]' />
       </div>
     )
   }
 
   return (
-    <div style={style} className='px-[6px]'>
-      <div className='ml-[4px]' style={{ paddingLeft: row.depth === 0 ? 0 : row.depth * 16 }}>
+    <div style={style} className='px-1.5'>
+      <div style={{ paddingLeft: row.depth === 0 ? 0 : row.depth * 16 }}>
         <EntryNodeRow
           node={row.node!}
           selectedEntryId={selectedEntryId}
@@ -657,8 +669,16 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
 
 /**
  * Terminal component with resizable height that persists across page refreshes.
+ *
+ * @param mode - 'standalone' renders with its own height/resize (below canvas).
+ *               'panel' fills its parent container (inside a panel tab).
  */
-export const Terminal = memo(function Terminal() {
+interface TerminalProps {
+  mode?: 'standalone' | 'panel'
+}
+
+export const Terminal = memo(function Terminal({ mode = 'standalone' }: TerminalProps) {
+  const isPanelMode = mode === 'panel'
   const terminalRef = useRef<HTMLElement>(null)
   const prevWorkflowEntriesLengthRef = useRef(0)
   const hasInitializedEntriesRef = useRef(false)
@@ -1250,14 +1270,21 @@ export const Terminal = memo(function Terminal() {
     const handleResize = () => {
       if (!selectedEntry) return
 
-      const sidebarWidth = Number.parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
-      )
-      const panelWidth = Number.parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-      )
+      let terminalWidth: number
 
-      const terminalWidth = window.innerWidth - sidebarWidth - panelWidth
+      if (isPanelMode && terminalRef.current) {
+        // In panel mode, use the terminal's own width (it's inside the panel)
+        terminalWidth = terminalRef.current.clientWidth
+      } else {
+        const sidebarWidth = Number.parseInt(
+          getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
+        )
+        const panelWidth = Number.parseInt(
+          getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
+        )
+        terminalWidth = window.innerWidth - sidebarWidth - panelWidth
+      }
+
       const maxWidth = terminalWidth - TERMINAL_CONFIG.BLOCK_COLUMN_WIDTH_PX
 
       // Close output panel if there's not enough space for minimum width
@@ -1296,8 +1323,11 @@ export const Terminal = memo(function Terminal() {
       <aside
         ref={terminalRef}
         className={clsx(
-          'terminal-container relative shrink-0 overflow-hidden border-[var(--border)] border-t bg-[var(--bg)]',
-          isToggling && 'transition-[height] duration-100 ease-out'
+          'relative overflow-hidden bg-[var(--bg)]',
+          isPanelMode
+            ? 'h-full w-full'
+            : 'terminal-container shrink-0 border-[var(--border)] border-t',
+          isToggling && !isPanelMode && 'transition-[height] duration-100 ease-out'
         )}
         onTransitionEnd={handleTransitionEnd}
         onFocus={handleTerminalFocus}
@@ -1305,28 +1335,98 @@ export const Terminal = memo(function Terminal() {
         tabIndex={-1}
         aria-label='Terminal'
       >
-        {/* Resize Handle */}
-        <div
-          className='absolute top-[-4px] right-0 left-0 z-20 h-[8px] cursor-ns-resize'
-          onMouseDown={handleMouseDown}
-          role='separator'
-          aria-orientation='horizontal'
-          aria-label='Resize terminal'
-        />
+        {/* Resize Handle - only in standalone mode */}
+        {!isPanelMode && (
+          <div
+            className='absolute top-[-4px] right-0 left-0 z-20 h-[8px] cursor-ns-resize'
+            onMouseDown={handleMouseDown}
+            role='separator'
+            aria-orientation='horizontal'
+            aria-label='Resize terminal'
+          />
+        )}
 
         <div className='relative flex h-full'>
-          {/* Left Section - Logs */}
+          {/* Left Section - Logs (hidden in panel mode when output is shown) */}
           <div
-            className={clsx('flex flex-col', !selectedEntry && 'flex-1')}
-            style={selectedEntry ? { width: `calc(100% - ${outputPanelWidth}px)` } : undefined}
+            className={clsx(
+              'flex h-full min-h-0 flex-col',
+              !selectedEntry && 'flex-1',
+              isPanelMode && selectedEntry && 'hidden'
+            )}
+            style={
+              !isPanelMode && selectedEntry
+                ? { width: `calc(100% - ${outputPanelWidth}px)` }
+                : undefined
+            }
           >
+            {/* Panel mode: compact filter bar */}
+            {isPanelMode && !selectedEntry && allWorkflowEntries.length > 0 && (
+              <div className='flex h-[30px] flex-shrink-0 items-center gap-1.5 border-b border-[var(--border)] px-3'>
+                <Button
+                  className='h-[22px] rounded-[4px] px-1.5 text-[11px]'
+                  variant={filters.statuses.size === 0 ? 'active' : 'ghost'}
+                  onClick={() => clearFilters()}
+                  size='sm'
+                >
+                  All
+                </Button>
+                <Button
+                  className='h-[22px] rounded-[4px] px-1.5 text-[11px]'
+                  variant={filters.statuses.has('error') ? 'active' : 'ghost'}
+                  onClick={() => toggleStatus('error')}
+                  size='sm'
+                >
+                  Errors
+                </Button>
+                <Button
+                  className='h-[22px] rounded-[4px] px-1.5 text-[11px]'
+                  variant={filters.statuses.has('info') ? 'active' : 'ghost'}
+                  onClick={() => toggleStatus('info')}
+                  size='sm'
+                >
+                  Success
+                </Button>
+                <div className='flex-1' />
+                <Button
+                  variant='ghost'
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleSort()
+                  }}
+                  className='!p-1 -m-1'
+                  aria-label='Sort by timestamp'
+                >
+                  {sortConfig.direction === 'desc' ? (
+                    <ArrowDown className='h-3 w-3' />
+                  ) : (
+                    <ArrowUp className='h-3 w-3' />
+                  )}
+                </Button>
+                {filteredEntries.length > 0 && (
+                  <Button
+                    variant='ghost'
+                    onClick={handleClearConsole}
+                    className='!p-1 -m-1'
+                    aria-label='Clear console'
+                  >
+                    <Trash2 className='h-3 w-3' />
+                  </Button>
+                )}
+              </div>
+            )}
+
             {/* Header */}
             <div
-              className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-4'
-              onClick={handleHeaderClick}
+              className={clsx(
+                'group flex h-[30px] flex-shrink-0 items-center justify-between bg-[var(--bg)] pr-4 pl-4',
+                !isPanelMode && 'cursor-pointer',
+                isPanelMode && 'hidden'
+              )}
+              onClick={isPanelMode ? undefined : handleHeaderClick}
             >
               {/* Left side - Logs label */}
-              <span className={TERMINAL_CONFIG.HEADER_TEXT_CLASS}>Logs</span>
+              {!isPanelMode && <span className={TERMINAL_CONFIG.HEADER_TEXT_CLASS}>Logs</span>}
 
               {/* Right side - Icons and options */}
               {!selectedEntry && (
@@ -1471,13 +1571,15 @@ export const Terminal = memo(function Terminal() {
                     </PopoverContent>
                   </Popover>
 
-                  <ToggleButton
-                    isExpanded={isExpanded}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleHeaderClick()
-                    }}
-                  />
+                  {!isPanelMode && (
+                    <ToggleButton
+                      isExpanded={isExpanded}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleHeaderClick()
+                      }}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -1500,30 +1602,52 @@ export const Terminal = memo(function Terminal() {
             </div>
           </div>
 
-          {/* Right Section - Block Output (Overlay) */}
+          {/* Right Section - Block Output (Overlay in standalone, full-width in panel) */}
           {selectedEntry && (
-            <OutputPanel
-              selectedEntry={selectedEntry}
-              handleOutputPanelResizeMouseDown={handleOutputPanelResizeMouseDown}
-              handleHeaderClick={handleHeaderClick}
-              isExpanded={isExpanded}
-              expandToLastHeight={expandToLastHeight}
-              showInput={showInput}
-              setShowInput={setShowInput}
-              hasInputData={hasInputData}
-              isPlaygroundEnabled={isPlaygroundEnabled}
-              shouldShowTrainingButton={shouldShowTrainingButton}
-              isTraining={isTraining}
-              handleTrainingClick={handleTrainingClick}
-              showCopySuccess={showCopySuccess}
-              handleCopy={handleCopy}
-              hasEntries={filteredEntries.length > 0}
-              handleExportConsole={handleExportConsole}
-              handleClearConsole={handleClearConsole}
-              shouldShowCodeDisplay={shouldShowCodeDisplay}
-              outputData={outputData}
-              handleClearConsoleFromMenu={handleClearConsoleFromMenu}
-            />
+            <div
+              className={
+                isPanelMode
+                  ? 'flex h-full w-full flex-col [&>div:nth-child(2)]:!relative [&>div:nth-child(2)]:!w-full [&>div:nth-child(2)]:flex-1'
+                  : undefined
+              }
+            >
+              {/* Back button in panel mode */}
+              {isPanelMode && (
+                <button
+                  className='flex h-[30px] flex-shrink-0 items-center gap-1.5 border-b border-[var(--border)] bg-[var(--bg)] px-3 text-[12px] text-[var(--text-secondary)] transition-colors hover-hover:text-[var(--text-primary)]'
+                  onClick={() => {
+                    setSelectedEntryId(null)
+                    setAutoSelectEnabled(false)
+                  }}
+                >
+                  <ChevronDown className='h-[8px] w-[8px] rotate-90' />
+                  <span>Back to logs</span>
+                  <span className='ml-1 text-[var(--text-muted)]'>{selectedEntry.blockName}</span>
+                </button>
+              )}
+              <OutputPanel
+                selectedEntry={selectedEntry}
+                handleOutputPanelResizeMouseDown={handleOutputPanelResizeMouseDown}
+                handleHeaderClick={handleHeaderClick}
+                isExpanded={isExpanded}
+                expandToLastHeight={expandToLastHeight}
+                showInput={showInput}
+                setShowInput={setShowInput}
+                hasInputData={hasInputData}
+                isPlaygroundEnabled={isPlaygroundEnabled}
+                shouldShowTrainingButton={shouldShowTrainingButton}
+                isTraining={isTraining}
+                handleTrainingClick={handleTrainingClick}
+                showCopySuccess={showCopySuccess}
+                handleCopy={handleCopy}
+                hasEntries={filteredEntries.length > 0}
+                handleExportConsole={handleExportConsole}
+                handleClearConsole={handleClearConsole}
+                shouldShowCodeDisplay={shouldShowCodeDisplay}
+                outputData={outputData}
+                handleClearConsoleFromMenu={handleClearConsoleFromMenu}
+              />
+            </div>
           )}
         </div>
       </aside>

@@ -29,6 +29,10 @@ export const usePanelStore = create<PanelState>()(
           document.documentElement.removeAttribute('data-panel-active-tab')
         }
       },
+      isPanelOpen: true,
+      setIsPanelOpen: (isOpen) => {
+        set({ isPanelOpen: isOpen })
+      },
       isResizing: false,
       setIsResizing: (isResizing) => {
         set({ isResizing })

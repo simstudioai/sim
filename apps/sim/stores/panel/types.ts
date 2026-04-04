@@ -1,7 +1,7 @@
 /**
  * Available panel tabs
  */
-export type PanelTab = 'copilot' | 'editor' | 'toolbar'
+export type PanelTab = 'copilot' | 'editor' | 'toolbar' | 'logs'
 
 /**
  * Panel state interface
@@ -11,6 +11,10 @@ export interface PanelState {
   setPanelWidth: (width: number) => void
   activeTab: PanelTab
   setActiveTab: (tab: PanelTab) => void
+  /** Whether the panel sidebar is open (visible) */
+  isPanelOpen: boolean
+  /** Toggles or sets the panel sidebar open state */
+  setIsPanelOpen: (isOpen: boolean) => void
   /** Whether the panel is currently being resized */
   isResizing: boolean
   /** Updates the panel resize state */

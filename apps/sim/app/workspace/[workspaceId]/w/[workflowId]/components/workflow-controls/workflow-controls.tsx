@@ -3,7 +3,7 @@
 import { memo, useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Scan } from 'lucide-react'
-import { useReactFlow } from 'reactflow'
+import { useReactFlow, useViewport } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Button,
@@ -18,6 +18,8 @@ import {
   Redo,
   Tooltip,
   Undo,
+  ZoomIn,
+  ZoomOut,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -32,10 +34,11 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 const logger = createLogger('WorkflowControls')
 
 /**
- * Floating controls for canvas mode, undo/redo, and fit-to-view.
+ * Floating controls for canvas mode, undo/redo, zoom, and fit-to-view.
  */
 export const WorkflowControls = memo(function WorkflowControls() {
   const reactFlowInstance = useReactFlow()
+  const { zoom } = useViewport()
   const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
   const { mode, setMode } = useCanvasModeStore(
     useShallow((s) => ({ mode: s.mode, setMode: s.setMode }))
@@ -52,9 +55,19 @@ export const WorkflowControls = memo(function WorkflowControls() {
   const canUndo = stack.undo.length > 0
   const canRedo = stack.redo.length > 0
 
+  const zoomPercentage = Math.round(zoom * 100)
+
   const handleFitToView = useCallback(() => {
     fitViewToBounds({ padding: 0.1, duration: 300 })
   }, [fitViewToBounds])
+
+  const handleZoomIn = useCallback(() => {
+    reactFlowInstance.zoomIn({ duration: 200 })
+  }, [reactFlowInstance])
+
+  const handleZoomOut = useCallback(() => {
+    reactFlowInstance.zoomOut({ duration: 200 })
+  }, [reactFlowInstance])
 
   useRegisterGlobalCommands([
     createCommand({
@@ -192,6 +205,39 @@ export const WorkflowControls = memo(function WorkflowControls() {
           <Tooltip.Content side='top'>
             <Tooltip.Shortcut keys='⌘⇧F'>Fit to View</Tooltip.Shortcut>
           </Tooltip.Content>
+        </Tooltip.Root>
+
+        <div className='mx-1 h-[20px] w-[1px] bg-[var(--border)]' />
+
+        {/* Zoom controls */}
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='ghost'
+              className='h-[28px] w-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
+              onClick={handleZoomOut}
+            >
+              <ZoomOut className='h-[14px] w-[14px]' />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top'>Zoom Out</Tooltip.Content>
+        </Tooltip.Root>
+
+        <span className='min-w-[36px] select-none text-center font-mono text-[11px] text-[var(--text-muted)]'>
+          {zoomPercentage}%
+        </span>
+
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='ghost'
+              className='h-[28px] w-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
+              onClick={handleZoomIn}
+            >
+              <ZoomIn className='h-[14px] w-[14px]' />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top'>Zoom In</Tooltip.Content>
         </Tooltip.Root>
       </div>
 

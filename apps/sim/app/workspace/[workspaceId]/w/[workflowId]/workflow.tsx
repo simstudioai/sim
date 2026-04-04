@@ -1,12 +1,15 @@
 'use client'
 
-import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
   applyNodeChanges,
+  Background,
+  BackgroundVariant,
   ConnectionLineType,
   type Edge,
   type EdgeTypes,
+  MiniMap,
   type Node,
   type NodeChange,
   type NodeTypes,
@@ -31,7 +34,6 @@ import {
   Notifications,
   Panel,
   SubflowNodeComponent,
-  Terminal,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { BlockMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/block-menu'
 import { CanvasMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/canvas-menu'
@@ -39,9 +41,11 @@ import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { NoteBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/note-block'
 import type { SubflowNodeData } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/subflow-node'
+import { WorkflowActions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-actions/workflow-actions'
 import { WorkflowBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { WorkflowControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
+import { WorkflowToolbar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-toolbar/workflow-toolbar'
 import {
   useAutoLayout,
   useCanvasContextMenu,
@@ -91,13 +95,6 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { getUniqueBlockName, prepareBlockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
-
-/** Lazy-loaded components for non-critical UI that can load after initial render */
-const LazyChat = lazy(() =>
-  import('@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/chat').then((mod) => ({
-    default: mod.Chat,
-  }))
-)
 
 const logger = createLogger('Workflow')
 
@@ -200,7 +197,7 @@ const reactFlowStyles = [
   '[&_.react-flow__edge-labels]:!z-[1001]',
   '[&_.react-flow__pane]:select-none',
   '[&_.react-flow__selectionpane]:select-none',
-  '[&_.react-flow__background]:hidden',
+
   '[&_.react-flow__node-subflowNode.selected]:!shadow-none',
 ].join(' ')
 const reactFlowFitViewOptions = { padding: 0.6, maxZoom: 1.0 } as const
@@ -4042,17 +4039,33 @@ const WorkflowContent = React.memo(
                   elevateNodesOnSelect={false}
                   autoPanOnConnect={effectivePermissions.canEdit}
                   autoPanOnNodeDrag={effectivePermissions.canEdit}
-                />
+                >
+                  <Background
+                    variant={BackgroundVariant.Dots}
+                    gap={20}
+                    size={1}
+                    color='var(--border)'
+                  />
+                </ReactFlow>
 
                 <Cursors />
 
                 {!embedded && (
                   <>
+                    <WorkflowToolbar workspaceId={sandbox ? workspaceId : undefined} />
+                    <WorkflowActions workspaceId={sandbox ? workspaceId : undefined} />
                     <WorkflowControls />
-                    <Suspense fallback={null}>
-                      <LazyChat />
-                    </Suspense>
-
+                    <MiniMap
+                      pannable
+                      zoomable
+                      className='!absolute !bottom-[60px] !left-[16px] !right-auto overflow-hidden rounded-md border border-[var(--border)] !bg-[var(--surface-2)] shadow-subtle'
+                      style={{ width: 120, height: 72 }}
+                      maskColor='color-mix(in srgb, var(--bg) 60%, transparent)'
+                      nodeColor='var(--surface-6)'
+                      nodeStrokeColor='var(--border-1)'
+                      nodeStrokeWidth={1}
+                      nodeBorderRadius={4}
+                    />
                     <BlockMenu
                       isOpen={isBlockMenuOpen}
                       position={contextMenuPosition}
@@ -4128,12 +4141,10 @@ const WorkflowContent = React.memo(
             )}
 
             {!embedded && <DiffControls />}
+
+            {(!embedded || sandbox) && <Panel workspaceId={sandbox ? workspaceId : undefined} />}
           </div>
-
-          <Terminal />
         </div>
-
-        {(!embedded || sandbox) && <Panel workspaceId={sandbox ? workspaceId : undefined} />}
 
         {!embedded && !sandbox && oauthModal && (
           <OAuthModal

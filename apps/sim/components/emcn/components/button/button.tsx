@@ -25,6 +25,8 @@ const buttonVariants = cva(
         subtle:
           'text-[var(--text-body)] hover-hover:text-[var(--text-body)] hover-hover:bg-[var(--surface-4)]',
         'ghost-secondary': 'text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]',
+        brand:
+          'bg-[var(--brand)] text-white hover-hover:text-white hover-hover:bg-[var(--brand-hover)] font-semibold',
       },
       size: {
         sm: 'px-1.5 py-1 text-[length:11px]',

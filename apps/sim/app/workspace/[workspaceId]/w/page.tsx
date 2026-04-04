@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
-import { Panel, Terminal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
+import { Panel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -69,7 +69,6 @@ export default function WorkflowsPage() {
           <Panel />
         </ReactFlowProvider>
       </div>
-      <Terminal />
     </div>
   )
 }

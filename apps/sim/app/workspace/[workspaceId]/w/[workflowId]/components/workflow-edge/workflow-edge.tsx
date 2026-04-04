@@ -3,8 +3,9 @@ import { X } from 'lucide-react'
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import type { EdgeDiffStatus } from '@/lib/workflows/diff/types'
-import { useLastRunEdges } from '@/stores/execution'
+import { useExecutionStore, useLastRunEdges } from '@/stores/execution'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /** Extended edge props with optional handle identifiers */
 interface WorkflowEdgeProps extends EdgeProps {
@@ -51,6 +52,18 @@ const WorkflowEdgeComponent = ({
   )
   const lastRunEdges = useLastRunEdges()
 
+  // Check if the workflow is currently executing and if this edge's source block is active
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const { isExecuting, isSourceActive } = useExecutionStore(
+    useShallow((state) => {
+      const wf = activeWorkflowId ? state.workflowExecutions.get(activeWorkflowId) : undefined
+      return {
+        isExecuting: wf?.isExecuting ?? false,
+        isSourceActive: wf?.activeBlockIds.has(source) ?? false,
+      }
+    })
+  )
+
   const dataSourceHandle = (data as { sourceHandle?: string } | undefined)?.sourceHandle
   const isErrorEdge = (sourceHandle ?? dataSourceHandle) === 'error'
   const previewExecutionStatus = (
@@ -83,6 +96,12 @@ const WorkflowEdgeComponent = ({
     sourceHandle,
     targetHandle,
   ])
+
+  // Determine whether to show the flow animation:
+  // - Edge just ran successfully (data flowed through)
+  // - OR the source block is currently active (data is in transit)
+  const showFlowAnimation =
+    !edgeDiffStatus && (edgeRunStatus === 'success' || (isExecuting && isSourceActive))
 
   const edgeStyle = useMemo(() => {
     let color = 'var(--workflow-edge)'
@@ -126,6 +145,20 @@ const WorkflowEdgeComponent = ({
     <>
       <BaseEdge path={edgePath} style={edgeStyle} interactionWidth={30} />
 
+      {/* Animated flow overlay — subtle dashes that march along the edge path */}
+      {showFlowAnimation && (
+        <path
+          d={edgePath}
+          fill='none'
+          stroke='var(--text-subtle)'
+          strokeWidth={1.5}
+          strokeDasharray='8,16'
+          strokeLinecap='round'
+          className='animate-dash-animation'
+          style={{ pointerEvents: 'none' }}
+        />
+      )}
+
       {isSelected && (
         <EdgeLabelRenderer>
           <div
@@ -154,7 +187,7 @@ const WorkflowEdgeComponent = ({
 }
 
 /**
- * Workflow edge component with execution status and diff visualization.
+ * Workflow edge component with execution status, diff visualization, and flow animation.
  *
  * @remarks
  * Edge coloring priority:
@@ -162,5 +195,10 @@ const WorkflowEdgeComponent = ({
  * 2. Execution status (success/error) - for run visualization
  * 3. Error edge default (red) - for untaken error paths
  * 4. Default edge color - normal workflow connections
+ *
+ * Flow animation:
+ * When data flows through an edge (success status) or the source block is
+ * actively executing, a subtle marching-dashes overlay animates along the
+ * path to visualize data movement.
  */
 export const WorkflowEdge = memo(WorkflowEdgeComponent)
