@@ -16,7 +16,7 @@ import {
 } from '@/components/emcn'
 import { client, useSession } from '@/lib/auth/auth-client'
 import type { OAuthReturnContext } from '@/lib/credentials/client-state'
-import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
+import { ADD_CONNECTOR_SEARCH_PARAM, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
@@ -59,8 +59,8 @@ type OAuthModalConnectProps = OAuthModalBaseProps & {
   workspaceId: string
   credentialCount: number
 } & (
-    | { workflowId: string; knowledgeBaseId?: never }
-    | { workflowId?: never; knowledgeBaseId: string }
+    | { workflowId: string; knowledgeBaseId?: never; connectorType?: never }
+    | { workflowId?: never; knowledgeBaseId: string; connectorType?: string }
   )
 
 interface OAuthModalReauthorizeProps extends OAuthModalBaseProps {
@@ -81,6 +81,7 @@ export function OAuthModal(props: OAuthModalProps) {
   const workspaceId = isConnect ? props.workspaceId : ''
   const workflowId = isConnect ? props.workflowId : undefined
   const knowledgeBaseId = isConnect ? props.knowledgeBaseId : undefined
+  const connectorType = isConnect ? props.connectorType : undefined
   const toolName = !isConnect ? props.toolName : ''
   const requiredScopes = !isConnect ? (props.requiredScopes ?? EMPTY_SCOPES) : EMPTY_SCOPES
   const newScopes = !isConnect ? (props.newScopes ?? EMPTY_SCOPES) : EMPTY_SCOPES
@@ -172,7 +173,7 @@ export function OAuthModal(props: OAuthModalProps) {
         }
 
         const returnContext: OAuthReturnContext = knowledgeBaseId
-          ? { ...baseContext, origin: 'kb-connectors' as const, knowledgeBaseId }
+          ? { ...baseContext, origin: 'kb-connectors' as const, knowledgeBaseId, connectorType }
           : { ...baseContext, origin: 'workflow' as const, workflowId: workflowId! }
 
         writeOAuthReturnContext(returnContext)
@@ -205,7 +206,11 @@ export function OAuthModal(props: OAuthModalProps) {
         return
       }
 
-      await client.oauth2.link({ providerId, callbackURL: window.location.href })
+      const callbackURL = new URL(window.location.href)
+      if (connectorType) {
+        callbackURL.searchParams.set(ADD_CONNECTOR_SEARCH_PARAM, connectorType)
+      }
+      await client.oauth2.link({ providerId, callbackURL: callbackURL.toString() })
       handleClose()
     } catch (err) {
       logger.error('Failed to initiate OAuth connection', { error: err })
