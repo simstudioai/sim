@@ -1,7 +1,1 @@
-export { useEnvironmentStore } from './store'
-export type {
-  CachedWorkspaceEnvData,
-  EnvironmentState,
-  EnvironmentStore,
-  EnvironmentVariable,
-} from './types'
+export type { CachedWorkspaceEnvData, EnvironmentState, EnvironmentVariable } from './types'

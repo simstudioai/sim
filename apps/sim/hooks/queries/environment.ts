@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
@@ -6,7 +5,6 @@ import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/envir
 import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
 import { API_ENDPOINTS } from '@/stores/constants'
 import type { EnvironmentVariable } from '@/stores/settings/environment'
-import { useEnvironmentStore } from '@/stores/settings/environment'
 
 export type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 export type { EnvironmentVariable } from '@/stores/settings/environment'
@@ -23,28 +21,15 @@ export const environmentKeys = {
 }
 
 /**
- * Environment Variable Types
- */
-/**
  * Hook to fetch personal environment variables
  */
 export function usePersonalEnvironment() {
-  const setVariables = useEnvironmentStore((state) => state.setVariables)
-
-  const query = useQuery({
+  return useQuery({
     queryKey: environmentKeys.personal(),
     queryFn: ({ signal }) => fetchPersonalEnvironment(signal),
     staleTime: 60 * 1000, // 1 minute
     placeholderData: keepPreviousData,
   })
-
-  useEffect(() => {
-    if (query.data) {
-      setVariables(query.data)
-    }
-  }, [query.data, setVariables])
-
-  return query
 }
 
 /**
