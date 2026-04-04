@@ -12,6 +12,7 @@ import {
   DeployApi,
   DeployChat,
   DeployMcp,
+  FunctionExecute,
   GenerateApiKey,
   GetBlockOutputs,
   GetBlockUpstreamReferences,
@@ -61,6 +62,7 @@ import {
   executeRevertToVersion,
   executeUpdateWorkspaceMcpServer,
 } from '../tools/handlers/deployment/manage'
+import { executeFunctionExecute } from '../tools/handlers/function-execute'
 import {
   executeCompleteJob,
   executeCreateJob,
@@ -167,6 +169,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [OpenResource.id]: h(executeOpenResource),
     [GetPlatformActions.id]: h(executeGetPlatformActions),
     [MaterializeFile.id]: h(executeMaterializeFile),
+    [FunctionExecute.id]: h(executeFunctionExecute),
 
     ...buildServerToolHandlers(),
   }

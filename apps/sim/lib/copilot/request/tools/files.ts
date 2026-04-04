@@ -138,6 +138,10 @@ export async function maybeWriteOutputToFile(
   const outputPath =
     (params?.outputPath as string | undefined) ?? (args?.outputPath as string | undefined)
   if (!outputPath) return result
+  const outputSandboxPath =
+    (params?.outputSandboxPath as string | undefined) ??
+    (args?.outputSandboxPath as string | undefined)
+  if (toolName === FunctionExecute.id && outputSandboxPath) return result
 
   const explicitFormat =
     (params?.outputFormat as string | undefined) ?? (args?.outputFormat as string | undefined)
@@ -179,6 +183,7 @@ export async function maybeWriteOutputToFile(
         size: buffer.length,
         downloadUrl: uploaded.url,
       },
+      resources: [{ type: 'file', id: uploaded.id, title: fileName }],
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
