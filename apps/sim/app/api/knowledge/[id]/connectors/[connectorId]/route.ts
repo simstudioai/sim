@@ -13,6 +13,7 @@ import { z } from 'zod'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
 import { cleanupUnusedTagDefinitions } from '@/lib/knowledge/tags/service'
@@ -114,6 +115,20 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         { error: 'Invalid request', details: parsed.error.flatten() },
         { status: 400 }
       )
+    }
+
+    if (
+      parsed.data.syncIntervalMinutes !== undefined &&
+      parsed.data.syncIntervalMinutes > 0 &&
+      parsed.data.syncIntervalMinutes < 60
+    ) {
+      const canUseLiveSync = await hasLiveSyncAccess(auth.userId)
+      if (!canUseLiveSync) {
+        return NextResponse.json(
+          { error: 'Live sync requires a Max or Enterprise plan' },
+          { status: 403 }
+        )
+      }
     }
 
     if (parsed.data.sourceConfig !== undefined) {

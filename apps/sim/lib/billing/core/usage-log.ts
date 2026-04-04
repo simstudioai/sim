@@ -21,6 +21,7 @@ export type UsageLogSource =
   | 'workspace-chat'
   | 'mcp_copilot'
   | 'mothership_block'
+  | 'knowledge-base'
 
 /**
  * Metadata for 'model' category charges

@@ -77,6 +77,7 @@ vi.stubGlobal(
         { embedding: [0.1, 0.2], index: 0 },
         { embedding: [0.3, 0.4], index: 1 },
       ],
+      usage: { prompt_tokens: 2, total_tokens: 2 },
     }),
   })
 )
@@ -294,7 +295,7 @@ describe('Knowledge Utils', () => {
     it.concurrent('should return same length as input', async () => {
       const result = await generateEmbeddings(['a', 'b'])
 
-      expect(result.length).toBe(2)
+      expect(result.embeddings.length).toBe(2)
     })
 
     it('should use Azure OpenAI when Azure config is provided', async () => {
@@ -313,6 +314,7 @@ describe('Knowledge Utils', () => {
         ok: true,
         json: async () => ({
           data: [{ embedding: [0.1, 0.2], index: 0 }],
+          usage: { prompt_tokens: 1, total_tokens: 1 },
         }),
       } as any)
 
@@ -342,6 +344,7 @@ describe('Knowledge Utils', () => {
         ok: true,
         json: async () => ({
           data: [{ embedding: [0.1, 0.2], index: 0 }],
+          usage: { prompt_tokens: 1, total_tokens: 1 },
         }),
       } as any)
 
