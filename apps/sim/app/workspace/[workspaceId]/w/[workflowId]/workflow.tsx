@@ -265,13 +265,21 @@ const WorkflowContent = React.memo(
     const { fitViewToBounds, getViewportCenter } = useCanvasViewport(reactFlowInstance, {
       embedded,
     })
-    const { emitCursorUpdate } = useSocket()
+    const { emitCursorUpdate, joinWorkflow, leaveWorkflow } = useSocket()
     useDynamicHandleRefresh()
 
     const workspaceId = propWorkspaceId || (params.workspaceId as string)
     const workflowIdParam = propWorkflowId || (params.workflowId as string)
 
     const addNotification = useNotificationStore((state) => state.addNotification)
+
+    useEffect(() => {
+      if (!embedded || !workflowIdParam) return
+      joinWorkflow(workflowIdParam)
+      return () => {
+        leaveWorkflow()
+      }
+    }, [embedded, workflowIdParam, joinWorkflow, leaveWorkflow])
 
     useOAuthReturnForWorkflow(workflowIdParam)
 

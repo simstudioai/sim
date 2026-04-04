@@ -288,19 +288,17 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
 
     logger.info('Workflow state persisted to database', { workflowId })
 
-    try {
-      const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-      await fetch(`${socketUrl}/api/workflow-updated`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': env.INTERNAL_API_SECRET,
-        },
-        body: JSON.stringify({ workflowId }),
-      })
-    } catch (error) {
+    const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
+    fetch(`${socketUrl}/api/workflow-updated`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': env.INTERNAL_API_SECRET,
+      },
+      body: JSON.stringify({ workflowId }),
+    }).catch((error) => {
       logger.warn('Failed to notify socket server of workflow update', { workflowId, error })
-    }
+    })
 
     const sanitizationWarnings = validation.warnings.length > 0 ? validation.warnings : undefined
 

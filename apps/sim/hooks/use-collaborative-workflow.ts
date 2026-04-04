@@ -537,82 +537,81 @@ export function useCollaborativeWorkflow() {
       }
     }
 
+    const reloadWorkflowFromApi = async (workflowId: string, reason: string): Promise<boolean> => {
+      const response = await fetch(`/api/workflows/${workflowId}`)
+      if (!response.ok) {
+        logger.error(`Failed to fetch workflow data after ${reason}: ${response.statusText}`)
+        return false
+      }
+
+      const responseData = await response.json()
+      const workflowData = responseData.data
+
+      if (!workflowData?.state) {
+        logger.error(`No state found in workflow data after ${reason}`, { workflowData })
+        return false
+      }
+
+      isApplyingRemoteChange.current = true
+      try {
+        useWorkflowStore.getState().replaceWorkflowState({
+          blocks: workflowData.state.blocks || {},
+          edges: workflowData.state.edges || [],
+          loops: workflowData.state.loops || {},
+          parallels: workflowData.state.parallels || {},
+          lastSaved: workflowData.state.lastSaved || Date.now(),
+          deploymentStatuses: workflowData.state.deploymentStatuses || {},
+        })
+
+        const subblockValues: Record<string, Record<string, any>> = {}
+        Object.entries(workflowData.state.blocks || {}).forEach(([blockId, block]) => {
+          const blockState = block as any
+          subblockValues[blockId] = {}
+          Object.entries(blockState.subBlocks || {}).forEach(([subblockId, subblock]) => {
+            subblockValues[blockId][subblockId] = (subblock as any).value
+          })
+        })
+
+        useSubBlockStore.setState((state: any) => ({
+          workflowValues: {
+            ...state.workflowValues,
+            [workflowId]: subblockValues,
+          },
+        }))
+
+        const graph = {
+          blocksById: workflowData.state.blocks || {},
+          edgesById: Object.fromEntries(
+            (workflowData.state.edges || []).map((e: any) => [e.id, e])
+          ),
+        }
+
+        const undoRedoStore = useUndoRedoStore.getState()
+        const stackKeys = Object.keys(undoRedoStore.stacks)
+        stackKeys.forEach((key) => {
+          const [wfId, userId] = key.split(':')
+          if (wfId === workflowId) {
+            undoRedoStore.pruneInvalidEntries(wfId, userId, graph)
+          }
+        })
+
+        logger.info(`Successfully reloaded workflow state after ${reason}`, { workflowId })
+        return true
+      } finally {
+        isApplyingRemoteChange.current = false
+      }
+    }
+
     const handleWorkflowReverted = async (data: any) => {
       const { workflowId } = data
       logger.info(`Workflow ${workflowId} has been reverted to deployed state`)
 
-      // If the reverted workflow is the currently active one, reload the workflow state
-      if (activeWorkflowId === workflowId) {
-        logger.info(`Currently active workflow ${workflowId} was reverted, reloading state`)
+      if (activeWorkflowId !== workflowId) return
 
-        try {
-          // Fetch the updated workflow state from the server (which loads from normalized tables)
-          const response = await fetch(`/api/workflows/${workflowId}`)
-          if (response.ok) {
-            const responseData = await response.json()
-            const workflowData = responseData.data
-
-            if (workflowData?.state) {
-              // Update the workflow store with the reverted state
-              isApplyingRemoteChange.current = true
-              try {
-                // Update the main workflow state using the API response
-                useWorkflowStore.getState().replaceWorkflowState({
-                  blocks: workflowData.state.blocks || {},
-                  edges: workflowData.state.edges || [],
-                  loops: workflowData.state.loops || {},
-                  parallels: workflowData.state.parallels || {},
-                  lastSaved: workflowData.state.lastSaved || Date.now(),
-                  deploymentStatuses: workflowData.state.deploymentStatuses || {},
-                })
-
-                // Update subblock store with reverted values
-                const subblockValues: Record<string, Record<string, any>> = {}
-                Object.entries(workflowData.state.blocks || {}).forEach(([blockId, block]) => {
-                  const blockState = block as any
-                  subblockValues[blockId] = {}
-                  Object.entries(blockState.subBlocks || {}).forEach(([subblockId, subblock]) => {
-                    subblockValues[blockId][subblockId] = (subblock as any).value
-                  })
-                })
-
-                // Update subblock store for this workflow
-                useSubBlockStore.setState((state: any) => ({
-                  workflowValues: {
-                    ...state.workflowValues,
-                    [workflowId]: subblockValues,
-                  },
-                }))
-
-                logger.info(`Successfully loaded reverted workflow state for ${workflowId}`)
-
-                const graph = {
-                  blocksById: workflowData.state.blocks || {},
-                  edgesById: Object.fromEntries(
-                    (workflowData.state.edges || []).map((e: any) => [e.id, e])
-                  ),
-                }
-
-                const undoRedoStore = useUndoRedoStore.getState()
-                const stackKeys = Object.keys(undoRedoStore.stacks)
-                stackKeys.forEach((key) => {
-                  const [wfId, userId] = key.split(':')
-                  if (wfId === workflowId) {
-                    undoRedoStore.pruneInvalidEntries(wfId, userId, graph)
-                  }
-                })
-              } finally {
-                isApplyingRemoteChange.current = false
-              }
-            } else {
-              logger.error('No state found in workflow data after revert', { workflowData })
-            }
-          } else {
-            logger.error(`Failed to fetch workflow data after revert: ${response.statusText}`)
-          }
-        } catch (error) {
-          logger.error('Error reloading workflow state after revert:', error)
-        }
+      try {
+        await reloadWorkflowFromApi(workflowId, 'revert')
+      } catch (error) {
+        logger.error('Error reloading workflow state after revert:', error)
       }
     }
 
@@ -629,49 +628,7 @@ export function useCollaborativeWorkflow() {
       }
 
       try {
-        const response = await fetch(`/api/workflows/${workflowId}`)
-        if (response.ok) {
-          const responseData = await response.json()
-          const workflowData = responseData.data
-
-          if (workflowData?.state) {
-            isApplyingRemoteChange.current = true
-            try {
-              useWorkflowStore.getState().replaceWorkflowState({
-                blocks: workflowData.state.blocks || {},
-                edges: workflowData.state.edges || [],
-                loops: workflowData.state.loops || {},
-                parallels: workflowData.state.parallels || {},
-                lastSaved: workflowData.state.lastSaved || Date.now(),
-                deploymentStatuses: workflowData.state.deploymentStatuses || {},
-              })
-
-              const subblockValues: Record<string, Record<string, any>> = {}
-              Object.entries(workflowData.state.blocks || {}).forEach(([blockId, block]) => {
-                const blockState = block as any
-                subblockValues[blockId] = {}
-                Object.entries(blockState.subBlocks || {}).forEach(([subblockId, subblock]) => {
-                  subblockValues[blockId][subblockId] = (subblock as any).value
-                })
-              })
-
-              useSubBlockStore.setState((state: any) => ({
-                workflowValues: {
-                  ...state.workflowValues,
-                  [workflowId]: subblockValues,
-                },
-              }))
-
-              logger.info(`Successfully applied externally updated workflow state`, { workflowId })
-            } finally {
-              isApplyingRemoteChange.current = false
-            }
-          }
-        } else {
-          logger.error(
-            `Failed to fetch workflow data after external update: ${response.statusText}`
-          )
-        }
+        await reloadWorkflowFromApi(workflowId, 'external update')
       } catch (error) {
         logger.error('Error reloading workflow state after external update:', error)
       }

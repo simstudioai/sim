@@ -337,7 +337,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('join-workflow-success', ({ workflowId, presenceUsers }) => {
           isRejoiningRef.current = false
           // Ignore stale success responses from previous navigation
-          if (workflowId !== urlWorkflowIdRef.current) {
+          if (urlWorkflowIdRef.current && workflowId !== urlWorkflowIdRef.current) {
             logger.debug(`Ignoring stale join-workflow-success for ${workflowId}`)
             return
           }
