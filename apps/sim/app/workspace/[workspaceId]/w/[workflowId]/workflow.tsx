@@ -85,7 +85,7 @@ import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useNotificationStore } from '@/stores/notifications'
 import { usePanelEditorStore } from '@/stores/panel'
 import { useUndoRedoStore } from '@/stores/undo-redo'
-import { useVariablesStore } from '@/stores/variables/store'
+import { useVariablesModalStore } from '@/stores/variables/modal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { getUniqueBlockName, prepareBlockState } from '@/stores/workflows/utils'
@@ -265,13 +265,21 @@ const WorkflowContent = React.memo(
     const { fitViewToBounds, getViewportCenter } = useCanvasViewport(reactFlowInstance, {
       embedded,
     })
-    const { emitCursorUpdate } = useSocket()
+    const { emitCursorUpdate, joinWorkflow, leaveWorkflow } = useSocket()
     useDynamicHandleRefresh()
 
     const workspaceId = propWorkspaceId || (params.workspaceId as string)
     const workflowIdParam = propWorkflowId || (params.workflowId as string)
 
     const addNotification = useNotificationStore((state) => state.addNotification)
+
+    useEffect(() => {
+      if (!embedded || !workflowIdParam) return
+      joinWorkflow(workflowIdParam)
+      return () => {
+        leaveWorkflow()
+      }
+    }, [embedded, workflowIdParam, joinWorkflow, leaveWorkflow])
 
     useOAuthReturnForWorkflow(workflowIdParam)
 
@@ -337,7 +345,7 @@ const WorkflowContent = React.memo(
     autoConnectRef.current = isAutoConnectEnabled
 
     // Panel open states for context menu
-    const isVariablesOpen = useVariablesStore((state) => state.isOpen)
+    const isVariablesOpen = useVariablesModalStore((state) => state.isOpen)
     const isChatOpen = useChatStore((state) => state.isChatOpen)
 
     const snapGrid: [number, number] = useMemo(
@@ -1374,7 +1382,7 @@ const WorkflowContent = React.memo(
     }, [router, workspaceId, workflowIdParam])
 
     const handleContextToggleVariables = useCallback(() => {
-      const { isOpen, setIsOpen } = useVariablesStore.getState()
+      const { isOpen, setIsOpen } = useVariablesModalStore.getState()
       setIsOpen(!isOpen)
     }, [])
 
@@ -2144,12 +2152,9 @@ const WorkflowContent = React.memo(
 
     const handleCanvasPointerMove = useCallback(
       (event: React.PointerEvent<Element>) => {
-        const target = event.currentTarget as HTMLElement
-        const bounds = target.getBoundingClientRect()
-
         const position = screenToFlowPosition({
-          x: event.clientX - bounds.left,
-          y: event.clientY - bounds.top,
+          x: event.clientX,
+          y: event.clientY,
         })
 
         emitCursorUpdate(position)

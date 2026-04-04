@@ -111,8 +111,6 @@ function normalizeWorkflowState(input?: any): WorkflowState | null {
     lastUpdate: input.lastUpdate,
     metadata: input.metadata,
     variables: input.variables,
-    deploymentStatuses: input.deploymentStatuses,
-    needsRedeployment: input.needsRedeployment,
     dragStartPosition: input.dragStartPosition ?? null,
   }
 

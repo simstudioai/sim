@@ -90,6 +90,7 @@ interface SocketContextType {
   onSelectionUpdate: (handler: (data: any) => void) => void
   onWorkflowDeleted: (handler: (data: any) => void) => void
   onWorkflowReverted: (handler: (data: any) => void) => void
+  onWorkflowUpdated: (handler: (data: any) => void) => void
   onOperationConfirmed: (handler: (data: any) => void) => void
   onOperationFailed: (handler: (data: any) => void) => void
 }
@@ -118,6 +119,7 @@ const SocketContext = createContext<SocketContextType>({
   onSelectionUpdate: () => {},
   onWorkflowDeleted: () => {},
   onWorkflowReverted: () => {},
+  onWorkflowUpdated: () => {},
   onOperationConfirmed: () => {},
   onOperationFailed: () => {},
 })
@@ -155,6 +157,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     selectionUpdate?: (data: any) => void
     workflowDeleted?: (data: any) => void
     workflowReverted?: (data: any) => void
+    workflowUpdated?: (data: any) => void
     operationConfirmed?: (data: any) => void
     operationFailed?: (data: any) => void
   }>({})
@@ -334,7 +337,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('join-workflow-success', ({ workflowId, presenceUsers }) => {
           isRejoiningRef.current = false
           // Ignore stale success responses from previous navigation
-          if (workflowId !== urlWorkflowIdRef.current) {
+          if (urlWorkflowIdRef.current && workflowId !== urlWorkflowIdRef.current) {
             logger.debug(`Ignoring stale join-workflow-success for ${workflowId}`)
             return
           }
@@ -382,6 +385,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           eventHandlers.current.workflowReverted?.(data)
         })
 
+        socketInstance.on('workflow-updated', (data) => {
+          logger.info(`Workflow ${data.workflowId} has been updated externally`)
+          eventHandlers.current.workflowUpdated?.(data)
+        })
+
         const rehydrateWorkflowStores = async (workflowId: string, workflowState: any) => {
           const [
             { useOperationQueueStore },
@@ -424,7 +432,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             loops: workflowState.loops || {},
             parallels: workflowState.parallels || {},
             lastSaved: workflowState.lastSaved || Date.now(),
-            deploymentStatuses: workflowState.deploymentStatuses || {},
           })
 
           useSubBlockStore.setState((state: any) => ({
@@ -804,6 +811,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     eventHandlers.current.workflowReverted = handler
   }, [])
 
+  const onWorkflowUpdated = useCallback((handler: (data: any) => void) => {
+    eventHandlers.current.workflowUpdated = handler
+  }, [])
+
   const onOperationConfirmed = useCallback((handler: (data: any) => void) => {
     eventHandlers.current.operationConfirmed = handler
   }, [])
@@ -837,6 +848,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       onSelectionUpdate,
       onWorkflowDeleted,
       onWorkflowReverted,
+      onWorkflowUpdated,
       onOperationConfirmed,
       onOperationFailed,
     }),
@@ -864,6 +876,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       onSelectionUpdate,
       onWorkflowDeleted,
       onWorkflowReverted,
+      onWorkflowUpdated,
       onOperationConfirmed,
       onOperationFailed,
     ]

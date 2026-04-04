@@ -7,6 +7,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { env } from '@/lib/core/config/env'
 import { applyTargetedLayout, getTargetedLayoutImpact } from '@/lib/workflows/autolayout'
 import {
   DEFAULT_HORIZONTAL_SPACING,
@@ -286,6 +287,18 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       .where(eq(workflowTable.id, workflowId))
 
     logger.info('Workflow state persisted to database', { workflowId })
+
+    const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
+    fetch(`${socketUrl}/api/workflow-updated`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': env.INTERNAL_API_SECRET,
+      },
+      body: JSON.stringify({ workflowId }),
+    }).catch((error) => {
+      logger.warn('Failed to notify socket server of workflow update', { workflowId, error })
+    })
 
     const sanitizationWarnings = validation.warnings.length > 0 ? validation.warnings : undefined
 

@@ -36,8 +36,6 @@ import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
 import { useCurrentWorkflowExecution, useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
-import { useVariablesStore } from '@/stores/panel'
-import { useEnvironmentStore } from '@/stores/settings/environment'
 import {
   clearExecutionPointer,
   consolePersistence,
@@ -45,6 +43,7 @@ import {
   saveExecutionPointer,
   useTerminalConsoleStore,
 } from '@/stores/terminal'
+import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -120,7 +119,6 @@ export function useWorkflowExecution() {
       }))
     )
   const hasHydrated = useTerminalConsoleStore((s) => s._hasHydrated)
-  const getAllVariables = useEnvironmentStore((s) => s.getAllVariables)
   const { getVariablesByWorkflowId, variables } = useVariablesStore(
     useShallow((s) => ({
       getVariablesByWorkflowId: s.getVariablesByWorkflowId,
@@ -744,7 +742,6 @@ export function useWorkflowExecution() {
       activeWorkflowId,
       currentWorkflow,
       toggleConsole,
-      getAllVariables,
       getVariablesByWorkflowId,
       setIsExecuting,
       setIsDebugging,

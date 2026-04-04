@@ -1552,11 +1552,13 @@ async function executeMcpTool(
 
     const baseUrl = getInternalApiBaseUrl()
 
+    const mcpScope = resolveToolScope(params, executionContext)
+
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
 
     if (typeof window === 'undefined') {
       try {
-        const internalToken = await generateInternalToken(executionContext?.userId)
+        const internalToken = await generateInternalToken(mcpScope.userId)
         headers.Authorization = `Bearer ${internalToken}`
       } catch (error) {
         logger.error(`[${actualRequestId}] Failed to generate internal token:`, error)
@@ -1586,8 +1588,6 @@ async function executeMcpTool(
         Object.entries(params).filter(([key]) => !MCP_SYSTEM_PARAMETERS.has(key))
       )
     }
-
-    const mcpScope = resolveToolScope(params, executionContext)
 
     if (mcpScope.callChain && mcpScope.callChain.length > 0) {
       headers[SIM_VIA_HEADER] = serializeCallChain(mcpScope.callChain)

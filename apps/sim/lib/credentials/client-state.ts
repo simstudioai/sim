@@ -91,6 +91,8 @@ export function clearPendingCredentialCreateRequest() {
   window.sessionStorage.removeItem(PENDING_CREDENTIAL_CREATE_REQUEST_KEY)
 }
 
+export const ADD_CONNECTOR_SEARCH_PARAM = 'addConnector' as const
+
 const OAUTH_RETURN_CONTEXT_KEY = 'sim.oauth-return-context'
 
 export type OAuthReturnOrigin = 'workflow' | 'integrations' | 'kb-connectors'
@@ -116,6 +118,7 @@ interface OAuthReturnIntegrations extends OAuthReturnBase {
 interface OAuthReturnKBConnectors extends OAuthReturnBase {
   origin: 'kb-connectors'
   knowledgeBaseId: string
+  connectorType?: string
 }
 
 export type OAuthReturnContext =

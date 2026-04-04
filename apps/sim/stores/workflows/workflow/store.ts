@@ -107,18 +107,12 @@ const initialState = {
   loops: {},
   parallels: {},
   lastSaved: undefined,
-  deploymentStatuses: {},
-  needsRedeployment: false,
 }
 
 export const useWorkflowStore = create<WorkflowStore>()(
   devtools(
     (set, get) => ({
       ...initialState,
-
-      setNeedsRedeploymentFlag: (needsRedeployment: boolean) => {
-        set({ needsRedeployment })
-      },
 
       setCurrentWorkflowId: (currentWorkflowId) => {
         set({ currentWorkflowId })
@@ -540,8 +534,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           loops: state.loops,
           parallels: state.parallels,
           lastSaved: state.lastSaved,
-          deploymentStatuses: state.deploymentStatuses,
-          needsRedeployment: state.needsRedeployment,
         }
       },
       replaceWorkflowState: (
@@ -580,11 +572,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
             edges: nextEdges,
             loops: nextLoops,
             parallels: nextParallels,
-            deploymentStatuses: nextState.deploymentStatuses || state.deploymentStatuses,
-            needsRedeployment:
-              nextState.needsRedeployment !== undefined
-                ? nextState.needsRedeployment
-                : state.needsRedeployment,
             lastSaved:
               options?.updateLastSaved === true
                 ? Date.now()
@@ -1139,67 +1126,6 @@ export const useWorkflowStore = create<WorkflowStore>()(
           ...state,
           lastUpdate: Date.now(),
         }))
-      },
-
-      revertToDeployedState: async (deployedState: WorkflowState) => {
-        const activeWorkflowId = get().currentWorkflowId
-
-        if (!activeWorkflowId) {
-          logger.error('Cannot revert: no active workflow ID')
-          return
-        }
-
-        const deploymentStatus = get().deploymentStatuses?.[activeWorkflowId]
-
-        get().replaceWorkflowState({
-          ...deployedState,
-          needsRedeployment: false,
-          deploymentStatuses: {
-            ...get().deploymentStatuses,
-            ...(deploymentStatus ? { [activeWorkflowId]: deploymentStatus } : {}),
-          },
-        })
-
-        const values: Record<string, Record<string, any>> = {}
-        Object.entries(deployedState.blocks).forEach(([blockId, block]) => {
-          values[blockId] = {}
-          Object.entries(block.subBlocks || {}).forEach(([subBlockId, subBlock]) => {
-            values[blockId][subBlockId] = subBlock.value
-          })
-        })
-
-        useSubBlockStore.setState({
-          workflowValues: {
-            ...useSubBlockStore.getState().workflowValues,
-            [activeWorkflowId]: values,
-          },
-        })
-
-        get().updateLastSaved()
-
-        // Call API to persist the revert to normalized tables
-        try {
-          const response = await fetch(
-            `/api/workflows/${activeWorkflowId}/deployments/active/revert`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            }
-          )
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            logger.error('Failed to persist revert to deployed state:', errorData.error)
-            // Don't throw error to avoid breaking the UI, but log it
-          } else {
-            logger.info('Successfully persisted revert to deployed state')
-          }
-        } catch (error) {
-          logger.error('Error calling revert to deployed API:', error)
-          // Don't throw error to avoid breaking the UI
-        }
       },
 
       toggleBlockAdvancedMode: (id: string) => {

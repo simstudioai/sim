@@ -63,7 +63,8 @@ import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useChatStore } from '@/stores/chat/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import type { ChatContext, PanelTab } from '@/stores/panel'
-import { usePanelStore, useVariablesStore as usePanelVariablesStore } from '@/stores/panel'
+import { usePanelStore } from '@/stores/panel'
+import { useVariablesModalStore } from '@/stores/variables/modal'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { captureBaselineSnapshot } from '@/stores/workflow-diff/utils'
@@ -205,7 +206,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       setIsChatOpen: state.setIsChatOpen,
     }))
   )
-  const { isOpen: isVariablesOpen, setIsOpen: setVariablesOpen } = useVariablesStore(
+  const { isOpen: isVariablesOpen, setIsOpen: setVariablesOpen } = useVariablesModalStore(
     useShallow((state) => ({
       isOpen: state.isOpen,
       setIsOpen: state.setIsOpen,
@@ -410,6 +411,17 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     setHasHydrated(true)
   }, [setHasHydrated])
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const message = (e as CustomEvent<{ message: string }>).detail?.message
+      if (!message) return
+      setActiveTab('copilot')
+      copilotSendMessage(message)
+    }
+    window.addEventListener('mothership-send-message', handler)
+    return () => window.removeEventListener('mothership-send-message', handler)
+  }, [setActiveTab, copilotSendMessage])
+
   /**
    * Handles tab click events
    */
@@ -482,7 +494,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         throw new Error('No workflow state found')
       }
 
-      const workflowVariables = usePanelVariablesStore
+      const workflowVariables = useVariablesStore
         .getState()
         .getVariablesByWorkflowId(activeWorkflowId)
 

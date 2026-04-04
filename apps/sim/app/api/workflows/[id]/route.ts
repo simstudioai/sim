@@ -89,7 +89,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const finalWorkflowData = {
         ...workflowData,
         state: {
-          deploymentStatuses: {},
           blocks: normalizedData.blocks,
           edges: normalizedData.edges,
           loops: normalizedData.loops,
@@ -115,7 +114,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const emptyWorkflowData = {
       ...workflowData,
       state: {
-        deploymentStatuses: {},
         blocks: {},
         edges: [],
         loops: {},

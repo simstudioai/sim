@@ -1,7 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
-import { useEnvironmentStore } from '@/stores/settings/environment'
+import { environmentKeys } from '@/hooks/queries/environment'
+import type { EnvironmentVariable } from '@/stores/settings/environment'
 import { tools } from '@/tools/registry'
 import type { ToolConfig } from '@/tools/types'
 
@@ -215,20 +217,20 @@ export function createParamSchema(customTool: any): Record<string, any> {
 }
 
 /**
- * Get environment variables from store (client-side only)
- * @param getStore Optional function to get the store (useful for testing)
+ * Get environment variables from React Query cache (client-side only)
  */
-export function getClientEnvVars(getStore?: () => any): Record<string, string> {
+export function getClientEnvVars(): Record<string, string> {
   if (typeof window === 'undefined') return {}
 
   try {
-    // Allow injecting the store for testing
-    const envStore = getStore ? getStore() : useEnvironmentStore.getState()
-    const allEnvVars = envStore.getAllVariables()
+    const allEnvVars =
+      getQueryClient().getQueryData<Record<string, EnvironmentVariable>>(
+        environmentKeys.personal()
+      ) ?? {}
 
     // Convert environment variables to a simple key-value object
     return Object.entries(allEnvVars).reduce(
-      (acc, [key, variable]: [string, any]) => {
+      (acc, [key, variable]) => {
         acc[key] = variable.value
         return acc
       },
@@ -245,20 +247,14 @@ export function getClientEnvVars(getStore?: () => any): Record<string, string> {
  * @param customTool The custom tool configuration
  * @param isClient Whether running on client side
  * @param workflowId Optional workflow ID for server-side
- * @param getStore Optional function to get the store (useful for testing)
  */
-export function createCustomToolRequestBody(
-  customTool: any,
-  isClient = true,
-  workflowId?: string,
-  getStore?: () => any
-) {
+export function createCustomToolRequestBody(customTool: any, isClient = true, workflowId?: string) {
   return (params: Record<string, any>) => {
     // Get environment variables - try multiple sources in order of preference:
     // 1. envVars parameter (passed from provider/agent context)
     // 2. Client-side store (if running in browser)
     // 3. Empty object (fallback)
-    const envVars = params.envVars || (isClient ? getClientEnvVars(getStore) : {})
+    const envVars = params.envVars || (isClient ? getClientEnvVars() : {})
 
     // Get workflow variables from params (passed from execution context)
     const workflowVariables = params.workflowVariables || {}

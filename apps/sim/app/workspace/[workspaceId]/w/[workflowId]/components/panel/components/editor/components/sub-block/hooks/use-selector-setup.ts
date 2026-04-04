@@ -5,8 +5,8 @@ import { useParams } from 'next/navigation'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import type { SubBlockConfig } from '@/blocks/types'
 import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
+import { usePersonalEnvironment } from '@/hooks/queries/environment'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
-import { useEnvironmentStore } from '@/stores/settings/environment'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useDependsOnGate } from './use-depends-on-gate'
 import { useSubBlockValue } from './use-sub-block-value'
@@ -32,7 +32,7 @@ export function useSelectorSetup(
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
   const workflowId = (params?.workflowId as string) || activeWorkflowId || ''
 
-  const envVariables = useEnvironmentStore((s) => s.variables)
+  const { data: envVariables = {} } = usePersonalEnvironment()
 
   const { finalDisabled, dependencyValues, canonicalIndex } = useDependsOnGate(
     blockId,

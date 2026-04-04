@@ -123,8 +123,6 @@ export function buildDefaultWorkflowArtifacts(): DefaultWorkflowArtifacts {
     loops: {},
     parallels: {},
     lastSaved: Date.now(),
-    deploymentStatuses: {},
-    needsRedeployment: false,
   }
 
   return {

@@ -1,4 +1,4 @@
-import type { VariableType } from '@/stores/panel/variables/types'
+import type { VariableType } from '@/stores/variables/types'
 
 /**
  * Central manager for handling all variable-related operations.

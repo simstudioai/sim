@@ -25,6 +25,7 @@ const {
   mockGetCustomToolById,
   mockListCustomTools,
   mockGetCustomToolByIdOrTitle,
+  mockGenerateInternalToken,
 } = vi.hoisted(() => ({
   mockIsHosted: { value: false },
   mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:3000' } as Record<string, string | undefined>,
@@ -38,6 +39,7 @@ const {
   mockGetCustomToolById: vi.fn(),
   mockListCustomTools: vi.fn(),
   mockGetCustomToolByIdOrTitle: vi.fn(),
+  mockGenerateInternalToken: vi.fn(),
 }))
 
 // Mock feature flags
@@ -63,6 +65,10 @@ vi.mock('@/lib/core/config/env', () => ({
 // Mock getBYOKKey
 vi.mock('@/lib/api-key/byok', () => ({
   getBYOKKey: (...args: unknown[]) => mockGetBYOKKey(...args),
+}))
+
+vi.mock('@/lib/auth/internal', () => ({
+  generateInternalToken: (...args: unknown[]) => mockGenerateInternalToken(...args),
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({}))
@@ -193,8 +199,8 @@ vi.mock('@/tools/registry', () => {
   return { tools: mockTools }
 })
 
-// Mock custom tools - define mock data inside factory function
-vi.mock('@/hooks/queries/utils/custom-tool-cache', () => {
+// Mock query client for custom tool cache reads
+vi.mock('@/app/_shell/providers/get-query-client', () => {
   const mockCustomTool = {
     id: 'custom-tool-123',
     title: 'Custom Weather Tool',
@@ -214,13 +220,12 @@ vi.mock('@/hooks/queries/utils/custom-tool-cache', () => {
     },
   }
   return {
-    getCustomTool: (toolId: string) => {
-      if (toolId === 'custom-tool-123') {
-        return mockCustomTool
-      }
-      return undefined
-    },
-    getCustomTools: () => [mockCustomTool],
+    getQueryClient: () => ({
+      getQueryData: (key: string[]) => {
+        if (key[0] === 'customTools') return [mockCustomTool]
+        return undefined
+      },
+    }),
   }
 })
 
@@ -1153,6 +1158,34 @@ describe('MCP Tool Execution', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('Network error')
     expect(result.timing).toBeDefined()
+  })
+
+  it('should embed userId in JWT when executionContext is undefined (agent block path)', async () => {
+    mockGenerateInternalToken.mockResolvedValue('test-token')
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            success: true,
+            data: { output: { content: [{ type: 'text', text: 'OK' }] } },
+          }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    await executeTool('mcp-123-test_tool', {
+      query: 'test',
+      _context: {
+        workspaceId: 'workspace-456',
+        workflowId: 'workflow-789',
+        userId: 'user-abc',
+      },
+    })
+
+    expect(mockGenerateInternalToken).toHaveBeenCalledWith('user-abc')
   })
 
   describe('Tool request retries', () => {
