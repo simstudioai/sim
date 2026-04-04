@@ -9,7 +9,7 @@ import {
   useDeployment,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
-import { useDeployedWorkflowState } from '@/hooks/queries/deployments'
+import { useDeployedWorkflowState, useDeploymentInfo } from '@/hooks/queries/deployments'
 import type { WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -25,10 +25,10 @@ export function Deploy({ activeWorkflowId, userPermissions, className }: DeployP
   const isRegistryLoading = hydrationPhase === 'idle' || hydrationPhase === 'state-loading'
   const { hasBlocks } = useCurrentWorkflow()
 
-  const deploymentStatus = useWorkflowRegistry((state) =>
-    state.getWorkflowDeploymentStatus(activeWorkflowId)
-  )
-  const isDeployed = deploymentStatus?.isDeployed || false
+  const { data: deploymentInfo } = useDeploymentInfo(activeWorkflowId, {
+    enabled: !isRegistryLoading,
+  })
+  const isDeployed = deploymentInfo?.isDeployed ?? false
 
   const isDeployedStateEnabled = Boolean(activeWorkflowId) && isDeployed && !isRegistryLoading
   const {

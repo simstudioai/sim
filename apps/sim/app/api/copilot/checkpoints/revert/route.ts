@@ -82,7 +82,6 @@ export async function POST(request: NextRequest) {
       loops: checkpointState?.loops || {},
       parallels: checkpointState?.parallels || {},
       isDeployed: checkpointState?.isDeployed || false,
-      deploymentStatuses: checkpointState?.deploymentStatuses || {},
       lastSaved: Date.now(),
       ...(checkpointState?.deployedAt &&
       checkpointState.deployedAt !== null &&

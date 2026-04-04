@@ -203,7 +203,6 @@ export const resetAllStores = () => {
   useWorkflowRegistry.setState({
     activeWorkflowId: null,
     error: null,
-    deploymentStatuses: {},
     hydration: {
       phase: 'idle',
       workspaceId: null,
