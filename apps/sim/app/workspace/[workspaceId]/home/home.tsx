@@ -189,9 +189,12 @@ export function Home({ chatId }: HomeProps = {}) {
   )
 
   useEffect(() => {
-    if (!activeResourceId) return
     const url = new URL(window.location.href)
-    url.searchParams.set('resource', activeResourceId)
+    if (activeResourceId) {
+      url.searchParams.set('resource', activeResourceId)
+    } else {
+      url.searchParams.delete('resource')
+    }
     window.history.replaceState(null, '', url.toString())
   }, [activeResourceId])
 
