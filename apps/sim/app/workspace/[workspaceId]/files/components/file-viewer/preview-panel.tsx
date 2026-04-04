@@ -1,12 +1,12 @@
 'use client'
 
 import { createContext, memo, useCallback, useContext, useMemo, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Components, ExtraProps } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
-import remarkBreaks from 'remark-breaks'
 import rehypeSlug from 'rehype-slug'
+import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
-import { useRouter } from 'next/navigation'
 import { Checkbox } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
@@ -95,22 +95,34 @@ const STATIC_MARKDOWN_COMPONENTS = {
     </p>
   ),
   h1: ({ id, children }: { id?: string; children?: React.ReactNode }) => (
-    <h1 id={id} className='mt-6 mb-4 break-words font-semibold text-[24px] text-[var(--text-primary)] first:mt-0'>
+    <h1
+      id={id}
+      className='mt-6 mb-4 break-words font-semibold text-[24px] text-[var(--text-primary)] first:mt-0'
+    >
       {children}
     </h1>
   ),
   h2: ({ id, children }: { id?: string; children?: React.ReactNode }) => (
-    <h2 id={id} className='mt-5 mb-3 break-words font-semibold text-[20px] text-[var(--text-primary)] first:mt-0'>
+    <h2
+      id={id}
+      className='mt-5 mb-3 break-words font-semibold text-[20px] text-[var(--text-primary)] first:mt-0'
+    >
       {children}
     </h2>
   ),
   h3: ({ id, children }: { id?: string; children?: React.ReactNode }) => (
-    <h3 id={id} className='mt-4 mb-2 break-words font-semibold text-[16px] text-[var(--text-primary)] first:mt-0'>
+    <h3
+      id={id}
+      className='mt-4 mb-2 break-words font-semibold text-[16px] text-[var(--text-primary)] first:mt-0'
+    >
       {children}
     </h3>
   ),
   h4: ({ id, children }: { id?: string; children?: React.ReactNode }) => (
-    <h4 id={id} className='mt-3 mb-2 break-words font-semibold text-[14px] text-[var(--text-primary)] first:mt-0'>
+    <h4
+      id={id}
+      className='mt-3 mb-2 break-words font-semibold text-[14px] text-[var(--text-primary)] first:mt-0'
+    >
       {children}
     </h4>
   ),
@@ -348,7 +360,11 @@ const MarkdownPreview = memo(function MarkdownPreview({
   const committedMarkdown = useMemo(
     () =>
       committed ? (
-        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={MARKDOWN_COMPONENTS}>
+        <ReactMarkdown
+          remarkPlugins={REMARK_PLUGINS}
+          rehypePlugins={REHYPE_PLUGINS}
+          components={MARKDOWN_COMPONENTS}
+        >
           {committed}
         </ReactMarkdown>
       ) : null,
@@ -360,7 +376,11 @@ const MarkdownPreview = memo(function MarkdownPreview({
       <NavigateCtx.Provider value={navigate}>
         <MarkdownCheckboxCtx.Provider value={ctxValue}>
           <div ref={scrollRef} className='h-full overflow-auto p-6'>
-            <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={MARKDOWN_COMPONENTS}>
+            <ReactMarkdown
+              remarkPlugins={REMARK_PLUGINS}
+              rehypePlugins={REHYPE_PLUGINS}
+              components={MARKDOWN_COMPONENTS}
+            >
               {content}
             </ReactMarkdown>
           </div>
@@ -378,7 +398,11 @@ const MarkdownPreview = memo(function MarkdownPreview({
             key={generation}
             className={cn(isStreaming && 'animate-stream-fade-in', '[&>:first-child]:mt-0')}
           >
-            <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={MARKDOWN_COMPONENTS}>
+            <ReactMarkdown
+              remarkPlugins={REMARK_PLUGINS}
+              rehypePlugins={REHYPE_PLUGINS}
+              components={MARKDOWN_COMPONENTS}
+            >
               {incoming}
             </ReactMarkdown>
           </div>
