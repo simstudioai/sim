@@ -1,5 +1,16 @@
+import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/graphql'
 import type { DagsterListRunsParams, DagsterListRunsResponse } from '@/tools/dagster/types'
 import type { ToolConfig } from '@/tools/types'
+
+/** Shape of each run in the `runsOrError` → `Runs.results` GraphQL selection set. */
+interface DagsterListRunsGraphqlRow {
+  runId: string
+  jobName: string | null
+  status: string
+  tags: Array<{ key: string; value: string }> | null
+  startTime: number | null
+  endTime: number | null
+}
 
 function buildListRunsQuery(hasFilter: boolean) {
   return `
@@ -17,6 +28,10 @@ function buildListRunsQuery(hasFilter: boolean) {
             startTime
             endTime
           }
+        }
+        ... on Error {
+          __typename
+          message
         }
       }
     }
@@ -93,36 +108,25 @@ export const listRunsTool: ToolConfig<DagsterListRunsParams, DagsterListRunsResp
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await parseDagsterGraphqlResponse<{ runsOrError?: unknown }>(response)
 
-    if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || 'Dagster GraphQL request failed')
-    }
-
-    if (data.errors?.length) {
-      throw new Error(data.errors[0].message)
-    }
-
-    const result = data.data?.runsOrError
+    const result = data.data?.runsOrError as
+      | { results?: DagsterListRunsGraphqlRow[]; message?: string }
+      | undefined
     if (!result) throw new Error('Unexpected response from Dagster')
 
-    const runs = (result.results ?? []).map(
-      (r: {
-        runId: string
-        jobName: string | null
-        status: string
-        tags: Array<{ key: string; value: string }> | null
-        startTime: number | null
-        endTime: number | null
-      }) => ({
-        runId: r.runId,
-        jobName: r.jobName ?? null,
-        status: r.status,
-        tags: r.tags ?? null,
-        startTime: r.startTime ?? null,
-        endTime: r.endTime ?? null,
-      })
-    )
+    if (!Array.isArray(result.results)) {
+      throw new Error(dagsterUnionErrorMessage(result, 'Dagster returned an error listing runs'))
+    }
+
+    const runs = result.results.map((r: DagsterListRunsGraphqlRow) => ({
+      runId: r.runId,
+      jobName: r.jobName ?? null,
+      status: r.status,
+      tags: r.tags ?? null,
+      startTime: r.startTime ?? null,
+      endTime: r.endTime ?? null,
+    }))
 
     return {
       success: true,

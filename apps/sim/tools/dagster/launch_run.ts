@@ -1,3 +1,4 @@
+import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/graphql'
 import type { DagsterLaunchRunParams, DagsterLaunchRunResponse } from '@/tools/dagster/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -40,6 +41,7 @@ function buildLaunchRunMutation(hasConfig: boolean, hasTags: boolean) {
           }
         }
         ... on Error {
+          __typename
           message
         }
       }
@@ -142,15 +144,7 @@ export const launchRunTool: ToolConfig<DagsterLaunchRunParams, DagsterLaunchRunR
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || 'Dagster GraphQL request failed')
-    }
-
-    if (data.errors?.length) {
-      throw new Error(data.errors[0].message)
-    }
+    const data = await parseDagsterGraphqlResponse<{ launchRun?: unknown }>(response)
 
     const result = data.data?.launchRun as LaunchRunResult | undefined
     if (!result) throw new Error('Unexpected response from Dagster')
@@ -162,7 +156,9 @@ export const launchRunTool: ToolConfig<DagsterLaunchRunParams, DagsterLaunchRunR
       }
     }
 
-    throw new Error(`${result.type}: ${result.message ?? 'Launch run failed'}`)
+    throw new Error(
+      `${result.type}: ${dagsterUnionErrorMessage(result, 'Launch run failed')}`
+    )
   },
 
   outputs: {
