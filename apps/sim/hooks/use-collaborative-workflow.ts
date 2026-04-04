@@ -562,7 +562,6 @@ export function useCollaborativeWorkflow() {
                   loops: workflowData.state.loops || {},
                   parallels: workflowData.state.parallels || {},
                   lastSaved: workflowData.state.lastSaved || Date.now(),
-                  deploymentStatuses: workflowData.state.deploymentStatuses || {},
                 })
 
                 // Update subblock store with reverted values

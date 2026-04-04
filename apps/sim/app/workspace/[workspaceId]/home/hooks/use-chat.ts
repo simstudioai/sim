@@ -1407,17 +1407,6 @@ export function useChat(
                     const output = tc.result?.output as Record<string, unknown> | undefined
                     const deployedWorkflowId = (output?.workflowId as string) ?? undefined
                     if (deployedWorkflowId && typeof output?.isDeployed === 'boolean') {
-                      const isDeployed = output.isDeployed as boolean
-                      const serverDeployedAt = output.deployedAt
-                        ? new Date(output.deployedAt as string)
-                        : undefined
-                      useWorkflowRegistry
-                        .getState()
-                        .setDeploymentStatus(
-                          deployedWorkflowId,
-                          isDeployed,
-                          isDeployed ? (serverDeployedAt ?? new Date()) : undefined
-                        )
                       queryClient.invalidateQueries({
                         queryKey: deploymentKeys.info(deployedWorkflowId),
                       })

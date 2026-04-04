@@ -193,8 +193,8 @@ vi.mock('@/tools/registry', () => {
   return { tools: mockTools }
 })
 
-// Mock custom tools - define mock data inside factory function
-vi.mock('@/hooks/queries/utils/custom-tool-cache', () => {
+// Mock query client for custom tool cache reads
+vi.mock('@/app/_shell/providers/get-query-client', () => {
   const mockCustomTool = {
     id: 'custom-tool-123',
     title: 'Custom Weather Tool',
@@ -214,13 +214,12 @@ vi.mock('@/hooks/queries/utils/custom-tool-cache', () => {
     },
   }
   return {
-    getCustomTool: (toolId: string) => {
-      if (toolId === 'custom-tool-123') {
-        return mockCustomTool
-      }
-      return undefined
-    },
-    getCustomTools: () => [mockCustomTool],
+    getQueryClient: () => ({
+      getQueryData: (key: string[]) => {
+        if (key[0] === 'customTools') return [mockCustomTool]
+        return undefined
+      },
+    }),
   }
 })
 

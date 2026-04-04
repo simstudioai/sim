@@ -5,7 +5,6 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { fetchDeploymentVersionState } from '@/hooks/queries/utils/fetch-deployment-version-state'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeploymentQueries')
@@ -321,7 +320,6 @@ interface DeployWorkflowResult {
  */
 export function useDeployWorkflow() {
   const queryClient = useQueryClient()
-  const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
 
   return useMutation({
     mutationFn: async ({
@@ -351,27 +349,18 @@ export function useDeployWorkflow() {
         warnings: data.warnings,
       }
     },
-    onSuccess: (data, variables) => {
-      logger.info('Workflow deployed successfully', { workflowId: variables.workflowId })
-
-      setDeploymentStatus(
-        variables.workflowId,
-        data.isDeployed,
-        data.deployedAt ? new Date(data.deployedAt) : undefined,
-        data.apiKey
-      )
-
-      useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(variables.workflowId, false)
-
+    onSettled: (_data, error, variables) => {
+      if (error) {
+        logger.error('Failed to deploy workflow', { error })
+      } else {
+        logger.info('Workflow deployed successfully', { workflowId: variables.workflowId })
+      }
       return Promise.all([
         invalidateDeploymentQueries(queryClient, variables.workflowId),
         queryClient.invalidateQueries({
           queryKey: workflowKeys.state(variables.workflowId),
         }),
       ])
-    },
-    onError: (error) => {
-      logger.error('Failed to deploy workflow', { error })
     },
   })
 }
@@ -389,7 +378,6 @@ interface UndeployWorkflowVariables {
  */
 export function useUndeployWorkflow() {
   const queryClient = useQueryClient()
-  const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
 
   return useMutation({
     mutationFn: async ({ workflowId }: UndeployWorkflowVariables): Promise<void> => {
@@ -402,20 +390,18 @@ export function useUndeployWorkflow() {
         throw new Error(errorData.error || 'Failed to undeploy workflow')
       }
     },
-    onSuccess: (_, variables) => {
-      logger.info('Workflow undeployed successfully', { workflowId: variables.workflowId })
-
-      setDeploymentStatus(variables.workflowId, false)
-
+    onSettled: (_data, error, variables) => {
+      if (error) {
+        logger.error('Failed to undeploy workflow', { error })
+      } else {
+        logger.info('Workflow undeployed successfully', { workflowId: variables.workflowId })
+      }
       return Promise.all([
         invalidateDeploymentQueries(queryClient, variables.workflowId),
         queryClient.invalidateQueries({
           queryKey: deploymentKeys.chatStatus(variables.workflowId),
         }),
       ])
-    },
-    onError: (error) => {
-      logger.error('Failed to undeploy workflow', { error })
     },
   })
 }
@@ -613,7 +599,6 @@ interface ActivateVersionResult {
  */
 export function useActivateDeploymentVersion() {
   const queryClient = useQueryClient()
-  const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
 
   return useMutation({
     mutationFn: async ({
@@ -663,20 +648,13 @@ export function useActivateDeploymentVersion() {
         )
       }
     },
-    onSuccess: (data, variables) => {
-      logger.info('Deployment version activated', {
-        workflowId: variables.workflowId,
-        version: variables.version,
-      })
-
-      setDeploymentStatus(
-        variables.workflowId,
-        true,
-        data.deployedAt ? new Date(data.deployedAt) : undefined,
-        data.apiKey
-      )
-    },
-    onSettled: (_, __, variables) => {
+    onSettled: (_data, error, variables) => {
+      if (!error) {
+        logger.info('Deployment version activated', {
+          workflowId: variables.workflowId,
+          version: variables.version,
+        })
+      }
       return invalidateDeploymentQueries(queryClient, variables.workflowId)
     },
   })

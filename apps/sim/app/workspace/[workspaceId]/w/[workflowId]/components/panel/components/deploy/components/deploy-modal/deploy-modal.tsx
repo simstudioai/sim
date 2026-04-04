@@ -40,7 +40,6 @@ import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -90,10 +89,7 @@ export function DeployModal({
   const params = useParams()
   const workspaceId = params?.workspaceId as string
   const { navigateToSettings } = useSettingsNavigation()
-  const deploymentStatus = useWorkflowRegistry((state) =>
-    state.getWorkflowDeploymentStatus(workflowId)
-  )
-  const isDeployed = deploymentStatus?.isDeployed ?? isDeployedProp
+  const isDeployed = isDeployedProp
   const { data: workflowMap = {} } = useWorkflowMap(workspaceId)
   const workflowMetadata = workflowId ? workflowMap[workflowId] : undefined
   const workflowWorkspaceId = workflowMetadata?.workspaceId ?? null
@@ -380,8 +376,6 @@ export function DeployModal({
     if (!workflowId) return
 
     invalidateDeploymentQueries(queryClient, workflowId)
-
-    useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
 
     if (chatSuccessTimeoutRef.current) {
       clearTimeout(chatSuccessTimeoutRef.current)

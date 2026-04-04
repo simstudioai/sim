@@ -1,6 +1,5 @@
 import type { Edge } from 'reactflow'
 import type { OutputFieldDefinition, SubBlockType } from '@/blocks/types'
-import type { DeploymentStatus } from '@/stores/workflows/registry/types'
 
 export const SUBFLOW_TYPES = {
   LOOP: 'loop',
@@ -173,8 +172,6 @@ export interface WorkflowState {
     exportedAt?: string
   }
   variables?: Record<string, Variable>
-  deploymentStatuses?: Record<string, DeploymentStatus>
-  needsRedeployment?: boolean
   dragStartPosition?: DragStartPosition | null
 }
 
@@ -228,8 +225,6 @@ export interface WorkflowActions {
   updateParallelType: (parallelId: string, parallelType: 'count' | 'collection') => void
   generateLoopBlocks: () => Record<string, Loop>
   generateParallelBlocks: () => Record<string, Parallel>
-  setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
-  revertToDeployedState: (deployedState: WorkflowState) => void
   toggleBlockAdvancedMode: (id: string) => void
   setDragStartPosition: (position: DragStartPosition | null) => void
   getDragStartPosition: () => DragStartPosition | null
