@@ -79,7 +79,6 @@ export async function POST(
       loops: deployedState.loops || {},
       parallels: deployedState.parallels || {},
       lastSaved: Date.now(),
-      deploymentStatuses: deployedState.deploymentStatuses || {},
     })
 
     if (!saveResult.success) {

@@ -15,10 +15,3 @@ export interface EnvironmentState {
   isLoading: boolean
   error: string | null
 }
-
-export interface EnvironmentStore extends EnvironmentState {
-  loadEnvironmentVariables: () => Promise<void>
-  setVariables: (variables: Record<string, EnvironmentVariable>) => void
-  getAllVariables: () => Record<string, EnvironmentVariable>
-  reset: () => void
-}

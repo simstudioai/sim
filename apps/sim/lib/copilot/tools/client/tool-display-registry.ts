@@ -40,7 +40,11 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react'
-import { getCustomTool } from '@/hooks/queries/utils/custom-tool-cache'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
+import type { WorkflowDeploymentInfo } from '@/hooks/queries/deployments'
+import { deploymentKeys } from '@/hooks/queries/deployments'
+import { customToolsKeys } from '@/hooks/queries/utils/custom-tool-keys'
 import { getWorkflowById } from '@/hooks/queries/utils/workflow-cache'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -445,7 +449,8 @@ const META_deploy_api: ToolMetadata = {
 
     const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
     const isAlreadyDeployed = workflowId
-      ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)?.isDeployed
+      ? (getQueryClient().getQueryData<WorkflowDeploymentInfo>(deploymentKeys.info(workflowId))
+          ?.isDeployed ?? false)
       : false
 
     let actionText = action
@@ -1053,7 +1058,11 @@ const META_manage_custom_tool: ToolMetadata = {
     let toolName = params?.schema?.function?.name
     if (!toolName && params?.toolId && workspaceId) {
       try {
-        const tool = getCustomTool(params.toolId, workspaceId)
+        const tools =
+          getQueryClient().getQueryData<CustomToolDefinition[]>(
+            customToolsKeys.list(workspaceId)
+          ) ?? []
+        const tool = tools.find((t) => t.id === params.toolId || t.title === params.toolId)
         toolName = tool?.schema?.function?.name
       } catch {
         // Ignore errors accessing cache

@@ -560,7 +560,6 @@ export function useCollaborativeWorkflow() {
           loops: workflowData.state.loops || {},
           parallels: workflowData.state.parallels || {},
           lastSaved: workflowData.state.lastSaved || Date.now(),
-          deploymentStatuses: workflowData.state.deploymentStatuses || {},
         })
 
         const subblockValues: Record<string, Record<string, any>> = {}

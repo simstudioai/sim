@@ -432,7 +432,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             loops: workflowState.loops || {},
             parallels: workflowState.parallels || {},
             lastSaved: workflowState.lastSaved || Date.now(),
-            deploymentStatuses: workflowState.deploymentStatuses || {},
           })
 
           useSubBlockStore.setState((state: any) => ({

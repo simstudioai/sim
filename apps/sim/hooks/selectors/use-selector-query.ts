@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
+import { usePersonalEnvironment } from '@/hooks/queries/environment'
 import { getSelectorDefinition, mergeOption } from '@/hooks/selectors/registry'
 import type { SelectorKey, SelectorOption, SelectorQueryArgs } from '@/hooks/selectors/types'
-import { useEnvironmentStore } from '@/stores/settings/environment'
 
 interface SelectorHookArgs extends Omit<SelectorQueryArgs, 'key'> {
   search?: string
@@ -31,7 +31,7 @@ export function useSelectorOptionDetail(
   key: SelectorKey,
   args: SelectorHookArgs & { detailId?: string }
 ) {
-  const envVariables = useEnvironmentStore((s) => s.variables)
+  const { data: envVariables = {} } = usePersonalEnvironment()
   const definition = getSelectorDefinition(key)
 
   const resolvedDetailId = useMemo(() => {

@@ -1,20 +1,10 @@
-import { createLogger } from '@sim/logger'
-import JSON5 from 'json5'
-import { v4 as uuidv4 } from 'uuid'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { normalizeName } from '@/executor/constants'
 import type {
-  Variable,
   VariablesDimensions,
+  VariablesModalStore,
   VariablesPosition,
-  VariablesStore,
-  VariableType,
 } from '@/stores/variables/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-
-const logger = createLogger('VariablesModalStore')
 
 /**
  * Floating variables modal default dimensions.
@@ -25,7 +15,6 @@ const DEFAULT_HEIGHT = 320
 
 /**
  * Minimum and maximum modal dimensions.
- * Kept in sync with the chat modal experience.
  */
 export const MIN_VARIABLES_WIDTH = DEFAULT_WIDTH
 export const MIN_VARIABLES_HEIGHT = DEFAULT_HEIGHT
@@ -110,70 +99,13 @@ export const getVariablesPosition = (
 }
 
 /**
- * Validate a variable's value given its type. Returns an error message or undefined.
+ * UI-only store for the floating variables modal.
+ * Variable data lives in the panel variables store (`@/stores/panel/variables`).
  */
-function validateVariable(variable: Variable): string | undefined {
-  try {
-    switch (variable.type) {
-      case 'number': {
-        return Number.isNaN(Number(variable.value)) ? 'Not a valid number' : undefined
-      }
-      case 'boolean': {
-        return !/^(true|false)$/i.test(String(variable.value).trim())
-          ? 'Expected "true" or "false"'
-          : undefined
-      }
-      case 'object': {
-        try {
-          const valueToEvaluate = String(variable.value).trim()
-          if (!valueToEvaluate.startsWith('{') || !valueToEvaluate.endsWith('}')) {
-            return 'Not a valid object format'
-          }
-          const parsed = JSON5.parse(valueToEvaluate)
-          if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-            return 'Not a valid object'
-          }
-          return undefined
-        } catch (e) {
-          logger.error('Object parsing error:', e)
-          return 'Invalid object syntax'
-        }
-      }
-      case 'array': {
-        try {
-          const parsed = JSON5.parse(String(variable.value))
-          if (!Array.isArray(parsed)) {
-            return 'Not a valid array'
-          }
-        } catch {
-          return 'Invalid array syntax'
-        }
-        return undefined
-      }
-      default:
-        return undefined
-    }
-  } catch (e) {
-    return e instanceof Error ? e.message : 'Invalid format'
-  }
-}
-
-/**
- * Migrate deprecated type 'string' -> 'plain'.
- */
-function migrateStringToPlain(variable: Variable): Variable {
-  if (variable.type !== 'string') return variable
-  return { ...variable, type: 'plain' as const }
-}
-
-/**
- * Floating Variables modal + Variables data store.
- */
-export const useVariablesStore = create<VariablesStore>()(
+export const useVariablesStore = create<VariablesModalStore>()(
   devtools(
     persist(
-      (set, get) => ({
-        // UI
+      (set) => ({
         isOpen: false,
         position: null,
         width: DEFAULT_WIDTH,
@@ -190,208 +122,17 @@ export const useVariablesStore = create<VariablesStore>()(
             ),
           }),
         resetPosition: () => set({ position: null }),
-
-        // Data
-        variables: {},
-        isLoading: false,
-        error: null,
-
-        async loadForWorkflow(workflowId) {
-          try {
-            set({ isLoading: true, error: null })
-            const res = await fetch(`/api/workflows/${workflowId}/variables`, { method: 'GET' })
-            if (!res.ok) {
-              const text = await res.text().catch(() => '')
-              throw new Error(text || `Failed to load variables: ${res.statusText}`)
-            }
-            const data = await res.json()
-            const variables = (data?.data as Record<string, Variable>) || {}
-            // Migrate any deprecated types and merge into store (remove other workflow entries)
-            const migrated: Record<string, Variable> = Object.fromEntries(
-              Object.entries(variables).map(([id, v]) => [id, migrateStringToPlain(v)])
-            )
-            set((state) => {
-              const withoutThisWorkflow = Object.fromEntries(
-                Object.entries(state.variables).filter(
-                  (entry): entry is [string, Variable] => entry[1].workflowId !== workflowId
-                )
-              )
-              return {
-                variables: { ...withoutThisWorkflow, ...migrated },
-                isLoading: false,
-                error: null,
-              }
-            })
-          } catch (e) {
-            const message = e instanceof Error ? e.message : 'Unknown error'
-            set({ isLoading: false, error: message })
-          }
-        },
-
-        addVariable: (variable, providedId) => {
-          const id = providedId || uuidv4()
-          const state = get()
-
-          const workflowVariables = state
-            .getVariablesByWorkflowId(variable.workflowId)
-            .map((v) => ({ id: v.id, name: v.name }))
-
-          // Default naming: variableN
-          if (!variable.name || /^variable\d+$/.test(variable.name)) {
-            const existingNumbers = workflowVariables
-              .map((v) => {
-                const match = v.name.match(/^variable(\d+)$/)
-                return match ? Number.parseInt(match[1]) : 0
-              })
-              .filter((n) => !Number.isNaN(n))
-            const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1
-            variable.name = `variable${nextNumber}`
-          }
-
-          // Ensure uniqueness
-          let uniqueName = variable.name
-          let nameIndex = 1
-          while (workflowVariables.some((v) => v.name === uniqueName)) {
-            uniqueName = `${variable.name} (${nameIndex})`
-            nameIndex++
-          }
-
-          if (variable.type === 'string') {
-            variable.type = 'plain'
-          }
-
-          const newVariable: Variable = {
-            id,
-            workflowId: variable.workflowId,
-            name: uniqueName,
-            type: variable.type,
-            value: variable.value ?? '',
-            validationError: undefined,
-          }
-
-          const validationError = validateVariable(newVariable)
-          if (validationError) {
-            newVariable.validationError = validationError
-          }
-
-          set((state) => ({
-            variables: {
-              ...state.variables,
-              [id]: newVariable,
-            },
-          }))
-
-          return id
-        },
-
-        updateVariable: (id, update) => {
-          set((state) => {
-            const existing = state.variables[id]
-            if (!existing) return state
-
-            // Handle name changes: keep references in sync across workflow values
-            if (update.name !== undefined) {
-              const oldVariableName = existing.name
-              const newName = String(update.name).trim()
-
-              if (!newName) {
-                update = { ...update, name: undefined }
-              } else if (newName !== oldVariableName) {
-                const subBlockStore = useSubBlockStore.getState()
-                const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-
-                if (activeWorkflowId) {
-                  const workflowValues = subBlockStore.workflowValues[activeWorkflowId] || {}
-                  const updatedWorkflowValues = { ...workflowValues }
-
-                  Object.entries(workflowValues).forEach(([blockId, blockValues]) => {
-                    Object.entries(blockValues as Record<string, any>).forEach(
-                      ([subBlockId, value]) => {
-                        const oldVarName = normalizeName(oldVariableName)
-                        const newVarName = normalizeName(newName)
-                        const regex = new RegExp(`<variable\\.${oldVarName}>`, 'gi')
-
-                        updatedWorkflowValues[blockId][subBlockId] = updateReferences(
-                          value,
-                          regex,
-                          `<variable.${newVarName}>`
-                        )
-
-                        function updateReferences(
-                          val: any,
-                          refRegex: RegExp,
-                          replacement: string
-                        ): any {
-                          if (typeof val === 'string') {
-                            return refRegex.test(val) ? val.replace(refRegex, replacement) : val
-                          }
-                          if (Array.isArray(val)) {
-                            return val.map((item) => updateReferences(item, refRegex, replacement))
-                          }
-                          if (val !== null && typeof val === 'object') {
-                            const result: Record<string, any> = { ...val }
-                            for (const key in result) {
-                              result[key] = updateReferences(result[key], refRegex, replacement)
-                            }
-                            return result
-                          }
-                          return val
-                        }
-                      }
-                    )
-                  })
-
-                  useSubBlockStore.setState({
-                    workflowValues: {
-                      ...subBlockStore.workflowValues,
-                      [activeWorkflowId]: updatedWorkflowValues,
-                    },
-                  })
-                }
-              }
-            }
-
-            // Handle deprecated -> new type migration
-            if (update.type === 'string') {
-              update = { ...update, type: 'plain' as VariableType }
-            }
-
-            const updated: Variable = {
-              ...existing,
-              ...update,
-              validationError: undefined,
-            }
-
-            // Validate only when type or value changed
-            if (update.type || update.value !== undefined) {
-              updated.validationError = validateVariable(updated)
-            }
-
-            return {
-              variables: {
-                ...state.variables,
-                [id]: updated,
-              },
-            }
-          })
-        },
-
-        deleteVariable: (id) => {
-          set((state) => {
-            if (!state.variables[id]) return state
-            const { [id]: _deleted, ...rest } = state.variables
-            return { variables: rest }
-          })
-        },
-
-        getVariablesByWorkflowId: (workflowId) => {
-          return Object.values(get().variables).filter((v) => v.workflowId === workflowId)
-        },
       }),
       {
         name: 'variables-modal-store',
+        partialize: (state) => ({
+          position: state.position,
+          width: state.width,
+          height: state.height,
+        }),
       }
-    )
+    ),
+    { name: 'variables-modal-store' }
   )
 )
 
