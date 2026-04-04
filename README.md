@@ -90,6 +90,7 @@ Sim also supports local models via [Ollama](https://ollama.ai) and [vLLM](https:
 git clone https://github.com/simstudioai/sim.git
 cd sim
 bun install
+bun run prepare  # Set up pre-commit hooks
 ```
 
 2. Set up PostgreSQL with pgvector:
