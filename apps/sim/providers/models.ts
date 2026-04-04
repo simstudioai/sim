@@ -271,6 +271,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -290,6 +291,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -324,6 +326,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -342,6 +345,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -360,6 +364,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -373,6 +378,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 16384,
         },
         contextWindow: 128000,
       },
@@ -449,6 +455,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 100000,
         },
         contextWindow: 200000,
       },
@@ -463,6 +470,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 16384,
         },
         contextWindow: 128000,
       },
@@ -509,7 +517,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: 128000,
+          maxOutputTokens: 64000,
           thinking: {
             levels: ['low', 'medium', 'high', 'max'],
             default: 'high',
@@ -741,6 +749,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -759,6 +768,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -777,6 +787,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -795,6 +806,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -813,6 +825,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -831,6 +844,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -1067,6 +1081,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
             levels: ['minimal', 'low', 'medium', 'high'],
             default: 'high',
           },
+          maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
       },
@@ -1084,6 +1099,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
             levels: ['minimal', 'low', 'medium', 'high'],
             default: 'minimal',
           },
+          maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
       },
@@ -1101,6 +1117,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
             levels: ['minimal', 'low', 'medium', 'high'],
             default: 'high',
           },
+          maxOutputTokens: 65536,
         },
         contextWindow: 1000000,
       },
@@ -1114,6 +1131,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
       },
@@ -1127,6 +1145,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
       },
@@ -1140,6 +1159,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
       },
@@ -1153,6 +1173,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 8192,
         },
         contextWindow: 1048576,
       },
@@ -1165,6 +1186,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 8192,
         },
         contextWindow: 1048576,
       },
@@ -1178,6 +1200,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           deepResearch: true,
           memory: false,
+          maxOutputTokens: 65536,
         },
         contextWindow: 1000000,
       },
@@ -2094,6 +2117,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
         },
         contextWindow: 200000,
       },
@@ -2107,6 +2131,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
         },
         contextWindow: 200000,
       },
@@ -2120,6 +2145,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
         },
         contextWindow: 200000,
       },
@@ -2133,6 +2159,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
         },
         contextWindow: 200000,
       },
@@ -2337,6 +2364,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: 32768,
         },
         contextWindow: 128000,
       },
@@ -2373,6 +2401,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: 16384,
         },
         contextWindow: 128000,
       },
@@ -2385,6 +2414,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: 40000,
         },
         contextWindow: 128000,
       },
@@ -2397,6 +2427,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: 8192,
         },
         contextWindow: 128000,
       },
@@ -2409,6 +2440,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: 8192,
         },
         contextWindow: 128000,
       },
@@ -2421,6 +2453,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: 8192,
         },
         contextWindow: 128000,
       },
@@ -2863,13 +2896,17 @@ export function getModelsWithoutMemory(): string[] {
 export function getMaxOutputTokensForModel(modelId: string): number {
   const normalizedModelId = modelId.toLowerCase()
   const STANDARD_MAX_OUTPUT_TOKENS = 4096
+  const allModels = Object.values(PROVIDER_DEFINITIONS).flatMap((provider) => provider.models)
 
-  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-    for (const model of provider.models) {
-      const baseModelId = model.id.toLowerCase()
-      if (normalizedModelId === baseModelId || normalizedModelId.startsWith(`${baseModelId}-`)) {
-        return model.capabilities.maxOutputTokens || STANDARD_MAX_OUTPUT_TOKENS
-      }
+  const exactMatch = allModels.find((model) => model.id.toLowerCase() === normalizedModelId)
+  if (exactMatch) {
+    return exactMatch.capabilities.maxOutputTokens || STANDARD_MAX_OUTPUT_TOKENS
+  }
+
+  for (const model of allModels) {
+    const baseModelId = model.id.toLowerCase()
+    if (normalizedModelId.startsWith(`${baseModelId}-`)) {
+      return model.capabilities.maxOutputTokens || STANDARD_MAX_OUTPUT_TOKENS
     }
   }
 

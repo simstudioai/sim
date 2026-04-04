@@ -664,6 +664,45 @@ describe('Model Capabilities', () => {
 
 describe('Max Output Tokens', () => {
   describe('getMaxOutputTokensForModel', () => {
+    it.concurrent('should return published max for OpenAI GPT-4o', () => {
+      expect(getMaxOutputTokensForModel('gpt-4o')).toBe(16384)
+    })
+
+    it.concurrent('should return published max for OpenAI GPT-5.1', () => {
+      expect(getMaxOutputTokensForModel('gpt-5.1')).toBe(128000)
+    })
+
+    it.concurrent('should return published max for OpenAI GPT-5 Chat', () => {
+      expect(getMaxOutputTokensForModel('gpt-5-chat-latest')).toBe(16384)
+    })
+
+    it.concurrent('should return published max for OpenAI o1', () => {
+      expect(getMaxOutputTokensForModel('o1')).toBe(100000)
+    })
+
+    it.concurrent('should return updated max for Claude Sonnet 4.6', () => {
+      expect(getMaxOutputTokensForModel('claude-sonnet-4-6')).toBe(64000)
+    })
+
+    it.concurrent('should return published max for Gemini 2.5 Pro', () => {
+      expect(getMaxOutputTokensForModel('gemini-2.5-pro')).toBe(65536)
+    })
+
+    it.concurrent('should return published max for Azure GPT-5.2', () => {
+      expect(getMaxOutputTokensForModel('azure/gpt-5.2')).toBe(128000)
+    })
+
+    it.concurrent('should return standard default for models without maxOutputTokens', () => {
+      expect(getMaxOutputTokensForModel('deepseek-reasoner')).toBe(4096)
+      expect(getMaxOutputTokensForModel('grok-4-latest')).toBe(4096)
+    })
+
+    it.concurrent('should return published max for Bedrock Claude Opus 4.1', () => {
+      expect(getMaxOutputTokensForModel('bedrock/anthropic.claude-opus-4-1-20250805-v1:0')).toBe(
+        64000
+      )
+    })
+
     it.concurrent('should return correct max for Claude Opus 4.6', () => {
       expect(getMaxOutputTokensForModel('claude-opus-4-6')).toBe(128000)
     })
@@ -674,10 +713,6 @@ describe('Max Output Tokens', () => {
 
     it.concurrent('should return correct max for Claude Opus 4.1', () => {
       expect(getMaxOutputTokensForModel('claude-opus-4-1')).toBe(32000)
-    })
-
-    it.concurrent('should return standard default for models without maxOutputTokens', () => {
-      expect(getMaxOutputTokensForModel('gpt-4o')).toBe(4096)
     })
 
     it.concurrent('should return standard default for unknown models', () => {

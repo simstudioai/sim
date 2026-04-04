@@ -112,7 +112,7 @@ export interface CatalogModel {
   capabilities: ModelCapabilities
   capabilityTags: string[]
   summary: string
-  bestFor: string
+  bestFor?: string
   searchText: string
 }
 
@@ -188,6 +188,14 @@ export function formatCapabilityBoolean(
   } = {}
 ): string {
   return value ? positive : negative
+}
+
+function supportsCatalogStructuredOutputs(capabilities: ModelCapabilities): boolean {
+  return !capabilities.deepResearch
+}
+
+export function getEffectiveMaxOutputTokens(capabilities: ModelCapabilities): number | null {
+  return capabilities.maxOutputTokens ?? null
 }
 
 function trimTrailingZeros(value: string): string {
@@ -326,7 +334,7 @@ function buildCapabilityTags(capabilities: ModelCapabilities): string[] {
     tags.push('Tool choice')
   }
 
-  if (capabilities.nativeStructuredOutputs) {
+  if (supportsCatalogStructuredOutputs(capabilities)) {
     tags.push('Structured outputs')
   }
 
@@ -365,7 +373,7 @@ function buildBestForLine(model: {
   pricing: PricingInfo
   capabilities: ModelCapabilities
   contextWindow: number | null
-}): string {
+}): string | null {
   const { pricing, capabilities, contextWindow } = model
 
   if (capabilities.deepResearch) {
@@ -376,10 +384,6 @@ function buildBestForLine(model: {
     return 'Best for reasoning-heavy tasks that need more deliberate model control.'
   }
 
-  if (pricing.input <= 0.2 && pricing.output <= 1.25) {
-    return 'Best for cost-sensitive automations, background tasks, and high-volume workloads.'
-  }
-
   if (contextWindow && contextWindow >= 1000000) {
     return 'Best for long-context retrieval, large documents, and high-memory workflows.'
   }
@@ -388,7 +392,11 @@ function buildBestForLine(model: {
     return 'Best for production workflows that need reliable typed outputs.'
   }
 
-  return 'Best for general-purpose AI workflows inside Sim.'
+  if (pricing.input <= 0.2 && pricing.output <= 1.25) {
+    return 'Best for cost-sensitive automations, background tasks, and high-volume workloads.'
+  }
+
+  return null
 }
 
 function buildModelSummary(
@@ -437,6 +445,11 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
     const shortId = stripProviderPrefix(provider.id, model.id)
     const mergedCapabilities = { ...provider.capabilities, ...model.capabilities }
     const capabilityTags = buildCapabilityTags(mergedCapabilities)
+    const bestFor = buildBestForLine({
+      pricing: model.pricing,
+      capabilities: mergedCapabilities,
+      contextWindow: model.contextWindow ?? null,
+    })
     const displayName = formatModelDisplayName(provider.id, model.id)
     const modelSlug = slugify(shortId)
     const href = `/models/${providerSlug}/${modelSlug}`
@@ -461,11 +474,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
         model.contextWindow ?? null,
         capabilityTags
       ),
-      bestFor: buildBestForLine({
-        pricing: model.pricing,
-        capabilities: mergedCapabilities,
-        contextWindow: model.contextWindow ?? null,
-      }),
+      ...(bestFor ? { bestFor } : {}),
       searchText: [
         provider.name,
         providerDisplayName,
@@ -683,6 +692,7 @@ export function buildModelFaqs(provider: CatalogProvider, model: CatalogModel): 
 
 export function buildModelCapabilityFacts(model: CatalogModel): CapabilityFact[] {
   const { capabilities } = model
+  const supportsStructuredOutputs = supportsCatalogStructuredOutputs(capabilities)
 
   return [
     {
@@ -711,7 +721,11 @@ export function buildModelCapabilityFacts(model: CatalogModel): CapabilityFact[]
     },
     {
       label: 'Structured outputs',
-      value: formatCapabilityBoolean(capabilities.nativeStructuredOutputs),
+      value: supportsStructuredOutputs
+        ? capabilities.nativeStructuredOutputs
+          ? 'Supported (native)'
+          : 'Supported'
+        : 'Not supported',
     },
     {
       label: 'Tool choice',
@@ -732,8 +746,8 @@ export function buildModelCapabilityFacts(model: CatalogModel): CapabilityFact[]
     {
       label: 'Max output tokens',
       value: capabilities.maxOutputTokens
-        ? formatTokenCount(capabilities.maxOutputTokens)
-        : 'Standard defaults',
+        ? formatTokenCount(getEffectiveMaxOutputTokens(capabilities))
+        : 'Not published',
     },
   ]
 }
@@ -752,8 +766,8 @@ export function getProviderCapabilitySummary(provider: CatalogProvider): Capabil
   const reasoningCount = provider.models.filter(
     (model) => model.capabilities.reasoningEffort || model.capabilities.thinking
   ).length
-  const structuredCount = provider.models.filter(
-    (model) => model.capabilities.nativeStructuredOutputs
+  const structuredCount = provider.models.filter((model) =>
+    supportsCatalogStructuredOutputs(model.capabilities)
   ).length
   const deepResearchCount = provider.models.filter(
     (model) => model.capabilities.deepResearch
