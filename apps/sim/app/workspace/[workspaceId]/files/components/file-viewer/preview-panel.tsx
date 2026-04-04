@@ -274,11 +274,14 @@ function InputRenderer({
   )
 }
 
-function isInternalHref(href: string): { pathname: string; hash: string } | null {
+function isInternalHref(
+  href: string,
+  origin = window.location.origin
+): { pathname: string; hash: string } | null {
   if (href.startsWith('#')) return { pathname: '', hash: href }
   try {
-    const url = new URL(href, window.location.origin)
-    if (url.origin === window.location.origin) {
+    const url = new URL(href, origin)
+    if (url.origin === origin) {
       return { pathname: url.pathname, hash: url.hash }
     }
   } catch {
@@ -303,12 +306,22 @@ function AnchorRenderer({ href, children }: { href?: string; children?: React.Re
 
       if (parsed.pathname === '' && parsed.hash) {
         const el = document.getElementById(parsed.hash.slice(1))
-        el?.scrollIntoView({ behavior: 'smooth' })
+        if (el) {
+          const container = el.closest('.overflow-auto') as HTMLElement | null
+          if (container) {
+            container.scrollTo({ top: el.offsetTop - container.offsetTop, behavior: 'smooth' })
+          } else {
+            el.scrollIntoView({ behavior: 'smooth' })
+          }
+        }
         return
       }
 
+      const destination = parsed.pathname + parsed.hash
       if (navigate) {
-        navigate(parsed.pathname + parsed.hash)
+        navigate(destination)
+      } else {
+        window.location.assign(destination)
       }
     },
     [parsed, navigate]
