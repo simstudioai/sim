@@ -61,8 +61,8 @@ Sim lets teams create agents, workflows, knowledge bases, tables, and docs. It s
 
   return new Response(content, {
     headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+      'Content-Type': 'text/markdown; charset=utf-8',
+      'Cache-Control': 'public, max-age=86400, s-maxage=86400',
     },
   })
 }
