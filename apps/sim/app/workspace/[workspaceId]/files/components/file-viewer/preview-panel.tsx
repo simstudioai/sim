@@ -1,10 +1,12 @@
 'use client'
 
-import { createContext, memo, useContext, useMemo, useRef } from 'react'
+import { createContext, memo, useCallback, useContext, useMemo, useRef } from 'react'
 import type { Components, ExtraProps } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
+import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
+import { useRouter } from 'next/navigation'
 import { Checkbox } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
@@ -70,6 +72,7 @@ export const PreviewPanel = memo(function PreviewPanel({
 })
 
 const REMARK_PLUGINS = [remarkGfm, remarkBreaks]
+const REHYPE_PLUGINS = [rehypeSlug]
 
 /**
  * Carries the contentRef and toggle handler from MarkdownPreview down to the
@@ -83,29 +86,31 @@ const MarkdownCheckboxCtx = createContext<{
 /** Carries the resolved checkbox index from LiRenderer to InputRenderer. */
 const CheckboxIndexCtx = createContext(-1)
 
+const NavigateCtx = createContext<((path: string) => void) | null>(null)
+
 const STATIC_MARKDOWN_COMPONENTS = {
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className='mb-3 break-words text-[14px] text-[var(--text-primary)] leading-[1.6] last:mb-0'>
       {children}
     </p>
   ),
-  h1: ({ children }: { children?: React.ReactNode }) => (
-    <h1 className='mt-6 mb-4 break-words font-semibold text-[24px] text-[var(--text-primary)] first:mt-0'>
+  h1: ({ id, children }: { id?: string; children?: React.ReactNode }) => (
+    <h1 id={id} className='mt-6 mb-4 break-words font-semibold text-[24px] text-[var(--text-primary)] first:mt-0'>
       {children}
     </h1>
   ),
-  h2: ({ children }: { children?: React.ReactNode }) => (
-    <h2 className='mt-5 mb-3 break-words font-semibold text-[20px] text-[var(--text-primary)] first:mt-0'>
+  h2: ({ id, children }: { id?: string; children?: React.ReactNode }) => (
+    <h2 id={id} className='mt-5 mb-3 break-words font-semibold text-[20px] text-[var(--text-primary)] first:mt-0'>
       {children}
     </h2>
   ),
-  h3: ({ children }: { children?: React.ReactNode }) => (
-    <h3 className='mt-4 mb-2 break-words font-semibold text-[16px] text-[var(--text-primary)] first:mt-0'>
+  h3: ({ id, children }: { id?: string; children?: React.ReactNode }) => (
+    <h3 id={id} className='mt-4 mb-2 break-words font-semibold text-[16px] text-[var(--text-primary)] first:mt-0'>
       {children}
     </h3>
   ),
-  h4: ({ children }: { children?: React.ReactNode }) => (
-    <h4 className='mt-3 mb-2 break-words font-semibold text-[14px] text-[var(--text-primary)] first:mt-0'>
+  h4: ({ id, children }: { id?: string; children?: React.ReactNode }) => (
+    <h4 id={id} className='mt-3 mb-2 break-words font-semibold text-[14px] text-[var(--text-primary)] first:mt-0'>
       {children}
     </h4>
   ),
@@ -138,16 +143,6 @@ const STATIC_MARKDOWN_COMPONENTS = {
     )
   },
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
-  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
-    <a
-      href={href}
-      target='_blank'
-      rel='noopener noreferrer'
-      className='break-all text-[var(--brand-secondary)] underline-offset-2 hover:underline'
-    >
-      {children}
-    </a>
-  ),
   strong: ({ children }: { children?: React.ReactNode }) => (
     <strong className='break-words font-semibold text-[var(--text-primary)]'>{children}</strong>
   ),
@@ -267,8 +262,62 @@ function InputRenderer({
   )
 }
 
+function isInternalHref(href: string): { pathname: string; hash: string } | null {
+  if (href.startsWith('#')) return { pathname: '', hash: href }
+  try {
+    const url = new URL(href, window.location.origin)
+    if (url.origin === window.location.origin) {
+      return { pathname: url.pathname, hash: url.hash }
+    }
+  } catch {
+    if (href.startsWith('/')) {
+      const hashIdx = href.indexOf('#')
+      if (hashIdx === -1) return { pathname: href, hash: '' }
+      return { pathname: href.slice(0, hashIdx), hash: href.slice(hashIdx) }
+    }
+  }
+  return null
+}
+
+function AnchorRenderer({ href, children }: { href?: string; children?: React.ReactNode }) {
+  const navigate = useContext(NavigateCtx)
+  const parsed = useMemo(() => (href ? isInternalHref(href) : null), [href])
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLAnchorElement>) => {
+      if (!parsed || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+
+      e.preventDefault()
+
+      if (parsed.pathname === '' && parsed.hash) {
+        const el = document.getElementById(parsed.hash.slice(1))
+        el?.scrollIntoView({ behavior: 'smooth' })
+        return
+      }
+
+      if (navigate) {
+        navigate(parsed.pathname + parsed.hash)
+      }
+    },
+    [parsed, navigate]
+  )
+
+  return (
+    <a
+      href={href}
+      target={parsed ? undefined : '_blank'}
+      rel={parsed ? undefined : 'noopener noreferrer'}
+      onClick={handleClick}
+      className='break-all text-[var(--brand-secondary)] underline-offset-2 hover:underline'
+    >
+      {children}
+    </a>
+  )
+}
+
 const MARKDOWN_COMPONENTS = {
   ...STATIC_MARKDOWN_COMPONENTS,
+  a: AnchorRenderer,
   ul: UlRenderer,
   ol: OlRenderer,
   li: LiRenderer,
@@ -284,6 +333,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
   isStreaming?: boolean
   onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
 }) {
+  const { push: navigate } = useRouter()
   const { ref: scrollRef } = useAutoScroll(isStreaming)
   const { committed, incoming, generation } = useStreamingReveal(content, isStreaming)
 
@@ -298,7 +348,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
   const committedMarkdown = useMemo(
     () =>
       committed ? (
-        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={MARKDOWN_COMPONENTS}>
           {committed}
         </ReactMarkdown>
       ) : null,
@@ -307,30 +357,34 @@ const MarkdownPreview = memo(function MarkdownPreview({
 
   if (onCheckboxToggle) {
     return (
-      <MarkdownCheckboxCtx.Provider value={ctxValue}>
-        <div ref={scrollRef} className='h-full overflow-auto p-6'>
-          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
-            {content}
-          </ReactMarkdown>
-        </div>
-      </MarkdownCheckboxCtx.Provider>
+      <NavigateCtx.Provider value={navigate}>
+        <MarkdownCheckboxCtx.Provider value={ctxValue}>
+          <div ref={scrollRef} className='h-full overflow-auto p-6'>
+            <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={MARKDOWN_COMPONENTS}>
+              {content}
+            </ReactMarkdown>
+          </div>
+        </MarkdownCheckboxCtx.Provider>
+      </NavigateCtx.Provider>
     )
   }
 
   return (
-    <div ref={scrollRef} className='h-full overflow-auto p-6'>
-      {committedMarkdown}
-      {incoming && (
-        <div
-          key={generation}
-          className={cn(isStreaming && 'animate-stream-fade-in', '[&>:first-child]:mt-0')}
-        >
-          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
-            {incoming}
-          </ReactMarkdown>
-        </div>
-      )}
-    </div>
+    <NavigateCtx.Provider value={navigate}>
+      <div ref={scrollRef} className='h-full overflow-auto p-6'>
+        {committedMarkdown}
+        {incoming && (
+          <div
+            key={generation}
+            className={cn(isStreaming && 'animate-stream-fade-in', '[&>:first-child]:mt-0')}
+          >
+            <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={MARKDOWN_COMPONENTS}>
+              {incoming}
+            </ReactMarkdown>
+          </div>
+        )}
+      </div>
+    </NavigateCtx.Provider>
   )
 })
 
