@@ -34,7 +34,6 @@ import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useDuplicateWorkflowMutation, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { useVariablesStore as usePanelVariablesStore } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/variables/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -140,7 +139,7 @@ export const WorkflowActions = memo(function WorkflowActions({
     try {
       const workflow = getWorkflowWithValues(activeWorkflowId, workspaceId)
       if (!workflow || !workflow.state) throw new Error('No workflow state found')
-      const workflowVariables = usePanelVariablesStore
+      const workflowVariables = useVariablesStore
         .getState()
         .getVariablesByWorkflowId(activeWorkflowId)
       const jsonContent = generateWorkflowJson(workflow.state, {
