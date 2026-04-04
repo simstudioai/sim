@@ -52,7 +52,6 @@ const WorkflowEdgeComponent = ({
   )
   const lastRunEdges = useLastRunEdges()
 
-  // Check if the workflow is currently executing and if this edge's source block is active
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const { isExecuting, isSourceActive } = useExecutionStore(
     useShallow((state) => {
@@ -97,9 +96,6 @@ const WorkflowEdgeComponent = ({
     targetHandle,
   ])
 
-  // Determine whether to show the flow animation:
-  // - Edge just ran successfully (data flowed through)
-  // - OR the source block is currently active (data is in transit)
   const showFlowAnimation =
     !edgeDiffStatus && (edgeRunStatus === 'success' || (isExecuting && isSourceActive))
 
@@ -187,7 +183,7 @@ const WorkflowEdgeComponent = ({
 }
 
 /**
- * Workflow edge component with execution status, diff visualization, and flow animation.
+ * Workflow edge component with execution status and diff visualization.
  *
  * @remarks
  * Edge coloring priority:
@@ -195,10 +191,5 @@ const WorkflowEdgeComponent = ({
  * 2. Execution status (success/error) - for run visualization
  * 3. Error edge default (red) - for untaken error paths
  * 4. Default edge color - normal workflow connections
- *
- * Flow animation:
- * When data flows through an edge (success status) or the source block is
- * actively executing, a subtle marching-dashes overlay animates along the
- * path to visualize data movement.
  */
 export const WorkflowEdge = memo(WorkflowEdgeComponent)

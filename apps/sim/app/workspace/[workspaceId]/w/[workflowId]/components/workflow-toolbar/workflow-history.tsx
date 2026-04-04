@@ -43,9 +43,6 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('WorkflowHistory')
 
-/**
- * Formats a timestamp as a relative time ("2m ago") or absolute time for older entries.
- */
 function formatTime(isoTimestamp: string): string {
   const now = Date.now()
   const then = new Date(isoTimestamp).getTime()
@@ -69,48 +66,36 @@ interface WorkflowHistoryProps {
   onOpenChange: (open: boolean) => void
 }
 
-/**
- * Popover showing deployment versions and browser-local workflow change history.
- * Deployment versions are fetched from the server, while local changes
- * are snapshots captured automatically when the user modifies the workflow.
- */
 export const WorkflowHistory = memo(function WorkflowHistory({
   open,
   onOpenChange,
 }: WorkflowHistoryProps) {
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
-  // Local snapshots
   const snapshots = useWorkflowHistoryStore((state) =>
     activeWorkflowId ? state.getSnapshots(activeWorkflowId) : []
   )
   const restoreSnapshot = useWorkflowHistoryStore((state) => state.restoreSnapshot)
   const clearHistory = useWorkflowHistoryStore((state) => state.clearHistory)
 
-  // Deployment versions
   const { data: versionsData, isLoading: versionsLoading } = useDeploymentVersions(
     activeWorkflowId,
     { enabled: open }
   )
   const versions = versionsData?.versions ?? []
 
-  // Version actions
   const activateVersionMutation = useActivateDeploymentVersion()
   const revertMutation = useRevertToVersion()
   const renameMutation = useUpdateDeploymentVersion()
 
-  // Version action dropdown state
   const [openDropdown, setOpenDropdown] = useState<number | null>(null)
 
-  // Inline rename state
   const [editingVersion, setEditingVersion] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Description modal state
   const [descriptionModalVersion, setDescriptionModalVersion] = useState<number | null>(null)
 
-  // Confirmation dialogs
   const [showLoadDialog, setShowLoadDialog] = useState(false)
   const [showPromoteDialog, setShowPromoteDialog] = useState(false)
   const [versionToLoad, setVersionToLoad] = useState<number | null>(null)
@@ -130,7 +115,6 @@ export const WorkflowHistory = memo(function WorkflowHistory({
     }
   }, [editingVersion])
 
-  // Reset state when popover closes
   useEffect(() => {
     if (!open) {
       setOpenDropdown(null)
@@ -272,9 +256,6 @@ export const WorkflowHistory = memo(function WorkflowHistory({
           maxHeight={480}
           style={{ minWidth: '300px', maxWidth: '340px' }}
           onPointerDownOutside={(e) => {
-            // Defer close so the native click event chain completes first.
-            // Without this, Radix's flushSync-based dismiss can swallow the
-            // click that should reach canvas nodes and open their editor panel.
             e.preventDefault()
             requestAnimationFrame(() => onOpenChange(false))
           }}
@@ -455,11 +436,6 @@ interface VersionRowProps {
   onLoadDeployment: (version: number) => void
 }
 
-/**
- * A single deployment version row inside the history popover.
- * Uses disablePortal on the nested dropdown so clicking outside
- * the parent popover correctly dismisses it.
- */
 function VersionRow({
   version: v,
   editingVersion,

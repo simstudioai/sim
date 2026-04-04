@@ -11,11 +11,6 @@ const SEND_BUTTON_ACTIVE =
   'bg-[#383838] hover:bg-[#575757] dark:bg-[#E0E0E0] dark:hover:bg-[#CFCFCF]'
 const SEND_BUTTON_DISABLED = 'bg-[#808080] dark:bg-[#808080]'
 
-/**
- * Floating copilot input that appears centered on the canvas when the panel
- * is collapsed. Provides a quick entry point to the copilot — on submit,
- * the message is forwarded to the panel store and the copilot tab opens.
- */
 export const CopilotInput = memo(function CopilotInput() {
   const isPanelOpen = usePanelStore((s) => s.isPanelOpen)
   const setPendingCopilotMessage = usePanelStore((s) => s.setPendingCopilotMessage)

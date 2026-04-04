@@ -42,11 +42,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('WorkflowActions')
 
-/**
- * Vertical floating toolbar on the left side of the canvas.
- * Primary actions (auto layout, variables, history) are direct buttons.
- * Secondary actions (lock, export, duplicate, delete) are behind a three-dots menu.
- */
 interface WorkflowActionsProps {
   workspaceId?: string
 }

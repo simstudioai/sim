@@ -46,10 +46,7 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 const logger = createLogger('Panel')
 
 /**
- * Floating panel sidebar with tab navigation that persists across page refreshes.
- *
- * Renders as a floating overlay on the right side of the canvas with rounded corners
- * and a collapsible toggle. Tabs: Copilot, Toolbar, Editor, Logs.
+ * Panel component with resizable width and tab navigation that persists across page refreshes.
  *
  * Uses a CSS-based approach to prevent hydration mismatches and flash on load:
  * 1. Width is controlled by CSS variable (--panel-width)
@@ -58,7 +55,12 @@ const logger = createLogger('Panel')
  * 4. React takes over visibility control after hydration completes
  * 5. Store updates CSS variable when width changes
  *
- * @returns Floating panel on the right side of the canvas
+ * This ensures server and client render identical HTML, preventing hydration errors and visual flash.
+ *
+ * Note: All tabs are kept mounted but hidden to preserve component state during tab switches.
+ * This prevents unnecessary remounting which would trigger data reloads and reset state.
+ *
+ * @returns Panel on the right side of the workflow
  */
 interface PanelProps {
   /** Override workspaceId when rendered outside a workspace route (e.g. sandbox mode) */
@@ -137,7 +139,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     await handleRunWorkflow()
   }, [usageExceeded, handleRunWorkflow])
 
-  // Copilot chat state
+  // Chat state
   const [copilotChatId, setCopilotChatId] = useState<string | undefined>(undefined)
   const [copilotChatTitle, setCopilotChatTitle] = useState<string | null>(null)
   const [copilotChatList, setCopilotChatList] = useState<
@@ -325,10 +327,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     [copilotSendMessage]
   )
 
-  /**
-   * Auto-submit a pending copilot message that was queued from the floating input.
-   * Consumes the message immediately so it only fires once.
-   */
   useEffect(() => {
     if (pendingCopilotMessage && isPanelOpen && activeTab === 'copilot') {
       const message = pendingCopilotMessage
@@ -339,6 +337,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
 
   /**
    * Mark hydration as complete on mount
+   * This allows React to take over visibility control from CSS
    */
   useEffect(() => {
     setHasHydrated(true)
@@ -363,7 +362,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const wasExecutingRef = useRef(false)
   useEffect(() => {
     if (wasExecutingRef.current && !isExecuting) {
-      // Run just finished — show logs if the user isn't mid-edit
       if (activeTab !== 'editor' && activeTab !== 'copilot') {
         setActiveTab('logs')
         if (!isPanelOpen) setIsPanelOpen(true)
@@ -380,10 +378,10 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   }
 
   /**
-   * Register global keyboard shortcuts.
-   * - Mod+Enter: Run / cancel workflow
+   * Register global keyboard shortcuts using the central commands registry.
+   *
+   * - Mod+Enter: Run / cancel workflow (matches the Run button behavior)
    * - Mod+F: Focus Toolbar tab and search input
-   * - Mod+L: Toggle Logs tab
    */
   useRegisterGlobalCommands(() =>
     createCommands([
@@ -414,7 +412,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     ])
   )
 
-  // When panel is closed, render a thin vertical strip with tab icons
   if (!isPanelOpen) {
     return (
       <>

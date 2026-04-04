@@ -13,10 +13,6 @@ import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-/**
- * Compact floating toolbar at the top-right of the canvas.
- * Layout: [Variables] [Run] | [Deploy]
- */
 interface WorkflowToolbarProps {
   workspaceId?: string
 }

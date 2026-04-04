@@ -11,17 +11,13 @@ export interface PanelState {
   setPanelWidth: (width: number) => void
   activeTab: PanelTab
   setActiveTab: (tab: PanelTab) => void
-  /** Whether the panel sidebar is open (visible) */
   isPanelOpen: boolean
-  /** Toggles or sets the panel sidebar open state */
   setIsPanelOpen: (isOpen: boolean) => void
   /** Whether the panel is currently being resized */
   isResizing: boolean
   /** Updates the panel resize state */
   setIsResizing: (isResizing: boolean) => void
-  /** Pending message to auto-submit to the copilot when the panel opens */
   pendingCopilotMessage: string | null
-  /** Sets a pending copilot message, opens the panel, and switches to the copilot tab */
   setPendingCopilotMessage: (message: string | null) => void
   _hasHydrated: boolean
   setHasHydrated: (hasHydrated: boolean) => void

@@ -92,8 +92,7 @@ const hasCanceledInTree = (nodes: EntryNode[]) =>
   hasMatchInTree(nodes, (e) => Boolean(e.isCanceled))
 
 /**
- * Block row component for displaying actual block entries.
- * Click to select and view input/output in the output panel.
+ * Block row component for displaying actual block entries
  */
 const BlockRow = memo(function BlockRow({
   entry,
@@ -668,9 +667,6 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
 
 /**
  * Terminal component with resizable height that persists across page refreshes.
- *
- * @param mode - 'standalone' renders with its own height/resize (below canvas).
- *               'panel' fills its parent container (inside a panel tab).
  */
 interface TerminalProps {
   mode?: 'standalone' | 'panel'
@@ -1155,9 +1151,6 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
     }
   }, [executionGroups, navigableEntries, autoSelectEnabled, selectedEntryId, focusTerminal])
 
-  /**
-   * Sync selected entry with latest data from store.
-   */
   useEffect(() => {
     if (!selectedEntry) return
     const updatedEntry = filteredEntries.find((e) => e.id === selectedEntry.id)
@@ -1300,7 +1293,6 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
       let terminalWidth: number
 
       if (isPanelMode && terminalRef.current) {
-        // In panel mode, use the terminal's own width (it's inside the panel)
         terminalWidth = terminalRef.current.clientWidth
       } else {
         const sidebarWidth = Number.parseInt(
