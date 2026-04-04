@@ -26,7 +26,7 @@ function getClient(): import('posthog-node').PostHog | null {
   const { PostHog } = require('posthog-node') as typeof import('posthog-node')
   _client = new PostHog(key, {
     host: 'https://us.i.posthog.com',
-    flushAt: 1,
+    flushAt: 20,
     flushInterval: 10_000,
   })
   return _client
