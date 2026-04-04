@@ -44,14 +44,22 @@ const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_REGISTRY)
 interface AddConnectorModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onConnectorTypeChange?: (connectorType: string | null) => void
   knowledgeBaseId: string
+  initialConnectorType?: string | null
 }
 
 type Step = 'select-type' | 'configure'
 
-export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddConnectorModalProps) {
-  const [step, setStep] = useState<Step>('select-type')
-  const [selectedType, setSelectedType] = useState<string | null>(null)
+export function AddConnectorModal({
+  open,
+  onOpenChange,
+  onConnectorTypeChange,
+  knowledgeBaseId,
+  initialConnectorType,
+}: AddConnectorModalProps) {
+  const [step, setStep] = useState<Step>(() => (initialConnectorType ? 'configure' : 'select-type'))
+  const [selectedType, setSelectedType] = useState<string | null>(initialConnectorType ?? null)
   const [sourceConfig, setSourceConfig] = useState<Record<string, string>>({})
   const [syncInterval, setSyncInterval] = useState(1440)
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
@@ -151,6 +159,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
     setError(null)
     setSearchTerm('')
     setStep('configure')
+    onConnectorTypeChange?.(type)
   }
 
   const handleFieldChange = useCallback(
@@ -286,7 +295,10 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
               <Button
                 variant='ghost'
                 className='mr-2 h-6 w-6 p-0'
-                onClick={() => setStep('select-type')}
+                onClick={() => {
+                  setStep('select-type')
+                  onConnectorTypeChange?.('')
+                }}
               >
                 <ArrowLeft className='h-4 w-4' />
               </Button>
@@ -565,6 +577,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
             workspaceId={workspaceId}
             knowledgeBaseId={knowledgeBaseId}
             credentialCount={credentials.length}
+            connectorType={selectedType ?? undefined}
           />
         )}
     </>

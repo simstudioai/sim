@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { toast } from '@/components/emcn'
 import {
+  ADD_CONNECTOR_SEARCH_PARAM,
   consumeOAuthReturnContext,
   type OAuthReturnContext,
   readOAuthReturnContext,
@@ -98,7 +99,11 @@ export function useOAuthReturnRouter() {
       try {
         sessionStorage.removeItem(SETTINGS_RETURN_URL_KEY)
       } catch {}
-      router.replace(`/workspace/${workspaceId}/knowledge/${ctx.knowledgeBaseId}`)
+      const kbUrl = `/workspace/${workspaceId}/knowledge/${ctx.knowledgeBaseId}`
+      const connectorParam = ctx.connectorType
+        ? `?${ADD_CONNECTOR_SEARCH_PARAM}=${encodeURIComponent(ctx.connectorType)}`
+        : ''
+      router.replace(`${kbUrl}${connectorParam}`)
       return
     }
   }, [router, workspaceId])
