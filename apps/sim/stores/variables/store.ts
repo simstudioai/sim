@@ -1,145 +1,248 @@
+import { createLogger } from '@sim/logger'
+import JSON5 from 'json5'
 import { create } from 'zustand'
-import { devtools, persist } from 'zustand/middleware'
-import type {
-  VariablesDimensions,
-  VariablesModalStore,
-  VariablesPosition,
-} from '@/stores/variables/types'
+import { devtools } from 'zustand/middleware'
+import { normalizeName } from '@/executor/constants'
+import { useOperationQueueStore } from '@/stores/operation-queue/store'
+import type { Variable, VariablesStore } from '@/stores/variables/types'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
-/**
- * Floating variables modal default dimensions.
- * Slightly larger than the chat modal for more comfortable editing.
- */
-const DEFAULT_WIDTH = 320
-const DEFAULT_HEIGHT = 320
+const logger = createLogger('VariablesStore')
 
-/**
- * Minimum and maximum modal dimensions.
- */
-export const MIN_VARIABLES_WIDTH = DEFAULT_WIDTH
-export const MIN_VARIABLES_HEIGHT = DEFAULT_HEIGHT
-export const MAX_VARIABLES_WIDTH = 500
-export const MAX_VARIABLES_HEIGHT = 600
+function validateVariable(variable: Variable): string | undefined {
+  try {
+    switch (variable.type) {
+      case 'number':
+        if (Number.isNaN(Number(variable.value))) {
+          return 'Not a valid number'
+        }
+        break
+      case 'boolean':
+        if (!/^(true|false)$/i.test(String(variable.value).trim())) {
+          return 'Expected "true" or "false"'
+        }
+        break
+      case 'object':
+        try {
+          const valueToEvaluate = String(variable.value).trim()
 
-/** Inset gap between the viewport edge and the content window */
-const CONTENT_WINDOW_GAP = 8
+          if (!valueToEvaluate.startsWith('{') || !valueToEvaluate.endsWith('}')) {
+            return 'Not a valid object format'
+          }
 
-/**
- * Compute a center-biased default position, factoring in current layout chrome
- * (sidebar, right panel, terminal) and content window inset.
- */
-const calculateDefaultPosition = (): VariablesPosition => {
-  if (typeof window === 'undefined') {
-    return { x: 100, y: 100 }
-  }
+          const parsed = JSON5.parse(valueToEvaluate)
 
-  const sidebarWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
-  )
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
-  const terminalHeight = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
-  )
+          if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return 'Not a valid object'
+          }
 
-  const availableWidth = window.innerWidth - sidebarWidth - CONTENT_WINDOW_GAP - panelWidth
-  const availableHeight = window.innerHeight - CONTENT_WINDOW_GAP * 2 - terminalHeight
-  const x = sidebarWidth + (availableWidth - DEFAULT_WIDTH) / 2
-  const y = CONTENT_WINDOW_GAP + (availableHeight - DEFAULT_HEIGHT) / 2
-  return { x, y }
-}
-
-/**
- * Constrain a position to the visible canvas, considering layout chrome.
- */
-const constrainPosition = (
-  position: VariablesPosition,
-  width: number = DEFAULT_WIDTH,
-  height: number = DEFAULT_HEIGHT
-): VariablesPosition => {
-  if (typeof window === 'undefined') return position
-
-  const sidebarWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
-  )
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
-  const terminalHeight = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
-  )
-
-  const minX = sidebarWidth
-  const maxX = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - width
-  const minY = CONTENT_WINDOW_GAP
-  const maxY = window.innerHeight - CONTENT_WINDOW_GAP - terminalHeight - height
-
-  return {
-    x: Math.max(minX, Math.min(maxX, position.x)),
-    y: Math.max(minY, Math.min(maxY, position.y)),
+          return undefined
+        } catch (e) {
+          logger.error('Object parsing error:', e)
+          return 'Invalid object syntax'
+        }
+      case 'array':
+        try {
+          const parsed = JSON5.parse(String(variable.value))
+          if (!Array.isArray(parsed)) {
+            return 'Not a valid array'
+          }
+        } catch {
+          return 'Invalid array syntax'
+        }
+        break
+    }
+    return undefined
+  } catch (e) {
+    return e instanceof Error ? e.message : 'Invalid format'
   }
 }
 
-/**
- * Return a valid, constrained position. If the stored one is off-bounds due to
- * layout changes, prefer a fresh default center position.
- */
-export const getVariablesPosition = (
-  stored: VariablesPosition | null,
-  width: number = DEFAULT_WIDTH,
-  height: number = DEFAULT_HEIGHT
-): VariablesPosition => {
-  if (!stored) return calculateDefaultPosition()
-  const constrained = constrainPosition(stored, width, height)
-  const deltaX = Math.abs(constrained.x - stored.x)
-  const deltaY = Math.abs(constrained.y - stored.y)
-  if (deltaX > 100 || deltaY > 100) return calculateDefaultPosition()
-  return constrained
-}
+export const useVariablesStore = create<VariablesStore>()(
+  devtools((set, get) => ({
+    variables: {},
+    isLoading: false,
+    error: null,
+    isEditing: null,
 
-/**
- * UI-only store for the floating variables modal.
- * Variable data lives in the panel variables store (`@/stores/panel/variables`).
- */
-export const useVariablesStore = create<VariablesModalStore>()(
-  devtools(
-    persist(
-      (set) => ({
-        isOpen: false,
-        position: null,
-        width: DEFAULT_WIDTH,
-        height: DEFAULT_HEIGHT,
+    addVariable: (variable, providedId?: string) => {
+      const id = providedId || crypto.randomUUID()
 
-        setIsOpen: (open) => set({ isOpen: open }),
-        setPosition: (position) => set({ position }),
-        setDimensions: (dimensions) =>
-          set({
-            width: Math.max(MIN_VARIABLES_WIDTH, Math.min(MAX_VARIABLES_WIDTH, dimensions.width)),
-            height: Math.max(
-              MIN_VARIABLES_HEIGHT,
-              Math.min(MAX_VARIABLES_HEIGHT, dimensions.height)
-            ),
-          }),
-        resetPosition: () => set({ position: null }),
-      }),
-      {
-        name: 'variables-modal-store',
-        partialize: (state) => ({
-          position: state.position,
-          width: state.width,
-          height: state.height,
-        }),
+      const workflowVariables = get().getVariablesByWorkflowId(variable.workflowId)
+
+      if (!variable.name || /^variable\d+$/.test(variable.name)) {
+        const existingNumbers = workflowVariables
+          .map((v) => {
+            const match = v.name.match(/^variable(\d+)$/)
+            return match ? Number.parseInt(match[1]) : 0
+          })
+          .filter((n) => !Number.isNaN(n))
+
+        const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1
+
+        variable.name = `variable${nextNumber}`
       }
-    ),
-    { name: 'variables-modal-store' }
-  )
-)
 
-/**
- * Get default floating variables modal dimensions.
- */
-export const getDefaultVariablesDimensions = (): VariablesDimensions => ({
-  width: DEFAULT_WIDTH,
-  height: DEFAULT_HEIGHT,
-})
+      let uniqueName = variable.name
+      let nameIndex = 1
+
+      while (workflowVariables.some((v) => v.name === uniqueName)) {
+        uniqueName = `${variable.name} (${nameIndex})`
+        nameIndex++
+      }
+
+      if (variable.type === 'string') {
+        variable.type = 'plain'
+      }
+
+      const newVariable: Variable = {
+        id,
+        workflowId: variable.workflowId,
+        name: uniqueName,
+        type: variable.type,
+        value: variable.value || '',
+        validationError: undefined,
+      }
+
+      const validationError = validateVariable(newVariable)
+      if (validationError) {
+        newVariable.validationError = validationError
+      }
+
+      set((state) => ({
+        variables: {
+          ...state.variables,
+          [id]: newVariable,
+        },
+      }))
+
+      return id
+    },
+
+    updateVariable: (id, update) => {
+      set((state) => {
+        if (!state.variables[id]) return state
+
+        if (update.name !== undefined) {
+          const oldVariable = state.variables[id]
+          const oldVariableName = oldVariable.name
+          const newName = update.name.trim()
+
+          if (!newName) {
+            update = { ...update }
+            update.name = undefined
+          } else if (newName !== oldVariableName) {
+            const subBlockStore = useSubBlockStore.getState()
+            const targetWorkflowId = oldVariable.workflowId
+
+            if (targetWorkflowId) {
+              const workflowValues = subBlockStore.workflowValues[targetWorkflowId] || {}
+              const updatedWorkflowValues = { ...workflowValues }
+              const changedSubBlocks: Array<{ blockId: string; subBlockId: string; value: any }> =
+                []
+
+              const oldVarName = normalizeName(oldVariableName)
+              const newVarName = normalizeName(newName)
+              const regex = new RegExp(`<variable\\.${oldVarName}>`, 'gi')
+
+              const updateReferences = (value: any, pattern: RegExp, replacement: string): any => {
+                if (typeof value === 'string') {
+                  return pattern.test(value) ? value.replace(pattern, replacement) : value
+                }
+
+                if (Array.isArray(value)) {
+                  return value.map((item) => updateReferences(item, pattern, replacement))
+                }
+
+                if (value !== null && typeof value === 'object') {
+                  const result = { ...value }
+                  for (const key in result) {
+                    result[key] = updateReferences(result[key], pattern, replacement)
+                  }
+                  return result
+                }
+
+                return value
+              }
+
+              Object.entries(workflowValues).forEach(([blockId, blockValues]) => {
+                Object.entries(blockValues as Record<string, any>).forEach(
+                  ([subBlockId, value]) => {
+                    const updatedValue = updateReferences(value, regex, `<variable.${newVarName}>`)
+
+                    if (JSON.stringify(updatedValue) !== JSON.stringify(value)) {
+                      if (!updatedWorkflowValues[blockId]) {
+                        updatedWorkflowValues[blockId] = { ...workflowValues[blockId] }
+                      }
+                      updatedWorkflowValues[blockId][subBlockId] = updatedValue
+                      changedSubBlocks.push({ blockId, subBlockId, value: updatedValue })
+                    }
+                  }
+                )
+              })
+
+              // Update local state
+              useSubBlockStore.setState({
+                workflowValues: {
+                  ...subBlockStore.workflowValues,
+                  [targetWorkflowId]: updatedWorkflowValues,
+                },
+              })
+
+              // Queue operations for persistence via socket
+              const operationQueue = useOperationQueueStore.getState()
+
+              for (const { blockId, subBlockId, value } of changedSubBlocks) {
+                operationQueue.addToQueue({
+                  id: crypto.randomUUID(),
+                  operation: {
+                    operation: 'subblock-update',
+                    target: 'subblock',
+                    payload: { blockId, subblockId: subBlockId, value },
+                  },
+                  workflowId: targetWorkflowId,
+                  userId: 'system',
+                })
+              }
+            }
+          }
+        }
+
+        if (update.type === 'string') {
+          update = { ...update, type: 'plain' }
+        }
+
+        const updatedVariable: Variable = {
+          ...state.variables[id],
+          ...update,
+          validationError: undefined,
+        }
+
+        if (update.type || update.value !== undefined) {
+          updatedVariable.validationError = validateVariable(updatedVariable)
+        }
+
+        const updated = {
+          ...state.variables,
+          [id]: updatedVariable,
+        }
+
+        return { variables: updated }
+      })
+    },
+
+    deleteVariable: (id) => {
+      set((state) => {
+        if (!state.variables[id]) return state
+
+        const { [id]: _, ...rest } = state.variables
+
+        return { variables: rest }
+      })
+    },
+
+    getVariablesByWorkflowId: (workflowId) => {
+      return Object.values(get().variables).filter((variable) => variable.workflowId === workflowId)
+    },
+  }))
+)

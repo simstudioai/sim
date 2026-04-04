@@ -27,16 +27,16 @@ import {
   usePreventZoom,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useVariablesStore as usePanelVariablesStore } from '@/stores/panel'
-import type { Variable } from '@/stores/panel/variables/types'
 import {
   getVariablesPosition,
   MAX_VARIABLES_HEIGHT,
   MAX_VARIABLES_WIDTH,
   MIN_VARIABLES_HEIGHT,
   MIN_VARIABLES_WIDTH,
-  useVariablesStore,
-} from '@/stores/variables/store'
+  useVariablesModalStore,
+} from '@/stores/variables/modal'
+import { useVariablesStore } from '@/stores/variables/store'
+import type { Variable } from '@/stores/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**
@@ -96,7 +96,7 @@ export function Variables() {
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
 
   const { isOpen, position, width, height, setIsOpen, setPosition, setDimensions } =
-    useVariablesStore(
+    useVariablesModalStore(
       useShallow((s) => ({
         isOpen: s.isOpen,
         position: s.position,
@@ -108,7 +108,7 @@ export function Variables() {
       }))
     )
 
-  const variables = usePanelVariablesStore((s) => s.variables)
+  const variables = useVariablesStore((s) => s.variables)
 
   const { collaborativeUpdateVariable, collaborativeAddVariable, collaborativeDeleteVariable } =
     useCollaborativeWorkflow()

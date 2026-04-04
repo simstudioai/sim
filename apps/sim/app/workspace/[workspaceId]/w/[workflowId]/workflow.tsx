@@ -85,7 +85,7 @@ import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useNotificationStore } from '@/stores/notifications'
 import { usePanelEditorStore } from '@/stores/panel'
 import { useUndoRedoStore } from '@/stores/undo-redo'
-import { useVariablesStore } from '@/stores/variables/store'
+import { useVariablesModalStore } from '@/stores/variables/modal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { getUniqueBlockName, prepareBlockState } from '@/stores/workflows/utils'
@@ -337,7 +337,7 @@ const WorkflowContent = React.memo(
     autoConnectRef.current = isAutoConnectEnabled
 
     // Panel open states for context menu
-    const isVariablesOpen = useVariablesStore((state) => state.isOpen)
+    const isVariablesOpen = useVariablesModalStore((state) => state.isOpen)
     const isChatOpen = useChatStore((state) => state.isChatOpen)
 
     const snapGrid: [number, number] = useMemo(
@@ -1374,7 +1374,7 @@ const WorkflowContent = React.memo(
     }, [router, workspaceId, workflowIdParam])
 
     const handleContextToggleVariables = useCallback(() => {
-      const { isOpen, setIsOpen } = useVariablesStore.getState()
+      const { isOpen, setIsOpen } = useVariablesModalStore.getState()
       setIsOpen(!isOpen)
     }, [])
 

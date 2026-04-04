@@ -13,7 +13,7 @@ import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils
 import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { getBlock } from '@/blocks'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
-import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useVariablesStore } from '@/stores/variables/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 /** Execution status for blocks in preview mode */

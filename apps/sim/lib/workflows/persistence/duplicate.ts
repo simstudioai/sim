@@ -14,7 +14,7 @@ import {
   deduplicateWorkflowName,
 } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import type { Variable } from '@/stores/panel/variables/types'
+import type { Variable } from '@/stores/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDuplicateHelper')
