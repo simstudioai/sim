@@ -149,7 +149,7 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
       tool: (params) => `dagster_${params.operation}`,
       params: (params) => {
         const result: Record<string, unknown> = {}
-        if (params.limit) result.limit = Number(params.limit)
+        if (params.limit != null && params.limit !== '') result.limit = Number(params.limit)
         // Map list_runs job name filter to the correct param
         if (params.listRunsJobName) result.jobName = params.listRunsJobName
         return result

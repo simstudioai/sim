@@ -5,7 +5,7 @@ export interface DagsterBaseParams {
   /** Dagster host URL (e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) */
   host: string
   /** Dagster+ API token */
-  apiKey: string
+  apiKey?: string
 }
 
 /** Launch Run */
