@@ -11,7 +11,7 @@ import {
   demoRequestSchema,
   getDemoRequestCompanySizeLabel,
   getDemoRequestRegionLabel,
-} from '@/app/(home)/components/demo-request/consts'
+} from '@/app/(landing)/components/demo-request/consts'
 
 const logger = createLogger('DemoRequestAPI')
 const rateLimiter = new RateLimiter()

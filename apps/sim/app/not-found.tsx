@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { getNavBlogPosts } from '@/lib/blog/registry'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import { AUTH_PRIMARY_CTA_BASE } from '@/app/(auth)/components/auth-button-classes'
-import Navbar from '@/app/(home)/components/navbar/navbar'
+import Navbar from '@/app/(landing)/components/navbar/navbar'
 
 export const metadata: Metadata = {
   title: 'Page Not Found',
