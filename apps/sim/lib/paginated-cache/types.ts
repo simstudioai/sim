@@ -13,7 +13,7 @@ export interface ToolPaginationConfig<O = Record<string, unknown>> {
     currentParams: Record<string, unknown>,
     token: string | number
   ) => Record<string, unknown>
-  /** Maximum pages to fetch. Default: 100 */
+  /** Maximum pages to fetch. Default: 10,000 */
   maxPages?: number
 }
 

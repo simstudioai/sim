@@ -182,7 +182,7 @@ export interface ToolConfig<P = any, R = any> {
    * Optional pagination configuration for tools that return paginated data.
    * When provided, the executor automatically fetches all pages and caches them in Redis.
    */
-  pagination?: ToolPaginationConfig
+  pagination?: ToolPaginationConfig<R extends { output: infer O } ? O : Record<string, unknown>>
 }
 
 export interface TableRow {

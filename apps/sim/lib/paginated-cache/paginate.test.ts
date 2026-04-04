@@ -28,11 +28,7 @@ vi.mock('@/lib/paginated-cache/redis-cache', () => ({
 import { autoPaginate, hydrateCacheReferences } from '@/lib/paginated-cache/paginate'
 import type { ToolResponse } from '@/tools/types'
 
-function makePageResponse(
-  items: unknown[],
-  hasMore: boolean,
-  cursor: string | null
-): ToolResponse {
+function makePageResponse(items: unknown[], hasMore: boolean, cursor: string | null): ToolResponse {
   return {
     success: true,
     output: {
@@ -206,7 +202,73 @@ describe('autoPaginate', () => {
     })
 
     const storedCacheId = mockStoreMetadata.mock.calls[0][0] as string
-    expect(storedCacheId).toMatch(/^exec-42:zendesk_get_tickets:tickets:\d+$/)
+    expect(storedCacheId).toMatch(
+      /^exec-42:zendesk_get_tickets:tickets:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+    )
+  })
+
+  it('does not inject fields that the tool output does not have', async () => {
+    const noMetadataConfig = {
+      ...paginationConfig,
+      pageField: 'items',
+      getItems: (output: Record<string, unknown>) => (output.items as unknown[]) ?? [],
+    }
+    const initialResult: ToolResponse = {
+      success: true,
+      output: {
+        items: [{ id: 1 }],
+        cursor: 'abc',
+      },
+    }
+
+    const result = await autoPaginate({
+      initialResult,
+      params: {},
+      paginationConfig: noMetadataConfig,
+      executeTool: mockExecuteTool,
+      toolId: 'custom_tool',
+      executionId: 'exec-1',
+    })
+
+    const outputKeys = Object.keys(result.output)
+    expect(outputKeys).toContain('items')
+    expect(outputKeys).toContain('cursor')
+    expect(outputKeys).not.toContain('metadata')
+    expect(outputKeys).not.toContain('paging')
+  })
+})
+
+describe('cleanupPaginatedCache', () => {
+  let mockScan: ReturnType<typeof vi.fn>
+  let mockDel: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockScan = vi.fn().mockResolvedValue(['0', []])
+    mockDel = vi.fn().mockResolvedValue(1)
+    mockGetRedisClient.mockReturnValue({ scan: mockScan, del: mockDel })
+  })
+
+  it('scans with prefix-based patterns and deletes matching keys', async () => {
+    mockScan
+      .mockResolvedValueOnce(['0', ['pagcache:page:exec-1:tool:field:uuid:0']])
+      .mockResolvedValueOnce(['0', ['pagcache:meta:exec-1:tool:field:uuid']])
+
+    const { cleanupPaginatedCache } = await import('@/lib/paginated-cache/paginate')
+    await cleanupPaginatedCache('exec-1')
+
+    expect(mockScan).toHaveBeenCalledWith('0', 'MATCH', 'pagcache:page:exec-1:*', 'COUNT', 100)
+    expect(mockScan).toHaveBeenCalledWith('0', 'MATCH', 'pagcache:meta:exec-1:*', 'COUNT', 100)
+    expect(mockDel).toHaveBeenCalledTimes(2)
+  })
+
+  it('no-ops when Redis is unavailable', async () => {
+    mockGetRedisClient.mockReturnValue(null)
+
+    const { cleanupPaginatedCache } = await import('@/lib/paginated-cache/paginate')
+    await cleanupPaginatedCache('exec-1')
+
+    expect(mockScan).not.toHaveBeenCalled()
   })
 })
 

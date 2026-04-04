@@ -185,18 +185,16 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
 
     pagination: {
       pageField: 'tickets',
-      getItems: (output: Record<string, unknown>) => (output.tickets as unknown[]) ?? [],
-      getNextPageToken: (output: Record<string, unknown>) => {
-        const paging = output.paging as Record<string, unknown> | undefined
-        if (paging?.has_more && paging?.after_cursor) {
-          return paging.after_cursor as string
+      getItems: (output) => output.tickets ?? [],
+      getNextPageToken: (output) => {
+        if (output.paging?.has_more && output.paging?.after_cursor) {
+          return output.paging.after_cursor
         }
         return null
       },
-      buildNextPageParams: (params: Record<string, unknown>, token: string | number) => ({
+      buildNextPageParams: (params, token) => ({
         ...params,
         pageAfter: String(token),
       }),
-      maxPages: 100,
     },
   }

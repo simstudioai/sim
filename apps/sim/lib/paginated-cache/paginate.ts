@@ -1,13 +1,15 @@
+import crypto from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { getRedisClient } from '@/lib/core/config/redis'
+import type { PaginatedCacheStorageAdapter } from '@/lib/paginated-cache/adapter'
 import { RedisPaginatedCache } from '@/lib/paginated-cache/redis-cache'
-import { isPaginatedCacheReference } from '@/lib/paginated-cache/types'
 import type { PaginatedCacheReference, ToolPaginationConfig } from '@/lib/paginated-cache/types'
+import { isPaginatedCacheReference } from '@/lib/paginated-cache/types'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('Paginator')
 
-const DEFAULT_MAX_PAGES = 100
+const DEFAULT_MAX_PAGES = 10_000
 
 interface AutoPaginateOptions {
   initialResult: ToolResponse
@@ -23,8 +25,14 @@ interface AutoPaginateOptions {
 }
 
 export async function autoPaginate(options: AutoPaginateOptions): Promise<ToolResponse> {
-  const { initialResult, params, paginationConfig: config, executeTool, toolId, executionId } =
-    options
+  const {
+    initialResult,
+    params,
+    paginationConfig: config,
+    executeTool,
+    toolId,
+    executionId,
+  } = options
   const maxPages = config.maxPages ?? DEFAULT_MAX_PAGES
 
   const redis = getRedisClient()
@@ -33,7 +41,7 @@ export async function autoPaginate(options: AutoPaginateOptions): Promise<ToolRe
   }
 
   const cache = new RedisPaginatedCache(redis)
-  const cacheId = `${executionId}:${toolId}:${config.pageField}:${Date.now()}`
+  const cacheId = `${executionId}:${toolId}:${config.pageField}:${crypto.randomUUID()}`
 
   let totalItems = 0
   let pageIndex = 0
@@ -97,7 +105,14 @@ export async function hydrateCacheReferences(
   if (!containsCacheReference(inputs)) {
     return inputs
   }
-  return (await deepHydrate(inputs)) as Record<string, unknown>
+
+  const redis = getRedisClient()
+  if (!redis) {
+    throw new Error('Redis is required to hydrate paginated cache references but is not available')
+  }
+
+  const adapter = new RedisPaginatedCache(redis)
+  return (await deepHydrate(inputs, adapter)) as Record<string, unknown>
 }
 
 function containsCacheReference(value: unknown): boolean {
@@ -109,20 +124,23 @@ function containsCacheReference(value: unknown): boolean {
   return false
 }
 
-async function deepHydrate(value: unknown): Promise<unknown> {
+async function deepHydrate(
+  value: unknown,
+  adapter: PaginatedCacheStorageAdapter
+): Promise<unknown> {
   if (isPaginatedCacheReference(value)) {
-    return hydrateReference(value)
+    return hydrateReference(value, adapter)
   }
 
   if (Array.isArray(value)) {
-    return Promise.all(value.map(deepHydrate))
+    return Promise.all(value.map((v) => deepHydrate(v, adapter)))
   }
 
   if (typeof value === 'object' && value !== null) {
     const entries = Object.entries(value as Record<string, unknown>)
     const hydrated: Record<string, unknown> = {}
     for (const [key, val] of entries) {
-      hydrated[key] = await deepHydrate(val)
+      hydrated[key] = await deepHydrate(val, adapter)
     }
     return hydrated
   }
@@ -130,16 +148,11 @@ async function deepHydrate(value: unknown): Promise<unknown> {
   return value
 }
 
-async function hydrateReference(ref: PaginatedCacheReference): Promise<unknown[]> {
-  const redis = getRedisClient()
-  if (!redis) {
-    throw new Error(
-      `Redis is required to hydrate paginated cache reference (cacheId: ${ref.cacheId}) but is not available`
-    )
-  }
-
-  const cache = new RedisPaginatedCache(redis)
-  const pages = await cache.getAllPages(ref.cacheId, ref.totalPages)
+async function hydrateReference(
+  ref: PaginatedCacheReference,
+  adapter: PaginatedCacheStorageAdapter
+): Promise<unknown[]> {
+  const pages = await adapter.getAllPages(ref.cacheId, ref.totalPages)
 
   const items: unknown[] = []
   for (const page of pages) {
@@ -165,21 +178,23 @@ export async function cleanupPaginatedCache(executionId: string): Promise<void> 
     return
   }
 
-  const pattern = `pagcache:*${executionId}:*`
+  const patterns = [`pagcache:page:${executionId}:*`, `pagcache:meta:${executionId}:*`]
 
   try {
-    let cursor = '0'
     let deletedCount = 0
 
-    do {
-      const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100)
-      cursor = nextCursor
+    for (const pattern of patterns) {
+      let cursor = '0'
+      do {
+        const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100)
+        cursor = nextCursor
 
-      if (keys.length > 0) {
-        await redis.del(...keys)
-        deletedCount += keys.length
-      }
-    } while (cursor !== '0')
+        if (keys.length > 0) {
+          await redis.del(...keys)
+          deletedCount += keys.length
+        }
+      } while (cursor !== '0')
+    }
 
     if (deletedCount > 0) {
       logger.info(`Cleaned up ${deletedCount} paginated cache entries for execution ${executionId}`)

@@ -1,7 +1,7 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { redactApiKeys } from '@/lib/core/security/redaction'
-import { hydrateCacheReferences } from '@/lib/paginated-cache/paginate'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { hydrateCacheReferences } from '@/lib/paginated-cache/paginate'
 import {
   containsUserFileWithMetadata,
   hydrateUserFilesWithBase64,

@@ -13,6 +13,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import { parseMcpToolId } from '@/lib/mcp/utils'
+import { autoPaginate } from '@/lib/paginated-cache/paginate'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext } from '@/executor/types'
@@ -26,7 +27,6 @@ import type {
   ToolResponse,
   ToolRetryConfig,
 } from '@/tools/types'
-import { autoPaginate } from '@/lib/paginated-cache/paginate'
 import { formatRequestParams, getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
 import * as toolsUtilsServer from '@/tools/utils.server'
 
@@ -601,6 +601,40 @@ async function processFileOutputs(
 }
 
 /**
+ * If the tool has a pagination config and there are more pages, auto-paginate
+ * and replace the page field with a Redis cache reference.
+ */
+async function maybeAutoPaginate(
+  tool: ToolConfig,
+  finalResult: ToolResponse,
+  contextParams: Record<string, unknown>,
+  normalizedToolId: string,
+  skipPostProcess: boolean,
+  executionContext?: ExecutionContext
+): Promise<ToolResponse> {
+  if (
+    !tool.pagination ||
+    !finalResult.success ||
+    skipPostProcess ||
+    !executionContext?.executionId
+  ) {
+    return finalResult
+  }
+  const nextToken = tool.pagination.getNextPageToken(finalResult.output)
+  if (nextToken === null) {
+    return finalResult
+  }
+  return autoPaginate({
+    initialResult: finalResult,
+    params: contextParams,
+    paginationConfig: tool.pagination,
+    executeTool,
+    toolId: normalizedToolId,
+    executionId: executionContext.executionId,
+  })
+}
+
+/**
  * Execute a tool by making the appropriate HTTP request
  * All requests go directly - internal routes use regular fetch, external use SSRF-protected fetch
  */
@@ -820,20 +854,14 @@ export async function executeTool(
       // Process file outputs if execution context is available
       finalResult = await processFileOutputs(finalResult, tool, executionContext)
 
-      // Auto-paginate if tool has pagination config and there are more pages
-      if (tool.pagination && finalResult.success && !skipPostProcess && executionContext?.executionId) {
-        const nextToken = tool.pagination.getNextPageToken(finalResult.output)
-        if (nextToken !== null) {
-          finalResult = await autoPaginate({
-            initialResult: finalResult,
-            params: contextParams,
-            paginationConfig: tool.pagination,
-            executeTool,
-            toolId: normalizedToolId,
-            executionId: executionContext.executionId,
-          })
-        }
-      }
+      finalResult = await maybeAutoPaginate(
+        tool,
+        finalResult,
+        contextParams,
+        normalizedToolId,
+        skipPostProcess,
+        executionContext
+      )
 
       // Add timing data to the result
       const endTime = new Date()
@@ -890,20 +918,14 @@ export async function executeTool(
     // Process file outputs if execution context is available
     finalResult = await processFileOutputs(finalResult, tool, executionContext)
 
-    // Auto-paginate if tool has pagination config and there are more pages
-    if (tool.pagination && finalResult.success && !skipPostProcess && executionContext?.executionId) {
-      const nextToken = tool.pagination.getNextPageToken(finalResult.output)
-      if (nextToken !== null) {
-        finalResult = await autoPaginate({
-          initialResult: finalResult,
-          params: contextParams,
-          paginationConfig: tool.pagination,
-          executeTool,
-          toolId: normalizedToolId,
-          executionId: executionContext.executionId,
-        })
-      }
-    }
+    finalResult = await maybeAutoPaginate(
+      tool,
+      finalResult,
+      contextParams,
+      normalizedToolId,
+      skipPostProcess,
+      executionContext
+    )
 
     // Add timing data to the result
     const endTime = new Date()
