@@ -839,6 +839,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   onSendQueuedMessage={copilotSendNow}
                   onEditQueuedMessage={handleCopilotEditQueuedMessage}
                   userId={session?.user?.id}
+                  chatId={copilotResolvedChatId}
                   editValue={copilotEditingInputValue}
                   onEditValueConsumed={clearCopilotEditingValue}
                   layout='copilot-view'

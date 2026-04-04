@@ -473,9 +473,9 @@ function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
   const detail = data.code ? `${data.message} (${data.code})` : data.message
 
   return (
-    <span className='animate-stream-fade-in font-base text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>
+    <p className='animate-stream-fade-in font-base text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>
       {detail}
-    </span>
+    </p>
   )
 }
 

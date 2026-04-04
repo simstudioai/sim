@@ -325,10 +325,13 @@ export async function executeWorkflowCore(
 
     const mergedStates = mergeSubblockStateWithValues(blocks)
 
-    const personalEnvUserId = metadata.sessionUserId || metadata.userId
+    const personalEnvUserId =
+      metadata.isClientSession && metadata.sessionUserId
+        ? metadata.sessionUserId
+        : metadata.workflowUserId
 
     if (!personalEnvUserId) {
-      throw new Error('Missing execution actor for environment resolution')
+      throw new Error('Missing workflowUserId in execution metadata')
     }
 
     const { personalEncrypted, workspaceEncrypted, personalDecrypted, workspaceDecrypted } =

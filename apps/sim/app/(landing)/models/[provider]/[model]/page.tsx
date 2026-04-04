@@ -18,6 +18,7 @@ import {
   formatPrice,
   formatTokenCount,
   formatUpdatedAt,
+  getEffectiveMaxOutputTokens,
   getModelBySlug,
   getPricingBounds,
   getProviderBySlug,
@@ -198,7 +199,8 @@ export default async function ModelPage({
           </div>
 
           <p className='max-w-[820px] text-[17px] text-[var(--landing-text-muted)] leading-relaxed'>
-            {model.summary} {model.bestFor}
+            {model.summary}
+            {model.bestFor ? ` ${model.bestFor}` : ''}
           </p>
 
           <div className='mt-8 flex flex-wrap gap-3'>
@@ -229,13 +231,11 @@ export default async function ModelPage({
                 ? `${formatPrice(model.pricing.cachedInput)}/1M`
                 : 'N/A'
             }
-            compact
           />
           <StatCard label='Output price' value={`${formatPrice(model.pricing.output)}/1M`} />
           <StatCard
             label='Context window'
             value={model.contextWindow ? formatTokenCount(model.contextWindow) : 'Unknown'}
-            compact
           />
         </section>
 
@@ -280,12 +280,12 @@ export default async function ModelPage({
                   label='Max output'
                   value={
                     model.capabilities.maxOutputTokens
-                      ? `${formatTokenCount(model.capabilities.maxOutputTokens)} tokens`
-                      : 'Standard defaults'
+                      ? `${formatTokenCount(getEffectiveMaxOutputTokens(model.capabilities))} tokens`
+                      : 'Not published'
                   }
                 />
                 <DetailItem label='Provider' value={provider.name} />
-                <DetailItem label='Best for' value={model.bestFor} />
+                {model.bestFor ? <DetailItem label='Best for' value={model.bestFor} /> : null}
               </div>
             </section>
 

@@ -8,6 +8,34 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = getBaseUrl()
 
   const now = new Date()
+  const integrationPages: MetadataRoute.Sitemap = integrations.map((integration) => ({
+    url: `${baseUrl}/integrations/${integration.slug}`,
+    lastModified: now,
+  }))
+  const modelHubPages: MetadataRoute.Sitemap = [
+    {
+      url: `${baseUrl}/integrations`,
+      lastModified: now,
+    },
+    {
+      url: `${baseUrl}/models`,
+      lastModified: now,
+    },
+    {
+      url: `${baseUrl}/partners`,
+      lastModified: now,
+    },
+  ]
+  const providerPages: MetadataRoute.Sitemap = MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => ({
+    url: `${baseUrl}${provider.href}`,
+    lastModified: new Date(
+      Math.max(...provider.models.map((model) => new Date(model.pricing.updatedAt).getTime()))
+    ),
+  }))
+  const modelPages: MetadataRoute.Sitemap = ALL_CATALOG_MODELS.map((model) => ({
+    url: `${baseUrl}${model.href}`,
+    lastModified: new Date(model.pricing.updatedAt),
+  }))
 
   const staticPages: MetadataRoute.Sitemap = [
     {
@@ -26,14 +54,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     //   url: `${baseUrl}/templates`,
     //   lastModified: now,
     // },
-    {
-      url: `${baseUrl}/integrations`,
-      lastModified: now,
-    },
-    {
-      url: `${baseUrl}/models`,
-      lastModified: now,
-    },
     {
       url: `${baseUrl}/changelog`,
       lastModified: now,
@@ -54,20 +74,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: new Date(p.updated ?? p.date),
   }))
 
-  const integrationPages: MetadataRoute.Sitemap = integrations.map((i) => ({
-    url: `${baseUrl}/integrations/${i.slug}`,
-    lastModified: now,
-  }))
-
-  const providerPages: MetadataRoute.Sitemap = MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => ({
-    url: `${baseUrl}${provider.href}`,
-    lastModified: now,
-  }))
-
-  const modelPages: MetadataRoute.Sitemap = ALL_CATALOG_MODELS.map((model) => ({
-    url: `${baseUrl}${model.href}`,
-    lastModified: new Date(model.pricing.updatedAt),
-  }))
-
-  return [...staticPages, ...blogPages, ...integrationPages, ...providerPages, ...modelPages]
+  return [
+    ...staticPages,
+    ...modelHubPages,
+    ...integrationPages,
+    ...providerPages,
+    ...modelPages,
+    ...blogPages,
+  ]
 }

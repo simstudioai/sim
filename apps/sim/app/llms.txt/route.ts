@@ -1,42 +1,44 @@
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
-export async function GET() {
+export function GET() {
   const baseUrl = getBaseUrl()
 
-  const llmsContent = `# Sim
+  const content = `# Sim
 
-> Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.
+> Sim is the open-source platform to build AI agents and run your agentic workforce. Connect integrations and LLMs to deploy and orchestrate agentic workflows.
 
-Sim lets teams create agents, workflows, knowledge bases, tables, and docs. Over 100,000 builders use Sim — from startups to Fortune 500 companies. SOC2 compliant.
+Sim lets teams create agents, workflows, knowledge bases, tables, and docs. It supports both product discovery pages and deeper technical documentation.
 
-## Core Pages
+## Preferred URLs
 
-- [Homepage](${baseUrl}): Product overview, features, and pricing
+- [Homepage](${baseUrl}): Product overview and primary entry point
+- [Integrations directory](${baseUrl}/integrations): Public catalog of integrations and automation capabilities
+- [Models directory](${baseUrl}/models): Public catalog of AI models, pricing, context windows, and capabilities
+- [Blog](${baseUrl}/blog): Announcements, guides, and product context
 - [Changelog](${baseUrl}/changelog): Product updates and release notes
-- [Sim Blog](${baseUrl}/blog): Announcements, insights, and guides
 
 ## Documentation
 
-- [Documentation](https://docs.sim.ai): Complete guides and API reference
-- [Quickstart](https://docs.sim.ai/quickstart): Get started in 5 minutes
-- [API Reference](https://docs.sim.ai/api): REST API documentation
+- [Documentation](https://docs.sim.ai): Product guides and technical reference
+- [Quickstart](https://docs.sim.ai/quickstart): Fastest path to getting started
+- [API Reference](https://docs.sim.ai/api): API documentation
 
 ## Key Concepts
 
 - **Workspace**: Container for workflows, data sources, and executions
 - **Workflow**: Directed graph of blocks defining an agentic process
-- **Block**: Individual step (LLM call, tool call, HTTP request, code execution)
+- **Block**: Individual step such as an LLM call, tool call, HTTP request, or code execution
 - **Trigger**: Event or schedule that initiates workflow execution
 - **Execution**: A single run of a workflow with logs and outputs
-- **Knowledge Base**: Vector-indexed document store for retrieval-augmented generation
+- **Knowledge Base**: Document store used for retrieval-augmented generation
 
 ## Capabilities
 
 - AI agent creation and deployment
 - Agentic workflow orchestration
-- 1,000+ integrations (Slack, Gmail, Notion, Airtable, databases, and more)
-- Multi-model LLM orchestration (OpenAI, Anthropic, Google, Mistral, xAI, Perplexity)
-- Knowledge base creation with retrieval-augmented generation (RAG)
+- Integrations across business tools, databases, and communication platforms
+- Multi-model LLM orchestration
+- Knowledge bases and retrieval-augmented generation
 - Table creation and management
 - Document creation and processing
 - Scheduled and webhook-triggered executions
@@ -45,24 +47,19 @@ Sim lets teams create agents, workflows, knowledge bases, tables, and docs. Over
 
 - AI agent deployment and orchestration
 - Knowledge bases and RAG pipelines
-- Document creation and processing
 - Customer support automation
-- Internal operations (sales, marketing, legal, finance)
+- Internal operations workflows across sales, marketing, legal, and finance
 
-## Links
+## Additional Links
 
 - [GitHub Repository](https://github.com/simstudioai/sim): Open-source codebase
-- [Discord Community](https://discord.gg/Hr4UWYEcTT): Get help and connect with 100,000+ builders
-- [X/Twitter](https://x.com/simdotai): Product updates and announcements
-
-## Optional
-
-- [Careers](https://jobs.ashbyhq.com/sim): Join the Sim team
+- [Docs](https://docs.sim.ai): Canonical documentation source
 - [Terms of Service](${baseUrl}/terms): Legal terms
 - [Privacy Policy](${baseUrl}/privacy): Data handling practices
+- [Sitemap](${baseUrl}/sitemap.xml): Public URL inventory
 `
 
-  return new Response(llmsContent, {
+  return new Response(content, {
     headers: {
       'Content-Type': 'text/markdown; charset=utf-8',
       'Cache-Control': 'public, max-age=86400, s-maxage=86400',
