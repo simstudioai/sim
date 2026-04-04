@@ -96,7 +96,7 @@ export const getNavBlogPosts = cache(
     const allPosts = await getAllPostMeta()
     const featuredPost = allPosts.find((p) => p.featured) ?? allPosts[0]
     if (!featuredPost) return []
-    const recentPosts = allPosts.filter((p) => p.slug !== featuredPost.slug).slice(0, 4)
+    const recentPosts = allPosts.filter((p) => p.slug !== featuredPost.slug).slice(0, 5)
     return [featuredPost, ...recentPosts].map((p) => ({
       slug: p.slug,
       title: p.title,

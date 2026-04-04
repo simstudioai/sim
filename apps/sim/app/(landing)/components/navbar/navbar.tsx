@@ -169,21 +169,12 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                       </Link>
                     )}
 
-                    <div
-                      className={cn(
-                        '-mt-0.5 absolute top-full left-0 z-50',
-                        isActive
-                          ? 'pointer-events-auto opacity-100'
-                          : 'pointer-events-none opacity-0'
-                      )}
-                      style={{
-                        transform: isActive ? 'translateY(0)' : 'translateY(-6px)',
-                        transition: 'opacity 200ms ease, transform 200ms ease',
-                      }}
-                    >
-                      {dropdown === 'docs' && <DocsDropdown />}
-                      {dropdown === 'blog' && <BlogDropdown posts={blogPosts} />}
-                    </div>
+                    {isActive && (
+                      <div className='-mt-0.5 pointer-events-auto absolute top-full left-0 z-50'>
+                        {dropdown === 'docs' && <DocsDropdown />}
+                        {dropdown === 'blog' && <BlogDropdown posts={blogPosts} />}
+                      </div>
+                    )}
                   </li>
                 )
               }

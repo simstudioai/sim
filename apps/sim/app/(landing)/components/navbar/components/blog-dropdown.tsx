@@ -46,7 +46,7 @@ function BlogCard({
       </div>
       <div className='flex-shrink-0 px-2.5 py-1.5'>
         <span
-          className='font-[430] font-season text-[var(--landing-text-body)] leading-[140%]'
+          className='block truncate font-[430] font-season text-[var(--landing-text-body)] leading-[140%]'
           style={{ fontSize: titleSize }}
         >
           {title}
