@@ -3,6 +3,7 @@ import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core
 import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/event-buffer'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { cleanupPaginatedCache } from '@/lib/paginated-cache/paginate'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
@@ -331,6 +332,13 @@ export async function executeQueuedWorkflowJob(
 
     await cleanupExecutionBase64Cache(executionId).catch((error) => {
       logger.error('Failed to cleanup queued workflow base64 cache', {
+        executionId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
+
+    await cleanupPaginatedCache(executionId).catch((error) => {
+      logger.error('Failed to cleanup queued workflow paginated cache', {
         executionId,
         error: error instanceof Error ? error.message : String(error),
       })

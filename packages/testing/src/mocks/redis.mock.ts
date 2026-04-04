@@ -30,6 +30,8 @@ export function createMockRedis() {
     exists: vi.fn().mockResolvedValue(0),
     expire: vi.fn().mockResolvedValue(1),
     ttl: vi.fn().mockResolvedValue(-1),
+    mget: vi.fn().mockResolvedValue([]),
+    scan: vi.fn().mockResolvedValue(['0', []]),
 
     // List operations
     lpush: vi.fn().mockResolvedValue(1),

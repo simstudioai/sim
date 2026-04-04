@@ -26,6 +26,7 @@ import type {
   ToolResponse,
   ToolRetryConfig,
 } from '@/tools/types'
+import { autoPaginate } from '@/lib/paginated-cache/paginate'
 import { formatRequestParams, getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
 import * as toolsUtilsServer from '@/tools/utils.server'
 
@@ -819,6 +820,21 @@ export async function executeTool(
       // Process file outputs if execution context is available
       finalResult = await processFileOutputs(finalResult, tool, executionContext)
 
+      // Auto-paginate if tool has pagination config and there are more pages
+      if (tool.pagination && finalResult.success && !skipPostProcess && executionContext?.executionId) {
+        const nextToken = tool.pagination.getNextPageToken(finalResult.output)
+        if (nextToken !== null) {
+          finalResult = await autoPaginate({
+            initialResult: finalResult,
+            params: contextParams,
+            paginationConfig: tool.pagination,
+            executeTool,
+            toolId: normalizedToolId,
+            executionId: executionContext.executionId,
+          })
+        }
+      }
+
       // Add timing data to the result
       const endTime = new Date()
       const endTimeISO = endTime.toISOString()
@@ -873,6 +889,21 @@ export async function executeTool(
 
     // Process file outputs if execution context is available
     finalResult = await processFileOutputs(finalResult, tool, executionContext)
+
+    // Auto-paginate if tool has pagination config and there are more pages
+    if (tool.pagination && finalResult.success && !skipPostProcess && executionContext?.executionId) {
+      const nextToken = tool.pagination.getNextPageToken(finalResult.output)
+      if (nextToken !== null) {
+        finalResult = await autoPaginate({
+          initialResult: finalResult,
+          params: contextParams,
+          paginationConfig: tool.pagination,
+          executeTool,
+          toolId: normalizedToolId,
+          executionId: executionContext.executionId,
+        })
+      }
+    }
 
     // Add timing data to the result
     const endTime = new Date()

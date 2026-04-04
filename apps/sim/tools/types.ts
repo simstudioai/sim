@@ -1,5 +1,6 @@
 import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
 import type { OAuthService } from '@/lib/oauth'
+import type { ToolPaginationConfig } from '@/lib/paginated-cache/types'
 
 export type BYOKProviderId =
   | 'openai'
@@ -176,6 +177,12 @@ export interface ToolConfig<P = any, R = any> {
    * Usage is billed according to the pricing config.
    */
   hosting?: ToolHostingConfig<P>
+
+  /**
+   * Optional pagination configuration for tools that return paginated data.
+   * When provided, the executor automatically fetches all pages and caches them in Redis.
+   */
+  pagination?: ToolPaginationConfig
 }
 
 export interface TableRow {

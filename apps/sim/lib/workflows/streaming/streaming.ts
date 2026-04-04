@@ -8,6 +8,7 @@ import {
 import { encodeSSE } from '@/lib/core/utils/sse'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
+import { cleanupPaginatedCache } from '@/lib/paginated-cache/paginate'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
@@ -348,6 +349,7 @@ export async function createStreamingResponse(
 
         if (executionId) {
           await cleanupExecutionBase64Cache(executionId)
+          await cleanupPaginatedCache(executionId)
         }
 
         controller.close()
@@ -359,6 +361,7 @@ export async function createStreamingResponse(
 
         if (executionId) {
           await cleanupExecutionBase64Cache(executionId)
+          await cleanupPaginatedCache(executionId)
         }
 
         controller.close()
@@ -373,8 +376,9 @@ export async function createStreamingResponse(
       if (executionId) {
         try {
           await cleanupExecutionBase64Cache(executionId)
+          await cleanupPaginatedCache(executionId)
         } catch (error) {
-          logger.error(`[${requestId}] Failed to cleanup base64 cache`, { error })
+          logger.error(`[${requestId}] Failed to cleanup cache`, { error })
         }
       }
     },

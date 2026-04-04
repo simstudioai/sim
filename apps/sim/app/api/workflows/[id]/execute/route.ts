@@ -35,6 +35,7 @@ import {
 } from '@/lib/execution/manual-cancellation'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { cleanupPaginatedCache } from '@/lib/paginated-cache/paginate'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
@@ -988,6 +989,9 @@ async function handleExecutePost(
           void cleanupExecutionBase64Cache(executionId).catch((error) => {
             reqLogger.error('Failed to cleanup base64 cache', { error })
           })
+          void cleanupPaginatedCache(executionId).catch((error) => {
+            reqLogger.error('Failed to cleanup paginated cache', { error })
+          })
         }
       }
     }
@@ -1483,6 +1487,7 @@ async function handleExecutePost(
           timeoutController.cleanup()
           if (executionId) {
             await cleanupExecutionBase64Cache(executionId)
+            await cleanupPaginatedCache(executionId)
           }
           if (!isStreamClosed) {
             try {

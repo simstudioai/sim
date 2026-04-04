@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { redactApiKeys } from '@/lib/core/security/redaction'
+import { hydrateCacheReferences } from '@/lib/paginated-cache/paginate'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   containsUserFileWithMetadata,
@@ -109,6 +110,7 @@ export class BlockExecutor {
       }
 
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
+      resolvedInputs = await hydrateCacheReferences(resolvedInputs)
 
       if (blockLog) {
         blockLog.input = this.sanitizeInputsForLog(resolvedInputs)

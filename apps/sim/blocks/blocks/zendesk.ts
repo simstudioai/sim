@@ -496,7 +496,6 @@ Return ONLY the search query - no explanations.`,
       condition: {
         field: 'operation',
         value: [
-          'get_tickets',
           'get_users',
           'get_organizations',
           'search_users',
@@ -514,7 +513,7 @@ Return ONLY the search query - no explanations.`,
       description: 'Cursor value from a previous response to fetch the next page of results',
       condition: {
         field: 'operation',
-        value: ['get_tickets', 'get_users', 'get_organizations', 'search'],
+        value: ['get_users', 'get_organizations', 'search'],
       },
       mode: 'advanced',
     },
