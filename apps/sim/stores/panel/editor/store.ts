@@ -48,7 +48,9 @@ export const usePanelEditorStore = create<PanelEditorState>()(
       setCurrentBlockId: (blockId) => {
         set({ currentBlockId: blockId })
         if (blockId !== null) {
-          usePanelStore.getState().setActiveTab('editor')
+          const panelStore = usePanelStore.getState()
+          panelStore.setActiveTab('editor')
+          panelStore.setIsPanelOpen(true)
         }
       },
       clearCurrentBlock: () => {

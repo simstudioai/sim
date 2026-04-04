@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Check, Clipboard, Key, Search } from 'lucide-react'
+import { Check, Clipboard, Info, Key, Search, Shield, UserPlus } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Avatar,
@@ -1188,44 +1188,78 @@ export function CredentialsManager() {
                 </div>
               )}
 
-              <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
-                <Label>Members ({activeMembers.length})</Label>
+              <div className='flex flex-col gap-0 overflow-hidden rounded-lg border border-[var(--border)]'>
+                {/* Header */}
+                <div className='flex items-start gap-3 border-b border-[var(--border)] bg-[var(--surface-1)] px-4 py-3'>
+                  <div className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-[var(--surface-4)]'>
+                    <Shield className='h-4 w-4 text-[var(--text-secondary)]' />
+                  </div>
+                  <div className='min-w-0 flex-1'>
+                    <div className='flex items-center gap-2'>
+                      <p className='font-medium text-[var(--text-primary)] text-sm'>
+                        Access Control
+                      </p>
+                      <Badge variant='gray-secondary' size='sm'>
+                        {activeMembers.length} {activeMembers.length === 1 ? 'member' : 'members'}
+                      </Badge>
+                    </div>
+                    <p className='mt-0.5 text-[var(--text-tertiary)] text-caption'>
+                      Only workspace members listed below can view and use this secret in their
+                      workflows. Admins can manage access; members can only use the secret.
+                    </p>
+                  </div>
+                </div>
 
+                {/* Member list */}
                 {membersLoading ? (
-                  <div className='flex flex-col gap-2'>
-                    <Skeleton className='h-[44px] w-full rounded-lg' />
-                    <Skeleton className='h-[44px] w-full rounded-lg' />
+                  <div className='flex flex-col gap-0 px-4'>
+                    <div className='flex items-center gap-3 py-3'>
+                      <Skeleton className='h-8 w-8 rounded-full' />
+                      <div className='flex-1'>
+                        <Skeleton className='mb-1 h-3.5 w-[120px]' />
+                        <Skeleton className='h-3 w-[180px]' />
+                      </div>
+                      <Skeleton className='h-7 w-[80px] rounded-md' />
+                    </div>
+                    <div className='flex items-center gap-3 border-t border-[var(--border)] py-3'>
+                      <Skeleton className='h-8 w-8 rounded-full' />
+                      <div className='flex-1'>
+                        <Skeleton className='mb-1 h-3.5 w-[100px]' />
+                        <Skeleton className='h-3 w-[160px]' />
+                      </div>
+                      <Skeleton className='h-7 w-[80px] rounded-md' />
+                    </div>
                   </div>
                 ) : (
-                  <div className='flex flex-col gap-2'>
-                    {activeMembers.map((member) => (
+                  <div className='flex flex-col'>
+                    {activeMembers.map((member, index) => (
                       <div
                         key={member.id}
-                        className='grid grid-cols-[1fr_120px_72px] items-center gap-2'
+                        className={`flex items-center gap-3 px-4 py-2.5 ${
+                          index > 0 ? 'border-t border-[var(--border)]' : ''
+                        }`}
                       >
-                        <div className='flex min-w-0 items-center gap-2.5'>
-                          <Avatar className='h-8 w-8 flex-shrink-0'>
-                            <AvatarFallback
-                              style={{
-                                background: getUserColor(member.userId || member.userEmail || ''),
-                              }}
-                              className='border-0 text-small text-white'
-                            >
-                              {(member.userName || member.userEmail || '?').charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className='min-w-0'>
-                            <p className='truncate font-medium text-[var(--text-primary)] text-sm'>
-                              {member.userName || member.userEmail || member.userId}
-                            </p>
-                            <p className='truncate text-[var(--text-tertiary)] text-caption'>
-                              {member.userEmail || member.userId}
-                            </p>
-                          </div>
+                        <Avatar className='h-8 w-8 flex-shrink-0'>
+                          <AvatarFallback
+                            style={{
+                              background: getUserColor(member.userId || member.userEmail || ''),
+                            }}
+                            className='border-0 text-small text-white'
+                          >
+                            {(member.userName || member.userEmail || '?').charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className='min-w-0 flex-1'>
+                          <p className='truncate font-medium text-[var(--text-primary)] text-sm'>
+                            {member.userName || member.userEmail || member.userId}
+                          </p>
+                          <p className='truncate text-[var(--text-tertiary)] text-caption'>
+                            {member.userEmail || member.userId}
+                          </p>
                         </div>
 
                         {isSelectedAdmin ? (
-                          <>
+                          <div className='flex flex-shrink-0 items-center gap-1.5'>
                             <Combobox
                               options={ROLE_OPTIONS.map((option) => ({
                                 value: option.value,
@@ -1250,55 +1284,85 @@ export function CredentialsManager() {
                               variant='ghost'
                               onClick={() => handleRemoveMember(member.userId)}
                               disabled={member.role === 'admin' && adminMemberCount <= 1}
-                              className='w-full justify-end'
+                              className='h-7 px-2 text-[var(--text-tertiary)] text-caption hover-hover:text-[var(--text-error)]'
                             >
                               Remove
                             </Button>
-                          </>
+                          </div>
                         ) : (
-                          <>
-                            <Badge variant='gray-secondary'>{member.role}</Badge>
-                            <div />
-                          </>
+                          <Badge variant='gray-secondary' size='sm'>
+                            {member.role === 'admin' ? 'Admin' : 'Member'}
+                          </Badge>
                         )}
                       </div>
                     ))}
+
+                    {/* Add member row */}
                     {isSelectedAdmin && (
-                      <div className='grid grid-cols-[1fr_120px_72px] items-center gap-2 border-[var(--border)] border-t pt-2'>
-                        <Combobox
-                          options={workspaceUserOptions}
-                          value={
-                            workspaceUserOptions.find((option) => option.value === memberUserId)
-                              ?.label || ''
-                          }
-                          selectedValue={memberUserId}
-                          onChange={setMemberUserId}
-                          placeholder='Add member...'
-                          searchable
-                          searchPlaceholder='Search members...'
-                          size='sm'
-                        />
-                        <Combobox
-                          options={ROLE_OPTIONS.map((option) => ({
-                            value: option.value,
-                            label: option.label,
-                          }))}
-                          value={
-                            ROLE_OPTIONS.find((option) => option.value === memberRole)?.label || ''
-                          }
-                          selectedValue={memberRole}
-                          onChange={(value) => setMemberRole(value as WorkspaceCredentialRole)}
-                          placeholder='Role'
-                          size='sm'
-                        />
-                        <Button
-                          variant='ghost'
-                          onClick={handleAddMember}
-                          disabled={!memberUserId || upsertMember.isPending}
-                          className='w-full justify-end'
-                        >
-                          Add
-                        </Button>
+                      <div className='flex flex-col gap-2 border-t border-[var(--border)] bg-[var(--surface-1)] px-4 py-3'>
+                        <div className='flex items-center gap-1.5'>
+                          <UserPlus className='h-3.5 w-3.5 text-[var(--text-tertiary)]' />
+                          <p className='text-[var(--text-secondary)] text-caption font-medium'>
+                            Grant access to a workspace member
+                          </p>
+                        </div>
+                        <div className='flex items-center gap-2'>
+                          <div className='flex-1'>
+                            <Combobox
+                              options={workspaceUserOptions}
+                              value={
+                                workspaceUserOptions.find((option) => option.value === memberUserId)
+                                  ?.label || ''
+                              }
+                              selectedValue={memberUserId}
+                              onChange={setMemberUserId}
+                              placeholder='Select workspace member...'
+                              searchable
+                              searchPlaceholder='Search workspace members...'
+                              emptyMessage='No workspace members available. Invite members to the workspace first.'
+                              size='sm'
+                            />
+                          </div>
+                          <div className='w-[110px] flex-shrink-0'>
+                            <Combobox
+                              options={ROLE_OPTIONS.map((option) => ({
+                                value: option.value,
+                                label: option.label,
+                              }))}
+                              value={
+                                ROLE_OPTIONS.find((option) => option.value === memberRole)?.label ||
+                                ''
+                              }
+                              selectedValue={memberRole}
+                              onChange={(value) => setMemberRole(value as WorkspaceCredentialRole)}
+                              placeholder='Role'
+                              size='sm'
+                            />
+                          </div>
+                          <Button
+                            variant='primary'
+                            onClick={handleAddMember}
+                            disabled={!memberUserId || upsertMember.isPending}
+                            className='h-7 flex-shrink-0 px-3'
+                          >
+                            {upsertMember.isPending ? 'Adding...' : 'Add'}
+                          </Button>
+                        </div>
+                        <p className='flex items-start gap-1 text-[var(--text-muted)] text-[11px]'>
+                          <Info className='mt-0.5 h-3 w-3 flex-shrink-0' />
+                          Only members of this workspace appear here. To add someone new, invite
+                          them to the workspace first.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Non-admin notice */}
+                    {!isSelectedAdmin && (
+                      <div className='flex items-center gap-2 border-t border-[var(--border)] bg-[var(--surface-1)] px-4 py-2.5'>
+                        <Info className='h-3.5 w-3.5 flex-shrink-0 text-[var(--text-muted)]' />
+                        <p className='text-[var(--text-muted)] text-caption'>
+                          Only admins of this secret can manage access control.
+                        </p>
                       </div>
                     )}
                   </div>
@@ -1307,7 +1371,7 @@ export function CredentialsManager() {
             </div>
           </div>
 
-          <div className='mt-auto flex items-center justify-end border-[var(--border)] border-t pt-2.5'>
+          <div className='mt-auto flex items-center justify-end pt-2.5'>
             <div className='flex items-center gap-2'>
               <Button onClick={handleBackAttempt} variant='default'>
                 Back

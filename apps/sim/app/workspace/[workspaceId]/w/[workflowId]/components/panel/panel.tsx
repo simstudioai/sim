@@ -78,6 +78,8 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     setIsPanelOpen,
     _hasHydrated,
     setHasHydrated,
+    pendingCopilotMessage,
+    setPendingCopilotMessage,
   } = usePanelStore(
     useShallow((state) => ({
       activeTab: state.activeTab,
@@ -87,6 +89,8 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       setIsPanelOpen: state.setIsPanelOpen,
       _hasHydrated: state._hasHydrated,
       setHasHydrated: state.setHasHydrated,
+      pendingCopilotMessage: state.pendingCopilotMessage,
+      setPendingCopilotMessage: state.setPendingCopilotMessage,
     }))
   )
   const toolbarRef = useRef<{
@@ -320,6 +324,18 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     },
     [copilotSendMessage]
   )
+
+  /**
+   * Auto-submit a pending copilot message that was queued from the floating input.
+   * Consumes the message immediately so it only fires once.
+   */
+  useEffect(() => {
+    if (pendingCopilotMessage && isPanelOpen && activeTab === 'copilot') {
+      const message = pendingCopilotMessage
+      setPendingCopilotMessage(null)
+      handleCopilotSubmit(message)
+    }
+  }, [pendingCopilotMessage, isPanelOpen, activeTab, setPendingCopilotMessage, handleCopilotSubmit])
 
   /**
    * Mark hydration as complete on mount

@@ -37,6 +37,13 @@ export const usePanelStore = create<PanelState>()(
       setIsResizing: (isResizing) => {
         set({ isResizing })
       },
+      pendingCopilotMessage: null,
+      setPendingCopilotMessage: (message) => {
+        set({ pendingCopilotMessage: message })
+        if (message !== null) {
+          set({ isPanelOpen: true, activeTab: 'copilot' })
+        }
+      },
       _hasHydrated: false,
       setHasHydrated: (hasHydrated) => {
         set({ _hasHydrated: hasHydrated })
@@ -44,6 +51,11 @@ export const usePanelStore = create<PanelState>()(
     }),
     {
       name: 'panel-state',
+      partialize: (state) => ({
+        panelWidth: state.panelWidth,
+        activeTab: state.activeTab,
+        isPanelOpen: state.isPanelOpen,
+      }),
       onRehydrateStorage: () => (state) => {
         // Sync CSS variables with stored state after rehydration
         if (state && typeof window !== 'undefined') {

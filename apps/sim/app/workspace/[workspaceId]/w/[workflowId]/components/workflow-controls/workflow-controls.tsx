@@ -134,7 +134,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
             </PopoverTrigger>
             <Tooltip.Content side='top'>{mode === 'hand' ? 'Mover' : 'Pointer'}</Tooltip.Content>
           </Tooltip.Root>
-          <PopoverContent side='top' sideOffset={8} maxWidth={100} minWidth={100}>
+          <PopoverContent side='top' sideOffset={8} maxWidth={100} minWidth={100} className='border border-[var(--border)]'>
             <PopoverItem
               onClick={() => {
                 setMode('hand')

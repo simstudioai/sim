@@ -64,6 +64,9 @@ export const useVariablesStore = create<VariablesStore>()(
     isLoading: false,
     error: null,
     isEditing: null,
+    isOpen: false,
+
+    setIsOpen: (open) => set({ isOpen: open }),
 
     addVariable: (variable, providedId?: string) => {
       const id = providedId || crypto.randomUUID()
@@ -138,14 +141,21 @@ export const useVariablesStore = create<VariablesStore>()(
             if (targetWorkflowId) {
               const workflowValues = subBlockStore.workflowValues[targetWorkflowId] || {}
               const updatedWorkflowValues = { ...workflowValues }
-              const changedSubBlocks: Array<{ blockId: string; subBlockId: string; value: any }> =
-                []
+              const changedSubBlocks: Array<{
+                blockId: string
+                subBlockId: string
+                value: unknown
+              }> = []
 
               const oldVarName = normalizeName(oldVariableName)
               const newVarName = normalizeName(newName)
               const regex = new RegExp(`<variable\\.${oldVarName}>`, 'gi')
 
-              const updateReferences = (value: any, pattern: RegExp, replacement: string): any => {
+              const updateReferences = (
+                value: unknown,
+                pattern: RegExp,
+                replacement: string
+              ): unknown => {
                 if (typeof value === 'string') {
                   return pattern.test(value) ? value.replace(pattern, replacement) : value
                 }
@@ -155,7 +165,7 @@ export const useVariablesStore = create<VariablesStore>()(
                 }
 
                 if (value !== null && typeof value === 'object') {
-                  const result = { ...value }
+                  const result = { ...(value as Record<string, unknown>) }
                   for (const key in result) {
                     result[key] = updateReferences(result[key], pattern, replacement)
                   }
@@ -166,7 +176,7 @@ export const useVariablesStore = create<VariablesStore>()(
               }
 
               Object.entries(workflowValues).forEach(([blockId, blockValues]) => {
-                Object.entries(blockValues as Record<string, any>).forEach(
+                Object.entries(blockValues as Record<string, unknown>).forEach(
                   ([subBlockId, value]) => {
                     const updatedValue = updateReferences(value, regex, `<variable.${newVarName}>`)
 
@@ -174,14 +184,14 @@ export const useVariablesStore = create<VariablesStore>()(
                       if (!updatedWorkflowValues[blockId]) {
                         updatedWorkflowValues[blockId] = { ...workflowValues[blockId] }
                       }
-                      updatedWorkflowValues[blockId][subBlockId] = updatedValue
+                      ;(updatedWorkflowValues[blockId] as Record<string, unknown>)[subBlockId] =
+                        updatedValue
                       changedSubBlocks.push({ blockId, subBlockId, value: updatedValue })
                     }
                   }
                 )
               })
 
-              // Update local state
               useSubBlockStore.setState({
                 workflowValues: {
                   ...subBlockStore.workflowValues,
@@ -189,7 +199,6 @@ export const useVariablesStore = create<VariablesStore>()(
                 },
               })
 
-              // Queue operations for persistence via socket
               const operationQueue = useOperationQueueStore.getState()
 
               for (const { blockId, subBlockId, value } of changedSubBlocks) {

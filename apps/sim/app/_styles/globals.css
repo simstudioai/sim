@@ -991,3 +991,7 @@ input[type="search"]::-ms-clear {
 .react-flow__node[data-parent-node-id] .react-flow__handle {
   z-index: 30;
 }
+
+.react-flow__panel {
+  margin: 0 !important;
+}

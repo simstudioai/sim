@@ -30,6 +30,7 @@ import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   CommandList,
+  CopilotInput,
   DiffControls,
   Notifications,
   Panel,
@@ -87,7 +88,7 @@ import { useChatStore } from '@/stores/chat/store'
 import { defaultWorkflowExecutionState, useExecutionStore } from '@/stores/execution'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useNotificationStore } from '@/stores/notifications'
-import { usePanelEditorStore } from '@/stores/panel'
+import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesModalStore } from '@/stores/variables/modal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -3673,6 +3674,7 @@ const WorkflowContent = React.memo(
     const onPaneClick = useCallback(() => {
       setSelectedEdges(new Map())
       usePanelEditorStore.getState().clearCurrentBlock()
+      usePanelStore.getState().setIsPanelOpen(false)
     }, [])
 
     /**
@@ -4141,6 +4143,8 @@ const WorkflowContent = React.memo(
             )}
 
             {!embedded && <DiffControls />}
+
+            {!embedded && <CopilotInput />}
 
             {(!embedded || sandbox) && <Panel workspaceId={sandbox ? workspaceId : undefined} />}
           </div>

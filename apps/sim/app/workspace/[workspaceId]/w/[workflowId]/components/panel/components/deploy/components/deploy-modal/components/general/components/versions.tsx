@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { FileText, MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
+import { MoreVertical, NotepadText, Pencil, RotateCcw, SendToBack } from 'lucide-react'
 import {
   Button,
   Popover,
@@ -304,7 +304,7 @@ export function Versions({
                       )}
                       onClick={() => handleOpenDescriptionModal(v.version)}
                     >
-                      <FileText className='h-3.5 w-3.5' />
+                      <NotepadText className='h-3.5 w-3.5' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top' className='max-w-[240px]'>
@@ -329,10 +329,7 @@ export function Versions({
                       <Pencil className='h-3 w-3' />
                       <span>Rename</span>
                     </PopoverItem>
-                    <PopoverItem onClick={() => handleOpenDescriptionModal(v.version)}>
-                      <FileText className='h-3 w-3' />
-                      <span>{v.description ? 'Edit description' : 'Add description'}</span>
-                    </PopoverItem>
+
                     {!v.isActive && (
                       <PopoverItem onClick={() => handlePromote(v.version)}>
                         <RotateCcw className='h-3 w-3' />

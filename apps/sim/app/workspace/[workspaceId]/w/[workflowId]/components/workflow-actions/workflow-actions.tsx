@@ -23,7 +23,6 @@ import {
   Upload,
 } from '@/components/emcn'
 import { Lock, Unlock } from '@/components/emcn/icons'
-import { VariableIcon } from '@/components/icons'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { WorkflowHistory } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-toolbar/workflow-history'
@@ -228,20 +227,6 @@ export const WorkflowActions = memo(function WorkflowActions({
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='right'>Auto layout</Tooltip.Content>
-        </Tooltip.Root>
-
-        {/* Variables */}
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              className='h-[28px] w-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
-              variant={isVariablesOpen ? 'active' : 'ghost'}
-              onClick={() => setVariablesOpen(!isVariablesOpen)}
-            >
-              <VariableIcon className='h-[16px] w-[16px]' />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='right'>Variables</Tooltip.Content>
         </Tooltip.Root>
 
         {/* History */}

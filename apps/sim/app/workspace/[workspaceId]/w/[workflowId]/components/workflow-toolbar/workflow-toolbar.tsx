@@ -10,14 +10,12 @@ import { Deploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**
  * Compact floating toolbar at the top-right of the canvas.
- * Contains only the two primary workflow actions: Run and Deploy.
- *
- * All secondary actions (auto layout, variables, history, lock, export,
- * duplicate, delete) live in the left-side WorkflowActions toolbar.
+ * Layout: [Variables] [Run] | [Deploy]
  */
 interface WorkflowToolbarProps {
   workspaceId?: string
@@ -46,6 +44,13 @@ export const WorkflowToolbar = memo(function WorkflowToolbar({
 
   const { handleRunWorkflow, handleCancelExecution, isExecuting } = useWorkflowExecution()
 
+  const { isOpen: isVariablesOpen, setIsOpen: setVariablesOpen } = useVariablesStore(
+    useShallow((state) => ({
+      isOpen: state.isOpen,
+      setIsOpen: state.setIsOpen,
+    }))
+  )
+
   const cancelWorkflow = useCallback(async () => {
     await handleCancelExecution()
   }, [handleCancelExecution])
@@ -64,7 +69,17 @@ export const WorkflowToolbar = memo(function WorkflowToolbar({
 
   return (
     <div className='absolute top-4 right-4 z-10 flex h-[36px] items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-1'>
-      {/* Run (secondary) */}
+      {/* Variables */}
+      <Button
+        className='h-[28px] gap-1.5 rounded-md px-2.5'
+        data-variables-trigger
+        variant={isVariablesOpen ? 'active' : 'default'}
+        onClick={() => setVariablesOpen(!isVariablesOpen)}
+      >
+        Variables
+      </Button>
+
+      {/* Run */}
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <Button

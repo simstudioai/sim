@@ -22,6 +22,8 @@ export interface VariablesStore {
   isLoading: boolean
   error: string | null
   isEditing: string | null
+  isOpen: boolean
+  setIsOpen: (open: boolean) => void
 
   /**
    * Adds a new variable with automatic name uniqueness validation

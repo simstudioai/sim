@@ -1,6 +1,7 @@
 export { BlockMenu } from './block-menu'
 export { CanvasMenu } from './canvas-menu'
 export { CommandList } from './command-list/command-list'
+export { CopilotInput } from './copilot-input/copilot-input'
 export { Cursors } from './cursors/cursors'
 export { DiffControls } from './diff-controls/diff-controls'
 export { ErrorBoundary } from './error/index'

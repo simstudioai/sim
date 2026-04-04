@@ -61,7 +61,6 @@ import { sendMothershipMessage } from '@/stores/notifications/utils'
 import type { ConsoleEntry } from '@/stores/terminal'
 import {
   safeConsoleStringify,
-  useConsoleEntry,
   useTerminalConsoleStore,
   useTerminalStore,
   useWorkflowConsoleEntries,
@@ -710,8 +709,10 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
   const clearWorkflowConsole = useTerminalConsoleStore((state) => state.clearWorkflowConsole)
   const exportConsoleCSV = useTerminalConsoleStore((state) => state.exportConsoleCSV)
 
-  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
-  const selectedEntry = useConsoleEntry(selectedEntryId)
+  const [selectedEntry, setSelectedEntry] = useState<ConsoleEntry | null>(null)
+  const selectedEntryId = selectedEntry?.id ?? null
+  const [panelOutputHeight, setPanelOutputHeight] = useState(0)
+  const splitContainerRef = useRef<HTMLDivElement>(null)
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set())
   const [isToggling, setIsToggling] = useState(false)
   const [showCopySuccess, setShowCopySuccess] = useState(false)
@@ -924,13 +925,19 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
   const handleSelectEntry = useCallback(
     (entry: ConsoleEntry) => {
       focusTerminal()
-      setSelectedEntryId((prev) => {
-        // Disable auto-select on any manual selection/deselection
-        setAutoSelectEnabled(false)
-        return prev === entry.id ? null : entry.id
-      })
+      setAutoSelectEnabled(false)
+      if (isPanelMode) {
+        setSelectedEntry(entry)
+        if (panelOutputHeight === 0) {
+          const container = splitContainerRef.current
+          const h = container ? Math.round(container.clientHeight * 0.4) : 200
+          setPanelOutputHeight(h)
+        }
+      } else {
+        setSelectedEntry((prev) => (prev?.id === entry.id ? null : entry))
+      }
     },
-    [focusTerminal]
+    [focusTerminal, isPanelMode, panelOutputHeight]
   )
 
   /**
@@ -983,7 +990,7 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
   const clearCurrentWorkflowConsole = useCallback(() => {
     if (activeWorkflowId) {
       clearWorkflowConsole(activeWorkflowId)
-      setSelectedEntryId(null)
+      setSelectedEntry(null)
       setExpandedNodes(new Set())
     }
   }, [activeWorkflowId, clearWorkflowConsole])
@@ -1114,7 +1121,7 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
   useEffect(() => {
     if (executionGroups.length === 0 || navigableEntries.length === 0) {
       setAutoSelectEnabled(true)
-      setSelectedEntryId(null)
+      setSelectedEntry(null)
       return
     }
 
@@ -1134,7 +1141,7 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
     if (!lastNavEntry) return
     if (selectedEntryId === lastNavEntry.entry.id) return
 
-    setSelectedEntryId(lastNavEntry.entry.id)
+    setSelectedEntry(lastNavEntry.entry)
     focusTerminal()
 
     if (lastNavEntry.parentNodeIds.length > 0) {
@@ -1147,6 +1154,26 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
       })
     }
   }, [executionGroups, navigableEntries, autoSelectEnabled, selectedEntryId, focusTerminal])
+
+  /**
+   * Sync selected entry with latest data from store.
+   */
+  useEffect(() => {
+    if (!selectedEntry) return
+    const updatedEntry = filteredEntries.find((e) => e.id === selectedEntry.id)
+    if (updatedEntry && updatedEntry !== selectedEntry) {
+      const hasChanged =
+        updatedEntry.output !== selectedEntry.output ||
+        updatedEntry.isRunning !== selectedEntry.isRunning ||
+        updatedEntry.isCanceled !== selectedEntry.isCanceled ||
+        updatedEntry.durationMs !== selectedEntry.durationMs ||
+        updatedEntry.error !== selectedEntry.error ||
+        updatedEntry.success !== selectedEntry.success
+      if (hasChanged) {
+        setSelectedEntry(updatedEntry)
+      }
+    }
+  }, [filteredEntries, selectedEntry])
 
   /**
    * Clear filters when there are no logs
@@ -1163,7 +1190,7 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
   const navigateToEntry = useCallback(
     (navEntry: NavigableBlockEntry) => {
       setAutoSelectEnabled(false)
-      setSelectedEntryId(navEntry.entry.id)
+      setSelectedEntry(navEntry.entry)
 
       // Auto-expand parent nodes (subflows, iterations)
       if (navEntry.parentNodeIds.length > 0) {
@@ -1203,7 +1230,7 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
       if (e.key === 'Escape') {
         if (currentEntry) {
           e.preventDefault()
-          setSelectedEntryId(null)
+          setSelectedEntry(null)
           setAutoSelectEnabled(true)
         }
         return
@@ -1290,7 +1317,7 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
       // Close output panel if there's not enough space for minimum width
       if (maxWidth < MIN_OUTPUT_PANEL_WIDTH_PX) {
         setAutoSelectEnabled(false)
-        setSelectedEntryId(null)
+        setSelectedEntry(null)
         return
       }
 
@@ -1346,18 +1373,24 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
           />
         )}
 
-        <div className='relative flex h-full'>
-          {/* Left Section - Logs (hidden in panel mode when output is shown) */}
+        <div
+          ref={isPanelMode ? splitContainerRef : undefined}
+          className={clsx('relative flex h-full', isPanelMode && 'flex-col')}
+        >
+          {/* Top/Left Section - Logs */}
           <div
             className={clsx(
-              'flex h-full min-h-0 flex-col',
-              !selectedEntry && 'flex-1',
-              isPanelMode && selectedEntry && 'hidden'
+              'flex min-h-0 flex-col overflow-hidden',
+              !isPanelMode && !selectedEntry && 'flex-1'
             )}
             style={
-              !isPanelMode && selectedEntry
-                ? { width: `calc(100% - ${outputPanelWidth}px)` }
-                : undefined
+              isPanelMode
+                ? panelOutputHeight > 0
+                  ? { flex: '1 1 auto', minHeight: 60 }
+                  : undefined
+                : selectedEntry
+                  ? { width: `calc(100% - ${outputPanelWidth}px)` }
+                  : undefined
             }
           >
             {/* Panel mode: compact filter bar */}
@@ -1602,52 +1635,116 @@ export const Terminal = memo(function Terminal({ mode = 'standalone' }: Terminal
             </div>
           </div>
 
-          {/* Right Section - Block Output (Overlay in standalone, full-width in panel) */}
-          {selectedEntry && (
+          {/* Bottom output panel — panel mode: collapsible, resizable */}
+          {isPanelMode && (
             <div
-              className={
-                isPanelMode
-                  ? 'flex h-full w-full flex-col [&>div:nth-child(2)]:!relative [&>div:nth-child(2)]:!w-full [&>div:nth-child(2)]:flex-1'
-                  : undefined
-              }
+              className='flex flex-shrink-0 flex-col overflow-hidden border-t border-[var(--border)]'
+              style={{ height: panelOutputHeight > 0 ? `${panelOutputHeight}px` : '0px' }}
             >
-              {/* Back button in panel mode */}
-              {isPanelMode && (
-                <button
-                  className='flex h-[30px] flex-shrink-0 items-center gap-1.5 border-b border-[var(--border)] bg-[var(--bg)] px-3 text-[12px] text-[var(--text-secondary)] transition-colors hover-hover:text-[var(--text-primary)]'
-                  onClick={() => {
-                    setSelectedEntryId(null)
-                    setAutoSelectEnabled(false)
-                  }}
-                >
-                  <ChevronDown className='h-[8px] w-[8px] rotate-90' />
-                  <span>Back to logs</span>
-                  <span className='ml-1 text-[var(--text-muted)]'>{selectedEntry.blockName}</span>
-                </button>
+              {/* Drag handle */}
+              <div
+                className='flex h-[5px] flex-shrink-0 cursor-ns-resize items-center justify-center bg-[var(--surface-4)] transition-colors hover-hover:bg-[var(--surface-5)]'
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  const startY = e.clientY
+                  const startH = panelOutputHeight
+                  const container = splitContainerRef.current
+                  const maxH = container ? container.clientHeight - 60 : 400
+                  const onMove = (ev: MouseEvent) => {
+                    const delta = startY - ev.clientY
+                    setPanelOutputHeight(Math.min(maxH, Math.max(0, startH + delta)))
+                  }
+                  const onUp = () => {
+                    document.removeEventListener('mousemove', onMove)
+                    document.removeEventListener('mouseup', onUp)
+                  }
+                  document.addEventListener('mousemove', onMove)
+                  document.addEventListener('mouseup', onUp)
+                }}
+                role='separator'
+                aria-orientation='horizontal'
+                aria-label='Resize output panel'
+              >
+                <div className='h-[2px] w-[24px] rounded-full bg-[var(--border-1)]' />
+              </div>
+
+              {/* Output content */}
+              {selectedEntry ? (
+                <div className='flex min-h-0 flex-1 flex-col'>
+                  {/* Output/Input tab header */}
+                  <div className='flex h-[30px] flex-shrink-0 items-center gap-0.5 border-b border-[var(--border)] px-2.5'>
+                    <Button
+                      variant='ghost'
+                      className={clsx(
+                        'px-2 py-1 text-small',
+                        !showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-icon)]'
+                      )}
+                      onClick={() => setShowInput(false)}
+                    >
+                      Output
+                    </Button>
+                    {hasInputData && (
+                      <Button
+                        variant='ghost'
+                        className={clsx(
+                          'px-2 py-1 text-small',
+                          showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-icon)]'
+                        )}
+                        onClick={() => setShowInput(true)}
+                      >
+                        Input
+                      </Button>
+                    )}
+                    <div className='flex-1' />
+                    <span className='truncate text-[var(--text-muted)] text-[11px]'>
+                      {selectedEntry.blockName}
+                    </span>
+                  </div>
+                  {/* Scrollable content */}
+                  <div className='min-h-0 flex-1 overflow-auto'>
+                    <pre className='whitespace-pre-wrap p-3 font-mono text-[12px] leading-relaxed text-[var(--text-body)]'>
+                      {outputData
+                        ? typeof outputData === 'string'
+                          ? outputData
+                          : JSON.stringify(outputData, null, 2)
+                        : 'No data'}
+                    </pre>
+                  </div>
+                </div>
+              ) : (
+                <div className='flex flex-1 items-center justify-center'>
+                  <span className='text-[var(--text-placeholder)] text-caption'>
+                    Select a log entry to view output
+                  </span>
+                </div>
               )}
-              <OutputPanel
-                selectedEntry={selectedEntry}
-                handleOutputPanelResizeMouseDown={handleOutputPanelResizeMouseDown}
-                handleHeaderClick={handleHeaderClick}
-                isExpanded={isExpanded}
-                expandToLastHeight={expandToLastHeight}
-                showInput={showInput}
-                setShowInput={setShowInput}
-                hasInputData={hasInputData}
-                isPlaygroundEnabled={isPlaygroundEnabled}
-                shouldShowTrainingButton={shouldShowTrainingButton}
-                isTraining={isTraining}
-                handleTrainingClick={handleTrainingClick}
-                showCopySuccess={showCopySuccess}
-                handleCopy={handleCopy}
-                hasEntries={filteredEntries.length > 0}
-                handleExportConsole={handleExportConsole}
-                handleClearConsole={handleClearConsole}
-                shouldShowCodeDisplay={shouldShowCodeDisplay}
-                outputData={outputData}
-                handleClearConsoleFromMenu={handleClearConsoleFromMenu}
-              />
             </div>
+          )}
+
+          {/* Right Section - Block Output (standalone mode only) */}
+          {!isPanelMode && selectedEntry && (
+            <OutputPanel
+              selectedEntry={selectedEntry}
+              handleOutputPanelResizeMouseDown={handleOutputPanelResizeMouseDown}
+              handleHeaderClick={handleHeaderClick}
+              isExpanded={isExpanded}
+              expandToLastHeight={expandToLastHeight}
+              showInput={showInput}
+              setShowInput={setShowInput}
+              hasInputData={hasInputData}
+              isPlaygroundEnabled={isPlaygroundEnabled}
+              shouldShowTrainingButton={shouldShowTrainingButton}
+              isTraining={isTraining}
+              handleTrainingClick={handleTrainingClick}
+              showCopySuccess={showCopySuccess}
+              handleCopy={handleCopy}
+              hasEntries={filteredEntries.length > 0}
+              handleExportConsole={handleExportConsole}
+              handleClearConsole={handleClearConsole}
+              shouldShowCodeDisplay={shouldShowCodeDisplay}
+              outputData={outputData}
+              handleClearConsoleFromMenu={handleClearConsoleFromMenu}
+            />
           )}
         </div>
       </aside>
