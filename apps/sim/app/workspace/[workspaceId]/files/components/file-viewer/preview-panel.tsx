@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, memo, useCallback, useContext, useMemo, useRef } from 'react'
+import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Components, ExtraProps } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
@@ -281,11 +281,11 @@ function isInternalHref(
   if (href.startsWith('#')) return { pathname: '', hash: href }
   try {
     const url = new URL(href, origin)
-    if (url.origin === origin) {
+    if (url.origin === origin && url.pathname.startsWith('/workspace/')) {
       return { pathname: url.pathname, hash: url.hash }
     }
   } catch {
-    if (href.startsWith('/')) {
+    if (href.startsWith('/workspace/')) {
       const hashIdx = href.indexOf('#')
       if (hashIdx === -1) return { pathname: href, hash: '' }
       return { pathname: href.slice(0, hashIdx), hash: href.slice(hashIdx) }
@@ -369,6 +369,22 @@ const MarkdownPreview = memo(function MarkdownPreview({
     () => (onCheckboxToggle ? { contentRef, onToggle: onCheckboxToggle } : null),
     [onCheckboxToggle]
   )
+
+  const hasScrolledToHash = useRef(false)
+  useEffect(() => {
+    const hash = window.location.hash
+    if (!hash || hasScrolledToHash.current) return
+    const id = hash.slice(1)
+    const el = document.getElementById(id)
+    if (!el) return
+    hasScrolledToHash.current = true
+    const container = el.closest('.overflow-auto') as HTMLElement | null
+    if (container) {
+      container.scrollTo({ top: el.offsetTop - container.offsetTop, behavior: 'smooth' })
+    } else {
+      el.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [content])
 
   const committedMarkdown = useMemo(
     () =>

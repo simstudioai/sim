@@ -377,10 +377,11 @@ export interface UseChatOptions {
   onToolResult?: (toolName: string, success: boolean, result: unknown) => void
   onTitleUpdate?: () => void
   onStreamEnd?: (chatId: string, messages: ChatMessage[]) => void
+  initialActiveResourceId?: string | null
 }
 
 export function getMothershipUseChatOptions(
-  options: Pick<UseChatOptions, 'onResourceEvent' | 'onStreamEnd'> = {}
+  options: Pick<UseChatOptions, 'onResourceEvent' | 'onStreamEnd' | 'initialActiveResourceId'> = {}
 ): UseChatOptions {
   return {
     apiPath: MOTHERSHIP_CHAT_API_PATH,
@@ -416,6 +417,7 @@ export function useChat(
   const [resolvedChatId, setResolvedChatId] = useState<string | undefined>(initialChatId)
   const [resources, setResources] = useState<MothershipResource[]>([])
   const [activeResourceId, setActiveResourceId] = useState<string | null>(null)
+  const initialActiveResourceIdRef = useRef(options?.initialActiveResourceId)
   const onResourceEventRef = useRef(options?.onResourceEvent)
   onResourceEventRef.current = options?.onResourceEvent
   const apiPathRef = useRef(options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH)
@@ -845,7 +847,12 @@ export function useChat(
       const persistedResources = history.resources.filter((r) => r.id !== 'streaming-file')
       if (persistedResources.length > 0) {
         setResources(persistedResources)
-        setActiveResourceId(persistedResources[persistedResources.length - 1].id)
+        const initialId = initialActiveResourceIdRef.current
+        const restoredId =
+          initialId && persistedResources.some((r) => r.id === initialId)
+            ? initialId
+            : persistedResources[persistedResources.length - 1].id
+        setActiveResourceId(restoredId)
 
         for (const resource of persistedResources) {
           if (resource.type !== 'workflow') continue
