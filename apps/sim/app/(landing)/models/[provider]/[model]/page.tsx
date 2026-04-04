@@ -18,6 +18,7 @@ import {
   formatPrice,
   formatTokenCount,
   formatUpdatedAt,
+  getEffectiveMaxOutputTokens,
   getModelBySlug,
   getPricingBounds,
   getProviderBySlug,
@@ -280,8 +281,8 @@ export default async function ModelPage({
                   label='Max output'
                   value={
                     model.capabilities.maxOutputTokens
-                      ? `${formatTokenCount(model.capabilities.maxOutputTokens)} tokens`
-                      : 'Standard defaults'
+                      ? `${formatTokenCount(getEffectiveMaxOutputTokens(model.capabilities))} tokens`
+                      : 'Not published'
                   }
                 />
                 <DetailItem label='Provider' value={provider.name} />

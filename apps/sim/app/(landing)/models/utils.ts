@@ -190,6 +190,16 @@ export function formatCapabilityBoolean(
   return value ? positive : negative
 }
 
+function supportsCatalogStructuredOutputs(capabilities: ModelCapabilities): boolean {
+  // In the catalog, "structured outputs" means Sim can return typed JSON for the model.
+  // `nativeStructuredOutputs` is narrower and only indicates provider-native schema support.
+  return !capabilities.deepResearch
+}
+
+export function getEffectiveMaxOutputTokens(capabilities: ModelCapabilities): number | null {
+  return capabilities.maxOutputTokens ?? null
+}
+
 function trimTrailingZeros(value: string): string {
   return value.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')
 }
@@ -326,7 +336,7 @@ function buildCapabilityTags(capabilities: ModelCapabilities): string[] {
     tags.push('Tool choice')
   }
 
-  if (capabilities.nativeStructuredOutputs) {
+  if (supportsCatalogStructuredOutputs(capabilities)) {
     tags.push('Structured outputs')
   }
 
@@ -384,7 +394,7 @@ function buildBestForLine(model: {
     return 'Best for long-context retrieval, large documents, and high-memory workflows.'
   }
 
-  if (capabilities.nativeStructuredOutputs) {
+  if (supportsCatalogStructuredOutputs(capabilities)) {
     return 'Best for production workflows that need reliable typed outputs.'
   }
 
@@ -419,7 +429,7 @@ function computeModelRelevanceScore(model: CatalogModel): number {
     (model.capabilities.reasoningEffort ? 10 : 0) +
     (model.capabilities.thinking ? 10 : 0) +
     (model.capabilities.deepResearch ? 8 : 0) +
-    (model.capabilities.nativeStructuredOutputs ? 4 : 0) +
+    (supportsCatalogStructuredOutputs(model.capabilities) ? 4 : 0) +
     (model.contextWindow ?? 0) / 100000
   )
 }
@@ -683,6 +693,7 @@ export function buildModelFaqs(provider: CatalogProvider, model: CatalogModel): 
 
 export function buildModelCapabilityFacts(model: CatalogModel): CapabilityFact[] {
   const { capabilities } = model
+  const supportsStructuredOutputs = supportsCatalogStructuredOutputs(capabilities)
 
   return [
     {
@@ -711,7 +722,11 @@ export function buildModelCapabilityFacts(model: CatalogModel): CapabilityFact[]
     },
     {
       label: 'Structured outputs',
-      value: formatCapabilityBoolean(capabilities.nativeStructuredOutputs),
+      value: supportsStructuredOutputs
+        ? capabilities.nativeStructuredOutputs
+          ? 'Supported (native)'
+          : 'Supported'
+        : 'Not supported',
     },
     {
       label: 'Tool choice',
@@ -732,8 +747,8 @@ export function buildModelCapabilityFacts(model: CatalogModel): CapabilityFact[]
     {
       label: 'Max output tokens',
       value: capabilities.maxOutputTokens
-        ? formatTokenCount(capabilities.maxOutputTokens)
-        : 'Standard defaults',
+        ? formatTokenCount(getEffectiveMaxOutputTokens(capabilities))
+        : 'Not published',
     },
   ]
 }
@@ -752,8 +767,8 @@ export function getProviderCapabilitySummary(provider: CatalogProvider): Capabil
   const reasoningCount = provider.models.filter(
     (model) => model.capabilities.reasoningEffort || model.capabilities.thinking
   ).length
-  const structuredCount = provider.models.filter(
-    (model) => model.capabilities.nativeStructuredOutputs
+  const structuredCount = provider.models.filter((model) =>
+    supportsCatalogStructuredOutputs(model.capabilities)
   ).length
   const deepResearchCount = provider.models.filter(
     (model) => model.capabilities.deepResearch

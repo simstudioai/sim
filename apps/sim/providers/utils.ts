@@ -1111,7 +1111,7 @@ export function getThinkingLevelsForModel(model: string): string[] | null {
  *
  * @param model - The model ID
  */
-export function getMaxOutputTokensForModel(model: string): number {
+export function getMaxOutputTokensForModel(model: string): number | null {
   return getMaxOutputTokensForModelFromDefinitions(model)
 }
 
