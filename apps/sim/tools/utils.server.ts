@@ -77,7 +77,7 @@ export async function executeRequest(
         output: await resp.json(),
       }))
 
-    return await transformResponse(resolvedResponse as Response, requestParams.toolParams as never)
+    return await transformResponse(resolvedResponse as Response)
   } catch (error: any) {
     return {
       success: false,

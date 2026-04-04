@@ -68,7 +68,7 @@ export const terminateRunTool: ToolConfig<DagsterTerminateRunParams, DagsterTerm
       }),
     },
 
-    transformResponse: async (response: Response, params?: DagsterTerminateRunParams) => {
+    transformResponse: async (response: Response) => {
       const data = await parseDagsterGraphqlResponse<{ terminateRun?: DagsterTerminateRunPayload }>(
         response
       )
@@ -85,29 +85,6 @@ export const terminateRunTool: ToolConfig<DagsterTerminateRunParams, DagsterTerm
             message: null,
           },
         }
-      }
-
-      if (typeof result.message === 'string') {
-        if (result.__typename === 'RunNotFoundError') {
-          throw new Error(result.message)
-        }
-        if (result.__typename === 'TerminateRunFailure') {
-          const runId = params?.runId
-          if (!runId) {
-            throw new Error(
-              'Terminate run failed but runId was not available in tool context; ensure the tool is invoked with runId.'
-            )
-          }
-          return {
-            success: true,
-            output: {
-              success: false,
-              runId,
-              message: result.message,
-            },
-          }
-        }
-        throw new Error(result.message)
       }
 
       throw new Error(dagsterUnionErrorMessage(result, 'Terminate run failed'))

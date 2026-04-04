@@ -76,8 +76,6 @@ export interface RequestParams {
   headers: Record<string, string>
   body?: string
   timeout?: number
-  /** Original tool invocation params; forwarded to `transformResponse` when using `executeRequest`. */
-  toolParams?: Record<string, unknown>
 }
 
 /**
@@ -133,7 +131,7 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
       ? Math.min(timeout, MAX_TIMEOUT_MS)
       : undefined
 
-  return { url, method, headers, body, timeout: validTimeout, toolParams: params }
+  return { url, method, headers, body, timeout: validTimeout }
 }
 
 /**
