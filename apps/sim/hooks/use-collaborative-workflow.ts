@@ -122,6 +122,7 @@ export function useCollaborativeWorkflow() {
     onVariableUpdate,
     onWorkflowDeleted,
     onWorkflowReverted,
+    onWorkflowUpdated,
     onOperationConfirmed,
     onOperationFailed,
   } = useSocket()
@@ -615,6 +616,67 @@ export function useCollaborativeWorkflow() {
       }
     }
 
+    const handleWorkflowUpdated = async (data: any) => {
+      const { workflowId } = data
+      logger.info(`Workflow ${workflowId} has been updated externally`)
+
+      if (activeWorkflowId !== workflowId) return
+
+      const { hasActiveDiff } = useWorkflowDiffStore.getState()
+      if (hasActiveDiff) {
+        logger.info('Skipping workflow-updated: active diff in progress', { workflowId })
+        return
+      }
+
+      try {
+        const response = await fetch(`/api/workflows/${workflowId}`)
+        if (response.ok) {
+          const responseData = await response.json()
+          const workflowData = responseData.data
+
+          if (workflowData?.state) {
+            isApplyingRemoteChange.current = true
+            try {
+              useWorkflowStore.getState().replaceWorkflowState({
+                blocks: workflowData.state.blocks || {},
+                edges: workflowData.state.edges || [],
+                loops: workflowData.state.loops || {},
+                parallels: workflowData.state.parallels || {},
+                lastSaved: workflowData.state.lastSaved || Date.now(),
+                deploymentStatuses: workflowData.state.deploymentStatuses || {},
+              })
+
+              const subblockValues: Record<string, Record<string, any>> = {}
+              Object.entries(workflowData.state.blocks || {}).forEach(([blockId, block]) => {
+                const blockState = block as any
+                subblockValues[blockId] = {}
+                Object.entries(blockState.subBlocks || {}).forEach(([subblockId, subblock]) => {
+                  subblockValues[blockId][subblockId] = (subblock as any).value
+                })
+              })
+
+              useSubBlockStore.setState((state: any) => ({
+                workflowValues: {
+                  ...state.workflowValues,
+                  [workflowId]: subblockValues,
+                },
+              }))
+
+              logger.info(`Successfully applied externally updated workflow state`, { workflowId })
+            } finally {
+              isApplyingRemoteChange.current = false
+            }
+          }
+        } else {
+          logger.error(
+            `Failed to fetch workflow data after external update: ${response.statusText}`
+          )
+        }
+      } catch (error) {
+        logger.error('Error reloading workflow state after external update:', error)
+      }
+    }
+
     const handleOperationConfirmed = (data: any) => {
       const { operationId } = data
       logger.debug('Operation confirmed', { operationId })
@@ -633,6 +695,7 @@ export function useCollaborativeWorkflow() {
     onVariableUpdate(handleVariableUpdate)
     onWorkflowDeleted(handleWorkflowDeleted)
     onWorkflowReverted(handleWorkflowReverted)
+    onWorkflowUpdated(handleWorkflowUpdated)
     onOperationConfirmed(handleOperationConfirmed)
     onOperationFailed(handleOperationFailed)
   }, [
@@ -641,6 +704,7 @@ export function useCollaborativeWorkflow() {
     onVariableUpdate,
     onWorkflowDeleted,
     onWorkflowReverted,
+    onWorkflowUpdated,
     onOperationConfirmed,
     onOperationFailed,
     activeWorkflowId,
