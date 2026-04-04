@@ -36,7 +36,6 @@ import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { WorkflowValidationError } from '@/serializer'
 import { useCurrentWorkflowExecution, useExecutionStore } from '@/stores/execution'
 import { useNotificationStore } from '@/stores/notifications'
-import { useVariablesStore } from '@/stores/panel'
 import {
   clearExecutionPointer,
   consolePersistence,
@@ -44,6 +43,7 @@ import {
   saveExecutionPointer,
   useTerminalConsoleStore,
 } from '@/stores/terminal'
+import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
