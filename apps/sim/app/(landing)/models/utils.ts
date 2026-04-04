@@ -112,6 +112,7 @@ export interface CatalogModel {
   capabilities: ModelCapabilities
   capabilityTags: string[]
   summary: string
+  bestFor?: string
   searchText: string
 }
 
@@ -368,6 +369,36 @@ function buildCapabilityTags(capabilities: ModelCapabilities): string[] {
   return tags
 }
 
+function buildBestForLine(model: {
+  pricing: PricingInfo
+  capabilities: ModelCapabilities
+  contextWindow: number | null
+}): string | null {
+  const { pricing, capabilities, contextWindow } = model
+
+  if (capabilities.deepResearch) {
+    return 'Best for multi-step research workflows and agent-led web investigation.'
+  }
+
+  if (capabilities.reasoningEffort || capabilities.thinking) {
+    return 'Best for reasoning-heavy tasks that need more deliberate model control.'
+  }
+
+  if (contextWindow && contextWindow >= 1000000) {
+    return 'Best for long-context retrieval, large documents, and high-memory workflows.'
+  }
+
+  if (capabilities.nativeStructuredOutputs) {
+    return 'Best for production workflows that need reliable typed outputs.'
+  }
+
+  if (pricing.input <= 0.2 && pricing.output <= 1.25) {
+    return 'Best for cost-sensitive automations, background tasks, and high-volume workloads.'
+  }
+
+  return null
+}
+
 function buildModelSummary(
   providerName: string,
   displayName: string,
@@ -414,6 +445,11 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
     const shortId = stripProviderPrefix(provider.id, model.id)
     const mergedCapabilities = { ...provider.capabilities, ...model.capabilities }
     const capabilityTags = buildCapabilityTags(mergedCapabilities)
+    const bestFor = buildBestForLine({
+      pricing: model.pricing,
+      capabilities: mergedCapabilities,
+      contextWindow: model.contextWindow ?? null,
+    })
     const displayName = formatModelDisplayName(provider.id, model.id)
     const modelSlug = slugify(shortId)
     const href = `/models/${providerSlug}/${modelSlug}`
@@ -438,6 +474,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
         model.contextWindow ?? null,
         capabilityTags
       ),
+      ...(bestFor ? { bestFor } : {}),
       searchText: [
         provider.name,
         providerDisplayName,

@@ -35,4 +35,15 @@ describe('model catalog capability facts', () => {
   it.concurrent('does not invent a max output token limit when one is not published', () => {
     expect(getEffectiveMaxOutputTokens({})).toBeNull()
   })
+
+  it.concurrent('keeps best-for copy for clearly differentiated models only', () => {
+    const researchModel = getModelBySlug('google', 'deep-research-pro-preview-12-2025')
+    const generalModel = getModelBySlug('xai', 'grok-4-latest')
+
+    expect(researchModel).not.toBeNull()
+    expect(generalModel).not.toBeNull()
+
+    expect(researchModel?.bestFor).toContain('research workflows')
+    expect(generalModel?.bestFor).toBeUndefined()
+  })
 })
