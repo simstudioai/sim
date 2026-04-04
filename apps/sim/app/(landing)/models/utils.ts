@@ -191,8 +191,6 @@ export function formatCapabilityBoolean(
 }
 
 function supportsCatalogStructuredOutputs(capabilities: ModelCapabilities): boolean {
-  // In the catalog, "structured outputs" means Sim can return typed JSON for the model.
-  // `nativeStructuredOutputs` is narrower and only indicates provider-native schema support.
   return !capabilities.deepResearch
 }
 
@@ -394,7 +392,7 @@ function buildBestForLine(model: {
     return 'Best for long-context retrieval, large documents, and high-memory workflows.'
   }
 
-  if (supportsCatalogStructuredOutputs(capabilities)) {
+  if (capabilities.nativeStructuredOutputs) {
     return 'Best for production workflows that need reliable typed outputs.'
   }
 
@@ -429,7 +427,7 @@ function computeModelRelevanceScore(model: CatalogModel): number {
     (model.capabilities.reasoningEffort ? 10 : 0) +
     (model.capabilities.thinking ? 10 : 0) +
     (model.capabilities.deepResearch ? 8 : 0) +
-    (supportsCatalogStructuredOutputs(model.capabilities) ? 4 : 0) +
+    (model.capabilities.nativeStructuredOutputs ? 4 : 0) +
     (model.contextWindow ?? 0) / 100000
   )
 }
