@@ -287,6 +287,29 @@ describe('EvaluatorBlockHandler', () => {
     expect((result as any).fluency).toBe(0)
   })
 
+  it('should throw a clear error when provider returns no content', async () => {
+    const inputs = {
+      content: 'Test content to evaluate',
+      metrics: [{ name: 'quality', description: 'Quality', range: { min: 0, max: 10 } }],
+      apiKey: 'test-api-key',
+    }
+
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            model: 'gpt-4o',
+            tokens: { input: 50, output: 0, total: 50 },
+          }),
+      })
+    })
+
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
+      'Provider returned an empty response'
+    )
+  })
+
   it('should extract metric scores ignoring case', async () => {
     const inputs = {
       content: 'Test',

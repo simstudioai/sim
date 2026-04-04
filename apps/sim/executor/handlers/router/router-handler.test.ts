@@ -244,6 +244,45 @@ describe('RouterBlockHandler', () => {
     await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow('Server error')
   })
 
+  it('should throw a clear error when provider returns no content', async () => {
+    const inputs = { prompt: 'Choose the best option.', apiKey: 'test-api-key' }
+
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            model: 'gpt-4o',
+            tokens: { input: 100, output: 0, total: 100 },
+          }),
+      })
+    })
+
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
+      'Provider returned an empty response'
+    )
+  })
+
+  it('should throw a clear error when provider content is empty string', async () => {
+    const inputs = { prompt: 'Choose the best option.', apiKey: 'test-api-key' }
+
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: '',
+            model: 'gpt-4o',
+            tokens: { input: 100, output: 0, total: 100 },
+          }),
+      })
+    })
+
+    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
+      'Provider returned an empty response'
+    )
+  })
+
   it('should handle Azure OpenAI models with endpoint and API version', async () => {
     const inputs = {
       prompt: 'Choose the best option.',
@@ -586,5 +625,31 @@ describe('RouterBlockHandler V2', () => {
 
     expect(result.selectedRoute).toBe('route-1')
     expect(result.reasoning).toBe('')
+  })
+
+  it('should throw a clear error when provider returns no content (V2)', async () => {
+    const inputs = {
+      context: 'I need help with billing',
+      model: 'gpt-4o',
+      apiKey: 'test-api-key',
+      routes: JSON.stringify([
+        { id: 'route-support', title: 'Support', value: 'Customer support inquiries' },
+      ]),
+    }
+
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            model: 'gpt-4o',
+            tokens: { input: 150, output: 0, total: 150 },
+          }),
+      })
+    })
+
+    await expect(handler.execute(mockContext, mockRouterV2Block, inputs)).rejects.toThrow(
+      'Provider returned an empty response'
+    )
   })
 })

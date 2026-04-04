@@ -124,6 +124,12 @@ export class RouterBlockHandler implements BlockHandler {
 
       const result = await response.json()
 
+      if (!result.content) {
+        throw new Error(
+          'Provider returned an empty response. The model may be unavailable or the request was malformed.'
+        )
+      }
+
       const chosenBlockId = result.content.trim().toLowerCase()
       const chosenBlock = targetBlocks?.find((b) => b.id === chosenBlockId)
 
@@ -272,6 +278,12 @@ export class RouterBlockHandler implements BlockHandler {
       }
 
       const result = await response.json()
+
+      if (!result.content) {
+        throw new Error(
+          'Provider returned an empty response. The model may be unavailable or the request was malformed.'
+        )
+      }
 
       let chosenRouteId: string
       let reasoning = ''

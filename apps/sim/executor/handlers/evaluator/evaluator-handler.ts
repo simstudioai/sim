@@ -145,6 +145,12 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
       const result = await response.json()
 
+      if (!result.content) {
+        throw new Error(
+          'Provider returned an empty response. The model may be unavailable or the request was malformed.'
+        )
+      }
+
       const parsedContent = this.extractJSONFromResponse(result.content)
 
       const metricScores = this.extractMetricScores(parsedContent, inputs.metrics)
