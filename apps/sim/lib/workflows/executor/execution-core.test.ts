@@ -123,6 +123,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       requestId: 'req-1',
       workflowId: 'workflow-1',
       userId: 'user-1',
+      workflowUserId: 'workflow-owner',
       workspaceId: 'workspace-1',
       triggerType: 'api',
       executionId: 'execution-1',
