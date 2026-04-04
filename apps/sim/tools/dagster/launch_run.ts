@@ -156,9 +156,7 @@ export const launchRunTool: ToolConfig<DagsterLaunchRunParams, DagsterLaunchRunR
       }
     }
 
-    throw new Error(
-      `${result.type}: ${dagsterUnionErrorMessage(result, 'Launch run failed')}`
-    )
+    throw new Error(`${result.type}: ${dagsterUnionErrorMessage(result, 'Launch run failed')}`)
   },
 
   outputs: {

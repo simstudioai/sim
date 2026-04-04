@@ -97,7 +97,7 @@ export const listRunsTool: ToolConfig<DagsterListRunsParams, DagsterListRunsResp
       }
 
       const hasFilter = Object.keys(filter).length > 0
-      const variables: Record<string, unknown> = { limit: params.limit ?? 20 }
+      const variables: Record<string, unknown> = { limit: params.limit || 20 }
       if (hasFilter) variables.filter = filter
 
       return {
