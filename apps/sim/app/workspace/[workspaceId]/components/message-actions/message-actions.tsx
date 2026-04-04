@@ -106,7 +106,7 @@ export function MessageActions({ content, chatId, userQuery }: MessageActionsPro
     })
     setPendingFeedback(null)
     setFeedbackText('')
-  }, [pendingFeedback, chatId, userQuery, content, feedbackText, submitFeedback])
+  }, [pendingFeedback, chatId, userQuery, content, feedbackText])
 
   const handleModalClose = useCallback((open: boolean) => {
     if (!open) {
