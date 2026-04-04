@@ -692,15 +692,9 @@ describe('Max Output Tokens', () => {
       expect(getMaxOutputTokensForModel('azure/gpt-5.2')).toBe(128000)
     })
 
-    it.concurrent(
-      'should return null when DeepSeek output limit is not exact enough to publish',
-      () => {
-        expect(getMaxOutputTokensForModel('deepseek-reasoner')).toBeNull()
-      }
-    )
-
-    it.concurrent('should return null when xAI does not publish a max output limit', () => {
-      expect(getMaxOutputTokensForModel('grok-4-latest')).toBeNull()
+    it.concurrent('should return standard default for models without maxOutputTokens', () => {
+      expect(getMaxOutputTokensForModel('deepseek-reasoner')).toBe(4096)
+      expect(getMaxOutputTokensForModel('grok-4-latest')).toBe(4096)
     })
 
     it.concurrent('should return published max for Bedrock Claude Opus 4.1', () => {
@@ -721,8 +715,8 @@ describe('Max Output Tokens', () => {
       expect(getMaxOutputTokensForModel('claude-opus-4-1')).toBe(32000)
     })
 
-    it.concurrent('should return null for unknown models', () => {
-      expect(getMaxOutputTokensForModel('unknown-model')).toBeNull()
+    it.concurrent('should return standard default for unknown models', () => {
+      expect(getMaxOutputTokensForModel('unknown-model')).toBe(4096)
     })
   })
 })

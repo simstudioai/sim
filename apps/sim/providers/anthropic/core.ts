@@ -293,9 +293,7 @@ export async function executeAnthropicProviderRequest(
     messages,
     system: systemPrompt,
     max_tokens:
-      Number.parseInt(String(request.maxTokens)) ||
-      getMaxOutputTokensForModel(request.model) ||
-      4096,
+      Number.parseInt(String(request.maxTokens)) || getMaxOutputTokensForModel(request.model),
     temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
   }
 
@@ -337,7 +335,7 @@ export async function executeAnthropicProviderRequest(
         const budgetTokens = thinkingConfig.thinking.budget_tokens
         const minMaxTokens = budgetTokens + 4096
         if (payload.max_tokens < minMaxTokens) {
-          const modelMax = getMaxOutputTokensForModel(request.model) ?? payload.max_tokens
+          const modelMax = getMaxOutputTokensForModel(request.model)
           payload.max_tokens = Math.min(minMaxTokens, modelMax)
           logger.info(
             `Adjusted max_tokens to ${payload.max_tokens} to satisfy budget_tokens (${budgetTokens}) constraint`

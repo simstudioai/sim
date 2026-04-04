@@ -2893,21 +2893,22 @@ export function getModelsWithoutMemory(): string[] {
  *
  * @param modelId - The model ID
  */
-export function getMaxOutputTokensForModel(modelId: string): number | null {
+export function getMaxOutputTokensForModel(modelId: string): number {
   const normalizedModelId = modelId.toLowerCase()
+  const STANDARD_MAX_OUTPUT_TOKENS = 4096
   const allModels = Object.values(PROVIDER_DEFINITIONS).flatMap((provider) => provider.models)
 
   const exactMatch = allModels.find((model) => model.id.toLowerCase() === normalizedModelId)
   if (exactMatch) {
-    return exactMatch.capabilities.maxOutputTokens ?? null
+    return exactMatch.capabilities.maxOutputTokens || STANDARD_MAX_OUTPUT_TOKENS
   }
 
   for (const model of allModels) {
     const baseModelId = model.id.toLowerCase()
     if (normalizedModelId.startsWith(`${baseModelId}-`)) {
-      return model.capabilities.maxOutputTokens ?? null
+      return model.capabilities.maxOutputTokens || STANDARD_MAX_OUTPUT_TOKENS
     }
   }
 
-  return null
+  return STANDARD_MAX_OUTPUT_TOKENS
 }

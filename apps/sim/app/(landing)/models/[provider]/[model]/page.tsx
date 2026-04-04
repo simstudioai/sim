@@ -231,13 +231,11 @@ export default async function ModelPage({
                 ? `${formatPrice(model.pricing.cachedInput)}/1M`
                 : 'N/A'
             }
-            compact
           />
           <StatCard label='Output price' value={`${formatPrice(model.pricing.output)}/1M`} />
           <StatCard
             label='Context window'
             value={model.contextWindow ? formatTokenCount(model.contextWindow) : 'Unknown'}
-            compact
           />
         </section>
 
