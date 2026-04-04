@@ -415,11 +415,11 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       const message = (e as CustomEvent<{ message: string }>).detail?.message
       if (!message) return
       setActiveTab('copilot')
-      setCopilotEditingInputValue(message)
+      copilotSendMessage(message)
     }
     window.addEventListener('mothership-send-message', handler)
     return () => window.removeEventListener('mothership-send-message', handler)
-  }, [setActiveTab])
+  }, [setActiveTab, copilotSendMessage])
 
   /**
    * Handles tab click events
