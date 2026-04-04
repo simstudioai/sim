@@ -28,6 +28,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useVariablesStore as usePanelVariablesStore } from '@/stores/panel'
+import type { Variable } from '@/stores/panel/variables/types'
 import {
   getVariablesPosition,
   MAX_VARIABLES_HEIGHT,
@@ -36,7 +37,6 @@ import {
   MIN_VARIABLES_WIDTH,
   useVariablesStore,
 } from '@/stores/variables/store'
-import type { Variable } from '@/stores/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**
