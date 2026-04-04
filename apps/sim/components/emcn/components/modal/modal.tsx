@@ -52,13 +52,6 @@ const ANIMATION_CLASSES =
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
 
 /**
- * Modal content animation classes.
- * We keep only the slide animations (no zoom) to stabilize positioning while avoiding scale effects.
- */
-const CONTENT_ANIMATION_CLASSES =
-  'data-[state=closed]:slide-out-to-top-[50%] data-[state=open]:slide-in-from-top-[50%] motion-reduce:animate-none'
-
-/**
  * Root modal component. Manages open state.
  */
 const Modal = DialogPrimitive.Root
@@ -160,8 +153,6 @@ const ModalContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          ANIMATION_CLASSES,
-          CONTENT_ANIMATION_CLASSES,
           'fixed top-[50%] z-[var(--z-modal)] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-small ring-1 ring-foreground/10 duration-200',
           MODAL_SIZES[size],
           className
