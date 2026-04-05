@@ -55,6 +55,34 @@ export interface ProcessFilesContext {
   userId: string
 }
 
+/** Context for creating an external webhook subscription during deployment. */
+export interface SubscriptionContext {
+  webhook: Record<string, unknown>
+  workflow: Record<string, unknown>
+  userId: string
+  requestId: string
+  request: NextRequest
+}
+
+/** Result of creating an external webhook subscription. */
+export interface SubscriptionResult {
+  /** Fields to merge into providerConfig (externalId, webhookSecret, etc.) */
+  providerConfigUpdates?: Record<string, unknown>
+}
+
+/** Context for deleting an external webhook subscription during undeployment. */
+export interface DeleteSubscriptionContext {
+  webhook: Record<string, unknown>
+  workflow: Record<string, unknown>
+  requestId: string
+}
+
+/** Context for configuring polling after webhook creation. */
+export interface PollingConfigContext {
+  webhook: Record<string, unknown>
+  requestId: string
+}
+
 /**
  * Strategy interface for provider-specific webhook behavior.
  * Each provider implements only the methods it needs — all methods are optional.
@@ -95,4 +123,21 @@ export interface WebhookProviderHandler {
 
   /** Post-process input to handle file uploads before execution. */
   processInputFiles?(ctx: ProcessFilesContext): Promise<void>
+
+  /** Create an external webhook subscription (e.g., register with Telegram, Airtable, etc.). */
+  createSubscription?(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined>
+
+  /** Delete an external webhook subscription during cleanup. Errors should not throw. */
+  deleteSubscription?(ctx: DeleteSubscriptionContext): Promise<void>
+
+  /** Configure polling after webhook creation (gmail, outlook, rss, imap). */
+  configurePolling?(ctx: PollingConfigContext): Promise<boolean>
+
+  /** Handle verification challenges before webhook lookup (Slack url_verification, WhatsApp hub.verify_token, Teams validationToken). */
+  handleChallenge?(
+    body: unknown,
+    request: NextRequest,
+    requestId: string,
+    path: string
+  ): Promise<NextResponse | null> | NextResponse | null
 }

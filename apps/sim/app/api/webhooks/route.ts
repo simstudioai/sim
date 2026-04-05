@@ -12,15 +12,11 @@ import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import {
-  configureGmailPolling,
-  configureOutlookPolling,
-  configureRssPolling,
-} from '@/lib/webhooks/polling-config'
-import {
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
   shouldRecreateExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
+import { getProviderHandler } from '@/lib/webhooks/providers'
 import { mergeNonUserFields } from '@/lib/webhooks/utils'
 import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
@@ -402,16 +398,13 @@ export async function POST(request: NextRequest) {
             )
           }
 
-          const needsConfiguration = provider === 'gmail' || provider === 'outlook'
+          const providerHandler = getProviderHandler(provider)
 
-          if (needsConfiguration) {
-            const configureFunc =
-              provider === 'gmail' ? configureGmailPolling : configureOutlookPolling
+          if (providerHandler.configurePolling) {
             const configureErrors: string[] = []
 
             for (const wh of syncResult.webhooks) {
               if (wh.isNew) {
-                // Fetch the webhook data for configuration
                 const webhookRows = await db
                   .select()
                   .from(webhook)
@@ -419,7 +412,10 @@ export async function POST(request: NextRequest) {
                   .limit(1)
 
                 if (webhookRows.length > 0) {
-                  const success = await configureFunc(webhookRows[0], requestId)
+                  const success = await providerHandler.configurePolling({
+                    webhook: webhookRows[0],
+                    requestId,
+                  })
                   if (!success) {
                     configureErrors.push(
                       `Failed to configure webhook for credential ${wh.credentialId}`
@@ -436,7 +432,6 @@ export async function POST(request: NextRequest) {
               configureErrors.length > 0 &&
               configureErrors.length === syncResult.webhooks.length
             ) {
-              // All configurations failed - roll back
               logger.error(`[${requestId}] All webhook configurations failed, rolling back`)
               for (const wh of syncResult.webhooks) {
                 await db.delete(webhook).where(eq(webhook.id, wh.id))
@@ -629,115 +624,51 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // --- Gmail/Outlook webhook setup (these don't require external subscriptions, configure after DB save) ---
-    if (savedWebhook && provider === 'gmail') {
-      logger.info(`[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`)
-      try {
-        const success = await configureGmailPolling(savedWebhook, requestId)
+    // --- Polling provider setup (Gmail, Outlook, RSS, IMAP, etc.) ---
+    if (savedWebhook) {
+      const pollingHandler = getProviderHandler(provider)
+      if (pollingHandler.configurePolling) {
+        logger.info(
+          `[${requestId}] ${provider} provider detected. Setting up polling configuration.`
+        )
+        try {
+          const success = await pollingHandler.configurePolling({
+            webhook: savedWebhook,
+            requestId,
+          })
 
-        if (!success) {
-          logger.error(`[${requestId}] Failed to configure Gmail polling, rolling back webhook`)
+          if (!success) {
+            logger.error(
+              `[${requestId}] Failed to configure ${provider} polling, rolling back webhook`
+            )
+            await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
+            return NextResponse.json(
+              {
+                error: `Failed to configure ${provider} polling`,
+                details: 'Please check your account permissions and try again',
+              },
+              { status: 500 }
+            )
+          }
+
+          logger.info(`[${requestId}] Successfully configured ${provider} polling`)
+        } catch (err) {
+          logger.error(
+            `[${requestId}] Error setting up ${provider} webhook configuration, rolling back webhook`,
+            err
+          )
           await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
           return NextResponse.json(
             {
-              error: 'Failed to configure Gmail polling',
-              details: 'Please check your Gmail account permissions and try again',
+              error: `Failed to configure ${provider} webhook`,
+              details: err instanceof Error ? err.message : 'Unknown error',
             },
             { status: 500 }
           )
         }
-
-        logger.info(`[${requestId}] Successfully configured Gmail polling`)
-      } catch (err) {
-        logger.error(
-          `[${requestId}] Error setting up Gmail webhook configuration, rolling back webhook`,
-          err
-        )
-        await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
-        return NextResponse.json(
-          {
-            error: 'Failed to configure Gmail webhook',
-            details: err instanceof Error ? err.message : 'Unknown error',
-          },
-          { status: 500 }
-        )
       }
     }
-    // --- End Gmail specific logic ---
-
-    // --- Outlook webhook setup ---
-    if (savedWebhook && provider === 'outlook') {
-      logger.info(
-        `[${requestId}] Outlook provider detected. Setting up Outlook webhook configuration.`
-      )
-      try {
-        const success = await configureOutlookPolling(savedWebhook, requestId)
-
-        if (!success) {
-          logger.error(`[${requestId}] Failed to configure Outlook polling, rolling back webhook`)
-          await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
-          return NextResponse.json(
-            {
-              error: 'Failed to configure Outlook polling',
-              details: 'Please check your Outlook account permissions and try again',
-            },
-            { status: 500 }
-          )
-        }
-
-        logger.info(`[${requestId}] Successfully configured Outlook polling`)
-      } catch (err) {
-        logger.error(
-          `[${requestId}] Error setting up Outlook webhook configuration, rolling back webhook`,
-          err
-        )
-        await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
-        return NextResponse.json(
-          {
-            error: 'Failed to configure Outlook webhook',
-            details: err instanceof Error ? err.message : 'Unknown error',
-          },
-          { status: 500 }
-        )
-      }
-    }
-    // --- End Outlook specific logic ---
-
-    // --- RSS webhook setup ---
-    if (savedWebhook && provider === 'rss') {
-      logger.info(`[${requestId}] RSS provider detected. Setting up RSS webhook configuration.`)
-      try {
-        const success = await configureRssPolling(savedWebhook, requestId)
-
-        if (!success) {
-          logger.error(`[${requestId}] Failed to configure RSS polling, rolling back webhook`)
-          await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
-          return NextResponse.json(
-            {
-              error: 'Failed to configure RSS polling',
-              details: 'Please try again',
-            },
-            { status: 500 }
-          )
-        }
-
-        logger.info(`[${requestId}] Successfully configured RSS polling`)
-      } catch (err) {
-        logger.error(
-          `[${requestId}] Error setting up RSS webhook configuration, rolling back webhook`,
-          err
-        )
-        await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
-        return NextResponse.json(
-          {
-            error: 'Failed to configure RSS webhook',
-            details: err instanceof Error ? err.message : 'Unknown error',
-          },
-          { status: 500 }
-        )
-      }
-    }
-    // --- End RSS specific logic ---
+    // --- End polling provider setup ---
 
     if (!targetWebhookId && savedWebhook) {
       try {

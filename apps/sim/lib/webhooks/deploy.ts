@@ -6,12 +6,12 @@ import type { NextRequest } from 'next/server'
 import { generateShortId } from '@/lib/core/utils/uuid'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
-import { configureGmailPolling, configureOutlookPolling } from '@/lib/webhooks/polling-config'
 import {
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
   shouldRecreateExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
+import { getProviderHandler } from '@/lib/webhooks/providers'
 import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -230,29 +230,20 @@ function buildProviderConfig(
 
 async function configurePollingIfNeeded(
   provider: string,
-  savedWebhook: any,
+  savedWebhook: Record<string, unknown>,
   requestId: string
 ): Promise<TriggerSaveError | null> {
-  if (provider === 'gmail') {
-    const success = await configureGmailPolling(savedWebhook, requestId)
-    if (!success) {
-      await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
-      return {
-        message: 'Failed to configure Gmail polling. Please check your Gmail account permissions.',
-        status: 500,
-      }
-    }
+  const handler = getProviderHandler(provider)
+  if (!handler.configurePolling) {
+    return null
   }
 
-  if (provider === 'outlook') {
-    const success = await configureOutlookPolling(savedWebhook, requestId)
-    if (!success) {
-      await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
-      return {
-        message:
-          'Failed to configure Outlook polling. Please check your Outlook account permissions.',
-        status: 500,
-      }
+  const success = await handler.configurePolling({ webhook: savedWebhook, requestId })
+  if (!success) {
+    await db.delete(webhook).where(eq(webhook.id, savedWebhook.id as string))
+    return {
+      message: `Failed to configure ${provider} polling. Please check your account permissions.`,
+      status: 500,
     }
   }
 
@@ -319,13 +310,13 @@ async function syncCredentialSetWebhooks(params: {
     }
   }
 
-  if (provider === 'gmail' || provider === 'outlook') {
-    const configureFunc = provider === 'gmail' ? configureGmailPolling : configureOutlookPolling
+  const handler = getProviderHandler(provider)
+  if (handler.configurePolling) {
     for (const wh of syncResult.webhooks) {
       if (wh.isNew) {
         const rows = await db.select().from(webhook).where(eq(webhook.id, wh.id)).limit(1)
         if (rows.length > 0) {
-          const success = await configureFunc(rows[0], requestId)
+          const success = await handler.configurePolling({ webhook: rows[0], requestId })
           if (!success) {
             await db.delete(webhook).where(eq(webhook.id, wh.id))
             return {

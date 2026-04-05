@@ -7,6 +7,7 @@ import { calcomHandler } from '@/lib/webhooks/providers/calcom'
 import { calendlyHandler } from '@/lib/webhooks/providers/calendly'
 import { circlebackHandler } from '@/lib/webhooks/providers/circleback'
 import { confluenceHandler } from '@/lib/webhooks/providers/confluence'
+import { fathomHandler } from '@/lib/webhooks/providers/fathom'
 import { firefliesHandler } from '@/lib/webhooks/providers/fireflies'
 import { genericHandler } from '@/lib/webhooks/providers/generic'
 import { githubHandler } from '@/lib/webhooks/providers/github'
@@ -16,6 +17,7 @@ import { grainHandler } from '@/lib/webhooks/providers/grain'
 import { hubspotHandler } from '@/lib/webhooks/providers/hubspot'
 import { imapHandler } from '@/lib/webhooks/providers/imap'
 import { jiraHandler } from '@/lib/webhooks/providers/jira'
+import { lemlistHandler } from '@/lib/webhooks/providers/lemlist'
 import { linearHandler } from '@/lib/webhooks/providers/linear'
 import { microsoftTeamsHandler } from '@/lib/webhooks/providers/microsoft-teams'
 import { outlookHandler } from '@/lib/webhooks/providers/outlook'
@@ -46,10 +48,12 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   gmail: gmailHandler,
   github: githubHandler,
   google_forms: googleFormsHandler,
+  fathom: fathomHandler,
   grain: grainHandler,
   hubspot: hubspotHandler,
   imap: imapHandler,
   jira: jiraHandler,
+  lemlist: lemlistHandler,
   linear: linearHandler,
   'microsoft-teams': microsoftTeamsHandler,
   outlook: outlookHandler,

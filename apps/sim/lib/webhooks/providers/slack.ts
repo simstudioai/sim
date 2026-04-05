@@ -190,6 +190,10 @@ export function handleSlackChallenge(body: unknown): NextResponse | null {
 }
 
 export const slackHandler: WebhookProviderHandler = {
+  handleChallenge(body: unknown) {
+    return handleSlackChallenge(body)
+  },
+
   extractIdempotencyId(body: unknown) {
     const obj = body as Record<string, unknown>
     if (obj.event_id) {

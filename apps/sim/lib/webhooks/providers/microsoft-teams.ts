@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
 import {
   type SecureFetchResponse,
@@ -11,11 +11,19 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
+import {
+  getCredentialOwner,
+  getNotificationUrl,
+  getProviderConfig,
+} from '@/lib/webhooks/providers/subscription-utils'
 import type {
   AuthContext,
+  DeleteSubscriptionContext,
   EventFilterContext,
   FormatInputContext,
   FormatInputResult,
+  SubscriptionContext,
+  SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
@@ -449,6 +457,19 @@ async function formatTeamsGraphNotification(
 }
 
 export const microsoftTeamsHandler: WebhookProviderHandler = {
+  handleChallenge(_body: unknown, request: NextRequest, requestId: string, path: string) {
+    const url = new URL(request.url)
+    const validationToken = url.searchParams.get('validationToken')
+    if (validationToken) {
+      logger.info(`[${requestId}] Microsoft Graph subscription validation for path: ${path}`)
+      return new NextResponse(validationToken, {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain' },
+      })
+    }
+    return null
+  },
+
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     if (providerConfig.hmacSecret) {
       const authHeader = request.headers.get('authorization')
@@ -500,6 +521,208 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       { type: 'message', text: 'Webhook processing failed' },
       { status: 500 }
     )
+  },
+
+  async createSubscription({
+    webhook,
+    workflow,
+    userId,
+    requestId,
+    request,
+  }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
+    const config = getProviderConfig(webhook)
+
+    if (config.triggerId !== 'microsoftteams_chat_subscription') {
+      return undefined
+    }
+
+    const credentialId = config.credentialId as string | undefined
+    const chatId = config.chatId as string | undefined
+
+    if (!credentialId) {
+      logger.warn(`[${requestId}] Missing credentialId for Teams chat subscription ${webhook.id}`)
+      throw new Error(
+        'Microsoft Teams credentials are required. Please connect your Microsoft account in the trigger configuration.'
+      )
+    }
+
+    if (!chatId) {
+      logger.warn(`[${requestId}] Missing chatId for Teams chat subscription ${webhook.id}`)
+      throw new Error(
+        'Chat ID is required to create a Teams subscription. Please provide a valid chat ID.'
+      )
+    }
+
+    const credentialOwner = await getCredentialOwner(credentialId, requestId)
+    const accessToken = credentialOwner
+      ? await refreshAccessTokenIfNeeded(
+          credentialOwner.accountId,
+          credentialOwner.userId,
+          requestId
+        )
+      : null
+    if (!accessToken) {
+      logger.error(`[${requestId}] Failed to get access token for Teams subscription ${webhook.id}`)
+      throw new Error(
+        'Failed to authenticate with Microsoft Teams. Please reconnect your Microsoft account and try again.'
+      )
+    }
+
+    const existingSubscriptionId = config.externalSubscriptionId as string | undefined
+    if (existingSubscriptionId) {
+      try {
+        const checkRes = await fetch(
+          `https://graph.microsoft.com/v1.0/subscriptions/${existingSubscriptionId}`,
+          { method: 'GET', headers: { Authorization: `Bearer ${accessToken}` } }
+        )
+        if (checkRes.ok) {
+          logger.info(
+            `[${requestId}] Teams subscription ${existingSubscriptionId} already exists for webhook ${webhook.id}`
+          )
+          return { providerConfigUpdates: { externalSubscriptionId: existingSubscriptionId } }
+        }
+      } catch {
+        logger.debug(`[${requestId}] Existing subscription check failed, will create new one`)
+      }
+    }
+
+    const notificationUrl = getNotificationUrl(webhook)
+    const resource = `/chats/${chatId}/messages`
+
+    const maxLifetimeMinutes = 4230
+    const expirationDateTime = new Date(Date.now() + maxLifetimeMinutes * 60 * 1000).toISOString()
+
+    const body = {
+      changeType: 'created,updated',
+      notificationUrl,
+      lifecycleNotificationUrl: notificationUrl,
+      resource,
+      includeResourceData: false,
+      expirationDateTime,
+      clientState: webhook.id,
+    }
+
+    try {
+      const res = await fetch('https://graph.microsoft.com/v1.0/subscriptions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+
+      const payload = await res.json()
+      if (!res.ok) {
+        const errorMessage =
+          payload.error?.message || payload.error?.code || 'Unknown Microsoft Graph API error'
+        logger.error(
+          `[${requestId}] Failed to create Teams subscription for webhook ${webhook.id}`,
+          {
+            status: res.status,
+            error: payload.error,
+          }
+        )
+
+        let userFriendlyMessage = 'Failed to create Teams subscription'
+        if (res.status === 401 || res.status === 403) {
+          userFriendlyMessage =
+            'Authentication failed. Please reconnect your Microsoft Teams account and ensure you have the necessary permissions.'
+        } else if (res.status === 404) {
+          userFriendlyMessage =
+            'Chat not found. Please verify that the Chat ID is correct and that you have access to the specified chat.'
+        } else if (errorMessage && errorMessage !== 'Unknown Microsoft Graph API error') {
+          userFriendlyMessage = `Teams error: ${errorMessage}`
+        }
+
+        throw new Error(userFriendlyMessage)
+      }
+
+      logger.info(
+        `[${requestId}] Successfully created Teams subscription ${payload.id} for webhook ${webhook.id}`
+      )
+      return { providerConfigUpdates: { externalSubscriptionId: payload.id as string } }
+    } catch (error: unknown) {
+      if (
+        error instanceof Error &&
+        (error.message.includes('credentials') ||
+          error.message.includes('Chat ID') ||
+          error.message.includes('authenticate'))
+      ) {
+        throw error
+      }
+
+      logger.error(
+        `[${requestId}] Error creating Teams subscription for webhook ${webhook.id}`,
+        error
+      )
+      throw new Error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to create Teams subscription. Please try again.'
+      )
+    }
+  },
+
+  async deleteSubscription({
+    webhook,
+    workflow,
+    requestId,
+  }: DeleteSubscriptionContext): Promise<void> {
+    try {
+      const config = getProviderConfig(webhook)
+
+      if (config.triggerId !== 'microsoftteams_chat_subscription') {
+        return
+      }
+
+      const externalSubscriptionId = config.externalSubscriptionId as string | undefined
+      const credentialId = config.credentialId as string | undefined
+
+      if (!externalSubscriptionId || !credentialId) {
+        logger.info(`[${requestId}] No external subscription to delete for webhook ${webhook.id}`)
+        return
+      }
+
+      const credentialOwner = await getCredentialOwner(credentialId, requestId)
+      const accessToken = credentialOwner
+        ? await refreshAccessTokenIfNeeded(
+            credentialOwner.accountId,
+            credentialOwner.userId,
+            requestId
+          )
+        : null
+      if (!accessToken) {
+        logger.warn(
+          `[${requestId}] Could not get access token to delete Teams subscription for webhook ${webhook.id}`
+        )
+        return
+      }
+
+      const res = await fetch(
+        `https://graph.microsoft.com/v1.0/subscriptions/${externalSubscriptionId}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      )
+
+      if (res.ok || res.status === 404) {
+        logger.info(
+          `[${requestId}] Successfully deleted Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}`
+        )
+      } else {
+        const errorBody = await res.text()
+        logger.warn(
+          `[${requestId}] Failed to delete Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}. Status: ${res.status}`
+        )
+      }
+    } catch (error) {
+      logger.error(
+        `[${requestId}] Error deleting Teams subscription for webhook ${webhook.id}`,
+        error
+      )
+    }
   },
 
   async formatInput({

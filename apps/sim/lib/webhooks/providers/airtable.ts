@@ -2,8 +2,25 @@ import { db } from '@sim/db'
 import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import type { FormatInputContext, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
-import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
+import { validateAirtableId } from '@/lib/core/security/input-validation'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import {
+  getCredentialOwner,
+  getNotificationUrl,
+  getProviderConfig,
+} from '@/lib/webhooks/providers/subscription-utils'
+import type {
+  DeleteSubscriptionContext,
+  FormatInputContext,
+  SubscriptionContext,
+  SubscriptionResult,
+  WebhookProviderHandler,
+} from '@/lib/webhooks/providers/types'
+import {
+  getOAuthToken,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('WebhookProvider:Airtable')
 
@@ -415,6 +432,289 @@ async function fetchAndProcessAirtablePayloads(
 }
 
 export const airtableHandler: WebhookProviderHandler = {
+  async createSubscription({
+    webhook: webhookRecord,
+    workflow,
+    userId,
+    requestId,
+  }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
+    try {
+      const { path, providerConfig } = webhookRecord as Record<string, unknown>
+      const config = (providerConfig as Record<string, unknown>) || {}
+      const { baseId, tableId, includeCellValuesInFieldIds, credentialId } = config as {
+        baseId?: string
+        tableId?: string
+        includeCellValuesInFieldIds?: string
+        credentialId?: string
+      }
+
+      if (!baseId || !tableId) {
+        logger.warn(`[${requestId}] Missing baseId or tableId for Airtable webhook creation.`, {
+          webhookId: webhookRecord.id,
+        })
+        throw new Error(
+          'Base ID and Table ID are required to create Airtable webhook. Please provide valid Airtable base and table IDs.'
+        )
+      }
+
+      const baseIdValidation = validateAirtableId(baseId, 'app', 'baseId')
+      if (!baseIdValidation.isValid) {
+        throw new Error(baseIdValidation.error)
+      }
+
+      const tableIdValidation = validateAirtableId(tableId, 'tbl', 'tableId')
+      if (!tableIdValidation.isValid) {
+        throw new Error(tableIdValidation.error)
+      }
+
+      const credentialOwner = credentialId
+        ? await getCredentialOwner(credentialId, requestId)
+        : null
+      const accessToken = credentialId
+        ? credentialOwner
+          ? await refreshAccessTokenIfNeeded(
+              credentialOwner.accountId,
+              credentialOwner.userId,
+              requestId
+            )
+          : null
+        : await getOAuthToken(userId, 'airtable')
+      if (!accessToken) {
+        logger.warn(
+          `[${requestId}] Could not retrieve Airtable access token for user ${userId}. Cannot create webhook in Airtable.`
+        )
+        throw new Error(
+          'Airtable account connection required. Please connect your Airtable account in the trigger configuration and try again.'
+        )
+      }
+
+      const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+
+      const airtableApiUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks`
+
+      const specification: Record<string, unknown> = {
+        options: {
+          filters: {
+            dataTypes: ['tableData'],
+            recordChangeScope: tableId,
+          },
+        },
+      }
+
+      if (includeCellValuesInFieldIds === 'all') {
+        ;(specification.options as Record<string, unknown>).includes = {
+          includeCellValuesInFieldIds: 'all',
+        }
+      }
+
+      const requestBody: Record<string, unknown> = {
+        notificationUrl: notificationUrl,
+        specification: specification,
+      }
+
+      const airtableResponse = await fetch(airtableApiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      const responseBody = await airtableResponse.json()
+
+      if (!airtableResponse.ok || responseBody.error) {
+        const errorMessage =
+          responseBody.error?.message || responseBody.error || 'Unknown Airtable API error'
+        const errorType = responseBody.error?.type
+        logger.error(
+          `[${requestId}] Failed to create webhook in Airtable for webhook ${webhookRecord.id}. Status: ${airtableResponse.status}`,
+          { type: errorType, message: errorMessage, response: responseBody }
+        )
+
+        let userFriendlyMessage = 'Failed to create webhook subscription in Airtable'
+        if (airtableResponse.status === 404) {
+          userFriendlyMessage =
+            'Airtable base or table not found. Please verify that the Base ID and Table ID are correct and that you have access to them.'
+        } else if (errorMessage && errorMessage !== 'Unknown Airtable API error') {
+          userFriendlyMessage = `Airtable error: ${errorMessage}`
+        }
+
+        throw new Error(userFriendlyMessage)
+      }
+      logger.info(
+        `[${requestId}] Successfully created webhook in Airtable for webhook ${webhookRecord.id}.`,
+        {
+          airtableWebhookId: responseBody.id,
+        }
+      )
+      return { providerConfigUpdates: { externalId: responseBody.id } }
+    } catch (error: unknown) {
+      const err = error as Error
+      logger.error(
+        `[${requestId}] Exception during Airtable webhook creation for webhook ${webhookRecord.id}.`,
+        {
+          message: err.message,
+          stack: err.stack,
+        }
+      )
+      throw error
+    }
+  },
+
+  async deleteSubscription({
+    webhook: webhookRecord,
+    workflow,
+    requestId,
+  }: DeleteSubscriptionContext): Promise<void> {
+    try {
+      const config = getProviderConfig(webhookRecord)
+      const { baseId, externalId } = config as {
+        baseId?: string
+        externalId?: string
+      }
+
+      if (!baseId) {
+        logger.warn(`[${requestId}] Missing baseId for Airtable webhook deletion`, {
+          webhookId: webhookRecord.id,
+        })
+        return
+      }
+
+      const baseIdValidation = validateAirtableId(baseId, 'app', 'baseId')
+      if (!baseIdValidation.isValid) {
+        logger.warn(`[${requestId}] Invalid Airtable base ID format, skipping deletion`, {
+          webhookId: webhookRecord.id,
+          baseId: baseId.substring(0, 20),
+        })
+        return
+      }
+
+      const credentialId = config.credentialId as string | undefined
+      if (!credentialId) {
+        logger.warn(
+          `[${requestId}] Missing credentialId for Airtable webhook deletion ${webhookRecord.id}`
+        )
+        return
+      }
+
+      const credentialOwner = await getCredentialOwner(credentialId, requestId)
+      const accessToken = credentialOwner
+        ? await refreshAccessTokenIfNeeded(
+            credentialOwner.accountId,
+            credentialOwner.userId,
+            requestId
+          )
+        : null
+      if (!accessToken) {
+        logger.warn(
+          `[${requestId}] Could not retrieve Airtable access token. Cannot delete webhook in Airtable.`,
+          { webhookId: webhookRecord.id }
+        )
+        return
+      }
+
+      let resolvedExternalId: string | undefined = externalId
+
+      if (!resolvedExternalId) {
+        try {
+          const expectedNotificationUrl = getNotificationUrl(webhookRecord)
+
+          const listUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks`
+          const listResp = await fetch(listUrl, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          })
+          const listBody = await listResp.json().catch(() => null)
+
+          if (listResp.ok && listBody && Array.isArray(listBody.webhooks)) {
+            const match = listBody.webhooks.find((w: Record<string, unknown>) => {
+              const url: string | undefined = w?.notificationUrl as string | undefined
+              if (!url) return false
+              return (
+                url === expectedNotificationUrl ||
+                url.endsWith(`/api/webhooks/trigger/${webhookRecord.path}`)
+              )
+            })
+            if (match?.id) {
+              resolvedExternalId = match.id as string
+              logger.info(`[${requestId}] Resolved Airtable externalId by listing webhooks`, {
+                baseId,
+                externalId: resolvedExternalId,
+              })
+            } else {
+              logger.warn(`[${requestId}] Could not resolve Airtable externalId from list`, {
+                baseId,
+                expectedNotificationUrl,
+              })
+            }
+          } else {
+            logger.warn(`[${requestId}] Failed to list Airtable webhooks to resolve externalId`, {
+              baseId,
+              status: listResp.status,
+              body: listBody,
+            })
+          }
+        } catch (e: unknown) {
+          logger.warn(`[${requestId}] Error attempting to resolve Airtable externalId`, {
+            error: (e as Error)?.message,
+          })
+        }
+      }
+
+      if (!resolvedExternalId) {
+        logger.info(`[${requestId}] Airtable externalId not found; skipping remote deletion`, {
+          baseId,
+        })
+        return
+      }
+
+      const webhookIdValidation = validateAirtableId(resolvedExternalId, 'ach', 'webhookId')
+      if (!webhookIdValidation.isValid) {
+        logger.warn(`[${requestId}] Invalid Airtable webhook ID format, skipping deletion`, {
+          webhookId: webhookRecord.id,
+          externalId: resolvedExternalId.substring(0, 20),
+        })
+        return
+      }
+
+      const airtableDeleteUrl = `https://api.airtable.com/v0/bases/${baseId}/webhooks/${resolvedExternalId}`
+      const airtableResponse = await fetch(airtableDeleteUrl, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      if (!airtableResponse.ok) {
+        let responseBody: unknown = null
+        try {
+          responseBody = await airtableResponse.json()
+        } catch {
+          // Ignore parse errors
+        }
+
+        logger.warn(
+          `[${requestId}] Failed to delete Airtable webhook in Airtable. Status: ${airtableResponse.status}`,
+          { baseId, externalId: resolvedExternalId, response: responseBody }
+        )
+      } else {
+        logger.info(`[${requestId}] Successfully deleted Airtable webhook in Airtable`, {
+          baseId,
+          externalId: resolvedExternalId,
+        })
+      }
+    } catch (error: unknown) {
+      const err = error as Error
+      logger.error(`[${requestId}] Error deleting Airtable webhook`, {
+        webhookId: webhookRecord.id,
+        error: err.message,
+        stack: err.stack,
+      })
+    }
+  },
+
   extractIdempotencyId(body: unknown) {
     const obj = body as Record<string, unknown>
     if (typeof obj.cursor === 'string') {

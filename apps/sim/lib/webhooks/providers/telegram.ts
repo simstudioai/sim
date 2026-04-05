@@ -1,8 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/providers/subscription-utils'
 import type {
   AuthContext,
+  DeleteSubscriptionContext,
   FormatInputContext,
   FormatInputResult,
+  SubscriptionContext,
+  SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 
@@ -93,6 +97,109 @@ export const telegramHandler: WebhookProviderHandler = {
         updateId: b.update_id,
         updateType,
       },
+    }
+  },
+
+  async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
+    const config = getProviderConfig(ctx.webhook)
+    const botToken = config.botToken as string | undefined
+
+    if (!botToken) {
+      logger.warn(`[${ctx.requestId}] Missing botToken for Telegram webhook ${ctx.webhook.id}`)
+      throw new Error(
+        'Bot token is required to create a Telegram webhook. Please provide a valid Telegram bot token.'
+      )
+    }
+
+    const notificationUrl = getNotificationUrl(ctx.webhook)
+    const telegramApiUrl = `https://api.telegram.org/bot${botToken}/setWebhook`
+
+    try {
+      const telegramResponse = await fetch(telegramApiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'TelegramBot/1.0',
+        },
+        body: JSON.stringify({ url: notificationUrl }),
+      })
+
+      const responseBody = await telegramResponse.json()
+      if (!telegramResponse.ok || !responseBody.ok) {
+        const errorMessage =
+          responseBody.description ||
+          `Failed to create Telegram webhook. Status: ${telegramResponse.status}`
+        logger.error(`[${ctx.requestId}] ${errorMessage}`, { response: responseBody })
+
+        let userFriendlyMessage = 'Failed to create Telegram webhook'
+        if (telegramResponse.status === 401) {
+          userFriendlyMessage =
+            'Invalid bot token. Please verify that the bot token is correct and try again.'
+        } else if (responseBody.description) {
+          userFriendlyMessage = `Telegram error: ${responseBody.description}`
+        }
+
+        throw new Error(userFriendlyMessage)
+      }
+
+      logger.info(
+        `[${ctx.requestId}] Successfully created Telegram webhook for webhook ${ctx.webhook.id}`
+      )
+      return {}
+    } catch (error: unknown) {
+      if (
+        error instanceof Error &&
+        (error.message.includes('Bot token') || error.message.includes('Telegram error'))
+      ) {
+        throw error
+      }
+
+      logger.error(
+        `[${ctx.requestId}] Error creating Telegram webhook for webhook ${ctx.webhook.id}`,
+        error
+      )
+      throw new Error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to create Telegram webhook. Please try again.'
+      )
+    }
+  },
+
+  async deleteSubscription(ctx: DeleteSubscriptionContext): Promise<void> {
+    try {
+      const config = getProviderConfig(ctx.webhook)
+      const botToken = config.botToken as string | undefined
+
+      if (!botToken) {
+        logger.warn(
+          `[${ctx.requestId}] Missing botToken for Telegram webhook deletion ${ctx.webhook.id}`
+        )
+        return
+      }
+
+      const telegramApiUrl = `https://api.telegram.org/bot${botToken}/deleteWebhook`
+      const telegramResponse = await fetch(telegramApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      const responseBody = await telegramResponse.json()
+      if (!telegramResponse.ok || !responseBody.ok) {
+        const errorMessage =
+          responseBody.description ||
+          `Failed to delete Telegram webhook. Status: ${telegramResponse.status}`
+        logger.error(`[${ctx.requestId}] ${errorMessage}`, { response: responseBody })
+      } else {
+        logger.info(
+          `[${ctx.requestId}] Successfully deleted Telegram webhook for webhook ${ctx.webhook.id}`
+        )
+      }
+    } catch (error) {
+      logger.error(
+        `[${ctx.requestId}] Error deleting Telegram webhook for webhook ${ctx.webhook.id}`,
+        error
+      )
     }
   },
 }

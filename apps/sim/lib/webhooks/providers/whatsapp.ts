@@ -2,7 +2,7 @@ import { db, workflowDeploymentVersion } from '@sim/db'
 import { webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import type {
   FormatInputContext,
   FormatInputResult,
@@ -78,6 +78,14 @@ export async function handleWhatsAppVerification(
 }
 
 export const whatsappHandler: WebhookProviderHandler = {
+  async handleChallenge(_body: unknown, request: NextRequest, requestId: string, path: string) {
+    const url = new URL(request.url)
+    const mode = url.searchParams.get('hub.mode')
+    const token = url.searchParams.get('hub.verify_token')
+    const challenge = url.searchParams.get('hub.challenge')
+    return handleWhatsAppVerification(requestId, path, mode, token, challenge)
+  },
+
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
     const entry = b?.entry as Array<Record<string, unknown>> | undefined
