@@ -8,7 +8,7 @@ import { cn } from '@/lib/core/utils/cn'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
-import Navbar from '@/app/(home)/components/navbar/navbar'
+import Navbar from '@/app/(landing)/components/navbar/navbar'
 
 const logger = createLogger('PasswordAuth')
 

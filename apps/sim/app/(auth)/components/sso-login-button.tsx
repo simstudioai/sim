@@ -28,7 +28,9 @@ export function SSOLoginButton({
     router.push(ssoUrl)
   }
 
-  const outlineBtnClasses = cn('w-full rounded-[10px]')
+  const outlineBtnClasses = cn(
+    'w-full rounded-sm border-[var(--landing-border-strong)] py-1.5 text-sm'
+  )
 
   return (
     <Button

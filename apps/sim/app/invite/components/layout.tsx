@@ -1,5 +1,5 @@
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
-import Navbar from '@/app/(home)/components/navbar/navbar'
+import Navbar from '@/app/(landing)/components/navbar/navbar'
 
 interface InviteLayoutProps {
   children: React.ReactNode

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import Landing from '@/app/(home)/landing'
+import Landing from '@/app/(landing)/landing'
 
 export const revalidate = 3600
 

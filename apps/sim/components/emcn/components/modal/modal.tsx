@@ -150,37 +150,42 @@ const ModalContent = React.forwardRef<
   return (
     <ModalPortal>
       <ModalOverlay />
-      <DialogPrimitive.Content
-        ref={ref}
-        className={cn(
-          'fixed top-[50%] z-[var(--z-modal)] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-small ring-1 ring-foreground/10 duration-200',
-          MODAL_SIZES[size],
-          className
-        )}
+      <div
+        className='pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center'
         style={{
-          left: isWorkflowPage
-            ? // --panel-width is always the rendered panel width on /w/ routes (panel is never hidden/collapsed)
-              'calc(50% + (var(--sidebar-width) - var(--panel-width)) / 2)'
-            : 'calc(var(--sidebar-width) / 2 + 50%)',
-          ...style,
+          paddingLeft: isWorkflowPage
+            ? 'calc(var(--sidebar-width) - var(--panel-width))'
+            : 'var(--sidebar-width)',
         }}
-        onEscapeKeyDown={(e) => {
-          if (!isInteractionReady) {
-            e.preventDefault()
-            return
-          }
-          e.stopPropagation()
-        }}
-        onPointerDown={(e) => {
-          e.stopPropagation()
-        }}
-        onPointerUp={(e) => {
-          e.stopPropagation()
-        }}
-        {...props}
       >
-        {children}
-      </DialogPrimitive.Content>
+        <DialogPrimitive.Content
+          ref={ref}
+          className={cn(
+            'pointer-events-auto flex max-h-[84vh] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-small ring-1 ring-foreground/10',
+            ANIMATION_CLASSES,
+            'data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-200',
+            MODAL_SIZES[size],
+            className
+          )}
+          style={style}
+          onEscapeKeyDown={(e) => {
+            if (!isInteractionReady) {
+              e.preventDefault()
+              return
+            }
+            e.stopPropagation()
+          }}
+          onPointerDown={(e) => {
+            e.stopPropagation()
+          }}
+          onPointerUp={(e) => {
+            e.stopPropagation()
+          }}
+          {...props}
+        >
+          {children}
+        </DialogPrimitive.Content>
+      </div>
     </ModalPortal>
   )
 })
