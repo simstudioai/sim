@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import type { EventMatchContext, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
-import { validateJiraSignature } from '@/lib/webhooks/utils.server'
+import { validateJiraSignature } from '@/lib/webhooks/providers/jira'
 
 const logger = createLogger('WebhookProvider:Confluence')
 

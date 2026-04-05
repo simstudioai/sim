@@ -1,13 +1,29 @@
+import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { safeCompare } from '@/lib/core/security/encryption'
 import type {
   AuthContext,
   EventMatchContext,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { validateAttioSignature } from '@/lib/webhooks/utils.server'
 
 const logger = createLogger('WebhookProvider:Attio')
+
+function validateAttioSignature(secret: string, signature: string, body: string): boolean {
+  try {
+    if (!secret || !signature || !body) {
+      logger.warn('Attio signature validation missing required fields', { hasSecret: !!secret, hasSignature: !!signature, hasBody: !!body })
+      return false
+    }
+    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+    logger.debug('Attio signature comparison', { computedSignature: `${computedHash.substring(0, 10)}...`, providedSignature: `${signature.substring(0, 10)}...`, computedLength: computedHash.length, providedLength: signature.length, match: computedHash === signature })
+    return safeCompare(computedHash, signature)
+  } catch (error) {
+    logger.error('Error validating Attio signature:', error)
+    return false
+  }
+}
 
 export const attioHandler: WebhookProviderHandler = {
   verifyAuth({ webhook, request, rawBody, requestId, providerConfig }: AuthContext) {

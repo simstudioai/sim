@@ -1,13 +1,29 @@
+import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { safeCompare } from '@/lib/core/security/encryption'
 import type {
   AuthContext,
   EventFilterContext,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { validateMicrosoftTeamsSignature } from '@/lib/webhooks/utils.server'
 
 const logger = createLogger('WebhookProvider:MicrosoftTeams')
+
+function validateMicrosoftTeamsSignature(hmacSecret: string, signature: string, body: string): boolean {
+  try {
+    if (!hmacSecret || !signature || !body) { return false }
+    if (!signature.startsWith('HMAC ')) { return false }
+    const providedSignature = signature.substring(5)
+    const secretBytes = Buffer.from(hmacSecret, 'base64')
+    const bodyBytes = Buffer.from(body, 'utf8')
+    const computedHash = crypto.createHmac('sha256', secretBytes).update(bodyBytes).digest('base64')
+    return safeCompare(computedHash, providedSignature)
+  } catch (error) {
+    logger.error('Error validating Microsoft Teams signature:', error)
+    return false
+  }
+}
 
 function parseFirstNotification(
   body: unknown

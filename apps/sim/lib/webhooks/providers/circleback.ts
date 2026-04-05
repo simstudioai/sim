@@ -1,6 +1,25 @@
+import crypto from 'crypto'
+import { createLogger } from '@sim/logger'
+import { safeCompare } from '@/lib/core/security/encryption'
 import type { WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
-import { validateCirclebackSignature } from '@/lib/webhooks/utils.server'
+
+const logger = createLogger('WebhookProvider:Circleback')
+
+function validateCirclebackSignature(secret: string, signature: string, body: string): boolean {
+  try {
+    if (!secret || !signature || !body) {
+      logger.warn('Circleback signature validation missing required fields', { hasSecret: !!secret, hasSignature: !!signature, hasBody: !!body })
+      return false
+    }
+    const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+    logger.debug('Circleback signature comparison', { computedSignature: `${computedHash.substring(0, 10)}...`, providedSignature: `${signature.substring(0, 10)}...`, computedLength: computedHash.length, providedLength: signature.length, match: computedHash === signature })
+    return safeCompare(computedHash, signature)
+  } catch (error) {
+    logger.error('Error validating Circleback signature:', error)
+    return false
+  }
+}
 
 export const circlebackHandler: WebhookProviderHandler = {
   verifyAuth: createHmacVerifier({
