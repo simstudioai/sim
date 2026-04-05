@@ -21,12 +21,19 @@ const listAgentsBase = {
       visibility: 'user-or-llm',
       description: 'Pagination cursor from previous response',
     },
+    prUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter agents by pull request URL',
+    },
   },
   request: {
     url: (params: ListAgentsParams) => {
       const url = new URL('https://api.cursor.com/v0/agents')
       if (params.limit) url.searchParams.set('limit', String(params.limit))
       if (params.cursor) url.searchParams.set('cursor', params.cursor)
+      if (params.prUrl) url.searchParams.set('prUrl', params.prUrl)
       return url.toString()
     },
     method: 'GET',
@@ -53,7 +60,7 @@ export const listAgentsTool: ToolConfig<ListAgentsParams, ListAgentsResponse> = 
         content: `Found ${data.agents.length} agents`,
         metadata: {
           agents: data.agents,
-          nextCursor: data.nextCursor,
+          nextCursor: data.nextCursor ?? null,
         },
       },
     }
