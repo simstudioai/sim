@@ -5,15 +5,6 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
 const FREE_EMAIL_DOMAINS = new Set(freeEmailDomains)
 
-export const DEMO_REQUEST_REGION_VALUES = [
-  'north_america',
-  'europe',
-  'asia_pacific',
-  'latin_america',
-  'middle_east_africa',
-  'other',
-] as const
-
 export const DEMO_REQUEST_COMPANY_SIZE_VALUES = [
   '1_10',
   '11_50',
@@ -22,15 +13,6 @@ export const DEMO_REQUEST_COMPANY_SIZE_VALUES = [
   '501_1000',
   '1001_10000',
   '10000_plus',
-] as const
-
-export const DEMO_REQUEST_REGION_OPTIONS = [
-  { value: 'north_america', label: 'North America' },
-  { value: 'europe', label: 'Europe' },
-  { value: 'asia_pacific', label: 'Asia Pacific' },
-  { value: 'latin_america', label: 'Latin America' },
-  { value: 'middle_east_africa', label: 'Middle East & Africa' },
-  { value: 'other', label: 'Other' },
 ] as const
 
 export const DEMO_REQUEST_COMPANY_SIZE_OPTIONS = [
@@ -73,9 +55,6 @@ export const demoRequestSchema = z.object({
     .max(50, 'Phone number must be 50 characters or less')
     .optional()
     .transform((value) => (value && value.length > 0 ? value : undefined)),
-  region: z.enum(DEMO_REQUEST_REGION_VALUES, {
-    errorMap: () => ({ message: 'Please select a region' }),
-  }),
   companySize: z.enum(DEMO_REQUEST_COMPANY_SIZE_VALUES, {
     errorMap: () => ({ message: 'Please select company size' }),
   }),
@@ -83,10 +62,6 @@ export const demoRequestSchema = z.object({
 })
 
 export type DemoRequestPayload = z.infer<typeof demoRequestSchema>
-
-export function getDemoRequestRegionLabel(value: DemoRequestPayload['region']): string {
-  return DEMO_REQUEST_REGION_OPTIONS.find((option) => option.value === value)?.label ?? value
-}
 
 export function getDemoRequestCompanySizeLabel(value: DemoRequestPayload['companySize']): string {
   return DEMO_REQUEST_COMPANY_SIZE_OPTIONS.find((option) => option.value === value)?.label ?? value

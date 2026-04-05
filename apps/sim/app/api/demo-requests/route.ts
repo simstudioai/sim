@@ -10,7 +10,6 @@ import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import {
   demoRequestSchema,
   getDemoRequestCompanySizeLabel,
-  getDemoRequestRegionLabel,
 } from '@/app/(landing)/components/demo-request/consts'
 
 const logger = createLogger('DemoRequestAPI')
@@ -58,12 +57,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { firstName, lastName, companyEmail, phoneNumber, region, companySize, details } =
+    const { firstName, lastName, companyEmail, phoneNumber, companySize, details } =
       validationResult.data
 
     logger.info(`[${requestId}] Processing demo request`, {
       email: `${companyEmail.substring(0, 3)}***`,
-      region,
       companySize,
     })
 
@@ -72,7 +70,6 @@ Submitted: ${new Date().toISOString()}
 Name: ${firstName} ${lastName}
 Email: ${companyEmail}
 Phone: ${phoneNumber ?? 'Not provided'}
-Region: ${getDemoRequestRegionLabel(region)}
 Company size: ${getDemoRequestCompanySizeLabel(companySize)}
 
 Details:
