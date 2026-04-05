@@ -21,8 +21,8 @@ import {
   configureGmailPolling,
   configureOutlookPolling,
   configureRssPolling,
-  syncWebhooksForCredentialSet,
-} from '@/lib/webhooks/utils.server'
+} from '@/lib/webhooks/polling-config'
+import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { extractCredentialSetId, isCredentialSetValue } from '@/executor/constants'
 

@@ -11,11 +11,8 @@ import {
   createExternalWebhookSubscription,
   shouldRecreateExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
-import {
-  configureGmailPolling,
-  configureOutlookPolling,
-  syncWebhooksForCredentialSet,
-} from '@/lib/webhooks/utils.server'
+import { configureGmailPolling, configureOutlookPolling } from '@/lib/webhooks/polling-config'
+import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
