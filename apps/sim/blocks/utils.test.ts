@@ -172,6 +172,11 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
       expect(evaluateCondition('claude-sonnet-4-5')).toBe(true)
     })
 
+    it('does not require API key when model is in the vLLM store bucket', () => {
+      mockProviders.value.vllm.models = ['my-custom-model']
+      expect(evaluateCondition('my-custom-model')).toBe(false)
+    })
+
     it('requires API key when model is in the fireworks store bucket', () => {
       mockProviders.value.fireworks.models = ['fireworks/llama-3']
       expect(evaluateCondition('fireworks/llama-3')).toBe(true)
