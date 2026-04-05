@@ -195,6 +195,7 @@ export function Home({ chatId }: HomeProps = {}) {
     } else {
       url.searchParams.delete('resource')
     }
+    url.hash = ''
     window.history.replaceState(null, '', url.toString())
   }, [activeResourceId])
 
