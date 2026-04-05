@@ -9,13 +9,17 @@ const { mockIsHosted, mockIsAzureConfigured, mockIsOllamaConfigured } = vi.hoist
   mockIsOllamaConfigured: { value: false },
 }))
 
-const { mockGetHostedModels, mockGetProviderModels, mockGetProviderIcon, mockGetBaseModelProviders } =
-  vi.hoisted(() => ({
-    mockGetHostedModels: vi.fn(() => []),
-    mockGetProviderModels: vi.fn(() => []),
-    mockGetProviderIcon: vi.fn(() => null),
-    mockGetBaseModelProviders: vi.fn(() => ({})),
-  }))
+const {
+  mockGetHostedModels,
+  mockGetProviderModels,
+  mockGetProviderIcon,
+  mockGetBaseModelProviders,
+} = vi.hoisted(() => ({
+  mockGetHostedModels: vi.fn(() => []),
+  mockGetProviderModels: vi.fn(() => []),
+  mockGetProviderIcon: vi.fn(() => null),
+  mockGetBaseModelProviders: vi.fn(() => ({})),
+}))
 
 const { mockProviders } = vi.hoisted(() => ({
   mockProviders: {
