@@ -609,13 +609,13 @@ async function maybeAutoPaginate(
   finalResult: ToolResponse,
   contextParams: Record<string, unknown>,
   normalizedToolId: string,
-  skipPostProcess: boolean,
+  skipAutoPaginate: boolean,
   executionContext?: ExecutionContext
 ): Promise<ToolResponse> {
   if (
     !tool.pagination ||
     !finalResult.success ||
-    skipPostProcess ||
+    skipAutoPaginate ||
     !executionContext?.executionId
   ) {
     return finalResult
@@ -631,6 +631,7 @@ async function maybeAutoPaginate(
     executeTool,
     toolId: normalizedToolId,
     executionId: executionContext.executionId,
+    executionContext,
   })
 }
 
@@ -642,7 +643,8 @@ export async function executeTool(
   toolId: string,
   params: Record<string, any>,
   skipPostProcess = false,
-  executionContext?: ExecutionContext
+  executionContext?: ExecutionContext,
+  skipAutoPaginate = false
 ): Promise<ToolResponse> {
   // Capture start time for precise timing
   const startTime = new Date()
@@ -859,7 +861,7 @@ export async function executeTool(
         finalResult,
         contextParams,
         normalizedToolId,
-        skipPostProcess,
+        skipAutoPaginate,
         executionContext
       )
 

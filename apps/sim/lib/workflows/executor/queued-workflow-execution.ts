@@ -330,18 +330,9 @@ export async function executeQueuedWorkflowJob(
       await eventWriter.close()
     }
 
-    await cleanupExecutionBase64Cache(executionId).catch((error) => {
-      logger.error('Failed to cleanup queued workflow base64 cache', {
-        executionId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    })
-
-    await cleanupPaginatedCache(executionId).catch((error) => {
-      logger.error('Failed to cleanup queued workflow paginated cache', {
-        executionId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    })
+    await Promise.allSettled([
+      cleanupExecutionBase64Cache(executionId),
+      cleanupPaginatedCache(executionId),
+    ])
   }
 }

@@ -7,8 +7,8 @@ import {
 } from '@/lib/core/utils/response-format'
 import { encodeSSE } from '@/lib/core/utils/sse'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { processStreamingBlockLogs } from '@/lib/tokenization'
 import { cleanupPaginatedCache } from '@/lib/paginated-cache/paginate'
+import { processStreamingBlockLogs } from '@/lib/tokenization'
 import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
@@ -348,8 +348,10 @@ export async function createStreamingResponse(
         controller.enqueue(encodeSSE('[DONE]'))
 
         if (executionId) {
-          await cleanupExecutionBase64Cache(executionId)
-          await cleanupPaginatedCache(executionId)
+          await Promise.allSettled([
+            cleanupExecutionBase64Cache(executionId),
+            cleanupPaginatedCache(executionId),
+          ])
         }
 
         controller.close()
@@ -360,8 +362,10 @@ export async function createStreamingResponse(
         )
 
         if (executionId) {
-          await cleanupExecutionBase64Cache(executionId)
-          await cleanupPaginatedCache(executionId)
+          await Promise.allSettled([
+            cleanupExecutionBase64Cache(executionId),
+            cleanupPaginatedCache(executionId),
+          ])
         }
 
         controller.close()
@@ -374,12 +378,10 @@ export async function createStreamingResponse(
       timeoutController.abort()
       timeoutController.cleanup()
       if (executionId) {
-        try {
-          await cleanupExecutionBase64Cache(executionId)
-          await cleanupPaginatedCache(executionId)
-        } catch (error) {
-          logger.error(`[${requestId}] Failed to cleanup cache`, { error })
-        }
+        await Promise.allSettled([
+          cleanupExecutionBase64Cache(executionId),
+          cleanupPaginatedCache(executionId),
+        ])
       }
     },
   })

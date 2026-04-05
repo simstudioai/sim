@@ -5,6 +5,7 @@ import type { PaginatedCacheStorageAdapter } from '@/lib/paginated-cache/adapter
 import { RedisPaginatedCache } from '@/lib/paginated-cache/redis-cache'
 import type { PaginatedCacheReference, ToolPaginationConfig } from '@/lib/paginated-cache/types'
 import { isPaginatedCacheReference } from '@/lib/paginated-cache/types'
+import type { ExecutionContext } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('Paginator')
@@ -18,10 +19,13 @@ interface AutoPaginateOptions {
   executeTool: (
     toolId: string,
     params: Record<string, unknown>,
-    skipPostProcess?: boolean
+    skipPostProcess?: boolean,
+    executionContext?: ExecutionContext,
+    skipAutoPaginate?: boolean
   ) => Promise<ToolResponse>
   toolId: string
   executionId: string
+  executionContext?: ExecutionContext
 }
 
 export async function autoPaginate(options: AutoPaginateOptions): Promise<ToolResponse> {
@@ -32,6 +36,7 @@ export async function autoPaginate(options: AutoPaginateOptions): Promise<ToolRe
     executeTool,
     toolId,
     executionId,
+    executionContext,
   } = options
   const maxPages = config.maxPages ?? DEFAULT_MAX_PAGES
 
@@ -55,7 +60,7 @@ export async function autoPaginate(options: AutoPaginateOptions): Promise<ToolRe
   let nextToken = config.getNextPageToken(initialResult.output)
   while (nextToken !== null && pageIndex < maxPages) {
     const nextParams = config.buildNextPageParams(params, nextToken)
-    const pageResult = await executeTool(toolId, nextParams, true)
+    const pageResult = await executeTool(toolId, nextParams, false, executionContext, true)
 
     if (!pageResult.success) {
       throw new Error(

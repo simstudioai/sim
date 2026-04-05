@@ -169,9 +169,10 @@ describe('autoPaginate', () => {
     ).rejects.toThrow('Auto-pagination failed on page 1: rate limited')
   })
 
-  it('passes skipPostProcess=true for subsequent pages', async () => {
+  it('passes executionContext and skipAutoPaginate for subsequent pages', async () => {
     const initialResult = makePageResponse([{ id: 1 }], true, 'cursor-1')
     mockExecuteTool.mockResolvedValueOnce(makePageResponse([{ id: 2 }], false, null))
+    const mockContext = { workflowId: 'wf-1', executionId: 'exec-1' }
 
     await autoPaginate({
       initialResult,
@@ -180,11 +181,14 @@ describe('autoPaginate', () => {
       executeTool: mockExecuteTool,
       toolId: 'zendesk_get_tickets',
       executionId: 'exec-1',
+      executionContext: mockContext as never,
     })
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
       'zendesk_get_tickets',
       expect.objectContaining({ pageAfter: 'cursor-1' }),
+      false,
+      mockContext,
       true
     )
   })
