@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import { SUPPORTED_CODE_EXTENSIONS } from '@/lib/uploads/utils/validation'
+import { SUPPORTED_CODE_EXTENSIONS } from '@/lib/uploads/utils/validation-constants'
 import {
   useUpdateWorkspaceFileContent,
   useWorkspaceFileBinary,
@@ -15,6 +15,7 @@ import {
 } from '@/hooks/queries/workspace-files'
 import { useAutosave } from '@/hooks/use-autosave'
 import { useStreamingText } from '@/hooks/use-streaming-text'
+import { DataTable } from './data-table'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 
 const logger = createLogger('FileViewer')
@@ -1058,39 +1059,11 @@ const XlsxPreview = memo(function XlsxPreview({
         </div>
       )}
       <div className='flex-1 overflow-auto p-6'>
-        <div className='overflow-x-auto rounded-md border border-[var(--border)]'>
-          <table className='w-full border-collapse text-[13px]'>
-            <thead className='bg-[var(--surface-2)]'>
-              <tr>
-                {currentSheet.headers.map((header, i) => (
-                  <th
-                    key={i}
-                    className='whitespace-nowrap px-3 py-2 text-left font-semibold text-[12px] text-[var(--text-primary)]'
-                  >
-                    {String(header ?? '')}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {currentSheet.rows.map((row, ri) => (
-                <tr key={ri} className='border-[var(--border)] border-t'>
-                  {currentSheet.headers.map((_, ci) => (
-                    <td
-                      key={ci}
-                      className='whitespace-nowrap px-3 py-2 text-[var(--text-secondary)]'
-                    >
-                      {String(row[ci] ?? '')}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable headers={currentSheet.headers} rows={currentSheet.rows} />
         {currentSheet.truncated && (
           <p className='mt-3 text-center text-[12px] text-[var(--text-muted)]'>
-            Showing first {XLSX_MAX_ROWS.toLocaleString()} rows. Download the file to view all data.
+            Showing first {XLSX_MAX_ROWS.toLocaleString()} rows. Download the file to view all
+            data.
           </p>
         )}
       </div>

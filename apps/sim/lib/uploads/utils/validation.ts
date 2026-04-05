@@ -1,5 +1,8 @@
 import path from 'path'
 
+export { SUPPORTED_CODE_EXTENSIONS } from '@/lib/uploads/utils/validation-constants'
+export type { SupportedCodeExtension } from '@/lib/uploads/utils/validation-constants'
+
 /**
  * Checks whether a string is a valid file extension (lowercase alphanumeric only).
  * Rejects extensions containing spaces, punctuation, or other non-alphanumeric characters
@@ -28,54 +31,6 @@ export const SUPPORTED_DOCUMENT_EXTENSIONS = [
   'yaml',
   'yml',
 ] as const
-
-export const SUPPORTED_CODE_EXTENSIONS = [
-  'mdx',
-  'xml',
-  'css',
-  'scss',
-  'less',
-  'js',
-  'jsx',
-  'ts',
-  'tsx',
-  'py',
-  'rb',
-  'go',
-  'rs',
-  'java',
-  'kt',
-  'swift',
-  'c',
-  'cpp',
-  'h',
-  'hpp',
-  'cs',
-  'php',
-  'sh',
-  'bash',
-  'zsh',
-  'fish',
-  'sql',
-  'graphql',
-  'gql',
-  'toml',
-  'ini',
-  'conf',
-  'cfg',
-  'env',
-  'log',
-  'diff',
-  'patch',
-  'dockerfile',
-  'makefile',
-  'gitignore',
-  'editorconfig',
-  'prettierrc',
-  'eslintrc',
-] as const
-
-export type SupportedCodeExtension = (typeof SUPPORTED_CODE_EXTENSIONS)[number]
 
 export const SUPPORTED_AUDIO_EXTENSIONS = [
   'mp3',

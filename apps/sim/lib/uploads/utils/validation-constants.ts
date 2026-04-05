@@ -1,0 +1,52 @@
+/**
+ * Extension constants that are safe to import from client components.
+ * Separated from validation.ts which imports Node's `path` module.
+ */
+
+export const SUPPORTED_CODE_EXTENSIONS = [
+  'mdx',
+  'xml',
+  'css',
+  'scss',
+  'less',
+  'js',
+  'jsx',
+  'ts',
+  'tsx',
+  'py',
+  'rb',
+  'go',
+  'rs',
+  'java',
+  'kt',
+  'swift',
+  'c',
+  'cpp',
+  'h',
+  'hpp',
+  'cs',
+  'php',
+  'sh',
+  'bash',
+  'zsh',
+  'fish',
+  'sql',
+  'graphql',
+  'gql',
+  'toml',
+  'ini',
+  'conf',
+  'cfg',
+  'env',
+  'log',
+  'diff',
+  'patch',
+  'dockerfile',
+  'makefile',
+  'gitignore',
+  'editorconfig',
+  'prettierrc',
+  'eslintrc',
+] as const
+
+export type SupportedCodeExtension = (typeof SUPPORTED_CODE_EXTENSIONS)[number]
