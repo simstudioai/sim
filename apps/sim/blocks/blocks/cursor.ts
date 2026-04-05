@@ -31,6 +31,8 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
         { label: 'List Agents', id: 'cursor_list_agents' },
         { label: 'Stop Agent', id: 'cursor_stop_agent' },
         { label: 'Delete Agent', id: 'cursor_delete_agent' },
+        { label: 'List Artifacts', id: 'cursor_list_artifacts' },
+        { label: 'Download Artifact', id: 'cursor_download_artifact' },
       ],
       value: () => 'cursor_launch_agent',
     },
@@ -48,6 +50,7 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
       type: 'short-input',
       placeholder: 'main (optional)',
       condition: { field: 'operation', value: 'cursor_launch_agent' },
+      mode: 'advanced',
     },
     {
       id: 'promptText',
@@ -58,11 +61,20 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
       required: true,
     },
     {
+      id: 'promptImages',
+      title: 'Prompt Images',
+      type: 'long-input',
+      placeholder: '[{"data": "base64...", "dimension": {"width": 1024, "height": 768}}]',
+      condition: { field: 'operation', value: ['cursor_launch_agent', 'cursor_add_followup'] },
+      mode: 'advanced',
+    },
+    {
       id: 'model',
       title: 'Model',
       type: 'short-input',
       placeholder: 'Auto-selection by default',
       condition: { field: 'operation', value: 'cursor_launch_agent' },
+      mode: 'advanced',
     },
     {
       id: 'branchName',
@@ -70,6 +82,7 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
       type: 'short-input',
       placeholder: 'Custom branch name (optional)',
       condition: { field: 'operation', value: 'cursor_launch_agent' },
+      mode: 'advanced',
     },
     {
       id: 'autoCreatePr',
@@ -82,12 +95,14 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
       title: 'Open as Cursor GitHub App',
       type: 'switch',
       condition: { field: 'operation', value: 'cursor_launch_agent' },
+      mode: 'advanced',
     },
     {
       id: 'skipReviewerRequest',
       title: 'Skip Reviewer Request',
       type: 'switch',
       condition: { field: 'operation', value: 'cursor_launch_agent' },
+      mode: 'advanced',
     },
     {
       id: 'agentId',
@@ -102,8 +117,18 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
           'cursor_add_followup',
           'cursor_stop_agent',
           'cursor_delete_agent',
+          'cursor_list_artifacts',
+          'cursor_download_artifact',
         ],
       },
+      required: true,
+    },
+    {
+      id: 'path',
+      title: 'Artifact Path',
+      type: 'short-input',
+      placeholder: '/opt/cursor/artifacts/screenshot.png',
+      condition: { field: 'operation', value: 'cursor_download_artifact' },
       required: true,
     },
     {
@@ -115,11 +140,20 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
       required: true,
     },
     {
+      id: 'prUrl',
+      title: 'PR URL Filter',
+      type: 'short-input',
+      placeholder: 'Filter by pull request URL (optional)',
+      condition: { field: 'operation', value: 'cursor_list_agents' },
+      mode: 'advanced',
+    },
+    {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
       placeholder: '20 (default, max 100)',
       condition: { field: 'operation', value: 'cursor_list_agents' },
+      mode: 'advanced',
     },
     {
       id: 'cursor',
@@ -127,6 +161,7 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
       type: 'short-input',
       placeholder: 'Cursor from previous response',
       condition: { field: 'operation', value: 'cursor_list_agents' },
+      mode: 'advanced',
     },
     {
       id: 'apiKey',
@@ -146,6 +181,8 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
       'cursor_add_followup',
       'cursor_stop_agent',
       'cursor_delete_agent',
+      'cursor_list_artifacts',
+      'cursor_download_artifact',
     ],
     config: {
       tool: (params) => params.operation || 'cursor_launch_agent',
@@ -157,15 +194,20 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
     ref: { type: 'string', description: 'Branch, tag, or commit reference' },
     promptText: { type: 'string', description: 'Instruction text for the agent' },
     followupPromptText: { type: 'string', description: 'Follow-up instruction text for the agent' },
-    promptImages: { type: 'string', description: 'JSON array of image objects' },
+    promptImages: {
+      type: 'string',
+      description: 'JSON array of image objects with base64 data and dimensions',
+    },
     model: { type: 'string', description: 'Model to use (empty for auto-selection)' },
     branchName: { type: 'string', description: 'Custom branch name' },
     autoCreatePr: { type: 'boolean', description: 'Auto-create PR when done' },
     openAsCursorGithubApp: { type: 'boolean', description: 'Open PR as Cursor GitHub App' },
     skipReviewerRequest: { type: 'boolean', description: 'Skip reviewer request' },
     agentId: { type: 'string', description: 'Agent identifier' },
+    prUrl: { type: 'string', description: 'Filter agents by pull request URL' },
     limit: { type: 'number', description: 'Number of results to return' },
     cursor: { type: 'string', description: 'Pagination cursor' },
+    path: { type: 'string', description: 'Absolute path of the artifact to download' },
     apiKey: { type: 'string', description: 'Cursor API key' },
   },
   outputs: {
@@ -192,6 +234,8 @@ export const CursorV2Block: BlockConfig<CursorResponse> = {
       'cursor_add_followup_v2',
       'cursor_stop_agent_v2',
       'cursor_delete_agent_v2',
+      'cursor_list_artifacts_v2',
+      'cursor_download_artifact_v2',
     ],
     config: {
       tool: createVersionedToolSelector({
@@ -213,5 +257,7 @@ export const CursorV2Block: BlockConfig<CursorResponse> = {
     agents: { type: 'json', description: 'Array of agent objects (list operation)' },
     nextCursor: { type: 'string', description: 'Pagination cursor (list operation)' },
     messages: { type: 'json', description: 'Conversation messages (get conversation operation)' },
+    artifacts: { type: 'json', description: 'List of artifact files (list artifacts operation)' },
+    file: { type: 'file', description: 'Downloaded artifact file (download artifact operation)' },
   },
 }
