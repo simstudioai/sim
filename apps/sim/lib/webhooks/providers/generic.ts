@@ -14,11 +14,15 @@ export const genericHandler: WebhookProviderHandler = {
   verifyAuth({ request, requestId, providerConfig }: AuthContext) {
     if (providerConfig.requireAuth) {
       const configToken = providerConfig.token as string | undefined
-      if (configToken) {
-        const secretHeaderName = providerConfig.secretHeaderName as string | undefined
-        if (!verifyTokenAuth(request, configToken, secretHeaderName)) {
-          return new NextResponse('Unauthorized - Invalid authentication token', { status: 401 })
-        }
+      if (!configToken) {
+        return new NextResponse('Unauthorized - Authentication required but no token configured', {
+          status: 401,
+        })
+      }
+
+      const secretHeaderName = providerConfig.secretHeaderName as string | undefined
+      if (!verifyTokenAuth(request, configToken, secretHeaderName)) {
+        return new NextResponse('Unauthorized - Invalid authentication token', { status: 401 })
       }
     }
 
