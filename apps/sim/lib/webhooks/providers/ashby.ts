@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@/lib/core/security/encryption'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/providers/subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -91,7 +92,7 @@ export const ashbyHandler: WebhookProviderHandler = {
         webhookId: ctx.webhook.id,
       })
 
-      const secretToken = crypto.randomUUID()
+      const secretToken = generateId()
 
       const requestBody: Record<string, unknown> = {
         requestUrl: notificationUrl,
