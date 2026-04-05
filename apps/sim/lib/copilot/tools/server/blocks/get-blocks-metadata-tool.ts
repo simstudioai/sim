@@ -5,12 +5,12 @@ import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot/tools/shared/schemas'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/feature-flags'
+import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { tools as toolsRegistry } from '@/tools/registry'
-import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
@@ -354,8 +354,7 @@ function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
       const serviceAccountProviderId = getServiceAccountProviderForProviderId(serviceId)
       if (serviceAccountProviderId) {
         transformed.requiredCredentials.serviceAccountType = serviceAccountProviderId
-        transformed.requiredCredentials.description =
-          `OAuth or service account authentication supported for ${metadata.name}`
+        transformed.requiredCredentials.description = `OAuth or service account authentication supported for ${metadata.name}`
       }
     } else if (metadata.authType === 'API Key') {
       transformed.requiredCredentials = {
