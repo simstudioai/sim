@@ -6,7 +6,7 @@ import { env, getEnv, isFalsy, isTruthy } from './env'
 /**
  * Is the application running in production mode
  */
-export const isProd = true
+export const isProd = env.NODE_ENV === 'production'
 
 /**
  * Is the application running in development mode
@@ -29,7 +29,7 @@ try {
 } catch {
   // invalid URL — isHosted stays false
 }
-export const isHosted = true
+export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
 
 /**
  * Is billing enforcement enabled
