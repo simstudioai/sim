@@ -15,7 +15,7 @@ export function RecentlyDeletedSkeleton() {
       </div>
 
       {/* Tabs bar */}
-      <div className='relative flex gap-4 border-b border-[var(--border)] px-4'>
+      <div className='relative flex gap-4 border-[var(--border)] border-b px-4'>
         <Skeleton className='mb-2 h-[20px] w-[32px] rounded-sm' />
         <Skeleton className='mb-2 h-[20px] w-[72px] rounded-sm' />
         <Skeleton className='mb-2 h-[20px] w-[52px] rounded-sm' />
