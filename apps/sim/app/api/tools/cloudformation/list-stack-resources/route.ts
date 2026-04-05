@@ -1,4 +1,8 @@
-import { CloudFormationClient, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation'
+import {
+  CloudFormationClient,
+  ListStackResourcesCommand,
+  type StackResourceSummary,
+} from '@aws-sdk/client-cloudformation'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -31,13 +35,19 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const command = new ListStackResourcesCommand({
-      StackName: validatedData.stackName,
-    })
+    const allSummaries: StackResourceSummary[] = []
+    let nextToken: string | undefined
+    do {
+      const command = new ListStackResourcesCommand({
+        StackName: validatedData.stackName,
+        ...(nextToken && { NextToken: nextToken }),
+      })
+      const response = await client.send(command)
+      allSummaries.push(...(response.StackResourceSummaries ?? []))
+      nextToken = response.NextToken
+    } while (nextToken)
 
-    const response = await client.send(command)
-
-    const resources = (response.StackResourceSummaries ?? []).map((r) => ({
+    const resources = allSummaries.map((r) => ({
       logicalResourceId: r.LogicalResourceId ?? '',
       physicalResourceId: r.PhysicalResourceId,
       resourceType: r.ResourceType ?? '',

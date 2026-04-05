@@ -1,4 +1,8 @@
-import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation'
+import {
+  CloudFormationClient,
+  DescribeStacksCommand,
+  type Stack,
+} from '@aws-sdk/client-cloudformation'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -31,13 +35,19 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const command = new DescribeStacksCommand({
-      ...(validatedData.stackName && { StackName: validatedData.stackName }),
-    })
+    const allStacks: Stack[] = []
+    let nextToken: string | undefined
+    do {
+      const command = new DescribeStacksCommand({
+        ...(validatedData.stackName && { StackName: validatedData.stackName }),
+        ...(nextToken && { NextToken: nextToken }),
+      })
+      const response = await client.send(command)
+      allStacks.push(...(response.Stacks ?? []))
+      nextToken = response.NextToken
+    } while (nextToken)
 
-    const response = await client.send(command)
-
-    const stacks = (response.Stacks ?? []).map((s) => ({
+    const stacks = allStacks.map((s) => ({
       stackName: s.StackName ?? '',
       stackId: s.StackId ?? '',
       stackStatus: s.StackStatus ?? 'UNKNOWN',

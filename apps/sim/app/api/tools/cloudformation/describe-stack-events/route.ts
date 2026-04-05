@@ -1,4 +1,8 @@
-import { CloudFormationClient, DescribeStackEventsCommand } from '@aws-sdk/client-cloudformation'
+import {
+  CloudFormationClient,
+  DescribeStackEventsCommand,
+  type StackEvent,
+} from '@aws-sdk/client-cloudformation'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -35,15 +39,21 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const command = new DescribeStackEventsCommand({
-      StackName: validatedData.stackName,
-    })
-
     const limit = validatedData.limit ?? 50
 
-    const response = await client.send(command)
+    const allEvents: StackEvent[] = []
+    let nextToken: string | undefined
+    do {
+      const command = new DescribeStackEventsCommand({
+        StackName: validatedData.stackName,
+        ...(nextToken && { NextToken: nextToken }),
+      })
+      const response = await client.send(command)
+      allEvents.push(...(response.StackEvents ?? []))
+      nextToken = allEvents.length >= limit ? undefined : response.NextToken
+    } while (nextToken)
 
-    const events = (response.StackEvents ?? []).slice(0, limit).map((e) => ({
+    const events = allEvents.slice(0, limit).map((e) => ({
       stackId: e.StackId ?? '',
       eventId: e.EventId ?? '',
       stackName: e.StackName ?? '',
