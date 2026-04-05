@@ -158,14 +158,14 @@ export function ApiKeys() {
       <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
         {isLoading ? (
           <div className='flex flex-col gap-4.5'>
+            {/* Workspace section header */}
             <div className='flex flex-col gap-2'>
-              <Skeleton className='h-5 w-[70px]' />
-              <div className='text-[var(--text-muted)] text-sm'>
-                <Skeleton className='h-5 w-[140px]' />
-              </div>
+              <Skeleton className='h-5 w-[80px]' />
+              <Skeleton className='h-5 w-[180px]' />
             </div>
+            {/* Personal section header + keys */}
             <div className='flex flex-col gap-2'>
-              <Skeleton className='h-5 w-[55px]' />
+              <Skeleton className='h-5 w-[60px]' />
               <ApiKeySkeleton />
               <ApiKeySkeleton />
             </div>
@@ -310,6 +310,15 @@ export function ApiKeys() {
       </div>
 
       {/* Allow Personal API Keys Toggle - Fixed at bottom */}
+      {isLoading && canManageWorkspaceKeys && (
+        <div className='mt-6 flex items-center justify-between'>
+          <div className='flex items-center gap-2'>
+            <Skeleton className='h-5 w-[170px]' />
+            <Skeleton className='h-3 w-3 rounded-full' />
+          </div>
+          <Skeleton className='h-5 w-9 rounded-full' />
+        </div>
+      )}
       {!isLoading && canManageWorkspaceKeys && (
         <Tooltip.Provider delayDuration={150}>
           <div className='mt-6 flex items-center justify-between'>
