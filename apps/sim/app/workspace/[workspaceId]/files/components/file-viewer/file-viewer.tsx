@@ -620,7 +620,7 @@ const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileR
 })
 
 function resolvePreviewError(fetchError: Error | null, renderError: string | null): string | null {
-  if (fetchError) return fetchError instanceof Error ? fetchError.message : 'Failed to load file'
+  if (fetchError) return fetchError.message
   return renderError
 }
 
@@ -955,7 +955,7 @@ const DocxPreview = memo(function DocxPreview({
     <div className='flex flex-1 overflow-hidden'>
       <iframe
         srcDoc={buildDocxPreviewHtml(html)}
-        sandbox='allow-same-origin'
+        sandbox=''
         title={file.name}
         className='h-full w-full border-0'
       />
@@ -1013,7 +1013,7 @@ const XlsxPreview = memo(function XlsxPreview({
       try {
         setRenderError(null)
         const XLSX = await import('xlsx')
-        const workbook = XLSX.read(data, { type: 'array' })
+        const workbook = XLSX.read(new Uint8Array(data), { type: 'array' })
         if (!cancelled) {
           workbookRef.current = workbook
           setSheetNames(workbook.SheetNames)
