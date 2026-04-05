@@ -250,32 +250,6 @@ function buildBottomWallStyle(config: DepthConfig) {
   }
 }
 
-interface DotGridProps {
-  className?: string
-  cols: number
-  rows: number
-  gap?: number
-}
-
-function DotGrid({ className, cols, rows, gap = 0 }: DotGridProps) {
-  return (
-    <div
-      aria-hidden='true'
-      className={className}
-      style={{
-        display: 'grid',
-        gridTemplateColumns: `repeat(${cols}, 1fr)`,
-        gap,
-        placeItems: 'center',
-      }}
-    >
-      {Array.from({ length: cols * rows }, (_, i) => (
-        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[var(--landing-bg-elevated)]' />
-      ))}
-    </div>
-  )
-}
-
 const TEMPLATES_PANEL_ID = 'templates-panel'
 
 export default function Templates() {
@@ -382,24 +356,10 @@ export default function Templates() {
           </div>
 
           <div className='mt-10 flex border-[var(--landing-bg-elevated)] border-y lg:mt-[73px]'>
-            <div className='shrink-0'>
-              <div className='h-full lg:hidden'>
-                <DotGrid
-                  className='h-full w-[24px] overflow-hidden border-[var(--landing-bg-elevated)] border-r p-1'
-                  cols={2}
-                  rows={55}
-                  gap={4}
-                />
-              </div>
-              <div className='hidden h-full lg:block'>
-                <DotGrid
-                  className='h-full w-16 overflow-hidden border-[var(--landing-bg-elevated)] border-r p-1.5'
-                  cols={8}
-                  rows={55}
-                  gap={6}
-                />
-              </div>
-            </div>
+            <div
+              aria-hidden='true'
+              className='w-[24px] shrink-0 border-[var(--landing-bg-elevated)] border-r lg:w-16'
+            />
 
             <div className='flex min-w-0 flex-1 flex-col lg:flex-row'>
               <div
@@ -549,24 +509,10 @@ export default function Templates() {
               </div>
             </div>
 
-            <div className='shrink-0'>
-              <div className='h-full lg:hidden'>
-                <DotGrid
-                  className='h-full w-[24px] overflow-hidden border-[var(--landing-bg-elevated)] border-l p-1'
-                  cols={2}
-                  rows={55}
-                  gap={4}
-                />
-              </div>
-              <div className='hidden h-full lg:block'>
-                <DotGrid
-                  className='h-full w-16 overflow-hidden border-[var(--landing-bg-elevated)] border-l p-1.5'
-                  cols={8}
-                  rows={55}
-                  gap={6}
-                />
-              </div>
-            </div>
+            <div
+              aria-hidden='true'
+              className='w-[24px] shrink-0 border-[var(--landing-bg-elevated)] border-l lg:w-16'
+            />
           </div>
 
           <div className='relative pb-[60px] lg:pb-[100px]'>

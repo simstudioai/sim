@@ -46,7 +46,7 @@ export default function Hero() {
         </h1>
         <p
           itemProp='description'
-          className='max-w-[280px] text-center font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em] sm:max-w-none lg:text-xl'
+          className='whitespace-nowrap text-center font-[430] font-season text-[4.4vw] text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] leading-[125%] tracking-[0.02em] sm:whitespace-normal sm:text-lg lg:text-xl'
         >
           Sim is the AI Workspace for Agent Builders
         </p>

@@ -117,36 +117,6 @@ function ScrollLetter({ scrollYProgress, charIndex, children }: ScrollLetterProp
   return <motion.span style={{ opacity }}>{children}</motion.span>
 }
 
-function DotGrid({
-  cols,
-  rows,
-  width,
-  borderLeft,
-}: {
-  cols: number
-  rows: number
-  width?: number
-  borderLeft?: boolean
-}) {
-  return (
-    <div
-      aria-hidden='true'
-      className={`h-full shrink-0 bg-[var(--landing-bg-section)] p-1.5 ${borderLeft ? 'border-[var(--divider)] border-l' : ''}`}
-      style={{
-        width: width ? `${width}px` : undefined,
-        display: 'grid',
-        gridTemplateColumns: `repeat(${cols}, 1fr)`,
-        gap: 4,
-        placeItems: 'center',
-      }}
-    >
-      {Array.from({ length: cols * rows }, (_, i) => (
-        <div key={i} className='h-[1.5px] w-[1.5px] rounded-full bg-[#DEDEDE]' />
-      ))}
-    </div>
-  )
-}
-
 export default function Features() {
   const sectionRef = useRef<HTMLDivElement>(null)
   const [activeTab, setActiveTab] = useState(0)
@@ -224,14 +194,10 @@ export default function Features() {
           />
 
           <div className='flex h-[68px] border border-[var(--divider)] lg:overflow-hidden'>
-            <div className='h-full shrink-0'>
-              <div className='h-full lg:hidden'>
-                <DotGrid cols={3} rows={8} width={24} />
-              </div>
-              <div className='hidden h-full lg:block'>
-                <DotGrid cols={8} rows={8} width={64} />
-              </div>
-            </div>
+            <div
+              aria-hidden='true'
+              className='h-full w-[24px] shrink-0 bg-[var(--landing-bg-section)] lg:w-16'
+            />
 
             <div role='tablist' aria-label='Feature categories' className='flex flex-1'>
               {FEATURE_TABS.map((tab, index) => (
@@ -275,14 +241,10 @@ export default function Features() {
               ))}
             </div>
 
-            <div className='h-full shrink-0'>
-              <div className='h-full lg:hidden'>
-                <DotGrid cols={3} rows={8} width={24} />
-              </div>
-              <div className='hidden h-full lg:block'>
-                <DotGrid cols={8} rows={8} width={64} />
-              </div>
-            </div>
+            <div
+              aria-hidden='true'
+              className='h-full w-[24px] shrink-0 border-[var(--divider)] border-l bg-[var(--landing-bg-section)] lg:w-16'
+            />
           </div>
 
           <div
