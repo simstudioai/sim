@@ -103,8 +103,11 @@ export async function POST(request: NextRequest) {
         statusText: downloadResponse.statusText,
       })
       return NextResponse.json(
-        { success: false, error: 'Failed to download artifact content' },
-        { status: 400 }
+        {
+          success: false,
+          error: `Failed to download artifact content (${downloadResponse.status}: ${downloadResponse.statusText})`,
+        },
+        { status: downloadResponse.status }
       )
     }
 

@@ -41,9 +41,9 @@ export const listArtifactsTool: ToolConfig<ListArtifactsParams, ListArtifactsRes
     return {
       success: true,
       output: {
-        content: `Found ${Array.isArray(artifacts) ? artifacts.length : 0} artifact(s)`,
+        content: `Found ${artifacts.length} artifact(s)`,
         metadata: {
-          artifacts: Array.isArray(artifacts) ? artifacts : [],
+          artifacts,
         },
       },
     }
