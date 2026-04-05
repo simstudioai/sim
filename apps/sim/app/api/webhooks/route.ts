@@ -12,16 +12,16 @@ import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import {
+  configureGmailPolling,
+  configureOutlookPolling,
+  configureRssPolling,
+} from '@/lib/webhooks/polling-config'
+import {
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
   shouldRecreateExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
 import { mergeNonUserFields } from '@/lib/webhooks/utils'
-import {
-  configureGmailPolling,
-  configureOutlookPolling,
-  configureRssPolling,
-} from '@/lib/webhooks/polling-config'
 import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { extractCredentialSetId, isCredentialSetValue } from '@/executor/constants'

@@ -6,12 +6,12 @@ import type { NextRequest } from 'next/server'
 import { generateShortId } from '@/lib/core/utils/uuid'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
+import { configureGmailPolling, configureOutlookPolling } from '@/lib/webhooks/polling-config'
 import {
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
   shouldRecreateExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
-import { configureGmailPolling, configureOutlookPolling } from '@/lib/webhooks/polling-config'
 import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'

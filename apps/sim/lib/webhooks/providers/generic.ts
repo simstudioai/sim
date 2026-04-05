@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import type {
   AuthContext,
   EventFilterContext,
+  FormatInputContext,
+  FormatInputResult,
   ProcessFilesContext,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
@@ -82,6 +84,10 @@ export const genericHandler: WebhookProviderHandler = {
     }
 
     return null
+  },
+
+  async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
+    return { input: body }
   },
 
   async processInputFiles({

@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
-import type { EventFilterContext, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
+import type {
+  EventFilterContext,
+  FormatInputContext,
+  FormatInputResult,
+  WebhookProviderHandler,
+} from '@/lib/webhooks/providers/types'
 import { skipByEventTypes } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Grain')
@@ -23,6 +28,11 @@ export const grainHandler: WebhookProviderHandler = {
 
   shouldSkipEvent(ctx: EventFilterContext) {
     return skipByEventTypes(ctx, 'Grain', logger)
+  },
+
+  async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
+    const b = body as Record<string, unknown>
+    return { input: { type: b.type, user_id: b.user_id, data: b.data || {} } }
   },
 
   extractIdempotencyId(body: unknown) {

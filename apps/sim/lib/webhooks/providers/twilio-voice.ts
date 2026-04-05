@@ -2,27 +2,59 @@ import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
-import type { AuthContext, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
+import type {
+  AuthContext,
+  FormatInputContext,
+  FormatInputResult,
+  WebhookProviderHandler,
+} from '@/lib/webhooks/providers/types'
 import { convertSquareBracketsToTwiML } from '@/lib/webhooks/utils'
 
 const logger = createLogger('WebhookProvider:TwilioVoice')
 
-async function validateTwilioSignature(authToken: string, signature: string, url: string, params: Record<string, unknown>): Promise<boolean> {
+async function validateTwilioSignature(
+  authToken: string,
+  signature: string,
+  url: string,
+  params: Record<string, unknown>
+): Promise<boolean> {
   try {
     if (!authToken || !signature || !url) {
-      logger.warn('Twilio signature validation missing required fields', { hasAuthToken: !!authToken, hasSignature: !!signature, hasUrl: !!url })
+      logger.warn('Twilio signature validation missing required fields', {
+        hasAuthToken: !!authToken,
+        hasSignature: !!signature,
+        hasUrl: !!url,
+      })
       return false
     }
     const sortedKeys = Object.keys(params).sort()
     let data = url
-    for (const key of sortedKeys) { data += key + params[key] }
-    logger.debug('Twilio signature validation string built', { url, sortedKeys, dataLength: data.length })
+    for (const key of sortedKeys) {
+      data += key + params[key]
+    }
+    logger.debug('Twilio signature validation string built', {
+      url,
+      sortedKeys,
+      dataLength: data.length,
+    })
     const encoder = new TextEncoder()
-    const key = await crypto.subtle.importKey('raw', encoder.encode(authToken), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign'])
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(authToken),
+      { name: 'HMAC', hash: 'SHA-1' },
+      false,
+      ['sign']
+    )
     const signatureBytes = await crypto.subtle.sign('HMAC', key, encoder.encode(data))
     const signatureArray = Array.from(new Uint8Array(signatureBytes))
     const signatureBase64 = btoa(String.fromCharCode(...signatureArray))
-    logger.debug('Twilio signature comparison', { computedSignature: `${signatureBase64.substring(0, 10)}...`, providedSignature: `${signature.substring(0, 10)}...`, computedLength: signatureBase64.length, providedLength: signature.length, match: signatureBase64 === signature })
+    logger.debug('Twilio signature comparison', {
+      computedSignature: `${signatureBase64.substring(0, 10)}...`,
+      providedSignature: `${signature.substring(0, 10)}...`,
+      computedLength: signatureBase64.length,
+      providedLength: signature.length,
+      match: signatureBase64 === signature,
+    })
     return safeCompare(signatureBase64, signature)
   } catch (error) {
     logger.error('Error validating Twilio signature:', error)
@@ -122,6 +154,47 @@ export const twilioVoiceHandler: WebhookProviderHandler = {
         'Content-Type': 'text/xml; charset=utf-8',
       },
     })
+  },
+
+  async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
+    const b = body as Record<string, unknown>
+    return {
+      input: {
+        callSid: b.CallSid,
+        accountSid: b.AccountSid,
+        from: b.From,
+        to: b.To,
+        callStatus: b.CallStatus,
+        direction: b.Direction,
+        apiVersion: b.ApiVersion,
+        callerName: b.CallerName,
+        forwardedFrom: b.ForwardedFrom,
+        digits: b.Digits,
+        speechResult: b.SpeechResult,
+        recordingUrl: b.RecordingUrl,
+        recordingSid: b.RecordingSid,
+        called: b.Called,
+        caller: b.Caller,
+        toCity: b.ToCity,
+        toState: b.ToState,
+        toZip: b.ToZip,
+        toCountry: b.ToCountry,
+        fromCity: b.FromCity,
+        fromState: b.FromState,
+        fromZip: b.FromZip,
+        fromCountry: b.FromCountry,
+        calledCity: b.CalledCity,
+        calledState: b.CalledState,
+        calledZip: b.CalledZip,
+        calledCountry: b.CalledCountry,
+        callerCity: b.CallerCity,
+        callerState: b.CallerState,
+        callerZip: b.CallerZip,
+        callerCountry: b.CallerCountry,
+        callToken: b.CallToken,
+        raw: JSON.stringify(b),
+      },
+    }
   },
 
   formatQueueErrorResponse() {

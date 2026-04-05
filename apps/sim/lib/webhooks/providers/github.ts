@@ -5,6 +5,8 @@ import { safeCompare } from '@/lib/core/security/encryption'
 import type {
   AuthContext,
   EventMatchContext,
+  FormatInputContext,
+  FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 
@@ -13,7 +15,11 @@ const logger = createLogger('WebhookProvider:GitHub')
 function validateGitHubSignature(secret: string, signature: string, body: string): boolean {
   try {
     if (!secret || !signature || !body) {
-      logger.warn('GitHub signature validation missing required fields', { hasSecret: !!secret, hasSignature: !!signature, hasBody: !!body })
+      logger.warn('GitHub signature validation missing required fields', {
+        hasSecret: !!secret,
+        hasSignature: !!signature,
+        hasBody: !!body,
+      })
       return false
     }
     let algorithm: 'sha256' | 'sha1'
@@ -25,11 +31,20 @@ function validateGitHubSignature(secret: string, signature: string, body: string
       algorithm = 'sha1'
       providedSignature = signature.substring(5)
     } else {
-      logger.warn('GitHub signature has invalid format', { signature: `${signature.substring(0, 10)}...` })
+      logger.warn('GitHub signature has invalid format', {
+        signature: `${signature.substring(0, 10)}...`,
+      })
       return false
     }
     const computedHash = crypto.createHmac(algorithm, secret).update(body, 'utf8').digest('hex')
-    logger.debug('GitHub signature comparison', { algorithm, computedSignature: `${computedHash.substring(0, 10)}...`, providedSignature: `${providedSignature.substring(0, 10)}...`, computedLength: computedHash.length, providedLength: providedSignature.length, match: computedHash === providedSignature })
+    logger.debug('GitHub signature comparison', {
+      algorithm,
+      computedSignature: `${computedHash.substring(0, 10)}...`,
+      providedSignature: `${providedSignature.substring(0, 10)}...`,
+      computedLength: computedHash.length,
+      providedLength: providedSignature.length,
+      match: computedHash === providedSignature,
+    })
     return safeCompare(computedHash, providedSignature)
   } catch (error) {
     logger.error('Error validating GitHub signature:', error)
@@ -61,6 +76,16 @@ export const githubHandler: WebhookProviderHandler = {
     }
 
     return null
+  },
+
+  async formatInput({ body, headers }: FormatInputContext): Promise<FormatInputResult> {
+    const b = body as Record<string, unknown>
+    const eventType = headers['x-github-event'] || 'unknown'
+    const ref = (b?.ref as string) || ''
+    const branch = ref.replace('refs/heads/', '')
+    return {
+      input: { ...b, event_type: eventType, action: (b?.action || '') as string, branch },
+    }
   },
 
   async matchEvent({

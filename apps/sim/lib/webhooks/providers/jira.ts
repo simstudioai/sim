@@ -1,7 +1,12 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@/lib/core/security/encryption'
-import type { EventMatchContext, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
+import type {
+  EventMatchContext,
+  FormatInputContext,
+  FormatInputResult,
+  WebhookProviderHandler,
+} from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Jira')
@@ -9,16 +14,28 @@ const logger = createLogger('WebhookProvider:Jira')
 export function validateJiraSignature(secret: string, signature: string, body: string): boolean {
   try {
     if (!secret || !signature || !body) {
-      logger.warn('Jira signature validation missing required fields', { hasSecret: !!secret, hasSignature: !!signature, hasBody: !!body })
+      logger.warn('Jira signature validation missing required fields', {
+        hasSecret: !!secret,
+        hasSignature: !!signature,
+        hasBody: !!body,
+      })
       return false
     }
     if (!signature.startsWith('sha256=')) {
-      logger.warn('Jira signature has invalid format (expected sha256=)', { signaturePrefix: signature.substring(0, 10) })
+      logger.warn('Jira signature has invalid format (expected sha256=)', {
+        signaturePrefix: signature.substring(0, 10),
+      })
       return false
     }
     const providedSignature = signature.substring(7)
     const computedHash = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
-    logger.debug('Jira signature comparison', { computedSignature: `${computedHash.substring(0, 10)}...`, providedSignature: `${providedSignature.substring(0, 10)}...`, computedLength: computedHash.length, providedLength: providedSignature.length, match: computedHash === providedSignature })
+    logger.debug('Jira signature comparison', {
+      computedSignature: `${computedHash.substring(0, 10)}...`,
+      providedSignature: `${providedSignature.substring(0, 10)}...`,
+      computedLength: computedHash.length,
+      providedLength: providedSignature.length,
+      match: computedHash === providedSignature,
+    })
     return safeCompare(computedHash, providedSignature)
   } catch (error) {
     logger.error('Error validating Jira signature:', error)
@@ -33,6 +50,21 @@ export const jiraHandler: WebhookProviderHandler = {
     validateFn: validateJiraSignature,
     providerLabel: 'Jira',
   }),
+
+  async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
+    const { extractIssueData, extractCommentData, extractWorklogData } = await import(
+      '@/triggers/jira/utils'
+    )
+    const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
+    const triggerId = providerConfig.triggerId as string | undefined
+    if (triggerId === 'jira_issue_commented') {
+      return { input: extractCommentData(body) }
+    }
+    if (triggerId === 'jira_worklog_created') {
+      return { input: extractWorklogData(body) }
+    }
+    return { input: extractIssueData(body) }
+  },
 
   async matchEvent({ webhook, workflow, body, requestId, providerConfig }: EventMatchContext) {
     const triggerId = providerConfig.triggerId as string | undefined

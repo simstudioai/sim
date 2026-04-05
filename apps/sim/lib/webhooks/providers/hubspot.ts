@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
-import type { EventMatchContext, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
+import type {
+  EventMatchContext,
+  FormatInputContext,
+  FormatInputResult,
+  WebhookProviderHandler,
+} from '@/lib/webhooks/providers/types'
 
 const logger = createLogger('WebhookProvider:HubSpot')
 
@@ -38,6 +43,24 @@ export const hubspotHandler: WebhookProviderHandler = {
     }
 
     return true
+  },
+
+  async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
+    const b = body as Record<string, unknown>
+    const events = Array.isArray(b) ? b : [b]
+    const event = events[0] as Record<string, unknown> | undefined
+    if (!event) {
+      logger.warn('HubSpot webhook received with empty payload')
+      return { input: null }
+    }
+    logger.info('Formatting HubSpot webhook input', {
+      subscriptionType: event.subscriptionType,
+      objectId: event.objectId,
+      portalId: event.portalId,
+    })
+    return {
+      input: { payload: body, provider: 'hubspot', providerConfig: webhook.providerConfig },
+    }
   },
 
   extractIdempotencyId(body: unknown) {

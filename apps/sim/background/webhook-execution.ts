@@ -13,7 +13,6 @@ import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
 import { getProviderHandler } from '@/lib/webhooks/providers'
-import { formatWebhookInput } from '@/lib/webhooks/utils.server'
 import {
   executeWorkflowCore,
   wasExecutionFinalizedByCore,
@@ -317,12 +316,12 @@ async function executeWebhookJobInternal(
     let input: Record<string, unknown> | null = null
     let skipMessage: string | undefined
 
-    if (handler.formatInput) {
-      const webhookRecord = webhookRows[0]
-      if (!webhookRecord) {
-        throw new Error(`Webhook record not found: ${payload.webhookId}`)
-      }
+    const webhookRecord = webhookRows[0]
+    if (!webhookRecord) {
+      throw new Error(`Webhook record not found: ${payload.webhookId}`)
+    }
 
+    if (handler.formatInput) {
       const result = await handler.formatInput({
         webhook: webhookRecord,
         workflow: { id: payload.workflowId, userId: payload.userId },
@@ -333,35 +332,13 @@ async function executeWebhookJobInternal(
       input = result.input as Record<string, unknown> | null
       skipMessage = result.skip?.message
     } else {
-      const actualWebhook =
-        webhookRows.length > 0
-          ? webhookRows[0]
-          : {
-              provider: payload.provider,
-              blockId: payload.blockId,
-              providerConfig: {},
-            }
+      input = payload.body as Record<string, unknown> | null
+    }
 
-      const mockWorkflow = {
-        id: payload.workflowId,
-        userId: payload.userId,
-      }
-      const mockRequest = {
-        headers: new Map(Object.entries(payload.headers)),
-      } as unknown as Parameters<typeof formatWebhookInput>[3]
-
-      input = (await formatWebhookInput(
-        actualWebhook,
-        mockWorkflow,
-        payload.body,
-        mockRequest
-      )) as Record<string, unknown> | null
-
-      if (!input && handler.handleEmptyInput) {
-        const skipResult = handler.handleEmptyInput(requestId)
-        if (skipResult) {
-          skipMessage = skipResult.message
-        }
+    if (!input && handler.handleEmptyInput) {
+      const skipResult = handler.handleEmptyInput(requestId)
+      if (skipResult) {
+        skipMessage = skipResult.message
       }
     }
 

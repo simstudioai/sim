@@ -1,15 +1,23 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@/lib/core/security/encryption'
-import type { WebhookProviderHandler } from '@/lib/webhooks/providers/types'
+import type {
+  FormatInputContext,
+  FormatInputResult,
+  WebhookProviderHandler,
+} from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Ashby')
 
 function validateAshbySignature(secretToken: string, signature: string, body: string): boolean {
   try {
-    if (!secretToken || !signature || !body) { return false }
-    if (!signature.startsWith('sha256=')) { return false }
+    if (!secretToken || !signature || !body) {
+      return false
+    }
+    if (!signature.startsWith('sha256=')) {
+      return false
+    }
     const providedSignature = signature.substring(7)
     const computedHash = crypto.createHmac('sha256', secretToken).update(body, 'utf8').digest('hex')
     return safeCompare(computedHash, providedSignature)
@@ -20,6 +28,17 @@ function validateAshbySignature(secretToken: string, signature: string, body: st
 }
 
 export const ashbyHandler: WebhookProviderHandler = {
+  async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
+    const b = body as Record<string, unknown>
+    return {
+      input: {
+        ...((b.data as Record<string, unknown>) || {}),
+        action: b.action,
+        data: b.data || {},
+      },
+    }
+  },
+
   verifyAuth: createHmacVerifier({
     configKey: 'secretToken',
     headerName: 'ashby-signature',
