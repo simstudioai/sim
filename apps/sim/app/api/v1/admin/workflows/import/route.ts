@@ -19,6 +19,7 @@ import { workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { generateId } from '@/lib/core/utils/uuid'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -92,7 +93,7 @@ export const POST = withAdminAuth(async (request) => {
       description: workflowDescription,
     } = extractWorkflowMetadata(parsedWorkflow, overrideName)
 
-    const workflowId = crypto.randomUUID()
+    const workflowId = generateId()
     const now = new Date()
     const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, folderId || null)
 
@@ -122,7 +123,7 @@ export const POST = withAdminAuth(async (request) => {
     if (workflowData.variables && Array.isArray(workflowData.variables)) {
       const variablesRecord: Record<string, WorkflowVariable> = {}
       workflowData.variables.forEach((v) => {
-        const varId = v.id || crypto.randomUUID()
+        const varId = v.id || generateId()
         variablesRecord[varId] = {
           id: varId,
           name: v.name,

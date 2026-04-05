@@ -1,7 +1,7 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getTagUsage } from '@/lib/knowledge/tags/service'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 
@@ -11,7 +11,7 @@ const logger = createLogger('TagUsageAPI')
 
 // GET /api/knowledge/[id]/tag-usage - Get usage statistics for all tag definitions
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId } = await params
 
   try {

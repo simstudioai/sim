@@ -2,8 +2,8 @@ import { db } from '@sim/db'
 import { webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import type { NextRequest } from 'next/server'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
@@ -588,7 +588,7 @@ export async function saveTriggerWebhooksForDeploy({
     if (!config) continue
 
     const { provider, providerConfig, triggerPath } = config
-    const webhookId = nanoid()
+    const webhookId = generateShortId()
     const createPayload = {
       id: webhookId,
       path: triggerPath,

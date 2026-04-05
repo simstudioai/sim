@@ -5,7 +5,6 @@
  * Used by both regular routes and admin routes to ensure consistent business logic.
  */
 
-import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import {
   member,
@@ -21,6 +20,7 @@ import { isOrgPlan, sqlIsPro } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('OrganizationMembership')
 
@@ -419,7 +419,7 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
     let memberId = ''
 
     await db.transaction(async (tx) => {
-      memberId = randomUUID()
+      memberId = generateId()
       await tx.insert(member).values({
         id: memberId,
         userId,

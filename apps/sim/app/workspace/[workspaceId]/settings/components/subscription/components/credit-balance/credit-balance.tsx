@@ -14,6 +14,7 @@ import {
   ModalTrigger,
 } from '@/components/emcn'
 import { dollarsToCredits, formatCredits } from '@/lib/billing/credits/conversion'
+import { generateId } from '@/lib/core/utils/uuid'
 import { usePurchaseCredits } from '@/hooks/queries/subscription'
 
 interface CreditBalanceProps {
@@ -60,7 +61,7 @@ export function CreditBalance({
   const openModal = () => {
     clearCloseTimeout()
     resetModalState()
-    setRequestId(crypto.randomUUID())
+    setRequestId(generateId())
     setIsOpen(true)
   }
 

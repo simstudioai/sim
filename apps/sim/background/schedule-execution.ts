@@ -3,9 +3,9 @@ import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { Cron } from 'croner'
 import { and, eq, isNull } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import { generateId } from '@/lib/core/utils/uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -46,7 +46,7 @@ type RunWorkflowResult =
 export function buildScheduleCorrelation(
   payload: ScheduleExecutionPayload
 ): AsyncExecutionCorrelation {
-  const executionId = payload.executionId || uuidv4()
+  const executionId = payload.executionId || generateId()
   const requestId = payload.requestId || payload.correlation?.requestId || executionId.slice(0, 8)
 
   return {
@@ -804,7 +804,7 @@ async function createJobLogEntry(params: {
     }))
 
     const traceSpan = {
-      id: uuidv4(),
+      id: generateId(),
       name,
       type: 'mothership',
       duration: durationMs,
@@ -822,10 +822,10 @@ async function createJobLogEntry(params: {
     }
 
     await db.insert(jobExecutionLogs).values({
-      id: uuidv4(),
+      id: generateId(),
       scheduleId,
       workspaceId,
-      executionId: uuidv4(),
+      executionId: generateId(),
       level: success ? 'info' : 'error',
       status: success ? 'completed' : 'failed',
       trigger: 'mothership',
@@ -859,7 +859,7 @@ async function createJobLogEntry(params: {
 }
 
 export async function executeJobInline(payload: JobExecutionPayload) {
-  const requestId = uuidv4().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const now = new Date(payload.now)
 
   logger.info(`[${requestId}] Starting job execution`, { scheduleId: payload.scheduleId })
@@ -920,7 +920,7 @@ export async function executeJobInline(payload: JobExecutionPayload) {
       messages: [{ role: 'user', content: promptText }],
       workspaceId: jobRecord.sourceWorkspaceId,
       userId: jobRecord.sourceUserId,
-      chatId: jobRecord.sourceChatId || crypto.randomUUID(),
+      chatId: jobRecord.sourceChatId || generateId(),
     }
 
     const startTime = new Date()

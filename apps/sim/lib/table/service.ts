@@ -13,6 +13,7 @@ import { createLogger } from '@sim/logger'
 import { and, count, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm'
 import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { generateId } from '@/lib/core/utils/uuid'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
@@ -213,7 +214,7 @@ export async function createTable(
     throw new Error(`Invalid schema: ${schemaValidation.errors.join(', ')}`)
   }
 
-  const tableId = `tbl_${crypto.randomUUID().replace(/-/g, '')}`
+  const tableId = `tbl_${generateId().replace(/-/g, '')}`
   const now = new Date()
 
   // Use provided maxRows (from billing plan) or fall back to default
@@ -276,7 +277,7 @@ export async function createTable(
       const initialRowCount = data.initialRowCount ?? 0
       if (initialRowCount > 0) {
         const rowsToInsert = Array.from({ length: initialRowCount }, (_, i) => ({
-          id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+          id: `row_${generateId().replace(/-/g, '')}`,
           tableId,
           data: {},
           position: i,
@@ -579,7 +580,7 @@ export async function insertRow(
     }
   }
 
-  const rowId = `row_${crypto.randomUUID().replace(/-/g, '')}`
+  const rowId = `row_${generateId().replace(/-/g, '')}`
   const now = new Date()
 
   // Atomic capacity check + insert inside a transaction.
@@ -723,7 +724,7 @@ export async function batchInsertRows(
     }
 
     const buildRow = (rowData: RowData, position: number) => ({
-      id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+      id: `row_${generateId().replace(/-/g, '')}`,
       tableId: data.tableId,
       workspaceId: data.workspaceId,
       data: rowData,
@@ -923,7 +924,7 @@ export async function upsertRow(
     const [insertedRow] = await trx
       .insert(userTableRows)
       .values({
-        id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+        id: `row_${generateId().replace(/-/g, '')}`,
         tableId: data.tableId,
         workspaceId: data.workspaceId,
         data: data.data,

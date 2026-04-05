@@ -10,6 +10,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import { fetchDeploymentVersionState } from '@/hooks/queries/utils/fetch-deployment-version-state'
@@ -164,7 +165,7 @@ export function useCreateWorkflow() {
         workflowKeys.list(variables.workspaceId, 'active')
       )
 
-      const tempId = variables.id ?? crypto.randomUUID()
+      const tempId = variables.id ?? generateId()
       let sortOrder: number
       if (variables.sortOrder !== undefined) {
         sortOrder = variables.sortOrder
@@ -344,7 +345,7 @@ export function useDuplicateWorkflowMutation() {
       const snapshot = queryClient.getQueryData<WorkflowMetadata[]>(
         workflowKeys.list(variables.workspaceId, 'active')
       )
-      const tempId = variables.newId ?? crypto.randomUUID()
+      const tempId = variables.newId ?? generateId()
 
       const currentWorkflows = Object.fromEntries(
         getWorkflows(variables.workspaceId).map((w) => [w.id, w])

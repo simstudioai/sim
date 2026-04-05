@@ -2,8 +2,8 @@ import { db } from '@sim/db'
 import { customTools } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull, or } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateShortId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('CustomToolsOperations')
 
@@ -87,7 +87,7 @@ export async function upsertCustomTools(params: {
       }
 
       await tx.insert(customTools).values({
-        id: nanoid(),
+        id: generateShortId(),
         workspaceId,
         userId,
         title: tool.title,

@@ -12,8 +12,8 @@ import { tasks } from '@trigger.dev/sdk'
 import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { Webhook } from 'svix'
-import { v4 as uuidv4 } from 'uuid'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { generateId } from '@/lib/core/utils/uuid'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
 import type { AgentMailWebhookPayload, RejectionReason } from '@/lib/mothership/inbox/types'
 
@@ -137,7 +137,7 @@ export async function POST(req: Request) {
 
     const fromName = extractDisplayName(message.from_)
 
-    const taskId = uuidv4()
+    const taskId = generateId()
     const bodyText = message.text?.substring(0, 50_000) || null
     const bodyHtml = message.html?.substring(0, 50_000) || null
     const bodyPreview = (bodyText || '')?.substring(0, 200) || null
@@ -254,7 +254,7 @@ async function createRejectedTask(
   reason: RejectionReason
 ): Promise<void> {
   await db.insert(mothershipInboxTask).values({
-    id: uuidv4(),
+    id: generateId(),
     workspaceId,
     fromEmail: extractSenderEmail(message.from_) || 'unknown',
     fromName: extractDisplayName(message.from_),

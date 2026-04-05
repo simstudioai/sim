@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import {
   syncPersonalEnvCredentialsForUser,
@@ -273,7 +274,7 @@ export async function DELETE(
       await db
         .insert(workspaceEnvironment)
         .values({
-          id: workspaceRow?.id || crypto.randomUUID(),
+          id: workspaceRow?.id || generateId(),
           workspaceId: access.credential.workspaceId,
           variables: current,
           createdAt: workspaceRow?.createdAt || new Date(),

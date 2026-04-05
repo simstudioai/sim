@@ -1,10 +1,10 @@
-import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import { generateId } from '@/lib/core/utils/uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -125,7 +125,7 @@ export class PauseResumeManager {
     await db
       .insert(pausedExecutions)
       .values({
-        id: randomUUID(),
+        id: generateId(),
         workflowId,
         executionId,
         executionSnapshot: snapshotSeed,
@@ -208,7 +208,7 @@ export class PauseResumeManager {
         const [entry] = await tx
           .insert(resumeQueue)
           .values({
-            id: randomUUID(),
+            id: generateId(),
             pausedExecutionId: pausedExecution.id,
             parentExecutionId: executionId,
             newExecutionId: resumeExecutionId,
@@ -246,7 +246,7 @@ export class PauseResumeManager {
         }
       }
 
-      const resumeEntryId = randomUUID()
+      const resumeEntryId = generateId()
       await tx.insert(resumeQueue).values({
         id: resumeEntryId,
         pausedExecutionId: pausedExecution.id,

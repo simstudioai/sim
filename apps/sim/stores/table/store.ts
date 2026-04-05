@@ -3,9 +3,9 @@
  * Ephemeral — no persistence. Stacks are keyed by tableId.
  */
 
-import { nanoid } from 'nanoid'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import type { TableUndoAction, TableUndoStacks, TableUndoState, UndoEntry } from './types'
 
 const STACK_CAPACITY = 100
@@ -34,7 +34,7 @@ export const useTableUndoStore = create<TableUndoState>()(
       push: (tableId: string, action: TableUndoAction) => {
         if (undoRedoInProgress) return
 
-        const entry: UndoEntry = { id: nanoid(), action, timestamp: Date.now() }
+        const entry: UndoEntry = { id: generateShortId(), action, timestamp: Date.now() }
 
         set((state) => {
           const current = state.stacks[tableId] ?? EMPTY_STACKS

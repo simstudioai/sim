@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import {
   decryptApiKey,
   encryptApiKey,
@@ -13,6 +12,7 @@ import {
 } from '@/lib/api-key/crypto'
 import { env } from '@/lib/core/config/env'
 import { safeCompare } from '@/lib/core/security/encryption'
+import { generateShortId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('ApiKeyAuth')
 
@@ -250,7 +250,7 @@ export async function createWorkspaceApiKey(params: {
   const [newKey] = await db
     .insert(apiKey)
     .values({
-      id: nanoid(),
+      id: generateShortId(),
       workspaceId: params.workspaceId,
       userId: params.userId,
       createdBy: params.userId,

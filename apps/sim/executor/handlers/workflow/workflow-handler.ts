@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@/lib/core/utils/uuid'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -77,7 +78,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
     // Unique ID per invocation — used to correlate child block events with this specific
     // workflow block execution, preventing cross-iteration child mixing in loop contexts.
-    const instanceId = crypto.randomUUID()
+    const instanceId = generateId()
 
     const childCallChain = buildNextCallChain(ctx.callChain || [], workflowId)
     const depthError = validateCallChain(childCallChain)

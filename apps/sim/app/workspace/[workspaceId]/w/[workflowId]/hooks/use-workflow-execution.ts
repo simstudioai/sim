@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
-import { v4 as uuidv4 } from 'uuid'
 import { useShallow } from 'zustand/react/shallow'
+import { generateId } from '@/lib/core/utils/uuid'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import {
@@ -260,7 +260,7 @@ export function useWorkflowExecution() {
       setExecutionResult(result)
 
       // Persist logs
-      await persistLogs(uuidv4(), result)
+      await persistLogs(generateId(), result)
 
       // Reset debug state
       resetDebugState()
@@ -307,7 +307,7 @@ export function useWorkflowExecution() {
       setExecutionResult(errorResult)
 
       // Persist logs
-      await persistLogs(uuidv4(), errorResult)
+      await persistLogs(generateId(), errorResult)
 
       // Reset debug state
       resetDebugState()
@@ -413,7 +413,7 @@ export function useWorkflowExecution() {
       // For chat executions, we'll use a streaming approach
       if (isChatExecution) {
         let isCancelled = false
-        const executionId = uuidv4()
+        const executionId = generateId()
         currentChatExecutionIdRef.current = executionId
         const stream = new ReadableStream({
           async start(controller) {
@@ -717,7 +717,7 @@ export function useWorkflowExecution() {
         return { success: true, stream }
       }
 
-      const manualExecutionId = uuidv4()
+      const manualExecutionId = generateId()
       try {
         const result = await executeWorkflow(
           workflowInput,
@@ -1791,7 +1791,7 @@ export function useWorkflowExecution() {
       setExecutionResult(null)
       setIsExecuting(workflowId, true)
 
-      const executionId = uuidv4()
+      const executionId = generateId()
       try {
         await executeWorkflow(undefined, undefined, executionId, undefined, 'manual', blockId)
       } catch (error) {

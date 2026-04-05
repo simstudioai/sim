@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
@@ -159,7 +160,7 @@ export function useCreateFolder() {
         updatedAt: new Date(),
       }
     },
-    (variables) => variables.id ?? crypto.randomUUID()
+    (variables) => variables.id ?? generateId()
   )
 
   return useMutation({
@@ -259,7 +260,7 @@ export function useDuplicateFolderMutation() {
         updatedAt: new Date(),
       }
     },
-    (variables) => variables.newId ?? crypto.randomUUID()
+    (variables) => variables.newId ?? generateId()
   )
 
   return useMutation({

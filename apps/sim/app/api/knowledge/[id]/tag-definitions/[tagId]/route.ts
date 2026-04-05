@@ -1,7 +1,7 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { generateId } from '@/lib/core/utils/uuid'
 import { deleteTagDefinition } from '@/lib/knowledge/tags/service'
 import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
@@ -14,7 +14,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; tagId: string }> }
 ) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId, tagId } = await params
 
   try {

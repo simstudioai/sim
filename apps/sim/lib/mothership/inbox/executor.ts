@@ -10,6 +10,7 @@ import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
 import { taskPubSub } from '@/lib/copilot/task-events'
 import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
 import { isHosted } from '@/lib/core/config/feature-flags'
+import { generateId } from '@/lib/core/utils/uuid'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
@@ -174,7 +175,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     }
     const messageContent = formatEmailAsMessage(truncatedTask, attachments)
 
-    const userMessageId = crypto.randomUUID()
+    const userMessageId = generateId()
     const requestPayload: Record<string, unknown> = {
       message: messageContent,
       userId,
@@ -188,9 +189,9 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       ...(fileAttachments.length > 0 ? { fileAttachments } : {}),
     }
 
-    const executionId = crypto.randomUUID()
-    const runId = crypto.randomUUID()
-    const runStreamId = crypto.randomUUID()
+    const executionId = generateId()
+    const runId = generateId()
+    const runStreamId = generateId()
 
     if (chatId) {
       await createRunSegment({
@@ -337,7 +338,7 @@ async function persistChatMessages(
     }
 
     const assistantMessage = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       role: 'assistant' as const,
       content: result.content || '',
       timestamp: now,

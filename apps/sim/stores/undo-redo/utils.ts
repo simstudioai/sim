@@ -1,4 +1,5 @@
 import type { Edge } from 'reactflow'
+import { generateId } from '@/lib/core/utils/uuid'
 import { UNDO_REDO_OPERATIONS } from '@/socket/constants'
 import type {
   BatchAddBlocksOperation,
@@ -15,7 +16,7 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 
 export function createOperationEntry(operation: Operation, inverse: Operation): OperationEntry {
   return {
-    id: crypto.randomUUID(),
+    id: generateId(),
     operation,
     inverse,
     createdAt: Date.now(),

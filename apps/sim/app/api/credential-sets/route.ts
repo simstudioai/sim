@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('CredentialSets')
 
@@ -150,7 +151,7 @@ export async function POST(req: Request) {
 
     const now = new Date()
     const newCredentialSet = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       organizationId,
       name,
       description: description || null,

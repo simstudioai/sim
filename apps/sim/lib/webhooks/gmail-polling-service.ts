@@ -8,10 +8,10 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import {
   getOAuthToken,
   refreshAccessTokenIfNeeded,
@@ -159,7 +159,7 @@ export async function pollGmailWebhooks() {
 
     const enqueue = async (webhookData: (typeof activeWebhooks)[number]) => {
       const webhookId = webhookData.id
-      const requestId = nanoid()
+      const requestId = generateShortId()
 
       try {
         const metadata = webhookData.providerConfig as any

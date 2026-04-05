@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { workflowExecutionLogs, workflowExecutionSnapshots } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, lt, notExists, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
+import { generateId } from '@/lib/core/utils/uuid'
 import type {
   SnapshotService as ISnapshotService,
   SnapshotCreationResult,
@@ -31,7 +31,7 @@ export class SnapshotService implements ISnapshotService {
     const stateHash = this.computeStateHash(state)
 
     const snapshotData: WorkflowExecutionSnapshotInsert = {
-      id: uuidv4(),
+      id: generateId(),
       workflowId,
       stateHash,
       stateData: state,

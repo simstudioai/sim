@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import {
   invitation,
@@ -24,6 +23,7 @@ import {
   validateSeatAvailability,
 } from '@/lib/billing/validation/seat-management'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
@@ -293,7 +293,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
     const invitationsToCreate = emailsToInvite.map((email: string) => ({
-      id: randomUUID(),
+      id: generateId(),
       email,
       inviterId: session.user.id,
       organizationId,
@@ -310,8 +310,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       for (const email of emailsToInvite) {
         const orgInviteForEmail = invitationsToCreate.find((inv) => inv.email === email)
         for (const wsInvitation of validWorkspaceInvitations) {
-          const wsInvitationId = randomUUID()
-          const token = randomUUID()
+          const wsInvitationId = generateId()
+          const token = generateId()
 
           await db.insert(workspaceInvitation).values({
             id: wsInvitationId,

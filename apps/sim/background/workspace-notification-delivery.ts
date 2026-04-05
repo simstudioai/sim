@@ -8,7 +8,6 @@ import {
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 import {
   type EmailRateLimitsData,
   type EmailUsageData,
@@ -24,6 +23,7 @@ import { decryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { formatDuration } from '@/lib/core/utils/formatting'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -92,7 +92,7 @@ async function buildPayload(
     : null
 
   const payload: NotificationPayload = {
-    id: `evt_${uuidv4()}`,
+    id: `evt_${generateId()}`,
     type: 'workflow.execution.completed',
     timestamp,
     data: {
@@ -195,7 +195,7 @@ async function deliverWebhook(
   }
 
   const body = JSON.stringify(payload)
-  const deliveryId = `delivery_${uuidv4()}`
+  const deliveryId = `delivery_${generateId()}`
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'sim-event': 'workflow.execution.completed',

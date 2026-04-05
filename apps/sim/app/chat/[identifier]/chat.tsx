@@ -2,8 +2,8 @@
 
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { v4 as uuidv4 } from 'uuid'
 import { noop } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 import {
   ChatErrorState,
@@ -256,7 +256,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
 
   useEffect(() => {
     fetchChatConfig()
-    setConversationId(uuidv4())
+    setConversationId(generateId())
 
     getFormattedGitHubStars()
       .then((formattedStars) => {
@@ -303,7 +303,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     setUserHasScrolled(false)
 
     const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       content: messageToSend || (files && files.length > 0 ? `Sent ${files.length} file(s)` : ''),
       type: 'user',
       timestamp: new Date(),
@@ -416,7 +416,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       logger.error('Error sending message:', error)
       setIsLoading(false)
       const errorMessage: ChatMessage = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         content: CHAT_ERROR_MESSAGES.GENERIC_ERROR,
         type: 'assistant',
         timestamp: new Date(),

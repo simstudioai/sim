@@ -1,8 +1,8 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuthType } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
@@ -60,7 +60,7 @@ export async function POST(
     userId = billedAccountUserId
   }
 
-  const resumeExecutionId = randomUUID()
+  const resumeExecutionId = generateId()
   const requestId = generateRequestId()
 
   logger.info(`[${requestId}] Preprocessing resume execution`, {

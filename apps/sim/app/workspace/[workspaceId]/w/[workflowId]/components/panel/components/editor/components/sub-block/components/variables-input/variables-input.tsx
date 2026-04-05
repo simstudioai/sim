@@ -12,6 +12,7 @@ import {
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
+import { generateId } from '@/lib/core/utils/uuid'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   checkTagTrigger,
@@ -124,7 +125,7 @@ export function VariablesInput({
     if (!isReadOnly && assignments.length === 0 && currentWorkflowVariables.length > 0) {
       const initialAssignment: VariableAssignment = {
         ...DEFAULT_ASSIGNMENT,
-        id: crypto.randomUUID(),
+        id: generateId(),
       }
       setStoreValue([initialAssignment])
     }
@@ -151,7 +152,7 @@ export function VariablesInput({
 
     const newAssignment: VariableAssignment = {
       ...DEFAULT_ASSIGNMENT,
-      id: crypto.randomUUID(),
+      id: generateId(),
     }
     setStoreValue([...assignments, newAssignment])
   }
@@ -160,7 +161,7 @@ export function VariablesInput({
     if (isReadOnly) return
 
     if (assignments.length === 1) {
-      setStoreValue([{ ...DEFAULT_ASSIGNMENT, id: crypto.randomUUID() }])
+      setStoreValue([{ ...DEFAULT_ASSIGNMENT, id: generateId() }])
       return
     }
 

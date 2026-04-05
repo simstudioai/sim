@@ -6,6 +6,7 @@ import { createA2AClient, extractTextContent, isTerminalState } from '@/lib/a2a/
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 
 export const dynamic = 'force-dynamic'
 
@@ -142,7 +143,7 @@ export async function POST(request: NextRequest) {
 
     const message: Message = {
       kind: 'message',
-      messageId: crypto.randomUUID(),
+      messageId: generateId(),
       role: 'user',
       parts,
       ...(validatedData.taskId && { taskId: validatedData.taskId }),

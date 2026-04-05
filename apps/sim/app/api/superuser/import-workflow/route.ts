@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { generateId } from '@/lib/core/utils/uuid'
 import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import {
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create new workflow record
-    const newWorkflowId = crypto.randomUUID()
+    const newWorkflowId = generateId()
     const now = new Date()
     const dedupedName = await deduplicateWorkflowName(
       `[Debug Import] ${sourceWorkflow.name}`,

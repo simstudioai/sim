@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getWorkspaceConcurrencyLimit } from '@/lib/billing/workspace-concurrency'
 import { type BullMQJobData, getBullMQQueueByName } from '@/lib/core/bullmq'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   claimWorkspaceJob,
   markDispatchJobAdmitted,
@@ -95,7 +96,7 @@ export async function dispatchNextAdmissibleWorkspaceJob(): Promise<DispatchScan
     return DISPATCH_SCAN_RESULTS.NO_WORKSPACE
   }
 
-  const lockValue = `lock_${crypto.randomUUID()}`
+  const lockValue = `lock_${generateId()}`
   try {
     const lockKey = `workspace-dispatch:claim-lock:${workspaceId}`
     const acquired = await acquireLock(lockKey, lockValue, WORKSPACE_CLAIM_LOCK_TTL_SECONDS)
@@ -105,7 +106,7 @@ export async function dispatchNextAdmissibleWorkspaceJob(): Promise<DispatchScan
     }
 
     const limit = await getWorkspaceConcurrencyLimit(workspaceId)
-    const leaseId = `lease_${crypto.randomUUID()}`
+    const leaseId = `lease_${generateId()}`
     const claimResult = await claimWorkspaceJob(workspaceId, {
       lanes: WORKSPACE_DISPATCH_LANES,
       concurrencyLimit: limit,

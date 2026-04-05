@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { form, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -7,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { addCorsHeaders, validateAuthToken } from '@/lib/core/security/deployment'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
@@ -119,7 +119,7 @@ export async function POST(
         )
       }
 
-      const executionId = randomUUID()
+      const executionId = generateId()
       const loggingSession = new LoggingSession(
         deployment.workflowId,
         executionId,
@@ -165,7 +165,7 @@ export async function POST(
       return addCorsHeaders(createErrorResponse('No form data provided', 400), request)
     }
 
-    const executionId = randomUUID()
+    const executionId = generateId()
     const loggingSession = new LoggingSession(deployment.workflowId, executionId, 'form', requestId)
 
     const preprocessResult = await preprocessExecution({

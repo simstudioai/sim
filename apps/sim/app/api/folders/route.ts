@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { generateId } from '@/lib/core/utils/uuid'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const id = clientId || crypto.randomUUID()
+    const id = clientId || generateId()
 
     const newFolder = await db.transaction(async (tx) => {
       let sortOrder: number

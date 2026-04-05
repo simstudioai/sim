@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('PermissionGroupBulkMembers')
 
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
 
       const newMembers = usersToAdd.map((userId) => ({
-        id: crypto.randomUUID(),
+        id: generateId(),
         permissionGroupId: id,
         userId,
         assignedBy: session.user.id,

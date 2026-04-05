@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { v4 as uuidv4 } from 'uuid'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
+import { generateId } from '@/lib/core/utils/uuid'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
 import { clearExecutionPointer, consolePersistence, saveExecutionPointer } from '@/stores/terminal'
@@ -151,7 +151,7 @@ async function doExecuteRunTool(
 
   consolePersistence.executionStarted()
   setIsExecuting(targetWorkflowId, true)
-  const executionId = uuidv4()
+  const executionId = generateId()
   setCurrentExecutionId(targetWorkflowId, executionId)
   saveExecutionPointer({ workflowId: targetWorkflowId, executionId, lastEventId: 0 })
   const executionStartTime = new Date().toISOString()

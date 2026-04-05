@@ -1,4 +1,4 @@
-import { randomInt, randomUUID } from 'crypto'
+import { randomInt } from 'crypto'
 import { db } from '@sim/db'
 import { chat, verification } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -10,6 +10,7 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { addCorsHeaders, isEmailAllowed } from '@/lib/core/security/deployment'
 import { getStorageMethod } from '@/lib/core/storage'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { setChatAuthCookie } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -61,7 +62,7 @@ async function storeOTP(email: string, chatId: string, otp: string): Promise<voi
     await db.transaction(async (tx) => {
       await tx.delete(verification).where(eq(verification.identifier, identifier))
       await tx.insert(verification).values({
-        id: randomUUID(),
+        id: generateId(),
         identifier,
         value,
         expiresAt,

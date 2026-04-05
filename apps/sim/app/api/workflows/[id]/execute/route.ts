@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { validate as uuidValidate, v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
@@ -14,6 +13,7 @@ import {
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId, isValidUuid } from '@/lib/core/utils/uuid'
 import {
   DispatchQueueFullError,
   enqueueWorkspaceDispatch,
@@ -133,19 +133,19 @@ function resolveOutputIds(
     const dotIndex = outputId.indexOf('.')
     if (underscoreIndex > 0) {
       const maybeUuid = outputId.substring(0, underscoreIndex)
-      if (uuidValidate(maybeUuid)) {
+      if (isValidUuid(maybeUuid)) {
         return outputId
       }
     }
 
     if (dotIndex > 0) {
       const maybeUuid = outputId.substring(0, dotIndex)
-      if (uuidValidate(maybeUuid)) {
+      if (isValidUuid(maybeUuid)) {
         return `${outputId.substring(0, dotIndex)}_${outputId.substring(dotIndex + 1)}`
       }
     }
 
-    if (uuidValidate(outputId)) {
+    if (isValidUuid(outputId)) {
       return outputId
     }
 
@@ -594,7 +594,7 @@ async function handleExecutePost(
       )
     }
 
-    const executionId = uuidv4()
+    const executionId = generateId()
     reqLogger = reqLogger.withMetadata({ userId, executionId })
 
     reqLogger.info('Starting server-side execution', {
