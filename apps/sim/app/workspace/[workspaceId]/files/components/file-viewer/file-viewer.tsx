@@ -619,10 +619,7 @@ const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileR
   )
 })
 
-function resolvePreviewError(
-  fetchError: Error | null,
-  renderError: string | null
-): string | null {
+function resolvePreviewError(fetchError: Error | null, renderError: string | null): string | null {
   if (fetchError) return fetchError instanceof Error ? fetchError.message : 'Failed to load file'
   return renderError
 }
@@ -1080,7 +1077,7 @@ const XlsxPreview = memo(function XlsxPreview({
   return (
     <div className='flex flex-1 flex-col overflow-hidden'>
       {sheetNames.length > 1 && (
-        <div className='flex shrink-0 gap-0 border-b border-[var(--border)] bg-[var(--surface-1)]'>
+        <div className='flex shrink-0 gap-0 border-[var(--border)] border-b bg-[var(--surface-1)]'>
           {sheetNames.map((name, i) => (
             <button
               key={name}
@@ -1089,7 +1086,7 @@ const XlsxPreview = memo(function XlsxPreview({
               className={cn(
                 'px-3 py-1.5 text-[12px] transition-colors',
                 i === activeSheet
-                  ? 'border-b-2 border-[var(--brand-secondary)] font-medium text-[var(--text-primary)]'
+                  ? 'border-[var(--brand-secondary)] border-b-2 font-medium text-[var(--text-primary)]'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
               )}
             >
