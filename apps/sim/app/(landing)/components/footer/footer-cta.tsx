@@ -41,7 +41,7 @@ export function FooterCTA() {
   }, [])
 
   return (
-    <div className='flex flex-col items-center px-4 pt-[120px] pb-[100px] sm:px-8 md:px-20'>
+    <div className='flex flex-col items-center px-4 pt-[60px] pb-[60px] sm:px-8 md:px-16 lg:pt-[100px] lg:pb-[100px]'>
       <h2 className='text-balance text-center font-[430] font-season text-[28px] text-[var(--landing-text-dark)] leading-[100%] tracking-[-0.02em] sm:text-[32px] md:text-[36px]'>
         What should we get done?
       </h2>

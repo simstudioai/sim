@@ -230,7 +230,7 @@ export default function Collaboration() {
 
       <div className='relative overflow-hidden'>
         <div className='grid grid-cols-1 md:grid-cols-[auto_1fr]'>
-          <div className='flex flex-col items-start gap-3 px-4 pt-[60px] pb-8 sm:gap-4 sm:px-8 md:gap-5 md:px-20 md:pt-[100px]'>
+          <div className='flex flex-col items-start gap-3 px-4 pt-[60px] pb-8 sm:gap-4 sm:px-8 md:gap-5 md:px-16 md:pt-[100px]'>
             <Badge
               variant='blue'
               size='md'
@@ -305,7 +305,7 @@ export default function Collaboration() {
           href='/blog/multiplayer'
           target='_blank'
           rel='noopener noreferrer'
-          className='relative mx-4 mb-6 flex cursor-none items-center gap-3.5 rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] px-3 py-2.5 transition-colors hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-card)] sm:mx-8 md:absolute md:bottom-10 md:left-20 md:z-20 md:mx-0 md:mb-0'
+          className='relative mx-4 mb-6 flex cursor-none items-center gap-3.5 rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] px-3 py-2.5 transition-colors hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-card)] sm:mx-8 md:absolute md:bottom-10 md:left-16 md:z-20 md:mx-0 md:mb-0'
         >
           <div className='relative h-7 w-11 shrink-0'>
             <Image src='/landing/multiplayer-cursors.svg' alt='' fill className='object-contain' />

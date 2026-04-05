@@ -105,6 +105,7 @@ interface PreviewBlockData {
   hideSourceHandle?: boolean
   index?: number
   animate?: boolean
+  isHighlighted?: boolean
 }
 
 /**
@@ -137,6 +138,7 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
     hideSourceHandle,
     index = 0,
     animate = false,
+    isHighlighted = false,
   } = data
   const Icon = BLOCK_ICONS[blockType]
   const delay = animate ? index * BLOCK_STAGGER : 0
@@ -263,6 +265,10 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
             isConnectableStart={false}
             isConnectableEnd={false}
           />
+        )}
+
+        {isHighlighted && (
+          <div className='pointer-events-none absolute inset-0 z-40 rounded-lg ring-[#33b4ff] ring-[1.75px]' />
         )}
       </div>
     </motion.div>

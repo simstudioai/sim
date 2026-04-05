@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AnimatePresence, type MotionValue, motion, useScroll, useTransform } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { Badge, ChevronDown } from '@/components/emcn'
@@ -236,73 +236,6 @@ const DEPTH_CONFIGS: Record<string, DepthConfig> = {
   },
 }
 
-const SCROLL_BLOCK_RX = '2.59574'
-
-/**
- * Two-row horizontal block strip for the scroll-driven reveal in the templates section.
- * Same structural pattern as the hero's top-right blocks with matching colours:
- * blue (left) → pink (middle) → green (right).
- */
-const SCROLL_BLOCK_RECTS = [
-  { opacity: 0.6, x: '-34.24', y: '0', width: '34.24', height: '16.86', fill: '#2ABBF8' },
-  { opacity: 1, x: '-17.38', y: '0', width: '16.86', height: '16.86', fill: '#2ABBF8' },
-  { opacity: 1, x: '0', y: '0', width: '16.86', height: '33.73', fill: '#2ABBF8' },
-  { opacity: 0.6, x: '0', y: '0', width: '85.34', height: '16.86', fill: '#2ABBF8' },
-  { opacity: 1, x: '0', y: '0', width: '16.86', height: '16.86', fill: '#2ABBF8' },
-  { opacity: 0.6, x: '34.24', y: '0', width: '34.24', height: '33.73', fill: '#2ABBF8' },
-  { opacity: 1, x: '34.24', y: '0', width: '16.86', height: '16.86', fill: '#2ABBF8' },
-  { opacity: 1, x: '51.62', y: '16.86', width: '16.86', height: '16.86', fill: '#2ABBF8' },
-  { opacity: 1, x: '68.48', y: '0', width: '54.65', height: '16.86', fill: '#FA4EDF' },
-  { opacity: 0.6, x: '106.27', y: '0', width: '34.24', height: '33.73', fill: '#FA4EDF' },
-  { opacity: 0.6, x: '106.27', y: '0', width: '51.10', height: '16.86', fill: '#FA4EDF' },
-  { opacity: 1, x: '123.65', y: '16.86', width: '16.86', height: '16.86', fill: '#FA4EDF' },
-  { opacity: 0.6, x: '157.37', y: '0', width: '34.24', height: '16.86', fill: '#FA4EDF' },
-  { opacity: 1, x: '157.37', y: '0', width: '16.86', height: '16.86', fill: '#FA4EDF' },
-  { opacity: 0.6, x: '209.0', y: '0', width: '68.48', height: '16.86', fill: '#00F701' },
-  { opacity: 0.6, x: '209.14', y: '0', width: '16.86', height: '33.73', fill: '#00F701' },
-  { opacity: 0.6, x: '243.23', y: '0', width: '34.24', height: '33.73', fill: '#00F701' },
-  { opacity: 1, x: '243.23', y: '0', width: '16.86', height: '16.86', fill: '#00F701' },
-  { opacity: 0.6, x: '260.10', y: '0', width: '34.04', height: '16.86', fill: '#00F701' },
-  { opacity: 1, x: '260.61', y: '16.86', width: '16.86', height: '16.86', fill: '#00F701' },
-] as const
-
-const SCROLL_BLOCK_MAX_X = Math.max(...SCROLL_BLOCK_RECTS.map((r) => Number.parseFloat(r.x)))
-const SCROLL_REVEAL_START = 0.05
-const SCROLL_REVEAL_SPAN = 0.7
-const SCROLL_FADE_IN = 0.03
-
-function getScrollBlockThreshold(x: string): number {
-  const normalized = Number.parseFloat(x) / SCROLL_BLOCK_MAX_X
-  return SCROLL_REVEAL_START + (1 - normalized) * SCROLL_REVEAL_SPAN
-}
-
-interface ScrollBlockRectProps {
-  scrollYProgress: MotionValue<number>
-  rect: (typeof SCROLL_BLOCK_RECTS)[number]
-}
-
-/** Renders a single SVG rect whose opacity is driven by scroll progress. */
-function ScrollBlockRect({ scrollYProgress, rect }: ScrollBlockRectProps) {
-  const threshold = getScrollBlockThreshold(rect.x)
-  const opacity = useTransform(
-    scrollYProgress,
-    [threshold, threshold + SCROLL_FADE_IN],
-    [0, rect.opacity]
-  )
-
-  return (
-    <motion.rect
-      x={rect.x}
-      y={rect.y}
-      width={rect.width}
-      height={rect.height}
-      rx={SCROLL_BLOCK_RX}
-      fill={rect.fill}
-      style={{ opacity }}
-    />
-  )
-}
-
 function buildBottomWallStyle(config: DepthConfig) {
   let pos = 0
   const stops: string[] = []
@@ -346,7 +279,6 @@ function DotGrid({ className, cols, rows, gap = 0 }: DotGridProps) {
 const TEMPLATES_PANEL_ID = 'templates-panel'
 
 export default function Templates() {
-  const sectionRef = useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const [isPreparingTemplate, setIsPreparingTemplate] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -359,11 +291,6 @@ export default function Templates() {
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
-
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ['start 0.9', 'start 0.2'],
-  })
 
   const activeWorkflow = TEMPLATE_WORKFLOWS[activeIndex]
   const activeDepth = DEPTH_CONFIGS[activeWorkflow.id]
@@ -408,12 +335,7 @@ export default function Templates() {
   ])
 
   return (
-    <section
-      ref={sectionRef}
-      id='templates'
-      aria-labelledby='templates-heading'
-      className='mt-10 mb-20'
-    >
+    <section id='templates' aria-labelledby='templates-heading' className='pt-[60px] lg:pt-[100px]'>
       <p className='sr-only'>
         Sim includes {TEMPLATE_WORKFLOWS.length} pre-built workflow templates covering OCR
         processing, release management, meeting follow-ups, resume scanning, email triage,
@@ -423,33 +345,8 @@ export default function Templates() {
       </p>
 
       <div className='bg-[var(--landing-bg)]'>
-        <DotGrid
-          className='overflow-hidden border-[var(--landing-bg-elevated)] border-y bg-[var(--landing-bg)] p-1.5'
-          cols={160}
-          rows={1}
-          gap={6}
-        />
-
         <div className='relative overflow-hidden'>
-          <div
-            aria-hidden='true'
-            className='pointer-events-none absolute top-0 right-0 z-20 hidden lg:block'
-          >
-            <svg
-              width={329}
-              height={34}
-              viewBox='-34 0 329 34'
-              fill='none'
-              xmlns='http://www.w3.org/2000/svg'
-              className='h-auto w-full'
-            >
-              {SCROLL_BLOCK_RECTS.map((r, i) => (
-                <ScrollBlockRect key={i} scrollYProgress={scrollYProgress} rect={r} />
-              ))}
-            </svg>
-          </div>
-
-          <div className='px-5 pt-[60px] lg:px-20 lg:pt-[100px]'>
+          <div className='px-5 lg:px-16'>
             <div className='flex flex-col items-start gap-5'>
               <Badge
                 variant='blue'
@@ -491,7 +388,7 @@ export default function Templates() {
               </div>
               <div className='hidden h-full lg:block'>
                 <DotGrid
-                  className='h-full w-[80px] overflow-hidden border-[var(--landing-bg-elevated)] border-r p-1.5'
+                  className='h-full w-16 overflow-hidden border-[var(--landing-bg-elevated)] border-r p-1.5'
                   cols={8}
                   rows={55}
                   gap={6}
@@ -575,7 +472,7 @@ export default function Templates() {
                               <LandingPreviewWorkflow
                                 workflow={workflow}
                                 animate
-                                fitViewOptions={{ padding: 0.15, maxZoom: 1.3 }}
+                                fitViewOptions={{ padding: 0.15, minZoom: 0.1, maxZoom: 0.8 }}
                               />
                             </div>
                             <div className='p-3'>
@@ -650,13 +547,28 @@ export default function Templates() {
               </div>
               <div className='hidden h-full lg:block'>
                 <DotGrid
-                  className='h-full w-[80px] overflow-hidden border-[var(--landing-bg-elevated)] border-l p-1.5'
+                  className='h-full w-16 overflow-hidden border-[var(--landing-bg-elevated)] border-l p-1.5'
                   cols={8}
                   rows={55}
                   gap={6}
                 />
               </div>
             </div>
+          </div>
+
+          <div className='relative pb-[60px] lg:pb-[100px]'>
+            <div
+              aria-hidden='true'
+              className='absolute top-0 bottom-0 left-[calc(4rem-1px)] hidden w-px bg-[var(--landing-bg-elevated)] lg:block'
+            />
+            <div
+              aria-hidden='true'
+              className='absolute top-0 right-[calc(4rem-1px)] bottom-0 hidden w-px bg-[var(--landing-bg-elevated)] lg:block'
+            />
+            <div
+              aria-hidden='true'
+              className='absolute right-16 bottom-0 left-16 hidden h-px bg-[var(--landing-bg-elevated)] lg:block'
+            />
           </div>
         </div>
       </div>

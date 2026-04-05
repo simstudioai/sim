@@ -31,7 +31,7 @@ export function GitHubStars() {
       href='https://github.com/simstudioai/sim'
       target='_blank'
       rel='noopener noreferrer'
-      className='flex items-center gap-2 px-3'
+      className='flex h-[30px] items-center gap-2 self-center rounded-[5px] px-3 transition-colors duration-200 group-hover:bg-[var(--landing-bg-elevated)]'
       aria-label={`GitHub repository — ${stars} stars`}
     >
       <GithubOutlineIcon className='h-[14px] w-[14px]' />

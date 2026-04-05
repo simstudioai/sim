@@ -17,7 +17,6 @@ import {
   SlackIcon,
   xAIIcon,
 } from '@/components/icons'
-import { CsvIcon, JsonIcon, MarkdownIcon, PdfIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
 
 interface FeaturesPreviewProps {
@@ -25,7 +24,7 @@ interface FeaturesPreviewProps {
 }
 
 export function FeaturesPreview({ activeTab }: FeaturesPreviewProps) {
-  const isWorkspaceTab = activeTab <= 4
+  const isWorkspaceTab = activeTab <= 3
 
   return (
     <div className='relative h-[350px] w-full md:h-[560px]'>
@@ -66,7 +65,7 @@ const CARD_GAP = 8
 const GRID_STEP = CARD_SIZE + CARD_GAP
 const GRID_PAD = 8
 
-type CardVariant = 'prompt' | 'table' | 'workflow' | 'knowledge' | 'logs' | 'file'
+type CardVariant = 'prompt' | 'table' | 'workflow' | 'logs' | 'file'
 
 interface CardDef {
   row: number
@@ -80,19 +79,19 @@ const MOTHERSHIP_CARDS: CardDef[] = [
   { row: 0, col: 0, variant: 'prompt', label: 'prompt.md' },
   { row: 1, col: 0, variant: 'table', label: 'Leads' },
   { row: 0, col: 1, variant: 'workflow', label: 'Email Bot', color: '#7C3AED' },
-  { row: 1, col: 1, variant: 'knowledge', label: 'Company KB' },
+  { row: 1, col: 1, variant: 'file', label: 'handbook.md' },
   { row: 2, col: 0, variant: 'logs', label: 'Run Logs' },
   { row: 0, col: 2, variant: 'file', label: 'notes.md' },
   { row: 2, col: 1, variant: 'workflow', label: 'Onboarding', color: '#2563EB' },
   { row: 1, col: 2, variant: 'table', label: 'Contacts' },
   { row: 2, col: 2, variant: 'file', label: 'report.pdf' },
   { row: 3, col: 0, variant: 'table', label: 'Tickets' },
-  { row: 0, col: 3, variant: 'knowledge', label: 'Product Wiki' },
+  { row: 0, col: 3, variant: 'file', label: 'wiki.md' },
   { row: 3, col: 1, variant: 'logs', label: 'Audit Trail' },
   { row: 1, col: 3, variant: 'workflow', label: 'Support', color: '#059669' },
   { row: 2, col: 3, variant: 'file', label: 'data.csv' },
   { row: 3, col: 2, variant: 'table', label: 'Users' },
-  { row: 3, col: 3, variant: 'knowledge', label: 'HR Docs' },
+  { row: 3, col: 3, variant: 'file', label: 'policies.pdf' },
   { row: 0, col: 4, variant: 'workflow', label: 'Pipeline', color: '#DC2626' },
   { row: 1, col: 4, variant: 'logs', label: 'API Logs' },
   { row: 2, col: 4, variant: 'table', label: 'Orders' },
@@ -100,7 +99,7 @@ const MOTHERSHIP_CARDS: CardDef[] = [
   { row: 0, col: 5, variant: 'logs', label: 'Deploys' },
   { row: 1, col: 5, variant: 'table', label: 'Campaigns' },
   { row: 2, col: 5, variant: 'workflow', label: 'Intake', color: '#D97706' },
-  { row: 3, col: 5, variant: 'knowledge', label: 'Research' },
+  { row: 3, col: 5, variant: 'file', label: 'research.pdf' },
   { row: 4, col: 0, variant: 'file', label: 'readme.md' },
   { row: 4, col: 1, variant: 'table', label: 'Revenue' },
   { row: 4, col: 2, variant: 'workflow', label: 'Sync', color: '#0891B2' },
@@ -110,27 +109,25 @@ const MOTHERSHIP_CARDS: CardDef[] = [
   { row: 0, col: 6, variant: 'table', label: 'Analytics' },
   { row: 1, col: 6, variant: 'workflow', label: 'Digest', color: '#6366F1' },
   { row: 0, col: 7, variant: 'file', label: 'brief.md' },
-  { row: 2, col: 6, variant: 'knowledge', label: 'Playbooks' },
+  { row: 2, col: 6, variant: 'file', label: 'playbook.md' },
   { row: 1, col: 7, variant: 'logs', label: 'Webhooks' },
   { row: 3, col: 6, variant: 'file', label: 'export.csv' },
   { row: 2, col: 7, variant: 'workflow', label: 'Alerts', color: '#E11D48' },
   { row: 4, col: 6, variant: 'logs', label: 'Metrics' },
   { row: 3, col: 7, variant: 'table', label: 'Feedback' },
-  { row: 4, col: 7, variant: 'knowledge', label: 'Runbooks' },
+  { row: 4, col: 7, variant: 'file', label: 'runbook.md' },
 ]
 
 const EXPAND_TARGETS: Record<number, { row: number; col: number }> = {
   1: { row: 1, col: 0 },
   2: { row: 0, col: 2 },
-  3: { row: 1, col: 1 },
-  4: { row: 2, col: 0 },
+  3: { row: 2, col: 0 },
 }
 
 const EXPAND_ROW_COUNTS: Record<number, number> = {
   1: 8,
   2: 10,
-  3: 10,
-  4: 7,
+  3: 7,
 }
 
 function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive: boolean }) {
@@ -146,7 +143,7 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
   const [revealedRows, setRevealedRows] = useState(0)
 
   const isMothership = activeTab === 0 && isActive
-  const isExpandTab = activeTab >= 1 && activeTab <= 4 && isActive
+  const isExpandTab = activeTab >= 1 && activeTab <= 3 && isActive
   const expandTarget = EXPAND_TARGETS[activeTab] ?? null
 
   useEffect(() => {
@@ -292,8 +289,7 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
         >
           {expandedTab === 1 && <MockFullTable revealedRows={revealedRows} />}
           {expandedTab === 2 && <MockFullFiles />}
-          {expandedTab === 3 && <MockFullKnowledgeBase revealedRows={revealedRows} />}
-          {expandedTab === 4 && <MockFullLogs revealedRows={revealedRows} />}
+          {expandedTab === 3 && <MockFullLogs revealedRows={revealedRows} />}
         </motion.div>
       )}
     </div>
@@ -393,8 +389,6 @@ function MiniCardIcon({ variant, color }: { variant: CardVariant; color?: string
         />
       )
     }
-    case 'knowledge':
-      return <Database className={cls} />
     case 'logs':
       return <Library className={cls} />
   }
@@ -410,8 +404,6 @@ function MiniCardBody({ variant, color }: { variant: CardVariant; color?: string
       return <TableCardBody />
     case 'workflow':
       return <WorkflowCardBody color={color ?? '#7C3AED'} />
-    case 'knowledge':
-      return <KnowledgeCardBody />
     case 'logs':
       return <LogsCardBody />
   }
@@ -498,21 +490,6 @@ function WorkflowCardBody({ color }: { color: string }) {
   )
 }
 
-const KB_WIDTHS = [70, 85, 55, 80, 48] as const
-
-function KnowledgeCardBody() {
-  return (
-    <div className='flex flex-col gap-[5px] px-2 py-1.5'>
-      {KB_WIDTHS.map((w, i) => (
-        <div key={i} className='flex items-center gap-1'>
-          <div className='h-[3px] w-[3px] flex-shrink-0 rounded-full bg-[#D4D4D4]' />
-          <div className='h-[1.5px] rounded-full bg-[#E8E8E8]' style={{ width: `${w}%` }} />
-        </div>
-      ))}
-    </div>
-  )
-}
-
 const LOG_ENTRIES = [
   { color: '#22C55E', width: 65 },
   { color: '#22C55E', width: 78 },
@@ -578,33 +555,6 @@ The team agreed to prioritize the new onboarding flow. Key decisions:
 ## Next Steps
 
 Follow up with engineering on the timeline for the API v2 migration. Draft the proposal for the board meeting next week.`
-
-const MOCK_KB_COLUMNS = ['Name', 'Size', 'Tokens', 'Chunks', 'Status'] as const
-
-const KB_FILE_ICONS: Record<string, React.ComponentType<SVGProps<SVGSVGElement>>> = {
-  pdf: PdfIcon,
-  md: MarkdownIcon,
-  csv: CsvIcon,
-  json: JsonIcon,
-}
-
-function getKBFileIcon(filename: string) {
-  const ext = filename.split('.').pop()?.toLowerCase() ?? ''
-  return KB_FILE_ICONS[ext] ?? File
-}
-
-const MOCK_KB_DATA = [
-  ['product-specs.pdf', '4.2 MB', '12.4k', '86', 'enabled'],
-  ['eng-handbook.md', '1.8 MB', '8.2k', '54', 'enabled'],
-  ['api-reference.json', '920 KB', '4.1k', '32', 'enabled'],
-  ['release-notes.md', '340 KB', '2.8k', '18', 'enabled'],
-  ['onboarding-guide.pdf', '2.1 MB', '6.5k', '42', 'processing'],
-  ['data-export.csv', '560 KB', '3.4k', '24', 'enabled'],
-  ['runbook.md', '280 KB', '1.9k', '14', 'enabled'],
-  ['compliance.pdf', '180 KB', '1.2k', '8', 'disabled'],
-  ['style-guide.md', '410 KB', '2.6k', '20', 'enabled'],
-  ['metrics.csv', '1.4 MB', '5.8k', '38', 'enabled'],
-] as const
 
 const MD_COMPONENTS: Components = {
   h1: ({ children }) => (
@@ -672,106 +622,6 @@ function MockFullFiles() {
             </ReactMarkdown>
           </div>
         </motion.div>
-      </div>
-    </div>
-  )
-}
-
-const KB_STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  enabled: { bg: '#DCFCE7', text: '#166534', label: 'Enabled' },
-  disabled: { bg: '#F3F4F6', text: '#6B7280', label: 'Disabled' },
-  processing: { bg: '#F3E8FF', text: '#7C3AED', label: 'Processing' },
-}
-
-function MockFullKnowledgeBase({ revealedRows }: { revealedRows: number }) {
-  return (
-    <div className='flex h-full flex-col'>
-      <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
-        <div className='flex items-center gap-1.5'>
-          <Database className='h-[14px] w-[14px] text-[#999]' />
-          <span className='text-[#999] text-[13px]'>Knowledge Base</span>
-          <span className='text-[#D4D4D4] text-[13px]'>/</span>
-          <span className='font-medium text-[#1C1C1C] text-[13px]'>Company KB</span>
-        </div>
-      </div>
-
-      <div className='flex h-[36px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
-        <div className='flex items-center gap-1.5'>
-          <div className='flex h-[24px] items-center gap-1 rounded-[6px] border border-[#E5E5E5] px-2 text-[#999] text-[12px]'>
-            Sort
-          </div>
-          <div className='flex h-[24px] items-center gap-1 rounded-[6px] border border-[#E5E5E5] px-2 text-[#999] text-[12px]'>
-            Filter
-          </div>
-        </div>
-      </div>
-
-      <div className='flex-1 overflow-hidden'>
-        <table className='w-full table-fixed border-separate border-spacing-0 text-[13px]'>
-          <colgroup>
-            <col style={{ width: 40 }} />
-            {MOCK_KB_COLUMNS.map((col) => (
-              <col key={col} />
-            ))}
-          </colgroup>
-          <thead>
-            <tr>
-              <th className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-1 py-[7px] text-center align-middle'>
-                <div className='flex items-center justify-center'>
-                  <div className='h-[13px] w-[13px] rounded-[2px] border border-[#D4D4D4]' />
-                </div>
-              </th>
-              {MOCK_KB_COLUMNS.map((col) => (
-                <th
-                  key={col}
-                  className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-2 py-[7px] text-left align-middle'
-                >
-                  <span className='font-base text-[#999] text-[13px]'>{col}</span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {MOCK_KB_DATA.slice(0, revealedRows).map((row, i) => {
-              const status = KB_STATUS_STYLES[row[4]] ?? KB_STATUS_STYLES.enabled
-              const DocIcon = getKBFileIcon(row[0])
-              return (
-                <motion.tr
-                  key={i}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, ease: 'easeOut' }}
-                >
-                  <td className='border-[#E5E5E5] border-r border-b px-1 py-[7px] text-center align-middle'>
-                    <span className='text-[#999] text-[11px] tabular-nums'>{i + 1}</span>
-                  </td>
-                  <td className='border-[#E5E5E5] border-r border-b px-2 py-[7px] align-middle'>
-                    <span className='flex items-center gap-2 text-[#1C1C1C] text-[13px]'>
-                      <DocIcon className='h-[14px] w-[14px] shrink-0' />
-                      <span className='truncate'>{row[0]}</span>
-                    </span>
-                  </td>
-                  {row.slice(1, 4).map((cell, j) => (
-                    <td
-                      key={j}
-                      className='border-[#E5E5E5] border-r border-b px-2 py-[7px] align-middle'
-                    >
-                      <span className='text-[#999] text-[13px]'>{cell}</span>
-                    </td>
-                  ))}
-                  <td className='border-[#E5E5E5] border-r border-b px-2 py-[7px] align-middle'>
-                    <span
-                      className='inline-flex items-center rounded-full px-2 py-0.5 font-medium text-[11px]'
-                      style={{ backgroundColor: status.bg, color: status.text }}
-                    >
-                      {status.label}
-                    </span>
-                  </td>
-                </motion.tr>
-              )
-            })}
-          </tbody>
-        </table>
       </div>
     </div>
   )

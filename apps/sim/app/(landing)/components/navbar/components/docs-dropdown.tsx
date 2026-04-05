@@ -37,8 +37,8 @@ const RESOURCE_CARDS = [
 
 export function DocsDropdown() {
   return (
-    <div className='w-[480px] rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] p-4 shadow-overlay'>
-      <div className='grid grid-cols-2 gap-2.5'>
+    <div className='w-[480px] rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] p-2 shadow-overlay'>
+      <div className='grid grid-cols-2 gap-2'>
         {PREVIEW_CARDS.map((card) => (
           <a
             key={card.title}

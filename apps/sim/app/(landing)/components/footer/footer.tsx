@@ -120,7 +120,7 @@ export default function Footer({ hideCTA }: FooterProps) {
       className={`bg-[var(--landing-bg-section)] pb-10 font-[430] font-season text-sm${hideCTA ? ' pt-10' : ''}`}
     >
       {!hideCTA && <FooterCTA />}
-      <div className='px-4 sm:px-8 md:px-20'>
+      <div className='px-4 sm:px-8 md:px-16'>
         <div className='relative overflow-hidden rounded-lg bg-[var(--landing-bg)] px-6 pt-10 pb-8 sm:px-10 sm:pt-12 sm:pb-10'>
           <nav
             aria-label='Footer navigation'

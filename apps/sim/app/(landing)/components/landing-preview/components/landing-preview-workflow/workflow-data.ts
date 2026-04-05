@@ -66,7 +66,11 @@ const IT_SERVICE_WORKFLOW: PreviewWorkflow = {
       bgColor: '#701ffc',
       rows: [
         { title: 'Model', value: 'claude-sonnet-4.6' },
-        { title: 'System Prompt', value: 'Triage incoming IT...' },
+        {
+          title: 'System Prompt',
+          value:
+            'Triage incoming IT support requests from Slack, categorize by severity, and create Jira tickets for the appropriate team.',
+        },
       ],
       tools: [{ name: 'Knowledge Base', type: 'knowledge_base', bgColor: '#10B981' }],
       position: { x: 420, y: 40 },
@@ -91,7 +95,7 @@ const IT_SERVICE_WORKFLOW: PreviewWorkflow = {
 }
 
 /**
- * Self-healing CRM workflow — Schedule -> Mothership
+ * Self-healing CRM workflow — Schedule -> Agent
  */
 const SELF_HEALING_CRM_WORKFLOW: PreviewWorkflow = {
   id: 'wf-self-healing-crm',
@@ -111,20 +115,27 @@ const SELF_HEALING_CRM_WORKFLOW: PreviewWorkflow = {
       hideTargetHandle: true,
     },
     {
-      id: 'mothership-1',
+      id: 'agent-crm',
       name: 'CRM Agent',
-      type: 'mothership',
-      bgColor: '#33C482',
-      rows: [{ title: 'Prompt', value: 'Audit CRM records, fix...' }],
+      type: 'agent',
+      bgColor: '#701ffc',
+      rows: [
+        { title: 'Model', value: 'gpt-5.4' },
+        {
+          title: 'System Prompt',
+          value:
+            'Audit CRM records, identify data inconsistencies, and fix duplicate contacts, missing fields, and stale pipeline entries across HubSpot and Salesforce.',
+        },
+      ],
       tools: [
         { name: 'HubSpot', type: 'hubspot', bgColor: '#FF7A59' },
         { name: 'Salesforce', type: 'salesforce', bgColor: '#E0E0E0' },
       ],
-      position: { x: 420, y: 180 },
+      position: { x: 420, y: 140 },
       hideSourceHandle: true,
     },
   ],
-  edges: [{ id: 'e-3', source: 'schedule-1', target: 'mothership-1' }],
+  edges: [{ id: 'e-3', source: 'schedule-1', target: 'agent-crm' }],
 }
 
 /**
@@ -154,7 +165,11 @@ const CUSTOMER_SUPPORT_WORKFLOW: PreviewWorkflow = {
       bgColor: '#701ffc',
       rows: [
         { title: 'Model', value: 'gpt-5.4' },
-        { title: 'System Prompt', value: 'Resolve customer issues...' },
+        {
+          title: 'System Prompt',
+          value:
+            'Resolve customer support issues using the knowledge base, draft a response, and notify the team in Slack.',
+        },
       ],
       tools: [
         { name: 'Knowledge', type: 'knowledge_base', bgColor: '#10B981' },
@@ -228,7 +243,8 @@ const EDGE_STYLE = { stroke: '#454545', strokeWidth: 1.5 } as const
  */
 export function toReactFlowElements(
   workflow: PreviewWorkflow,
-  animate = false
+  animate = false,
+  highlightedBlockId?: string | null
 ): {
   nodes: Node[]
   edges: Edge[]
@@ -250,6 +266,7 @@ export function toReactFlowElements(
       hideSourceHandle: block.hideSourceHandle,
       index,
       animate,
+      isHighlighted: highlightedBlockId === block.id,
     },
     draggable: true,
     selectable: false,
@@ -277,4 +294,75 @@ export function toReactFlowElements(
   })
 
   return { nodes, edges }
+}
+
+/** Block types that carry an editable prompt suitable for the Editor tab. */
+const AGENT_BLOCK_TYPES = new Set(['agent', 'mothership'])
+
+export interface EditorPromptData {
+  blockId: string
+  blockName: string
+  blockType: string
+  bgColor: string
+  prompt: string
+  model: string | null
+  tools: PreviewTool[]
+}
+
+/**
+ * Extracts the editor-facing prompt from the first agent/mothership block.
+ *
+ * @returns Block metadata + prompt + model + tools, or `null` when the workflow has no agent.
+ */
+export function getEditorPrompt(workflow: PreviewWorkflow): EditorPromptData | null {
+  for (const block of workflow.blocks) {
+    if (!AGENT_BLOCK_TYPES.has(block.type)) continue
+    const promptRow = block.rows.find((r) => r.title === 'Prompt' || r.title === 'System Prompt')
+    if (promptRow) {
+      const modelRow = block.rows.find((r) => r.title === 'Model')
+      return {
+        blockId: block.id,
+        blockName: block.name,
+        blockType: block.type,
+        bgColor: block.bgColor,
+        prompt: promptRow.value,
+        model: modelRow?.value ?? null,
+        tools: block.tools ?? [],
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Computes the delay (ms) before the Editor tab should activate.
+ * Accounts for all block staggers + edge draw durations + a small buffer.
+ */
+export function getWorkflowAnimationTiming(workflow: PreviewWorkflow): { editorDelay: number } {
+  const maxBlockIndex = Math.max(0, workflow.blocks.length - 1)
+  const hasEdges = workflow.edges.length > 0
+  const edgeDuration = hasEdges ? 0.4 : 0
+  const buffer = 0.15
+  const total = maxBlockIndex * BLOCK_STAGGER + BLOCK_STAGGER + edgeDuration + buffer
+  return { editorDelay: Math.round(total * 1000) }
+}
+
+/** Milliseconds between each character typed in the Editor prompt animation. */
+export const TYPE_INTERVAL_MS = 30
+
+/** Extra pause (ms) after switching to the Editor tab before typing begins. */
+export const TYPE_START_BUFFER_MS = 150
+
+/** How long to dwell on a completed step before advancing (ms). */
+export const STEP_DWELL_MS = 2500
+
+/**
+ * Computes the total time (ms) a workflow step occupies, including
+ * canvas animation, editor typing, and a dwell period.
+ */
+export function getWorkflowStepDuration(workflow: PreviewWorkflow): number {
+  const { editorDelay } = getWorkflowAnimationTiming(workflow)
+  const prompt = getEditorPrompt(workflow)
+  const typingTime = prompt ? prompt.prompt.length * TYPE_INTERVAL_MS : 0
+  return editorDelay + TYPE_START_BUFFER_MS + typingTime + STEP_DWELL_MS
 }

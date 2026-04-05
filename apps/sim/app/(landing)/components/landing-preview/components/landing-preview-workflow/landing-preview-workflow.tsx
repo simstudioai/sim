@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import ReactFlow, {
   applyEdgeChanges,
@@ -26,12 +26,14 @@ import {
 interface FitViewOptions {
   padding?: number
   maxZoom?: number
+  minZoom?: number
 }
 
 interface LandingPreviewWorkflowProps {
   workflow: PreviewWorkflow
   animate?: boolean
   fitViewOptions?: FitViewOptions
+  highlightedBlockId?: string | null
 }
 
 /**
@@ -88,20 +90,34 @@ function PreviewEdge({
 const NODE_TYPES: NodeTypes = { previewBlock: PreviewBlockNode }
 const EDGE_TYPES: EdgeTypes = { previewEdge: PreviewEdge }
 const PRO_OPTIONS = { hideAttribution: true }
-const DEFAULT_FIT_VIEW_OPTIONS = { padding: 0.3, maxZoom: 1 } as const
+const DEFAULT_FIT_VIEW_OPTIONS = { padding: 0.5, maxZoom: 1 } as const
 
 /**
  * Inner flow component. Keyed on workflow ID by the parent so it remounts
  * cleanly on workflow switch — fitView fires on mount with zero delay.
  */
-function PreviewFlow({ workflow, animate = false, fitViewOptions }: LandingPreviewWorkflowProps) {
+function PreviewFlow({
+  workflow,
+  animate = false,
+  fitViewOptions,
+  highlightedBlockId,
+}: LandingPreviewWorkflowProps) {
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => toReactFlowElements(workflow, animate),
-    [workflow, animate]
+    () => toReactFlowElements(workflow, animate, highlightedBlockId),
+    [workflow, animate, highlightedBlockId]
   )
 
   const [nodes, setNodes] = useState<Node[]>(initialNodes)
   const [edges, setEdges] = useState<Edge[]>(initialEdges)
+
+  useEffect(() => {
+    setNodes((prev) =>
+      prev.map((node) => ({
+        ...node,
+        data: { ...node.data, isHighlighted: highlightedBlockId === node.id },
+      }))
+    )
+  }, [highlightedBlockId])
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -114,6 +130,7 @@ function PreviewFlow({ workflow, animate = false, fitViewOptions }: LandingPrevi
   )
 
   const resolvedFitViewOptions = fitViewOptions ?? DEFAULT_FIT_VIEW_OPTIONS
+  const minZoom = fitViewOptions?.minZoom ?? 0.5
 
   return (
     <ReactFlow
@@ -135,6 +152,7 @@ function PreviewFlow({ workflow, animate = false, fitViewOptions }: LandingPrevi
       preventScrolling={false}
       autoPanOnNodeDrag={false}
       proOptions={PRO_OPTIONS}
+      minZoom={minZoom}
       fitView
       fitViewOptions={resolvedFitViewOptions}
       className='h-full w-full bg-[var(--landing-bg)]'
@@ -151,11 +169,17 @@ export function LandingPreviewWorkflow({
   workflow,
   animate = false,
   fitViewOptions,
+  highlightedBlockId,
 }: LandingPreviewWorkflowProps) {
   return (
     <div className='h-full w-full'>
       <ReactFlowProvider key={workflow.id}>
-        <PreviewFlow workflow={workflow} animate={animate} fitViewOptions={fitViewOptions} />
+        <PreviewFlow
+          workflow={workflow}
+          animate={animate}
+          fitViewOptions={fitViewOptions}
+          highlightedBlockId={highlightedBlockId}
+        />
       </ReactFlowProvider>
     </div>
   )

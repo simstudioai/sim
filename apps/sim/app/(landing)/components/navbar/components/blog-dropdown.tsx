@@ -66,7 +66,7 @@ export function BlogDropdown({ posts }: BlogDropdownProps) {
   if (!featured) return null
 
   return (
-    <div className='w-[560px] rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] p-4 shadow-overlay'>
+    <div className='w-[560px] rounded-[5px] border border-[var(--landing-bg-elevated)] bg-[var(--landing-bg)] p-2 shadow-overlay'>
       <div className='grid grid-cols-3 gap-2'>
         <BlogCard
           slug={featured.slug}

@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import { type MotionValue, motion, useScroll, useTransform } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Badge, ChevronDown } from '@/components/emcn'
+import { Badge } from '@/components/emcn'
 import { FeaturesPreview } from '@/app/(landing)/components/features/components/features-preview'
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -72,27 +72,6 @@ const FEATURE_TABS = [
       [0.9, 12],
       [1, 10],
       [0.85, 10],
-      [1, 10],
-    ],
-  },
-  {
-    label: 'Knowledge Base',
-    mobileLabel: 'Knowledge',
-    color: '#8B5CF6',
-    title: 'Your context engine',
-    description:
-      'Sync institutional knowledge from 30+ live connectors — Notion, Drive, Slack, Confluence, and more — so every agent draws from the same truth across your entire organization.',
-    cta: 'Explore knowledge base',
-    segments: [
-      [0.3, 10],
-      [0.25, 8],
-      [0.4, 10],
-      [0.5, 10],
-      [0.65, 10],
-      [0.8, 10],
-      [0.9, 12],
-      [1, 10],
-      [0.95, 10],
       [1, 10],
     ],
   },
@@ -183,7 +162,7 @@ export default function Features() {
       aria-labelledby='features-heading'
       className='relative overflow-hidden bg-[var(--landing-bg-section)]'
     >
-      <div aria-hidden='true' className='absolute top-0 left-0 w-full'>
+      <div aria-hidden='true' className='absolute top-0 left-0 hidden w-full lg:block'>
         <Image
           src='/landing/features-transition.svg'
           alt=''
@@ -194,7 +173,7 @@ export default function Features() {
       </div>
 
       <div className='relative z-10 pt-[60px] lg:pt-[100px]'>
-        <div ref={sectionRef} className='flex flex-col items-start gap-5 px-6 lg:px-20'>
+        <div ref={sectionRef} className='flex flex-col items-start gap-5 px-6 lg:px-16'>
           <Badge
             variant='blue'
             size='md'
@@ -212,7 +191,7 @@ export default function Features() {
           </Badge>
           <h2
             id='features-heading'
-            className='max-w-[900px] text-balance font-[430] font-season text-[28px] text-[var(--landing-text-dark)] leading-[110%] tracking-[-0.02em] md:text-[40px]'
+            className='max-w-[900px] text-balance font-[430] font-season text-[24px] text-[var(--landing-text-dark)] leading-[110%] tracking-[-0.02em] md:text-[36px]'
           >
             {HEADING_LETTERS.map((char, i) => (
               <ScrollLetter key={i} scrollYProgress={scrollYProgress} charIndex={i}>
@@ -226,14 +205,14 @@ export default function Features() {
           </h2>
         </div>
 
-        <div className='relative mt-10 pb-10 lg:mt-[73px] lg:pb-20'>
+        <div className='relative mt-10 pb-[60px] lg:mt-[73px] lg:pb-[100px]'>
           <div
             aria-hidden='true'
-            className='absolute top-0 bottom-0 left-[80px] z-20 hidden w-px bg-[var(--divider)] lg:block'
+            className='absolute top-0 bottom-0 left-16 z-20 hidden w-px bg-[var(--divider)] lg:block'
           />
           <div
             aria-hidden='true'
-            className='absolute top-0 right-[80px] bottom-0 z-20 hidden w-px bg-[var(--divider)] lg:block'
+            className='absolute top-0 right-16 bottom-0 z-20 hidden w-px bg-[var(--divider)] lg:block'
           />
 
           <div className='flex h-[68px] border border-[var(--divider)] lg:overflow-hidden'>
@@ -242,7 +221,7 @@ export default function Features() {
                 <DotGrid cols={3} rows={8} width={24} />
               </div>
               <div className='hidden h-full lg:block'>
-                <DotGrid cols={10} rows={8} width={80} />
+                <DotGrid cols={8} rows={8} width={64} />
               </div>
             </div>
 
@@ -254,17 +233,19 @@ export default function Features() {
                   role='tab'
                   aria-selected={index === activeTab}
                   onClick={() => setActiveTab(index)}
-                  className={`relative h-full flex-1 items-center justify-center whitespace-nowrap px-3 font-medium font-season text-[var(--landing-text-dark)] text-caption uppercase lg:px-0 lg:text-sm${tab.hideOnMobile ? ' hidden lg:flex' : ' flex'}${index > 0 ? ' border-[var(--divider)] border-l' : ''}`}
+                  className={`relative h-full min-w-0 flex-1 items-center justify-center px-2 font-medium font-season text-[var(--landing-text-dark)] text-caption uppercase lg:px-0 lg:text-sm${tab.hideOnMobile ? ' hidden lg:flex' : ' flex'}${index > 0 ? ' border-[var(--divider)] border-l' : ''}`}
                   style={{ backgroundColor: index === activeTab ? '#FDFDFD' : '#F6F6F6' }}
                 >
-                  {tab.mobileLabel ? (
-                    <>
-                      <span className='lg:hidden'>{tab.mobileLabel}</span>
-                      <span className='hidden lg:inline'>{tab.label}</span>
-                    </>
-                  ) : (
-                    tab.label
-                  )}
+                  <span className='truncate'>
+                    {tab.mobileLabel ? (
+                      <>
+                        <span className='lg:hidden'>{tab.mobileLabel}</span>
+                        <span className='hidden lg:inline'>{tab.label}</span>
+                      </>
+                    ) : (
+                      tab.label
+                    )}
+                  </span>
                   {index === activeTab && (
                     <div className='absolute right-0 bottom-0 left-0 flex h-[6px]'>
                       {tab.segments.map(([opacity, width], i) => (
@@ -289,12 +270,12 @@ export default function Features() {
                 <DotGrid cols={3} rows={8} width={24} />
               </div>
               <div className='hidden h-full lg:block'>
-                <DotGrid cols={10} rows={8} width={80} />
+                <DotGrid cols={8} rows={8} width={64} />
               </div>
             </div>
           </div>
 
-          <div className='mt-8 flex flex-col gap-6 px-6 lg:mt-[60px] lg:grid lg:grid-cols-[1fr_2.8fr] lg:gap-[60px] lg:px-[120px]'>
+          <div className='mt-8 flex flex-col gap-6 px-6 lg:mt-[60px] lg:grid lg:grid-cols-[1fr_2.8fr] lg:gap-[60px] lg:px-[104px]'>
             <div className='flex flex-col items-start justify-between gap-6 pt-5 lg:h-[560px] lg:gap-0'>
               <div className='flex flex-col items-start gap-4'>
                 <h3 className='font-[430] font-season text-[24px] text-[var(--landing-text-dark)] leading-[120%] tracking-[-0.02em] lg:text-[28px]'>
@@ -306,26 +287,9 @@ export default function Features() {
               </div>
               <Link
                 href='/signup'
-                className='group/cta inline-flex h-[32px] items-center gap-1.5 rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-2.5 font-[430] font-season text-sm text-white transition-colors hover:border-[var(--landing-bg-elevated)] hover:bg-[var(--landing-bg-elevated)]'
+                className='inline-flex h-[32px] items-center rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-2.5 font-[430] font-season text-sm text-white transition-colors hover:border-[var(--landing-bg-elevated)] hover:bg-[var(--landing-bg-elevated)]'
               >
                 {FEATURE_TABS[activeTab].cta}
-                <span className='relative h-[10px] w-[10px] shrink-0'>
-                  <ChevronDown className='-rotate-90 absolute inset-0 h-[10px] w-[10px] transition-opacity duration-150 group-hover/cta:opacity-0' />
-                  <svg
-                    className='absolute inset-0 h-[10px] w-[10px] opacity-0 transition-opacity duration-150 group-hover/cta:opacity-100'
-                    viewBox='0 0 10 10'
-                    fill='none'
-                  >
-                    <path
-                      d='M1 5H8M5.5 2L8.5 5L5.5 8'
-                      stroke='currentColor'
-                      strokeWidth='1.33'
-                      strokeLinecap='square'
-                      strokeLinejoin='miter'
-                      fill='none'
-                    />
-                  </svg>
-                </span>
               </Link>
             </div>
 

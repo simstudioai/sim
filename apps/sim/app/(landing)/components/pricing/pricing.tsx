@@ -196,7 +196,7 @@ export default function Pricing() {
       aria-labelledby='pricing-heading'
       className='bg-[var(--landing-bg-section)]'
     >
-      <div className='px-4 pt-[60px] pb-10 sm:px-8 sm:pt-20 sm:pb-0 md:px-20 md:pt-[100px]'>
+      <div className='px-4 pt-[60px] sm:px-8 sm:pt-20 md:px-16 md:pt-[100px]'>
         <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-5'>
           <Badge
             variant='blue'

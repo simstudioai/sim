@@ -3,7 +3,7 @@ import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import { season } from '@/app/_styles/fonts/season/season'
 import {
   Collaboration,
-  Enterprise,
+  // Enterprise,
   Features,
   Footer,
   Hero,
@@ -56,7 +56,7 @@ export default async function Landing() {
         <Templates />
         <Features />
         <Collaboration />
-        <Enterprise />
+        {/* <Enterprise /> */}
         <Pricing />
         <Testimonials />
       </main>

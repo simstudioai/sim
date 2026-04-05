@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Checkbox } from '@/components/emcn'
 import {
   ChevronDown,
@@ -525,28 +526,59 @@ function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
   )
 }
 
-export function LandingPreviewTables() {
+interface LandingPreviewTablesProps {
+  autoOpenTableId?: string | null
+}
+
+const tableViewTransition = {
+  initial: { opacity: 0, x: 20 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: -20 },
+  transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] as const },
+} as const
+
+export function LandingPreviewTables({ autoOpenTableId }: LandingPreviewTablesProps = {}) {
   const [openTableId, setOpenTableId] = useState<string | null>(null)
 
-  if (openTableId !== null) {
-    return (
-      <SpreadsheetView
-        tableId={openTableId}
-        tableName={TABLE_METAS[openTableId] ?? 'Table'}
-        onBack={() => setOpenTableId(null)}
-      />
-    )
-  }
+  useEffect(() => {
+    if (!autoOpenTableId) return
+    const timer = setTimeout(() => {
+      setOpenTableId(autoOpenTableId)
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [autoOpenTableId])
 
   return (
-    <LandingPreviewResource
-      icon={Table}
-      title='Tables'
-      createLabel='New table'
-      searchPlaceholder='Search tables...'
-      columns={LIST_COLUMNS}
-      rows={LIST_ROWS}
-      onRowClick={(id) => setOpenTableId(id)}
-    />
+    <AnimatePresence mode='wait'>
+      {openTableId !== null ? (
+        <motion.div
+          key={`spreadsheet-${openTableId}`}
+          className='flex h-full flex-1 flex-col'
+          {...tableViewTransition}
+        >
+          <SpreadsheetView
+            tableId={openTableId}
+            tableName={TABLE_METAS[openTableId] ?? 'Table'}
+            onBack={() => setOpenTableId(null)}
+          />
+        </motion.div>
+      ) : (
+        <motion.div
+          key='table-list'
+          className='flex h-full flex-1 flex-col'
+          {...tableViewTransition}
+        >
+          <LandingPreviewResource
+            icon={Table}
+            title='Tables'
+            createLabel='New table'
+            searchPlaceholder='Search tables...'
+            columns={LIST_COLUMNS}
+            rows={LIST_ROWS}
+            onRowClick={(id) => setOpenTableId(id)}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

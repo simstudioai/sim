@@ -29,10 +29,9 @@ const NAV_LINKS: NavLink[] = [
   { label: 'Docs', href: 'https://docs.sim.ai', external: true, icon: 'chevron', dropdown: 'docs' },
   { label: 'Blog', href: '/blog', icon: 'chevron', dropdown: 'blog' },
   { label: 'Pricing', href: '/#pricing' },
-  { label: 'Enterprise', href: 'https://form.typeform.com/to/jqCO12pF', external: true },
 ]
 
-const LOGO_CELL = 'flex items-center pl-5 lg:pl-20 pr-5'
+const LOGO_CELL = 'flex items-center pl-5 lg:pl-16 pr-5'
 const LINK_CELL = 'flex items-center px-3.5'
 
 interface NavbarProps {
@@ -49,7 +48,6 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
   const useHomeLinks = isAuthenticated || isBrowsingHome
   const logoHref = useHomeLinks ? '/?home' : '/'
   const [activeDropdown, setActiveDropdown] = useState<DropdownId>(null)
-  const [hoveredLink, setHoveredLink] = useState<string | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -91,12 +89,10 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  const anyHighlighted = activeDropdown !== null || hoveredLink !== null
-
   return (
     <nav
       aria-label='Primary navigation'
-      className='relative flex h-[52px] border-[var(--landing-bg-elevated)] border-b-[1px] bg-[var(--landing-bg)] font-[430] font-season text-[var(--landing-text)] text-sm'
+      className='relative flex h-[58px] border-[var(--landing-bg-elevated)] border-b-[1px] bg-[var(--landing-bg)] font-[430] font-season text-[var(--landing-text)] text-sm'
       itemScope
       itemType='https://schema.org/SiteNavigationElement'
     >
@@ -134,13 +130,9 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                 useHomeLinks && rawHref.startsWith('/#') ? `/?home${rawHref.slice(1)}` : rawHref
               const hasDropdown = !!dropdown
               const isActive = hasDropdown && activeDropdown === dropdown
-              const isThisHovered = hoveredLink === label
-              const isHighlighted = isActive || isThisHovered
-              const isDimmed = anyHighlighted && !isHighlighted
               const linkClass = cn(
                 icon ? `${LINK_CELL} gap-2` : LINK_CELL,
-                'transition-colors duration-200',
-                isDimmed && 'text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)]'
+                'h-[30px] self-center rounded-[5px] transition-colors duration-200 group-hover:bg-[var(--landing-bg-elevated)]'
               )
               const chevron = icon === 'chevron' && <NavChevron open={isActive} />
 
@@ -148,7 +140,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                 return (
                   <li
                     key={label}
-                    className='relative flex'
+                    className='group relative flex'
                     onMouseEnter={() => openDropdown(dropdown)}
                     onMouseLeave={scheduleClose}
                   >
@@ -157,13 +149,13 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                         href={href}
                         target='_blank'
                         rel='noopener noreferrer'
-                        className={cn(linkClass, 'h-full cursor-pointer')}
+                        className={cn(linkClass, 'cursor-pointer')}
                       >
                         {label}
                         {chevron}
                       </a>
                     ) : (
-                      <Link href={href} className={cn(linkClass, 'h-full cursor-pointer')}>
+                      <Link href={href} className={cn(linkClass, 'cursor-pointer')}>
                         {label}
                         {chevron}
                       </Link>
@@ -180,12 +172,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
               }
 
               return (
-                <li
-                  key={label}
-                  className='flex'
-                  onMouseEnter={() => setHoveredLink(label)}
-                  onMouseLeave={() => setHoveredLink(null)}
-                >
+                <li key={label} className='group flex'>
                   {external ? (
                     <a href={href} target='_blank' rel='noopener noreferrer' className={linkClass}>
                       {label}
@@ -200,14 +187,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                 </li>
               )
             })}
-            <li
-              className={cn(
-                'flex transition-opacity duration-200',
-                anyHighlighted && hoveredLink !== 'github' && 'opacity-60'
-              )}
-              onMouseEnter={() => setHoveredLink('github')}
-              onMouseLeave={() => setHoveredLink(null)}
-            >
+            <li className='group flex'>
               <GitHubStars />
             </li>
           </ul>
@@ -216,7 +196,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
 
           <div
             className={cn(
-              'hidden items-center gap-2 pr-20 pl-5 lg:flex',
+              'hidden items-center gap-2 pr-16 pl-5 lg:flex',
               isSessionPending && 'invisible'
             )}
           >
@@ -262,7 +242,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
 
           <div
             className={cn(
-              'fixed inset-x-0 top-[52px] bottom-0 z-50 flex flex-col overflow-y-auto bg-[var(--landing-bg)] font-[430] font-season text-sm transition-all duration-200 lg:hidden',
+              'fixed inset-x-0 top-[58px] bottom-0 z-50 flex flex-col overflow-y-auto bg-[var(--landing-bg)] font-[430] font-season text-sm transition-all duration-200 lg:hidden',
               mobileMenuOpen ? 'visible opacity-100' : 'invisible opacity-0'
             )}
           >

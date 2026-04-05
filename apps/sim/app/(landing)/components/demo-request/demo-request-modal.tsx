@@ -162,7 +162,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
       <ModalContent size='lg' className={theme === 'dark' ? 'dark' : undefined}>
         <ModalHeader>
           <span className={submitSuccess ? 'sr-only' : undefined}>
-            {submitSuccess ? 'Demo request submitted' : 'Nearly there!'}
+            {submitSuccess ? 'Demo request submitted' : 'Talk to sales'}
           </span>
         </ModalHeader>
         <div className='relative flex-1'>
