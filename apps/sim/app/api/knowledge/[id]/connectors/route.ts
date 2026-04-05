@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { encryptApiKey } from '@/lib/api-key/crypto'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
@@ -97,6 +98,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { connectorType, credentialId, apiKey, sourceConfig, syncIntervalMinutes } = parsed.data
 
+    if (syncIntervalMinutes > 0 && syncIntervalMinutes < 60) {
+      const canUseLiveSync = await hasLiveSyncAccess(auth.userId)
+      if (!canUseLiveSync) {
+        return NextResponse.json(
+          { error: 'Live sync requires a Max or Enterprise plan' },
+          { status: 403 }
+        )
+      }
+    }
+
     const connectorConfig = CONNECTOR_REGISTRY[connectorType]
     if (!connectorConfig) {
       return NextResponse.json(
@@ -151,19 +162,39 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const tagSlotMapping: Record<string, string> = {}
+    let newTagSlots: Record<string, string> = {}
 
     if (connectorConfig.tagDefinitions?.length) {
       const disabledIds = new Set((sourceConfig.disabledTagIds as string[] | undefined) ?? [])
       const enabledDefs = connectorConfig.tagDefinitions.filter((td) => !disabledIds.has(td.id))
 
       const existingDefs = await db
-        .select({ tagSlot: knowledgeBaseTagDefinitions.tagSlot })
+        .select({
+          tagSlot: knowledgeBaseTagDefinitions.tagSlot,
+          displayName: knowledgeBaseTagDefinitions.displayName,
+          fieldType: knowledgeBaseTagDefinitions.fieldType,
+        })
         .from(knowledgeBaseTagDefinitions)
         .where(eq(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseId))
 
       const usedSlots = new Set<string>(existingDefs.map((d) => d.tagSlot))
-      const { mapping, skipped: skippedTags } = allocateTagSlots(enabledDefs, usedSlots)
+      const existingByName = new Map(
+        existingDefs.map((d) => [d.displayName, { tagSlot: d.tagSlot, fieldType: d.fieldType }])
+      )
+
+      const defsNeedingSlots: typeof enabledDefs = []
+      for (const td of enabledDefs) {
+        const existing = existingByName.get(td.displayName)
+        if (existing && existing.fieldType === td.fieldType) {
+          tagSlotMapping[td.id] = existing.tagSlot
+        } else {
+          defsNeedingSlots.push(td)
+        }
+      }
+
+      const { mapping, skipped: skippedTags } = allocateTagSlots(defsNeedingSlots, usedSlots)
       Object.assign(tagSlotMapping, mapping)
+      newTagSlots = mapping
 
       for (const name of skippedTags) {
         logger.warn(`[${requestId}] No available slots for "${name}"`)
@@ -197,7 +228,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         throw new Error('Knowledge base not found')
       }
 
-      for (const [semanticId, slot] of Object.entries(tagSlotMapping)) {
+      for (const [semanticId, slot] of Object.entries(newTagSlots)) {
         const td = connectorConfig.tagDefinitions!.find((d) => d.id === semanticId)!
         await createTagDefinition(
           {

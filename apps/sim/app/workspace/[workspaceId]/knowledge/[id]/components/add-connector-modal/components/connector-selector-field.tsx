@@ -79,6 +79,8 @@ export function ConnectorSelectorField({
       options={comboboxOptions}
       value={value || undefined}
       onChange={onChange}
+      searchable
+      searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
       placeholder={
         !credentialId
           ? 'Connect an account first'

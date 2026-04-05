@@ -159,16 +159,7 @@ export async function PATCH(
           }
         )
       }
-      if (isUnread === false) {
-        captureServerEvent(
-          userId,
-          'task_marked_read',
-          { workspace_id: updatedChat.workspaceId },
-          {
-            groups: { workspace: updatedChat.workspaceId },
-          }
-        )
-      } else if (isUnread === true) {
+      if (isUnread === true) {
         captureServerEvent(
           userId,
           'task_marked_unread',

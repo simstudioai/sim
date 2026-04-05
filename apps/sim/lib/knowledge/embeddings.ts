@@ -35,6 +35,7 @@ interface EmbeddingConfig {
   apiUrl: string
   headers: Record<string, string>
   modelName: string
+  isBYOK: boolean
 }
 
 interface EmbeddingResponseItem {
@@ -71,16 +72,19 @@ async function getEmbeddingConfig(
         'Content-Type': 'application/json',
       },
       modelName: kbModelName,
+      isBYOK: false,
     }
   }
 
   let openaiApiKey = env.OPENAI_API_KEY
+  let isBYOK = false
 
   if (workspaceId) {
     const byokResult = await getBYOKKey(workspaceId, 'openai')
     if (byokResult) {
       logger.info('Using workspace BYOK key for OpenAI embeddings')
       openaiApiKey = byokResult.apiKey
+      isBYOK = true
     }
   }
 
@@ -98,12 +102,16 @@ async function getEmbeddingConfig(
       'Content-Type': 'application/json',
     },
     modelName: embeddingModel,
+    isBYOK,
   }
 }
 
 const EMBEDDING_REQUEST_TIMEOUT_MS = 60_000
 
-async function callEmbeddingAPI(inputs: string[], config: EmbeddingConfig): Promise<number[][]> {
+async function callEmbeddingAPI(
+  inputs: string[],
+  config: EmbeddingConfig
+): Promise<{ embeddings: number[][]; totalTokens: number }> {
   return retryWithExponentialBackoff(
     async () => {
       const useDimensions = supportsCustomDimensions(config.modelName)
@@ -140,7 +148,10 @@ async function callEmbeddingAPI(inputs: string[], config: EmbeddingConfig): Prom
       }
 
       const data: EmbeddingAPIResponse = await response.json()
-      return data.data.map((item) => item.embedding)
+      return {
+        embeddings: data.data.map((item) => item.embedding),
+        totalTokens: data.usage.total_tokens,
+      }
     },
     {
       maxRetries: 3,
@@ -178,14 +189,23 @@ async function processWithConcurrency<T, R>(
   return results
 }
 
+export interface GenerateEmbeddingsResult {
+  embeddings: number[][]
+  totalTokens: number
+  isBYOK: boolean
+  modelName: string
+}
+
 /**
- * Generate embeddings for multiple texts with token-aware batching and parallel processing
+ * Generate embeddings for multiple texts with token-aware batching and parallel processing.
+ * Returns embeddings alongside actual token count, model name, and whether a workspace BYOK key
+ * was used (vs. the platform's shared key) — enabling callers to make correct billing decisions.
  */
 export async function generateEmbeddings(
   texts: string[],
   embeddingModel = 'text-embedding-3-small',
   workspaceId?: string | null
-): Promise<number[][]> {
+): Promise<GenerateEmbeddingsResult> {
   const config = await getEmbeddingConfig(embeddingModel, workspaceId)
 
   const batches = batchByTokenLimit(texts, MAX_TOKENS_PER_REQUEST, embeddingModel)
@@ -204,13 +224,20 @@ export async function generateEmbeddings(
   )
 
   const allEmbeddings: number[][] = []
+  let totalTokens = 0
   for (const batch of batchResults) {
-    for (const emb of batch) {
+    for (const emb of batch.embeddings) {
       allEmbeddings.push(emb)
     }
+    totalTokens += batch.totalTokens
   }
 
-  return allEmbeddings
+  return {
+    embeddings: allEmbeddings,
+    totalTokens,
+    isBYOK: config.isBYOK,
+    modelName: config.modelName,
+  }
 }
 
 /**
@@ -227,6 +254,6 @@ export async function generateSearchEmbedding(
     `Using ${config.useAzure ? 'Azure OpenAI' : 'OpenAI'} for search embedding generation`
   )
 
-  const embeddings = await callEmbeddingAPI([query], config)
+  const { embeddings } = await callEmbeddingAPI([query], config)
   return embeddings[0]
 }

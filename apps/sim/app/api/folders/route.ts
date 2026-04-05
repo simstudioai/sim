@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersAPI')
@@ -144,6 +145,13 @@ export async function POST(request: NextRequest) {
     })
 
     logger.info('Created new folder:', { id, name, workspaceId, parentId })
+
+    captureServerEvent(
+      session.user.id,
+      'folder_created',
+      { workspace_id: workspaceId },
+      { groups: { workspace: workspaceId } }
+    )
 
     recordAudit({
       workspaceId,

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { PanelLeft } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
@@ -28,6 +28,8 @@ interface HomeProps {
 export function Home({ chatId }: HomeProps = {}) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const initialResourceId = searchParams.get('resource')
   const { data: session } = useSession()
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
@@ -160,7 +162,10 @@ export function Home({ chatId }: HomeProps = {}) {
   } = useChat(
     workspaceId,
     chatId,
-    getMothershipUseChatOptions({ onResourceEvent: handleResourceEvent })
+    getMothershipUseChatOptions({
+      onResourceEvent: handleResourceEvent,
+      initialActiveResourceId: initialResourceId,
+    })
   )
 
   const [editingInputValue, setEditingInputValue] = useState('')
@@ -182,6 +187,16 @@ export function Home({ chatId }: HomeProps = {}) {
     },
     [editQueuedMessage]
   )
+
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (activeResourceId) {
+      url.searchParams.set('resource', activeResourceId)
+    } else {
+      url.searchParams.delete('resource')
+    }
+    window.history.replaceState(null, '', url.toString())
+  }, [activeResourceId])
 
   useEffect(() => {
     wasSendingRef.current = false
@@ -213,6 +228,7 @@ export function Home({ chatId }: HomeProps = {}) {
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
 
       captureEvent(posthogRef.current, 'task_message_sent', {
+        workspace_id: workspaceId,
         has_attachments: !!(fileAttachments && fileAttachments.length > 0),
         has_contexts: !!(contexts && contexts.length > 0),
         is_new_task: !chatId,
@@ -224,7 +240,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
       sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
-    [sendMessage]
+    [sendMessage, workspaceId, chatId]
   )
 
   useEffect(() => {

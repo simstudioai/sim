@@ -3,11 +3,13 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { Command } from 'cmdk'
 import { useParams, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { Library } from '@/components/emcn'
 import { Calendar, Database, File, HelpCircle, Settings, Table } from '@/components/emcn/icons'
 import { Search } from '@/components/emcn/icons/search'
 import { cn } from '@/lib/core/utils/cn'
+import { captureEvent } from '@/lib/posthog/client'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -55,11 +57,14 @@ export function SearchModal({
   const [mounted, setMounted] = useState(false)
   const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
+  const posthog = usePostHog()
 
   const routerRef = useRef(router)
   routerRef.current = router
   const onOpenChangeRef = useRef(onOpenChange)
   onOpenChangeRef.current = onOpenChange
+  const posthogRef = useRef(posthog)
+  posthogRef.current = posthog
 
   useEffect(() => {
     setMounted(true)
@@ -154,6 +159,8 @@ export function SearchModal({
   }, [open])
 
   const deferredSearch = useDeferredValue(search)
+  const deferredSearchRef = useRef(deferredSearch)
+  deferredSearchRef.current = deferredSearch
 
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value)
@@ -188,59 +195,151 @@ export function SearchModal({
           detail: { type: block.type, enableTriggerMode },
         })
       )
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: type,
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
       onOpenChangeRef.current(false)
     },
-    []
+    [workspaceId]
   )
 
-  const handleToolOperationSelect = useCallback((op: SearchToolOperationItem) => {
-    window.dispatchEvent(
-      new CustomEvent('add-block-from-toolbar', {
-        detail: { type: op.blockType, presetOperation: op.operationId },
-      })
-    )
-    onOpenChangeRef.current(false)
-  }, [])
-
-  const handleWorkflowSelect = useCallback((workflow: WorkflowItem) => {
-    if (!workflow.isCurrent && workflow.href) {
-      routerRef.current.push(workflow.href)
+  const handleToolOperationSelect = useCallback(
+    (op: SearchToolOperationItem) => {
       window.dispatchEvent(
-        new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: workflow.id } })
+        new CustomEvent('add-block-from-toolbar', {
+          detail: { type: op.blockType, presetOperation: op.operationId },
+        })
       )
-    }
-    onOpenChangeRef.current(false)
-  }, [])
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'tool_operation',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
 
-  const handleWorkspaceSelect = useCallback((workspace: WorkspaceItem) => {
-    if (!workspace.isCurrent && workspace.href) {
-      routerRef.current.push(workspace.href)
-    }
-    onOpenChangeRef.current(false)
-  }, [])
-
-  const handleTaskSelect = useCallback((task: TaskItem) => {
-    routerRef.current.push(task.href)
-    onOpenChangeRef.current(false)
-  }, [])
-
-  const handlePageSelect = useCallback((page: PageItem) => {
-    if (page.onClick) {
-      page.onClick()
-    } else if (page.href) {
-      if (page.href.startsWith('http')) {
-        window.open(page.href, '_blank', 'noopener,noreferrer')
-      } else {
-        routerRef.current.push(page.href)
+  const handleWorkflowSelect = useCallback(
+    (workflow: WorkflowItem) => {
+      if (!workflow.isCurrent && workflow.href) {
+        routerRef.current.push(workflow.href)
+        window.dispatchEvent(
+          new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: workflow.id } })
+        )
       }
-    }
-    onOpenChangeRef.current(false)
-  }, [])
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'workflow',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
 
-  const handleDocSelect = useCallback((doc: SearchDocItem) => {
-    window.open(doc.href, '_blank', 'noopener,noreferrer')
-    onOpenChangeRef.current(false)
-  }, [])
+  const handleWorkspaceSelect = useCallback(
+    (workspace: WorkspaceItem) => {
+      if (!workspace.isCurrent && workspace.href) {
+        routerRef.current.push(workspace.href)
+      }
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'workspace',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
+  const handleTaskSelect = useCallback(
+    (task: TaskItem) => {
+      routerRef.current.push(task.href)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'task',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
+  const handleTableSelect = useCallback(
+    (item: TaskItem) => {
+      routerRef.current.push(item.href)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'table',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
+  const handleFileSelect = useCallback(
+    (item: TaskItem) => {
+      routerRef.current.push(item.href)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'file',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
+  const handleKbSelect = useCallback(
+    (item: TaskItem) => {
+      routerRef.current.push(item.href)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'knowledge_base',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
+  const handlePageSelect = useCallback(
+    (page: PageItem) => {
+      if (page.onClick) {
+        page.onClick()
+      } else if (page.href) {
+        if (page.href.startsWith('http')) {
+          window.open(page.href, '_blank', 'noopener,noreferrer')
+        } else {
+          routerRef.current.push(page.href)
+        }
+      }
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'page',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
+  const handleDocSelect = useCallback(
+    (doc: SearchDocItem) => {
+      window.open(doc.href, '_blank', 'noopener,noreferrer')
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'docs',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
 
   const handleBlockSelectAsBlock = useCallback(
     (block: SearchBlockItem) => handleBlockSelect(block, 'block'),
@@ -370,9 +469,9 @@ export function SearchModal({
             <TriggersGroup items={filteredTriggers} onSelect={handleBlockSelectAsTrigger} />
             <WorkflowsGroup items={filteredWorkflows} onSelect={handleWorkflowSelect} />
             <TasksGroup items={filteredTasks} onSelect={handleTaskSelect} />
-            <TablesGroup items={filteredTables} onSelect={handleTaskSelect} />
-            <FilesGroup items={filteredFiles} onSelect={handleTaskSelect} />
-            <KnowledgeBasesGroup items={filteredKnowledgeBases} onSelect={handleTaskSelect} />
+            <TablesGroup items={filteredTables} onSelect={handleTableSelect} />
+            <FilesGroup items={filteredFiles} onSelect={handleFileSelect} />
+            <KnowledgeBasesGroup items={filteredKnowledgeBases} onSelect={handleKbSelect} />
             <ToolOpsGroup items={filteredToolOps} onSelect={handleToolOperationSelect} />
             <WorkspacesGroup items={filteredWorkspaces} onSelect={handleWorkspaceSelect} />
             <DocsGroup items={filteredDocs} onSelect={handleDocSelect} />

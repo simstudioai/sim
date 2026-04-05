@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
+import { captureEvent } from '@/lib/posthog/client'
 import {
   downloadFile,
   exportWorkflowsToZip,
@@ -27,12 +29,16 @@ export function useExportWorkflow({ onSuccess }: UseExportWorkflowProps = {}) {
   const [isExporting, setIsExporting] = useState(false)
   const params = useParams()
   const workspaceId = params.workspaceId as string | undefined
+  const posthog = usePostHog()
 
   const onSuccessRef = useRef(onSuccess)
   onSuccessRef.current = onSuccess
 
   const workspaceIdRef = useRef(workspaceId)
   workspaceIdRef.current = workspaceId
+
+  const posthogRef = useRef(posthog)
+  posthogRef.current = posthog
 
   /**
    * Export the workflow(s) to JSON or ZIP
@@ -99,6 +105,12 @@ export function useExportWorkflow({ onSuccess }: UseExportWorkflowProps = {}) {
 
         const { clearSelection } = useFolderStore.getState()
         clearSelection()
+
+        captureEvent(posthogRef.current, 'workflow_exported', {
+          workspace_id: workspaceIdRef.current ?? '',
+          workflow_count: exportedWorkflows.length,
+          format: exportedWorkflows.length === 1 ? 'json' : 'zip',
+        })
 
         logger.info('Workflow(s) exported successfully', {
           workflowIds: workflowIdsToExport,

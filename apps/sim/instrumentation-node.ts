@@ -140,25 +140,17 @@ async function initializeOpenTelemetry() {
 
     sdk.start()
 
-    const shutdownHandler = async () => {
+    const shutdownOtel = async () => {
       try {
         await sdk.shutdown()
         logger.info('OpenTelemetry SDK shut down successfully')
       } catch (err) {
         logger.error('Error shutting down OpenTelemetry SDK', err)
       }
-
-      try {
-        const { getPostHogClient } = await import('@/lib/posthog/server')
-        await getPostHogClient()?.shutdown()
-        logger.info('PostHog client shut down successfully')
-      } catch (err) {
-        logger.error('Error shutting down PostHog client', err)
-      }
     }
 
-    process.on('SIGTERM', shutdownHandler)
-    process.on('SIGINT', shutdownHandler)
+    process.on('SIGTERM', shutdownOtel)
+    process.on('SIGINT', shutdownOtel)
 
     logger.info('OpenTelemetry instrumentation initialized with business span filtering')
   } catch (error) {
@@ -168,6 +160,19 @@ async function initializeOpenTelemetry() {
 
 export async function register() {
   await initializeOpenTelemetry()
+
+  const shutdownPostHog = async () => {
+    try {
+      const { getPostHogClient } = await import('@/lib/posthog/server')
+      await getPostHogClient()?.shutdown()
+      logger.info('PostHog client shut down successfully')
+    } catch (err) {
+      logger.error('Error shutting down PostHog client', err)
+    }
+  }
+
+  process.on('SIGTERM', shutdownPostHog)
+  process.on('SIGINT', shutdownPostHog)
 
   const { startMemoryTelemetry } = await import('./lib/monitoring/memory-telemetry')
   startMemoryTelemetry()
