@@ -200,6 +200,13 @@ export interface DownloadArtifactParams extends BaseCursorParams {
 
 export interface DownloadArtifactResponse extends ToolResponse {
   output: {
+    content: string
+    metadata: Record<string, unknown>
+  }
+}
+
+export interface DownloadArtifactV2Response extends ToolResponse {
+  output: {
     file: {
       name: string
       mimeType: string
@@ -222,3 +229,4 @@ export type CursorResponse =
   | ListRepositoriesResponse
   | ListArtifactsResponse
   | DownloadArtifactResponse
+  | DownloadArtifactV2Response

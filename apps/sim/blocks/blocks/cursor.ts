@@ -67,12 +67,6 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
       placeholder: '[{"data": "base64...", "dimension": {"width": 1024, "height": 768}}]',
       condition: { field: 'operation', value: ['cursor_launch_agent', 'cursor_add_followup'] },
       mode: 'advanced',
-      wandConfig: {
-        generationType: 'json-array',
-        placeholder: 'Describe the images to include with the prompt',
-        prompt:
-          'Generate a JSON array of image objects with base64 data and dimensions. Return ONLY the JSON array - no explanations, no extra text.',
-      },
     },
     {
       id: 'model',
@@ -258,7 +252,7 @@ export const CursorV2Block: BlockConfig<CursorResponse> = {
     status: { type: 'string', description: 'Agent status' },
     source: { type: 'json', description: 'Agent source repository info' },
     target: { type: 'json', description: 'Agent target branch/PR info' },
-    summary: { type: 'string', description: 'Agent summary', optional: true },
+    summary: { type: 'string', description: 'Agent summary' },
     createdAt: { type: 'string', description: 'Agent creation timestamp' },
     agents: { type: 'json', description: 'Array of agent objects (list operation)' },
     nextCursor: { type: 'string', description: 'Pagination cursor (list operation)' },

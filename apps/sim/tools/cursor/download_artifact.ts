@@ -1,4 +1,8 @@
-import type { DownloadArtifactParams, DownloadArtifactResponse } from '@/tools/cursor/types'
+import type {
+  DownloadArtifactParams,
+  DownloadArtifactResponse,
+  DownloadArtifactV2Response,
+} from '@/tools/cursor/types'
 import type { ToolConfig } from '@/tools/types'
 
 const downloadArtifactBase = {
@@ -72,18 +76,6 @@ export const downloadArtifactTool: ToolConfig<DownloadArtifactParams, DownloadAr
       },
     },
   },
-}
-
-interface DownloadArtifactV2Response {
-  success: boolean
-  output: {
-    file: {
-      name: string
-      mimeType: string
-      data: string
-      size: number
-    }
-  }
 }
 
 export const downloadArtifactV2Tool: ToolConfig<
