@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server'
 import type { WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 
+/**
+ * Handle Slack verification challenges
+ */
+export function handleSlackChallenge(body: unknown): NextResponse | null {
+  const obj = body as Record<string, unknown>
+  if (obj.type === 'url_verification' && obj.challenge) {
+    return NextResponse.json({ challenge: obj.challenge })
+  }
+
+  return null
+}
+
 export const slackHandler: WebhookProviderHandler = {
   extractIdempotencyId(body: unknown) {
     const obj = body as Record<string, unknown>
