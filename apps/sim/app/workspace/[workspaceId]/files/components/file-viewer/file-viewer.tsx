@@ -1062,8 +1062,7 @@ const XlsxPreview = memo(function XlsxPreview({
         <DataTable headers={currentSheet.headers} rows={currentSheet.rows} />
         {currentSheet.truncated && (
           <p className='mt-3 text-center text-[12px] text-[var(--text-muted)]'>
-            Showing first {XLSX_MAX_ROWS.toLocaleString()} rows. Download the file to view all
-            data.
+            Showing first {XLSX_MAX_ROWS.toLocaleString()} rows. Download the file to view all data.
           </p>
         )}
       </div>

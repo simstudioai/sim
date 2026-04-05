@@ -25,10 +25,7 @@ export const DataTable = memo(function DataTable({ headers, rows }: DataTablePro
           {rows.map((row, ri) => (
             <tr key={ri} className='border-[var(--border)] border-t'>
               {headers.map((_, ci) => (
-                <td
-                  key={ci}
-                  className='whitespace-nowrap px-3 py-2 text-[var(--text-secondary)]'
-                >
+                <td key={ci} className='whitespace-nowrap px-3 py-2 text-[var(--text-secondary)]'>
                   {String(row[ci] ?? '')}
                 </td>
               ))}

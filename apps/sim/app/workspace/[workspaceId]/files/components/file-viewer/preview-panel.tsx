@@ -10,9 +10,9 @@ import remarkGfm from 'remark-gfm'
 import { Checkbox } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import { DataTable } from './data-table'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import { useStreamingReveal } from '@/hooks/use-streaming-reveal'
+import { DataTable } from './data-table'
 
 type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | null
 
