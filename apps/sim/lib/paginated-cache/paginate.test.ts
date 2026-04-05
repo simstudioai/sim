@@ -25,7 +25,11 @@ vi.mock('@/lib/paginated-cache/redis-cache', () => ({
   })),
 }))
 
-import { autoPaginate, hydrateCacheReferences } from '@/lib/paginated-cache/paginate'
+import {
+  autoPaginate,
+  cleanupPaginatedCache,
+  hydrateCacheReferences,
+} from '@/lib/paginated-cache/paginate'
 import type { ToolResponse } from '@/tools/types'
 
 function makePageResponse(items: unknown[], hasMore: boolean, cursor: string | null): ToolResponse {
@@ -256,7 +260,6 @@ describe('cleanupPaginatedCache', () => {
       .mockResolvedValueOnce(['0', ['pagcache:page:exec-1:tool:field:uuid:0']])
       .mockResolvedValueOnce(['0', ['pagcache:meta:exec-1:tool:field:uuid']])
 
-    const { cleanupPaginatedCache } = await import('@/lib/paginated-cache/paginate')
     await cleanupPaginatedCache('exec-1')
 
     expect(mockScan).toHaveBeenCalledWith('0', 'MATCH', 'pagcache:page:exec-1:*', 'COUNT', 100)
@@ -267,7 +270,6 @@ describe('cleanupPaginatedCache', () => {
   it('no-ops when Redis is unavailable', async () => {
     mockGetRedisClient.mockReturnValue(null)
 
-    const { cleanupPaginatedCache } = await import('@/lib/paginated-cache/paginate')
     await cleanupPaginatedCache('exec-1')
 
     expect(mockScan).not.toHaveBeenCalled()

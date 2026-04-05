@@ -24,7 +24,7 @@ export interface ZendeskGetTicketsV2Params {
 export interface ZendeskGetTicketsV2Response {
   success: boolean
   output: {
-    tickets: any[]
+    tickets: Record<string, unknown>[]
     paging?: {
       after_cursor: string | null
       has_more: boolean
@@ -107,7 +107,8 @@ export const zendeskGetTicketsV2Tool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Results per page as a number string (default: "100", max: "100")',
+      description:
+        'Batch size per API request during auto-pagination as a number string (default: "100", max: "100")',
     },
   },
 

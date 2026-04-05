@@ -348,10 +348,10 @@ export async function createStreamingResponse(
         controller.enqueue(encodeSSE('[DONE]'))
 
         if (executionId) {
-          await Promise.allSettled([
-            cleanupExecutionBase64Cache(executionId),
-            cleanupPaginatedCache(executionId),
-          ])
+          await cleanupExecutionBase64Cache(executionId)
+          void cleanupPaginatedCache(executionId).catch((error) => {
+            logger.error('Failed to cleanup paginated cache', { executionId, error })
+          })
         }
 
         controller.close()
@@ -362,10 +362,10 @@ export async function createStreamingResponse(
         )
 
         if (executionId) {
-          await Promise.allSettled([
-            cleanupExecutionBase64Cache(executionId),
-            cleanupPaginatedCache(executionId),
-          ])
+          await cleanupExecutionBase64Cache(executionId)
+          void cleanupPaginatedCache(executionId).catch((error) => {
+            logger.error('Failed to cleanup paginated cache', { executionId, error })
+          })
         }
 
         controller.close()
@@ -378,10 +378,14 @@ export async function createStreamingResponse(
       timeoutController.abort()
       timeoutController.cleanup()
       if (executionId) {
-        await Promise.allSettled([
-          cleanupExecutionBase64Cache(executionId),
-          cleanupPaginatedCache(executionId),
-        ])
+        try {
+          await cleanupExecutionBase64Cache(executionId)
+        } catch (error) {
+          logger.error(`[${requestId}] Failed to cleanup base64 cache`, { error })
+        }
+        void cleanupPaginatedCache(executionId).catch((error) => {
+          logger.error('Failed to cleanup paginated cache', { executionId, error })
+        })
       }
     },
   })

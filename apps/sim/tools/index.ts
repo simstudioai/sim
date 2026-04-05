@@ -852,6 +852,8 @@ export async function executeTool(
       // Process file outputs if execution context is available
       finalResult = await processFileOutputs(finalResult, tool, executionContext)
 
+      // Auto-paginate if configured (duplicated in both directExecution and HTTP branches
+      // because each returns independently with timing data)
       finalResult = await maybeAutoPaginate(
         tool,
         finalResult,

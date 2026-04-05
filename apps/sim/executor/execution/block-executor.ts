@@ -110,7 +110,6 @@ export class BlockExecutor {
       }
 
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)
-      resolvedInputs = await hydrateCacheReferences(resolvedInputs)
 
       if (blockLog) {
         blockLog.input = this.sanitizeInputsForLog(resolvedInputs)
@@ -168,6 +167,10 @@ export class BlockExecutor {
           maxBytes: ctx.base64MaxBytes,
         })) as NormalizedBlockOutput
       }
+
+      normalizedOutput = (await hydrateCacheReferences(
+        normalizedOutput as Record<string, unknown>
+      )) as NormalizedBlockOutput
 
       const duration = performance.now() - startTime
 
