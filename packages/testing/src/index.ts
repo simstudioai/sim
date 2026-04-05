@@ -76,7 +76,6 @@ export {
   mockDrizzleOrm,
   mockHybridAuth,
   mockKnowledgeSchemas,
-  mockUuid,
   requestUtilsMock,
   setupCommonApiMocks,
   setupGlobalFetchMock,
