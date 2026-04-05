@@ -922,6 +922,7 @@ const DocxPreview = memo(function DocxPreview({
 
   useEffect(() => {
     if (!fileData) return
+    const data = fileData
 
     let cancelled = false
 
@@ -929,7 +930,7 @@ const DocxPreview = memo(function DocxPreview({
       try {
         setRenderError(null)
         const mammoth = await import('mammoth')
-        const result = await mammoth.convertToHtml({ arrayBuffer: fileData })
+        const result = await mammoth.convertToHtml({ arrayBuffer: data })
         if (!cancelled) setHtml(result.value)
       } catch (err) {
         if (!cancelled) {
@@ -1004,6 +1005,7 @@ const XlsxPreview = memo(function XlsxPreview({
 
   useEffect(() => {
     if (!fileData) return
+    const data = fileData
 
     let cancelled = false
 
@@ -1011,7 +1013,7 @@ const XlsxPreview = memo(function XlsxPreview({
       try {
         setRenderError(null)
         const XLSX = await import('xlsx')
-        const workbook = XLSX.read(fileData, { type: 'array' })
+        const workbook = XLSX.read(data, { type: 'array' })
         if (!cancelled) {
           workbookRef.current = workbook
           setSheetNames(workbook.SheetNames)
