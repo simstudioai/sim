@@ -212,16 +212,7 @@ export default function Features() {
                   className={`relative h-full min-w-0 flex-1 items-center justify-center px-2 font-medium font-season text-[var(--landing-text-dark)] text-caption uppercase lg:px-0 lg:text-sm${tab.hideOnMobile ? ' hidden lg:flex' : ' flex'}${index > 0 ? ' border-[var(--divider)] border-l' : ''}`}
                   style={{ backgroundColor: index === activeTab ? '#FDFDFD' : '#F6F6F6' }}
                 >
-                  <span className='truncate'>
-                    {tab.mobileLabel ? (
-                      <>
-                        <span className='lg:hidden'>{tab.mobileLabel}</span>
-                        <span className='hidden lg:inline'>{tab.label}</span>
-                      </>
-                    ) : (
-                      tab.label
-                    )}
-                  </span>
+                  <span className='truncate'>{tab.label}</span>
                   {index === activeTab && (
                     <div className='absolute right-0 bottom-0 left-0 flex h-[6px]'>
                       {tab.segments.map(([opacity, width], i) => (
