@@ -188,8 +188,12 @@ export function Home({ chatId }: HomeProps = {}) {
     [editQueuedMessage]
   )
 
+  const hasSetResourceRef = useRef(false)
   useEffect(() => {
+    if (!activeResourceId && !hasSetResourceRef.current) return
+    hasSetResourceRef.current = true
     const url = new URL(window.location.href)
+    url.hash = ''
     if (activeResourceId) {
       url.searchParams.set('resource', activeResourceId)
     } else {
