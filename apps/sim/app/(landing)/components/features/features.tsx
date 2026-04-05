@@ -14,7 +14,19 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`
 }
 
-const FEATURE_TABS = [
+interface FeatureTab {
+  label: string
+  mobileLabel?: string
+  color: string
+  badgeColor?: string
+  title: string
+  description: string
+  cta: string
+  segments: number[][]
+  hideOnMobile?: boolean
+}
+
+const FEATURE_TABS: FeatureTab[] = [
   {
     label: 'Mothership',
     color: '#FA4EDF',

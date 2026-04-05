@@ -140,7 +140,7 @@ export function LandingPreview() {
 
   const scheduleNextStep = useCallback(() => {
     if (!autoCycleActiveRef.current) return
-    const steps = isDesktopRef.current ? DESKTOP_STEPS : MOBILE_STEPS
+    const steps = DESKTOP_STEPS
     const currentStep = steps[demoIndexRef.current]
     demoTimerRef.current = setTimeout(() => {
       if (!autoCycleActiveRef.current) return
