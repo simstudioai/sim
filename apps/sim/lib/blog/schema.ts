@@ -35,6 +35,7 @@ export const BlogFrontmatterSchema = z
       )
       .optional(),
     canonical: z.string().url(),
+    wordCount: z.number().int().positive().optional(),
     draft: z.boolean().default(false),
     featured: z.boolean().default(false),
   })
@@ -57,6 +58,7 @@ export interface BlogMeta {
   about?: string[]
   timeRequired?: string
   faq?: { q: string; a: string }[]
+  wordCount?: number
   canonical: string
   draft: boolean
   featured: boolean

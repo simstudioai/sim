@@ -59,8 +59,15 @@ async function scanFrontmatters(): Promise<BlogMeta[]> {
       .catch(() => false)
     if (!hasMdx) continue
     const raw = await fs.readFile(mdxPath, 'utf-8')
-    const { data } = matter(raw)
+    const { data, content: mdxContent } = matter(raw)
     const fm = BlogFrontmatterSchema.parse(data)
+    const wordCount = mdxContent
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/import\s+.*?from\s+['"].*?['"]/g, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/[#*_~`[\]()!|>-]/g, '')
+      .split(/\s+/)
+      .filter((w) => w.length > 0).length
     const authors = fm.authors.map((id) => authorsMap[id]).filter(Boolean)
     if (authors.length === 0) throw new Error(`Authors not found for "${slug}"`)
     results.push({
@@ -79,6 +86,7 @@ async function scanFrontmatters(): Promise<BlogMeta[]> {
       about: fm.about,
       timeRequired: fm.timeRequired,
       faq: fm.faq,
+      wordCount,
       draft: fm.draft,
       featured: fm.featured ?? false,
     })
