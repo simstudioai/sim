@@ -24,13 +24,37 @@ export function ApiKeySkeleton() {
 export function ApiKeysSkeleton() {
   return (
     <div className='flex h-full flex-col gap-4.5'>
+      {/* Search bar and Create button */}
       <div className='flex items-center gap-2'>
-        <Skeleton className='h-[30px] flex-1 rounded-lg' />
-        <Skeleton className='h-[30px] w-[80px] rounded-md' />
+        <Skeleton className='h-[38px] flex-1 rounded-lg' />
+        <Skeleton className='h-[38px] w-[90px] rounded-md' />
       </div>
-      <div className='flex flex-col gap-2'>
-        <ApiKeySkeleton />
-        <ApiKeySkeleton />
+
+      {/* Scrollable content area */}
+      <div className='min-h-0 flex-1 overflow-y-auto'>
+        <div className='flex flex-col gap-4.5'>
+          {/* Workspace section */}
+          <div className='flex flex-col gap-2'>
+            <Skeleton className='h-5 w-[80px]' />
+            <Skeleton className='h-5 w-[180px]' />
+          </div>
+
+          {/* Personal section */}
+          <div className='flex flex-col gap-2'>
+            <Skeleton className='h-5 w-[60px]' />
+            <ApiKeySkeleton />
+            <ApiKeySkeleton />
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom toggle section */}
+      <div className='mt-6 flex items-center justify-between'>
+        <div className='flex items-center gap-2'>
+          <Skeleton className='h-5 w-[170px]' />
+          <Skeleton className='h-3 w-3 rounded-full' />
+        </div>
+        <Skeleton className='h-5 w-9 rounded-full' />
       </div>
     </div>
   )
