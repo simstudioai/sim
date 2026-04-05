@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { SUPPORTED_CODE_EXTENSIONS } from '@/lib/uploads/utils/validation'
 import {
   useUpdateWorkspaceFileContent,
   useWorkspaceFileBinary,
@@ -44,7 +45,6 @@ const TEXT_EDITABLE_MIME_TYPES = new Set([
 
 const TEXT_EDITABLE_EXTENSIONS = new Set([
   'md',
-  'mdx',
   'txt',
   'json',
   'yaml',
@@ -53,48 +53,7 @@ const TEXT_EDITABLE_EXTENSIONS = new Set([
   'html',
   'htm',
   'svg',
-  'xml',
-  'css',
-  'scss',
-  'less',
-  'js',
-  'jsx',
-  'ts',
-  'tsx',
-  'py',
-  'rb',
-  'go',
-  'rs',
-  'java',
-  'kt',
-  'swift',
-  'c',
-  'cpp',
-  'h',
-  'hpp',
-  'cs',
-  'php',
-  'sh',
-  'bash',
-  'zsh',
-  'fish',
-  'sql',
-  'graphql',
-  'gql',
-  'toml',
-  'ini',
-  'conf',
-  'cfg',
-  'env',
-  'log',
-  'diff',
-  'patch',
-  'dockerfile',
-  'makefile',
-  'gitignore',
-  'editorconfig',
-  'prettierrc',
-  'eslintrc',
+  ...SUPPORTED_CODE_EXTENSIONS,
 ])
 
 const IFRAME_PREVIEWABLE_MIME_TYPES = new Set(['application/pdf'])
@@ -136,7 +95,8 @@ function resolveFileCategory(mimeType: string | null, filename: string): FileCat
   if (mimeType && XLSX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'xlsx-previewable'
 
   const ext = getFileExtension(filename)
-  if (TEXT_EDITABLE_EXTENSIONS.has(ext)) return 'text-editable'
+  const nameKey = ext || filename.toLowerCase()
+  if (TEXT_EDITABLE_EXTENSIONS.has(nameKey)) return 'text-editable'
   if (IFRAME_PREVIEWABLE_EXTENSIONS.has(ext)) return 'iframe-previewable'
   if (IMAGE_PREVIEWABLE_EXTENSIONS.has(ext)) return 'image-previewable'
   if (PPTX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'pptx-previewable'
