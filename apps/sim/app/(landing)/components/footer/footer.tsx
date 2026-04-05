@@ -9,17 +9,17 @@ interface FooterItem {
   label: string
   href: string
   external?: boolean
+  arrow?: boolean
+  externalArrow?: boolean
 }
 
 const PRODUCT_LINKS: FooterItem[] = [
-  { label: 'Pricing', href: '/#pricing' },
-  { label: 'Enterprise', href: 'https://form.typeform.com/to/jqCO12pF', external: true },
   { label: 'Self Hosting', href: 'https://docs.sim.ai/self-hosting', external: true },
   { label: 'MCP', href: 'https://docs.sim.ai/mcp', external: true },
   { label: 'Knowledge Base', href: 'https://docs.sim.ai/knowledgebase', external: true },
   { label: 'Tables', href: 'https://docs.sim.ai/tables', external: true },
   { label: 'API', href: 'https://docs.sim.ai/api-reference/getting-started', external: true },
-  { label: 'Status', href: 'https://status.sim.ai', external: true },
+  { label: 'Status', href: 'https://status.sim.ai', external: true, externalArrow: true },
 ]
 
 const RESOURCES_LINKS: FooterItem[] = [
@@ -29,7 +29,7 @@ const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Models', href: '/models' },
   // { label: 'Academy', href: '/academy' },
   { label: 'Partners', href: '/partners' },
-  { label: 'Careers', href: 'https://jobs.ashbyhq.com/sim', external: true },
+  { label: 'Careers', href: 'https://jobs.ashbyhq.com/sim', external: true, externalArrow: true },
   { label: 'Changelog', href: '/changelog' },
 ]
 
@@ -47,7 +47,7 @@ const BLOCK_LINKS: FooterItem[] = [
 ]
 
 const INTEGRATION_LINKS: FooterItem[] = [
-  { label: 'All Integrations →', href: '/integrations' },
+  { label: 'All Integrations', href: '/integrations', arrow: true },
   { label: 'Confluence', href: 'https://docs.sim.ai/tools/confluence', external: true },
   { label: 'Slack', href: 'https://docs.sim.ai/tools/slack', external: true },
   { label: 'GitHub', href: 'https://docs.sim.ai/tools/github', external: true },
@@ -71,10 +71,20 @@ const INTEGRATION_LINKS: FooterItem[] = [
 ]
 
 const SOCIAL_LINKS: FooterItem[] = [
-  { label: 'X (Twitter)', href: 'https://x.com/simdotai', external: true },
-  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/simstudioai/', external: true },
-  { label: 'Discord', href: 'https://discord.gg/Hr4UWYEcTT', external: true },
-  { label: 'GitHub', href: 'https://github.com/simstudioai/sim', external: true },
+  { label: 'X (Twitter)', href: 'https://x.com/simdotai', external: true, externalArrow: true },
+  {
+    label: 'LinkedIn',
+    href: 'https://www.linkedin.com/company/simstudioai/',
+    external: true,
+    externalArrow: true,
+  },
+  { label: 'Discord', href: 'https://discord.gg/Hr4UWYEcTT', external: true, externalArrow: true },
+  {
+    label: 'GitHub',
+    href: 'https://github.com/simstudioai/sim',
+    external: true,
+    externalArrow: true,
+  },
 ]
 
 const LEGAL_LINKS: FooterItem[] = [
@@ -82,25 +92,62 @@ const LEGAL_LINKS: FooterItem[] = [
   { label: 'Privacy Policy', href: '/privacy' },
 ]
 
+function ChevronArrow({ external }: { external?: boolean }) {
+  return (
+    <svg
+      className={`h-3 w-3 shrink-0${external ? ' -rotate-45' : ''}`}
+      viewBox='0 0 10 10'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <line
+        x1='0'
+        y1='5'
+        x2='9'
+        y2='5'
+        stroke='currentColor'
+        strokeWidth='1.33'
+        strokeLinecap='square'
+        className='origin-left scale-x-0 transition-transform duration-200 ease-out [transform-box:fill-box] group-hover/link:scale-x-100'
+      />
+      <path
+        d='M3.5 2L6.5 5L3.5 8'
+        stroke='currentColor'
+        strokeWidth='1.33'
+        strokeLinecap='square'
+        strokeLinejoin='miter'
+        fill='none'
+        className='transition-transform duration-200 ease-out group-hover/link:translate-x-[30%]'
+      />
+    </svg>
+  )
+}
+
 function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) {
   return (
     <div>
       <h3 className='mb-4 font-medium text-[var(--landing-text)] text-sm'>{title}</h3>
       <div className='flex flex-col gap-2.5'>
-        {items.map(({ label, href, external }) =>
+        {items.map(({ label, href, external, arrow, externalArrow }) =>
           external ? (
             <a
               key={label}
               href={href}
               target='_blank'
               rel='noopener noreferrer'
-              className={LINK_CLASS}
+              className={`${LINK_CLASS}${externalArrow ? ' group/link inline-flex items-center gap-1' : ''}`}
             >
               {label}
+              {externalArrow && <ChevronArrow external />}
             </a>
           ) : (
-            <Link key={label} href={href} className={LINK_CLASS}>
+            <Link
+              key={label}
+              href={href}
+              className={`${LINK_CLASS}${arrow ? ' group/link inline-flex items-center gap-1.5' : ''}`}
+            >
               {label}
+              {arrow && <ChevronArrow />}
             </Link>
           )
         )}
@@ -117,13 +164,31 @@ export default function Footer({ hideCTA }: FooterProps) {
   return (
     <footer
       role='contentinfo'
-      className={`bg-[var(--landing-bg-section)] pb-10 font-[430] font-season text-sm${hideCTA ? ' pt-10' : ''}`}
+      className={`bg-[var(--landing-bg)] pb-10 font-[430] font-season text-sm${hideCTA ? ' pt-10' : ''}`}
     >
       {!hideCTA && <FooterCTA />}
-      <div className='px-4 sm:px-8 md:px-16'>
-        <div className='relative overflow-hidden rounded-lg bg-[var(--landing-bg)] px-6 pt-10 pb-8 sm:px-10 sm:pt-12 sm:pb-10'>
+      <div className='relative px-[1.6vw] sm:px-8 lg:px-16'>
+        <div
+          aria-hidden='true'
+          className='absolute top-0 left-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
+        />
+        <div
+          aria-hidden='true'
+          className='absolute top-0 right-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
+        />
+        <div
+          aria-hidden='true'
+          className='absolute bottom-0 left-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
+        />
+        <div
+          aria-hidden='true'
+          className='absolute right-0 bottom-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
+        />
+        <div className='relative z-10 border border-[var(--landing-bg-elevated)] px-6 pt-10 pb-8 sm:px-10 sm:pt-12 sm:pb-10'>
           <nav
             aria-label='Footer navigation'
+            itemScope
+            itemType='https://schema.org/SiteNavigationElement'
             className='relative z-[1] grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:grid-cols-7'
           >
             <div className='col-span-2 flex flex-col gap-6 sm:col-span-1'>
@@ -145,29 +210,6 @@ export default function Footer({ hideCTA }: FooterProps) {
             <FooterColumn title='Socials' items={SOCIAL_LINKS} />
             <FooterColumn title='Legal' items={LEGAL_LINKS} />
           </nav>
-
-          {/* <svg
-            aria-hidden='true'
-            className='pointer-events-none absolute bottom-0 left-[-60px] hidden w-[85%] sm:block'
-            viewBox='0 0 1800 316'
-            fill='none'
-            xmlns='http://www.w3.org/2000/svg'
-          >
-            <path
-              d='M18.3562 305V48.95A30.594 30.594 0 0 1 48.95 18.356H917.05A30.594 30.594 0 0 1 947.644 48.95V273H1768C1777.11 273 1784.5 280.387 1784.5 289.5C1784.5 298.613 1777.11 306 1768 306H96.8603C78.635 306 63.8604 310 63.8604 305H18.3562'
-              stroke='#2A2A2A'
-              strokeWidth='2'
-            />
-            <rect
-              x='58'
-              y='58'
-              width='849.288'
-              height='199.288'
-              rx='14'
-              stroke='#2A2A2A'
-              strokeWidth='2'
-            />
-          </svg> */}
         </div>
       </div>
     </footer>

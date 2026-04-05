@@ -52,13 +52,20 @@ export default async function Landing() {
         <Navbar blogPosts={blogPosts} />
       </header>
       <main id='main-content'>
-        <Hero />
-        <Templates />
-        <Features />
-        <Collaboration />
-        {/* <Enterprise /> */}
-        <Pricing />
-        <Testimonials />
+        <article itemScope itemType='https://schema.org/WebPage'>
+          <meta itemProp='name' content='Sim — Build AI Agents & Run Your Agentic Workforce' />
+          <meta
+            itemProp='description'
+            content='Sim is the open-source platform to build AI agents and run your agentic workforce.'
+          />
+          <Hero />
+          <Templates />
+          <Features />
+          <Collaboration />
+          {/* <Enterprise /> */}
+          <Pricing />
+          <Testimonials />
+        </article>
       </main>
       <Footer />
     </div>

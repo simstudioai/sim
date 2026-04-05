@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import { Badge } from '@/components/emcn'
 import { DemoRequestModal } from '@/app/(landing)/components/demo-request/demo-request-modal'
@@ -83,7 +85,7 @@ const PRICING_TIERS: PricingTier[] = [
       'SSO & SCIM · SOC2',
       'Self hosting · Dedicated support',
     ],
-    cta: { label: 'Book a demo', action: 'demo-request' },
+    cta: { label: 'Get a demo', action: 'demo-request' },
   },
 ]
 
@@ -110,7 +112,21 @@ function PricingCard({ tier }: PricingCardProps) {
   const isPro = tier.id === 'pro'
 
   return (
-    <article className='flex flex-1 flex-col' aria-labelledby={`${tier.id}-heading`}>
+    <article
+      className='flex flex-1 flex-col'
+      aria-labelledby={`${tier.id}-heading`}
+      itemScope
+      itemType='https://schema.org/Offer'
+    >
+      <meta itemProp='name' content={`${tier.name} Plan`} />
+      <meta
+        itemProp='price'
+        content={
+          tier.price === 'Free' ? '0' : tier.price === 'Custom' ? '' : tier.price.replace('$', '')
+        }
+      />
+      <meta itemProp='priceCurrency' content='USD' />
+      <meta itemProp='availability' content='https://schema.org/InStock' />
       <div className='flex flex-1 flex-col gap-6 rounded-t-lg border border-[var(--landing-border-light)] border-b-0 bg-white p-5'>
         <div className='flex flex-col'>
           <h3
@@ -196,7 +212,7 @@ export default function Pricing() {
       aria-labelledby='pricing-heading'
       className='bg-[var(--landing-bg-section)]'
     >
-      <div className='px-4 pt-[60px] sm:px-8 sm:pt-20 md:px-16 md:pt-[100px]'>
+      <div className='px-4 pt-[60px] pb-[60px] sm:px-8 sm:pt-20 sm:pb-20 md:px-16 md:pt-[100px] md:pb-[100px]'>
         <div className='flex flex-col items-start gap-3 sm:gap-4 md:gap-5'>
           <Badge
             variant='blue'
@@ -213,6 +229,12 @@ export default function Pricing() {
           >
             Pricing
           </h2>
+          <p className='sr-only'>
+            Sim pricing: Community plan is free with 1,000 credits and 5GB storage. Pro plan is $25
+            per month with 6,000 credits and 50GB storage. Max plan is $100 per month with 25,000
+            credits and 500GB storage. Enterprise pricing is custom with SSO, SCIM, SOC2 compliance,
+            self-hosting, and dedicated support. All plans include CLI, SDK, and MCP access.
+          </p>
         </div>
 
         <div className='mt-8 grid grid-cols-1 gap-4 sm:mt-10 sm:grid-cols-2 md:mt-12 lg:grid-cols-4'>

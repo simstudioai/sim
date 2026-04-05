@@ -189,6 +189,14 @@ export default function Features() {
           >
             Workspace
           </Badge>
+          <p className='sr-only'>
+            Sim's workspace includes four core features: Mothership, an AI command center for
+            natural-language control of your entire workspace; Tables, a built-in database for
+            filtering, sorting, and wiring data directly into workflows; Files, a shared document
+            store for uploading, creating, and sharing documents, spreadsheets, and media across
+            teams and agents; and Logs, full execution tracing with inputs, outputs, cost, and
+            duration for every run.
+          </p>
           <h2
             id='features-heading'
             className='max-w-[900px] text-balance font-[430] font-season text-[24px] text-[var(--landing-text-dark)] leading-[110%] tracking-[-0.02em] md:text-[36px]'
@@ -229,9 +237,11 @@ export default function Features() {
               {FEATURE_TABS.map((tab, index) => (
                 <button
                   key={tab.label}
+                  id={`feature-tab-${index}`}
                   type='button'
                   role='tab'
                   aria-selected={index === activeTab}
+                  aria-controls='features-panel'
                   onClick={() => setActiveTab(index)}
                   className={`relative h-full min-w-0 flex-1 items-center justify-center px-2 font-medium font-season text-[var(--landing-text-dark)] text-caption uppercase lg:px-0 lg:text-sm${tab.hideOnMobile ? ' hidden lg:flex' : ' flex'}${index > 0 ? ' border-[var(--divider)] border-l' : ''}`}
                   style={{ backgroundColor: index === activeTab ? '#FDFDFD' : '#F6F6F6' }}
@@ -275,7 +285,12 @@ export default function Features() {
             </div>
           </div>
 
-          <div className='mt-8 flex flex-col gap-6 px-6 lg:mt-[60px] lg:grid lg:grid-cols-[1fr_2.8fr] lg:gap-[60px] lg:px-[104px]'>
+          <div
+            id='features-panel'
+            role='tabpanel'
+            aria-labelledby={`feature-tab-${activeTab}`}
+            className='mt-8 flex flex-col gap-6 px-6 lg:mt-[60px] lg:grid lg:grid-cols-[1fr_2.8fr] lg:gap-[60px] lg:px-[104px]'
+          >
             <div className='flex flex-col items-start justify-between gap-6 pt-5 lg:h-[560px] lg:gap-0'>
               <div className='flex flex-col items-start gap-4'>
                 <h3 className='font-[430] font-season text-[24px] text-[var(--landing-text-dark)] leading-[120%] tracking-[-0.02em] lg:text-[28px]'>

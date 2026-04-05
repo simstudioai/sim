@@ -4,7 +4,7 @@
  * Renders a `<script type="application/ld+json">` with Schema.org markup.
  * Single source of truth for machine-readable page metadata.
  *
- * Schemas: Organization, WebSite, WebPage, BreadcrumbList, WebApplication, FAQPage.
+ * Schemas: Organization, WebSite, WebPage, BreadcrumbList, WebApplication, SoftwareSourceCode, FAQPage.
  *
  * AI crawler behavior (2025-2026):
  * - Google AI Overviews / Bing Copilot parse JSON-LD from their search indexes.
@@ -171,6 +171,15 @@ export default function StructuredData() {
         ],
       },
       {
+        '@type': 'SoftwareSourceCode',
+        '@id': 'https://sim.ai/#source',
+        codeRepository: 'https://github.com/simstudioai/sim',
+        programmingLanguage: ['TypeScript', 'Python'],
+        runtimePlatform: 'Node.js',
+        license: 'https://opensource.org/licenses/AGPL-3.0',
+        isPartOf: { '@id': 'https://sim.ai/#software' },
+      },
+      {
         '@type': 'FAQPage',
         '@id': 'https://sim.ai/#faq',
         mainEntity: [
@@ -212,6 +221,30 @@ export default function StructuredData() {
             acceptedAnswer: {
               '@type': 'Answer',
               text: 'Sim offers SOC2 compliance, SSO/SAML authentication, role-based access control, audit logs, dedicated support, custom SLAs, and on-premise deployment options for enterprise customers.',
+            },
+          },
+          {
+            '@type': 'Question',
+            name: 'Is Sim open source?',
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: 'Yes. Sim is fully open source under the AGPL-3.0 license. The source code is available on GitHub at github.com/simstudioai/sim. You can self-host Sim or use the hosted version at sim.ai.',
+            },
+          },
+          {
+            '@type': 'Question',
+            name: 'What integrations does Sim support?',
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: 'Sim supports 1,000+ integrations including Slack, Gmail, GitHub, Notion, Airtable, Supabase, HubSpot, Salesforce, Jira, Linear, Google Drive, Google Sheets, Confluence, Discord, Microsoft Teams, Outlook, Telegram, Stripe, Pinecone, and Firecrawl. New integrations are added regularly.',
+            },
+          },
+          {
+            '@type': 'Question',
+            name: 'Can I self-host Sim?',
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: 'Yes. Sim can be self-hosted using Docker. Documentation is available at docs.sim.ai/self-hosting. Enterprise customers can also get dedicated infrastructure and on-premise deployment.',
             },
           },
         ],

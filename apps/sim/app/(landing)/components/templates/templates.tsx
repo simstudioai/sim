@@ -343,6 +343,11 @@ export default function Templates() {
         and knowledge base Q&amp;A. Each template connects real integrations and LLMs — pick one,
         customise it, and deploy in minutes.
       </p>
+      <ul className='sr-only'>
+        {TEMPLATE_WORKFLOWS.map((workflow) => (
+          <li key={workflow.id}>{workflow.name}</li>
+        ))}
+      </ul>
 
       <div className='bg-[var(--landing-bg)]'>
         <div className='relative overflow-hidden'>
@@ -514,24 +519,32 @@ export default function Templates() {
                   className='group/cta absolute top-4 right-[16px] z-10 inline-flex h-[32px] cursor-pointer items-center gap-1.5 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                 >
                   {isPreparingTemplate ? 'Preparing...' : 'Use template'}
-                  <span className='relative h-[10px] w-[10px] shrink-0'>
-                    <ChevronDown className='-rotate-90 absolute inset-0 h-[10px] w-[10px] transition-opacity duration-150 group-hover/cta:opacity-0' />
-                    <svg
-                      className='absolute inset-0 h-[10px] w-[10px] opacity-0 transition-opacity duration-150 group-hover/cta:opacity-100'
-                      viewBox='0 0 10 10'
+                  <svg
+                    className='h-[10px] w-[10px] shrink-0'
+                    viewBox='0 0 10 10'
+                    fill='none'
+                    xmlns='http://www.w3.org/2000/svg'
+                  >
+                    <line
+                      x1='0'
+                      y1='5'
+                      x2='9'
+                      y2='5'
+                      stroke='currentColor'
+                      strokeWidth='1.33'
+                      strokeLinecap='square'
+                      className='origin-left scale-x-0 transition-transform duration-200 ease-out [transform-box:fill-box] group-hover/cta:scale-x-100'
+                    />
+                    <path
+                      d='M3.5 2L6.5 5L3.5 8'
+                      stroke='currentColor'
+                      strokeWidth='1.33'
+                      strokeLinecap='square'
+                      strokeLinejoin='miter'
                       fill='none'
-                      xmlns='http://www.w3.org/2000/svg'
-                    >
-                      <path
-                        d='M1 5H8M5.5 2L8.5 5L5.5 8'
-                        stroke='currentColor'
-                        strokeWidth='1.33'
-                        strokeLinecap='square'
-                        strokeLinejoin='miter'
-                        fill='none'
-                      />
-                    </svg>
-                  </span>
+                      className='transition-transform duration-200 ease-out group-hover/cta:translate-x-[30%]'
+                    />
+                  </svg>
                 </button>
               </div>
             </div>

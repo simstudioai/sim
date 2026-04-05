@@ -2,9 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import {
-  Button,
   Combobox,
-  FormField,
   Input,
   Modal,
   ModalBody,
@@ -17,7 +15,6 @@ import {
 import { Check } from '@/components/emcn/icons'
 import {
   DEMO_REQUEST_COMPANY_SIZE_OPTIONS,
-  DEMO_REQUEST_REGION_OPTIONS,
   type DemoRequestPayload,
   demoRequestSchema,
 } from '@/app/(landing)/components/demo-request/consts'
@@ -35,13 +32,11 @@ interface DemoRequestFormState {
   lastName: string
   companyEmail: string
   phoneNumber: string
-  region: DemoRequestPayload['region'] | ''
   companySize: DemoRequestPayload['companySize'] | ''
   details: string
 }
 
 const SUBMIT_SUCCESS_MESSAGE = "We'll be in touch soon!"
-const COMBOBOX_REGIONS = [...DEMO_REQUEST_REGION_OPTIONS]
 const COMBOBOX_COMPANY_SIZES = [...DEMO_REQUEST_COMPANY_SIZE_OPTIONS]
 
 const INITIAL_FORM_STATE: DemoRequestFormState = {
@@ -49,10 +44,36 @@ const INITIAL_FORM_STATE: DemoRequestFormState = {
   lastName: '',
   companyEmail: '',
   phoneNumber: '',
-  region: '',
   companySize: '',
   details: '',
 }
+
+interface LandingFieldProps {
+  label: string
+  htmlFor: string
+  optional?: boolean
+  error?: string
+  children: React.ReactNode
+}
+
+function LandingField({ label, htmlFor, optional, error, children }: LandingFieldProps) {
+  return (
+    <div className='flex flex-col gap-1.5'>
+      <label
+        htmlFor={htmlFor}
+        className='font-[430] font-season text-[13px] text-[var(--text-secondary)] tracking-[0.02em]'
+      >
+        {label}
+        {optional ? <span className='ml-1 text-[var(--text-muted)]'>(optional)</span> : null}
+      </label>
+      {children}
+      {error ? <p className='text-[12px] text-[var(--text-error)]'>{error}</p> : null}
+    </div>
+  )
+}
+
+const LANDING_INPUT =
+  'h-[32px] rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 font-[430] font-season text-[13.5px] text-[var(--text-primary)] transition-colors placeholder:text-[var(--text-muted)] outline-none'
 
 export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalProps) {
   const [open, setOpen] = useState(false)
@@ -117,7 +138,6 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
           lastName: fieldErrors.lastName?.[0],
           companyEmail: fieldErrors.companyEmail?.[0],
           phoneNumber: fieldErrors.phoneNumber?.[0],
-          region: fieldErrors.region?.[0],
           companySize: fieldErrors.companySize?.[0],
           details: fieldErrors.details?.[0],
         })
@@ -162,7 +182,9 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
       <ModalContent size='lg' className={theme === 'dark' ? 'dark' : undefined}>
         <ModalHeader>
           <span className={submitSuccess ? 'sr-only' : undefined}>
-            {submitSuccess ? 'Demo request submitted' : 'Talk to sales'}
+            <span className='font-[430] font-season text-[15px] tracking-[-0.02em]'>
+              {submitSuccess ? 'Demo request submitted' : 'Talk to sales'}
+            </span>
           </span>
         </ModalHeader>
         <div className='relative flex-1'>
@@ -176,37 +198,44 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
             }
           >
             <ModalBody>
-              <div className='space-y-4'>
-                <div className='grid gap-4 sm:grid-cols-2'>
-                  <FormField htmlFor='firstName' label='First name' error={errors.firstName}>
+              <div className='space-y-3'>
+                <div className='grid gap-3 sm:grid-cols-2'>
+                  <LandingField htmlFor='firstName' label='First name' error={errors.firstName}>
                     <Input
                       id='firstName'
                       value={form.firstName}
                       onChange={(event) => updateField('firstName', event.target.value)}
                       placeholder='First'
+                      className={LANDING_INPUT}
                     />
-                  </FormField>
-                  <FormField htmlFor='lastName' label='Last name' error={errors.lastName}>
+                  </LandingField>
+                  <LandingField htmlFor='lastName' label='Last name' error={errors.lastName}>
                     <Input
                       id='lastName'
                       value={form.lastName}
                       onChange={(event) => updateField('lastName', event.target.value)}
                       placeholder='Last'
+                      className={LANDING_INPUT}
                     />
-                  </FormField>
+                  </LandingField>
                 </div>
 
-                <FormField htmlFor='companyEmail' label='Company email' error={errors.companyEmail}>
+                <LandingField
+                  htmlFor='companyEmail'
+                  label='Company email'
+                  error={errors.companyEmail}
+                >
                   <Input
                     id='companyEmail'
                     type='email'
                     value={form.companyEmail}
                     onChange={(event) => updateField('companyEmail', event.target.value)}
                     placeholder='Your work email'
+                    className={LANDING_INPUT}
                   />
-                </FormField>
+                </LandingField>
 
-                <FormField
+                <LandingField
                   htmlFor='phoneNumber'
                   label='Phone number'
                   optional
@@ -218,54 +247,48 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                     value={form.phoneNumber}
                     onChange={(event) => updateField('phoneNumber', event.target.value)}
                     placeholder='Your phone number'
+                    className={LANDING_INPUT}
                   />
-                </FormField>
+                </LandingField>
 
-                <div className='grid gap-4 sm:grid-cols-2'>
-                  <FormField htmlFor='region' label='Region' error={errors.region}>
-                    <Combobox
-                      options={COMBOBOX_REGIONS}
-                      value={form.region}
-                      selectedValue={form.region}
-                      onChange={(value) =>
-                        updateField('region', value as DemoRequestPayload['region'])
-                      }
-                      placeholder='Select'
-                      editable={false}
-                      filterOptions={false}
-                    />
-                  </FormField>
-                  <FormField htmlFor='companySize' label='Company size' error={errors.companySize}>
-                    <Combobox
-                      options={COMBOBOX_COMPANY_SIZES}
-                      value={form.companySize}
-                      selectedValue={form.companySize}
-                      onChange={(value) =>
-                        updateField('companySize', value as DemoRequestPayload['companySize'])
-                      }
-                      placeholder='Select'
-                      editable={false}
-                      filterOptions={false}
-                    />
-                  </FormField>
-                </div>
+                <LandingField htmlFor='companySize' label='Company size' error={errors.companySize}>
+                  <Combobox
+                    options={COMBOBOX_COMPANY_SIZES}
+                    value={form.companySize}
+                    selectedValue={form.companySize}
+                    onChange={(value) =>
+                      updateField('companySize', value as DemoRequestPayload['companySize'])
+                    }
+                    placeholder='Select'
+                    editable={false}
+                    filterOptions={false}
+                    className='h-[32px] rounded-[5px] px-2.5 font-[430] font-season text-[13.5px]'
+                  />
+                </LandingField>
 
-                <FormField htmlFor='details' label='Details' error={errors.details}>
+                <LandingField htmlFor='details' label='Details' error={errors.details}>
                   <Textarea
                     id='details'
                     value={form.details}
                     onChange={(event) => updateField('details', event.target.value)}
                     placeholder='Tell us about your needs and questions'
+                    className='min-h-[80px] rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-2 font-[430] font-season text-[13.5px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)]'
                   />
-                </FormField>
+                </LandingField>
               </div>
             </ModalBody>
 
-            <ModalFooter className='flex-col items-stretch gap-3'>
-              {submitError && <p className='text-[13px] text-[var(--text-error)]'>{submitError}</p>}
-              <Button type='submit' variant='primary' disabled={isSubmitting}>
+            <ModalFooter className='flex-col items-stretch gap-3 border-t-0 bg-transparent pt-0'>
+              {submitError && (
+                <p className='font-season text-[13px] text-[var(--text-error)]'>{submitError}</p>
+              )}
+              <button
+                type='submit'
+                disabled={isSubmitting}
+                className='flex h-[32px] w-full items-center justify-center rounded-[5px] bg-[var(--text-primary)] font-[430] font-season text-[13.5px] text-[var(--bg)] transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
+              >
                 {isSubmitting ? 'Submitting...' : 'Submit'}
-              </Button>
+              </button>
             </ModalFooter>
           </form>
 
@@ -275,10 +298,10 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                 <div className='flex h-20 w-20 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg-subtle)] text-[var(--text-primary)]'>
                   <Check className='h-10 w-10' />
                 </div>
-                <h2 className='mt-8 font-medium text-[34px] text-[var(--text-primary)] leading-[1.1] tracking-[-0.03em]'>
+                <h2 className='mt-8 font-[430] font-season text-[34px] text-[var(--text-primary)] leading-[1.1] tracking-[-0.03em]'>
                   {SUBMIT_SUCCESS_MESSAGE}
                 </h2>
-                <p className='mt-4 text-[17px] text-[var(--text-secondary)] leading-7'>
+                <p className='mt-4 font-season text-[15px] text-[var(--text-secondary)] leading-7'>
                   Our team will be in touch soon. If you have any questions, please email us at{' '}
                   <a
                     href='mailto:enterprise@sim.ai'

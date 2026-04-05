@@ -24,29 +24,35 @@ export default function Hero() {
     <section
       id='hero'
       aria-labelledby='hero-heading'
+      itemScope
+      itemType='https://schema.org/WebApplication'
       className='relative flex flex-col items-center overflow-hidden bg-[var(--landing-bg)] pt-[60px] lg:pt-[100px]'
     >
       <p className='sr-only'>
-        Sim is the open-source platform to build AI agents and run your agentic workforce. Connect
-        1,000+ integrations and LLMs — including OpenAI, Claude, Gemini, Mistral, and xAI — to
-        deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables,
-        and docs. Trusted by over 100,000 builders at startups and Fortune 500 companies. SOC2 and
-        SOC2 compliant.
+        Sim is an open-source AI agent platform. Sim lets teams build AI agents and run an agentic
+        workforce by connecting 1,000+ integrations and LLMs — including OpenAI, Anthropic Claude,
+        Google Gemini, Mistral, and xAI Grok — to deploy and orchestrate agentic workflows. Users
+        create agents, workflows, knowledge bases, tables, and docs. Sim is trusted by over 100,000
+        builders at startups and Fortune 500 companies. Sim is SOC2 compliant.
       </p>
 
       <div className='relative z-10 flex flex-col items-center gap-3'>
         <h1
           id='hero-heading'
+          itemProp='name'
           className='text-balance font-[430] font-season text-[36px] text-white leading-[100%] tracking-[-0.02em] sm:text-[48px] lg:text-[72px]'
         >
           Build AI Agents
         </h1>
-        <p className='max-w-[280px] text-center font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em] sm:max-w-none lg:text-xl'>
+        <p
+          itemProp='description'
+          className='max-w-[280px] text-center font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em] sm:max-w-none lg:text-xl'
+        >
           Sim is the AI Workspace for Agent Builders
         </p>
 
         <div className='mt-3 flex items-center gap-2'>
-          <DemoRequestModal>
+          <DemoRequestModal theme='light'>
             <button
               type='button'
               className={`${CTA_BASE} border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]`}

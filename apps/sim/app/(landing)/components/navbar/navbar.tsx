@@ -149,13 +149,14 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                         href={href}
                         target='_blank'
                         rel='noopener noreferrer'
+                        itemProp='url'
                         className={cn(linkClass, 'cursor-pointer')}
                       >
                         {label}
                         {chevron}
                       </a>
                     ) : (
-                      <Link href={href} className={cn(linkClass, 'cursor-pointer')}>
+                      <Link href={href} itemProp='url' className={cn(linkClass, 'cursor-pointer')}>
                         {label}
                         {chevron}
                       </Link>
@@ -174,12 +175,18 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
               return (
                 <li key={label} className='group flex'>
                   {external ? (
-                    <a href={href} target='_blank' rel='noopener noreferrer' className={linkClass}>
+                    <a
+                      href={href}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      itemProp='url'
+                      className={linkClass}
+                    >
                       {label}
                       {chevron}
                     </a>
                   ) : (
-                    <Link href={href} className={linkClass} aria-label={label}>
+                    <Link href={href} itemProp='url' className={linkClass} aria-label={label}>
                       {label}
                       {chevron}
                     </Link>
