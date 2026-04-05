@@ -8,7 +8,7 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 
-const logger = createLogger('LemlistWebhook')
+const logger = createLogger('WebhookProvider:Lemlist')
 
 export const lemlistHandler: WebhookProviderHandler = {
   async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {

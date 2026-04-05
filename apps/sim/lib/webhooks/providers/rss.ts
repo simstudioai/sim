@@ -9,7 +9,7 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 
-const logger = createLogger('RssWebhookSetup')
+const logger = createLogger('WebhookProvider:Rss')
 
 export const rssHandler: WebhookProviderHandler = {
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {

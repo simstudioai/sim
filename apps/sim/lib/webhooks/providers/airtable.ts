@@ -28,16 +28,28 @@ interface AirtableChange {
   tableId: string
   recordId: string
   changeType: 'created' | 'updated'
-  changedFields: Record<string, any> // { fieldId: newValue }
-  previousFields?: Record<string, any> // { fieldId: previousValue } (optional)
+  changedFields: Record<string, unknown>
+  previousFields?: Record<string, unknown>
+}
+
+interface AirtableTableChanges {
+  createdRecordsById?: Record<string, { cellValuesByFieldId?: Record<string, unknown> }>
+  changedRecordsById?: Record<
+    string,
+    {
+      current?: { cellValuesByFieldId?: Record<string, unknown> }
+      previous?: { cellValuesByFieldId?: Record<string, unknown> }
+    }
+  >
+  destroyedRecordIds?: string[]
 }
 
 /**
  * Process Airtable payloads
  */
 async function fetchAndProcessAirtablePayloads(
-  webhookData: any,
-  workflowData: any,
+  webhookData: Record<string, unknown>,
+  workflowData: Record<string, unknown>,
   requestId: string // Original request ID from the ping, used for the final execution log
 ) {
   // Logging handles all error logging
@@ -50,8 +62,8 @@ async function fetchAndProcessAirtablePayloads(
   // Capture raw payloads from Airtable for exposure to workflows
   const allPayloads = []
   const localProviderConfig = {
-    ...((webhookData.providerConfig as Record<string, any>) || {}),
-  }
+    ...((webhookData.providerConfig as Record<string, unknown>) || {}),
+  } as Record<string, unknown>
 
   try {
     const baseId = localProviderConfig.baseId
@@ -64,7 +76,7 @@ async function fetchAndProcessAirtablePayloads(
       return
     }
 
-    const credentialId: string | undefined = localProviderConfig.credentialId
+    const credentialId = localProviderConfig.credentialId as string | undefined
     if (!credentialId) {
       logger.error(
         `[${requestId}] Missing credentialId in providerConfig for Airtable webhook ${webhookData.id}.`
@@ -117,15 +129,16 @@ async function fetchAndProcessAirtablePayloads(
             },
             updatedAt: new Date(),
           })
-          .where(eq(webhook.id, webhookData.id))
+          .where(eq(webhook.id, webhookData.id as string))
 
         localProviderConfig.externalWebhookCursor = null
         logger.info(`[${requestId}] Successfully initialized cursor for webhook ${webhookData.id}`)
-      } catch (initError: any) {
+      } catch (initError: unknown) {
+        const err = initError as Error
         logger.error(`[${requestId}] Failed to initialize cursor in DB`, {
           webhookId: webhookData.id,
-          error: initError.message,
-          stack: initError.stack,
+          error: err.message,
+          stack: err.stack,
         })
       }
     }
@@ -149,12 +162,13 @@ async function fetchAndProcessAirtablePayloads(
         )
         throw new Error('Airtable access token not found.')
       }
-    } catch (tokenError: any) {
+    } catch (tokenError: unknown) {
+      const err = tokenError as Error
       logger.error(
         `[${requestId}] Failed to get Airtable OAuth token for credential ${credentialId}`,
         {
-          error: tokenError.message,
-          stack: tokenError.stack,
+          error: err.message,
+          stack: err.stack,
           credentialId,
         }
       )
@@ -222,17 +236,15 @@ async function fetchAndProcessAirtablePayloads(
               for (const [tableId, tableChangesUntyped] of Object.entries(
                 payload.changedTablesById
               )) {
-                const tableChanges = tableChangesUntyped as any // Assert type
+                const tableChanges = tableChangesUntyped as AirtableTableChanges
 
-                // Handle created records
                 if (tableChanges.createdRecordsById) {
                   const createdCount = Object.keys(tableChanges.createdRecordsById).length
                   changeCount += createdCount
 
-                  for (const [recordId, recordDataUntyped] of Object.entries(
+                  for (const [recordId, recordData] of Object.entries(
                     tableChanges.createdRecordsById
                   )) {
-                    const recordData = recordDataUntyped as any // Assert type
                     const existingChange = consolidatedChangesMap.get(recordId)
                     if (existingChange) {
                       // Record was created and possibly updated within the same batch
@@ -258,10 +270,9 @@ async function fetchAndProcessAirtablePayloads(
                   const updatedCount = Object.keys(tableChanges.changedRecordsById).length
                   changeCount += updatedCount
 
-                  for (const [recordId, recordDataUntyped] of Object.entries(
+                  for (const [recordId, recordData] of Object.entries(
                     tableChanges.changedRecordsById
                   )) {
-                    const recordData = recordDataUntyped as any // Assert type
                     const existingChange = consolidatedChangesMap.get(recordId)
                     const currentFields = recordData.current?.cellValuesByFieldId || {}
 
@@ -314,14 +325,15 @@ async function fetchAndProcessAirtablePayloads(
                 providerConfig: updatedConfig, // Use full object
                 updatedAt: new Date(),
               })
-              .where(eq(webhook.id, webhookData.id))
+              .where(eq(webhook.id, webhookData.id as string))
 
             localProviderConfig.externalWebhookCursor = currentCursor // Update local copy too
-          } catch (dbError: any) {
+          } catch (dbError: unknown) {
+            const err = dbError as Error
             logger.error(`[${requestId}] Failed to persist Airtable cursor to DB`, {
               webhookId: webhookData.id,
               cursor: currentCursor,
-              error: dbError.message,
+              error: err.message,
             })
             // Error logging handled by logging session
             mightHaveMore = false
@@ -337,7 +349,7 @@ async function fetchAndProcessAirtablePayloads(
         } else if (nextCursor === currentCursor) {
           mightHaveMore = false // Explicitly stop if cursor hasn't changed
         }
-      } catch (fetchError: any) {
+      } catch (fetchError: unknown) {
         logger.error(
           `[${requestId}] Network error calling Airtable GET /payloads (Call ${apiCallCount}) for webhook ${webhookData.id}`,
           fetchError
@@ -357,8 +369,7 @@ async function fetchAndProcessAirtablePayloads(
       try {
         // Build input exposing raw payloads and consolidated changes
         const latestPayload = allPayloads.length > 0 ? allPayloads[allPayloads.length - 1] : null
-        const input: any = {
-          // Raw Airtable payloads as received from the API
+        const input: Record<string, unknown> = {
           payloads: allPayloads,
           latestPayload,
           // Consolidated, simplified changes for convenience
@@ -393,11 +404,12 @@ async function fetchAndProcessAirtablePayloads(
         })
 
         return input
-      } catch (processingError: any) {
+      } catch (processingError: unknown) {
+        const err = processingError as Error
         logger.error(`[${requestId}] CRITICAL_TRACE: Error processing Airtable changes`, {
           workflowId: workflowData.id,
-          error: processingError.message,
-          stack: processingError.stack,
+          error: err.message,
+          stack: err.stack,
           timestamp: new Date().toISOString(),
         })
 

@@ -10,7 +10,7 @@ import type {
 } from '@/lib/webhooks/providers/types'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
-const logger = createLogger('GmailWebhookSetup')
+const logger = createLogger('WebhookProvider:Gmail')
 
 export const gmailHandler: WebhookProviderHandler = {
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {

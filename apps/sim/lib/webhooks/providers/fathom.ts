@@ -8,7 +8,7 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 
-const logger = createLogger('FathomWebhook')
+const logger = createLogger('WebhookProvider:Fathom')
 
 export const fathomHandler: WebhookProviderHandler = {
   async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {

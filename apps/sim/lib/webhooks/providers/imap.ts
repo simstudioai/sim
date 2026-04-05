@@ -9,7 +9,7 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 
-const logger = createLogger('ImapWebhookSetup')
+const logger = createLogger('WebhookProvider:Imap')
 
 export const imapHandler: WebhookProviderHandler = {
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {

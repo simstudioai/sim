@@ -10,7 +10,7 @@ import type {
 } from '@/lib/webhooks/providers/types'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
-const logger = createLogger('OutlookWebhookSetup')
+const logger = createLogger('WebhookProvider:Outlook')
 
 export const outlookHandler: WebhookProviderHandler = {
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
